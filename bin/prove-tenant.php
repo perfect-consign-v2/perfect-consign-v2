@@ -60,6 +60,7 @@ final class TenantProof
             '012_export.sql',
             '013_period_close.sql',
             '014_export_files.sql',
+            '017_poster_grants.sql',
         ];
         $sql = 'SET search_path TO ' . $schema . ', pg_catalog;';
         foreach ($files as $file) {

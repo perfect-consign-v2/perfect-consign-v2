@@ -19,6 +19,7 @@ final class TenantProvisioner
         '012_export.sql',
         '013_period_close.sql',
         '014_export_files.sql',
+        '017_poster_grants.sql',
     ];
 
     public function __construct(
@@ -64,6 +65,7 @@ final class TenantProvisioner
             $this->pdo->exec(sprintf('REVOKE ALL ON SCHEMA %s FROM PUBLIC', $schema));
             $this->applyLedger($schema, $role);
             $this->pdo->commit();
+            $this->grantApp($role);
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -102,6 +104,16 @@ final class TenantProvisioner
             [$schema . '.', 'SCHEMA ' . $schema, $role],
             $sql
         );
+    }
+
+    public function grantApp(string $role): void
+    {
+        $this->assertRole($role);
+        $exists = $this->pdo->query("SELECT 1 FROM pg_roles WHERE rolname = 'stall_app'");
+        if ($exists === false || $exists->fetchColumn() === false) {
+            throw new RuntimeException('stall_app is missing. Apply sql/015_stall_app.sql first.');
+        }
+        $this->pdo->exec(sprintf('GRANT %s TO stall_app', $role));
     }
 
     public function roleName(string $slug, string $schema): string

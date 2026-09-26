@@ -1,0 +1,25 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PerfectConsign\Ledger;
+
+use InvalidArgumentException;
+
+final class Money
+{
+    public static function parseMinor(string $amount): int
+    {
+        if (preg_match('/^(\d+)(?:\.(\d{1,2}))?$/', $amount, $matches) !== 1) {
+            throw new InvalidArgumentException('enter an amount in dollars and cents');
+        }
+        $cents = $matches[2] ?? '';
+        $cents = str_pad($cents, 2, '0');
+        $minor = ((int) $matches[1] * 100) + (int) $cents;
+        if ($minor < 1) {
+            throw new InvalidArgumentException('the amount must be greater than zero');
+        }
+
+        return $minor;
+    }
+}

@@ -1,0 +1,22 @@
+{
+    "require": {
+        "krubio/perfect-router": "^0.2.0",
+        "krubio/perfect-session": "^0.1.2",
+        "krubio/perfect-logger": "^0.1.0",
+        "krubio/perfect-database": "^0.1.0",
+        "krubio/perfect-container-psr-11": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "PerfectConsign\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PerfectConsign\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "12.5.14"
+    }
+}

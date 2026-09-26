@@ -18,6 +18,23 @@ Apply `sql/000_platform.sql` to database `consign`. Then provision a mall. That 
 php bin/provision-tenant.php mall Mall
 ```
 
+## Application
+
+`sql/015_stall_app.sql` creates the `stall_app` login role. `sql/016_owners.sql` stores one owner per mall. `sql/017_poster_grants.sql` is applied inside each mall schema by the provisioner. An existing mall needs `017` applied once, with `search_path` set to that schema. Do not apply `001` through `014` again.
+
+The web app connects as `stall_app`. Set `STALL_APP_PASSWORD` in the environment or in `.env`. That file stays out of git.
+
+```text
+php bin/enable-stall-app.php
+php bin/set-owner.php mall owner
+```
+
+`set-owner.php` reads `STALL_OWNER_PASSWORD`. The same `STALL_DB_*` values used for provisioning are required. The site is `public/index.php`. A mall is `/{slug}`.
+
+```text
+php -S 127.0.0.1:8096 -t public public/index.php
+```
+
 ## Proofs
 
 Each fact `sql/prove_*.sql` rolls back. Run those proofs with `search_path` set to the mall schema from `platform.tenants`. `sql/prove_race.ps1` is the two-session check, including the tenant slug. The `sql/prove_race_*.sql` files are not proofs on their own. `php bin/prove-tenant.php` rolls back the cross-tenant proof.
