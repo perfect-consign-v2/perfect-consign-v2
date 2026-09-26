@@ -48,11 +48,31 @@ final class Statements
     {
         $rows = [];
         foreach ($statement as $row) {
-            if (is_array($row)) {
-                $rows[] = $row;
+            $keyed = $this->assoc($row);
+            if ($keyed !== null) {
+                $rows[] = $keyed;
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function assoc(mixed $row): ?array
+    {
+        if (!is_array($row)) {
+            return null;
+        }
+        $keyed = [];
+        foreach ($row as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+            $keyed[$key] = $value;
+        }
+
+        return $keyed;
     }
 }

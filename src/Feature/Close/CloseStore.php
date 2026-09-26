@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Close;
 
 use PDO;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\RowValue;
 
 final class CloseStore
 {
@@ -34,8 +35,8 @@ final class CloseStore
         $rows = [];
         foreach ($this->statements->all($statement) as $row) {
             $rows[] = [
-                'account_id' => (string) $row['account_id'],
-                'net_minor' => (int) $row['net_minor'],
+                'account_id' => RowValue::string($row['account_id'] ?? null),
+                'net_minor' => RowValue::integer($row['net_minor'] ?? null),
             ];
         }
 

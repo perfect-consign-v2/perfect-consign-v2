@@ -12,6 +12,7 @@ use PerfectConsign\Bootstrap\RegisterFeatures;
 use PerfectConsign\Shared\Database\AppDatabase;
 use PerfectConsign\Shared\Http\ErrorHandling;
 use PerfectConsign\Shared\Http\Request;
+use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
 use Psr\Log\LoggerInterface;
 
@@ -58,6 +59,8 @@ try {
     });
     RegisterFeatures::register($router, dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature');
     $router->dispatch($request->path, $request->method);
+} catch (ResponseSent) {
+    return;
 } catch (RouteNotFoundException) {
     http_response_code(404);
     echo 'Not found';

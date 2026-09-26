@@ -44,8 +44,8 @@ use PerfectConsign\Shared\Http\View;
                 <td><?= View::text($row['source_type']) ?></td>
                 <td><?= View::text($row['posting_key']) ?></td>
                 <td><?= View::text($row['role']) ?></td>
-                <td><?= View::text(View::money((int) $row['debit_minor'])) ?></td>
-                <td><?= View::text(View::money((int) $row['credit_minor'])) ?></td>
+                <td><?= View::text(View::money(View::minor($row['debit_minor']))) ?></td>
+                <td><?= View::text(View::money(View::minor($row['credit_minor']))) ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>

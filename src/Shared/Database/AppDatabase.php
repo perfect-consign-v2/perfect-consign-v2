@@ -6,7 +6,6 @@ namespace PerfectConsign\Shared\Database;
 
 use PDO;
 use PerfectApp\Database\PostgresConnection;
-use RuntimeException;
 
 final class AppDatabase
 {
@@ -25,11 +24,6 @@ final class AppDatabase
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ];
-        $pdo = (new PostgresConnection())->connect($config);
-        if (!$pdo instanceof PDO) {
-            throw new RuntimeException('the database connection was not created');
-        }
-
-        return $pdo;
+        return (new PostgresConnection())->connect($config);
     }
 }

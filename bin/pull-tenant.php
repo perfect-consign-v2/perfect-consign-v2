@@ -16,6 +16,9 @@ use PerfectApp\Logger\FileLogger;
 use PerfectConsign\Feature\Backup\BackupConnection;
 use PerfectConsign\Feature\Backup\BackupException;
 use PerfectConsign\Feature\Backup\CommandProcess;
+use PerfectConsign\Feature\Backup\BackupWorkspace;
+use PerfectConsign\Feature\Backup\DirectoryTree;
+use PerfectConsign\Feature\Backup\PlatformSnapshot;
 use PerfectConsign\Feature\Backup\PostgresTools;
 use PerfectConsign\Feature\Backup\SchemaDump;
 use PerfectConsign\Feature\Backup\TenantBackup;
@@ -44,7 +47,7 @@ if (!is_dir($logDirectory) && !mkdir($logDirectory, 0755, true) && !is_dir($logD
 }
 $logger = new FileLogger($logDirectory . DIRECTORY_SEPARATOR . 'app.log');
 $tools = new PostgresTools(new CommandProcess($logger));
-$archives = new TenantBackup($logger, $tools);
+$archives = new TenantBackup($logger, $tools, new BackupWorkspace($logger, new DirectoryTree()), new PlatformSnapshot());
 $archive = null;
 try {
     $archive = $archives->create($source, $slug);

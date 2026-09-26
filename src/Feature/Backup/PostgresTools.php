@@ -89,15 +89,9 @@ final class PostgresTools
         if (!is_array($env)) {
             $env = [];
         }
-        $stringEnv = [];
-        foreach ($env as $key => $value) {
-            if (is_string($key) && is_string($value)) {
-                $stringEnv[$key] = $value;
-            }
-        }
-        $stringEnv['PGPASSWORD'] = $connection->password;
+        $env['PGPASSWORD'] = $connection->password;
 
-        return $stringEnv;
+        return $env;
     }
 
     private function psqlBinary(string $pgDump): string

@@ -20,6 +20,24 @@
         }
     },
     "require-dev": {
+        "phpmd/phpmd": "2.15",
+        "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "12.5.14"
+    },
+    "scripts": {
+        "check:max-lines": "php bin/check-max-lines.php 500",
+        "check:phpmd": "php -d error_reporting=\"E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED\" vendor/bin/phpmd src text phpmd.xml",
+        "probe:phpmd": "php bin/phpmd-probe-rule.php",
+        "phpstan": "php vendor/bin/phpstan analyse --memory-limit=512M",
+        "test": "php vendor/bin/phpunit",
+        "check": [
+            "@check:max-lines",
+            "@check:phpmd",
+            "@phpstan",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true
     }
 }

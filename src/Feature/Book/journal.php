@@ -22,8 +22,8 @@ use PerfectConsign\Shared\Http\View;
         <tr>
             <td><?= View::text($line['line_no']) ?></td>
             <td><?= View::text($line['code']) ?> <?= View::text($line['name']) ?></td>
-            <td><?= View::text(View::money((int) $line['debit_minor'])) ?></td>
-            <td><?= View::text(View::money((int) $line['credit_minor'])) ?></td>
+            <td><?= View::text(View::money(View::minor($line['debit_minor']))) ?></td>
+            <td><?= View::text(View::money(View::minor($line['credit_minor']))) ?></td>
             <td><?= View::text($line['subledger_type']) ?> <?= View::text($line['subledger_ref']) ?></td>
         </tr>
     <?php endforeach; ?>

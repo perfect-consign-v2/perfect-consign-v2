@@ -65,12 +65,7 @@ final class LedgerStore
              FROM journals WHERE id = ?'
         );
         $statement->execute([$id]);
-        $row = $statement->fetch();
-        if (!is_array($row)) {
-            return null;
-        }
-
-        return $row;
+        return $this->statements->assoc($statement->fetch());
     }
 
     /**
@@ -164,100 +159,227 @@ final class LedgerStore
         string $sourceReference,
         string $description,
         array $lines,
-        bool $reversal = false,
         ?string $reversesJournalId = null,
+    ): string {
+        return $this->commitJournal(
+            $postingKey,
+            $postingDate,
+            $sourceType,
+            $sourceReference,
+            $description,
+            $lines,
+            $reversesJournalId === null ? 'false' : 'true',
+            $reversesJournalId,
+        );
+    }
+
+    /**
+     * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $lines
+     */
+    private function commitJournal(
+        string $postingKey,
+        string $postingDate,
+        string $sourceType,
+        string $sourceReference,
+        string $description,
+        array $lines,
+        string $reversal,
+        ?string $reversesJournalId,
     ): string {
         try {
             $this->pdo->beginTransaction();
-            $book = $this->pdo->query('SELECT id, currency FROM ledger_books WHERE is_default');
-            if ($book === false) {
-                throw new DatabaseRefusal('the mall book is missing');
-            }
-            $bookRow = $book->fetch();
-            if (!is_array($bookRow)) {
-                throw new DatabaseRefusal('the mall book is missing');
-            }
-            $period = $this->pdo->prepare(
-                "SELECT id FROM accounting_periods
-                 WHERE book_id = ?::uuid AND status = 'open' AND period_range @> ?::date"
-            );
-            $period->execute([$bookRow['id'], $postingDate]);
-            $periodId = $period->fetchColumn();
-            if (!is_string($periodId)) {
-                throw new DatabaseRefusal('no open period covers that date');
-            }
-            $idStatement = $this->pdo->query('SELECT uuidv7() AS id');
-            if ($idStatement === false) {
-                throw new DatabaseRefusal('could not create a journal id');
-            }
-            $journalId = $idStatement->fetchColumn();
-            if (!is_string($journalId)) {
-                throw new DatabaseRefusal('could not create a journal id');
-            }
-            $debit = 0;
-            $credit = 0;
-            foreach ($lines as $line) {
-                $debit += $line['debit'];
-                $credit += $line['credit'];
-            }
-            $insert = $this->pdo->prepare(
-                'INSERT INTO journals (
-                    id, book_id, posting_key, posting_date, occurred_at, period_id,
-                    currency, source_type, source_reference, description, is_reversal, reverses_journal_id,
-                    debit_total_minor, credit_total_minor
-                 ) VALUES (
-                    ?::uuid, ?::uuid, ?, ?::date, clock_timestamp(), ?::uuid,
-                    ?, ?, ?, ?, ?, ?::uuid, ?, ?
-                 )'
-            );
-            $insert->execute([
-                $journalId,
-                $bookRow['id'],
+            $journalId = $this->insertJournal(
                 $postingKey,
                 $postingDate,
-                $periodId,
-                $bookRow['currency'],
                 $sourceType,
                 $sourceReference,
                 $description,
-                $reversal ? 'true' : 'false',
+                $lines,
+                $reversal,
                 $reversesJournalId,
-                $debit,
-                $credit,
-            ]);
-            $lineInsert = $this->pdo->prepare(
-                'INSERT INTO journal_lines (
-                    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
-                 ) VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?, ?, ?, ?)'
             );
-            $number = 1;
-            foreach ($lines as $line) {
-                $lineInsert->execute([
-                    $journalId,
-                    $bookRow['id'],
-                    $number,
-                    $line['account_id'],
-                    $line['debit'],
-                    $line['credit'],
-                    $line['subledger_type'],
-                    $line['subledger_ref'],
-                ]);
-                $number++;
-            }
             $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
             $this->pdo->commit();
 
             return $journalId;
         } catch (PDOException $error) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
+            $this->rollBackOpen();
             throw DatabaseRefusal::fromPdo($error);
         } catch (DatabaseRefusal $error) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
+            $this->rollBackOpen();
             throw $error;
+        }
+    }
+
+    /**
+     * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $lines
+     */
+    private function insertJournal(
+        string $postingKey,
+        string $postingDate,
+        string $sourceType,
+        string $sourceReference,
+        string $description,
+        array $lines,
+        string $reversal,
+        ?string $reversesJournalId,
+    ): string {
+        $book = $this->defaultBook();
+        $journalId = $this->newId();
+        [$debit, $credit] = $this->totals($lines);
+        $this->insertHeader($journalId, $book, $this->openPeriod($book['id'], $postingDate), [
+            'postingKey' => $postingKey,
+            'postingDate' => $postingDate,
+            'sourceType' => $sourceType,
+            'sourceReference' => $sourceReference,
+            'description' => $description,
+            'reversal' => $reversal,
+            'reversesJournalId' => $reversesJournalId,
+            'debit' => $debit,
+            'credit' => $credit,
+        ]);
+        $this->insertLines($journalId, $book['id'], $lines);
+
+        return $journalId;
+    }
+
+    /**
+     * @return array{id: string, currency: string}
+     */
+    private function defaultBook(): array
+    {
+        $book = $this->pdo->query('SELECT id, currency FROM ledger_books WHERE is_default');
+        if ($book === false) {
+            throw new DatabaseRefusal('the mall book is missing');
+        }
+        $row = $this->statements->assoc($book->fetch());
+        if ($row === null) {
+            throw new DatabaseRefusal('the mall book is missing');
+        }
+
+        return [
+            'id' => $this->requiredString($row, 'id', 'the mall book is missing'),
+            'currency' => $this->requiredString($row, 'currency', 'the mall book is missing'),
+        ];
+    }
+
+    private function openPeriod(string $bookId, string $postingDate): string
+    {
+        $period = $this->pdo->prepare(
+            "SELECT id FROM accounting_periods
+             WHERE book_id = ?::uuid AND status = 'open' AND period_range @> ?::date"
+        );
+        $period->execute([$bookId, $postingDate]);
+        $periodId = $period->fetchColumn();
+        if (!is_string($periodId)) {
+            throw new DatabaseRefusal('no open period covers that date');
+        }
+
+        return $periodId;
+    }
+
+    /**
+     * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $lines
+     * @return array{0: int, 1: int}
+     */
+    private function totals(array $lines): array
+    {
+        $debit = 0;
+        $credit = 0;
+        foreach ($lines as $line) {
+            $debit += $line['debit'];
+            $credit += $line['credit'];
+        }
+
+        return [$debit, $credit];
+    }
+
+    /**
+     * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $lines
+     */
+    private function insertLines(string $journalId, string $bookId, array $lines): void
+    {
+        $lineInsert = $this->pdo->prepare(
+            'INSERT INTO journal_lines (
+                journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+             ) VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?, ?, ?, ?)'
+        );
+        $number = 1;
+        foreach ($lines as $line) {
+            $lineInsert->execute([
+                $journalId,
+                $bookId,
+                $number,
+                $line['account_id'],
+                $line['debit'],
+                $line['credit'],
+                $line['subledger_type'],
+                $line['subledger_ref'],
+            ]);
+            $number++;
+        }
+    }
+
+    /**
+     * @param array{id: string, currency: string} $book
+     * @param array{
+     *     postingKey: string,
+     *     postingDate: string,
+     *     sourceType: string,
+     *     sourceReference: string,
+     *     description: string,
+     *     reversal: string,
+     *     reversesJournalId: ?string,
+     *     debit: int,
+     *     credit: int
+     * } $header
+     */
+    private function insertHeader(string $journalId, array $book, string $periodId, array $header): void
+    {
+        $insert = $this->pdo->prepare(
+            'INSERT INTO journals (
+                id, book_id, posting_key, posting_date, occurred_at, period_id,
+                currency, source_type, source_reference, description, is_reversal, reverses_journal_id,
+                debit_total_minor, credit_total_minor
+             ) VALUES (
+                ?::uuid, ?::uuid, ?, ?::date, clock_timestamp(), ?::uuid,
+                ?, ?, ?, ?, ?, ?::uuid, ?, ?
+             )'
+        );
+        $insert->execute([
+            $journalId,
+            $book['id'],
+            $header['postingKey'],
+            $header['postingDate'],
+            $periodId,
+            $book['currency'],
+            $header['sourceType'],
+            $header['sourceReference'],
+            $header['description'],
+            $header['reversal'],
+            $header['reversesJournalId'],
+            $header['debit'],
+            $header['credit'],
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function requiredString(array $row, string $key, string $message): string
+    {
+        $value = $row[$key] ?? null;
+        if (!is_string($value) || $value === '') {
+            throw new DatabaseRefusal($message);
+        }
+
+        return $value;
+    }
+
+    private function rollBackOpen(): void
+    {
+        if ($this->pdo->inTransaction()) {
+            $this->pdo->rollBack();
         }
     }
 

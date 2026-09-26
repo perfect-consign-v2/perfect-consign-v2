@@ -53,8 +53,8 @@ use PerfectConsign\Shared\Http\View;
             <td><?= View::text($account['code']) ?></td>
             <td><?= View::text($account['name']) ?></td>
             <td><?= View::text($account['account_type']) ?></td>
-            <td><?= View::text(View::money((int) $account['debit_minor'])) ?></td>
-            <td><?= View::text(View::money((int) $account['credit_minor'])) ?></td>
+            <td><?= View::text(View::money(View::minor($account['debit_minor']))) ?></td>
+            <td><?= View::text(View::money(View::minor($account['credit_minor']))) ?></td>
         </tr>
     <?php endforeach; ?>
     </tbody>

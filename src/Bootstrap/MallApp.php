@@ -7,6 +7,7 @@ namespace PerfectConsign\Bootstrap;
 use PerfectApp\Session\Session;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Http\Request;
+use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Tenant\TenantRecord;
@@ -34,6 +35,9 @@ final class MallApp
         return $this->request;
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
     public function show(string $template, array $data = []): void
     {
         $slug = $data['slug'] ?? null;
@@ -55,35 +59,24 @@ final class MallApp
             'error' => null,
             'body' => 'Shared/Web/not-found',
         ]);
-        exit;
+        throw new ResponseSent('not found');
     }
 
     public function redirect(string $path): never
     {
         header('Location: ' . $path, true, 303);
-        exit;
+        throw new ResponseSent('redirect');
     }
 
     public function open(string $slug, bool $books): TenantRecord
     {
-        if ($this->access->isForeign($this->sessionSlug(), $slug)) {
-            $this->notFound();
+        $this->refuseForeign($slug);
+        $cached = $this->cachedTenant($slug, $books);
+        if ($cached !== null) {
+            return $cached;
         }
-        if ($this->tenant !== null && $this->tenant->slug === $slug && (!$books || $this->roled)) {
-            return $this->tenant;
-        }
-        $tenant = $this->findTenant($slug);
-        if ($tenant === null) {
-            $this->notFound();
-        }
-        if ($books && $this->sessionSlug() !== $slug) {
-            $this->redirect('/' . $slug . '/login');
-        }
-        if ($books && !$this->roled) {
-            $this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog');
-            $this->pdo->exec('SET ROLE ' . $tenant->role);
-            $this->roled = true;
-        }
+        $tenant = $this->requireTenant($slug);
+        $this->enterBooks($books, $slug, $tenant);
         $this->tenant = $tenant;
 
         return $tenant;
@@ -124,7 +117,7 @@ final class MallApp
             $this->logger->warning('csrf token refused');
             http_response_code(400);
             echo 'The form expired. Go back and try again.';
-            exit;
+            throw new ResponseSent('csrf');
         }
     }
 
@@ -149,12 +142,60 @@ final class MallApp
             return null;
         }
         $schema = $row['schema_name'];
+        $id = $row['id'] ?? null;
+        $rowSlug = $row['slug'] ?? null;
+        $displayName = $row['display_name'] ?? null;
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
             return null;
         }
-        $role = TenantRecord::roleFor((string) $row['slug'], $schema);
+        if (!is_string($id) || !is_string($rowSlug) || !is_string($displayName)) {
+            return null;
+        }
+        $role = TenantRecord::roleFor($rowSlug, $schema);
 
-        return new TenantRecord((string) $row['id'], (string) $row['slug'], $schema, $role, (string) $row['display_name']);
+        return new TenantRecord($id, $rowSlug, $schema, $role, $displayName);
+    }
+
+    private function refuseForeign(string $slug): void
+    {
+        if ($this->access->isForeign($this->sessionSlug(), $slug)) {
+            $this->notFound();
+        }
+    }
+
+    private function cachedTenant(string $slug, bool $books): ?TenantRecord
+    {
+        if ($this->tenant !== null && $this->tenant->slug === $slug && (!$books || $this->roled)) {
+            return $this->tenant;
+        }
+
+        return null;
+    }
+
+    private function requireTenant(string $slug): TenantRecord
+    {
+        $tenant = $this->findTenant($slug);
+        if ($tenant === null) {
+            $this->notFound();
+        }
+
+        return $tenant;
+    }
+
+    private function enterBooks(bool $books, string $slug, TenantRecord $tenant): void
+    {
+        if (!$books) {
+            return;
+        }
+        if ($this->sessionSlug() !== $slug) {
+            $this->redirect('/' . $slug . '/login');
+        }
+        if ($this->roled) {
+            return;
+        }
+        $this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog');
+        $this->pdo->exec('SET ROLE ' . $tenant->role);
+        $this->roled = true;
     }
 
     private function sessionSlug(): ?string

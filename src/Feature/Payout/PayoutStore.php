@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Payout;
 
 use PDO;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutStore
 {
@@ -49,13 +50,13 @@ final class PayoutStore
         $booths = [];
         $rentTotal = 0;
         foreach ($this->statements->all($rent) as $row) {
-            $open = (int) $row['open_minor'];
-            $booths[] = ['booth_id' => (string) $row['booth_id'], 'open_minor' => $open];
+            $open = RowValue::integer($row['open_minor'] ?? null);
+            $booths[] = ['booth_id' => RowValue::string($row['booth_id'] ?? null), 'open_minor' => $open];
             $rentTotal += $open;
         }
 
         return [
-            'payable' => (int) $payable->fetchColumn(),
+            'payable' => RowValue::integer($payable->fetchColumn()),
             'rent' => $rentTotal,
             'booths' => $booths,
         ];

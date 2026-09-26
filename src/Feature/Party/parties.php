@@ -107,7 +107,7 @@ use PerfectConsign\Shared\Http\View;
     </form>
     <ul>
         <?php foreach ($rates as $rate): ?>
-            <li><?= View::text($rate['code']) ?> <?= View::text($rate['month_start']) ?> <?= View::text(View::money((int) $rate['amount_minor'])) ?></li>
+            <li><?= View::text($rate['code']) ?> <?= View::text($rate['month_start']) ?> <?= View::text(View::money(View::minor($rate['amount_minor']))) ?></li>
         <?php endforeach; ?>
     </ul>
 </div>

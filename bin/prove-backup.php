@@ -6,7 +6,10 @@ require_once __DIR__ . '/provision-tenant.php';
 
 use PerfectApp\Logger\FileLogger;
 use PerfectConsign\Feature\Backup\BackupConnection;
+use PerfectConsign\Feature\Backup\BackupWorkspace;
 use PerfectConsign\Feature\Backup\CommandProcess;
+use PerfectConsign\Feature\Backup\DirectoryTree;
+use PerfectConsign\Feature\Backup\PlatformSnapshot;
 use PerfectConsign\Feature\Backup\PostgresTools;
 use PerfectConsign\Feature\Backup\SchemaDump;
 use PerfectConsign\Feature\Backup\TenantBackup;
@@ -308,7 +311,7 @@ if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === realpath(__F
         (new BackupProof(
             $pdo,
             new TenantProvisioner($pdo, $directory),
-            new TenantBackup($logger, $tools),
+            new TenantBackup($logger, $tools, new BackupWorkspace($logger, new DirectoryTree()), new PlatformSnapshot()),
             $tools
         ))->run();
     } catch (Throwable $error) {

@@ -10,6 +10,7 @@ use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
+use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutController
 {
@@ -86,8 +87,8 @@ final class PayoutController
         $statementPayable = 0;
         $statementRent = 0;
         foreach ($statement as $row) {
-            $debit = (int) $row['debit_minor'];
-            $credit = (int) $row['credit_minor'];
+            $debit = RowValue::integer($row['debit_minor'] ?? null);
+            $credit = RowValue::integer($row['credit_minor'] ?? null);
             if ($row['role'] === 'vendor_payable') {
                 $statementPayable += $credit - $debit;
             }

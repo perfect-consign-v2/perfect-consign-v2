@@ -8,6 +8,8 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Shared\Scalar\RowValue;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class JournalController
 {
@@ -56,46 +58,69 @@ final class JournalController
         if ($journal === null || !$this->canVoid($journal, false)) {
             $this->app->notFound();
         }
-        $lines = [];
-        foreach ($this->ledger->lines($id) as $line) {
-            $subledgerType = $line['subledger_type'];
-            $subledgerRef = $line['subledger_ref'];
-            $lines[] = [
-                'account_id' => (string) $line['account_id'],
-                'debit' => (int) $line['credit_minor'],
-                'credit' => (int) $line['debit_minor'],
-                'subledger_type' => is_string($subledgerType) && $subledgerType !== '' ? $subledgerType : null,
-                'subledger_ref' => is_string($subledgerRef) && $subledgerRef !== '' ? $subledgerRef : null,
-            ];
-        }
-        $postingDate = $this->app->request()->field('posting_date');
-        if ($postingDate === '') {
-            $postingDate = (string) $journal['posting_date'];
-        }
         try {
             $voidId = $this->ledger->post(
                 'reversal:' . $id,
-                $postingDate,
-                (string) $journal['source_type'],
-                (string) $journal['source_reference'] . ':void',
-                'Void of ' . $journal['posting_key'],
-                $lines,
-                true,
+                $this->postingDate($journal),
+                RowValue::string($journal['source_type'] ?? null),
+                RowValue::string($journal['source_reference'] ?? null) . ':void',
+                'Void of ' . RowValue::string($journal['posting_key'] ?? null),
+                $this->swappedLines($id),
                 $id
             );
         } catch (DatabaseRefusal $refusal) {
-            $this->app->show('Feature/Book/journal', [
-                'title' => 'Journal',
-                'displayName' => $tenant->displayName,
-                'slug' => $tenant->slug,
-                'journal' => $journal,
-                'lines' => $this->ledger->lines($id),
-                'canVoid' => true,
-                'error' => $this->app->catchRefusal($refusal),
-            ]);
+            $this->showRefusal($tenant, $journal, $id, $refusal);
             return;
         }
         $this->app->redirect('/' . $slug . '/journals/' . $voidId);
+    }
+
+    /**
+     * @param array<string, mixed> $journal
+     */
+    private function postingDate(array $journal): string
+    {
+        $posted = $this->app->request()->field('posting_date');
+        if ($posted !== '') {
+            return $posted;
+        }
+
+        return RowValue::string($journal['posting_date'] ?? null);
+    }
+
+    /**
+     * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
+     */
+    private function swappedLines(string $id): array
+    {
+        $lines = [];
+        foreach ($this->ledger->lines($id) as $line) {
+            $lines[] = [
+                'account_id' => RowValue::string($line['account_id'] ?? null),
+                'debit' => RowValue::integer($line['credit_minor'] ?? null),
+                'credit' => RowValue::integer($line['debit_minor'] ?? null),
+                'subledger_type' => RowValue::optionalString($line['subledger_type'] ?? null),
+                'subledger_ref' => RowValue::optionalString($line['subledger_ref'] ?? null),
+            ];
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param array<string, mixed> $journal
+     */
+    private function showRefusal(TenantRecord $tenant, array $journal, string $id, DatabaseRefusal $refusal): void
+    {
+        $this->app->show('Feature/Book/journal', [
+            'title' => 'Journal',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'journal' => $journal,
+            'lines' => $this->ledger->lines($id),
+            'canVoid' => true,
+            'error' => $this->app->catchRefusal($refusal),
+        ]);
     }
 
     /**

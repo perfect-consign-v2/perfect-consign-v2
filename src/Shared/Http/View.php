@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Shared\Http;
 
+use PerfectConsign\Shared\Scalar\RowValue;
 use RuntimeException;
 
 final class View
@@ -36,6 +37,11 @@ final class View
         }
 
         return '';
+    }
+
+    public static function minor(mixed $value): int
+    {
+        return RowValue::integer($value);
     }
 
     public static function money(int $minor): string
