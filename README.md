@@ -10,10 +10,14 @@ Postgres `18.6`. Host port **5436**. Database `consign`. User `stall`. Volume `p
 
 ## Load
 
-Apply the numbered files in this order:
+Apply `sql/000_platform.sql` to database `consign`. Then provision a mall. That applies `sql/001_kernel.sql` through `sql/014_export_files.sql` into that mall's schema. `public` is not a mall.
 
-`sql/001_kernel.sql` through `sql/014_export_files.sql`.
+`STALL_DB_HOST`, `STALL_DB_PORT`, `STALL_DB_NAME`, `STALL_DB_USER`, and `STALL_DB_PASSWORD` are required.
+
+```text
+php bin/provision-tenant.php mall Mall
+```
 
 ## Proofs
 
-Each fact `sql/prove_*.sql` rolls back. `sql/prove_race.ps1` is the two-session check. The `sql/prove_race_*.sql` files are not proofs on their own.
+Each fact `sql/prove_*.sql` rolls back. Run those proofs with `search_path` set to the mall schema from `platform.tenants`. `sql/prove_race.ps1` is the two-session check, including the tenant slug. The `sql/prove_race_*.sql` files are not proofs on their own. `php bin/prove-tenant.php` rolls back the cross-tenant proof.
