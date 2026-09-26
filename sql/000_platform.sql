@@ -31,7 +31,15 @@ BEGIN
         SELECT schema_name, command_tag, objid
         FROM pg_event_trigger_ddl_commands()
     LOOP
-        IF command.command_tag <> 'ALTER TABLE' OR command.schema_name !~ '^tenant_[0-9a-f]{32}$' THEN
+        IF command.command_tag <> 'ALTER TABLE' THEN
+            CONTINUE;
+        END IF;
+        IF command.schema_name ~ '^tenant_[0-9a-f]{32}$' THEN
+            NULL;
+        ELSIF command.schema_name = 'platform'
+            AND command.objid IS NOT DISTINCT FROM to_regclass('platform.owner_backups') THEN
+            NULL;
+        ELSE
             CONTINUE;
         END IF;
         IF EXISTS (

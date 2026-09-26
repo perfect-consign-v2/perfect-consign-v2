@@ -6,10 +6,20 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var string $csrf */
+/** @var string $backupHeadline */
 /** @var list<array<string, mixed>> $accounts */
 /** @var list<array<string, mixed>> $periods */
 ?>
 <h1>Book</h1>
+<div class="card">
+    <h2>Last backup you downloaded</h2>
+    <p><?= View::text($backupHeadline) ?></p>
+    <form method="post" action="/<?= View::text($slug) ?>/backup">
+        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+        <input type="hidden" name="return" value="book">
+        <p><button type="submit">Download backup</button></p>
+    </form>
+</div>
 <div class="card">
     <h2>Open a period</h2>
     <form method="post" action="/<?= View::text($slug) ?>/periods">

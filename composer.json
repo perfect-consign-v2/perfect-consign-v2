@@ -6,7 +6,8 @@
         "krubio/perfect-database": "^0.1.0",
         "krubio/perfect-container-psr-11": "^2.0",
         "ext-pdo": "*",
-        "ext-ctype": "*"
+        "ext-ctype": "*",
+        "ext-zip": "*"
     },
     "autoload": {
         "psr-4": {

@@ -34,6 +34,7 @@ final class TenantProvisioner
         if ($displayName !== trim($displayName) || $displayName === '') {
             throw new InvalidArgumentException('a tenant display name is required');
         }
+        $this->assertBackupRole();
 
         $idStatement = $this->pdo->query('SELECT uuidv7() AS id');
         if ($idStatement === false) {
@@ -66,6 +67,7 @@ final class TenantProvisioner
             $this->applyLedger($schema, $role);
             $this->pdo->commit();
             $this->grantApp($role);
+            $this->grantBackup($schema, $role);
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -116,6 +118,25 @@ final class TenantProvisioner
         $this->pdo->exec(sprintf('GRANT %s TO stall_app', $role));
     }
 
+    public function grantBackup(string $schema, string $role): void
+    {
+        $this->assertSchema($schema);
+        $this->assertRole($role);
+        $this->assertBackupRole();
+        $this->pdo->exec(sprintf('GRANT USAGE ON SCHEMA platform TO %s', $role));
+        $this->pdo->exec(sprintf(
+            'GRANT EXECUTE ON FUNCTION platform.latest_owner_backup(uuid) TO %s',
+            $role
+        ));
+        $this->pdo->exec(sprintf(
+            'GRANT EXECUTE ON FUNCTION platform.record_owner_backup(uuid, uuid, bigint, text) TO %s',
+            $role
+        ));
+        $this->pdo->exec(sprintf('GRANT USAGE ON SCHEMA %s TO stall_backup', $schema));
+        $this->pdo->exec(sprintf('GRANT SELECT ON ALL TABLES IN SCHEMA %s TO stall_backup', $schema));
+        $this->pdo->exec(sprintf('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %s TO stall_backup', $schema));
+    }
+
     public function roleName(string $slug, string $schema): string
     {
         $this->assertSlug($slug);
@@ -145,6 +166,14 @@ final class TenantProvisioner
     {
         if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {
             throw new InvalidArgumentException('poster role name is invalid');
+        }
+    }
+
+    private function assertBackupRole(): void
+    {
+        $exists = $this->pdo->query("SELECT 1 FROM pg_roles WHERE rolname = 'stall_backup'");
+        if ($exists === false || $exists->fetchColumn() === false) {
+            throw new RuntimeException('stall_backup is missing. Apply sql/018_owner_backup.sql first.');
         }
     }
 }
