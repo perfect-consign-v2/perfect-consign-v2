@@ -1,0 +1,19 @@
+---
+description: Stall is not done unless the proofs still pass at the level already reached. Re-run every proof a change can affect.
+alwaysApply: true
+---
+
+# Keep the proven level
+
+Done means the proofs still pass after the latest edit, not that they passed once.
+
+- After any change under `sql/`, run every `sql/prove_*.sql` the change can affect, including earlier facts this change sits on. A kernel change re-runs `sql/prove.sql` and every later proof.
+- A vector found later is added to the permanent proof and re-run. A one-off script does not count, and it does not excuse moving on.
+- Do not delete, comment out, or narrow an assertion to make a script pass. Restore the guarantee and re-run.
+- Do not add a fact or behavior that leaves an older proof unexecutable or leaves a known hole in place.
+- A skipped run, a happy-path-only script, or a green run from before the latest edit is not the current level.
+
+```text
+BAD: edit the payout trigger, re-run prove_payout.sql only, leave prove_statement.sql stale
+GOOD: edit the payout trigger, re-run prove_payout.sql and prove_statement.sql, both exit 0, then stop
+```

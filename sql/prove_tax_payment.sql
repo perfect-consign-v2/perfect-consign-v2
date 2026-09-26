@@ -1,0 +1,182 @@
+-- Proof for sales-tax payment. One transaction, then ROLLBACK.
+
+BEGIN;
+
+INSERT INTO vendors (id, code, name)
+VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada');
+
+INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
+VALUES (
+    '01900000-0000-7000-8000-000000000021',
+    '01900000-0000-7000-8000-000000000001',
+    '2026-01-01',
+    '2026-12-31',
+    'open'
+);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000b01',
+    '01900000-0000-7000-8000-000000000001',
+    'sale:tax-1',
+    '2026-03-01',
+    '2026-03-01 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'sale',
+    'tax-1',
+    'Sale with tax',
+    1000,
+    1000
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000b01',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000010',
+    1000,
+    0
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000b01',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000013',
+    0,
+    800
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000b01',
+    '01900000-0000-7000-8000-000000000001',
+    3,
+    '01900000-0000-7000-8000-000000000014',
+    0,
+    200,
+    'vendor',
+    '01900000-0000-7000-8000-000000000101'
+);
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000b02',
+    '01900000-0000-7000-8000-000000000001',
+    'tax-payment:t1',
+    '2026-03-02',
+    '2026-03-02 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'tax_payment',
+    't1',
+    'Pay the open sales tax',
+    800,
+    800
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES
+    ('01900000-0000-7000-8000-000000000b02', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000013', 800, 0),
+    ('01900000-0000-7000-8000-000000000b02', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000010', 0, 800);
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+DO $$
+BEGIN
+    SET CONSTRAINTS ALL DEFERRED;
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000b03',
+        '01900000-0000-7000-8000-000000000001',
+        'tax-payment:t2',
+        '2026-03-03',
+        '2026-03-03 12:00:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'tax_payment',
+        't2',
+        'Tax payment above the open balance',
+        100,
+        100
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES
+        ('01900000-0000-7000-8000-000000000b03', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000013', 100, 0),
+        ('01900000-0000-7000-8000-000000000b03', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000011', 0, 100);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'tax overpayment was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000b04',
+        '01900000-0000-7000-8000-000000000001',
+        'tax-payment:t1',
+        '2026-03-04',
+        '2026-03-04 12:00:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'tax_payment',
+        't1',
+        'Duplicate tax payment key',
+        100,
+        100
+    );
+    RAISE EXCEPTION 'duplicate tax payment key was accepted';
+EXCEPTION
+    WHEN unique_violation THEN
+        NULL;
+END $$;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, is_reversal, reverses_journal_id,
+    debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000b05',
+    '01900000-0000-7000-8000-000000000001',
+    'tax-payment:t1:void',
+    '2026-03-05',
+    '2026-03-05 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'tax_payment',
+    't1-void',
+    'Reverse the tax payment',
+    true,
+    '01900000-0000-7000-8000-000000000b02',
+    800,
+    800
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES
+    ('01900000-0000-7000-8000-000000000b05', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 800, 0),
+    ('01900000-0000-7000-8000-000000000b05', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000013', 0, 800);
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+ROLLBACK;

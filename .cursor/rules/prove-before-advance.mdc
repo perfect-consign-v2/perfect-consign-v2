@@ -1,0 +1,23 @@
+---
+description: Do not start the next Stall fact until this fact's vectors have been executed and the proof exits 0.
+alwaysApply: true
+---
+
+# Do not advance until the vectors have been run
+
+A proof that only checks the cases named in the plan is not done. Do not add the next fact, and do not call this one finished, until its `sql/prove_*.sql` has been executed against the database and exited 0. Reading the triggers is not a run. The script rolls back.
+
+The cases below are the minimum. If the change can be broken another way, add that vector to the same script before moving on.
+
+- The refusal the plan names for this fact.
+- Cross-fact sequences: a void or reversal after the amount was already cleared; a payment larger than the open balance; an assignment end that moves a charge onto another vendor; a journal whose `source_type` is not this fact and that still posts to a control account; the same business id under a new posting key.
+- Two sessions at once. One holds an open delete or the unique posting key; the other inserts. Both committing is a failure.
+- The table owner, inside a transaction that rolls back: `TRUNCATE` and `DISABLE TRIGGER` on append-only tables. If either wipes or edits a posted row, the fact is not proven.
+- Any balance this fact can push below zero, then the next payout or charge. If that next step is refused or the books are wrong, fix this fact first.
+
+If a vector is accepted and the schema should refuse it, change the schema and re-run the whole script. Do not record the hole and start the next file.
+
+```text
+BAD: duplicate posting key refused → start sql/007_payout.sql
+GOOD: duplicate key, cross-fact sequence, two sessions, and owner bypass all run and exit 0 → then start the next file
+```

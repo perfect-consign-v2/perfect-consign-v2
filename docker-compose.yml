@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:18.6
+    container_name: perfect-consign-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5436:5432"
+    environment:
+      POSTGRES_USER: stall
+      POSTGRES_PASSWORD: stall
+      POSTGRES_DB: consign
+    volumes:
+      # Postgres 18 images store the cluster under /var/lib/postgresql (not .../data).
+      - perfect_consign_pg:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stall -d consign"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  perfect_consign_pg:
