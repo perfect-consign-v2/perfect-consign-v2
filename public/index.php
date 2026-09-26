@@ -45,6 +45,10 @@ session_set_cookie_params([
 
 try {
     $request = requestFromGlobals();
+    if (str_starts_with($request->path, '/assets/')) {
+        serveAsset($request->path);
+        exit;
+    }
     $pdo = (new AppDatabase())->connect(databaseConfig());
     $container = new Container();
     $container->set(PDO::class, $pdo);
@@ -70,6 +74,32 @@ try {
         http_response_code(500);
     }
     echo $debug ? $error->getMessage() : 'The page could not be shown.';
+}
+
+function serveAsset(string $path): void
+{
+    $root = realpath(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'assets');
+    $resolved = realpath(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . str_replace('/', DIRECTORY_SEPARATOR, $path));
+    if (
+        $root === false
+        || $resolved === false
+        || !str_starts_with($resolved, $root . DIRECTORY_SEPARATOR)
+        || !is_file($resolved)
+    ) {
+        http_response_code(404);
+        echo 'Not found';
+        return;
+    }
+    $extension = pathinfo($resolved, PATHINFO_EXTENSION);
+    $types = ['css' => 'text/css; charset=utf-8', 'js' => 'text/javascript; charset=utf-8'];
+    header('Content-Type: ' . ($types[$extension] ?? 'application/octet-stream'));
+    $contents = file_get_contents($resolved);
+    if ($contents === false) {
+        http_response_code(500);
+        echo 'The page could not be shown.';
+        return;
+    }
+    echo $contents;
 }
 
 function loadEnv(string $path): void

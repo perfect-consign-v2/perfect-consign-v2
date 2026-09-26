@@ -12,6 +12,29 @@ use PerfectConsign\Shared\Http\View;
 /** @var string|null $error */
 /** @var string $body */
 /** @var string $templateDirectory */
+/** @var string $path */
+
+$path = $path ?? '';
+$groups = [
+    'Overview' => [
+        '/book' => 'Book',
+        '/journals' => 'Journals',
+    ],
+    'Operations' => [
+        '/sale' => 'Sale',
+        '/rent' => 'Rent',
+        '/payout' => 'Payout',
+        '/parties' => 'Vendors',
+        '/map' => 'Booth map',
+    ],
+    'Business' => [
+        '/adjustment' => 'Adjustment',
+        '/tax' => 'Tax',
+        '/opening' => 'Opening',
+        '/close' => 'Close',
+        '/export' => 'Export',
+    ],
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -19,56 +42,46 @@ use PerfectConsign\Shared\Http\View;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= View::text($title) ?></title>
-    <style>
-        body { margin: 0; font: 16px/1.4 system-ui, sans-serif; background: #f6f4ef; color: #1c1915; }
-        header, main { padding: 1rem; }
-        header { background: #1c1915; color: #f6f4ef; }
-        a { color: inherit; }
-        nav { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; }
-        nav a { color: #f6f4ef; }
-        h1 { font-size: 1.4rem; margin: 0 0 1rem; }
-        form, table { width: 100%; }
-        label { display: block; margin: 0.75rem 0 0.25rem; }
-        input, select, button { font: inherit; padding: 0.5rem; width: 100%; box-sizing: border-box; }
-        button, .button { background: #1c1915; color: #f6f4ef; border: 0; }
-        table { border-collapse: collapse; background: #fff; }
-        th, td { text-align: left; padding: 0.4rem; border-bottom: 1px solid #ddd; vertical-align: top; }
-        .error { background: #fff; border-left: 4px solid #8a1f1f; padding: 0.75rem; margin-bottom: 1rem; }
-        .card { background: #fff; padding: 1rem; margin-bottom: 1rem; }
-        @media (min-width: 40rem) {
-            header, main { padding: 1.5rem 2rem; }
-            input, select, button { width: auto; }
-        }
-    </style>
+    <link rel="stylesheet" href="/assets/tokens.css">
 </head>
 <body>
-<header>
-    <strong><?= View::text($displayName !== '' ? $displayName : 'Perfect Consign') ?></strong>
-    <?php if ($nav): ?>
-        <nav>
-            <a href="/<?= View::text($slug) ?>/book">Book</a>
-            <a href="/<?= View::text($slug) ?>/journals">Journals</a>
-            <a href="/<?= View::text($slug) ?>/adjustment">Adjustment</a>
-            <a href="/<?= View::text($slug) ?>/parties">Vendors</a>
-            <a href="/<?= View::text($slug) ?>/rent">Rent</a>
-            <a href="/<?= View::text($slug) ?>/payout">Payout</a>
-            <a href="/<?= View::text($slug) ?>/sale">Sale</a>
-            <a href="/<?= View::text($slug) ?>/tax">Tax</a>
-            <a href="/<?= View::text($slug) ?>/opening">Opening</a>
-            <a href="/<?= View::text($slug) ?>/close">Close</a>
-            <a href="/<?= View::text($slug) ?>/export">Export</a>
+<a class="skip" href="#main">Skip to main</a>
+<?php if ($nav): ?>
+<input class="nav-toggle" id="nav-open" type="checkbox">
+<div class="shell">
+    <nav class="sidebar" aria-label="Mall">
+        <?php foreach ($groups as $group => $links): ?>
+            <h2><?= View::text($group) ?></h2>
+            <?php foreach ($links as $suffix => $label): ?>
+                <?php $href = '/' . $slug . $suffix; ?>
+                <a href="<?= View::text($href) ?>"<?= $path === $href ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
+            <?php endforeach; ?>
+        <?php endforeach; ?>
+    </nav>
+    <div class="workspace">
+        <header class="topbar">
+            <label class="menu" for="nav-open">Menu</label>
+            <strong><?= View::text($displayName) ?></strong>
             <form method="post" action="/<?= View::text($slug) ?>/logout">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                 <button type="submit">Sign out</button>
             </form>
-        </nav>
+        </header>
+        <main id="main">
+<?php else: ?>
+<main id="main" class="solo">
+    <?php if ($displayName !== ''): ?>
+        <p><?= View::text($displayName) ?></p>
     <?php endif; ?>
-</header>
-<main>
+<?php endif; ?>
     <?php if ($error !== null && $error !== ''): ?>
         <p class="error"><?= View::text($error) ?></p>
     <?php endif; ?>
     <?php require $templateDirectory . DIRECTORY_SEPARATOR . $body . '.php'; ?>
 </main>
+<?php if ($nav): ?>
+    </div>
+</div>
+<?php endif; ?>
 </body>
 </html>

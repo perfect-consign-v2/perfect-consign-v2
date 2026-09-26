@@ -44,6 +44,7 @@ final class MallApp
         $data['nav'] = is_string($slug) && $this->sessionSlug() === $slug;
         $data['csrf'] = $this->csrf();
         $data['error'] = $data['error'] ?? null;
+        $data['path'] = $this->request->path;
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
 
@@ -57,6 +58,7 @@ final class MallApp
             'nav' => false,
             'csrf' => '',
             'error' => null,
+            'path' => $this->request->path,
             'body' => 'Shared/Web/not-found',
         ]);
         throw new ResponseSent('not found');

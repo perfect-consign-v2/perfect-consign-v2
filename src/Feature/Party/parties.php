@@ -40,7 +40,7 @@ use PerfectConsign\Shared\Http\View;
     </form>
     <ul>
         <?php foreach ($booths as $booth): ?>
-            <li><?= View::text($booth['code']) ?> <?= View::text($booth['name']) ?></li>
+            <li id="booth-<?= View::text($booth['code']) ?>"><?= View::text($booth['code']) ?> <?= View::text($booth['name']) ?></li>
         <?php endforeach; ?>
     </ul>
 </div>
