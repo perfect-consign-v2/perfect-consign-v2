@@ -7,11 +7,12 @@ use PerfectApp\Exception\RouteNotFoundException;
 use PerfectApp\Logger\FileLogger;
 use PerfectApp\Routing\Router;
 use PerfectApp\Session\Session;
-use PerfectConsign\Database\AppDatabase;
-use PerfectConsign\Http\ErrorHandling;
-use PerfectConsign\Http\Request;
-use PerfectConsign\Http\View;
-use PerfectConsign\MallApp;
+use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Bootstrap\RegisterFeatures;
+use PerfectConsign\Shared\Database\AppDatabase;
+use PerfectConsign\Shared\Http\ErrorHandling;
+use PerfectConsign\Shared\Http\Request;
+use PerfectConsign\Shared\Http\View;
 use Psr\Log\LoggerInterface;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -49,13 +50,13 @@ try {
     $container->set(LoggerInterface::class, $logger);
     $container->set(Session::class, new Session());
     $container->set(Request::class, $request);
-    $container->set(View::class, new View(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'templates'));
+    $container->set(View::class, new View(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src'));
     $container->set(MallApp::class, $container->get(MallApp::class));
     $router = new Router($container);
     $router->setNotFoundHandler(static function () use ($container): void {
         $container->get(MallApp::class)->notFound();
     });
-    $router->autoRegisterControllers(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Controller');
+    RegisterFeatures::register($router, dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature');
     $router->dispatch($request->path, $request->method);
 } catch (RouteNotFoundException) {
     http_response_code(404);

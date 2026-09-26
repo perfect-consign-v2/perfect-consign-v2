@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+use PerfectConsign\Feature\Export\ExportStore;
+
 final class ExportJournalFile
 {
     public function __construct(private readonly PDO $pdo)
@@ -22,17 +26,8 @@ final class ExportJournalFile
             throw new InvalidArgumentException('an export path is required');
         }
 
-        $statement = $this->pdo->prepare(
-            'SELECT stall_export_journal_csv(:system, :from_date, :to_date, :tax_rate)'
-        );
-        $statement->execute([
-            ':system' => $system,
-            ':from_date' => $fromDate,
-            ':to_date' => $toDate,
-            ':tax_rate' => $taxRate,
-        ]);
-        $lines = $statement->fetchAll(PDO::FETCH_COLUMN);
-        if ($lines === []) {
+        $csv = (new ExportStore($this->pdo))->exportCsv($system, $fromDate, $toDate, $taxRate);
+        if ($csv === '') {
             throw new RuntimeException('the export returned no lines');
         }
 
@@ -47,20 +42,14 @@ final class ExportJournalFile
         }
 
         try {
-            foreach ($lines as $line) {
-                if (!is_string($line)) {
-                    throw new RuntimeException('the export returned a non-text line');
+            $offset = 0;
+            $length = strlen($csv);
+            while ($offset < $length) {
+                $written = fwrite($handle, substr($csv, $offset));
+                if ($written === false || $written === 0) {
+                    throw new RuntimeException('Could not write the export file');
                 }
-                $payload = $line . "\n";
-                $offset = 0;
-                $length = strlen($payload);
-                while ($offset < $length) {
-                    $written = fwrite($handle, substr($payload, $offset));
-                    if ($written === false || $written === 0) {
-                        throw new RuntimeException('Could not write the export file');
-                    }
-                    $offset += $written;
-                }
+                $offset += $written;
             }
             if (!fflush($handle)) {
                 throw new RuntimeException('Could not flush the export file');

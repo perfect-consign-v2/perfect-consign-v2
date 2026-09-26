@@ -4,10 +4,24 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Ledger;
 
-use PerfectConsign\Http\Request;
+use PerfectConsign\Shared\Http\Request;
 
 final class PostedLines
 {
+    /**
+     * @return array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}
+     */
+    public static function entry(string $accountId, int $debit, int $credit, ?string $type, ?string $ref): array
+    {
+        return [
+            'account_id' => $accountId,
+            'debit' => $debit,
+            'credit' => $credit,
+            'subledger_type' => $type,
+            'subledger_ref' => $ref,
+        ];
+    }
+
     /**
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
