@@ -6,7 +6,8 @@
          failOnWarning="true"
          failOnDeprecation="true"
          failOnNotice="true"
-         failOnPhpunitDeprecation="true">
+         failOnPhpunitDeprecation="true"
+         failOnPhpunitNotice="true">
     <testsuites>
         <testsuite name="unit">
             <directory>tests</directory>
