@@ -59,19 +59,22 @@ final class OwnerJourneyTest extends WebTestCase
         $vendor = $this->vendor();
         $booth = $this->booth();
         $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
+        $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
+        $boothId = HtmlPage::taggedId($booths->body, 'article', 'booth', $booth);
         $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
-            'booth_id' => HtmlPage::option($parties->body, 'assign_booth', $booth),
-            'vendor_id' => HtmlPage::option($parties->body, 'assign_vendor', $vendor),
+            'booth_id' => $boothId,
+            'vendor_id' => $vendorId,
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
         ]);
         $this->client->post('/' . ProbeMall::SLUG . '/rates', [
-            'booth_id' => HtmlPage::option($parties->body, 'rate_booth', $booth),
+            'booth_id' => $boothId,
             'month_start' => ProbeMall::POSTING_DATE,
             'amount' => '100.00',
         ]);
         $journal = $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
-            'booth_id' => HtmlPage::option($parties->body, 'assign_booth', $booth),
+            'booth_id' => $boothId,
             'posting_date' => ProbeMall::POSTING_DATE,
         ]);
 
@@ -83,7 +86,7 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $code = $this->vendor();
         $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
-        $vendorId = HtmlPage::option($parties->body, 'assign_vendor', $code);
+        $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $code);
         $form = $this->client->get('/' . ProbeMall::SLUG . '/payout?vendor=' . $vendorId);
         self::assertSees('Open payable 0.00', $form);
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/payout', [
@@ -194,6 +197,35 @@ final class OwnerJourneyTest extends WebTestCase
             'floor_depth_ft' => '90',
         ]);
         self::assertSees('America/Los_Angeles', $restored);
+    }
+
+    public function testTheOwnerAddsAVendorAndAssignsABooth(): void
+    {
+        $code = 'v' . bin2hex(random_bytes(4));
+        $name = 'Ada ' . $code;
+        $created = $this->client->post('/' . ProbeMall::SLUG . '/vendors', [
+            'code' => $code,
+            'name' => $name,
+        ]);
+        self::assertSees($name, $created);
+        self::assertSees('Active', $created);
+        $directory = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        self::assertSees($name, $directory);
+        $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
+        $booth = $this->booth();
+        $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
+        $boothId = HtmlPage::taggedId($booths->body, 'article', 'booth', $booth);
+        $assigned = $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
+            'booth_id' => $boothId,
+            'vendor_id' => $vendorId,
+            'starts_on' => ProbeMall::PERIOD_START,
+            'ends_on' => '',
+        ]);
+
+        self::assertSame(200, $assigned->status);
+        self::assertSees('Active', $assigned);
+        self::assertSees($booth, $assigned);
+        self::assertSees($name, $assigned);
     }
 
     private function vendor(): string

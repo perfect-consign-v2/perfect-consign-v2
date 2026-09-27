@@ -73,6 +73,22 @@ final class HtmlPage
         return $match[1];
     }
 
+    public static function taggedId(string $html, string $tag, string $prefix, string $text): string
+    {
+        $pattern = '/<' . preg_quote($tag, '/') . '\b[^>]*id="' . preg_quote($prefix, '/') . '-([0-9a-fA-F-]{36})"[^>]*>.*?<\/' . preg_quote($tag, '/') . '>/s';
+        $matched = preg_match_all($pattern, $html, $matches, PREG_SET_ORDER);
+        if ($matched === false || $matched < 1) {
+            throw new RuntimeException($prefix . ' ' . $text . ' was not on the page');
+        }
+        foreach ($matches as $match) {
+            if (str_contains($match[0], '>' . $text . '<')) {
+                return $match[1];
+            }
+        }
+
+        throw new RuntimeException($prefix . ' ' . $text . ' was not on the page');
+    }
+
     public static function option(string $html, string $selectId, string $label): string
     {
         $select = '/<select id="' . preg_quote($selectId, '/') . '"[^>]*>(.*?)<\/select>/s';

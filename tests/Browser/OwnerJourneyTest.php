@@ -82,22 +82,25 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         $vendor = $this->vendor();
+        $vendorId = HtmlPage::taggedId($this->session->html(), 'article', 'vendor', $vendor);
         $booth = $this->booth();
-        $parties = $this->session->open('/' . ProbeMall::SLUG . '/parties');
+        $boothId = HtmlPage::taggedId($this->session->html(), 'article', 'booth', $booth);
+        $this->session->open('/' . ProbeMall::SLUG . '/vendors/' . $vendorId);
         $this->session->submit('/' . ProbeMall::SLUG . '/assignments', [
-            'booth_id' => HtmlPage::option($parties, 'assign_booth', $booth),
-            'vendor_id' => HtmlPage::option($parties, 'assign_vendor', $vendor),
+            'booth_id' => $boothId,
+            'vendor_id' => $vendorId,
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
         ]);
+        $this->session->open('/' . ProbeMall::SLUG . '/booths/' . $boothId . '/edit');
         $this->session->submit('/' . ProbeMall::SLUG . '/rates', [
-            'booth_id' => HtmlPage::option($parties, 'rate_booth', $booth),
+            'booth_id' => $boothId,
             'month_start' => ProbeMall::POSTING_DATE,
             'amount' => '100.00',
         ]);
         $this->session->open('/' . ProbeMall::SLUG . '/rent');
         $journal = $this->session->submit('/' . ProbeMall::SLUG . '/rent/charge', [
-            'booth_id' => HtmlPage::option($parties, 'assign_booth', $booth),
+            'booth_id' => $boothId,
             'posting_date' => ProbeMall::POSTING_DATE,
         ]);
 
@@ -108,8 +111,7 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         $code = $this->vendor();
-        $parties = $this->session->html();
-        $vendorId = HtmlPage::option($parties, 'assign_vendor', $code);
+        $vendorId = HtmlPage::taggedId($this->session->html(), 'article', 'vendor', $code);
         $form = $this->session->open('/' . ProbeMall::SLUG . '/payout?vendor=' . rawurlencode($vendorId));
         self::assertSees('Open payable 0.00', $form);
         $refused = $this->session->submit('/' . ProbeMall::SLUG . '/payout', [
@@ -193,7 +195,7 @@ final class OwnerJourneyTest extends WebTestCase
     private function vendor(): string
     {
         $code = 'v' . bin2hex(random_bytes(4));
-        $this->session->open('/' . ProbeMall::SLUG . '/parties');
+        $this->session->open('/' . ProbeMall::SLUG . '/vendors/new');
         $page = $this->session->submit('/' . ProbeMall::SLUG . '/vendors', [
             'code' => $code,
             'name' => $code,

@@ -9,6 +9,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var array<string, mixed>|null $booth */
 /** @var int $defaultWidth */
 /** @var int $defaultDepth */
+/** @var list<array<string, mixed>> $rates */
 
 $id = is_array($booth) ? ($booth['id'] ?? null) : null;
 $code = is_array($booth) ? ($booth['code'] ?? null) : null;
@@ -74,3 +75,43 @@ $z = is_array($booth) ? ($booth['z_ft'] ?? '') : '';
     </div>
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
 </form>
+
+<?php if ($editing): ?>
+    <div class="card mt-6">
+        <div class="card-head"><div class="h3">Monthly rent</div></div>
+        <div class="card-body">
+            <?php if ($rates === []): ?>
+                <p class="muted">No rate yet.</p>
+            <?php else: ?>
+                <table class="table">
+                    <thead><tr><th>Month</th><th>Amount</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($rates as $rate): ?>
+                        <tr>
+                            <td><?= View::text($rate['month_start']) ?></td>
+                            <td class="num"><?= View::text(View::money(View::minor($rate['amount_minor']))) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
+        <form method="post" action="/<?= View::text($slug) ?>/rates">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <input type="hidden" name="booth_id" value="<?= View::text($id) ?>">
+            <div class="card-body grid cols-2">
+                <div class="field">
+                    <label for="month_start">Month</label>
+                    <input class="input" id="month_start" name="month_start" type="date" required>
+                </div>
+                <div class="field">
+                    <label for="amount">Amount</label>
+                    <input class="input" id="amount" name="amount" inputmode="decimal" required>
+                </div>
+            </div>
+            <div class="card-foot">
+                <button class="btn btn-primary" type="submit">Add rate</button>
+            </div>
+        </form>
+    </div>
+<?php endif; ?>

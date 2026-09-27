@@ -5,103 +5,150 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
-/** @var string $csrf */
-/** @var list<array<string, mixed>> $vendors */
-/** @var list<array<string, mixed>> $booths */
-/** @var list<array<string, mixed>> $assignments */
-/** @var list<array<string, mixed>> $rates */
-/** @var string $today */
+/** @var array{vendors: int, active: int, ending: int, open_booths: int} $stats */
+/** @var list<array{id: string, code: string, name: string, status: string, status_label: string, status_badge: string, since: string, booths: list<array{id: string, code: string, occupancy: string}>}> $vendors */
+/** @var list<array{id: string, code: string, name: string}> $openBooths */
+/** @var string $status */
+/** @var string $query */
+
+$cards = [
+    ['key' => '', 'label' => 'Vendors', 'value' => $stats['vendors']],
+    ['key' => 'active', 'label' => 'Active', 'value' => $stats['active']],
+    ['key' => 'ending', 'label' => 'Ending', 'value' => $stats['ending']],
+    ['key' => 'open', 'label' => 'Open booths', 'value' => $stats['open_booths']],
+];
+$filters = [
+    '' => 'All',
+    'incoming' => 'Incoming',
+];
 ?>
-<h1>Vendors and booths</h1>
-<div class="card">
-    <h2>Vendor</h2>
-    <form method="post" action="/<?= View::text($slug) ?>/vendors">
-        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <label for="vendor_code">Code</label>
-        <input id="vendor_code" name="code" required>
-        <label for="vendor_name">Name</label>
-        <input id="vendor_name" name="name" required>
-        <p><button type="submit">Add vendor</button></p>
-    </form>
-    <ul>
-        <?php foreach ($vendors as $vendor): ?>
-            <li><?= View::text($vendor['code']) ?> <?= View::text($vendor['name']) ?></li>
-        <?php endforeach; ?>
-    </ul>
+<div class="page-head">
+    <div class="titles">
+        <h1 class="h1">Vendors</h1>
+        <p class="muted">Who sells here, and which booth they hold.</p>
+    </div>
+    <a class="btn btn-primary" href="/<?= View::text($slug) ?>/vendors/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New vendor</a>
 </div>
-<div class="card">
-    <h2>Booth</h2>
-    <p><a href="/<?= View::text($slug) ?>/booths">Booths</a></p>
-    <ul>
-        <?php foreach ($booths as $booth): ?>
-            <li id="booth-<?= View::text($booth['code']) ?>"><?= View::text($booth['code']) ?> <?= View::text($booth['name']) ?></li>
+
+<?php if ($stats['vendors'] === 0 && $stats['open_booths'] === 0): ?>
+    <div class="card">
+        <div class="empty">
+            <svg aria-hidden="true"><use href="#i-vendor"></use></svg>
+            <p>No vendors yet.</p>
+        </div>
+    </div>
+<?php else: ?>
+    <div class="grid cols-4">
+        <?php foreach ($cards as $card): ?>
+            <?php
+            $selected = $status === $card['key'];
+            $params = [];
+            if ($card['key'] !== '' && !$selected) {
+                $params['status'] = $card['key'];
+            }
+            if ($query !== '') {
+                $params['q'] = $query;
+            }
+            $href = '/' . $slug . '/parties';
+            if ($params !== []) {
+                $href .= '?' . http_build_query($params);
+            }
+            ?>
+            <?php if ($card['key'] === ''): ?>
+                <div class="stat">
+                    <div class="stat-label"><?= View::text($card['label']) ?></div>
+                    <div class="stat-value"><?= View::text($card['value']) ?></div>
+                </div>
+            <?php else: ?>
+                <a class="stat stat-link" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>>
+                    <div class="stat-label"><?= View::text($card['label']) ?></div>
+                    <div class="stat-value"><?= View::text($card['value']) ?></div>
+                </a>
+            <?php endif; ?>
         <?php endforeach; ?>
-    </ul>
-</div>
-<div class="card">
-    <h2>Assignment</h2>
-    <form method="post" action="/<?= View::text($slug) ?>/assignments">
-        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <label for="assign_booth">Booth</label>
-        <select id="assign_booth" name="booth_id" required>
-            <?php foreach ($booths as $booth): ?>
-                <option value="<?= View::text($booth['id']) ?>"><?= View::text($booth['code']) ?></option>
-            <?php endforeach; ?>
-        </select>
-        <label for="assign_vendor">Vendor</label>
-        <select id="assign_vendor" name="vendor_id" required>
-            <?php foreach ($vendors as $vendor): ?>
-                <option value="<?= View::text($vendor['id']) ?>"><?= View::text($vendor['code']) ?></option>
-            <?php endforeach; ?>
-        </select>
-        <label for="starts_on">Start</label>
-        <input id="starts_on" name="starts_on" type="date" value="<?= View::text($today) ?>" required>
-        <label for="ends_on">End</label>
-        <input id="ends_on" name="ends_on" type="date">
-        <p><button type="submit">Add assignment</button></p>
-    </form>
-    <table>
-        <thead><tr><th>Booth</th><th>Vendor</th><th>Start</th><th>End</th><th></th></tr></thead>
-        <tbody>
-        <?php foreach ($assignments as $assignment): ?>
-            <tr>
-                <td><?= View::text($assignment['booth_code']) ?></td>
-                <td><?= View::text($assignment['vendor_code']) ?></td>
-                <td><?= View::text($assignment['starts_on']) ?></td>
-                <td><?= View::text($assignment['ends_on']) ?></td>
-                <td>
-                    <?php if ($assignment['ends_on'] === null): ?>
-                        <form method="post" action="/<?= View::text($slug) ?>/assignments/<?= View::text($assignment['id']) ?>/end">
-                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                            <input name="ends_on" type="date" required min="<?= View::text($assignment['starts_on']) ?>">
-                            <button type="submit">End</button>
-                        </form>
-                    <?php endif; ?>
-                </td>
-            </tr>
+    </div>
+
+    <div class="segmented mt-6" role="navigation" aria-label="Vendor list">
+        <?php foreach ($filters as $value => $label): ?>
+            <?php
+            $params = [];
+            if ($value !== '') {
+                $params['status'] = $value;
+            }
+            if ($query !== '') {
+                $params['q'] = $query;
+            }
+            $href = '/' . $slug . '/parties';
+            if ($params !== []) {
+                $href .= '?' . http_build_query($params);
+            }
+            $selected = $status === $value;
+            ?>
+            <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
         <?php endforeach; ?>
-        </tbody>
-    </table>
-</div>
-<div class="card">
-    <h2>Monthly rent rate</h2>
-    <form method="post" action="/<?= View::text($slug) ?>/rates">
-        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <label for="rate_booth">Booth</label>
-        <select id="rate_booth" name="booth_id" required>
-            <?php foreach ($booths as $booth): ?>
-                <option value="<?= View::text($booth['id']) ?>"><?= View::text($booth['code']) ?></option>
-            <?php endforeach; ?>
-        </select>
-        <label for="month_start">Month</label>
-        <input id="month_start" name="month_start" type="date" required>
-        <label for="amount">Amount</label>
-        <input id="amount" name="amount" inputmode="decimal" required>
-        <p><button type="submit">Add rate</button></p>
-    </form>
-    <ul>
-        <?php foreach ($rates as $rate): ?>
-            <li><?= View::text($rate['code']) ?> <?= View::text($rate['month_start']) ?> <?= View::text(View::money(View::minor($rate['amount_minor']))) ?></li>
-        <?php endforeach; ?>
-    </ul>
-</div>
+    </div>
+
+    <?php if ($status !== 'open'): ?>
+        <ul class="occupancy-legend" aria-label="Booth colors">
+            <li><span class="occupancy-pill occupied">Occupied</span></li>
+            <li><span class="occupancy-pill ending">Ending</span></li>
+            <li><span class="occupancy-pill incoming">Incoming</span></li>
+        </ul>
+    <?php endif; ?>
+
+    <div class="card table-wrap mt-4">
+        <?php if ($status === 'open'): ?>
+            <?php if ($openBooths === []): ?>
+                <div class="empty"><p>No open booths.</p></div>
+            <?php else: ?>
+                <table class="table">
+                    <thead><tr><th>Booth</th><th>Name</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($openBooths as $booth): ?>
+                        <tr>
+                            <td><a class="strong" href="/<?= View::text($slug) ?>/booths#booth-<?= View::text($booth['id']) ?>"><?= View::text($booth['code']) ?></a></td>
+                            <td><?= View::text($booth['name']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        <?php elseif ($vendors === []): ?>
+            <div class="empty"><p>No vendors match.</p></div>
+        <?php else: ?>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Vendor</th>
+                        <th>Booth</th>
+                        <th>Since</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($vendors as $vendor): ?>
+                    <tr id="vendor-<?= View::text($vendor['id']) ?>">
+                        <td>
+                            <div class="row gap-2">
+                                <a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>"><?= View::text($vendor['name']) ?></a>
+                                <span class="badge badge-accent"><?= View::text($vendor['code']) ?></span>
+                            </div>
+                        </td>
+                        <td>
+                            <?php if ($vendor['booths'] === []): ?>
+                                <span class="muted">Unassigned</span>
+                            <?php else: ?>
+                                <?php foreach ($vendor['booths'] as $booth): ?>
+                                    <a class="occupancy-pill <?= View::text($booth['occupancy']) ?>" href="/<?= View::text($slug) ?>/booths#booth-<?= View::text($booth['id']) ?>"><?= View::text($booth['code']) ?></a>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= View::text($vendor['since']) ?></td>
+                        <td><span class="badge <?= View::text($vendor['status_badge']) ?>"><?= View::text($vendor['status_label']) ?></span></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>

@@ -8,6 +8,7 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\Money;
 
 final class BoothController
 {
@@ -115,16 +116,36 @@ final class BoothController
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/booths');
         }
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Party/booths', [
-            'title' => 'Booths',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'booths' => $this->booths->booths(),
-            'defaultWidth' => $this->mall->boothWidth(),
-            'defaultDepth' => $this->mall->boothDepth(),
-            'error' => $error,
-        ]);
+        $this->list($slug, $error);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/rates', ['POST'])]
+    public function addRate(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $id = $this->app->request()->field('booth_id');
+        $this->app->open($slug, true);
+        $error = null;
+        try {
+            $this->booths->addRate(
+                $id,
+                $this->app->request()->field('month_start'),
+                Money::parseMinor($this->app->request()->field('amount'))
+            );
+        } catch (DatabaseRefusal $refusal) {
+            $error = $this->app->catchRefusal($refusal);
+        } catch (\InvalidArgumentException $errorValue) {
+            $error = $errorValue->getMessage();
+        }
+        if ($error === null && preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1) {
+            $this->app->redirect('/' . $slug . '/booths/' . $id . '/edit');
+        }
+        $booth = preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1 ? $this->booths->findBooth($id) : null;
+        if ($booth === null) {
+            $this->list($slug, $error ?? 'that booth is not in this mall');
+            return;
+        }
+        $this->form($slug, $booth, $error);
     }
 
     private function change(string $slug, ?string $id, callable $action): void
@@ -161,15 +182,46 @@ final class BoothController
     private function form(string $slug, ?array $booth, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
+        $id = is_array($booth) ? ($booth['id'] ?? null) : null;
         $this->app->show('Feature/Party/booth-form', [
-            'title' => $booth !== null && isset($booth['id']) ? 'Edit booth' : 'New booth',
+            'title' => is_string($id) && $id !== '' ? 'Edit booth' : 'New booth',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'booth' => $booth,
+            'rates' => is_string($id) && $id !== '' ? $this->ratesFor($id) : [],
             'defaultWidth' => $this->mall->boothWidth(),
             'defaultDepth' => $this->mall->boothDepth(),
             'error' => $error,
         ]);
+    }
+
+    private function list(string $slug, ?string $error): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $this->app->show('Feature/Party/booths', [
+            'title' => 'Booths',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'booths' => $this->booths->booths(),
+            'defaultWidth' => $this->mall->boothWidth(),
+            'defaultDepth' => $this->mall->boothDepth(),
+            'error' => $error,
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function ratesFor(string $boothId): array
+    {
+        $matched = [];
+        foreach ($this->booths->rates() as $rate) {
+            if (($rate['booth_id'] ?? null) === $boothId) {
+                $matched[] = $rate;
+            }
+        }
+
+        return $matched;
     }
 
     /**

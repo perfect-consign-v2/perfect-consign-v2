@@ -36,7 +36,7 @@ final class PartyStore
     public function assignments(): array
     {
         return $this->statements->rows(
-            'SELECT assignment.id, booth.code AS booth_code, vendor.code AS vendor_code,
+            'SELECT assignment.id, assignment.vendor_id, booth.code AS booth_code, vendor.code AS vendor_code,
                     assignment.starts_on, assignment.ends_on
              FROM booth_assignments AS assignment
              JOIN booths AS booth ON booth.id = assignment.booth_id
@@ -48,19 +48,76 @@ final class PartyStore
     /**
      * @return list<array<string, mixed>>
      */
+    public function vendorRows(): array
+    {
+        return $this->statements->rows(
+            'SELECT vendor.id AS vendor_id, vendor.code AS vendor_code, vendor.name AS vendor_name,
+                    assignment.id AS assignment_id, assignment.booth_id, booth.code AS booth_code,
+                    assignment.starts_on, assignment.ends_on
+             FROM vendors AS vendor
+             LEFT JOIN booth_assignments AS assignment ON assignment.vendor_id = vendor.id
+             LEFT JOIN booths AS booth ON booth.id = assignment.booth_id
+             ORDER BY vendor.name, vendor.code, assignment.starts_on'
+        );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public function rates(): array
     {
         return $this->statements->rows(
-            'SELECT booth.code, rate.month_start, rate.amount_minor
+            'SELECT booth.id AS booth_id, booth.code, rate.month_start, rate.amount_minor
              FROM booth_rent_rates AS rate
              JOIN booths AS booth ON booth.id = rate.booth_id
              ORDER BY rate.month_start, booth.code'
         );
     }
 
-    public function addVendor(string $code, string $name): void
+    public function addVendor(string $code, string $name): string
     {
-        $this->statements->change('INSERT INTO vendors (code, name) VALUES (?, ?)', [$code, $name]);
+        $rows = $this->statements->bound(
+            'INSERT INTO vendors (code, name) VALUES (?, ?) RETURNING id',
+            [$code, $name]
+        );
+        $id = $rows[0]['id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            throw new \InvalidArgumentException('the vendor was not saved');
+        }
+
+        return $id;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findVendor(string $id): ?array
+    {
+        $rows = $this->statements->bound(
+            'SELECT id, code, name FROM vendors WHERE id = ?::uuid',
+            [$id]
+        );
+
+        return $rows[0] ?? null;
+    }
+
+    public function saveVendor(string $id, string $code, string $name): void
+    {
+        $count = $this->statements->affected(
+            'UPDATE vendors SET code = ?, name = ? WHERE id = ?::uuid',
+            [$code, $name, $id]
+        );
+        if ($count === 0) {
+            throw new \InvalidArgumentException('that vendor is not in this mall');
+        }
+    }
+
+    public function removeVendor(string $id): void
+    {
+        $count = $this->statements->affected('DELETE FROM vendors WHERE id = ?::uuid', [$id]);
+        if ($count === 0) {
+            throw new \InvalidArgumentException('that vendor is not in this mall');
+        }
     }
 
     /**

@@ -289,6 +289,21 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+/* Windows paints a styled select's highlight with the option color, so the
+   label vanishes on hover unless the popup colors are set explicitly. */
+[data-mode="light"] select {
+  color-scheme: light;
+}
+[data-mode="light"] select option {
+  background-color: var(--surface);
+  color: var(--text);
+}
+[data-mode="light"] select option:hover,
+[data-mode="light"] select option:focus,
+[data-mode="light"] select option:checked {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+}
 .input::placeholder { color: var(--text-subtle); }
 
 /* ---- Cards ------------------------------------------------------------- */
