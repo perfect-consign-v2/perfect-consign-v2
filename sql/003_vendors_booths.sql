@@ -15,10 +15,16 @@ CREATE TABLE booths (
     id uuid PRIMARY KEY DEFAULT uuidv7(),
     code text NOT NULL,
     name text NOT NULL,
+    width_ft integer,
+    depth_ft integer,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT booths_code_chk CHECK (code = btrim(code) AND code <> ''),
     CONSTRAINT booths_name_chk CHECK (name = btrim(name) AND name <> ''),
-    CONSTRAINT booths_code_key UNIQUE (code)
+    CONSTRAINT booths_code_key UNIQUE (code),
+    CONSTRAINT booths_size_chk CHECK (
+        (width_ft IS NULL) = (depth_ft IS NULL)
+        AND (width_ft IS NULL OR (width_ft > 0 AND depth_ft > 0))
+    )
 );
 
 CREATE TABLE booth_assignments (
@@ -152,6 +158,20 @@ BEGIN
           AND subledger_ref = OLD.id::text
     ) THEN
         RAISE EXCEPTION 'a booth referenced by a journal line cannot be deleted'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF TG_TABLE_NAME = 'booths' AND EXISTS (
+        SELECT 1 FROM public.booth_assignments WHERE booth_id = OLD.id
+    ) THEN
+        RAISE EXCEPTION 'a booth with an assignment cannot be deleted'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF TG_TABLE_NAME = 'booths' AND EXISTS (
+        SELECT 1 FROM public.booth_rent_rates WHERE booth_id = OLD.id
+    ) THEN
+        RAISE EXCEPTION 'a booth with a rent rate cannot be deleted'
             USING ERRCODE = '23514';
     END IF;
     RETURN OLD;

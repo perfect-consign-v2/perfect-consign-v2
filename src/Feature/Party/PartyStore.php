@@ -25,7 +25,9 @@ final class PartyStore
      */
     public function booths(): array
     {
-        return $this->statements->rows('SELECT id, code, name FROM booths ORDER BY code');
+        return $this->statements->rows(
+            'SELECT id, code, name, width_ft, depth_ft FROM booths ORDER BY code'
+        );
     }
 
     /**
@@ -61,9 +63,44 @@ final class PartyStore
         $this->statements->change('INSERT INTO vendors (code, name) VALUES (?, ?)', [$code, $name]);
     }
 
-    public function addBooth(string $code, string $name): void
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findBooth(string $id): ?array
     {
-        $this->statements->change('INSERT INTO booths (code, name) VALUES (?, ?)', [$code, $name]);
+        $rows = $this->statements->bound(
+            'SELECT id, code, name, width_ft, depth_ft FROM booths WHERE id = ?::uuid',
+            [$id]
+        );
+
+        return $rows[0] ?? null;
+    }
+
+    public function addBooth(string $code, string $name, ?int $width, ?int $depth): void
+    {
+        $this->statements->change(
+            'INSERT INTO booths (code, name, width_ft, depth_ft) VALUES (?, ?, ?, ?)',
+            [$code, $name, $width, $depth]
+        );
+    }
+
+    public function saveBooth(string $id, string $code, string $name, ?int $width, ?int $depth): void
+    {
+        $count = $this->statements->affected(
+            'UPDATE booths SET code = ?, name = ?, width_ft = ?, depth_ft = ? WHERE id = ?::uuid',
+            [$code, $name, $width, $depth, $id]
+        );
+        if ($count === 0) {
+            throw new \InvalidArgumentException('that booth is not in this mall');
+        }
+    }
+
+    public function removeBooth(string $id): void
+    {
+        $count = $this->statements->affected('DELETE FROM booths WHERE id = ?::uuid', [$id]);
+        if ($count === 0) {
+            throw new \InvalidArgumentException('that booth is not in this mall');
+        }
     }
 
     public function addAssignment(string $boothId, string $vendorId, string $startsOn, string $endsOn): void

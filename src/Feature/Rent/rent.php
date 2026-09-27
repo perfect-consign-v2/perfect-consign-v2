@@ -7,6 +7,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var list<array<string, mixed>> $booths */
+/** @var string $today */
 ?>
 <h1>Rent</h1>
 <div class="card">
@@ -20,7 +21,7 @@ use PerfectConsign\Shared\Http\View;
             <?php endforeach; ?>
         </select>
         <label for="charge_date">Posting date</label>
-        <input id="charge_date" name="posting_date" type="date" required>
+        <input id="charge_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
         <p><button type="submit">Post rent charge</button></p>
     </form>
 </div>
@@ -39,7 +40,7 @@ use PerfectConsign\Shared\Http\View;
         <label for="pay_amount">Amount</label>
         <input id="pay_amount" name="amount" inputmode="decimal" required>
         <label for="pay_date">Posting date</label>
-        <input id="pay_date" name="posting_date" type="date" required>
+        <input id="pay_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
         <p><button type="submit">Post rent payment</button></p>
     </form>
 </div>

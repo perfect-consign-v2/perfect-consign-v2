@@ -83,7 +83,7 @@ final class OwnerJourneyTest extends WebTestCase
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         $vendor = $this->vendor();
         $booth = $this->booth();
-        $parties = $this->session->html();
+        $parties = $this->session->open('/' . ProbeMall::SLUG . '/parties');
         $this->session->submit('/' . ProbeMall::SLUG . '/assignments', [
             'booth_id' => HtmlPage::option($parties, 'assign_booth', $booth),
             'vendor_id' => HtmlPage::option($parties, 'assign_vendor', $vendor),
@@ -154,6 +154,32 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('brands_name_key', $duplicate);
     }
 
+    public function testTheOwnerAddsRenamesAndDeletesABooth(): void
+    {
+        $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $this->session->open('/' . ProbeMall::SLUG . '/booths/new');
+        $code = 'b' . bin2hex(random_bytes(4));
+        $renamed = $code . 'x';
+        $page = $this->session->submit('/' . ProbeMall::SLUG . '/booths', [
+            'code' => $code,
+            'name' => 'Front',
+        ]);
+        self::assertSees($code, $page);
+        $edit = HtmlPage::articleLink($page, $code);
+        $update = preg_replace('#/edit$#', '', $edit);
+        self::assertIsString($update);
+        $this->session->open($edit);
+        $renamedPage = $this->session->submit($update, [
+            'code' => $renamed,
+            'name' => 'Front',
+            'width_ft' => '12',
+            'depth_ft' => '8',
+        ]);
+        self::assertSees('12 × 8 ft', $renamedPage);
+        $deleted = $this->session->submit($update . '/delete', []);
+        self::assertStringNotContainsString($renamed, $deleted);
+    }
+
     public function testTheOwnerSignsOut(): void
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
@@ -180,6 +206,7 @@ final class OwnerJourneyTest extends WebTestCase
     private function booth(): string
     {
         $code = 'b' . bin2hex(random_bytes(4));
+        $this->session->open('/' . ProbeMall::SLUG . '/booths/new');
         $page = $this->session->submit('/' . ProbeMall::SLUG . '/booths', [
             'code' => $code,
             'name' => $code,

@@ -26,6 +26,7 @@ $groups = [
         ['/rent', 'Rent', 'i-booth'],
         ['/payout', 'Payout', 'i-wallet'],
         ['/parties', 'Vendors', 'i-vendor'],
+        ['/booths', 'Booths', 'i-booth'],
         ['/brands', 'Brands', 'i-tag'],
         ['/map', 'Booth map', 'i-map'],
     ],
@@ -35,6 +36,7 @@ $groups = [
         ['/opening', 'Opening', 'i-plus'],
         ['/close', 'Close', 'i-lock'],
         ['/export', 'Export', 'i-arrow-down'],
+        ['/settings', 'Settings', 'i-settings'],
     ],
 ];
 ?>

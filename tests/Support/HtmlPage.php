@@ -42,7 +42,7 @@ final class HtmlPage
 
     public static function articleLink(string $html, string $text): string
     {
-        $matched = preg_match_all('/<article class="card" id="brand-[^"]+"[^>]*>.*?<\/article>/s', $html, $articles);
+        $matched = preg_match_all('/<article class="card" id="(?:brand|booth)-[^"]+"[^>]*>.*?<\/article>/s', $html, $articles);
         if ($matched === false || $matched < 1) {
             throw new RuntimeException('brand ' . $text . ' was not on the page');
         }

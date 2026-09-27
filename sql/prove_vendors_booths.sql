@@ -8,8 +8,9 @@ DECLARE
 BEGIN
     SELECT count(*) INTO money_columns
     FROM information_schema.columns
-    WHERE table_schema = 'public'
+    WHERE table_schema = current_schema()
       AND table_name IN ('vendors', 'booths', 'booth_assignments')
+      AND column_name NOT IN ('width_ft', 'depth_ft')
       AND (
           data_type IN ('numeric', 'money', 'bigint', 'integer', 'smallint')
           OR column_name ~* '(amount|balance|minor|rate|price|total)'
@@ -17,6 +18,16 @@ BEGIN
 
     IF money_columns <> 0 THEN
         RAISE EXCEPTION 'vendor or booth tables carry money';
+    END IF;
+
+    IF (
+        SELECT count(*)
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'booths'
+          AND column_name IN ('width_ft', 'depth_ft')
+    ) <> 2 THEN
+        RAISE EXCEPTION 'booth size columns are missing';
     END IF;
 END $$;
 
@@ -190,6 +201,132 @@ BEGIN
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, width_ft) VALUES ('wide', 'Wide only', 10);
+    RAISE EXCEPTION 'a booth width without a depth was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, width_ft, depth_ft) VALUES ('zero', 'Zero', 0, 10);
+    RAISE EXCEPTION 'a zero booth size was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+INSERT INTO booths (id, code, name, width_ft, depth_ft)
+VALUES ('01900000-0000-7000-8000-000000000210', 'C1', 'Open booth', 10, 20);
+
+DELETE FROM booths WHERE id = '01900000-0000-7000-8000-000000000210';
+
+DO $$
+BEGIN
+    DELETE FROM booths WHERE id = '01900000-0000-7000-8000-000000000201';
+    RAISE EXCEPTION 'a booth with an assignment was deleted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+INSERT INTO booths (id, code, name)
+VALUES ('01900000-0000-7000-8000-000000000211', 'C2', 'Rated booth');
+
+INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000211', '2026-03-01', 10000);
+
+DO $$
+BEGIN
+    DELETE FROM booths WHERE id = '01900000-0000-7000-8000-000000000211';
+    RAISE EXCEPTION 'a booth with a rent rate was deleted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+INSERT INTO booths (id, code, name)
+VALUES ('01900000-0000-7000-8000-000000000212', 'C3', 'Charged booth');
+
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
+VALUES (
+    '01900000-0000-7000-8000-000000000312',
+    '01900000-0000-7000-8000-000000000212',
+    '01900000-0000-7000-8000-000000000101',
+    '2026-01-01'
+);
+
+INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000212', '2026-04-01', 8000);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000403',
+    '01900000-0000-7000-8000-000000000001',
+    'rent-charge:01900000-0000-7000-8000-000000000212:2026-04',
+    '2026-04-01',
+    '2026-04-01 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'rent_charge',
+    'C3:2026-04',
+    'April rent for booth C3',
+    8000,
+    8000
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000403',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000015',
+    8000,
+    0,
+    'booth',
+    '01900000-0000-7000-8000-000000000212'
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000403',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000017',
+    0,
+    8000
+);
+
+DO $$
+BEGIN
+    DELETE FROM booths WHERE id = '01900000-0000-7000-8000-000000000212';
+    RAISE EXCEPTION 'a booth with posted rent was deleted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+INSERT INTO booths (id, code, name)
+VALUES ('01900000-0000-7000-8000-000000000213', 'C4', 'Poster booth');
+
+DO $$
+BEGIN
+    SET LOCAL ROLE stall_poster;
+    DELETE FROM booths WHERE id = '01900000-0000-7000-8000-000000000213';
+    IF EXISTS (
+        SELECT 1 FROM booths WHERE id = '01900000-0000-7000-8000-000000000213'
+    ) THEN
+        RAISE EXCEPTION 'poster did not delete the booth';
+    END IF;
+    RESET ROLE;
 END $$;
 
 DO $$

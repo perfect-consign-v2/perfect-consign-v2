@@ -8,6 +8,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $csrf */
 /** @var list<array<string, mixed>> $vendors */
 /** @var string $saleId */
+/** @var string $today */
 ?>
 <h1>Sale</h1>
 <form method="post" action="/<?= View::text($slug) ?>/sale">
@@ -32,6 +33,6 @@ use PerfectConsign\Shared\Http\View;
     <label for="tax">Sales tax</label>
     <input id="tax" name="tax" inputmode="decimal" value="0.00">
     <label for="posting_date">Posting date</label>
-    <input id="posting_date" name="posting_date" type="date" required>
+    <input id="posting_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
     <p><button type="submit">Post sale</button></p>
 </form>

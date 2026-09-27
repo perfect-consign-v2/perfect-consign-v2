@@ -47,5 +47,22 @@ final class BoothMapTest extends TestCase
         self::assertNull($tiles[0]['vendor']);
         self::assertSame('A1', $tiles[0]['label']);
         self::assertLessThanOrEqual(120, $tiles[1]['x'] + $tiles[1]['width']);
+        self::assertSame(10, $tiles[0]['width']);
+        self::assertSame(10, $tiles[0]['depth']);
+    }
+
+    public function testABoothSizeReplacesTheMallDefault(): void
+    {
+        $tiles = BoothMap::tiles(
+            [
+                ['id' => 'a', 'code' => 'A1', 'name' => 'Front', 'width' => 20, 'depth' => 10],
+            ],
+            [],
+            '2026-09-26',
+            10,
+            10
+        );
+        self::assertSame(20, $tiles[0]['width']);
+        self::assertSame(10, $tiles[0]['depth']);
     }
 }

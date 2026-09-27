@@ -35,18 +35,6 @@ final class PartyController
         });
     }
 
-    #[Route('/([a-z][a-z0-9-]{0,62})/booths', ['POST'])]
-    public function addBooth(string $slug): void
-    {
-        $this->app->checkCsrf();
-        $this->change($slug, function (): void {
-            $this->parties->addBooth(
-                $this->app->request()->field('code'),
-                $this->app->request()->field('name')
-            );
-        });
-    }
-
     #[Route('/([a-z][a-z0-9-]{0,62})/assignments', ['POST'])]
     public function addAssignment(string $slug): void
     {

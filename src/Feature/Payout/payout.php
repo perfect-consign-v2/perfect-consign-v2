@@ -8,6 +8,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $csrf */
 /** @var list<array<string, mixed>> $vendors */
 /** @var string $vendorId */
+/** @var string $today */
 /** @var array{payable: int, rent: int, booths: list<array{booth_id: string, open_minor: int}>}|null $open */
 /** @var list<array<string, mixed>> $statement */
 ?>
@@ -30,7 +31,7 @@ use PerfectConsign\Shared\Http\View;
         <label for="month">Month</label>
         <input id="month" name="month" placeholder="YYYY-MM" required>
         <label for="posting_date">Posting date</label>
-        <input id="posting_date" name="posting_date" type="date" required>
+        <input id="posting_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
         <p><button type="submit">Post payout</button></p>
     </form>
     <h2>Statement</h2>

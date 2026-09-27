@@ -10,7 +10,7 @@ Postgres `18.6`. Host port **5436**. Database `consign`. User `stall`. Volume `p
 
 ## Load
 
-Apply `sql/000_platform.sql` to database `consign`. That creates schema `extensions` and installs `btree_gist` there. Then provision a mall. That applies `sql/001_kernel.sql` through `sql/014_export_files.sql`, then `sql/017_poster_grants.sql` and `sql/019_brands.sql`, into that mall's schema. A tenant session path is `tenant_x, pg_catalog, extensions`. `public` is not a mall.
+Apply `sql/000_platform.sql` to database `consign`. That creates schema `extensions` and installs `btree_gist` there. Then provision a mall. That applies `sql/001_kernel.sql` through `sql/014_export_files.sql`, then `sql/017_poster_grants.sql`, `sql/019_brands.sql`, and `sql/020_mall.sql`, into that mall's schema. A tenant session path is `tenant_x, pg_catalog, extensions`. `public` is not a mall.
 
 `STALL_DB_HOST`, `STALL_DB_PORT`, `STALL_DB_NAME`, `STALL_DB_USER`, and `STALL_DB_PASSWORD` are required.
 

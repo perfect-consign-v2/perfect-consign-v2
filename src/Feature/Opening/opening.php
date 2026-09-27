@@ -9,6 +9,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var bool $allowed */
 /** @var list<array<string, mixed>> $accounts */
 /** @var string $templateDirectory */
+/** @var string $today */
 ?>
 <h1>Opening balance</h1>
 <?php if (!$allowed): ?>
@@ -17,7 +18,7 @@ use PerfectConsign\Shared\Http\View;
     <form method="post" action="/<?= View::text($slug) ?>/opening">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
         <label for="posting_date">Posting date</label>
-        <input id="posting_date" name="posting_date" type="date" required>
+        <input id="posting_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
         <?php
         $subledger = true;
         for ($slot = 1; $slot <= 6; $slot++) {

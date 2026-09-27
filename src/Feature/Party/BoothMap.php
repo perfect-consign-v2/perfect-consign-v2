@@ -67,24 +67,24 @@ final class BoothMap
     }
 
     /**
-     * @param list<array{id: string, code: string, name: string}> $booths
+     * @param list<array{id: string, code: string, name: string, width?: int|null, depth?: int|null}> $booths
      * @param list<array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
      * @return list<array{id: string, code: string, name: string, x: int, z: int, width: int, depth: int, status: string, vendor: ?string, label: string}>
      */
-    public static function tiles(array $booths, array $stays, string $today): array
+    public static function tiles(array $booths, array $stays, string $today, int $defaultWidth = 10, int $defaultDepth = 10): array
     {
         $tiles = [];
-        $column = 0;
-        $row = 0;
+        $x = 2;
+        $z = 2;
+        $rowDepth = 0;
         foreach ($booths as $booth) {
             $spot = self::occupancy($stays, $booth['id'], $today);
-            $x = 2 + ($column * 12);
-            $z = 2 + ($row * 12);
-            if ($x + 10 > 120) {
-                $column = 0;
-                $row++;
+            $width = self::feet($booth['width'] ?? null, $defaultWidth);
+            $depth = self::feet($booth['depth'] ?? null, $defaultDepth);
+            if ($x !== 2 && $x + $width > 120) {
                 $x = 2;
-                $z = 2 + ($row * 12);
+                $z += $rowDepth + 2;
+                $rowDepth = 0;
             }
             $vendor = $spot['vendor'];
             $tiles[] = [
@@ -93,15 +93,25 @@ final class BoothMap
                 'name' => $booth['name'],
                 'x' => $x,
                 'z' => $z,
-                'width' => 10,
-                'depth' => 10,
+                'width' => $width,
+                'depth' => $depth,
                 'status' => $spot['status'],
                 'vendor' => $vendor,
                 'label' => $vendor === null ? $booth['code'] : $booth['code'] . ' — ' . $vendor,
             ];
-            $column++;
+            $rowDepth = max($rowDepth, $depth);
+            $x += $width + 2;
         }
 
         return $tiles;
+    }
+
+    private static function feet(mixed $value, int $fallback): int
+    {
+        if (is_int($value) && $value > 0) {
+            return $value;
+        }
+
+        return $fallback;
     }
 }

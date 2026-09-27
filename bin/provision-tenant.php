@@ -21,6 +21,7 @@ final class TenantProvisioner
         '014_export_files.sql',
         '017_poster_grants.sql',
         '019_brands.sql',
+        '020_mall.sql',
     ];
 
     public function __construct(

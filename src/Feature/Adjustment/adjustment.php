@@ -8,6 +8,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $csrf */
 /** @var list<array<string, mixed>> $accounts */
 /** @var string $templateDirectory */
+/** @var string $today */
 ?>
 <h1>Adjustment</h1>
 <form method="post" action="/<?= View::text($slug) ?>/adjustment">
@@ -15,7 +16,7 @@ use PerfectConsign\Shared\Http\View;
     <label for="source_reference">Source reference</label>
     <input id="source_reference" name="source_reference" required>
     <label for="posting_date">Posting date</label>
-    <input id="posting_date" name="posting_date" type="date" required>
+    <input id="posting_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
     <label for="description">Description</label>
     <input id="description" name="description" required>
     <?php

@@ -125,6 +125,69 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('brands_name_key', $duplicate);
     }
 
+    public function testTheOwnerAddsRenamesAndDeletesABooth(): void
+    {
+        $code = 'b' . bin2hex(random_bytes(4));
+        $renamed = $code . 'x';
+        $page = $this->client->post('/' . ProbeMall::SLUG . '/booths', [
+            'code' => $code,
+            'name' => 'Front',
+            'width_ft' => '',
+            'depth_ft' => '',
+        ]);
+        self::assertSees($code, $page);
+        self::assertSees('10 × 10 ft', $page);
+        $edit = HtmlPage::articleLink($page->body, $code);
+        $update = preg_replace('#/edit$#', '', $edit);
+        self::assertIsString($update);
+        $renamedPage = $this->client->post($update, [
+            'code' => $renamed,
+            'name' => 'Front',
+            'width_ft' => '12',
+            'depth_ft' => '8',
+        ]);
+        self::assertSees('12 × 8 ft', $renamedPage);
+        $deleted = $this->client->post($update . '/delete', []);
+        self::assertStringNotContainsString($renamed, $deleted->body);
+        $added = $this->client->post('/' . ProbeMall::SLUG . '/booths', [
+            'code' => $code,
+            'name' => 'Front',
+        ]);
+        self::assertSees($code, $added);
+        $duplicate = $this->client->post('/' . ProbeMall::SLUG . '/booths', [
+            'code' => $code,
+            'name' => 'Again',
+        ]);
+
+        self::assertSame(200, $duplicate->status);
+        self::assertSees('booths_code_key', $duplicate);
+    }
+
+    public function testTheOwnerSetsTheMallClock(): void
+    {
+        $page = $this->client->get('/' . ProbeMall::SLUG . '/settings');
+        self::assertSees('America/Los_Angeles', $page);
+        $refused = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+            'time_zone' => 'Not/AZone',
+            'booth_width_ft' => '10',
+            'booth_depth_ft' => '10',
+        ]);
+        self::assertSame(200, $refused->status);
+        self::assertSees('that time zone is not an IANA name', $refused);
+        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+            'time_zone' => 'America/Chicago',
+            'booth_width_ft' => '12',
+            'booth_depth_ft' => '8',
+        ]);
+        self::assertSees('America/Chicago', $saved);
+        $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+            'time_zone' => 'America/Los_Angeles',
+            'booth_width_ft' => '10',
+            'booth_depth_ft' => '10',
+        ]);
+        self::assertSees('America/Los_Angeles', $restored);
+    }
+
     private function vendor(): string
     {
         $code = 'v' . bin2hex(random_bytes(4));

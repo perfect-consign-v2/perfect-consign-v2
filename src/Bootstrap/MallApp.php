@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
@@ -27,6 +28,7 @@ final class MallApp
         private readonly View $view,
         private readonly Request $request,
         private readonly OwnerAccess $access,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -45,6 +47,7 @@ final class MallApp
         $data['csrf'] = $this->csrf();
         $data['error'] = $data['error'] ?? null;
         $data['path'] = $this->request->path;
+        $data['today'] = $this->roled ? $this->mall->today() : '';
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
 

@@ -7,6 +7,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var int $openTax */
+/** @var string $today */
 ?>
 <h1>Sales tax</h1>
 <p>Open tax <?= View::text(View::money($openTax)) ?></p>
@@ -22,6 +23,6 @@ use PerfectConsign\Shared\Http\View;
         <option value="bank">Bank</option>
     </select>
     <label for="posting_date">Posting date</label>
-    <input id="posting_date" name="posting_date" type="date" required>
+    <input id="posting_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
     <p><button type="submit">Post tax payment</button></p>
 </form>

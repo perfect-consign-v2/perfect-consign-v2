@@ -10,6 +10,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var list<array<string, mixed>> $booths */
 /** @var list<array<string, mixed>> $assignments */
 /** @var list<array<string, mixed>> $rates */
+/** @var string $today */
 ?>
 <h1>Vendors and booths</h1>
 <div class="card">
@@ -30,14 +31,7 @@ use PerfectConsign\Shared\Http\View;
 </div>
 <div class="card">
     <h2>Booth</h2>
-    <form method="post" action="/<?= View::text($slug) ?>/booths">
-        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <label for="booth_code">Code</label>
-        <input id="booth_code" name="code" required>
-        <label for="booth_name">Name</label>
-        <input id="booth_name" name="name" required>
-        <p><button type="submit">Add booth</button></p>
-    </form>
+    <p><a href="/<?= View::text($slug) ?>/booths">Booths</a></p>
     <ul>
         <?php foreach ($booths as $booth): ?>
             <li id="booth-<?= View::text($booth['code']) ?>"><?= View::text($booth['code']) ?> <?= View::text($booth['name']) ?></li>
@@ -61,7 +55,7 @@ use PerfectConsign\Shared\Http\View;
             <?php endforeach; ?>
         </select>
         <label for="starts_on">Start</label>
-        <input id="starts_on" name="starts_on" type="date" required>
+        <input id="starts_on" name="starts_on" type="date" value="<?= View::text($today) ?>" required>
         <label for="ends_on">End</label>
         <input id="ends_on" name="ends_on" type="date">
         <p><button type="submit">Add assignment</button></p>

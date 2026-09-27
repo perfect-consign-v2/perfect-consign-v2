@@ -1,0 +1,65 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PerfectConsign\Feature\Mall;
+
+use DateTimeImmutable;
+use DateTimeZone;
+use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\RowValue;
+
+final class MallSettings
+{
+    public function __construct(private readonly Statements $statements)
+    {
+    }
+
+    public function today(): string
+    {
+        return (new DateTimeImmutable('now', new DateTimeZone($this->timeZone())))->format('Y-m-d');
+    }
+
+    public function timeZone(): string
+    {
+        return RowValue::string($this->row()['time_zone'] ?? null);
+    }
+
+    public function boothWidth(): int
+    {
+        return RowValue::integer($this->row()['booth_width_ft'] ?? null);
+    }
+
+    public function boothDepth(): int
+    {
+        return RowValue::integer($this->row()['booth_depth_ft'] ?? null);
+    }
+
+    public function save(string $timeZone, int $width, int $depth): void
+    {
+        if (!in_array($timeZone, timezone_identifiers_list(DateTimeZone::ALL_WITH_BC), true)) {
+            throw new \InvalidArgumentException('that time zone is not an IANA name');
+        }
+        if ($width < 1 || $depth < 1) {
+            throw new \InvalidArgumentException('booth size is whole feet');
+        }
+        $this->statements->change(
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?',
+            [$timeZone, $width, $depth]
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function row(): array
+    {
+        $rows = $this->statements->rows('SELECT time_zone, booth_width_ft, booth_depth_ft FROM mall');
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            throw new \RuntimeException('the mall has no clock');
+        }
+
+        return $row;
+    }
+}
