@@ -76,7 +76,7 @@ final class PayoutController
             $this->render($slug, $vendorId, $this->app->catchRefusal($refusal));
             return;
         }
-        $this->app->redirect('/' . $slug . '/journals/' . $journalId);
+        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Payout posted.');
     }
 
     /**

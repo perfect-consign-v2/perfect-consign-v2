@@ -46,6 +46,7 @@ final class MallApp
         $data['nav'] = is_string($slug) && $this->sessionSlug() === $slug;
         $data['csrf'] = $this->csrf();
         $data['error'] = $data['error'] ?? null;
+        $data['notice'] = $this->takeNotice();
         $data['path'] = $this->request->path;
         $data['today'] = $this->roled ? $this->mall->today() : '';
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
@@ -61,16 +62,33 @@ final class MallApp
             'nav' => false,
             'csrf' => '',
             'error' => null,
+            'notice' => null,
             'path' => $this->request->path,
             'body' => 'Shared/Web/not-found',
         ]);
         throw new ResponseSent('not found');
     }
 
-    public function redirect(string $path): never
+    public function redirect(string $path, ?string $notice = null): never
     {
+        if ($notice !== null && $notice !== '') {
+            $this->session->set('notice', $notice);
+        }
         header('Location: ' . $path, true, 303);
         throw new ResponseSent('redirect');
+    }
+
+    private function takeNotice(): ?string
+    {
+        $notice = $this->session->get('notice');
+        if ($this->session->has('notice')) {
+            $this->session->delete('notice');
+        }
+        if (!is_string($notice) || $notice === '') {
+            return null;
+        }
+
+        return $notice;
     }
 
     public function open(string $slug, bool $books): TenantRecord

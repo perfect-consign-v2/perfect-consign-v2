@@ -38,7 +38,7 @@ $runRace = {
     $sql | docker exec -i perfect-consign-postgres psql -U stall -d consign -v ON_ERROR_STOP=1
 }
 
-Invoke-Exec -Command "INSERT INTO vendors (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d101', 'race', 'Race');" | Out-Null
+Invoke-Exec -Command "INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d101', 'race', 'Race', 'Lane');" | Out-Null
 
 $deleteJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_delete.sql'), $script:TenantSchema
 Start-Sleep -Seconds 1
@@ -67,7 +67,7 @@ if ($keyWatch.ElapsedMilliseconds -lt 4500) {
 }
 
 Invoke-Exec -Command @"
-INSERT INTO vendors (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d201', 'race-rate', 'Race rate');
+INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d201', 'race-rate', 'Race', 'rate');
 INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d301', 'R1', 'Race booth');
 INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on) VALUES ('01900000-0000-7000-8000-00000000d401', '01900000-0000-7000-8000-00000000d301', '01900000-0000-7000-8000-00000000d201', '2029-01-01');
 INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d301', '2029-03-01', 15000);
@@ -94,7 +94,7 @@ DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d023'
 "@ | Out-Null
 
 Invoke-Exec -Command @"
-INSERT INTO vendors (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d202', 'race-end', 'Race end');
+INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d202', 'race-end', 'Race', 'end');
 INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d302', 'R2', 'Race booth 2');
 INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on) VALUES ('01900000-0000-7000-8000-00000000d402', '01900000-0000-7000-8000-00000000d302', '01900000-0000-7000-8000-00000000d202', '2029-01-01');
 INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d302', '2029-03-01', 15000);

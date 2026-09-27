@@ -70,7 +70,7 @@ final class TaxController
             $this->render($slug, $error->getMessage());
             return;
         }
-        $this->app->redirect('/' . $slug . '/journals/' . $journalId);
+        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Tax payment posted.');
     }
 
     private function render(string $slug, ?string $error): void

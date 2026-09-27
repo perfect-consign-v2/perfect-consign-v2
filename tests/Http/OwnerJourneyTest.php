@@ -205,9 +205,15 @@ final class OwnerJourneyTest extends WebTestCase
         $name = 'Ada ' . $code;
         $created = $this->client->post('/' . ProbeMall::SLUG . '/vendors', [
             'code' => $code,
-            'name' => $name,
+            'first_name' => 'Ada',
+            'last_name' => $code,
+            'phone' => '555-0100',
+            'email' => 'ada@example.com',
+            'address' => '1 Main',
         ]);
-        self::assertSees($name, $created);
+        self::assertSees('Ada ' . $code, $created);
+        self::assertSees('555-0100', $created);
+        self::assertSees('ada@example.com', $created);
         self::assertSees('Active', $created);
         $directory = $this->client->get('/' . ProbeMall::SLUG . '/parties');
         self::assertSees($name, $directory);

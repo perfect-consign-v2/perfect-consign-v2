@@ -15,6 +15,7 @@ final class VendorRoster
         'active' => true,
         'ending' => true,
         'incoming' => true,
+        'inactive' => true,
         'open' => true,
     ];
 
@@ -32,6 +33,9 @@ final class VendorRoster
      *     id: string,
      *     code: string,
      *     name: string,
+     *     phone: string,
+     *     email: string,
+     *     address: string,
      *     status: string,
      *     status_label: string,
      *     status_badge: string,
@@ -83,6 +87,9 @@ final class VendorRoster
      *   id: string,
      *   code: string,
      *   name: string,
+     *   phone: string,
+     *   email: string,
+     *   address: string,
      *   status: string,
      *   status_label: string,
      *   status_badge: string,
@@ -96,6 +103,9 @@ final class VendorRoster
      *   id: string,
      *   code: string,
      *   name: string,
+     *   phone: string,
+     *   email: string,
+     *   address: string,
      *   status: string,
      *   status_label: string,
      *   status_badge: string,
@@ -135,6 +145,10 @@ final class VendorRoster
      *   id: string,
      *   code: string,
      *   name: string,
+     *   phone: string,
+     *   email: string,
+     *   address: string,
+     *   active: bool,
      *   assignments: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
      * }>
      */
@@ -148,6 +162,10 @@ final class VendorRoster
                     'id' => $id,
                     'code' => $this->text($row['vendor_code'] ?? null),
                     'name' => $this->text($row['vendor_name'] ?? null),
+                    'phone' => $this->optional($row['phone'] ?? null),
+                    'email' => $this->optional($row['email'] ?? null),
+                    'address' => $this->optional($row['address'] ?? null),
+                    'active' => $this->standing($row['active'] ?? null),
                     'assignments' => [],
                 ];
             }
@@ -190,12 +208,19 @@ final class VendorRoster
      *   id: string,
      *   code: string,
      *   name: string,
+     *   phone: string,
+     *   email: string,
+     *   address: string,
+     *   active: bool,
      *   assignments: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
      * } $vendor
      * @return array{
      *   id: string,
      *   code: string,
      *   name: string,
+     *   phone: string,
+     *   email: string,
+     *   address: string,
      *   status: string,
      *   status_label: string,
      *   status_badge: string,
@@ -215,9 +240,12 @@ final class VendorRoster
             'id' => $vendor['id'],
             'code' => $vendor['code'],
             'name' => $vendor['name'],
-            'status' => 'active',
-            'status_label' => 'Active',
-            'status_badge' => 'badge-success',
+            'phone' => $vendor['phone'],
+            'email' => $vendor['email'],
+            'address' => $vendor['address'],
+            'status' => $vendor['active'] ? 'active' : 'inactive',
+            'status_label' => $vendor['active'] ? 'Active' : 'Inactive',
+            'status_badge' => $vendor['active'] ? 'badge-success' : 'badge-warning',
             'since' => $this->placement->since($current),
             'booths' => $this->placement->held($current, $upcoming),
             'current' => $current,
@@ -313,6 +341,30 @@ final class VendorRoster
         }
 
         return substr($value, 0, 10);
+    }
+
+    private function standing(mixed $value): bool
+    {
+        if ($value === null || $value === true || $value === 't' || $value === 'true' || $value === '1') {
+            return true;
+        }
+        if ($value === false || $value === 'f' || $value === 'false' || $value === '0') {
+            return false;
+        }
+
+        throw new InvalidArgumentException('a vendor field is missing');
+    }
+
+    private function optional(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        if (!is_string($value)) {
+            throw new InvalidArgumentException('a vendor field is missing');
+        }
+
+        return $value;
     }
 
     private function text(mixed $value): string

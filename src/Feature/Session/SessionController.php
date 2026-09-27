@@ -47,7 +47,7 @@ final class SessionController
             ]);
             return;
         }
-        $this->app->redirect('/' . $slug . '/book');
+        $this->app->redirect('/' . $slug . '/book', 'Signed in.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/logout', ['POST'])]
@@ -63,7 +63,7 @@ final class SessionController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $this->app->signOut();
-        $this->app->redirect('/' . $slug);
+        $this->app->redirect('/' . $slug, 'Signed out.');
     }
 
     private function confirm(string $slug, ?string $error): void

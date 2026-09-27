@@ -72,7 +72,7 @@ final class JournalController
             $this->showRefusal($tenant, $journal, $id, $refusal);
             return;
         }
-        $this->app->redirect('/' . $slug . '/journals/' . $voidId);
+        $this->app->redirect('/' . $slug . '/journals/' . $voidId, 'Journal voided.');
     }
 
     /**

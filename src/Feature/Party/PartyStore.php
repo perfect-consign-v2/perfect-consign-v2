@@ -17,7 +17,9 @@ final class PartyStore
      */
     public function vendors(): array
     {
-        return $this->statements->rows('SELECT id, code, name FROM vendors ORDER BY code');
+        return $this->statements->rows(
+            'SELECT id, code, first_name, last_name, name, phone, email, address FROM vendors ORDER BY name, code'
+        );
     }
 
     /**
@@ -52,6 +54,7 @@ final class PartyStore
     {
         return $this->statements->rows(
             'SELECT vendor.id AS vendor_id, vendor.code AS vendor_code, vendor.name AS vendor_name,
+                    vendor.first_name, vendor.last_name, vendor.phone, vendor.email, vendor.address, vendor.active,
                     assignment.id AS assignment_id, assignment.booth_id, booth.code AS booth_code,
                     assignment.starts_on, assignment.ends_on
              FROM vendors AS vendor
@@ -74,11 +77,24 @@ final class PartyStore
         );
     }
 
-    public function addVendor(string $code, string $name): string
-    {
+    public function addVendor(
+        string $code,
+        string $firstName,
+        string $lastName,
+        string $phone,
+        string $email,
+        string $address,
+    ): string {
         $rows = $this->statements->bound(
-            'INSERT INTO vendors (code, name) VALUES (?, ?) RETURNING id',
-            [$code, $name]
+            'INSERT INTO vendors (code, first_name, last_name, phone, email, address) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
+            [
+                $code,
+                $this->personName($firstName, 'first'),
+                $this->personName($lastName, 'last'),
+                $this->contact($phone, 'phone'),
+                $this->contact($email, 'email'),
+                $this->contact($address, 'address'),
+            ]
         );
         $id = $rows[0]['id'] ?? null;
         if (!is_string($id) || $id === '') {
@@ -94,18 +110,44 @@ final class PartyStore
     public function findVendor(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, name FROM vendors WHERE id = ?::uuid',
+            'SELECT id, code, first_name, last_name, name, phone, email, address, active FROM vendors WHERE id = ?::uuid',
             [$id]
         );
 
         return $rows[0] ?? null;
     }
 
-    public function saveVendor(string $id, string $code, string $name): void
+    public function saveVendor(
+        string $id,
+        string $code,
+        string $firstName,
+        string $lastName,
+        string $phone,
+        string $email,
+        string $address,
+    ): void {
+        $count = $this->statements->affected(
+            'UPDATE vendors SET code = ?, first_name = ?, last_name = ?, phone = ?, email = ?, address = ? WHERE id = ?::uuid',
+            [
+                $code,
+                $this->personName($firstName, 'first'),
+                $this->personName($lastName, 'last'),
+                $this->contact($phone, 'phone'),
+                $this->contact($email, 'email'),
+                $this->contact($address, 'address'),
+                $id,
+            ]
+        );
+        if ($count === 0) {
+            throw new \InvalidArgumentException('that vendor is not in this mall');
+        }
+    }
+
+    public function setActive(string $id, bool $active): void
     {
         $count = $this->statements->affected(
-            'UPDATE vendors SET code = ?, name = ? WHERE id = ?::uuid',
-            [$code, $name, $id]
+            'UPDATE vendors SET active = ?::boolean WHERE id = ?::uuid',
+            [$active ? 'true' : 'false', $id]
         );
         if ($count === 0) {
             throw new \InvalidArgumentException('that vendor is not in this mall');
@@ -181,6 +223,35 @@ final class PartyStore
             'UPDATE booth_assignments SET ends_on = ?::date WHERE id = ?::uuid',
             [$endsOn, $id]
         );
+    }
+
+    private function personName(string $value, string $part): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            throw new \InvalidArgumentException('a ' . $part . ' name is required');
+        }
+
+        return $trimmed;
+    }
+
+    private function contact(string $value, string $kind): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+        if ($kind === 'phone' && strlen($trimmed) > 40) {
+            throw new \InvalidArgumentException('that phone is too long');
+        }
+        if ($kind === 'email' && (strlen($trimmed) > 200 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $trimmed) !== 1)) {
+            throw new \InvalidArgumentException('that email is not an email address');
+        }
+        if ($kind === 'address' && strlen($trimmed) > 400) {
+            throw new \InvalidArgumentException('that address is too long');
+        }
+
+        return $trimmed;
     }
 
     public function addRate(string $boothId, string $monthStart, int $amount): void

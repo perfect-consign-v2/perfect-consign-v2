@@ -48,8 +48,8 @@ VALUES (
     'open'
 );
 
-INSERT INTO tenant_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.vendors (id, code, name)
-VALUES ('01900000-0000-7000-8000-00000000f101', 'other', 'Other mall vendor');
+INSERT INTO tenant_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.vendors (id, code, first_name, last_name)
+VALUES ('01900000-0000-7000-8000-00000000f101', 'other', 'Other', 'mall vendor');
 
 DO $$
 BEGIN

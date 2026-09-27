@@ -77,7 +77,7 @@ final class BrandController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/brands');
+            $this->app->redirect('/' . $slug . '/brands', 'Brand deleted.');
         }
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Brand/brands', [
@@ -101,7 +101,7 @@ final class BrandController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/brands');
+            $this->app->redirect('/' . $slug . '/brands', $id === null ? 'Brand created.' : 'Brand saved.');
         }
         $brand = [
             'name' => $this->app->request()->field('name'),

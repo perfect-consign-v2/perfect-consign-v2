@@ -1,14 +1,36 @@
--- Vendors and booths. Identity only. No money columns.
+-- Vendors and booths. Identity and contact. No money columns.
 -- A vendor id is the payable subledger ref. A booth id is the rent subledger ref.
 
 CREATE TABLE vendors (
     id uuid PRIMARY KEY DEFAULT uuidv7(),
     code text NOT NULL,
-    name text NOT NULL,
+    first_name text NOT NULL,
+    last_name text NOT NULL,
+    name text GENERATED ALWAYS AS (
+        CASE WHEN first_name = last_name THEN first_name ELSE btrim(first_name || ' ' || last_name) END
+    ) STORED,
+    active boolean NOT NULL DEFAULT true,
+    phone text,
+    email text,
+    address text,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT vendors_code_chk CHECK (code = btrim(code) AND code <> ''),
-    CONSTRAINT vendors_name_chk CHECK (name = btrim(name) AND name <> ''),
-    CONSTRAINT vendors_code_key UNIQUE (code)
+    CONSTRAINT vendors_first_name_chk CHECK (first_name = btrim(first_name) AND first_name <> ''),
+    CONSTRAINT vendors_last_name_chk CHECK (last_name = btrim(last_name) AND last_name <> ''),
+    CONSTRAINT vendors_code_key UNIQUE (code),
+    CONSTRAINT vendors_phone_chk CHECK (
+        phone IS NULL OR (phone = btrim(phone) AND phone <> '' AND char_length(phone) <= 40)
+    ),
+    CONSTRAINT vendors_email_chk CHECK (
+        email IS NULL OR (
+            email = btrim(email)
+            AND email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+            AND char_length(email) <= 200
+        )
+    ),
+    CONSTRAINT vendors_address_chk CHECK (
+        address IS NULL OR (address = btrim(address) AND address <> '' AND char_length(address) <= 400)
+    )
 );
 
 CREATE TABLE booths (

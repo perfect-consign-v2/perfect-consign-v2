@@ -102,8 +102,8 @@ final class BackupProof
         $this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $this->pdo->beginTransaction();
         $this->pdo->exec(
-            "INSERT INTO vendors (id, code, name)
-             VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada')"
+            "INSERT INTO vendors (id, code, first_name, last_name)
+             VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane')"
         );
         $this->pdo->exec(
             "INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)

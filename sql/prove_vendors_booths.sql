@@ -29,10 +29,31 @@ BEGIN
     ) <> 4 THEN
         RAISE EXCEPTION 'booth size or place columns are missing';
     END IF;
+
+    IF (
+        SELECT count(*)
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'vendors'
+          AND column_name IN ('first_name', 'last_name', 'phone', 'email', 'address')
+          AND data_type = 'text'
+    ) <> 5 THEN
+        RAISE EXCEPTION 'vendor contact columns are missing';
+    END IF;
+
+    IF (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'vendors'
+          AND column_name = 'active'
+    ) <> 'boolean' THEN
+        RAISE EXCEPTION 'vendor active standing is missing';
+    END IF;
 END $$;
 
-INSERT INTO vendors (id, code, name)
-VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada');
+INSERT INTO vendors (id, code, first_name, last_name)
+VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000201', 'A1', 'Booth A1');

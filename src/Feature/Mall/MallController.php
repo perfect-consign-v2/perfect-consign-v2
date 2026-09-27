@@ -43,7 +43,7 @@ final class MallController
         $floorDepth = $this->feet($this->app->request()->field('floor_depth_ft'));
         $error = $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth);
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/settings');
+            $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
         }
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $error);
     }

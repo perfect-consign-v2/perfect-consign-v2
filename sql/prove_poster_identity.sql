@@ -9,7 +9,7 @@ DECLARE
     period_id uuid := '01900000-0000-7000-8000-00000000c201';
 BEGIN
     SET LOCAL ROLE stall_poster;
-    INSERT INTO vendors (id, code, name) VALUES (vendor_id, 'poster-vendor', 'Poster vendor');
+    INSERT INTO vendors (id, code, first_name, last_name) VALUES (vendor_id, 'poster-vendor', 'Poster', 'vendor');
     INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
     VALUES (period_id, '01900000-0000-7000-8000-000000000001', '2099-01-01', '2099-12-31', 'open');
 

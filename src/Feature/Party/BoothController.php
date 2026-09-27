@@ -114,7 +114,7 @@ final class BoothController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/booths');
+            $this->app->redirect('/' . $slug . '/booths', 'Booth deleted.');
         }
         $this->list($slug, $error);
     }
@@ -138,7 +138,7 @@ final class BoothController
             $error = $errorValue->getMessage();
         }
         if ($error === null && preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1) {
-            $this->app->redirect('/' . $slug . '/booths/' . $id . '/edit');
+            $this->app->redirect('/' . $slug . '/booths/' . $id . '/edit', 'Monthly rent saved.');
         }
         $booth = preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1 ? $this->booths->findBooth($id) : null;
         if ($booth === null) {
@@ -160,7 +160,7 @@ final class BoothController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/booths');
+            $this->app->redirect('/' . $slug . '/booths', $id === null ? 'Booth created.' : 'Booth saved.');
         }
         $booth = [
             'code' => $this->app->request()->field('code'),

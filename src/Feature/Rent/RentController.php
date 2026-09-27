@@ -56,7 +56,7 @@ final class RentController
             $this->render($slug, $this->app->catchRefusal($refusal));
             return;
         }
-        $this->app->redirect('/' . $slug . '/journals/' . $journalId);
+        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Rent charged.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/rent/payment', ['POST'])]
@@ -89,7 +89,7 @@ final class RentController
             $this->render($slug, $error->getMessage());
             return;
         }
-        $this->app->redirect('/' . $slug . '/journals/' . $journalId);
+        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Rent payment posted.');
     }
 
     private function render(string $slug, ?string $error): void

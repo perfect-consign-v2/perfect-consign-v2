@@ -35,7 +35,7 @@ final class CloseController
             $movement = $this->close->periodMovement($periodId);
             if ($movement === []) {
                 $this->close->closeQuiet($periodId);
-                $this->app->redirect('/' . $slug . '/close');
+                $this->app->redirect('/' . $slug . '/close', 'Period closed.');
             }
             $lines = [];
             $net = 0;
@@ -71,7 +71,7 @@ final class CloseController
             $this->render($slug, $this->app->catchRefusal($refusal));
             return;
         }
-        $this->app->redirect('/' . $slug . '/journals/' . $journalId);
+        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Period closed.');
     }
 
     private function render(string $slug, ?string $error): void

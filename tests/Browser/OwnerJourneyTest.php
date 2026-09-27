@@ -198,7 +198,8 @@ final class OwnerJourneyTest extends WebTestCase
         $this->session->open('/' . ProbeMall::SLUG . '/vendors/new');
         $page = $this->session->submit('/' . ProbeMall::SLUG . '/vendors', [
             'code' => $code,
-            'name' => $code,
+            'first_name' => 'Ada',
+            'last_name' => $code,
         ]);
         self::assertSees($code, $page);
 

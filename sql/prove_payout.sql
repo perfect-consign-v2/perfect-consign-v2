@@ -3,8 +3,8 @@
 
 BEGIN;
 
-INSERT INTO vendors (id, code, name)
-VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada');
+INSERT INTO vendors (id, code, first_name, last_name)
+VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000201', 'A1', 'Booth A1');

@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Party;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class PartyController
@@ -16,6 +17,7 @@ final class PartyController
         private readonly PartyStore $parties,
         private readonly MallSettings $mall,
         private readonly VendorRoster $roster,
+        private readonly PayoutStore $payouts,
     ) {
     }
 
@@ -37,20 +39,31 @@ final class PartyController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $code = $this->app->request()->field('code');
-        $name = $this->app->request()->field('name');
+        $firstName = $this->app->request()->field('first_name');
+        $lastName = $this->app->request()->field('last_name');
+        $phone = $this->app->request()->field('phone');
+        $email = $this->app->request()->field('email');
+        $address = $this->app->request()->field('address');
         $error = null;
         $id = '';
         try {
-            $id = $this->parties->addVendor($code, $name);
+            $id = $this->parties->addVendor($code, $firstName, $lastName, $phone, $email, $address);
         } catch (DatabaseRefusal $refusal) {
             $error = $this->vendorError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect($this->vendorPath($slug, $id));
+            $this->app->redirect($this->vendorPath($slug, $id), 'Vendor created.');
         }
-        $this->form($slug, ['code' => $code, 'name' => $name], $error);
+        $this->form($slug, [
+            'code' => $code,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'phone' => $phone,
+            'email' => $email,
+            'address' => $address,
+        ], $error);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/vendors/([0-9a-fA-F-]{36})', ['GET'])]
@@ -77,19 +90,56 @@ final class PartyController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $code = $this->app->request()->field('code');
-        $name = $this->app->request()->field('name');
+        $firstName = $this->app->request()->field('first_name');
+        $lastName = $this->app->request()->field('last_name');
+        $phone = $this->app->request()->field('phone');
+        $email = $this->app->request()->field('email');
+        $address = $this->app->request()->field('address');
         $error = null;
         try {
-            $this->parties->saveVendor($id, $code, $name);
+            $this->parties->saveVendor($id, $code, $firstName, $lastName, $phone, $email, $address);
         } catch (DatabaseRefusal $refusal) {
             $error = $this->vendorError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect($this->vendorPath($slug, $id));
+            $this->app->redirect($this->vendorPath($slug, $id), 'Vendor saved.');
         }
-        $this->form($slug, ['id' => $id, 'code' => $code, 'name' => $name], $error);
+        $this->form($slug, [
+            'id' => $id,
+            'code' => $code,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'phone' => $phone,
+            'email' => $email,
+            'address' => $address,
+        ], $error);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/vendors/([0-9a-fA-F-]{36})/standing', ['POST'])]
+    public function setStanding(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $inactive = $this->app->request()->field('standing') === 'inactive';
+        if ($inactive) {
+            $open = $this->payouts->openPayout($id);
+            if ($open['payable'] < 0 || $open['rent'] > 0) {
+                $vendor = $this->parties->findVendor($id);
+                if ($vendor === null) {
+                    $this->app->notFound();
+                }
+                $this->form($slug, $vendor, 'A vendor who owes the store cannot be made inactive.');
+
+                return;
+            }
+        }
+        $this->parties->setActive($id, !$inactive);
+        $this->app->redirect(
+            '/' . $slug . '/vendors/' . $id . '/edit',
+            $inactive ? 'Vendor is inactive.' : 'Vendor is active.'
+        );
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/vendors/([0-9a-fA-F-]{36})/delete', ['POST'])]
@@ -106,7 +156,7 @@ final class PartyController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/parties');
+            $this->app->redirect('/' . $slug . '/parties', 'Vendor deleted.');
         }
         $vendor = $this->parties->findVendor($id);
         if ($vendor === null) {
@@ -121,7 +171,7 @@ final class PartyController
     {
         $this->app->checkCsrf();
         $vendorId = $this->app->request()->field('vendor_id');
-        $this->attempt($slug, $vendorId, function (): void {
+        $this->attempt($slug, $vendorId, 'Booth assigned.', function (): void {
             $this->parties->addAssignment(
                 $this->app->request()->field('booth_id'),
                 $this->app->request()->field('vendor_id'),
@@ -137,12 +187,12 @@ final class PartyController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $vendorId = $this->vendorOf($id);
-        $this->attempt($slug, $vendorId, function () use ($id): void {
+        $this->attempt($slug, $vendorId, 'Booth assignment ended.', function () use ($id): void {
             $this->parties->endAssignment($id, $this->app->request()->field('ends_on'));
         });
     }
 
-    private function attempt(string $slug, string $vendorId, callable $action): void
+    private function attempt(string $slug, string $vendorId, string $notice, callable $action): void
     {
         $this->app->open($slug, true);
         $error = null;
@@ -154,7 +204,7 @@ final class PartyController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect($this->vendorPath($slug, $vendorId));
+            $this->app->redirect($this->vendorPath($slug, $vendorId), $notice);
         }
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) === 1 && $this->parties->findVendor($vendorId) !== null) {
             $this->showRecord($slug, $vendorId, $error);
@@ -210,9 +260,6 @@ final class PartyController
         ]);
     }
 
-    /**
-     * @param array<string, mixed>|null $vendor
-     */
     private function vendorError(string $message): string
     {
         if (str_contains($message, 'vendors_code_key')) {
@@ -222,6 +269,9 @@ final class PartyController
         return $message;
     }
 
+    /**
+     * @param array<string, mixed>|null $vendor
+     */
     private function form(string $slug, ?array $vendor, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);

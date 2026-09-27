@@ -43,7 +43,7 @@ final class BookController
             $error = $this->app->catchRefusal($refusal);
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/book');
+            $this->app->redirect('/' . $slug . '/book', 'Journal posted.');
         }
         $this->showBook($slug, $error);
     }

@@ -7,7 +7,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $today */
-/** @var array{id: string, code: string, name: string, status_label: string, status_badge: string, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>} $vendor */
+/** @var array{id: string, code: string, name: string, phone: string, email: string, address: string, status_label: string, status_badge: string, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>} $vendor */
 /** @var list<array<string, mixed>> $booths */
 
 $sections = [
@@ -32,6 +32,13 @@ $placed = $vendor['current'] !== [] || $vendor['upcoming'] !== [] || $vendor['pa
         <span class="badge badge-accent"><?= View::text($vendor['code']) ?></span>
         <span class="badge <?= View::text($vendor['status_badge']) ?>"><?= View::text($vendor['status_label']) ?></span>
     </p>
+    <?php if ($vendor['phone'] !== '' || $vendor['email'] !== '' || $vendor['address'] !== ''): ?>
+        <p class="muted mt-4">
+            <?php if ($vendor['phone'] !== ''): ?><?= View::text($vendor['phone']) ?><br><?php endif; ?>
+            <?php if ($vendor['email'] !== ''): ?><a class="mailto" href="mailto:<?= View::text($vendor['email']) ?>"><?= View::text($vendor['email']) ?></a><br><?php endif; ?>
+            <?php if ($vendor['address'] !== ''): ?><?= View::text($vendor['address']) ?><?php endif; ?>
+        </p>
+    <?php endif; ?>
 </article>
 
 <?php if (!$placed): ?>

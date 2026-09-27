@@ -139,8 +139,8 @@ BEGIN
     END;
     RESET ROLE;
 END $$;
-INSERT INTO vendors (id, code, name)
-VALUES ('01900000-0000-7000-8000-00000000e101', 'poster', 'Poster');
+INSERT INTO vendors (id, code, first_name, last_name)
+VALUES ('01900000-0000-7000-8000-00000000e101', 'poster', 'Poster', 'Vendor');
 DO $$
 BEGIN
     SET LOCAL ROLE stall_poster;

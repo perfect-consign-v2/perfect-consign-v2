@@ -67,6 +67,6 @@ final class AdjustmentController
             ]);
             return;
         }
-        $this->app->redirect('/' . $slug . '/journals/' . $journalId);
+        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Adjustment posted.');
     }
 }

@@ -19,6 +19,7 @@ $cards = [
 ];
 $filters = [
     '' => 'All',
+    'inactive' => 'Inactive',
     'incoming' => 'Incoming',
 ];
 ?>
@@ -123,6 +124,7 @@ $filters = [
                         <th>Booth</th>
                         <th>Since</th>
                         <th>Status</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -145,6 +147,7 @@ $filters = [
                         </td>
                         <td><?= View::text($vendor['since']) ?></td>
                         <td><span class="badge <?= View::text($vendor['status_badge']) ?>"><?= View::text($vendor['status_label']) ?></span></td>
+                        <td><a class="btn btn-sm" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit">Edit</a></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

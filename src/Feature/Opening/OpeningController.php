@@ -51,7 +51,7 @@ final class OpeningController
             $this->render($slug, $error->getMessage());
             return;
         }
-        $this->app->redirect('/' . $tenant->slug . '/journals/' . $journalId);
+        $this->app->redirect('/' . $tenant->slug . '/journals/' . $journalId, 'Opening posted.');
     }
 
     private function render(string $slug, ?string $error): void

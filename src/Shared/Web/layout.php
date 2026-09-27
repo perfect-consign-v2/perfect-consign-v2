@@ -10,11 +10,13 @@ use PerfectConsign\Shared\Http\View;
 /** @var bool $nav */
 /** @var string $csrf */
 /** @var string|null $error */
+/** @var string|null $notice */
 /** @var string $body */
 /** @var string $templateDirectory */
 /** @var string $path */
 
 $path = $path ?? '';
+$notice = $notice ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $groups = [
     'Overview' => [
@@ -169,6 +171,12 @@ $groups = [
 <?php else: ?>
 <main id="main">
 <?php endif; ?>
+    <?php if ($notice !== null && $notice !== ''): ?>
+        <div class="alert alert-success" role="status">
+            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-check"></use></svg>
+            <p class="error"><?= View::text($notice) ?></p>
+        </div>
+    <?php endif; ?>
     <?php if ($error !== null && $error !== ''): ?>
         <div class="alert alert-danger" role="status">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>

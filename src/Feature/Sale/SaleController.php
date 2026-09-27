@@ -75,7 +75,7 @@ final class SaleController
             $this->render($slug, $saleId, $error->getMessage());
             return;
         }
-        $this->app->redirect('/' . $tenant->slug . '/journals/' . $journalId);
+        $this->app->redirect('/' . $tenant->slug . '/journals/' . $journalId, 'Sale posted.');
     }
 
     private function optionalMinor(string $field): int

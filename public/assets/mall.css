@@ -99,6 +99,11 @@
     background: #dbeafe;
 }
 
+a.mailto {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
 .form-sheet {
     width: 100%;
     max-width: 36rem;
