@@ -12,8 +12,8 @@ A vendor's name is a first name and a last name. The list shows them together.
 
 Phone, email, and address are the vendor's contact. Each one may be empty. An email that is present has to be an email address.
 
-Store take is a percent of the sale kept by the mall. Settings holds the mall default. Anyone who can add or edit a vendor can save a different amount. A saved amount that differs from the mall default is marked overridden. Agreement dates, tax id, and notes may be empty. An agreement end cannot be before its start.
+Store take is a percent of the sale kept by the mall. Settings holds the mall default. Anyone who can add or edit a vendor can save a different amount. A saved amount that differs from the mall default is marked overridden. A saved amount equal to the mall default is the default, and it follows a later change to that default. The sale still posts the commission amount entered on that sale. Agreement dates, tax id, and notes may be empty. An agreement end cannot be before its start.
 
 A vendor is tax exempt only with a resale or tax exempt number on file. That number is required when tax exempt is enabled. When tax exempt is off, the number may be empty.
 
-A vendor who owes the store cannot be made Inactive. The vendor owes the store when the vendor payable balance is negative, or when a booth that vendor held still has a positive open rent receivable. A positive vendor payable means the store owes the vendor, and that balance does not by itself block Inactive.
+A vendor with open rent cannot be made Inactive. Open rent is a positive rent receivable on a booth that vendor held. A positive vendor payable means the store owes the vendor, and that balance does not by itself block Inactive.

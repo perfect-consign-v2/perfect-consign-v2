@@ -124,7 +124,8 @@ DECLARE
 BEGIN
     SELECT booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft
     INTO default_width, default_depth, floor_width, floor_depth
-    FROM public.mall;
+    FROM public.mall
+    FOR UPDATE;
     PERFORM public.stall_assert_booth_on_floor(
         NEW.id, NEW.x_ft, NEW.z_ft, NEW.width_ft, NEW.depth_ft,
         default_width, default_depth, floor_width, floor_depth
@@ -146,6 +147,9 @@ AS $$
 DECLARE
     placed record;
 BEGIN
+    PERFORM 1
+    FROM public.mall
+    FOR UPDATE;
     FOR placed IN
         SELECT id, x_ft, z_ft, width_ft, depth_ft
         FROM public.booths

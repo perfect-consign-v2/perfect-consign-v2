@@ -301,6 +301,38 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('value="0"', $restored);
     }
 
+    public function testAVendorWithOpenRentCannotBeMadeInactive(): void
+    {
+        $vendor = $this->vendor();
+        $booth = $this->booth();
+        $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
+        $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
+        $boothId = HtmlPage::taggedId($booths->body, 'article', 'booth', $booth);
+        $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
+            'booth_id' => $boothId,
+            'vendor_id' => $vendorId,
+            'starts_on' => ProbeMall::PERIOD_START,
+            'ends_on' => '',
+        ]);
+        $this->client->post('/' . ProbeMall::SLUG . '/rates', [
+            'booth_id' => $boothId,
+            'month_start' => ProbeMall::POSTING_DATE,
+            'amount' => '100.00',
+        ]);
+        $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
+            'booth_id' => $boothId,
+            'posting_date' => ProbeMall::POSTING_DATE,
+        ]);
+        $refused = $this->client->post('/' . ProbeMall::SLUG . '/vendors/' . $vendorId . '/standing', [
+            'standing' => 'inactive',
+        ]);
+
+        self::assertSame(200, $refused->status);
+        self::assertSees('A vendor who owes the store cannot be made inactive.', $refused);
+        self::assertSees('Make inactive', $refused);
+    }
+
     private function vendor(): string
     {
         $code = 'v' . bin2hex(random_bytes(4));

@@ -425,6 +425,44 @@ CREATE CONSTRAINT TRIGGER journals_subledger_non_negative
     FOR EACH ROW
     EXECUTE FUNCTION stall_assert_subledger_non_negative();
 
+CREATE OR REPLACE FUNCTION stall_reject_inactive_with_open_rent()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+BEGIN
+    IF NEW.active OR NOT OLD.active THEN
+        RETURN NEW;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM public.journal_lines AS line
+        JOIN public.journals AS posted ON posted.id = line.journal_id
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        WHERE role.role = 'booth_rent_receivable'
+          AND line.subledger_type = 'booth'
+          AND EXISTS (
+              SELECT 1
+              FROM public.booth_assignments AS assignment
+              WHERE assignment.vendor_id = OLD.id
+                AND assignment.booth_id = line.subledger_ref::uuid
+                AND assignment.assignment_range @> posted.posting_date
+          )
+        GROUP BY line.subledger_ref
+        HAVING sum(line.debit_minor - line.credit_minor) > 0
+    ) THEN
+        RAISE EXCEPTION 'a vendor with open rent cannot be made inactive'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER vendors_open_rent
+    BEFORE UPDATE OF active ON vendors
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_reject_inactive_with_open_rent();
+
 CREATE TRIGGER vendors_no_truncate
     BEFORE TRUNCATE ON vendors
     FOR EACH STATEMENT
@@ -442,6 +480,7 @@ CREATE TRIGGER booth_assignments_no_truncate
 
 ALTER TABLE vendors
     ENABLE ALWAYS TRIGGER vendors_referenced_no_delete,
+    ENABLE ALWAYS TRIGGER vendors_open_rent,
     ENABLE ALWAYS TRIGGER vendors_no_truncate;
 
 ALTER TABLE booths

@@ -168,19 +168,18 @@ final class PartyController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $inactive = $this->app->request()->field('standing') === 'inactive';
-        if ($inactive) {
-            $open = $this->payouts->openPayout($id);
-            if ($open['payable'] < 0 || $open['rent'] > 0) {
-                $vendor = $this->parties->findVendor($id);
-                if ($vendor === null) {
-                    $this->app->notFound();
-                }
-                $this->form($slug, $vendor, 'A vendor who owes the store cannot be made inactive.');
+        if ($inactive && $this->payouts->openPayout($id)['rent'] > 0) {
+            $this->refuseInactive($slug, $id);
 
-                return;
-            }
+            return;
         }
-        $this->parties->setActive($id, !$inactive);
+        try {
+            $this->parties->setActive($id, !$inactive);
+        } catch (DatabaseRefusal) {
+            $this->refuseInactive($slug, $id);
+
+            return;
+        }
         $this->app->redirect(
             '/' . $slug . '/vendors/' . $id . '/edit',
             $inactive ? 'Vendor is inactive.' : 'Vendor is active.'
@@ -426,6 +425,15 @@ final class PartyController
             'overridden' => $overridden,
             'error' => $error,
         ]);
+    }
+
+    private function refuseInactive(string $slug, string $id): void
+    {
+        $vendor = $this->parties->findVendor($id);
+        if ($vendor === null) {
+            $this->app->notFound();
+        }
+        $this->form($slug, $vendor, 'A vendor who owes the store cannot be made inactive.');
     }
 
     private function showRecord(string $slug, string $id, ?string $error): void

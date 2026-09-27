@@ -203,7 +203,9 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 }
 .vendor-work,
 .vendor-identity { min-width: 0; }
-.vendor-work { display: flex; flex-direction: column; gap: var(--space-4); }
+.vendor-work,
+.vendor-stays { display: flex; flex-direction: column; gap: var(--space-4); }
+.vendor-stays { margin-top: var(--space-4); }
 .record-cards { display: grid; gap: var(--space-3); }
 .record-dl { margin: 0; }
 .record-row {

@@ -232,6 +232,37 @@ if ($brand.Code -ne 0) {
     throw "brand code race failed`n$($brand.Output)"
 }
 
+$placeJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_place_hold.sql'), $script:TenantSchema
+Start-Sleep -Seconds 1
+$placeWatch = [Diagnostics.Stopwatch]::StartNew()
+$place = Invoke-Psql -Path (Join-Path $root 'prove_race_place_wait.sql') -AllowFail
+$placeWatch.Stop()
+Wait-Job $placeJob | Out-Null
+Receive-Job $placeJob | Out-Null
+Invoke-Exec -Command "DELETE FROM booths WHERE id = '01900000-0000-7000-8000-00000000d501';" | Out-Null
+if ($placeWatch.ElapsedMilliseconds -lt 4500) {
+    throw "overlapping booth did not wait for the placement ($($placeWatch.ElapsedMilliseconds) ms)`n$($place.Output)"
+}
+if ($place.Code -eq 0 -or $place.Output -notmatch 'a booth cannot overlap another booth') {
+    throw "overlapping booth was not refused`n$($place.Output)"
+}
+
+$floorJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_floor_hold.sql'), $script:TenantSchema
+Start-Sleep -Seconds 1
+$floorWatch = [Diagnostics.Stopwatch]::StartNew()
+$floor = Invoke-Psql -Path (Join-Path $root 'prove_race_floor_wait.sql') -AllowFail
+$floorWatch.Stop()
+Wait-Job $floorJob | Out-Null
+Receive-Job $floorJob | Out-Null
+Invoke-Exec -Command "UPDATE mall SET floor_width_ft = 120;" | Out-Null
+Invoke-Exec -Command "DELETE FROM booths WHERE id = '01900000-0000-7000-8000-00000000d503';" | Out-Null
+if ($floorWatch.ElapsedMilliseconds -lt 4500) {
+    throw "booth did not wait for the floor shrink ($($floorWatch.ElapsedMilliseconds) ms)`n$($floor.Output)"
+}
+if ($floor.Code -eq 0 -or $floor.Output -notmatch 'a booth cannot extend past the floor') {
+    throw "a booth past the shrunk floor was not refused`n$($floor.Output)"
+}
+
 Invoke-Exec -Command "DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d022';" | Out-Null
 
 Invoke-Exec -Command "DELETE FROM platform.tenants WHERE slug = 'race-tenant';" | Out-Null
@@ -260,4 +291,4 @@ SELECT
 if ($left.Trim() -ne '0,0,0,0,0') {
     throw "race proof left rows: $left"
 }
-Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"
+Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) place_ms=$($placeWatch.ElapsedMilliseconds) floor_ms=$($floorWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"

@@ -11,13 +11,12 @@ use PerfectConsign\Shared\Http\View;
 /** @var list<array<string, mixed>> $booths */
 
 $sections = [
-    'Current' => $vendor['current'],
-    'Upcoming' => $vendor['upcoming'],
+    'Current Booths' => $vendor['current'],
+    'Upcoming Booths' => $vendor['upcoming'],
     'Past' => $vendor['past'],
 ];
 $currentBooth = $vendor['current'][0]['booth_code'] ?? '';
 $weOwe = max(0, $vendor['payable_minor']);
-$theyOwe = max(0, -$vendor['payable_minor']);
 $blank = '—';
 
 /**
@@ -59,15 +58,11 @@ $record = static function (array $rows) use ($blank): void {
         <a class="btn" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
     </div>
 
-    <div class="grid cols-3 mt-4">
+    <div class="grid cols-2 mt-4">
         <a class="stat stat-link" href="/<?= View::text($slug) ?>/payout?vendor=<?= View::text($vendor['id']) ?>">
             <div class="stat-label">We owe them</div>
             <div class="stat-value"><?= View::text(View::money($weOwe)) ?></div>
         </a>
-        <div class="stat">
-            <div class="stat-label">They owe us</div>
-            <div class="stat-value"><?= View::text(View::money($theyOwe)) ?></div>
-        </div>
         <div class="stat">
             <div class="stat-label">Open rent</div>
             <div class="stat-value"><?= View::text(View::money($vendor['rent_minor'])) ?></div>
@@ -141,52 +136,53 @@ $record = static function (array $rows) use ($blank): void {
                     </div>
                 </section>
             </div>
+            <div class="vendor-stays">
+                <?php if ($vendor['current'] === [] && $vendor['upcoming'] === [] && $vendor['past'] === []): ?>
+                    <div class="card">
+                        <div class="card-body"><p class="muted">No booth yet.</p></div>
+                    </div>
+                <?php endif; ?>
+                <?php foreach ($sections as $heading => $assignments): ?>
+                    <?php if ($assignments === []) {
+                        continue;
+                    } ?>
+                    <div class="card table-wrap">
+                        <div class="card-head"><div class="h3"><?= View::text($heading) ?></div></div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Booth</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($assignments as $assignment): ?>
+                                <tr>
+                                    <td><a href="/<?= View::text($slug) ?>/booths#booth-<?= View::text($assignment['booth_id']) ?>"><?= View::text($assignment['booth_code']) ?></a></td>
+                                    <td><?= View::text($assignment['starts_on']) ?></td>
+                                    <td>
+                                        <?php if ($assignment['ends_on'] === ''): ?>
+                                            <form class="row-form" method="post" action="/<?= View::text($slug) ?>/assignments/<?= View::text($assignment['id']) ?>/end">
+                                                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                                <label class="sr-only" for="ends-<?= View::text($assignment['id']) ?>">End date</label>
+                                                <input class="input" id="ends-<?= View::text($assignment['id']) ?>" name="ends_on" type="date" required min="<?= View::text($assignment['starts_on']) ?>">
+                                                <button class="btn btn-sm" type="submit">End</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <?= View::text($assignment['ends_on']) ?>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         </div>
 
         <div class="vendor-work">
-            <?php if ($vendor['current'] === [] && $vendor['upcoming'] === [] && $vendor['past'] === []): ?>
-                <div class="card">
-                    <div class="card-body"><p class="muted">No booth yet.</p></div>
-                </div>
-            <?php endif; ?>
-            <?php foreach ($sections as $heading => $assignments): ?>
-                <?php if ($assignments === []) {
-                    continue;
-                } ?>
-                <div class="card table-wrap">
-                    <div class="card-head"><div class="h3"><?= View::text($heading) ?></div></div>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Booth</th>
-                                <th>Start</th>
-                                <th>End</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($assignments as $assignment): ?>
-                            <tr>
-                                <td><a href="/<?= View::text($slug) ?>/booths#booth-<?= View::text($assignment['booth_id']) ?>"><?= View::text($assignment['booth_code']) ?></a></td>
-                                <td><?= View::text($assignment['starts_on']) ?></td>
-                                <td>
-                                    <?php if ($assignment['ends_on'] === ''): ?>
-                                        <form class="row-form" method="post" action="/<?= View::text($slug) ?>/assignments/<?= View::text($assignment['id']) ?>/end">
-                                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                                            <label class="sr-only" for="ends-<?= View::text($assignment['id']) ?>">End date</label>
-                                            <input class="input" id="ends-<?= View::text($assignment['id']) ?>" name="ends_on" type="date" required min="<?= View::text($assignment['starts_on']) ?>">
-                                            <button class="btn btn-sm" type="submit">End</button>
-                                        </form>
-                                    <?php else: ?>
-                                        <?= View::text($assignment['ends_on']) ?>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endforeach; ?>
-
             <div class="card">
                 <div class="card-head"><div class="h3">Assign a booth</div></div>
                 <form method="post" action="/<?= View::text($slug) ?>/assignments">

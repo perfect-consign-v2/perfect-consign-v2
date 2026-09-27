@@ -533,6 +533,118 @@ BEGIN
     RESET ROLE;
 END $$;
 
+INSERT INTO vendors (id, code, first_name, last_name)
+VALUES ('01900000-0000-7000-8000-000000000102', 'owed', 'Owed', 'Lane');
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000404',
+    '01900000-0000-7000-8000-000000000001',
+    'prove-owed-payable',
+    '2026-03-03',
+    '2026-03-03 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'sale',
+    'owed-payable',
+    'Payable still owed to the vendor',
+    1000,
+    1000
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000404',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000014',
+    0,
+    1000,
+    'vendor',
+    '01900000-0000-7000-8000-000000000102'
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000404',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000010',
+    1000,
+    0
+);
+
+UPDATE vendors SET active = false WHERE id = '01900000-0000-7000-8000-000000000102';
+
+DO $$
+BEGIN
+    IF (SELECT active FROM vendors WHERE id = '01900000-0000-7000-8000-000000000102') THEN
+        RAISE EXCEPTION 'a vendor the store still owes was left active';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE vendors SET active = false WHERE id = '01900000-0000-7000-8000-000000000101';
+    RAISE EXCEPTION 'a vendor with open rent was made inactive';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000405',
+    '01900000-0000-7000-8000-000000000001',
+    'rent-payment:prove-open-rent',
+    '2026-04-02',
+    '2026-04-02 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'rent_payment',
+    'prove-open-rent',
+    'Rent payment that clears the open charge',
+    8000,
+    8000
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000405',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000010',
+    8000,
+    0
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000405',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000015',
+    0,
+    8000,
+    'booth',
+    '01900000-0000-7000-8000-000000000212'
+);
+
+UPDATE vendors SET active = false WHERE id = '01900000-0000-7000-8000-000000000101';
+
+DO $$
+BEGIN
+    IF (SELECT active FROM vendors WHERE id = '01900000-0000-7000-8000-000000000101') THEN
+        RAISE EXCEPTION 'a vendor was left active after the rent was paid';
+    END IF;
+END $$;
+
 DO $$
 BEGIN
     TRUNCATE booth_rent_rates, booth_assignments, booths, vendors;
