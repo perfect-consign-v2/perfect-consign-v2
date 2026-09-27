@@ -35,7 +35,20 @@ final class BoothController
     #[Route('/([a-z][a-z0-9-]{0,62})/booths/new', ['GET'])]
     public function create(string $slug): void
     {
-        $this->form($slug, null, null);
+        $x = $this->coordinate($this->app->request()->query('x'));
+        $z = $this->coordinate($this->app->request()->query('z'));
+        $booth = null;
+        if (is_int($x) && is_int($z)) {
+            $booth = [
+                'code' => '',
+                'name' => '',
+                'width_ft' => '10',
+                'depth_ft' => '10',
+                'x_ft' => (string) $x,
+                'z_ft' => (string) $z,
+            ];
+        }
+        $this->form($slug, $booth, null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/booths', ['POST'])]
@@ -44,11 +57,14 @@ final class BoothController
         $this->app->checkCsrf();
         $this->change($slug, null, function (): void {
             $size = $this->size();
+            $place = $this->place();
             $this->booths->addBooth(
                 $this->app->request()->field('code'),
                 $this->app->request()->field('name'),
                 $size['width'],
-                $size['depth']
+                $size['depth'],
+                $place['x'],
+                $place['z']
             );
         });
     }
@@ -70,12 +86,15 @@ final class BoothController
         $this->app->checkCsrf();
         $this->change($slug, $id, function () use ($id): void {
             $size = $this->size();
+            $place = $this->place();
             $this->booths->saveBooth(
                 $id,
                 $this->app->request()->field('code'),
                 $this->app->request()->field('name'),
                 $size['width'],
-                $size['depth']
+                $size['depth'],
+                $place['x'],
+                $place['z']
             );
         });
     }
@@ -127,6 +146,8 @@ final class BoothController
             'name' => $this->app->request()->field('name'),
             'width_ft' => $this->app->request()->field('width_ft'),
             'depth_ft' => $this->app->request()->field('depth_ft'),
+            'x_ft' => $this->app->request()->field('x_ft'),
+            'z_ft' => $this->app->request()->field('z_ft'),
         ];
         if ($id !== null) {
             $booth['id'] = $id;
@@ -168,12 +189,41 @@ final class BoothController
         return ['width' => $width, 'depth' => $depth];
     }
 
+    /**
+     * @return array{x: ?int, z: ?int}
+     */
+    private function place(): array
+    {
+        $x = $this->coordinate($this->app->request()->field('x_ft'));
+        $z = $this->coordinate($this->app->request()->field('z_ft'));
+        if ($x === false || $z === false) {
+            throw new \InvalidArgumentException('booth position is whole feet');
+        }
+        if (($x === null) !== ($z === null)) {
+            throw new \InvalidArgumentException('set both booth coordinates or leave both empty');
+        }
+
+        return ['x' => $x, 'z' => $z];
+    }
+
     private function feet(string $value): int|false|null
     {
         if ($value === '') {
             return null;
         }
         if (preg_match('/^[1-9][0-9]{0,3}$/', $value) !== 1) {
+            return false;
+        }
+
+        return (int) $value;
+    }
+
+    private function coordinate(string $value): int|false|null
+    {
+        if ($value === '') {
+            return null;
+        }
+        if (preg_match('/^(0|[1-9][0-9]{0,3})$/', $value) !== 1) {
             return false;
         }
 

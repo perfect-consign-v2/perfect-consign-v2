@@ -35,7 +35,17 @@ final class MallSettings
         return RowValue::integer($this->row()['booth_depth_ft'] ?? null);
     }
 
-    public function save(string $timeZone, int $width, int $depth): void
+    public function floorWidth(): int
+    {
+        return RowValue::integer($this->row()['floor_width_ft'] ?? null);
+    }
+
+    public function floorDepth(): int
+    {
+        return RowValue::integer($this->row()['floor_depth_ft'] ?? null);
+    }
+
+    public function save(string $timeZone, int $width, int $depth, int $floorWidth, int $floorDepth): void
     {
         if (!in_array($timeZone, timezone_identifiers_list(DateTimeZone::ALL_WITH_BC), true)) {
             throw new \InvalidArgumentException('that time zone is not an IANA name');
@@ -43,9 +53,12 @@ final class MallSettings
         if ($width < 1 || $depth < 1) {
             throw new \InvalidArgumentException('booth size is whole feet');
         }
+        if ($floorWidth < 1 || $floorDepth < 1) {
+            throw new \InvalidArgumentException('floor size is whole feet');
+        }
         $this->statements->change(
-            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?',
-            [$timeZone, $width, $depth]
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?',
+            [$timeZone, $width, $depth, $floorWidth, $floorDepth]
         );
     }
 
@@ -54,7 +67,9 @@ final class MallSettings
      */
     private function row(): array
     {
-        $rows = $this->statements->rows('SELECT time_zone, booth_width_ft, booth_depth_ft FROM mall');
+        $rows = $this->statements->rows(
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft FROM mall'
+        );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {
             throw new \RuntimeException('the mall has no clock');

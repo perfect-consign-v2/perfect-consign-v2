@@ -20,7 +20,15 @@ final class MallController
     public function show(string $slug): void
     {
         $this->app->open($slug, true);
-        $this->form($slug, $this->mall->timeZone(), $this->mall->boothWidth(), $this->mall->boothDepth(), null);
+        $this->form(
+            $slug,
+            $this->mall->timeZone(),
+            $this->mall->boothWidth(),
+            $this->mall->boothDepth(),
+            $this->mall->floorWidth(),
+            $this->mall->floorDepth(),
+            null
+        );
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/settings', ['POST'])]
@@ -31,23 +39,32 @@ final class MallController
         $timeZone = $this->app->request()->field('time_zone');
         $width = $this->feet($this->app->request()->field('booth_width_ft'));
         $depth = $this->feet($this->app->request()->field('booth_depth_ft'));
-        $error = null;
-        if ($width === null || $depth === null) {
-            $error = 'booth size is whole feet';
-        }
-        if ($error === null && $width !== null && $depth !== null) {
-            try {
-                $this->mall->save($timeZone, $width, $depth);
-            } catch (DatabaseRefusal $refusal) {
-                $error = $this->app->catchRefusal($refusal);
-            } catch (\InvalidArgumentException $errorValue) {
-                $error = $errorValue->getMessage();
-            }
-        }
+        $floorWidth = $this->feet($this->app->request()->field('floor_width_ft'));
+        $floorDepth = $this->feet($this->app->request()->field('floor_depth_ft'));
+        $error = $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth);
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings');
         }
-        $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $error);
+        $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $error);
+    }
+
+    private function store(string $timeZone, ?int $width, ?int $depth, ?int $floorWidth, ?int $floorDepth): ?string
+    {
+        if ($width === null || $depth === null) {
+            return 'booth size is whole feet';
+        }
+        if ($floorWidth === null || $floorDepth === null) {
+            return 'floor size is whole feet';
+        }
+        try {
+            $this->mall->save($timeZone, $width, $depth, $floorWidth, $floorDepth);
+        } catch (DatabaseRefusal $refusal) {
+            return $this->app->catchRefusal($refusal);
+        } catch (\InvalidArgumentException $errorValue) {
+            return $errorValue->getMessage();
+        }
+
+        return null;
     }
 
     private function feet(string $value): ?int
@@ -59,8 +76,15 @@ final class MallController
         return (int) $value;
     }
 
-    private function form(string $slug, string $timeZone, int $width, int $depth, ?string $error): void
-    {
+    private function form(
+        string $slug,
+        string $timeZone,
+        int $width,
+        int $depth,
+        int $floorWidth,
+        int $floorDepth,
+        ?string $error,
+    ): void {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Mall/settings', [
             'title' => 'Settings',
@@ -69,6 +93,8 @@ final class MallController
             'timeZone' => $timeZone,
             'boothWidth' => $width,
             'boothDepth' => $depth,
+            'floorWidth' => $floorWidth,
+            'floorDepth' => $floorDepth,
             'error' => $error,
         ]);
     }

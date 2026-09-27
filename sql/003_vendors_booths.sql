@@ -17,6 +17,8 @@ CREATE TABLE booths (
     name text NOT NULL,
     width_ft integer,
     depth_ft integer,
+    x_ft integer,
+    z_ft integer,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT booths_code_chk CHECK (code = btrim(code) AND code <> ''),
     CONSTRAINT booths_name_chk CHECK (name = btrim(name) AND name <> ''),
@@ -24,6 +26,10 @@ CREATE TABLE booths (
     CONSTRAINT booths_size_chk CHECK (
         (width_ft IS NULL) = (depth_ft IS NULL)
         AND (width_ft IS NULL OR (width_ft > 0 AND depth_ft > 0))
+    ),
+    CONSTRAINT booths_place_chk CHECK (
+        (x_ft IS NULL) = (z_ft IS NULL)
+        AND (x_ft IS NULL OR (x_ft >= 0 AND z_ft >= 0))
     )
 );
 

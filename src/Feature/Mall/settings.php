@@ -9,11 +9,13 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $timeZone */
 /** @var int $boothWidth */
 /** @var int $boothDepth */
+/** @var int $floorWidth */
+/** @var int $floorDepth */
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">The mall clock and the booth size used when a booth has none of its own.</p>
+        <p class="muted">The mall clock, the default booth size, and the floor the map draws.</p>
     </div>
 </div>
 
@@ -33,12 +35,20 @@ use PerfectConsign\Shared\Http\View;
                 <label for="booth_depth_ft">Default depth (ft)</label>
                 <input class="input" id="booth_depth_ft" name="booth_depth_ft" inputmode="numeric" value="<?= View::text($boothDepth) ?>" required>
             </div>
+            <div class="field">
+                <label for="floor_width_ft">Floor width (ft)</label>
+                <input class="input" id="floor_width_ft" name="floor_width_ft" inputmode="numeric" value="<?= View::text($floorWidth) ?>" required>
+            </div>
+            <div class="field">
+                <label for="floor_depth_ft">Floor depth (ft)</label>
+                <input class="input" id="floor_depth_ft" name="floor_depth_ft" inputmode="numeric" value="<?= View::text($floorDepth) ?>" required>
+            </div>
         </div>
     </div>
     <div class="card">
         <div class="card-head"><div class="h3">Notes</div></div>
         <div class="card-body">
-            <p class="muted text-sm">Today, rent months, and the posting date start from this time zone. A booth with no size uses the width and depth here. 10 by 10 is the starting size.</p>
+            <p class="muted text-sm">Today, rent months, and the posting date start from this time zone. A booth with no size uses the width and depth here. The floor starts at 120 by 90 feet.</p>
         </div>
         <div class="card-foot row between">
             <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/book">Cancel</a>

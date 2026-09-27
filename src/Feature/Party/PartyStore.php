@@ -26,7 +26,7 @@ final class PartyStore
     public function booths(): array
     {
         return $this->statements->rows(
-            'SELECT id, code, name, width_ft, depth_ft FROM booths ORDER BY code'
+            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft FROM booths ORDER BY code'
         );
     }
 
@@ -69,26 +69,26 @@ final class PartyStore
     public function findBooth(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, name, width_ft, depth_ft FROM booths WHERE id = ?::uuid',
+            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft FROM booths WHERE id = ?::uuid',
             [$id]
         );
 
         return $rows[0] ?? null;
     }
 
-    public function addBooth(string $code, string $name, ?int $width, ?int $depth): void
+    public function addBooth(string $code, string $name, ?int $width, ?int $depth, ?int $x, ?int $z): void
     {
         $this->statements->change(
-            'INSERT INTO booths (code, name, width_ft, depth_ft) VALUES (?, ?, ?, ?)',
-            [$code, $name, $width, $depth]
+            'INSERT INTO booths (code, name, width_ft, depth_ft, x_ft, z_ft) VALUES (?, ?, ?, ?, ?, ?)',
+            [$code, $name, $width, $depth, $x, $z]
         );
     }
 
-    public function saveBooth(string $id, string $code, string $name, ?int $width, ?int $depth): void
+    public function saveBooth(string $id, string $code, string $name, ?int $width, ?int $depth, ?int $x, ?int $z): void
     {
         $count = $this->statements->affected(
-            'UPDATE booths SET code = ?, name = ?, width_ft = ?, depth_ft = ? WHERE id = ?::uuid',
-            [$code, $name, $width, $depth, $id]
+            'UPDATE booths SET code = ?, name = ?, width_ft = ?, depth_ft = ?, x_ft = ?, z_ft = ? WHERE id = ?::uuid',
+            [$code, $name, $width, $depth, $x, $z, $id]
         );
         if ($count === 0) {
             throw new \InvalidArgumentException('that booth is not in this mall');

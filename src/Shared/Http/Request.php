@@ -28,6 +28,16 @@ final class Request
         return trim($value);
     }
 
+    public function query(string $name): string
+    {
+        $value = $this->query[$name] ?? '';
+        if (!is_string($value)) {
+            return '';
+        }
+
+        return trim($value);
+    }
+
     public function raw(string $name): string
     {
         $value = $this->post[$name] ?? '';

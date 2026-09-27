@@ -10,7 +10,7 @@ BEGIN
     FROM information_schema.columns
     WHERE table_schema = current_schema()
       AND table_name IN ('vendors', 'booths', 'booth_assignments')
-      AND column_name NOT IN ('width_ft', 'depth_ft')
+      AND column_name NOT IN ('width_ft', 'depth_ft', 'x_ft', 'z_ft')
       AND (
           data_type IN ('numeric', 'money', 'bigint', 'integer', 'smallint')
           OR column_name ~* '(amount|balance|minor|rate|price|total)'
@@ -25,9 +25,9 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = current_schema()
           AND table_name = 'booths'
-          AND column_name IN ('width_ft', 'depth_ft')
-    ) <> 2 THEN
-        RAISE EXCEPTION 'booth size columns are missing';
+          AND column_name IN ('width_ft', 'depth_ft', 'x_ft', 'z_ft')
+    ) <> 4 THEN
+        RAISE EXCEPTION 'booth size or place columns are missing';
     END IF;
 END $$;
 
@@ -325,6 +325,84 @@ BEGIN
         SELECT 1 FROM booths WHERE id = '01900000-0000-7000-8000-000000000213'
     ) THEN
         RAISE EXCEPTION 'poster did not delete the booth';
+    END IF;
+    RESET ROLE;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, x_ft) VALUES ('half', 'Half placed', 0);
+    RAISE EXCEPTION 'a booth x without a z was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, x_ft, z_ft) VALUES ('neg', 'Negative', -1, 0);
+    RAISE EXCEPTION 'a negative booth position was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+INSERT INTO booths (id, code, name, width_ft, depth_ft, x_ft, z_ft)
+VALUES ('01900000-0000-7000-8000-000000000214', 'P1', 'Placed', 10, 10, 0, 0);
+
+INSERT INTO booths (id, code, name, x_ft, z_ft)
+VALUES ('01900000-0000-7000-8000-000000000215', 'P2', 'Beside', 10, 0);
+
+INSERT INTO booths (code, name) VALUES ('loose', 'Not on the floor');
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, width_ft, depth_ft, x_ft, z_ft)
+    VALUES ('past', 'Past the floor', 10, 10, 115, 0);
+    RAISE EXCEPTION 'a booth past the floor was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, x_ft, z_ft) VALUES ('past-default', 'Past on default size', 115, 0);
+    RAISE EXCEPTION 'a default-size booth past the floor was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, width_ft, depth_ft, x_ft, z_ft)
+    VALUES ('over', 'Overlapping', 10, 10, 5, 0);
+    RAISE EXCEPTION 'an overlapping booth was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE mall SET floor_width_ft = 15;
+    RAISE EXCEPTION 'a floor shrink that cuts a placed booth was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    SET LOCAL ROLE stall_poster;
+    UPDATE booths
+    SET x_ft = 20, z_ft = 0
+    WHERE id = '01900000-0000-7000-8000-000000000215';
+    IF (
+        SELECT x_ft FROM booths WHERE id = '01900000-0000-7000-8000-000000000215'
+    ) <> 20 THEN
+        RAISE EXCEPTION 'poster did not place the booth';
     END IF;
     RESET ROLE;
 END $$;

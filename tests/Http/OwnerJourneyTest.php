@@ -167,10 +167,14 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $page = $this->client->get('/' . ProbeMall::SLUG . '/settings');
         self::assertSees('America/Los_Angeles', $page);
+        self::assertSees('value="120"', $page);
+        self::assertSees('value="90"', $page);
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
             'time_zone' => 'Not/AZone',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
+            'floor_width_ft' => '120',
+            'floor_depth_ft' => '90',
         ]);
         self::assertSame(200, $refused->status);
         self::assertSees('that time zone is not an IANA name', $refused);
@@ -178,12 +182,16 @@ final class OwnerJourneyTest extends WebTestCase
             'time_zone' => 'America/Chicago',
             'booth_width_ft' => '12',
             'booth_depth_ft' => '8',
+            'floor_width_ft' => '100',
+            'floor_depth_ft' => '80',
         ]);
         self::assertSees('America/Chicago', $saved);
         $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
+            'floor_width_ft' => '120',
+            'floor_depth_ft' => '90',
         ]);
         self::assertSees('America/Los_Angeles', $restored);
     }
