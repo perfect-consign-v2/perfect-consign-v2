@@ -29,13 +29,39 @@ CREATE TABLE IF NOT EXISTS platform.tenants (
 
 REVOKE ALL ON TABLE platform.tenants FROM PUBLIC;
 
+-- Postgres never fires an event trigger for ALTER EVENT TRIGGER or DROP EVENT TRIGGER.
+-- A superuser can disable this guard with those commands, or with event_triggers=false.
+-- session_replication_role=replica skips origin row triggers for that session. Only a
+-- superuser can set it. stall_poster and stall_app cannot. The event triggers below are
+-- ENABLE ALWAYS, so that session still cannot disable or drop the row triggers.
 CREATE OR REPLACE FUNCTION platform.reject_append_only_trigger_change()
 RETURNS event_trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
     command record;
+    dropped record;
 BEGIN
+    IF TG_EVENT = 'sql_drop' THEN
+        FOR dropped IN
+            SELECT schema_name, object_identity
+            FROM pg_event_trigger_dropped_objects()
+            WHERE object_type = 'trigger'
+        LOOP
+            IF dropped.schema_name ~ '^tenant_[0-9a-f]{32}$'
+                OR (
+                    dropped.schema_name = 'platform'
+                    AND right(dropped.object_identity, length(' on platform.owner_backups'))
+                        = ' on platform.owner_backups'
+                )
+            THEN
+                RAISE EXCEPTION 'append-only triggers cannot be dropped'
+                    USING ERRCODE = '25006';
+            END IF;
+        END LOOP;
+        RETURN;
+    END IF;
+
     FOR command IN
         SELECT schema_name, command_tag, objid
         FROM pg_event_trigger_ddl_commands()
@@ -56,7 +82,7 @@ BEGIN
             FROM pg_trigger
             WHERE tgrelid = command.objid
               AND NOT tgisinternal
-              AND tgenabled = 'D'
+              AND tgenabled NOT IN ('O', 'A')
         ) THEN
             RAISE EXCEPTION 'append-only triggers cannot be disabled'
                 USING ERRCODE = '25006';
@@ -65,9 +91,29 @@ BEGIN
 END;
 $$;
 
-DROP EVENT TRIGGER IF EXISTS platform_reject_append_only_trigger_change;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_event_trigger
+        WHERE evtname = 'platform_reject_append_only_trigger_change'
+    ) THEN
+        CREATE EVENT TRIGGER platform_reject_append_only_trigger_change
+            ON ddl_command_end
+            WHEN TAG IN ('ALTER TABLE')
+            EXECUTE FUNCTION platform.reject_append_only_trigger_change();
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_event_trigger
+        WHERE evtname = 'platform_reject_append_only_trigger_drop'
+    ) THEN
+        CREATE EVENT TRIGGER platform_reject_append_only_trigger_drop
+            ON sql_drop
+            WHEN TAG IN ('DROP TRIGGER')
+            EXECUTE FUNCTION platform.reject_append_only_trigger_change();
+    END IF;
+END $$;
 
-CREATE EVENT TRIGGER platform_reject_append_only_trigger_change
-    ON ddl_command_end
-    WHEN TAG IN ('ALTER TABLE')
-    EXECUTE FUNCTION platform.reject_append_only_trigger_change();
+ALTER EVENT TRIGGER platform_reject_append_only_trigger_change ENABLE ALWAYS;
+ALTER EVENT TRIGGER platform_reject_append_only_trigger_drop ENABLE ALWAYS;

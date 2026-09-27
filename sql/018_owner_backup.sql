@@ -40,11 +40,21 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS owner_backups_assign_time ON platform.owner_backups;
-CREATE TRIGGER owner_backups_assign_time
-    BEFORE INSERT ON platform.owner_backups
-    FOR EACH ROW
-    EXECUTE FUNCTION platform.assign_owner_backup_time();
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'platform.owner_backups'::regclass
+          AND tgname = 'owner_backups_assign_time'
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER owner_backups_assign_time
+            BEFORE INSERT ON platform.owner_backups
+            FOR EACH ROW
+            EXECUTE FUNCTION platform.assign_owner_backup_time();
+    END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION platform.reject_owner_backup_mutation()
 RETURNS trigger
@@ -57,11 +67,21 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS owner_backups_append_only ON platform.owner_backups;
-CREATE TRIGGER owner_backups_append_only
-    BEFORE UPDATE OR DELETE ON platform.owner_backups
-    FOR EACH ROW
-    EXECUTE FUNCTION platform.reject_owner_backup_mutation();
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'platform.owner_backups'::regclass
+          AND tgname = 'owner_backups_append_only'
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER owner_backups_append_only
+            BEFORE UPDATE OR DELETE ON platform.owner_backups
+            FOR EACH ROW
+            EXECUTE FUNCTION platform.reject_owner_backup_mutation();
+    END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION platform.reject_owner_backup_truncate()
 RETURNS trigger
@@ -74,11 +94,21 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS owner_backups_no_truncate ON platform.owner_backups;
-CREATE TRIGGER owner_backups_no_truncate
-    BEFORE TRUNCATE ON platform.owner_backups
-    FOR EACH STATEMENT
-    EXECUTE FUNCTION platform.reject_owner_backup_truncate();
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'platform.owner_backups'::regclass
+          AND tgname = 'owner_backups_no_truncate'
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER owner_backups_no_truncate
+            BEFORE TRUNCATE ON platform.owner_backups
+            FOR EACH STATEMENT
+            EXECUTE FUNCTION platform.reject_owner_backup_truncate();
+    END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION platform.record_owner_backup(
     tenant uuid,
@@ -120,13 +150,35 @@ GRANT USAGE ON SCHEMA platform TO stall_backup;
 GRANT SELECT ON TABLE platform.tenants, platform.owners TO stall_backup;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, TRIGGER ON TABLE platform.tenants, platform.owners FROM stall_backup;
 
+-- Same guard as sql/000_platform.sql. Kept here so applying this file still installs it.
 CREATE OR REPLACE FUNCTION platform.reject_append_only_trigger_change()
 RETURNS event_trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
     command record;
+    dropped record;
 BEGIN
+    IF TG_EVENT = 'sql_drop' THEN
+        FOR dropped IN
+            SELECT schema_name, object_identity
+            FROM pg_event_trigger_dropped_objects()
+            WHERE object_type = 'trigger'
+        LOOP
+            IF dropped.schema_name ~ '^tenant_[0-9a-f]{32}$'
+                OR (
+                    dropped.schema_name = 'platform'
+                    AND right(dropped.object_identity, length(' on platform.owner_backups'))
+                        = ' on platform.owner_backups'
+                )
+            THEN
+                RAISE EXCEPTION 'append-only triggers cannot be dropped'
+                    USING ERRCODE = '25006';
+            END IF;
+        END LOOP;
+        RETURN;
+    END IF;
+
     FOR command IN
         SELECT schema_name, command_tag, objid
         FROM pg_event_trigger_ddl_commands()
@@ -147,7 +199,7 @@ BEGIN
             FROM pg_trigger
             WHERE tgrelid = command.objid
               AND NOT tgisinternal
-              AND tgenabled = 'D'
+              AND tgenabled NOT IN ('O', 'A')
         ) THEN
             RAISE EXCEPTION 'append-only triggers cannot be disabled'
                 USING ERRCODE = '25006';
@@ -155,6 +207,33 @@ BEGIN
     END LOOP;
 END;
 $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_event_trigger
+        WHERE evtname = 'platform_reject_append_only_trigger_change'
+    ) THEN
+        CREATE EVENT TRIGGER platform_reject_append_only_trigger_change
+            ON ddl_command_end
+            WHEN TAG IN ('ALTER TABLE')
+            EXECUTE FUNCTION platform.reject_append_only_trigger_change();
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_event_trigger
+        WHERE evtname = 'platform_reject_append_only_trigger_drop'
+    ) THEN
+        CREATE EVENT TRIGGER platform_reject_append_only_trigger_drop
+            ON sql_drop
+            WHEN TAG IN ('DROP TRIGGER')
+            EXECUTE FUNCTION platform.reject_append_only_trigger_change();
+    END IF;
+END $$;
+
+ALTER EVENT TRIGGER platform_reject_append_only_trigger_change ENABLE ALWAYS;
+ALTER EVENT TRIGGER platform_reject_append_only_trigger_drop ENABLE ALWAYS;
 
 DO $$
 DECLARE

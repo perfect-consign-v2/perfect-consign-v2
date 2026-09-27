@@ -64,7 +64,9 @@ The allow-list is `chart_source_rules`, and `account_balances` is the sum of the
 
 These are deliberate.
 
-- The login `stall` is the cluster superuser and the table owner. It can turn triggers off and can mark a period closed directly. Postgres does not let that power be removed from the superuser. The application uses `stall_poster`, which cannot do either.
+- The login `stall` is the cluster superuser and the table owner. It can mark a period closed directly. Postgres does not let that power be removed from the superuser. The application uses `stall_poster`, which cannot.
+- Append-only triggers on a mall schema, and on `platform.owner_backups`, cannot be disabled, limited to replica, or dropped. Postgres does not fire event triggers for `ALTER EVENT TRIGGER` or `DROP EVENT TRIGGER`, and a superuser can set `event_triggers=false`. Those are the ways the guard itself comes off.
+- `session_replication_role=replica` skips origin row triggers for that session. That bypass is owner-only: only a superuser can set it. `stall_poster` and `stall_app` cannot. The guard event triggers are `ENABLE ALWAYS`, so that session still cannot disable or drop the row triggers. A rolled-back replica session leaves the rows in place.
 - Cash may go below zero. A mall can be overdrawn. Cash and bank have no floor.
 - An adjustment may credit commission or debit sales tax. The closing journal sweeps the net into retained earnings. The journal's source type shows that it was an adjustment.
 - A source type is free text. A chart line must be `opening` or a row in `chart_source_rules`. A second list in the kernel would repeat that table.

@@ -6,7 +6,7 @@ This is the product copy of the Stall baseline at `27e5e88a740e676024268fdf2ebf2
 
 Postgres `18.6`. Host port **5436**. Database `consign`. User `stall`. Volume `perfect_consign_pg`. Container `perfect-consign-postgres`. Do not use ports 5432, 5433, 5434, or 5435, and do not use volume `stall_pg`.
 
-`stall_poster` inserts journals and lines. The table owner can still turn triggers off.
+`stall_poster` inserts journals and lines. It cannot turn triggers off, drop them, or set replica mode. A superuser can still skip origin row triggers for one session with `session_replication_role=replica`. Postgres does not report `ALTER EVENT TRIGGER` or `DROP EVENT TRIGGER` to event triggers, so a superuser can also turn the guard itself off.
 
 ## Load
 
