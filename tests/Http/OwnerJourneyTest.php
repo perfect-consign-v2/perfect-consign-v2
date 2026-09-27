@@ -96,6 +96,35 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('a payout clears a positive open payable or open rent receivable', $refused);
     }
 
+    public function testTheOwnerAddsRenamesAndDeletesABrand(): void
+    {
+        $name = 'Brand ' . bin2hex(random_bytes(4));
+        $renamed = $name . ' renamed';
+        $page = $this->client->post('/' . ProbeMall::SLUG . '/brands', [
+            'name' => $name,
+        ]);
+        self::assertSees($name, $page);
+        $edit = HtmlPage::articleLink($page->body, $name);
+        $update = preg_replace('#/edit$#', '', $edit);
+        self::assertIsString($update);
+        $renamedPage = $this->client->post($update, [
+            'name' => $renamed,
+        ]);
+        self::assertSees($renamed, $renamedPage);
+        $deleted = $this->client->post($update . '/delete', []);
+        self::assertStringNotContainsString($renamed, $deleted->body);
+        $added = $this->client->post('/' . ProbeMall::SLUG . '/brands', [
+            'name' => $name,
+        ]);
+        self::assertSees($name, $added);
+        $duplicate = $this->client->post('/' . ProbeMall::SLUG . '/brands', [
+            'name' => $name,
+        ]);
+
+        self::assertSame(200, $duplicate->status);
+        self::assertSees('brands_name_key', $duplicate);
+    }
+
     private function vendor(): string
     {
         $code = 'v' . bin2hex(random_bytes(4));

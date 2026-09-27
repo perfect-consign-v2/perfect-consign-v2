@@ -20,6 +20,7 @@ final class TenantProvisioner
         '013_period_close.sql',
         '014_export_files.sql',
         '017_poster_grants.sql',
+        '019_brands.sql',
     ];
 
     public function __construct(
@@ -85,7 +86,7 @@ final class TenantProvisioner
     {
         $this->assertSchema($schema);
         $this->assertRole($role);
-        $this->pdo->exec(sprintf('SET search_path TO %s, pg_catalog', $schema));
+        $this->pdo->exec(sprintf('SET search_path TO %s, pg_catalog, extensions', $schema));
         foreach (self::LEDGER_FILES as $file) {
             $path = $this->sqlDirectory . DIRECTORY_SEPARATOR . $file;
             $sql = file_get_contents($path);

@@ -121,7 +121,7 @@ try {
     if ($grants === false) {
         throw new BackupException('could not read 017_poster_grants.sql');
     }
-    $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog');
+    $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
     $pdo->exec($provisioner->rewrite($grants, $schema, $role));
     $provisioner->grantApp($role);
     $provisioner->grantBackup($schema, $role);

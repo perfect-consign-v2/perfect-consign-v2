@@ -18,13 +18,13 @@ final class View
      */
     public function render(string $template, array $data = []): void
     {
-        $path = $this->templateDirectory . DIRECTORY_SEPARATOR . $template . '.php';
-        if (!is_file($path)) {
+        $templatePath = $this->templateDirectory . DIRECTORY_SEPARATOR . $template . '.php';
+        if (!is_file($templatePath)) {
             throw new RuntimeException('missing template ' . $template);
         }
         $data['templateDirectory'] = $this->templateDirectory;
         extract($data, EXTR_SKIP);
-        require $path;
+        require $templatePath;
     }
 
     public static function text(mixed $value): string

@@ -243,4 +243,85 @@ BEGIN
     END IF;
 END $$;
 
+DO $$
+DECLARE
+    ext_schema text;
+BEGIN
+    SELECT n.nspname INTO ext_schema
+    FROM pg_extension AS e
+    JOIN pg_namespace AS n ON n.oid = e.extnamespace
+    WHERE e.extname = 'btree_gist';
+    IF ext_schema IS DISTINCT FROM 'extensions' THEN
+        RAISE EXCEPTION 'btree_gist is not in extensions';
+    END IF;
+END $$;
+
+DROP SCHEMA tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa CASCADE;
+
+DO $$
+DECLARE
+    ext_schema text;
+BEGIN
+    SELECT n.nspname INTO ext_schema
+    FROM pg_extension AS e
+    JOIN pg_namespace AS n ON n.oid = e.extnamespace
+    WHERE e.extname = 'btree_gist';
+    IF ext_schema IS DISTINCT FROM 'extensions' THEN
+        RAISE EXCEPTION 'dropping a tenant dropped btree_gist';
+    END IF;
+END $$;
+
+INSERT INTO tenant_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.accounting_periods (id, book_id, starts_on, ends_on, status)
+VALUES (
+    '01900000-0000-7000-8000-00000000f022',
+    '01900000-0000-7000-8000-000000000001',
+    '2026-01-01',
+    '2026-12-31',
+    'open'
+);
+
+DO $$
+BEGIN
+    INSERT INTO tenant_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.accounting_periods (id, book_id, starts_on, ends_on, status)
+    VALUES (
+        '01900000-0000-7000-8000-00000000f023',
+        '01900000-0000-7000-8000-000000000001',
+        '2026-06-01',
+        '2026-12-31',
+        'open'
+    );
+    RAISE EXCEPTION 'an overlapping period was accepted after the other tenant was dropped';
+EXCEPTION
+    WHEN SQLSTATE '23P01' THEN
+        NULL;
+END $$;
+
+INSERT INTO tenant_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.booths (id, code, name)
+VALUES ('01900000-0000-7000-8000-00000000f201', 'north', 'North');
+
+INSERT INTO tenant_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.booth_assignments (id, booth_id, vendor_id, starts_on, ends_on)
+VALUES (
+    '01900000-0000-7000-8000-00000000f301',
+    '01900000-0000-7000-8000-00000000f201',
+    '01900000-0000-7000-8000-00000000f101',
+    '2026-01-01',
+    NULL
+);
+
+DO $$
+BEGIN
+    INSERT INTO tenant_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.booth_assignments (id, booth_id, vendor_id, starts_on, ends_on)
+    VALUES (
+        '01900000-0000-7000-8000-00000000f302',
+        '01900000-0000-7000-8000-00000000f201',
+        '01900000-0000-7000-8000-00000000f101',
+        '2026-06-01',
+        NULL
+    );
+    RAISE EXCEPTION 'an overlapping booth assignment was accepted after the other tenant was dropped';
+EXCEPTION
+    WHEN SQLSTATE '23P01' THEN
+        NULL;
+END $$;
+
 ROLLBACK;

@@ -12,32 +12,58 @@ final class BoothMap
      */
     public static function occupancy(array $stays, string $boothId, string $today): array
     {
-        $covering = null;
-        $next = null;
-        foreach ($stays as $stay) {
-            if ($stay['boothId'] !== $boothId) {
-                continue;
-            }
-            $covers = $stay['startsOn'] <= $today && ($stay['endsOn'] === null || $stay['endsOn'] >= $today);
-            if ($covers) {
-                $covering = $stay;
-                continue;
-            }
-            if ($stay['startsOn'] > $today && ($next === null || $stay['startsOn'] < $next['startsOn'])) {
-                $next = $stay;
-            }
-        }
+        $covering = self::covering($stays, $boothId, $today);
         if ($covering !== null) {
             return [
                 'status' => $covering['endsOn'] !== null ? 'ending' : 'occupied',
                 'vendor' => $covering['vendorName'],
             ];
         }
+        $next = self::incoming($stays, $boothId, $today);
         if ($next !== null) {
             return ['status' => 'incoming', 'vendor' => $next['vendorName']];
         }
 
         return ['status' => 'available', 'vendor' => null];
+    }
+
+    /**
+     * @param list<array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
+     * @return array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}|null
+     */
+    private static function covering(array $stays, string $boothId, string $today): ?array
+    {
+        $covering = null;
+        foreach ($stays as $stay) {
+            if ($stay['boothId'] !== $boothId) {
+                continue;
+            }
+            $open = $stay['endsOn'] === null || $stay['endsOn'] >= $today;
+            if ($stay['startsOn'] <= $today && $open) {
+                $covering = $stay;
+            }
+        }
+
+        return $covering;
+    }
+
+    /**
+     * @param list<array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
+     * @return array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}|null
+     */
+    private static function incoming(array $stays, string $boothId, string $today): ?array
+    {
+        $next = null;
+        foreach ($stays as $stay) {
+            if ($stay['boothId'] !== $boothId || $stay['startsOn'] <= $today) {
+                continue;
+            }
+            if ($next === null || $stay['startsOn'] < $next['startsOn']) {
+                $next = $stay;
+            }
+        }
+
+        return $next;
     }
 
     /**

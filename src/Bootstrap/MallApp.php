@@ -195,7 +195,7 @@ final class MallApp
         if ($this->roled) {
             return;
         }
-        $this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog');
+        $this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog, extensions');
         $this->pdo->exec('SET ROLE ' . $tenant->role);
         $this->roled = true;
     }

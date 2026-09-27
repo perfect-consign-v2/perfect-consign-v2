@@ -1,6 +1,7 @@
 -- Generic double-entry kernel. No hash columns. No mall chart.
+-- btree_gist is created in extensions by sql/000_platform.sql. This repeats that placement.
 
-CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA extensions;
 
 CREATE TABLE ledger_books (
     id uuid PRIMARY KEY DEFAULT uuidv7(),

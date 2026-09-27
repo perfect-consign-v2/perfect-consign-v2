@@ -121,6 +121,39 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('a payout clears a positive open payable or open rent receivable', $refused);
     }
 
+    public function testTheOwnerAddsRenamesAndDeletesABrand(): void
+    {
+        $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
+        $name = 'Brand ' . bin2hex(random_bytes(4));
+        $renamed = $name . ' renamed';
+        $page = $this->session->submit('/' . ProbeMall::SLUG . '/brands', [
+            'name' => $name,
+        ]);
+        self::assertSees($name, $page);
+        $edit = HtmlPage::articleLink($page, $name);
+        $update = preg_replace('#/edit$#', '', $edit);
+        self::assertIsString($update);
+        $this->session->open($edit);
+        $renamedPage = $this->session->submit($update, [
+            'name' => $renamed,
+        ]);
+        self::assertSees($renamed, $renamedPage);
+        $deleted = $this->session->submit($update . '/delete', []);
+        self::assertStringNotContainsString($renamed, $deleted);
+        $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
+        $added = $this->session->submit('/' . ProbeMall::SLUG . '/brands', [
+            'name' => $name,
+        ]);
+        self::assertSees($name, $added);
+        $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
+        $duplicate = $this->session->submit('/' . ProbeMall::SLUG . '/brands', [
+            'name' => $name,
+        ]);
+
+        self::assertSees('brands_name_key', $duplicate);
+    }
+
     public function testTheOwnerSignsOut(): void
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);

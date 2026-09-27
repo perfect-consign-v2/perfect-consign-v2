@@ -99,7 +99,7 @@ final class BackupProof
 
     private function sale(string $schema): void
     {
-        $this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog');
+        $this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $this->pdo->beginTransaction();
         $this->pdo->exec(
             "INSERT INTO vendors (id, code, name)
@@ -157,7 +157,7 @@ final class BackupProof
      */
     private function books(string $schema): array
     {
-        $this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog');
+        $this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $journals = $this->pdo->query('SELECT count(*) FROM journals');
         $lastNo = $this->pdo->query(
             "SELECT last_no FROM book_journal_counters WHERE book_id = '01900000-0000-7000-8000-000000000001'"
@@ -189,7 +189,7 @@ final class BackupProof
 
     private function assertRefused(string $schema): void
     {
-        $this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog');
+        $this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         try {
             $this->pdo->exec('TRUNCATE journal_lines, journals');
             throw new RuntimeException('truncate was accepted');

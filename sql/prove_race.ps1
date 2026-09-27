@@ -9,7 +9,7 @@ function Invoke-Psql {
     param([string]$Path, [switch]$AllowFail)
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    $sql = "SET search_path TO $script:TenantSchema, pg_catalog;`n" + (Get-Content -Raw $Path)
+    $sql = "SET search_path TO $script:TenantSchema, pg_catalog, extensions;`n" + (Get-Content -Raw $Path)
     $output = $sql | docker exec -i perfect-consign-postgres psql -U stall -d consign -v ON_ERROR_STOP=1 2>&1 | Out-String
     $code = $LASTEXITCODE
     $ErrorActionPreference = $previous
@@ -21,20 +21,20 @@ function Invoke-Psql {
 
 function Invoke-Exec {
     param([Parameter(Mandatory = $true)][string]$Command)
-    $sql = "SET search_path TO $script:TenantSchema, pg_catalog; $Command"
+    $sql = "SET search_path TO $script:TenantSchema, pg_catalog, extensions; $Command"
     docker exec perfect-consign-postgres psql -U stall -d consign -v ON_ERROR_STOP=1 -c $sql | Out-Null
 }
 
 function Invoke-Value {
     param([Parameter(Mandatory = $true)][string]$Command)
-    $sql = "SET search_path TO $script:TenantSchema, pg_catalog; $Command"
+    $sql = "SET search_path TO $script:TenantSchema, pg_catalog, extensions; $Command"
     $lines = @(docker exec perfect-consign-postgres psql -U stall -d consign -t -A -c $sql)
     return [string]($lines | Select-Object -Last 1)
 }
 
 $runRace = {
     param($Path, $Schema)
-    $sql = "SET search_path TO $Schema, pg_catalog;`n" + (Get-Content -Raw $Path)
+    $sql = "SET search_path TO $Schema, pg_catalog, extensions;`n" + (Get-Content -Raw $Path)
     $sql | docker exec -i perfect-consign-postgres psql -U stall -d consign -v ON_ERROR_STOP=1
 }
 
@@ -218,6 +218,20 @@ if ($openingWatch.ElapsedMilliseconds -lt 4500) {
 }
 Invoke-Exec -Command "DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d037';" | Out-Null
 
+$brandJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_brand_a.sql'), $script:TenantSchema
+Start-Sleep -Seconds 1
+$brandWatch = [Diagnostics.Stopwatch]::StartNew()
+$brand = Invoke-Psql -Path (Join-Path $root 'prove_race_brand_b.sql')
+$brandWatch.Stop()
+Wait-Job $brandJob | Out-Null
+Receive-Job $brandJob | Out-Null
+if ($brandWatch.ElapsedMilliseconds -lt 4500) {
+    throw "second brand code did not wait ($($brandWatch.ElapsedMilliseconds) ms)`n$($brand.Output)"
+}
+if ($brand.Code -ne 0) {
+    throw "brand code race failed`n$($brand.Output)"
+}
+
 Invoke-Exec -Command "DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d022';" | Out-Null
 
 Invoke-Exec -Command "DELETE FROM platform.tenants WHERE slug = 'race-tenant';" | Out-Null
@@ -235,8 +249,15 @@ if ($tenant.Code -eq 0 -or $tenant.Output -notmatch 'tenants_slug_key') {
     throw "duplicate tenant slug was not refused`n$($tenant.Output)"
 }
 
-$left = Invoke-Value -Command "SELECT (SELECT count(*) FROM journals) || ',' || (SELECT count(*) FROM vendors) || ',' || (SELECT count(*) FROM booths) || ',' || (SELECT count(*) FROM accounting_periods);"
-if ($left.Trim() -ne '0,0,0,0') {
+$left = Invoke-Value -Command @"
+SELECT
+    (SELECT count(*) FROM journals WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
+    || ',' || (SELECT count(*) FROM vendors WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
+    || ',' || (SELECT count(*) FROM booths WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
+    || ',' || (SELECT count(*) FROM accounting_periods WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
+    || ',' || (SELECT count(*) FROM brands WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%');
+"@
+if ($left.Trim() -ne '0,0,0,0,0') {
     throw "race proof left rows: $left"
 }
-Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"
+Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"

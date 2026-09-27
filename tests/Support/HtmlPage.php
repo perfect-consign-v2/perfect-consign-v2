@@ -27,6 +27,52 @@ final class HtmlPage
         return $match[1];
     }
 
+    public static function anchor(string $html, string $elementId): string
+    {
+        $element = '/id="' . preg_quote($elementId, '/') . '"[^>]*>(.*?)<\/article>/s';
+        if (preg_match($element, $html, $block) !== 1) {
+            throw new RuntimeException('element ' . $elementId . ' was not on the page');
+        }
+        if (preg_match('/<a [^>]*href="([^"]+)"/', $block[1], $match) !== 1) {
+            throw new RuntimeException('link in ' . $elementId . ' was not on the page');
+        }
+
+        return $match[1];
+    }
+
+    public static function articleLink(string $html, string $text): string
+    {
+        $matched = preg_match_all('/<article class="card" id="brand-[^"]+"[^>]*>.*?<\/article>/s', $html, $articles);
+        if ($matched === false || $matched < 1) {
+            throw new RuntimeException('brand ' . $text . ' was not on the page');
+        }
+        foreach ($articles[0] as $article) {
+            if (!str_contains($article, $text)) {
+                continue;
+            }
+            if (preg_match('/<a [^>]*href="([^"]+)"/', $article, $match) !== 1) {
+                throw new RuntimeException('link for ' . $text . ' was not on the page');
+            }
+
+            return $match[1];
+        }
+
+        throw new RuntimeException('brand ' . $text . ' was not on the page');
+    }
+
+    public static function formAction(string $html, string $elementId): string
+    {
+        $element = '/id="' . preg_quote($elementId, '/') . '"[^>]*>(.*?)<\/li>/s';
+        if (preg_match($element, $html, $block) !== 1) {
+            throw new RuntimeException('element ' . $elementId . ' was not on the page');
+        }
+        if (preg_match('/<form method="post" action="([^"]+)"/', $block[1], $match) !== 1) {
+            throw new RuntimeException('form in ' . $elementId . ' was not on the page');
+        }
+
+        return $match[1];
+    }
+
     public static function option(string $html, string $selectId, string $label): string
     {
         $select = '/<select id="' . preg_quote($selectId, '/') . '"[^>]*>(.*?)<\/select>/s';

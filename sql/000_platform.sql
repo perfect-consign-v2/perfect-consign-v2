@@ -1,5 +1,14 @@
 -- Platform registry. One row per mall. No ledger tables.
 -- Apply once to database consign, before any tenant schema.
+-- btree_gist lives here, not in a tenant schema. Dropping a mall must not drop it.
+
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+REVOKE ALL ON SCHEMA extensions FROM PUBLIC;
+
+GRANT USAGE ON SCHEMA extensions TO PUBLIC;
+
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA extensions;
 
 CREATE SCHEMA IF NOT EXISTS platform;
 

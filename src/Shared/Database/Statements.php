@@ -20,9 +20,19 @@ final class Statements
      */
     public function change(string $sql, array $params): void
     {
+        $this->affected($sql, $params);
+    }
+
+    /**
+     * @param list<mixed> $params
+     */
+    public function affected(string $sql, array $params): int
+    {
         try {
             $statement = $this->pdo->prepare($sql);
             $statement->execute($params);
+
+            return $statement->rowCount();
         } catch (PDOException $error) {
             throw DatabaseRefusal::fromPdo($error);
         }
@@ -36,6 +46,22 @@ final class Statements
         $statement = $this->pdo->query($sql);
         if ($statement === false) {
             return [];
+        }
+
+        return $this->all($statement);
+    }
+
+    /**
+     * @param list<mixed> $params
+     * @return list<array<string, mixed>>
+     */
+    public function bound(string $sql, array $params): array
+    {
+        try {
+            $statement = $this->pdo->prepare($sql);
+            $statement->execute($params);
+        } catch (PDOException $error) {
+            throw DatabaseRefusal::fromPdo($error);
         }
 
         return $this->all($statement);
