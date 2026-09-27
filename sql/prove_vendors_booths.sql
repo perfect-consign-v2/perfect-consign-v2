@@ -10,7 +10,7 @@ BEGIN
     FROM information_schema.columns
     WHERE table_schema = current_schema()
       AND table_name IN ('vendors', 'booths', 'booth_assignments')
-      AND column_name NOT IN ('width_ft', 'depth_ft', 'x_ft', 'z_ft')
+      AND column_name NOT IN ('width_ft', 'depth_ft', 'x_ft', 'z_ft', 'commission_bps')
       AND (
           data_type IN ('numeric', 'money', 'bigint', 'integer', 'smallint')
           OR column_name ~* '(amount|balance|minor|rate|price|total)'
@@ -50,10 +50,115 @@ BEGIN
     ) <> 'boolean' THEN
         RAISE EXCEPTION 'vendor active standing is missing';
     END IF;
+
+    IF (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'vendors'
+          AND column_name = 'commission_bps'
+    ) <> 'integer' THEN
+        RAISE EXCEPTION 'vendor store take is missing';
+    END IF;
+
+    IF (
+        SELECT count(*)
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'vendors'
+          AND column_name IN ('agreement_starts_on', 'agreement_ends_on')
+          AND data_type = 'date'
+    ) <> 2 THEN
+        RAISE EXCEPTION 'vendor agreement dates are missing';
+    END IF;
+
+    IF (
+        SELECT count(*)
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'vendors'
+          AND column_name IN ('tax_id', 'notes', 'tax_exempt_number')
+          AND data_type = 'text'
+    ) <> 3 THEN
+        RAISE EXCEPTION 'vendor tax id or notes are missing';
+    END IF;
+
+    IF (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'vendors'
+          AND column_name = 'tax_exempt'
+    ) <> 'boolean' THEN
+        RAISE EXCEPTION 'vendor tax exempt standing is missing';
+    END IF;
 END $$;
 
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
+
+DO $$
+BEGIN
+    UPDATE vendors
+    SET commission_bps = 10001
+    WHERE id = '01900000-0000-7000-8000-000000000101';
+    RAISE EXCEPTION 'a store take over 100 percent was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE vendors
+    SET agreement_starts_on = '2026-06-01', agreement_ends_on = '2026-05-01'
+    WHERE id = '01900000-0000-7000-8000-000000000101';
+    RAISE EXCEPTION 'an agreement that ends before it starts was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE vendors
+    SET tax_exempt = true
+    WHERE id = '01900000-0000-7000-8000-000000000101';
+    RAISE EXCEPTION 'tax exempt without a resale number was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE vendors
+    SET tax_exempt = true, tax_exempt_number = ' '
+    WHERE id = '01900000-0000-7000-8000-000000000101';
+    RAISE EXCEPTION 'a blank resale number was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE vendors
+    SET tax_exempt = true, tax_exempt_number = repeat('n', 101)
+    WHERE id = '01900000-0000-7000-8000-000000000101';
+    RAISE EXCEPTION 'a resale number over 100 characters was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+UPDATE vendors
+SET tax_exempt = true, tax_exempt_number = 'RESALE-1'
+WHERE id = '01900000-0000-7000-8000-000000000101';
+
+UPDATE vendors
+SET tax_exempt = false, tax_exempt_number = NULL
+WHERE id = '01900000-0000-7000-8000-000000000101';
 
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000201', 'A1', 'Booth A1');

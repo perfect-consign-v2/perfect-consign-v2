@@ -51,6 +51,28 @@ END $$;
 
 DO $$
 BEGIN
+    IF (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'mall'
+          AND column_name = 'commission_bps'
+    ) <> 'integer' THEN
+        RAISE EXCEPTION 'mall default store take is missing';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE mall SET commission_bps = 10001;
+    RAISE EXCEPTION 'a store take over 100 percent was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
     DELETE FROM mall;
     RAISE EXCEPTION 'removing the mall clock was accepted';
 EXCEPTION

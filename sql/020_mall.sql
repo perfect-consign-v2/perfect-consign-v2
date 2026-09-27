@@ -8,10 +8,12 @@ CREATE TABLE mall (
     booth_depth_ft integer NOT NULL,
     floor_width_ft integer NOT NULL,
     floor_depth_ft integer NOT NULL,
+    commission_bps integer NOT NULL DEFAULT 0,
     CONSTRAINT mall_one_row CHECK (id),
     CONSTRAINT mall_zone_chk CHECK (time_zone = btrim(time_zone) AND time_zone <> ''),
     CONSTRAINT mall_booth_size_chk CHECK (booth_width_ft > 0 AND booth_depth_ft > 0),
-    CONSTRAINT mall_floor_chk CHECK (floor_width_ft > 0 AND floor_depth_ft > 0)
+    CONSTRAINT mall_floor_chk CHECK (floor_width_ft > 0 AND floor_depth_ft > 0),
+    CONSTRAINT mall_commission_chk CHECK (commission_bps >= 0 AND commission_bps <= 10000)
 );
 
 CREATE OR REPLACE FUNCTION mall_reject_zone()

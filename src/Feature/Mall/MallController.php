@@ -27,6 +27,7 @@ final class MallController
             $this->mall->boothDepth(),
             $this->mall->floorWidth(),
             $this->mall->floorDepth(),
+            $this->percent($this->mall->storeTake()),
             null
         );
     }
@@ -41,14 +42,16 @@ final class MallController
         $depth = $this->feet($this->app->request()->field('booth_depth_ft'));
         $floorWidth = $this->feet($this->app->request()->field('floor_width_ft'));
         $floorDepth = $this->feet($this->app->request()->field('floor_depth_ft'));
-        $error = $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth);
+        $storeTake = $this->app->request()->field('default_store_take');
+        $basis = $this->basisPoints($storeTake);
+        $error = $basis === null ? 'store take is a percent from 0 to 100' : $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth, $basis);
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
         }
-        $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $error);
+        $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $error);
     }
 
-    private function store(string $timeZone, ?int $width, ?int $depth, ?int $floorWidth, ?int $floorDepth): ?string
+    private function store(string $timeZone, ?int $width, ?int $depth, ?int $floorWidth, ?int $floorDepth, int $storeTake): ?string
     {
         if ($width === null || $depth === null) {
             return 'booth size is whole feet';
@@ -57,7 +60,7 @@ final class MallController
             return 'floor size is whole feet';
         }
         try {
-            $this->mall->save($timeZone, $width, $depth, $floorWidth, $floorDepth);
+            $this->mall->save($timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake);
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
@@ -76,6 +79,37 @@ final class MallController
         return (int) $value;
     }
 
+    private function basisPoints(string $percent): ?int
+    {
+        if ($percent === '') {
+            return 0;
+        }
+        if (preg_match('/^(\d{1,3})(?:\.(\d{1,2}))?$/', $percent, $parts) !== 1) {
+            return null;
+        }
+        $fraction = str_pad($parts[2] ?? '', 2, '0');
+        $basis = ((int) $parts[1] * 100) + (int) $fraction;
+        if ($basis > 10000) {
+            return null;
+        }
+
+        return $basis;
+    }
+
+    private function percent(int $basis): string
+    {
+        $whole = intdiv($basis, 100);
+        $fraction = $basis % 100;
+        if ($fraction === 0) {
+            return (string) $whole;
+        }
+        if ($fraction % 10 === 0) {
+            return $whole . '.' . (string) intdiv($fraction, 10);
+        }
+
+        return $whole . '.' . str_pad((string) $fraction, 2, '0', STR_PAD_LEFT);
+    }
+
     private function form(
         string $slug,
         string $timeZone,
@@ -83,6 +117,7 @@ final class MallController
         int $depth,
         int $floorWidth,
         int $floorDepth,
+        string $storeTake,
         ?string $error,
     ): void {
         $tenant = $this->app->open($slug, true);
@@ -95,6 +130,7 @@ final class MallController
             'boothDepth' => $depth,
             'floorWidth' => $floorWidth,
             'floorDepth' => $floorDepth,
+            'storeTake' => $storeTake,
             'error' => $error,
         ]);
     }

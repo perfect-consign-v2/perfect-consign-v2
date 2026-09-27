@@ -120,6 +120,7 @@ $filters = [
             <table class="table">
                 <thead>
                     <tr>
+                        <th>Custom ID</th>
                         <th>Vendor</th>
                         <th>Booth</th>
                         <th>Since</th>
@@ -130,12 +131,8 @@ $filters = [
                 <tbody>
                 <?php foreach ($vendors as $vendor): ?>
                     <tr id="vendor-<?= View::text($vendor['id']) ?>">
-                        <td>
-                            <div class="row gap-2">
-                                <a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>"><?= View::text($vendor['name']) ?></a>
-                                <span class="badge badge-accent"><?= View::text($vendor['code']) ?></span>
-                            </div>
-                        </td>
+                        <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>"><?= View::text($vendor['code']) ?></a></td>
+                        <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>"><?= View::text($vendor['name']) ?></a></td>
                         <td>
                             <?php if ($vendor['booths'] === []): ?>
                                 <span class="muted">Unassigned</span>

@@ -84,9 +84,21 @@ final class PartyStore
         string $phone,
         string $email,
         string $address,
+        ?int $commission,
+        string $agreementStart,
+        string $agreementEnd,
+        string $taxId,
+        string $notes,
+        string $taxExempt,
+        string $taxExemptNumber,
     ): string {
+        $facts = $this->identityFacts($commission, $agreementStart, $agreementEnd, $taxId, $notes, $taxExempt, $taxExemptNumber);
         $rows = $this->statements->bound(
-            'INSERT INTO vendors (code, first_name, last_name, phone, email, address) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
+            'INSERT INTO vendors (
+                code, first_name, last_name, phone, email, address,
+                commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
+                tax_exempt, tax_exempt_number
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?::date, ?::date, ?, ?, ?::boolean, ?) RETURNING id',
             [
                 $code,
                 $this->personName($firstName, 'first'),
@@ -94,6 +106,13 @@ final class PartyStore
                 $this->contact($phone, 'phone'),
                 $this->contact($email, 'email'),
                 $this->contact($address, 'address'),
+                $facts[0],
+                $facts[1],
+                $facts[2],
+                $facts[3],
+                $facts[4],
+                $facts[5] ? 'true' : 'false',
+                $facts[6],
             ]
         );
         $id = $rows[0]['id'] ?? null;
@@ -110,7 +129,10 @@ final class PartyStore
     public function findVendor(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, first_name, last_name, name, phone, email, address, active FROM vendors WHERE id = ?::uuid',
+            'SELECT id, code, first_name, last_name, name, phone, email, address, active,
+                    commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
+                    tax_exempt, tax_exempt_number
+             FROM vendors WHERE id = ?::uuid',
             [$id]
         );
 
@@ -125,9 +147,21 @@ final class PartyStore
         string $phone,
         string $email,
         string $address,
+        ?int $commission,
+        string $agreementStart,
+        string $agreementEnd,
+        string $taxId,
+        string $notes,
+        string $taxExempt,
+        string $taxExemptNumber,
     ): void {
+        $facts = $this->identityFacts($commission, $agreementStart, $agreementEnd, $taxId, $notes, $taxExempt, $taxExemptNumber);
         $count = $this->statements->affected(
-            'UPDATE vendors SET code = ?, first_name = ?, last_name = ?, phone = ?, email = ?, address = ? WHERE id = ?::uuid',
+            'UPDATE vendors
+             SET code = ?, first_name = ?, last_name = ?, phone = ?, email = ?, address = ?,
+                 commission_bps = ?, agreement_starts_on = ?::date, agreement_ends_on = ?::date,
+                 tax_id = ?, notes = ?, tax_exempt = ?::boolean, tax_exempt_number = ?
+             WHERE id = ?::uuid',
             [
                 $code,
                 $this->personName($firstName, 'first'),
@@ -135,6 +169,13 @@ final class PartyStore
                 $this->contact($phone, 'phone'),
                 $this->contact($email, 'email'),
                 $this->contact($address, 'address'),
+                $facts[0],
+                $facts[1],
+                $facts[2],
+                $facts[3],
+                $facts[4],
+                $facts[5] ? 'true' : 'false',
+                $facts[6],
                 $id,
             ]
         );
@@ -223,6 +264,72 @@ final class PartyStore
             'UPDATE booth_assignments SET ends_on = ?::date WHERE id = ?::uuid',
             [$endsOn, $id]
         );
+    }
+
+    /**
+     * @return array{0: ?int, 1: ?string, 2: ?string, 3: ?string, 4: ?string, 5: bool, 6: ?string}
+     */
+    private function identityFacts(
+        ?int $commission,
+        string $agreementStart,
+        string $agreementEnd,
+        string $taxId,
+        string $notes,
+        string $taxExempt,
+        string $taxExemptNumber,
+    ): array {
+        $start = $this->day($agreementStart);
+        $end = $this->day($agreementEnd);
+        if ($start !== null && $end !== null && $start > $end) {
+            throw new \InvalidArgumentException('an agreement end cannot be before its start');
+        }
+        $number = $this->optionalText($taxExemptNumber, 100, 'that resale number is too long');
+        $exempt = $taxExempt === '1' || $taxExempt === 'true';
+        if ($exempt && $number === null) {
+            throw new \InvalidArgumentException('Tax exempt number is required when tax exempt is enabled');
+        }
+
+        return [
+            $commission,
+            $start,
+            $end,
+            $this->optionalText($taxId, 40, 'that tax id is too long'),
+            $this->optionalText($notes, 2000, 'those notes are too long'),
+            $exempt,
+            $number,
+        ];
+    }
+
+    private function day(string $value): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trimmed) !== 1) {
+            throw new \InvalidArgumentException('an agreement date is YYYY-MM-DD');
+        }
+        $year = (int) substr($trimmed, 0, 4);
+        $month = (int) substr($trimmed, 5, 2);
+        $day = (int) substr($trimmed, 8, 2);
+        if (!checkdate($month, $day, $year)) {
+            throw new \InvalidArgumentException('an agreement date is YYYY-MM-DD');
+        }
+
+        return $trimmed;
+    }
+
+    private function optionalText(string $value, int $limit, string $tooLong): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+        if (strlen($trimmed) > $limit) {
+            throw new \InvalidArgumentException($tooLong);
+        }
+
+        return $trimmed;
     }
 
     private function personName(string $value, string $part): string

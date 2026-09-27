@@ -11,11 +11,12 @@ use PerfectConsign\Shared\Http\View;
 /** @var int $boothDepth */
 /** @var int $floorWidth */
 /** @var int $floorDepth */
+/** @var string $storeTake */
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">The mall clock, the default booth size, and the floor the map draws.</p>
+        <p class="muted">The mall clock, the default booth size, the floor the map draws, and the store take.</p>
     </div>
 </div>
 
@@ -43,12 +44,17 @@ use PerfectConsign\Shared\Http\View;
                 <label for="floor_depth_ft">Floor depth (ft)</label>
                 <input class="input" id="floor_depth_ft" name="floor_depth_ft" inputmode="numeric" value="<?= View::text($floorDepth) ?>" required>
             </div>
+            <div class="field" style="grid-column:1/-1">
+                <label for="default_store_take">Store take</label>
+                <input class="input" id="default_store_take" name="default_store_take" inputmode="decimal" value="<?= View::text($storeTake) ?>">
+                <p class="muted text-sm">Percent of a sale this mall keeps. 25 is 25%. A different amount saved on a vendor is marked overridden.</p>
+            </div>
         </div>
     </div>
     <div class="card">
         <div class="card-head"><div class="h3">Notes</div></div>
         <div class="card-body">
-            <p class="muted text-sm">Today, rent months, and the posting date start from this time zone. A booth with no size uses the width and depth here. The floor starts at 120 by 90 feet.</p>
+            <p class="muted text-sm">Today, rent months, and the posting date start from this time zone. A booth with no size uses the width and depth here. The floor starts at 120 by 90 feet. Store take is this mall's default split.</p>
         </div>
         <div class="card-foot row between">
             <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/book">Cancel</a>

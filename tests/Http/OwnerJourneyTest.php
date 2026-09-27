@@ -178,6 +178,7 @@ final class OwnerJourneyTest extends WebTestCase
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
+            'default_store_take' => '0',
         ]);
         self::assertSame(200, $refused->status);
         self::assertSees('that time zone is not an IANA name', $refused);
@@ -187,6 +188,7 @@ final class OwnerJourneyTest extends WebTestCase
             'booth_depth_ft' => '8',
             'floor_width_ft' => '100',
             'floor_depth_ft' => '80',
+            'default_store_take' => '0',
         ]);
         self::assertSees('America/Chicago', $saved);
         $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
@@ -195,6 +197,7 @@ final class OwnerJourneyTest extends WebTestCase
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
+            'default_store_take' => '0',
         ]);
         self::assertSees('America/Los_Angeles', $restored);
     }
@@ -234,12 +237,77 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees($name, $assigned);
     }
 
+    public function testTheOwnerRecordsStoreTakeAgreementAndTaxExempt(): void
+    {
+        $code = 'v' . bin2hex(random_bytes(4));
+        $refused = $this->client->post('/' . ProbeMall::SLUG . '/vendors', [
+            'code' => $code,
+            'first_name' => 'Ada',
+            'last_name' => $code,
+            'tax_exempt' => '1',
+        ]);
+        self::assertSame(200, $refused->status);
+        self::assertSees('Tax exempt number is required when tax exempt is enabled', $refused);
+        $created = $this->client->post('/' . ProbeMall::SLUG . '/vendors', [
+            'code' => $code,
+            'first_name' => 'Ada',
+            'last_name' => $code,
+            'agreement_starts_on' => '2026-01-01',
+            'agreement_ends_on' => '2026-12-31',
+            'tax_id' => '12-3456789',
+            'notes' => 'Booth near the door',
+            'tax_exempt' => '1',
+            'tax_exempt_number' => 'RESALE-100',
+        ]);
+
+        self::assertSees('0%', $created);
+        self::assertSees('2026-01-01', $created);
+        self::assertSees('2026-12-31', $created);
+        self::assertSees('12-3456789', $created);
+        self::assertSees('Booth near the door', $created);
+        self::assertSees('RESALE-100', $created);
+    }
+
+    public function testTheMallSplitShowsOnTheVendor(): void
+    {
+        $settings = [
+            'time_zone' => 'America/Los_Angeles',
+            'booth_width_ft' => '10',
+            'booth_depth_ft' => '10',
+            'floor_width_ft' => '120',
+            'floor_depth_ft' => '90',
+        ];
+        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '30']);
+        self::assertSees('value="30"', $saved);
+        $code = 'v' . bin2hex(random_bytes(4));
+        $created = $this->client->post('/' . ProbeMall::SLUG . '/vendors', [
+            'code' => $code,
+            'first_name' => 'Ada',
+            'last_name' => $code,
+            'store_take' => '10',
+        ]);
+        self::assertSees('10%', $created);
+        self::assertSees('Overridden', $created);
+        $same = 'v' . bin2hex(random_bytes(4));
+        $matched = $this->client->post('/' . ProbeMall::SLUG . '/vendors', [
+            'code' => $same,
+            'first_name' => 'Ada',
+            'last_name' => $same,
+            'store_take' => '30',
+        ]);
+        self::assertSees('30%', $matched);
+        self::assertStringNotContainsString('Overridden', $matched->body);
+        $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '0']);
+        self::assertSees('value="0"', $restored);
+    }
+
     private function vendor(): string
     {
         $code = 'v' . bin2hex(random_bytes(4));
         $page = $this->client->post('/' . ProbeMall::SLUG . '/vendors', [
             'code' => $code,
-            'name' => $code,
+            'first_name' => 'Ada',
+            'last_name' => $code,
         ]);
         self::assertSees($code, $page);
 

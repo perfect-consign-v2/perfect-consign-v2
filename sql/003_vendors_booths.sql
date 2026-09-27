@@ -13,6 +13,13 @@ CREATE TABLE vendors (
     phone text,
     email text,
     address text,
+    commission_bps integer,
+    agreement_starts_on date,
+    agreement_ends_on date,
+    tax_id text,
+    tax_exempt boolean NOT NULL DEFAULT false,
+    tax_exempt_number text,
+    notes text,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     CONSTRAINT vendors_code_chk CHECK (code = btrim(code) AND code <> ''),
     CONSTRAINT vendors_first_name_chk CHECK (first_name = btrim(first_name) AND first_name <> ''),
@@ -30,6 +37,26 @@ CREATE TABLE vendors (
     ),
     CONSTRAINT vendors_address_chk CHECK (
         address IS NULL OR (address = btrim(address) AND address <> '' AND char_length(address) <= 400)
+    ),
+    CONSTRAINT vendors_commission_chk CHECK (commission_bps >= 0 AND commission_bps <= 10000),
+    CONSTRAINT vendors_agreement_chk CHECK (
+        agreement_ends_on IS NULL OR agreement_starts_on IS NULL OR agreement_starts_on <= agreement_ends_on
+    ),
+    CONSTRAINT vendors_tax_id_chk CHECK (
+        tax_id IS NULL OR (tax_id = btrim(tax_id) AND tax_id <> '' AND char_length(tax_id) <= 40)
+    ),
+    CONSTRAINT vendors_tax_exempt_number_chk CHECK (
+        tax_exempt_number IS NULL OR (
+            tax_exempt_number = btrim(tax_exempt_number)
+            AND tax_exempt_number <> ''
+            AND char_length(tax_exempt_number) <= 100
+        )
+    ),
+    CONSTRAINT vendors_tax_exempt_requires_number_chk CHECK (
+        tax_exempt = false OR tax_exempt_number IS NOT NULL
+    ),
+    CONSTRAINT vendors_notes_chk CHECK (
+        notes IS NULL OR (notes = btrim(notes) AND notes <> '' AND char_length(notes) <= 2000)
     )
 );
 
