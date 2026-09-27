@@ -448,6 +448,20 @@ CREATE TRIGGER ledger_books_no_truncate
     FOR EACH STATEMENT
     EXECUTE FUNCTION ledger_reject_truncate();
 
+ALTER TABLE journals
+    ENABLE ALWAYS TRIGGER journals_append_only,
+    ENABLE ALWAYS TRIGGER journals_no_truncate;
+
+ALTER TABLE journal_lines
+    ENABLE ALWAYS TRIGGER journal_lines_append_only,
+    ENABLE ALWAYS TRIGGER journal_lines_no_truncate;
+
+ALTER TABLE accounts ENABLE ALWAYS TRIGGER accounts_no_truncate;
+
+ALTER TABLE accounting_periods ENABLE ALWAYS TRIGGER accounting_periods_no_truncate;
+
+ALTER TABLE ledger_books ENABLE ALWAYS TRIGGER ledger_books_no_truncate;
+
 CREATE OR REPLACE FUNCTION ledger_assert_journal_balance()
 RETURNS trigger
 LANGUAGE plpgsql

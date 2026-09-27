@@ -12,12 +12,19 @@ The cases below are the minimum. If the change can be broken another way, add th
 - The refusal the plan names for this fact.
 - Cross-fact sequences: a void or reversal after the amount was already cleared; a payment larger than the open balance; an assignment end that moves a charge onto another vendor; a journal whose `source_type` is not this fact and that still posts to a control account; the same business id under a new posting key.
 - Two sessions at once. One holds an open delete or the unique posting key; the other inserts. Both committing is a failure.
-- The table owner, inside a transaction that rolls back: `TRUNCATE` and `DISABLE TRIGGER` on append-only tables. If either wipes or edits a posted row, the fact is not proven.
+- The table owner, inside a transaction that rolls back: `TRUNCATE` and `DISABLE TRIGGER` on append-only tables. If either wipes or edits a posted row, the fact is not proven. Then attack the guard that refused those statements. A green run of the planned statement is the start.
+
+Attack the mechanism before calling the proof done. Stay in the rolled-back transaction and try to remove, disable, replace, or narrow the trigger, event trigger, or function that raised the error.
+
+- `DROP TRIGGER`, `ENABLE REPLICA TRIGGER`, and any `tgenabled` value other than origin or always.
+- Replacing that function's body, and `DROP` or `ALTER` of the event trigger. If Postgres will not deliver `ALTER EVENT TRIGGER` or `DROP EVENT TRIGGER` to an event trigger, say so in the proof and still run the session settings that skip triggers.
+- `session_replication_role=replica` used to change a row, and the same session used to disable or drop a row trigger and then return to origin. A change that sticks is a failure. A non-superuser setting replica mode or `event_triggers=false` must be refused.
+- A plan sentence that says the superuser can bypass the guard is a claim to attack, not a reason to stop.
 - Any balance this fact can push below zero, then the next payout or charge. If that next step is refused or the books are wrong, fix this fact first.
 
 If a vector is accepted and the schema should refuse it, change the schema and re-run the whole script. Do not record the hole and start the next file.
 
 ```text
-BAD: duplicate posting key refused → start sql/007_payout.sql
-GOOD: duplicate key, cross-fact sequence, two sessions, and owner bypass all run and exit 0 → then start the next file
+BAD: ALTER TABLE ... DISABLE TRIGGER refused → proof done
+GOOD: disable, replica-only, drop trigger, and replica-session DDL all refused, re-run, exit 0 → then stop
 ```

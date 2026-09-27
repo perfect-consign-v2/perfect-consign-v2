@@ -1,6 +1,6 @@
--- The append-only guard refuses disabling, replica-only, and dropping row triggers.
+-- The append-only guard refuses disabling, replica-only, origin, and dropping those triggers.
 -- Postgres does not deliver ALTER EVENT TRIGGER or DROP EVENT TRIGGER to this guard.
--- session_replication_role=replica still skips origin row triggers. Only a superuser can set it.
+-- Those triggers are ENABLE ALWAYS, so replica mode still refuses update, delete, and truncate.
 -- The script rolls back.
 
 BEGIN;
@@ -129,32 +129,144 @@ BEGIN
         FROM pg_trigger
         WHERE tgrelid = 'journals'::regclass
           AND tgname = 'journals_append_only'
-          AND tgenabled = 'O'
+          AND tgenabled = 'A'
           AND NOT tgisinternal
     ) OR NOT EXISTS (
         SELECT 1
         FROM pg_trigger
         WHERE tgrelid = 'journals'::regclass
           AND tgname = 'journals_no_truncate'
-          AND tgenabled = 'O'
+          AND tgenabled = 'A'
           AND NOT tgisinternal
     ) OR NOT EXISTS (
         SELECT 1
         FROM pg_trigger
         WHERE tgrelid = 'brands'::regclass
           AND tgname = 'brands_no_truncate'
-          AND tgenabled = 'O'
+          AND tgenabled = 'A'
           AND NOT tgisinternal
     ) OR NOT EXISTS (
         SELECT 1
         FROM pg_trigger
         WHERE tgrelid = 'platform.owner_backups'::regclass
           AND tgname = 'owner_backups_append_only'
-          AND tgenabled = 'O'
+          AND tgenabled = 'A'
+          AND NOT tgisinternal
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'platform.owner_backups'::regclass
+          AND tgname = 'owner_backups_no_truncate'
+          AND tgenabled = 'A'
           AND NOT tgisinternal
     ) THEN
         RAISE EXCEPTION 'an append-only trigger was left disabled or missing';
     END IF;
+END $$;
+
+DO $$
+BEGIN
+    ALTER TABLE journals ENABLE TRIGGER journals_append_only;
+    RAISE EXCEPTION 'putting the journal trigger back to origin was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be disabled%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
+VALUES (
+    '01900000-0000-7000-8000-00000000a021',
+    '01900000-0000-7000-8000-000000000001',
+    '2026-09-01',
+    '2026-09-30',
+    'open'
+);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-00000000a031',
+    '01900000-0000-7000-8000-000000000001',
+    'proof-always-guard',
+    '2026-09-15',
+    '2026-09-15 12:00:00+00',
+    '01900000-0000-7000-8000-00000000a021',
+    'USD',
+    'adjustment',
+    'always-guard',
+    'Replica attack journal',
+    1000,
+    1000
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES
+    ('01900000-0000-7000-8000-00000000a031', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 1000, 0),
+    ('01900000-0000-7000-8000-00000000a031', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000012', 0, 1000);
+
+DO $$
+BEGIN
+    SET LOCAL session_replication_role = replica;
+    UPDATE journals
+    SET description = 'wiped'
+    WHERE id = '01900000-0000-7000-8000-00000000a031';
+    RAISE EXCEPTION 'replica update was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%cannot be updated or deleted%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    SET LOCAL session_replication_role = replica;
+    DELETE FROM journal_lines
+    WHERE journal_id = '01900000-0000-7000-8000-00000000a031';
+    RAISE EXCEPTION 'replica line delete was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%cannot be updated or deleted%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    SET LOCAL session_replication_role = replica;
+    TRUNCATE brands;
+    RAISE EXCEPTION 'replica brand truncate was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only and cannot be truncated%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+DECLARE
+    mall_id uuid;
+    backup_id uuid := '01900000-0000-7000-8000-00000000d0aa';
+BEGIN
+    SELECT id INTO mall_id FROM platform.tenants WHERE slug = 'mall';
+    IF mall_id IS NULL THEN
+        RAISE EXCEPTION 'mall tenant is missing';
+    END IF;
+    INSERT INTO platform.owner_backups (id, tenant_id, completed_at, byte_size, sha256)
+    VALUES (backup_id, mall_id, NULL, 1, repeat('a', 64));
+    BEGIN
+        SET LOCAL session_replication_role = replica;
+        DELETE FROM platform.owner_backups WHERE id = backup_id;
+        RAISE EXCEPTION 'replica backup delete was accepted';
+    EXCEPTION
+        WHEN SQLSTATE '25006' THEN
+            IF SQLERRM NOT LIKE '%cannot be updated or deleted%' THEN
+                RAISE;
+            END IF;
+    END;
 END $$;
 
 DO $$

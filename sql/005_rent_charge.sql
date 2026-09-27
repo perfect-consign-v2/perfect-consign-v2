@@ -162,3 +162,5 @@ CREATE TRIGGER booth_rent_rates_no_truncate
     BEFORE TRUNCATE ON booth_rent_rates
     FOR EACH STATEMENT
     EXECUTE FUNCTION ledger_reject_truncate();
+
+ALTER TABLE booth_rent_rates ENABLE ALWAYS TRIGGER booth_rent_rates_no_truncate;

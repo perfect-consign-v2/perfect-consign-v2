@@ -31,9 +31,10 @@ REVOKE ALL ON TABLE platform.tenants FROM PUBLIC;
 
 -- Postgres never fires an event trigger for ALTER EVENT TRIGGER or DROP EVENT TRIGGER.
 -- A superuser can disable this guard with those commands, or with event_triggers=false.
--- session_replication_role=replica skips origin row triggers for that session. Only a
--- superuser can set it. stall_poster and stall_app cannot. The event triggers below are
--- ENABLE ALWAYS, so that session still cannot disable or drop the row triggers.
+-- Append-only triggers are ENABLE ALWAYS, so session_replication_role=replica still
+-- refuses update, delete, and truncate. Only a superuser can set replica mode.
+-- stall_poster and stall_app cannot. The event triggers below are ENABLE ALWAYS, so
+-- that session still cannot disable or drop the row triggers.
 CREATE OR REPLACE FUNCTION platform.reject_append_only_trigger_change()
 RETURNS event_trigger
 LANGUAGE plpgsql
@@ -82,7 +83,13 @@ BEGIN
             FROM pg_trigger
             WHERE tgrelid = command.objid
               AND NOT tgisinternal
-              AND tgenabled NOT IN ('O', 'A')
+              AND (
+                  tgenabled NOT IN ('O', 'A')
+                  OR (
+                      tgenabled <> 'A'
+                      AND tgname ~ '(_append_only|_no_truncate|_no_delete)$'
+                  )
+              )
         ) THEN
             RAISE EXCEPTION 'append-only triggers cannot be disabled'
                 USING ERRCODE = '25006';
@@ -117,3 +124,36 @@ END $$;
 
 ALTER EVENT TRIGGER platform_reject_append_only_trigger_change ENABLE ALWAYS;
 ALTER EVENT TRIGGER platform_reject_append_only_trigger_drop ENABLE ALWAYS;
+
+DO $$
+DECLARE
+    target record;
+    actions text;
+BEGIN
+    FOR target IN
+        SELECT n.nspname AS schema_name, c.relname AS table_name
+        FROM pg_trigger AS t
+        JOIN pg_class AS c ON c.oid = t.tgrelid
+        JOIN pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE NOT t.tgisinternal
+          AND t.tgenabled IS DISTINCT FROM 'A'
+          AND t.tgname ~ '(_append_only|_no_truncate|_no_delete)$'
+          AND (
+              n.nspname ~ '^tenant_[0-9a-f]{32}$'
+              OR (n.nspname = 'platform' AND c.relname = 'owner_backups')
+          )
+        GROUP BY n.nspname, c.relname
+    LOOP
+        SELECT string_agg(format('ENABLE ALWAYS TRIGGER %I', t.tgname), ', ' ORDER BY t.tgname)
+        INTO actions
+        FROM pg_trigger AS t
+        JOIN pg_class AS c ON c.oid = t.tgrelid
+        JOIN pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE n.nspname = target.schema_name
+          AND c.relname = target.table_name
+          AND NOT t.tgisinternal
+          AND t.tgenabled IS DISTINCT FROM 'A'
+          AND t.tgname ~ '(_append_only|_no_truncate|_no_delete)$';
+        EXECUTE format('ALTER TABLE %I.%I %s', target.schema_name, target.table_name, actions);
+    END LOOP;
+END $$;

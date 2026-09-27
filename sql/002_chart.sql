@@ -118,3 +118,7 @@ CREATE TRIGGER chart_roles_no_truncate
     BEFORE TRUNCATE ON chart_roles
     FOR EACH STATEMENT
     EXECUTE FUNCTION ledger_reject_truncate();
+
+ALTER TABLE accounts ENABLE ALWAYS TRIGGER accounts_chart_no_delete;
+
+ALTER TABLE chart_roles ENABLE ALWAYS TRIGGER chart_roles_no_truncate;

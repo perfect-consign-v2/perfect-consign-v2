@@ -199,7 +199,13 @@ BEGIN
             FROM pg_trigger
             WHERE tgrelid = command.objid
               AND NOT tgisinternal
-              AND tgenabled NOT IN ('O', 'A')
+              AND (
+                  tgenabled NOT IN ('O', 'A')
+                  OR (
+                      tgenabled <> 'A'
+                      AND tgname ~ '(_append_only|_no_truncate|_no_delete)$'
+                  )
+              )
         ) THEN
             RAISE EXCEPTION 'append-only triggers cannot be disabled'
                 USING ERRCODE = '25006';
@@ -234,6 +240,10 @@ END $$;
 
 ALTER EVENT TRIGGER platform_reject_append_only_trigger_change ENABLE ALWAYS;
 ALTER EVENT TRIGGER platform_reject_append_only_trigger_drop ENABLE ALWAYS;
+
+ALTER TABLE platform.owner_backups
+    ENABLE ALWAYS TRIGGER owner_backups_append_only,
+    ENABLE ALWAYS TRIGGER owner_backups_no_truncate;
 
 DO $$
 DECLARE

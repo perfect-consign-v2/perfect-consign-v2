@@ -17,3 +17,5 @@ CREATE TRIGGER brands_no_truncate
     BEFORE TRUNCATE ON brands
     FOR EACH STATEMENT
     EXECUTE FUNCTION ledger_reject_truncate();
+
+ALTER TABLE brands ENABLE ALWAYS TRIGGER brands_no_truncate;

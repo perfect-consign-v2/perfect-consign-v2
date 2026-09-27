@@ -54,6 +54,10 @@ CREATE TRIGGER mall_no_truncate
     FOR EACH STATEMENT
     EXECUTE FUNCTION ledger_reject_truncate();
 
+ALTER TABLE mall
+    ENABLE ALWAYS TRIGGER mall_no_delete,
+    ENABLE ALWAYS TRIGGER mall_no_truncate;
+
 INSERT INTO mall (time_zone, booth_width_ft, booth_depth_ft)
 VALUES ('America/Los_Angeles', 10, 10);
 

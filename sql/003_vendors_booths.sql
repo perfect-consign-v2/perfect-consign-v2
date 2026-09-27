@@ -384,3 +384,17 @@ CREATE TRIGGER booth_assignments_no_truncate
     BEFORE TRUNCATE ON booth_assignments
     FOR EACH STATEMENT
     EXECUTE FUNCTION ledger_reject_truncate();
+
+ALTER TABLE vendors
+    ENABLE ALWAYS TRIGGER vendors_referenced_no_delete,
+    ENABLE ALWAYS TRIGGER vendors_no_truncate;
+
+ALTER TABLE booths
+    ENABLE ALWAYS TRIGGER booths_referenced_no_delete,
+    ENABLE ALWAYS TRIGGER booths_no_truncate;
+
+ALTER TABLE booth_assignments
+    ENABLE ALWAYS TRIGGER booth_assignments_append_only,
+    ENABLE ALWAYS TRIGGER booth_assignments_no_truncate;
+
+ALTER TABLE chart_source_rules ENABLE ALWAYS TRIGGER chart_source_rules_no_truncate;
