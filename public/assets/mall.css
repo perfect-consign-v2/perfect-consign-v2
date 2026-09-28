@@ -99,8 +99,8 @@
     background: #dbeafe;
 }
 .occupancy-pill.available {
-    color: var(--info);
-    background: var(--info-soft);
+    color: var(--success);
+    background: var(--success-soft);
 }
 
 a.mailto {
