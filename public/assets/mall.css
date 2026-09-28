@@ -341,6 +341,37 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     font-weight: 600;
 }
 .record-row dd { margin: 0; }
+.combo { position: relative; }
+.suggest {
+    position: absolute;
+    z-index: 5;
+    left: 0;
+    right: 0;
+    top: 100%;
+    margin: 0;
+    padding: 0.25rem 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.suggest[hidden],
+.badge[hidden],
+.row[hidden] { display: none; }
+.suggest-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 0.45rem 0.75rem;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+}
+.suggest-item:hover,
+.suggest-item:focus { background: var(--surface-2); }
+.field-error { color: var(--danger); margin: 0; }
+.field-error[hidden] { display: none; }
 .record-span { grid-column: 1 / -1; }
 @media (min-width: 56rem) {
     .vendor-bench {

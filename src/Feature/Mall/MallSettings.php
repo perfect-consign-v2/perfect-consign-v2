@@ -50,8 +50,25 @@ final class MallSettings
         return RowValue::integer($this->row()['commission_bps'] ?? null);
     }
 
-    public function save(string $timeZone, int $width, int $depth, int $floorWidth, int $floorDepth, int $storeTake): void
+    public function floorDays(): ?int
     {
+        $days = $this->row()['floor_days'] ?? null;
+        if ($days === null) {
+            return null;
+        }
+
+        return RowValue::integer($days);
+    }
+
+    public function save(
+        string $timeZone,
+        int $width,
+        int $depth,
+        int $floorWidth,
+        int $floorDepth,
+        int $storeTake,
+        ?int $floorDays,
+    ): void {
         if (!in_array($timeZone, timezone_identifiers_list(DateTimeZone::ALL_WITH_BC), true)) {
             throw new \InvalidArgumentException('that time zone is not an IANA name');
         }
@@ -64,10 +81,18 @@ final class MallSettings
         if ($storeTake < 0 || $storeTake > 10000) {
             throw new \InvalidArgumentException('store take is a percent from 0 to 100');
         }
+        $this->guardDays($floorDays);
         $this->statements->change(
-            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?',
-            [$timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake]
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?',
+            [$timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake, $floorDays]
         );
+    }
+
+    private function guardDays(?int $floorDays): void
+    {
+        if ($floorDays !== null && ($floorDays < 1 || $floorDays > 365)) {
+            throw new \InvalidArgumentException('days on the floor is a whole number from 1 to 365, or empty');
+        }
     }
 
     /**
@@ -76,7 +101,7 @@ final class MallSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps FROM mall'
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

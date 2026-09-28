@@ -22,13 +22,21 @@ A rent charge for the month a vendor moves in counts the days from the start dat
 
 ## Inventory
 
-An item is one piece. It has a tag, a vendor, a description, and an asking price. The brand may be empty. There is no quantity.
+An item is one piece. It has a tag, a barcode, a vendor, a description, an asking price, and an intake date. The brand may be empty. The expire date may be empty. There is no quantity.
 
-The tag is unique in the mall, ignoring case. A tag is at most 40 characters. A description is at most 200 characters. The asking price is greater than zero.
+The tag is unique in the mall, ignoring case. A tag is at most 40 characters. The barcode is unique, ignoring case, and at most 100 characters. A blank barcode is filled with BC, the mall date, and a four-digit sequence. A description is at most 200 characters. The asking price is greater than zero.
 
 The asking price is the price on the piece. It is not a journal. A sale still posts the amount entered on the sale.
 
-The tag, vendor, brand, description, and price can be changed. An item can be deleted only while nothing else points at it.
+The store take on a piece follows the vendor. Saving the vendor's percent, or leaving the field empty, stores no override. A different percent is stored on the piece and marked overridden.
+
+The expire date is empty, or on or after the intake date. Settings can set days on the floor, from 1 to 365. A new piece then expires that many days after intake. An empty setting means pieces do not expire. That setting is for a consignment store. A vendor mall leaves it empty.
+
+After a piece is created, the add form stays open with the same vendor and the same intake date. The next piece gets a fresh expire date from days on the floor.
+
+The consignor is chosen by custom id or name. The custom id is shown in front of the name. A brand is chosen by name. A name that is not in the mall can be added before the piece is saved.
+
+The tag, barcode, vendor, brand, description, price, store take, intake date, and expire date can be changed. An item can be deleted only while nothing else points at it.
 
 A vendor or brand that an item still names cannot be deleted. An inactive vendor can still own a piece. The booth stays on the vendor’s assignment, not on the piece.
 

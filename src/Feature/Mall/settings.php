@@ -12,11 +12,12 @@ use PerfectConsign\Shared\Http\View;
 /** @var int $floorWidth */
 /** @var int $floorDepth */
 /** @var string $storeTake */
+/** @var string $floorDays */
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">The mall clock, the default booth size, the floor the map draws, and the store take.</p>
+        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, and how long pieces stay out.</p>
     </div>
 </div>
 
@@ -49,12 +50,17 @@ use PerfectConsign\Shared\Http\View;
                 <input class="input" id="default_store_take" name="default_store_take" inputmode="decimal" value="<?= View::text($storeTake) ?>">
                 <p class="muted text-sm">Percent of a sale this mall keeps. 25 is 25%. A different amount saved on a vendor is marked overridden.</p>
             </div>
+            <div class="field" style="grid-column:1/-1">
+                <label for="floor_days">Days on the floor</label>
+                <input class="input" id="floor_days" name="floor_days" inputmode="numeric" value="<?= View::text($floorDays) ?>">
+                <p class="muted text-sm">How long a new piece stays before it expires. Leave this empty and pieces do not expire. A consignment store sets it. A vendor mall leaves it empty.</p>
+            </div>
         </div>
     </div>
     <div class="card">
         <div class="card-head"><div class="h3">Notes</div></div>
         <div class="card-body">
-            <p class="muted text-sm">Today, rent months, and the posting date start from this time zone. A booth with no size uses the width and depth here. The floor starts at 120 by 90 feet. Store take is this mall's default split.</p>
+            <p class="muted text-sm">Today, rent months, and the posting date start from this time zone. A booth with no size uses the width and depth here. The floor starts at 120 by 90 feet. Store take is this mall's default split. Days on the floor is the consignment expire default.</p>
         </div>
         <div class="card-foot row between">
             <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/book">Cancel</a>

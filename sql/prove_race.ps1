@@ -240,12 +240,27 @@ $item = Invoke-Psql -Path (Join-Path $root 'prove_race_item_b.sql')
 $itemWatch.Stop()
 Wait-Job $itemJob | Out-Null
 Receive-Job $itemJob | Out-Null
-Invoke-Exec -Command "DELETE FROM items WHERE vendor_id IN (SELECT id FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item'); DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item';" | Out-Null
+Invoke-Exec -Command "DELETE FROM items WHERE vendor_id IN (SELECT id FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item');" | Out-Null
 if ($itemWatch.ElapsedMilliseconds -lt 4500) {
     throw "second item tag did not wait ($($itemWatch.ElapsedMilliseconds) ms)`n$($item.Output)"
 }
 if ($item.Code -ne 0) {
     throw "item tag race failed`n$($item.Output)"
+}
+
+$barcodeJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_barcode_a.sql'), $script:TenantSchema
+Start-Sleep -Seconds 1
+$barcodeWatch = [Diagnostics.Stopwatch]::StartNew()
+$barcode = Invoke-Psql -Path (Join-Path $root 'prove_race_barcode_b.sql')
+$barcodeWatch.Stop()
+Wait-Job $barcodeJob | Out-Null
+Receive-Job $barcodeJob | Out-Null
+Invoke-Exec -Command "DELETE FROM items WHERE vendor_id IN (SELECT id FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item'); DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item';" | Out-Null
+if ($barcodeWatch.ElapsedMilliseconds -lt 4500) {
+    throw "second item barcode did not wait ($($barcodeWatch.ElapsedMilliseconds) ms)`n$($barcode.Output)"
+}
+if ($barcode.Code -ne 0) {
+    throw "item barcode race failed`n$($barcode.Output)"
 }
 
 $waitJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_wait_a.sql'), $script:TenantSchema
@@ -323,4 +338,4 @@ SELECT
 if ($left.Trim() -ne '0,0,0,0,0,0,0') {
     throw "race proof left rows: $left"
 }
-Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) item_ms=$($itemWatch.ElapsedMilliseconds) wait_ms=$($waitWatch.ElapsedMilliseconds) place_ms=$($placeWatch.ElapsedMilliseconds) floor_ms=$($floorWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"
+Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) item_ms=$($itemWatch.ElapsedMilliseconds) barcode_ms=$($barcodeWatch.ElapsedMilliseconds) wait_ms=$($waitWatch.ElapsedMilliseconds) place_ms=$($placeWatch.ElapsedMilliseconds) floor_ms=$($floorWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"

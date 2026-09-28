@@ -139,21 +139,46 @@ final class OwnerJourneyTest extends WebTestCase
         $brands = $this->client->get('/' . ProbeMall::SLUG . '/brands');
         $brandId = HtmlPage::taggedId($brands->body, 'tr', 'brand', $brand);
         $otherId = HtmlPage::taggedId($brands->body, 'tr', 'brand', $other);
+        $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+            'time_zone' => 'America/Los_Angeles',
+            'booth_width_ft' => '10',
+            'booth_depth_ft' => '10',
+            'floor_width_ft' => '120',
+            'floor_depth_ft' => '90',
+            'default_store_take' => '0',
+            'floor_days' => '30',
+        ]);
         $tag = 't' . bin2hex(random_bytes(4));
         $created = 'Blue ' . $tag;
         $renamed = 'Green ' . $tag;
+        $barcode = 'CUST-' . $tag;
+        $label = '#' . $vendor . " \u{2014} Ada " . $vendor;
         $page = $this->client->post('/' . ProbeMall::SLUG . '/inventory', [
             'code' => $tag,
             'description' => $created,
             'vendor_id' => $vendorId,
             'brand_id' => $brandId,
             'price' => '12.50',
+            'barcode' => $barcode,
+            'store_take' => '15',
+            'intake_on' => '2026-09-01',
+            'expires_on' => '2026-12-01',
         ]);
-        self::assertSees($tag, $page);
-        self::assertSees($created, $page);
-        self::assertSees($brand, $page);
-        self::assertSees('12.50', $page);
-        $itemId = HtmlPage::taggedId($page->body, 'tr', 'item', $tag);
+        self::assertSees('Piece created.', $page);
+        self::assertSees('Adding pieces for ' . $label, $page);
+        self::assertSees('value="2026-09-01"', $page);
+        self::assertSees('value="2026-10-01"', $page);
+        self::assertStringNotContainsString('2026-12-01', $page->body);
+        self::assertStringNotContainsString($created, $page->body);
+        $list = $this->client->get('/' . ProbeMall::SLUG . '/inventory');
+        self::assertSees($tag, $list);
+        self::assertSees($created, $list);
+        self::assertSees($brand, $list);
+        self::assertSees($barcode, $list);
+        self::assertSees('2026-12-01', $list);
+        self::assertSees('Overridden', $list);
+        self::assertSees($label, $list);
+        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $tag);
         $update = '/' . ProbeMall::SLUG . '/inventory/' . $itemId;
         $edited = $this->client->post($update, [
             'code' => $tag,
@@ -161,10 +186,15 @@ final class OwnerJourneyTest extends WebTestCase
             'vendor_id' => $vendorId,
             'brand_id' => $otherId,
             'price' => '15.00',
+            'barcode' => $barcode,
+            'store_take' => '15',
+            'intake_on' => '2026-09-01',
+            'expires_on' => '2026-12-01',
         ]);
         self::assertSees($renamed, $edited);
         self::assertSees($other, $edited);
         self::assertSees('15.00', $edited);
+        self::assertSees('Overridden', $edited);
         $deleted = $this->client->post($update . '/delete', []);
         self::assertStringNotContainsString($renamed, $deleted->body);
         $added = $this->client->post('/' . ProbeMall::SLUG . '/inventory', [
@@ -173,18 +203,39 @@ final class OwnerJourneyTest extends WebTestCase
             'vendor_id' => $vendorId,
             'brand_id' => $brandId,
             'price' => '12.50',
+            'barcode' => $barcode,
+            'intake_on' => '2026-09-01',
         ]);
-        self::assertSees($tag, $added);
+        self::assertSees('Adding pieces for ' . $label, $added);
+        $consignors = $this->client->get('/' . ProbeMall::SLUG . '/inventory/vendors.json?q=' . rawurlencode($vendor));
+        self::assertSees($label, $consignors);
+        $brandName = 'Intake ' . $tag;
+        $made = $this->client->post('/' . ProbeMall::SLUG . '/inventory/brands', ['name' => $brandName]);
+        self::assertSees($brandName, $made);
+        $repeat = $this->client->post('/' . ProbeMall::SLUG . '/inventory/brands', ['name' => $brandName]);
+        self::assertSees('That name is already used.', $repeat);
         $duplicate = $this->client->post('/' . ProbeMall::SLUG . '/inventory', [
             'code' => $tag,
             'description' => 'Another vase',
             'vendor_id' => $vendorId,
             'brand_id' => '',
             'price' => '9.00',
+            'barcode' => 'OTHER-' . $tag,
+            'intake_on' => '2026-09-01',
         ]);
 
         self::assertSame(200, $duplicate->status);
         self::assertSees('That tag is already used.', $duplicate);
+        self::assertSees($label, $duplicate);
+        $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+            'time_zone' => 'America/Los_Angeles',
+            'booth_width_ft' => '10',
+            'booth_depth_ft' => '10',
+            'floor_width_ft' => '120',
+            'floor_depth_ft' => '90',
+            'default_store_take' => '0',
+            'floor_days' => '',
+        ]);
     }
 
     public function testTheOwnerAddsEditsAndDeletesAWaitListPerson(): void
@@ -266,6 +317,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('America/Los_Angeles', $page);
         self::assertSees('value="120"', $page);
         self::assertSees('value="90"', $page);
+        self::assertSees('Days on the floor', $page);
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
             'time_zone' => 'Not/AZone',
             'booth_width_ft' => '10',
@@ -276,6 +328,17 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
         self::assertSame(200, $refused->status);
         self::assertSees('that time zone is not an IANA name', $refused);
+        $days = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+            'time_zone' => 'America/Los_Angeles',
+            'booth_width_ft' => '10',
+            'booth_depth_ft' => '10',
+            'floor_width_ft' => '120',
+            'floor_depth_ft' => '90',
+            'default_store_take' => '0',
+            'floor_days' => '0',
+        ]);
+        self::assertSame(200, $days->status);
+        self::assertSees('days on the floor is a whole number from 1 to 365, or empty', $days);
         $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
             'time_zone' => 'America/Chicago',
             'booth_width_ft' => '12',
@@ -283,8 +346,10 @@ final class OwnerJourneyTest extends WebTestCase
             'floor_width_ft' => '100',
             'floor_depth_ft' => '80',
             'default_store_take' => '0',
+            'floor_days' => '45',
         ]);
         self::assertSees('America/Chicago', $saved);
+        self::assertSees('value="45"', $saved);
         $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',

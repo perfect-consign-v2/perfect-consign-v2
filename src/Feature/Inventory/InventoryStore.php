@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -19,10 +20,14 @@ final class InventoryStore
     public function items(string $query): array
     {
         $needle = strtolower(trim($query));
-        $sql = 'SELECT item.id, item.code, item.description, item.price_minor, item.vendor_id,
-                       vendor.name AS vendor_name, brand.name AS brand_name
+        $sql = 'SELECT item.id, item.code, item.barcode, item.description, item.price_minor,
+                       item.vendor_id, item.commission_bps, item.intake_on, item.expires_on,
+                       vendor.code AS vendor_code, vendor.name AS vendor_name,
+                       COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) AS take_bps,
+                       brand.name AS brand_name
                 FROM items AS item
                 JOIN vendors AS vendor ON vendor.id = item.vendor_id
+                CROSS JOIN mall
                 LEFT JOIN brands AS brand ON brand.id = item.brand_id';
         if ($needle === '') {
             return $this->statements->rows($sql . ' ORDER BY lower(item.code), item.code');
@@ -30,11 +35,13 @@ final class InventoryStore
 
         return $this->statements->bound(
             $sql . ' WHERE strpos(lower(item.code), ?) > 0
+                       OR strpos(lower(item.barcode), ?) > 0
                        OR strpos(lower(item.description), ?) > 0
+                       OR strpos(lower(vendor.code), ?) > 0
                        OR strpos(lower(vendor.name), ?) > 0
                        OR strpos(lower(brand.name), ?) > 0
                      ORDER BY lower(item.code), item.code',
-            [$needle, $needle, $needle, $needle]
+            [$needle, $needle, $needle, $needle, $needle, $needle]
         );
     }
 
@@ -51,63 +58,30 @@ final class InventoryStore
     public function find(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, description, price_minor, vendor_id, brand_id
-             FROM items WHERE id = ?::uuid',
+            'SELECT item.id, item.code, item.barcode, item.description, item.price_minor,
+                    item.vendor_id, item.brand_id, item.commission_bps, item.intake_on, item.expires_on,
+                    vendor.code AS vendor_code, vendor.name AS vendor_name,
+                    COALESCE(vendor.commission_bps, mall.commission_bps) AS vendor_take_bps,
+                    brand.name AS brand_name
+             FROM items AS item
+             JOIN vendors AS vendor ON vendor.id = item.vendor_id
+             CROSS JOIN mall
+             LEFT JOIN brands AS brand ON brand.id = item.brand_id
+             WHERE item.id = ?::uuid',
             [$id]
         );
 
         return $rows[0] ?? null;
     }
 
-    /**
-     * @return list<array<string, mixed>>
-     */
-    public function vendors(): array
+    public function add(PieceEntry $piece, string $today): void
     {
-        return $this->statements->rows(
-            'SELECT id, name FROM vendors ORDER BY lower(name), name'
-        );
+        $this->place(null, $piece, $today);
     }
 
-    /**
-     * @return list<array<string, mixed>>
-     */
-    public function brands(): array
+    public function save(string $id, PieceEntry $piece, string $today): void
     {
-        return $this->statements->rows(
-            'SELECT id, name FROM brands ORDER BY lower(name), name'
-        );
-    }
-
-    public function add(string $code, string $vendorId, ?string $brandId, string $description, int $price): void
-    {
-        $this->requireVendor($vendorId);
-        $this->requireBrand($brandId);
-        $this->statements->change(
-            'INSERT INTO items (code, vendor_id, brand_id, description, price_minor) VALUES (?, ?::uuid, ?::uuid, ?, ?)',
-            [$code, $vendorId, $brandId, $description, $price]
-        );
-    }
-
-    public function save(
-        string $id,
-        string $code,
-        string $vendorId,
-        ?string $brandId,
-        string $description,
-        int $price,
-    ): void {
-        $this->requireVendor($vendorId);
-        $this->requireBrand($brandId);
-        $count = $this->statements->affected(
-            'UPDATE items
-             SET code = ?, vendor_id = ?::uuid, brand_id = ?::uuid, description = ?, price_minor = ?
-             WHERE id = ?::uuid',
-            [$code, $vendorId, $brandId, $description, $price, $id]
-        );
-        if ($count === 0) {
-            throw new \InvalidArgumentException('That piece is not in this mall.');
-        }
+        $this->place($id, $piece, $today);
     }
 
     public function remove(string $id): void
@@ -161,6 +135,88 @@ final class InventoryStore
         }
 
         return $held;
+    }
+
+    private function place(?string $id, PieceEntry $piece, string $today): void
+    {
+        $this->requireVendor($piece->vendorId);
+        $this->requireBrand($piece->brandId);
+        $refusal = null;
+        $attempt = 0;
+        while ($attempt < 5) {
+            $attempt++;
+            $barcode = $piece->barcode !== '' ? $piece->barcode : $this->allocate($today);
+            try {
+                $this->store($id, $piece, $barcode);
+
+                return;
+            } catch (DatabaseRefusal $error) {
+                $refusal = $error;
+                if ($piece->barcode !== '' || !str_contains($error->getMessage(), 'items_barcode_key')) {
+                    throw $error;
+                }
+            }
+        }
+        throw $refusal;
+    }
+
+    private function store(?string $id, PieceEntry $piece, string $barcode): void
+    {
+        $params = [
+            $piece->code,
+            $barcode,
+            $piece->vendorId,
+            $piece->brandId,
+            $piece->description,
+            $piece->priceMinor,
+            $piece->commissionBps,
+            $piece->intakeOn,
+            $piece->expiresOn,
+        ];
+        if ($id === null) {
+            $this->statements->change(
+                'INSERT INTO items (
+                    code, barcode, vendor_id, brand_id, description, price_minor, commission_bps, intake_on, expires_on
+                 ) VALUES (?, ?, ?::uuid, ?::uuid, ?, ?, ?, ?::date, ?::date)',
+                $params
+            );
+
+            return;
+        }
+        $params[] = $id;
+        $count = $this->statements->affected(
+            'UPDATE items
+             SET code = ?, barcode = ?, vendor_id = ?::uuid, brand_id = ?::uuid, description = ?,
+                 price_minor = ?, commission_bps = ?, intake_on = ?::date, expires_on = ?::date
+             WHERE id = ?::uuid',
+            $params
+        );
+        if ($count === 0) {
+            throw new \InvalidArgumentException('That piece is not in this mall.');
+        }
+    }
+
+    private function allocate(string $today): string
+    {
+        $stamp = str_replace('-', '', $today);
+        if (preg_match('/^\d{8}$/', $stamp) !== 1) {
+            throw new \InvalidArgumentException('A barcode could not be generated.');
+        }
+        $prefix = 'BC' . $stamp;
+        $rows = $this->statements->bound(
+            'SELECT barcode FROM items WHERE barcode ~ ? ORDER BY barcode DESC LIMIT 1',
+            ['^' . $prefix . '[0-9]{4}$']
+        );
+        $last = $rows[0]['barcode'] ?? null;
+        $sequence = 1;
+        if (is_string($last) && preg_match('/(\d{4})$/', $last, $parts) === 1) {
+            $sequence = ((int) $parts[1]) + 1;
+        }
+        if ($sequence > 9999) {
+            throw new \InvalidArgumentException('A barcode could not be generated.');
+        }
+
+        return $prefix . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
     }
 
     private function requireVendor(string $vendorId): void

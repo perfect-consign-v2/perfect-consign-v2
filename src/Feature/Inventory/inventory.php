@@ -9,7 +9,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $query */
 /** @var int $total */
 /** @var string $confirm */
-/** @var list<array{id: string, code: string, description: string, price_minor: int|string, vendor_id: string, vendor_name: string, brand_name: string|null, deletable: bool}> $items */
+/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, vendor_id: string, vendor_label: string, brand_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, deletable: bool}> $items */
 
 $blank = '—';
 $list = '/' . $slug . '/inventory';
@@ -31,7 +31,7 @@ $list = '/' . $slug . '/inventory';
     </div>
 <?php else: ?>
     <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search tag, description, vendor, or brand" aria-label="Search inventory">
+        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search tag, barcode, description, consignor, or brand" aria-label="Search inventory">
         <button class="btn" type="submit">Search</button>
     </form>
 
@@ -43,9 +43,13 @@ $list = '/' . $slug . '/inventory';
                 <thead>
                     <tr>
                         <th>Tag</th>
+                        <th>Barcode</th>
                         <th>Description</th>
-                        <th>Vendor</th>
+                        <th>Consignor</th>
                         <th>Brand</th>
+                        <th>Intake</th>
+                        <th>Expires</th>
+                        <th>Store take</th>
                         <th class="num">Price</th>
                         <th></th>
                     </tr>
@@ -62,13 +66,28 @@ $list = '/' . $slug . '/inventory';
                     ?>
                     <tr id="item-<?= View::text($item['id']) ?>">
                         <td><a class="strong" href="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/edit"><?= View::text($item['code']) ?></a></td>
+                        <td><?= View::text($item['barcode']) ?></td>
                         <td><?= View::text($item['description']) ?></td>
-                        <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($item['vendor_id']) ?>"><?= View::text($item['vendor_name']) ?></a></td>
+                        <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($item['vendor_id']) ?>"><?= View::text($item['vendor_label']) ?></a></td>
                         <td>
-                            <?php if ($brand === null || $brand === ''): ?>
+                            <?php if ($brand === ''): ?>
                                 <span class="muted"><?= $blank ?></span>
                             <?php else: ?>
                                 <?= View::text($brand) ?>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= View::text($item['intake_on']) ?></td>
+                        <td>
+                            <?php if ($item['expires_on'] === ''): ?>
+                                <span class="muted"><?= $blank ?></span>
+                            <?php else: ?>
+                                <?= View::text($item['expires_on']) ?>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?= View::text($item['take_label']) ?>%
+                            <?php if ($item['overridden']): ?>
+                                <span class="badge badge-warning">Overridden</span>
                             <?php endif; ?>
                         </td>
                         <td class="num"><?= View::text(View::money(View::minor($item['price_minor']))) ?></td>

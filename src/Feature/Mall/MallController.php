@@ -28,6 +28,7 @@ final class MallController
             $this->mall->floorWidth(),
             $this->mall->floorDepth(),
             $this->percent($this->mall->storeTake()),
+            $this->dayText($this->mall->floorDays()),
             null
         );
     }
@@ -43,24 +44,52 @@ final class MallController
         $floorWidth = $this->feet($this->app->request()->field('floor_width_ft'));
         $floorDepth = $this->feet($this->app->request()->field('floor_depth_ft'));
         $storeTake = $this->app->request()->field('default_store_take');
+        $floorRaw = $this->app->request()->field('floor_days');
         $basis = $this->basisPoints($storeTake);
-        $error = $basis === null ? 'store take is a percent from 0 to 100' : $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth, $basis);
+        $days = $this->wholeDays($floorRaw);
+        $error = $this->refusal($basis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
         }
-        $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $error);
+        $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
     }
 
-    private function store(string $timeZone, ?int $width, ?int $depth, ?int $floorWidth, ?int $floorDepth, int $storeTake): ?string
-    {
+    private function refusal(
+        ?int $basis,
+        int|false|null $days,
+        string $timeZone,
+        ?int $width,
+        ?int $depth,
+        ?int $floorWidth,
+        ?int $floorDepth,
+    ): ?string {
+        if ($basis === null) {
+            return 'store take is a percent from 0 to 100';
+        }
+        if ($days === false) {
+            return 'days on the floor is a whole number from 1 to 365, or empty';
+        }
         if ($width === null || $depth === null) {
             return 'booth size is whole feet';
         }
         if ($floorWidth === null || $floorDepth === null) {
             return 'floor size is whole feet';
         }
+
+        return $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth, $basis, $days);
+    }
+
+    private function store(
+        string $timeZone,
+        int $width,
+        int $depth,
+        int $floorWidth,
+        int $floorDepth,
+        int $storeTake,
+        ?int $floorDays,
+    ): ?string {
         try {
-            $this->mall->save($timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake);
+            $this->mall->save($timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake, $floorDays);
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
@@ -77,6 +106,27 @@ final class MallController
         }
 
         return (int) $value;
+    }
+
+    private function wholeDays(string $value): int|false|null
+    {
+        if ($value === '') {
+            return null;
+        }
+        if (preg_match('/^[1-9][0-9]{0,2}$/', $value) !== 1) {
+            return false;
+        }
+        $days = (int) $value;
+        if ($days > 365) {
+            return false;
+        }
+
+        return $days;
+    }
+
+    private function dayText(?int $days): string
+    {
+        return $days === null ? '' : (string) $days;
     }
 
     private function basisPoints(string $percent): ?int
@@ -118,6 +168,7 @@ final class MallController
         int $floorWidth,
         int $floorDepth,
         string $storeTake,
+        string $floorDays,
         ?string $error,
     ): void {
         $tenant = $this->app->open($slug, true);
@@ -131,6 +182,7 @@ final class MallController
             'floorWidth' => $floorWidth,
             'floorDepth' => $floorDepth,
             'storeTake' => $storeTake,
+            'floorDays' => $floorDays,
             'error' => $error,
         ]);
     }

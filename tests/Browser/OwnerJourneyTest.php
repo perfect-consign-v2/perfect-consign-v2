@@ -222,11 +222,15 @@ final class OwnerJourneyTest extends WebTestCase
             'vendor_id' => $vendorId,
             'brand_id' => $brandId,
             'price' => '12.50',
+            'intake_on' => '2026-09-01',
         ]);
-        self::assertSees($tag, $page);
-        self::assertSees($created, $page);
-        self::assertSees('12.50', $page);
-        $itemId = HtmlPage::taggedId($page, 'tr', 'item', $tag);
+        self::assertSees('Piece created.', $page);
+        self::assertSees('#' . $vendor, $page);
+        self::assertSees('value="2026-09-01"', $page);
+        $list = $this->session->open('/' . ProbeMall::SLUG . '/inventory');
+        self::assertSees($created, $list);
+        self::assertSees('12.50', $list);
+        $itemId = HtmlPage::taggedId($list, 'tr', 'item', $tag);
         $edit = '/' . ProbeMall::SLUG . '/inventory/' . $itemId . '/edit';
         $update = '/' . ProbeMall::SLUG . '/inventory/' . $itemId;
         $this->session->open($edit);
@@ -236,6 +240,7 @@ final class OwnerJourneyTest extends WebTestCase
             'vendor_id' => $vendorId,
             'brand_id' => $otherId,
             'price' => '15.00',
+            'intake_on' => '2026-09-01',
         ]);
         self::assertSees($renamed, $edited);
         self::assertSees($other, $edited);
@@ -250,8 +255,10 @@ final class OwnerJourneyTest extends WebTestCase
             'vendor_id' => $vendorId,
             'brand_id' => $brandId,
             'price' => '12.50',
+            'intake_on' => '2026-09-01',
         ]);
-        self::assertSees($tag, $added);
+        self::assertSees('Piece created.', $added);
+        self::assertSees('#' . $vendor, $added);
         $this->session->open('/' . ProbeMall::SLUG . '/inventory/new');
         $duplicate = $this->session->submit('/' . ProbeMall::SLUG . '/inventory', [
             'code' => $tag,
@@ -259,6 +266,7 @@ final class OwnerJourneyTest extends WebTestCase
             'vendor_id' => $vendorId,
             'brand_id' => '',
             'price' => '9.00',
+            'intake_on' => '2026-09-01',
         ]);
 
         self::assertSees('That tag is already used.', $duplicate);

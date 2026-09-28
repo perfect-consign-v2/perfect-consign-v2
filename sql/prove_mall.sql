@@ -135,4 +135,61 @@ BEGIN
     RESET ROLE;
 END $$;
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'mall'
+          AND column_name = 'floor_days'
+          AND data_type = 'integer'
+          AND is_nullable = 'YES'
+    ) THEN
+        RAISE EXCEPTION 'days on the floor is missing';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE mall SET floor_days = 0;
+    RAISE EXCEPTION 'zero days on the floor was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%mall_floor_days_chk%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE mall SET floor_days = 366;
+    RAISE EXCEPTION 'floor days over 365 was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%mall_floor_days_chk%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+UPDATE mall SET floor_days = NULL;
+
+DO $$
+BEGIN
+    IF (SELECT floor_days FROM mall) IS NOT NULL THEN
+        RAISE EXCEPTION 'empty days on the floor was stored';
+    END IF;
+END $$;
+
+UPDATE mall SET floor_days = 30;
+
+DO $$
+BEGIN
+    IF (SELECT floor_days FROM mall) <> 30 THEN
+        RAISE EXCEPTION 'days on the floor was not stored';
+    END IF;
+END $$;
+
+UPDATE mall SET floor_days = NULL;
+
 ROLLBACK;
