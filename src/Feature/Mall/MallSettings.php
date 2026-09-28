@@ -59,24 +59,30 @@ final class MallSettings
         return $time;
     }
 
-    public function boothWidth(): int
+    /**
+     * @return array{width: int, depth: int}
+     */
+    public function boothSize(): array
     {
-        return RowValue::integer($this->row()['booth_width_ft'] ?? null);
+        $row = $this->row();
+
+        return [
+            'width' => RowValue::integer($row['booth_width_ft'] ?? null),
+            'depth' => RowValue::integer($row['booth_depth_ft'] ?? null),
+        ];
     }
 
-    public function boothDepth(): int
+    /**
+     * @return array{width: int, depth: int}
+     */
+    public function floorSize(): array
     {
-        return RowValue::integer($this->row()['booth_depth_ft'] ?? null);
-    }
+        $row = $this->row();
 
-    public function floorWidth(): int
-    {
-        return RowValue::integer($this->row()['floor_width_ft'] ?? null);
-    }
-
-    public function floorDepth(): int
-    {
-        return RowValue::integer($this->row()['floor_depth_ft'] ?? null);
+        return [
+            'width' => RowValue::integer($row['floor_width_ft'] ?? null),
+            'depth' => RowValue::integer($row['floor_depth_ft'] ?? null),
+        ];
     }
 
     public function storeTake(): int

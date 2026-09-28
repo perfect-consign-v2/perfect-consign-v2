@@ -33,8 +33,8 @@ final class MapController
             'tiles' => $this->tiles($floorId),
             'floors' => $floors,
             'floorId' => $floorId,
-            'floorWidth' => $this->mall->floorWidth(),
-            'floorDepth' => $this->mall->floorDepth(),
+            'floorWidth' => $this->mall->floorSize()['width'],
+            'floorDepth' => $this->mall->floorSize()['depth'],
             'today' => $this->mall->today(),
         ]);
     }
@@ -152,10 +152,10 @@ final class MapController
             'slug' => $tenant->slug,
             'floors' => $floors,
             'floorId' => $floorId,
-            'floorWidth' => $this->mall->floorWidth(),
-            'floorDepth' => $this->mall->floorDepth(),
-            'defaultWidth' => $this->mall->boothWidth(),
-            'defaultDepth' => $this->mall->boothDepth(),
+            'floorWidth' => $this->mall->floorSize()['width'],
+            'floorDepth' => $this->mall->floorSize()['depth'],
+            'defaultWidth' => $this->mall->boothSize()['width'],
+            'defaultDepth' => $this->mall->boothSize()['depth'],
             'booths' => $booths,
             'error' => $error,
         ]);
@@ -190,8 +190,8 @@ final class MapController
             $booths,
             $this->maps->stays(),
             $this->mall->today(),
-            $this->mall->boothWidth(),
-            $this->mall->boothDepth()
+            $this->mall->boothSize()['width'],
+            $this->mall->boothSize()['depth']
         );
     }
 
@@ -226,37 +226,55 @@ final class MapController
         $placed = [];
         $seen = [];
         foreach ($decoded as $row) {
-            if (!is_array($row)) {
-                throw new \InvalidArgumentException('the map layout is missing');
-            }
-            $id = $row['id'] ?? null;
-            $floorId = $row['floorId'] ?? null;
-            if (!is_string($id) || preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
-                throw new \InvalidArgumentException('the map layout is missing');
-            }
-            if (!is_string($floorId) || preg_match('/^[0-9a-fA-F-]{36}$/', $floorId) !== 1) {
-                throw new \InvalidArgumentException('the map layout is missing');
-            }
-            if (isset($seen[$id])) {
-                throw new \InvalidArgumentException('a booth is on the map twice');
-            }
-            $seen[$id] = true;
-            $width = self::optionalFeet($row['width'] ?? null);
-            $depth = self::optionalFeet($row['depth'] ?? null);
-            if (($width === null) !== ($depth === null)) {
-                throw new \InvalidArgumentException('set both booth dimensions or leave both empty');
-            }
-            $placed[] = [
-                'id' => $id,
-                'floorId' => $floorId,
-                'x' => self::feet($row['x'] ?? null),
-                'z' => self::feet($row['z'] ?? null),
-                'width' => $width,
-                'depth' => $depth,
-            ];
+            $placed[] = $this->placement($row, $seen);
         }
 
         return $placed;
+    }
+
+    /**
+     * @param array<string, true> $seen
+     * @return array{id: string, floorId: string, x: int, z: int, width: ?int, depth: ?int}
+     */
+    private function placement(mixed $row, array &$seen): array
+    {
+        if (!is_array($row)) {
+            throw new \InvalidArgumentException('the map layout is missing');
+        }
+        $id = $this->layoutId($row['id'] ?? null);
+        $floorId = $this->layoutId($row['floorId'] ?? null);
+        if (isset($seen[$id])) {
+            throw new \InvalidArgumentException('a booth is on the map twice');
+        }
+        $seen[$id] = true;
+        $width = self::optionalFeet($row['width'] ?? null);
+        $depth = self::optionalFeet($row['depth'] ?? null);
+        $this->pairedFeet($width, $depth);
+
+        return [
+            'id' => $id,
+            'floorId' => $floorId,
+            'x' => self::feet($row['x'] ?? null),
+            'z' => self::feet($row['z'] ?? null),
+            'width' => $width,
+            'depth' => $depth,
+        ];
+    }
+
+    private function layoutId(mixed $value): string
+    {
+        if (!is_string($value) || preg_match('/^[0-9a-fA-F-]{36}$/', $value) !== 1) {
+            throw new \InvalidArgumentException('the map layout is missing');
+        }
+
+        return $value;
+    }
+
+    private function pairedFeet(?int $width, ?int $depth): void
+    {
+        if (($width === null) !== ($depth === null)) {
+            throw new \InvalidArgumentException('set both booth dimensions or leave both empty');
+        }
     }
 
     private static function feet(mixed $value): int

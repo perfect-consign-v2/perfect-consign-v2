@@ -8,6 +8,8 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 
@@ -36,14 +38,12 @@ final class OpeningController
             if (!$this->openings->openingAllowed()) {
                 throw new DatabaseRefusal('an opening is available only while the book has no other journal');
             }
-            $journalId = $this->ledger->post(
-                'opening',
-                $this->app->request()->field('posting_date'),
-                'opening',
-                'opening',
-                'Opening balance',
-                PostedLines::read($this->app->request(), 6, true)
-            );
+            $journalId = $this->ledger->post(new JournalDraft(
+                postingKey: 'opening',
+                postingDate: $this->app->request()->field('posting_date'),
+                source: new JournalSource('opening', 'opening', 'Opening balance'),
+                lines: PostedLines::read($this->app->request(), 6, true),
+            ));
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
             return;

@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Book;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Shared\Tenant\TenantRecord;
@@ -18,6 +21,7 @@ final class JournalController
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
         private readonly RegisterStore $registers,
+        private readonly ActiveRegister $drawers,
     ) {
     }
 
@@ -63,18 +67,20 @@ final class JournalController
         try {
             $source = RowValue::string($journal['source_type'] ?? null);
             $sessionId = $this->registers->drawerSource($source)
-                ? $this->registers->openSession($this->app->postedRegister($slug))
+                ? $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true))
                 : null;
-            $voidId = $this->ledger->post(
-                'reversal:' . $id,
-                $this->postingDate($journal),
-                $source,
-                RowValue::string($journal['source_reference'] ?? null) . ':void',
-                'Void of ' . RowValue::string($journal['posting_key'] ?? null),
-                $this->swappedLines($id),
-                $id,
-                $sessionId
-            );
+            $voidId = $this->ledger->post(new JournalDraft(
+                postingKey: 'reversal:' . $id,
+                postingDate: $this->postingDate($journal),
+                source: new JournalSource(
+                    $source,
+                    RowValue::string($journal['source_reference'] ?? null) . ':void',
+                    'Void of ' . RowValue::string($journal['posting_key'] ?? null),
+                ),
+                lines: $this->swappedLines($id),
+                reversesJournalId: $id,
+                sessionId: $sessionId,
+            ));
         } catch (DatabaseRefusal $refusal) {
             $this->showRefusal($tenant, $journal, $id, $refusal);
             return;

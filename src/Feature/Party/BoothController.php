@@ -18,6 +18,7 @@ final class BoothController
         private readonly MallSettings $mall,
         private readonly BoothRoster $roster,
         private readonly BoothListStore $lists,
+        private readonly BoothFields $fields,
     ) {
     }
 
@@ -38,7 +39,7 @@ final class BoothController
     {
         $this->app->checkCsrf();
         $this->change($slug, null, function (): void {
-            $size = $this->size();
+            $size = $this->fields->size();
             $rate = $this->openingRate();
             $this->booths->addBooth(
                 $this->app->request()->field('code'),
@@ -67,7 +68,7 @@ final class BoothController
     {
         $this->app->checkCsrf();
         $this->change($slug, $id, function () use ($id): void {
-            $size = $this->size();
+            $size = $this->fields->size();
             $this->booths->saveBooth(
                 $id,
                 $this->app->request()->field('code'),
@@ -167,8 +168,8 @@ final class BoothController
             'slug' => $tenant->slug,
             'booth' => $booth,
             'rates' => is_string($id) && $id !== '' ? $this->ratesFor($id) : [],
-            'defaultWidth' => $this->mall->boothWidth(),
-            'defaultDepth' => $this->mall->boothDepth(),
+            'defaultWidth' => $this->mall->boothSize()['width'],
+            'defaultDepth' => $this->mall->boothSize()['depth'],
             'error' => $error,
         ]);
     }
@@ -184,8 +185,8 @@ final class BoothController
             $facts['open_rent'],
             $facts['blocked'],
             $this->mall->today(),
-            $this->mall->boothWidth(),
-            $this->mall->boothDepth(),
+            $this->mall->boothSize()['width'],
+            $this->mall->boothSize()['depth'],
         );
         $query = $this->app->request()->query('q');
         $matched = $this->roster->matching($rows, $query);
@@ -254,23 +255,6 @@ final class BoothController
         return ['month' => $month, 'amount' => Money::parseMinor($amount)];
     }
 
-    /**
-     * @return array{width: ?int, depth: ?int}
-     */
-    private function size(): array
-    {
-        $width = $this->feet($this->app->request()->field('width_ft'));
-        $depth = $this->feet($this->app->request()->field('depth_ft'));
-        if ($width === false || $depth === false) {
-            throw new \InvalidArgumentException('booth size is whole feet');
-        }
-        if (($width === null) !== ($depth === null)) {
-            throw new \InvalidArgumentException('set both booth dimensions or leave both empty');
-        }
-
-        return ['width' => $width, 'depth' => $depth];
-    }
-
     private function standing(string $value): string
     {
         if (in_array($value, ['available', 'occupied', 'ending', 'incoming'], true)) {
@@ -278,17 +262,5 @@ final class BoothController
         }
 
         return '';
-    }
-
-    private function feet(string $value): int|false|null
-    {
-        if ($value === '') {
-            return null;
-        }
-        if (preg_match('/^[1-9][0-9]{0,3}$/', $value) !== 1) {
-            return false;
-        }
-
-        return (int) $value;
     }
 }

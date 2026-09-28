@@ -7,6 +7,8 @@ namespace PerfectConsign\Feature\Close;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 
 final class CloseController
@@ -59,14 +61,12 @@ final class CloseController
                     'subledger_ref' => null,
                 ];
             }
-            $journalId = $this->ledger->post(
-                'period-close:' . $periodId,
-                $endsOn,
-                'period_close',
-                $periodId,
-                'Period close',
-                $lines
-            );
+            $journalId = $this->ledger->post(new JournalDraft(
+                postingKey: 'period-close:' . $periodId,
+                postingDate: $endsOn,
+                source: new JournalSource('period_close', $periodId, 'Period close'),
+                lines: $lines,
+            ));
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
             return;

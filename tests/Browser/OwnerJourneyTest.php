@@ -152,6 +152,7 @@ final class OwnerJourneyTest extends WebTestCase
             'name' => $renamed,
         ]);
         self::assertSees($renamed, $renamedPage);
+        $this->session->open('/' . ProbeMall::SLUG . '/brands?confirm=' . $brandId);
         $deleted = $this->session->submit($update . '/delete', []);
         self::assertStringNotContainsString($renamed, $deleted);
         $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
@@ -304,6 +305,7 @@ final class OwnerJourneyTest extends WebTestCase
             'depth_ft' => '8',
         ]);
         self::assertSees('12 × 8 ft', $renamedPage);
+        $this->session->open('/' . ProbeMall::SLUG . '/booths?confirm=' . $boothId);
         $deleted = $this->session->submit($update . '/delete', []);
         self::assertStringNotContainsString($renamed, $deleted);
     }

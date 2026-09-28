@@ -26,13 +26,15 @@ final class MallController
     public function showError(string $slug, string $error): void
     {
         $this->app->open($slug, true);
+        $booth = $this->mall->boothSize();
+        $floor = $this->mall->floorSize();
         $this->form(
             $slug,
             $this->mall->timeZone(),
-            $this->mall->boothWidth(),
-            $this->mall->boothDepth(),
-            $this->mall->floorWidth(),
-            $this->mall->floorDepth(),
+            $booth['width'],
+            $booth['depth'],
+            $floor['width'],
+            $floor['depth'],
             $this->percent($this->mall->storeTake()),
             $this->dayText($this->mall->floorDays()),
             $error
@@ -43,13 +45,15 @@ final class MallController
     public function show(string $slug): void
     {
         $this->app->open($slug, true);
+        $booth = $this->mall->boothSize();
+        $floor = $this->mall->floorSize();
         $this->form(
             $slug,
             $this->mall->timeZone(),
-            $this->mall->boothWidth(),
-            $this->mall->boothDepth(),
-            $this->mall->floorWidth(),
-            $this->mall->floorDepth(),
+            $booth['width'],
+            $booth['depth'],
+            $floor['width'],
+            $floor['depth'],
             $this->percent($this->mall->storeTake()),
             $this->dayText($this->mall->floorDays()),
             null

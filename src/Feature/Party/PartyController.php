@@ -19,6 +19,7 @@ final class PartyController
         private readonly VendorRoster $roster,
         private readonly PayoutStore $payouts,
         private readonly AssignmentOffer $offers,
+        private readonly VendorForm $forms,
     ) {
     }
 
@@ -31,7 +32,7 @@ final class PartyController
     #[Route('/([a-z][a-z0-9-]{0,62})/vendors/new', ['GET'])]
     public function create(string $slug): void
     {
-        $this->form($slug, null, null);
+        $this->forms->form($slug, null, null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/vendors', ['POST'])]
@@ -45,34 +46,33 @@ final class PartyController
         $phone = $this->app->request()->field('phone');
         $email = $this->app->request()->field('email');
         $address = $this->app->request()->field('address');
-        $facts = $this->postedFacts();
+        $facts = $this->forms->postedFacts();
         $error = null;
         $id = '';
         try {
-            $id = $this->parties->addVendor(
-                $code,
-                $firstName,
-                $lastName,
-                $phone,
-                $email,
-                $address,
-                $this->storedTake($facts['store_take']),
-                $facts['agreement_starts_on'],
-                $facts['agreement_ends_on'],
-                $facts['tax_id'],
-                $facts['notes'],
-                $facts['tax_exempt'],
-                $facts['tax_exempt_number'],
-            );
+            $id = $this->parties->addVendor(new VendorDraft([
+                'code' => $code,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'phone' => $phone,
+                'email' => $email,
+                'address' => $address,
+                'agreement_starts_on' => $facts['agreement_starts_on'],
+                'agreement_ends_on' => $facts['agreement_ends_on'],
+                'tax_id' => $facts['tax_id'],
+                'notes' => $facts['notes'],
+                'tax_exempt' => $facts['tax_exempt'],
+                'tax_exempt_number' => $facts['tax_exempt_number'],
+            ], $this->forms->storedTake($facts['store_take'])));
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->vendorError($this->app->catchRefusal($refusal));
+            $error = $this->forms->vendorError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
             $this->app->redirect($this->vendorPath($slug, $id), 'Vendor created.');
         }
-        $this->form($slug, [
+        $this->forms->form($slug, [
             'code' => $code,
             'first_name' => $firstName,
             'last_name' => $lastName,
@@ -104,7 +104,7 @@ final class PartyController
         if ($vendor === null) {
             $this->app->notFound();
         }
-        $this->form($slug, $vendor, null);
+        $this->forms->form($slug, $vendor, null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/vendors/([0-9a-fA-F-]{36})', ['POST'])]
@@ -118,34 +118,32 @@ final class PartyController
         $phone = $this->app->request()->field('phone');
         $email = $this->app->request()->field('email');
         $address = $this->app->request()->field('address');
-        $facts = $this->postedFacts();
+        $facts = $this->forms->postedFacts();
         $error = null;
         try {
-            $this->parties->saveVendor(
-                $id,
-                $code,
-                $firstName,
-                $lastName,
-                $phone,
-                $email,
-                $address,
-                $this->storedTake($facts['store_take']),
-                $facts['agreement_starts_on'],
-                $facts['agreement_ends_on'],
-                $facts['tax_id'],
-                $facts['notes'],
-                $facts['tax_exempt'],
-                $facts['tax_exempt_number'],
-            );
+            $this->parties->saveVendor($id, new VendorDraft([
+                'code' => $code,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'phone' => $phone,
+                'email' => $email,
+                'address' => $address,
+                'agreement_starts_on' => $facts['agreement_starts_on'],
+                'agreement_ends_on' => $facts['agreement_ends_on'],
+                'tax_id' => $facts['tax_id'],
+                'notes' => $facts['notes'],
+                'tax_exempt' => $facts['tax_exempt'],
+                'tax_exempt_number' => $facts['tax_exempt_number'],
+            ], $this->forms->storedTake($facts['store_take'])));
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->vendorError($this->app->catchRefusal($refusal));
+            $error = $this->forms->vendorError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
             $this->app->redirect($this->vendorPath($slug, $id), 'Vendor saved.');
         }
-        $this->form($slug, [
+        $this->forms->form($slug, [
             'id' => $id,
             'code' => $code,
             'first_name' => $firstName,
@@ -196,7 +194,7 @@ final class PartyController
         try {
             $this->parties->removeVendor($id);
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->vendorError($this->app->catchRefusal($refusal));
+            $error = $this->forms->vendorError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
@@ -208,7 +206,7 @@ final class PartyController
             $this->render($slug, $error);
             return;
         }
-        $this->form($slug, $vendor, $error);
+        $this->forms->form($slug, $vendor, $error);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/assignments', ['POST'])]
@@ -308,139 +306,13 @@ final class PartyController
         ]);
     }
 
-    private function vendorError(string $message): string
-    {
-        if (str_contains($message, 'vendors_code_key')) {
-            return 'That code is already used.';
-        }
-        if (str_contains($message, 'items_vendor_id_fkey')) {
-            return 'That vendor still has inventory.';
-        }
-
-        return $message;
-    }
-
-    private function storedTake(string $entered): ?int
-    {
-        if ($entered === '') {
-            return null;
-        }
-        if (preg_match('/^(\d{1,3})(?:\.(\d{1,2}))?$/', $entered, $parts) !== 1) {
-            throw new \InvalidArgumentException('store take is a percent from 0 to 100');
-        }
-        $fraction = str_pad($parts[2] ?? '', 2, '0');
-        $basis = ((int) $parts[1] * 100) + (int) $fraction;
-        if ($basis > 10000) {
-            throw new \InvalidArgumentException('store take is a percent from 0 to 100');
-        }
-        if ($basis === $this->mall->storeTake()) {
-            return null;
-        }
-
-        return $basis;
-    }
-
-    private function points(mixed $basis): int
-    {
-        if (is_int($basis)) {
-            return $basis;
-        }
-        if (is_string($basis) && preg_match('/^\d+$/', $basis) === 1) {
-            return (int) $basis;
-        }
-
-        return 0;
-    }
-
-    private function percent(mixed $basis): string
-    {
-        $points = 0;
-        if (is_int($basis)) {
-            $points = $basis;
-        } elseif (is_string($basis) && preg_match('/^\d+$/', $basis) === 1) {
-            $points = (int) $basis;
-        }
-        $whole = intdiv($points, 100);
-        $fraction = $points % 100;
-        if ($fraction === 0) {
-            return (string) $whole;
-        }
-        if ($fraction % 10 === 0) {
-            return $whole . '.' . (string) intdiv($fraction, 10);
-        }
-
-        return $whole . '.' . str_pad((string) $fraction, 2, '0', STR_PAD_LEFT);
-    }
-
-    private function plain(mixed $value): string
-    {
-        return is_string($value) ? $value : '';
-    }
-
-    private function enabled(mixed $value): bool
-    {
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
-    }
-
-    /**
-     * @return array{
-     *     store_take: string,
-     *     agreement_starts_on: string,
-     *     agreement_ends_on: string,
-     *     tax_id: string,
-     *     notes: string,
-     *     tax_exempt: string,
-     *     tax_exempt_number: string
-     * }
-     */
-    private function postedFacts(): array
-    {
-        return [
-            'store_take' => $this->app->request()->field('store_take'),
-            'agreement_starts_on' => $this->app->request()->field('agreement_starts_on'),
-            'agreement_ends_on' => $this->app->request()->field('agreement_ends_on'),
-            'tax_id' => $this->app->request()->field('tax_id'),
-            'notes' => $this->app->request()->field('notes'),
-            'tax_exempt' => $this->app->request()->field('tax_exempt'),
-            'tax_exempt_number' => $this->app->request()->field('tax_exempt_number'),
-        ];
-    }
-
-    /**
-     * @param array<string, mixed>|null $vendor
-     */
-    private function form(string $slug, ?array $vendor, ?string $error): void
-    {
-        $tenant = $this->app->open($slug, true);
-        $mallBasis = $this->mall->storeTake();
-        $shownTake = $this->percent($mallBasis);
-        $overridden = false;
-        if (is_array($vendor) && array_key_exists('store_take', $vendor) && is_string($vendor['store_take'])) {
-            $shownTake = $vendor['store_take'] !== '' ? $vendor['store_take'] : $shownTake;
-        } elseif (is_array($vendor) && array_key_exists('commission_bps', $vendor) && $vendor['commission_bps'] !== null) {
-            $shownTake = $this->percent($vendor['commission_bps']);
-            $overridden = $this->points($vendor['commission_bps']) !== $mallBasis;
-        }
-        $editing = $vendor !== null && isset($vendor['id']);
-        $this->app->show('Feature/Party/vendor-form', [
-            'title' => $editing ? 'Edit vendor' : 'New vendor',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'vendor' => $vendor,
-            'storeTake' => $shownTake,
-            'defaultStoreTake' => $this->percent($mallBasis),
-            'overridden' => $overridden,
-            'error' => $error,
-        ]);
-    }
-
     private function refuseInactive(string $slug, string $id): void
     {
         $vendor = $this->parties->findVendor($id);
         if ($vendor === null) {
             $this->app->notFound();
         }
-        $this->form($slug, $vendor, 'A vendor with open rent cannot be made inactive.');
+        $this->forms->form($slug, $vendor, 'A vendor with open rent cannot be made inactive.');
     }
 
     private function showRecord(string $slug, string $id, ?string $error): void
@@ -466,17 +338,17 @@ final class PartyController
         }
         $mallBasis = $this->mall->storeTake();
         $savedBasis = $stored['commission_bps'] ?? null;
-        $vendor['store_take'] = $this->percent($savedBasis === null ? $mallBasis : $savedBasis);
-        $vendor['store_take_overridden'] = $savedBasis !== null && $this->points($savedBasis) !== $mallBasis;
-        $vendor['agreement_starts_on'] = $this->plain($stored['agreement_starts_on'] ?? null);
-        $vendor['agreement_ends_on'] = $this->plain($stored['agreement_ends_on'] ?? null);
-        $vendor['tax_id'] = $this->plain($stored['tax_id'] ?? null);
-        $vendor['notes'] = $this->plain($stored['notes'] ?? null);
-        $vendor['tax_exempt'] = $this->enabled($stored['tax_exempt'] ?? false);
-        $vendor['tax_exempt_number'] = $this->plain($stored['tax_exempt_number'] ?? null);
-        $vendor['first_name'] = $this->plain($stored['first_name'] ?? null);
-        $vendor['last_name'] = $this->plain($stored['last_name'] ?? null);
-        $vendor['default_store_take'] = $this->percent($mallBasis);
+        $vendor['store_take'] = $this->forms->percent($savedBasis === null ? $mallBasis : $savedBasis);
+        $vendor['store_take_overridden'] = $savedBasis !== null && $this->forms->points($savedBasis) !== $mallBasis;
+        $vendor['agreement_starts_on'] = $this->forms->plain($stored['agreement_starts_on'] ?? null);
+        $vendor['agreement_ends_on'] = $this->forms->plain($stored['agreement_ends_on'] ?? null);
+        $vendor['tax_id'] = $this->forms->plain($stored['tax_id'] ?? null);
+        $vendor['notes'] = $this->forms->plain($stored['notes'] ?? null);
+        $vendor['tax_exempt'] = $this->forms->enabled($stored['tax_exempt'] ?? false);
+        $vendor['tax_exempt_number'] = $this->forms->plain($stored['tax_exempt_number'] ?? null);
+        $vendor['first_name'] = $this->forms->plain($stored['first_name'] ?? null);
+        $vendor['last_name'] = $this->forms->plain($stored['last_name'] ?? null);
+        $vendor['default_store_take'] = $this->forms->percent($mallBasis);
         $open = $this->payouts->openPayout($id);
         $vendor['payable_minor'] = $open['payable'];
         $vendor['rent_minor'] = $open['rent'];

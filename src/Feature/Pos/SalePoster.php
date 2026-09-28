@@ -6,6 +6,8 @@ namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
@@ -44,20 +46,17 @@ final class SalePoster
         $this->guardCash($tender['cash'], $roundOn, $handed);
         $ticketId = $cart['ticket_id'];
 
-        return $this->ledger->post(
-            'sale:' . $ticketId,
-            $date,
-            'sale',
-            'sale:' . $ticketId,
-            'Sale',
-            SaleJournal::sale($this->ledger, $pieces, $tender['lines'], $tender['cash'], $roundOn),
-            null,
-            $sessionId,
-            $tender['check'],
-            function (string $journalId) use ($ticketId, $pieces): void {
+        return $this->ledger->post(new JournalDraft(
+            postingKey: 'sale:' . $ticketId,
+            postingDate: $date,
+            source: new JournalSource('sale', 'sale:' . $ticketId, 'Sale'),
+            lines: SaleJournal::sale($this->ledger, $pieces, $tender['lines'], $tender['cash'], $roundOn),
+            sessionId: $sessionId,
+            checkNumber: $tender['check'],
+            beforeCommit: function (string $journalId) use ($ticketId, $pieces): void {
                 $this->attach($journalId, $ticketId, $pieces);
-            }
-        );
+            },
+        ));
     }
 
     public function voidSale(string $sessionId, string $date, string $journalId): string
@@ -67,16 +66,18 @@ final class SalePoster
             throw new DatabaseRefusal('a second void is refused');
         }
 
-        return $this->ledger->post(
-            'reversal:' . $journalId,
-            $date,
-            'sale',
-            RowValue::string($journal['source_reference'] ?? null) . ':void',
-            'Void of ' . RowValue::string($journal['posting_key'] ?? null),
-            $this->swapped($journalId),
-            $journalId,
-            $sessionId
-        );
+        return $this->ledger->post(new JournalDraft(
+            postingKey: 'reversal:' . $journalId,
+            postingDate: $date,
+            source: new JournalSource(
+                'sale',
+                RowValue::string($journal['source_reference'] ?? null) . ':void',
+                'Void of ' . RowValue::string($journal['posting_key'] ?? null),
+            ),
+            lines: $this->swapped($journalId),
+            reversesJournalId: $journalId,
+            sessionId: $sessionId,
+        ));
     }
 
     /**
@@ -92,13 +93,11 @@ final class SalePoster
     ): string {
         $piece = $this->piece($saleId, $itemId);
 
-        return $this->ledger->post(
-            'return:' . $saleId . ':' . $itemId,
-            $date,
-            'piece_return',
-            'return:' . $itemId,
-            'Return',
-            SaleJournal::giveBack(
+        return $this->ledger->post(new JournalDraft(
+            postingKey: 'return:' . $saleId . ':' . $itemId,
+            postingDate: $date,
+            source: new JournalSource('piece_return', 'return:' . $itemId, 'Return'),
+            lines: SaleJournal::giveBack(
                 $this->ledger,
                 $piece['price'],
                 $piece['commission'],
@@ -106,17 +105,16 @@ final class SalePoster
                 $piece['vendor_id'],
                 $credit
             ),
-            null,
-            $sessionId,
-            $check,
-            function (string $journalId) use ($saleId, $itemId, $piece): void {
+            sessionId: $sessionId,
+            checkNumber: $check,
+            beforeCommit: function (string $journalId) use ($saleId, $itemId, $piece): void {
                 $this->statements->change(
                     'INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor)
                      VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?)',
                     [$journalId, $saleId, $itemId, $piece['price'], $piece['commission'], $piece['tax']]
                 );
-            }
-        );
+            },
+        ));
     }
 
     /**

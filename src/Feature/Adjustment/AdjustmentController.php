@@ -7,6 +7,8 @@ namespace PerfectConsign\Feature\Adjustment;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 
@@ -40,14 +42,12 @@ final class AdjustmentController
             if ($reference === '') {
                 throw new DatabaseRefusal('a source reference is required');
             }
-            $journalId = $this->ledger->post(
-                'adjustment:' . $reference,
-                $this->app->request()->field('posting_date'),
-                'adjustment',
-                $reference,
-                $this->app->request()->field('description'),
-                PostedLines::read($this->app->request(), 4, false)
-            );
+            $journalId = $this->ledger->post(new JournalDraft(
+                postingKey: 'adjustment:' . $reference,
+                postingDate: $this->app->request()->field('posting_date'),
+                source: new JournalSource('adjustment', $reference, $this->app->request()->field('description')),
+                lines: PostedLines::read($this->app->request(), 4, false),
+            ));
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Adjustment/adjustment', [
                 'title' => 'Adjustment',

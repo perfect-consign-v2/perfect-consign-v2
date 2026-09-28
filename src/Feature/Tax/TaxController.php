@@ -7,6 +7,8 @@ namespace PerfectConsign\Feature\Tax;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\Money;
 
@@ -40,13 +42,11 @@ final class TaxController
             if ($credit !== 'cash' && $credit !== 'bank') {
                 throw new DatabaseRefusal('a tax payment credits cash or bank');
             }
-            $journalId = $this->ledger->post(
-                'tax-payment:' . $reference,
-                $this->app->request()->field('posting_date'),
-                'tax_payment',
-                $reference,
-                'Sales tax payment',
-                [
+            $journalId = $this->ledger->post(new JournalDraft(
+                postingKey: 'tax-payment:' . $reference,
+                postingDate: $this->app->request()->field('posting_date'),
+                source: new JournalSource('tax_payment', $reference, 'Sales tax payment'),
+                lines: [
                     [
                         'account_id' => $this->ledger->roleAccount('sales_tax_payable'),
                         'debit' => $amount,
@@ -61,8 +61,8 @@ final class TaxController
                         'subledger_type' => null,
                         'subledger_ref' => null,
                     ],
-                ]
-            );
+                ],
+            ));
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
             return;

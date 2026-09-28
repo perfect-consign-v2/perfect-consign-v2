@@ -240,8 +240,8 @@ final class DashboardStore
             $facts['open_rent'],
             $facts['blocked'],
             $today,
-            $this->mall->boothWidth(),
-            $this->mall->boothDepth(),
+            $this->mall->boothSize()['width'],
+            $this->mall->boothSize()['depth'],
         );
         $counts = ['occupied' => 0, 'available' => 0, 'ending' => 0, 'incoming' => 0];
         foreach ($rows as $row) {

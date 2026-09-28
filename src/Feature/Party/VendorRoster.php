@@ -19,8 +19,10 @@ final class VendorRoster
         'open' => true,
     ];
 
-    public function __construct(private readonly VendorPlacement $placement)
-    {
+    public function __construct(
+        private readonly VendorPlacement $placement,
+        private readonly VendorValues $values = new VendorValues(),
+    ) {
     }
 
     /**
@@ -49,7 +51,7 @@ final class VendorRoster
      */
     public function assemble(array $rows, array $booths, string $today): array
     {
-        $this->requireDate($today);
+        $this->values->requireDate($today);
         $vendors = [];
         $active = 0;
         $ending = 0;
@@ -156,16 +158,16 @@ final class VendorRoster
     {
         $vendors = [];
         foreach ($rows as $row) {
-            $id = $this->text($row['vendor_id'] ?? null);
+            $id = $this->values->text($row['vendor_id'] ?? null);
             if (!isset($vendors[$id])) {
                 $vendors[$id] = [
                     'id' => $id,
-                    'code' => $this->text($row['vendor_code'] ?? null),
-                    'name' => $this->text($row['vendor_name'] ?? null),
-                    'phone' => $this->optional($row['phone'] ?? null),
-                    'email' => $this->optional($row['email'] ?? null),
-                    'address' => $this->optional($row['address'] ?? null),
-                    'active' => $this->standing($row['active'] ?? null),
+                    'code' => $this->values->text($row['vendor_code'] ?? null),
+                    'name' => $this->values->text($row['vendor_name'] ?? null),
+                    'phone' => $this->values->optional($row['phone'] ?? null),
+                    'email' => $this->values->optional($row['email'] ?? null),
+                    'address' => $this->values->optional($row['address'] ?? null),
+                    'active' => $this->values->standing($row['active'] ?? null),
                     'assignments' => [],
                 ];
             }
@@ -188,19 +190,19 @@ final class VendorRoster
         if (($row['assignment_id'] ?? null) === null) {
             return null;
         }
-        $starts = $this->date($row['starts_on'] ?? null);
+        $starts = $this->values->date($row['starts_on'] ?? null);
         if ($starts === null) {
             throw new InvalidArgumentException('an assignment needs a start date');
         }
-        $ends = $this->date($row['ends_on'] ?? null);
+        $ends = $this->values->date($row['ends_on'] ?? null);
 
         return [
-            'id' => $this->text($row['assignment_id']),
-            'booth_id' => $this->text($row['booth_id'] ?? null),
-            'booth_code' => $this->text($row['booth_code'] ?? null),
+            'id' => $this->values->text($row['assignment_id']),
+            'booth_id' => $this->values->text($row['booth_id'] ?? null),
+            'booth_code' => $this->values->text($row['booth_code'] ?? null),
             'starts_on' => $starts,
             'ends_on' => $ends ?? '',
-            'rent_minor' => $this->minor($row['rent_minor'] ?? null),
+            'rent_minor' => $this->values->minor($row['rent_minor'] ?? null),
         ];
     }
 
@@ -309,7 +311,7 @@ final class VendorRoster
     {
         $open = [];
         foreach ($booths as $booth) {
-            $id = $this->text($booth['id'] ?? null);
+            $id = $this->values->text($booth['id'] ?? null);
             if (isset($occupied[$id])) {
                 continue;
             }
@@ -323,66 +325,5 @@ final class VendorRoster
         }
 
         return $open;
-    }
-
-    private function requireDate(string $value): void
-    {
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
-            throw new InvalidArgumentException('today is YYYY-MM-DD');
-        }
-    }
-
-    private function date(mixed $value): ?string
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-        if (!is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}/', $value) !== 1) {
-            throw new InvalidArgumentException('an assignment date is YYYY-MM-DD');
-        }
-
-        return substr($value, 0, 10);
-    }
-
-    private function standing(mixed $value): bool
-    {
-        if ($value === null || $value === true || $value === 't' || $value === 'true' || $value === '1') {
-            return true;
-        }
-        if ($value === false || $value === 'f' || $value === 'false' || $value === '0') {
-            return false;
-        }
-
-        throw new InvalidArgumentException('a vendor field is missing');
-    }
-
-    private function optional(mixed $value): string
-    {
-        if ($value === null) {
-            return '';
-        }
-        if (!is_string($value)) {
-            throw new InvalidArgumentException('a vendor field is missing');
-        }
-
-        return $value;
-    }
-
-    private function minor(mixed $value): ?int
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        return \PerfectConsign\Shared\Scalar\RowValue::integer($value);
-    }
-
-    private function text(mixed $value): string
-    {
-        if (!is_string($value) || $value === '') {
-            throw new InvalidArgumentException('a vendor field is missing');
-        }
-
-        return $value;
     }
 }

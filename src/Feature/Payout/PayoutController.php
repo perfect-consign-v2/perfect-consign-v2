@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Payout;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -21,6 +24,7 @@ final class PayoutController
         private readonly PayoutStore $payouts,
         private readonly PartyStore $parties,
         private readonly RegisterStore $registers,
+        private readonly ActiveRegister $drawers,
     ) {
     }
 
@@ -66,16 +70,13 @@ final class PayoutController
             if ($lines === []) {
                 throw new DatabaseRefusal('a payout clears a positive open payable or open rent receivable');
             }
-            $journalId = $this->ledger->post(
-                'payout:' . $vendorId . ':' . $month,
-                $postingDate,
-                'payout',
-                $vendorId . ':' . $month,
-                'Payout',
-                $lines,
-                null,
-                $this->registers->openSession($this->app->postedRegister($slug))
-            );
+            $journalId = $this->ledger->post(new JournalDraft(
+                postingKey: 'payout:' . $vendorId . ':' . $month,
+                postingDate: $postingDate,
+                source: new JournalSource('payout', $vendorId . ':' . $month, 'Payout'),
+                lines: $lines,
+                sessionId: $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true)),
+            ));
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $vendorId, $this->app->catchRefusal($refusal));
             return;

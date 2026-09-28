@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Ledger;
 
-use DateTimeImmutable;
 use PDO;
 use PDOException;
 use PerfectConsign\Shared\Database\Statements;
@@ -14,6 +13,7 @@ final class LedgerStore
     public function __construct(
         private readonly PDO $pdo,
         private readonly Statements $statements,
+        private readonly LedgerPeriods $periods,
     ) {
     }
 
@@ -150,69 +150,29 @@ final class LedgerStore
         );
     }
 
-    /**
-     * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $lines
-     * @param null|callable(string): void $beforeCommit
-     */
-    public function post(
-        string $postingKey,
-        string $postingDate,
-        string $sourceType,
-        string $sourceReference,
-        string $description,
-        array $lines,
-        ?string $reversesJournalId = null,
-        ?string $sessionId = null,
-        ?string $checkNumber = null,
-        ?callable $beforeCommit = null,
-    ): string {
-        return $this->commitJournal(
-            $postingKey,
-            $postingDate,
-            $sourceType,
-            $sourceReference,
-            $description,
-            $lines,
-            $reversesJournalId === null ? 'false' : 'true',
-            $reversesJournalId,
-            $sessionId,
-            $checkNumber,
-            $beforeCommit,
-        );
+    public function post(JournalDraft $draft): string
+    {
+        return $this->commitJournal($draft);
     }
 
-    /**
-     * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $lines
-     * @param null|callable(string): void $beforeCommit
-     */
-    private function commitJournal(
-        string $postingKey,
-        string $postingDate,
-        string $sourceType,
-        string $sourceReference,
-        string $description,
-        array $lines,
-        string $reversal,
-        ?string $reversesJournalId,
-        ?string $sessionId,
-        ?string $checkNumber,
-        ?callable $beforeCommit,
-    ): string {
+    private function commitJournal(JournalDraft $draft): string
+    {
         try {
             $this->pdo->beginTransaction();
             $journalId = $this->insertJournal(
-                $postingKey,
-                $postingDate,
-                $sourceType,
-                $sourceReference,
-                $description,
-                $lines,
-                $reversal,
-                $reversesJournalId,
+                $draft->postingKey,
+                $draft->postingDate,
+                $draft->source->type,
+                $draft->source->reference,
+                $draft->source->description,
+                $draft->lines,
+                $draft->reversesJournalId === null ? 'false' : 'true',
+                $draft->reversesJournalId,
             );
-            $this->linkSession($journalId, $sessionId, $checkNumber);
-            if ($beforeCommit !== null) {
-                $beforeCommit($journalId);
+            $this->linkSession($journalId, $draft->sessionId, $draft->checkNumber);
+            if ($draft->beforeCommit !== null) {
+                $finished = $draft->beforeCommit;
+                $finished($journalId);
             }
             $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
             $this->pdo->commit();
@@ -243,7 +203,7 @@ final class LedgerStore
         $book = $this->defaultBook();
         $journalId = $this->newId();
         [$debit, $credit] = $this->totals($lines);
-        $this->insertHeader($journalId, $book, $this->openPeriod($book['id'], $postingDate), [
+        $this->insertHeader($journalId, $book, $this->periods->idFor($book['id'], $postingDate), [
             'postingKey' => $postingKey,
             'postingDate' => $postingDate,
             'sourceType' => $sourceType,
@@ -277,91 +237,6 @@ final class LedgerStore
             'id' => $this->requiredString($row, 'id', 'the mall book is missing'),
             'currency' => $this->requiredString($row, 'currency', 'the mall book is missing'),
         ];
-    }
-
-    private function openPeriod(string $bookId, string $postingDate): string
-    {
-        $open = $this->periodCovering($bookId, $postingDate, 'open');
-        if ($open !== null) {
-            return $open;
-        }
-        if ($this->periodCovering($bookId, $postingDate, 'closed') !== null) {
-            throw new DatabaseRefusal('That day is already closed.');
-        }
-        $this->openYear($bookId, $postingDate);
-        $open = $this->periodCovering($bookId, $postingDate, 'open');
-        if ($open === null) {
-            throw new DatabaseRefusal('That day could not be opened.');
-        }
-
-        return $open;
-    }
-
-    private function periodCovering(string $bookId, string $postingDate, string $status): ?string
-    {
-        $period = $this->pdo->prepare(
-            'SELECT id FROM accounting_periods
-             WHERE book_id = ?::uuid AND status = ? AND period_range @> ?::date'
-        );
-        $period->execute([$bookId, $status, $postingDate]);
-        $periodId = $period->fetchColumn();
-        if (!is_string($periodId) || $periodId === '') {
-            return null;
-        }
-
-        return $periodId;
-    }
-
-    private function openYear(string $bookId, string $postingDate): void
-    {
-        $year = substr($postingDate, 0, 4);
-        $start = $year . '-01-01';
-        $end = $year . '-12-31';
-        $previousEnd = $this->nearestDate(
-            'SELECT ends_on FROM accounting_periods
-             WHERE book_id = ?::uuid AND ends_on < ?::date
-             ORDER BY ends_on DESC LIMIT 1',
-            $bookId,
-            $postingDate
-        );
-        if ($previousEnd !== null) {
-            $dayAfter = (new DateTimeImmutable($previousEnd))->modify('+1 day')->format('Y-m-d');
-            if ($dayAfter > $start) {
-                $start = $dayAfter;
-            }
-        }
-        $nextStart = $this->nearestDate(
-            'SELECT starts_on FROM accounting_periods
-             WHERE book_id = ?::uuid AND starts_on > ?::date
-             ORDER BY starts_on LIMIT 1',
-            $bookId,
-            $postingDate
-        );
-        if ($nextStart !== null) {
-            $dayBefore = (new DateTimeImmutable($nextStart))->modify('-1 day')->format('Y-m-d');
-            if ($dayBefore < $end) {
-                $end = $dayBefore;
-            }
-        }
-        if ($start > $postingDate || $end < $postingDate) {
-            throw new DatabaseRefusal('That day could not be opened.');
-        }
-        $insert = $this->pdo->prepare(
-            'INSERT INTO accounting_periods (book_id, starts_on, ends_on, status) VALUES (?::uuid, ?::date, ?::date, ?)'
-        );
-        $insert->execute([$bookId, $start, $end, 'open']);
-    }
-
-    private function nearestDate(string $sql, string $bookId, string $postingDate): ?string
-    {
-        $statement = $this->pdo->prepare($sql);
-        $statement->execute([$bookId, $postingDate]);
-        $date = $statement->fetchColumn();
-        if (!is_string($date) || $date === '') {
-            return null;
-        }
-
-        return $date;
     }
 
     /**

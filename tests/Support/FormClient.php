@@ -40,26 +40,26 @@ final class FormClient
 
     public function get(string $path): PageResponse
     {
-        return $this->send('GET', $path, null, true);
+        return $this->send('GET', $path, null, true, 20);
     }
 
     public function getWithoutRedirect(string $path): PageResponse
     {
-        return $this->send('GET', $path, null, false);
+        return $this->send('GET', $path, null, false, 20);
     }
 
     /**
      * @param array<string, string> $fields
      */
-    public function post(string $path, array $fields): PageResponse
+    public function post(string $path, array $fields, int $timeoutSeconds = 20): PageResponse
     {
         $fields['csrf'] = $this->csrf;
-        $response = $this->send('POST', $path, $fields, false);
+        $response = $this->send('POST', $path, $fields, false, $timeoutSeconds);
         if (!in_array($response->status, [301, 302, 303], true) || $response->location === '') {
             return $response;
         }
 
-        return $this->get($this->locationPath($response->location));
+        return $this->send('GET', $this->locationPath($response->location), null, true, $timeoutSeconds);
     }
 
     public function signIn(string $slug, string $username, string $password): PageResponse
@@ -90,7 +90,7 @@ final class FormClient
     /**
      * @param array<string, string>|null $fields
      */
-    private function send(string $method, string $path, ?array $fields, bool $follow): PageResponse
+    private function send(string $method, string $path, ?array $fields, bool $follow, int $timeoutSeconds): PageResponse
     {
         curl_reset($this->curl);
         $options = [
@@ -102,7 +102,7 @@ final class FormClient
             CURLOPT_MAXREDIRS => 5,
             CURLOPT_COOKIEJAR => $this->cookieFile,
             CURLOPT_COOKIEFILE => $this->cookieFile,
-            CURLOPT_TIMEOUT => 20,
+            CURLOPT_TIMEOUT => $timeoutSeconds,
         ];
         if ($fields !== null) {
             $options[CURLOPT_POSTFIELDS] = http_build_query($fields);

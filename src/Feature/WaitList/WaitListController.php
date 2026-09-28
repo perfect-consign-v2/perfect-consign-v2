@@ -236,10 +236,13 @@ final class WaitListController
             'wait_list_status_chk' => 'that status is not on the wait list',
             'wait_list_notes_chk' => 'those notes are too long',
         ];
-        foreach ($known as $needle => $text) {
-            if (str_contains($message, $needle)) {
-                return $text;
-            }
+        $found = array_filter(
+            $known,
+            static fn (string $needle): bool => str_contains($message, $needle),
+            ARRAY_FILTER_USE_KEY,
+        );
+        foreach ($found as $text) {
+            return $text;
         }
 
         return $message;

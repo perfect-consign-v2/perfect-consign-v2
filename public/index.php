@@ -18,6 +18,26 @@ use Psr\Log\LoggerInterface;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+$coverageDirectory = getenv('PC_COVERAGE');
+$coverageStarted = false;
+if (
+    is_string($coverageDirectory)
+    && $coverageDirectory !== ''
+    && function_exists('xdebug_start_code_coverage')
+    && defined('XDEBUG_FILTER_CODE_COVERAGE')
+    && defined('XDEBUG_PATH_INCLUDE')
+    && defined('XDEBUG_CC_UNUSED')
+    && defined('XDEBUG_CC_DEAD_CODE')
+) {
+    xdebug_set_filter(
+        XDEBUG_FILTER_CODE_COVERAGE,
+        XDEBUG_PATH_INCLUDE,
+        [dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src']
+    );
+    xdebug_start_code_coverage(XDEBUG_CC_UNUSED | XDEBUG_CC_DEAD_CODE);
+    $coverageStarted = true;
+}
+
 loadEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
 
 $debug = in_array(getenv('APP_ENV'), ['local', 'development', 'dev'], true) || getenv('APP_DEBUG') === 'true';
@@ -74,6 +94,49 @@ try {
         http_response_code(500);
     }
     echo $debug ? $error->getMessage() : 'The page could not be shown.';
+} finally {
+    writeRequestCoverage($coverageStarted, $coverageDirectory);
+}
+
+function writeRequestCoverage(bool $started, mixed $directory): void
+{
+    if (!$started || !is_string($directory) || $directory === '' || !function_exists('xdebug_get_code_coverage')) {
+        return;
+    }
+    $coverage = xdebug_get_code_coverage();
+    xdebug_stop_code_coverage(false);
+    if (!is_array($coverage)) {
+        return;
+    }
+    $src = strtolower(str_replace('\\', '/', dirname(__DIR__) . '/src/'));
+    $kept = [];
+    foreach ($coverage as $file => $lines) {
+        if (!is_string($file) || !is_array($lines)) {
+            continue;
+        }
+        $real = realpath($file);
+        if ($real === false) {
+            continue;
+        }
+        $key = strtolower(str_replace('\\', '/', $real));
+        if (!str_starts_with($key, $src)) {
+            continue;
+        }
+        $kept[$real] = $lines;
+    }
+    if ($kept === []) {
+        return;
+    }
+    if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
+        return;
+    }
+    $written = file_put_contents(
+        $directory . DIRECTORY_SEPARATOR . bin2hex(random_bytes(8)) . '.php',
+        '<?php return ' . var_export($kept, true) . ";\n"
+    );
+    if ($written === false) {
+        return;
+    }
 }
 
 function serveAsset(string $path): void

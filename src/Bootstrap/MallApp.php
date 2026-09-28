@@ -10,7 +10,6 @@ use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
-use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
 use Psr\Log\LoggerInterface;
@@ -29,6 +28,8 @@ final class MallApp
         private readonly Request $request,
         private readonly OwnerAccess $access,
         private readonly MallSettings $mall,
+        private readonly ActiveRegister $drawers,
+        private readonly TenantLookup $tenants,
     ) {
     }
 
@@ -39,47 +40,6 @@ final class MallApp
         }
 
         return $this->mall->today();
-    }
-
-    public function useRegister(string $slug, string $sessionId, string $name): void
-    {
-        $this->session->set('register:' . $slug, $sessionId);
-        $this->session->set('register_name:' . $slug, $name);
-    }
-
-    public function clearRegister(string $slug, string $sessionId): void
-    {
-        $current = $this->session->get('register:' . $slug);
-        if ($current !== $sessionId) {
-            return;
-        }
-        $this->session->delete('register:' . $slug);
-        $this->session->delete('register_name:' . $slug);
-    }
-
-    public function drawerSession(string $slug): string
-    {
-        return $this->resolveRegister($slug)['id'];
-    }
-
-    public function postedRegister(string $slug): string
-    {
-        $requested = $this->request->field('register_session_id');
-        if ($requested !== '') {
-            return $requested;
-        }
-
-        return $this->drawerSession($slug);
-    }
-
-    public function ownerName(): string
-    {
-        $name = $this->session->get('owner_name');
-        if (!is_string($name)) {
-            return '';
-        }
-
-        return $name;
     }
 
     public function request(): Request
@@ -100,11 +60,11 @@ final class MallApp
         $data['path'] = $this->request->path;
         $data['today'] = $this->roled ? $this->mall->today() : '';
         if (is_string($slug)) {
-            $chosen = $this->resolveRegister($slug);
+            $chosen = $this->drawers->chosen($slug, $this->roled);
             $data['activeRegister'] = $chosen['name'];
             $data['activeSessionId'] = $chosen['id'];
             $data['chooseRegister'] = $chosen['choose'];
-            $data['leftOpen'] = $this->leftOpen();
+            $data['leftOpen'] = $this->drawers->leftOpen($this->roled);
         }
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
@@ -164,7 +124,7 @@ final class MallApp
 
     public function signIn(string $slug, string $username, string $password): bool
     {
-        $tenant = $this->findTenant($slug);
+        $tenant = $this->tenants->find($slug);
         if ($tenant === null) {
             $this->notFound();
         }
@@ -202,7 +162,7 @@ final class MallApp
         }
     }
 
-    public function catchRefusal(DatabaseRefusal $error): string
+    public function catchRefusal(\Throwable $error): string
     {
         $detail = $error->getPrevious();
         $this->logger->info('ledger refused a post', [
@@ -211,124 +171,6 @@ final class MallApp
         ]);
 
         return $error->getMessage();
-    }
-
-    /**
-     * @return array{id: string, name: string, choose: bool}
-     */
-    private function resolveRegister(string $slug): array
-    {
-        $empty = ['id' => '', 'name' => '', 'choose' => false];
-        if (!$this->roled) {
-            return $empty;
-        }
-        $statement = $this->pdo->prepare(
-            'SELECT session.id, register.name
-             FROM register_sessions AS session
-             JOIN registers AS register ON register.id = session.register_id
-             WHERE session.closed_at IS NULL
-             ORDER BY lower(register.name), register.name'
-        );
-        $statement->execute();
-        $open = $statement->fetchAll();
-        if (!is_array($open)) {
-            return $empty;
-        }
-        $stored = $this->session->get('register:' . $slug);
-        $storedId = is_string($stored) ? $stored : '';
-        foreach ($open as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-            $id = $row['id'] ?? null;
-            $name = $row['name'] ?? null;
-            if (!is_string($id) || !is_string($name)) {
-                continue;
-            }
-            if (count($open) === 1 || $id === $storedId) {
-                $this->useRegister($slug, $id, $name);
-
-                return ['id' => $id, 'name' => $name, 'choose' => false];
-            }
-        }
-        if ($storedId !== '') {
-            $this->clearRegister($slug, $storedId);
-        }
-
-        return ['id' => '', 'name' => '', 'choose' => count($open) > 1];
-    }
-
-    /**
-     * @return list<array{id: string, name: string, opened: string}>
-     */
-    private function leftOpen(): array
-    {
-        if (!$this->roled) {
-            return [];
-        }
-        $statement = $this->pdo->prepare(
-            'SELECT register.id, register.name, session.opened_at
-             FROM register_sessions AS session
-             JOIN registers AS register ON register.id = session.register_id
-             WHERE session.closed_at IS NULL
-             ORDER BY session.opened_at'
-        );
-        $statement->execute();
-        $rows = $statement->fetchAll();
-        if (!is_array($rows)) {
-            return [];
-        }
-        $today = $this->mall->today();
-        $left = [];
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-            $id = $row['id'] ?? null;
-            $name = $row['name'] ?? null;
-            if (!is_string($id) || !is_string($name)) {
-                continue;
-            }
-            $openedOn = $this->mall->localDate($row['opened_at'] ?? null);
-            if ($openedOn === '' || $openedOn >= $today) {
-                continue;
-            }
-            $left[] = [
-                'id' => $id,
-                'name' => $name,
-                'opened' => $this->mall->localTime($row['opened_at'] ?? null),
-            ];
-        }
-
-        return $left;
-    }
-
-    private function findTenant(string $slug): ?TenantRecord
-    {
-        if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $slug) !== 1) {
-            return null;
-        }
-        $statement = $this->pdo->prepare(
-            'SELECT id, slug, schema_name, display_name FROM platform.tenants WHERE slug = ?'
-        );
-        $statement->execute([$slug]);
-        $row = $statement->fetch();
-        if (!is_array($row) || !is_string($row['schema_name'] ?? null)) {
-            return null;
-        }
-        $schema = $row['schema_name'];
-        $id = $row['id'] ?? null;
-        $rowSlug = $row['slug'] ?? null;
-        $displayName = $row['display_name'] ?? null;
-        if (preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
-            return null;
-        }
-        if (!is_string($id) || !is_string($rowSlug) || !is_string($displayName)) {
-            return null;
-        }
-        $role = TenantRecord::roleFor($rowSlug, $schema);
-
-        return new TenantRecord($id, $rowSlug, $schema, $role, $displayName);
     }
 
     private function refuseForeign(string $slug): void
@@ -349,7 +191,7 @@ final class MallApp
 
     private function requireTenant(string $slug): TenantRecord
     {
-        $tenant = $this->findTenant($slug);
+        $tenant = $this->tenants->find($slug);
         if ($tenant === null) {
             $this->notFound();
         }

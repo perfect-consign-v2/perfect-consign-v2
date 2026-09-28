@@ -27,7 +27,7 @@ final class DenominationCount
     ];
 
     /**
-     * @return array<string, int>
+     * @return array<int, int>
      */
     public static function fromRequest(Request $request): array
     {
@@ -37,21 +37,21 @@ final class DenominationCount
             if (preg_match('/^\d+$/', $raw) !== 1) {
                 throw new InvalidArgumentException('every bill and coin count is required');
             }
-            $counts[(string) $key] = (int) $raw;
+            $counts[$key] = (int) $raw;
         }
 
         return $counts;
     }
 
     /**
-     * @return array<string, int>
+     * @return array<int, int>
      */
     public static function forAmount(int $minor): array
     {
         $counts = [];
         $left = $minor;
         foreach (self::KEYS as $key) {
-            $counts[(string) $key] = intdiv($left, $key);
+            $counts[$key] = intdiv($left, $key);
             $left %= $key;
         }
 
@@ -59,26 +59,36 @@ final class DenominationCount
     }
 
     /**
-     * @param array<string, int> $counts
+     * @param array<int, int> $counts
      */
     public static function total(array $counts): int
     {
         $total = 0;
         foreach (self::KEYS as $key) {
-            $total += $key * ($counts[(string) $key] ?? 0);
+            $total += $key * ($counts[$key] ?? 0);
         }
 
         return $total;
     }
 
     /**
-     * @param array<string, int> $counts
+     * @param array<int, int> $counts
      */
     public static function json(array $counts): string
     {
         $encoded = json_encode($counts, JSON_THROW_ON_ERROR);
 
         return $encoded;
+    }
+
+    public static function counted(string $raw): int
+    {
+        $value = trim($raw);
+        if ($value === '') {
+            return 0;
+        }
+
+        return self::money($value, true);
     }
 
     public static function money(string $amount, bool $allowZero): int

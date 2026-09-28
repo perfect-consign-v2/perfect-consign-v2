@@ -133,7 +133,7 @@ $pageError = is_string($error ?? null) ? $error : '';
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <?php foreach (DenominationCount::KEYS as $key): ?>
                         <?php $saved = $modal === 'close-' . $id ? ($draftCounts[(string) $key] ?? 0) : 0; ?>
-                        <input type="hidden" name="count_<?= View::text((string) $key) ?>" value="<?= View::text((string) $saved) ?>">
+                        <input type="hidden" name="count_<?= View::text((string) $key) ?>" value="<?= View::text($saved) ?>">
                     <?php endforeach; ?>
                     <p>Expected drawer <strong><?= View::text(is_string($register['expected_cash'] ?? null) ? $register['expected_cash'] : '') ?></strong></p>
                     <label for="counted-cash-<?= View::text($id) ?>">Counted cash</label>
@@ -208,7 +208,7 @@ $pageError = is_string($error ?? null) ? $error : '';
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <?php foreach (DenominationCount::KEYS as $key): ?>
                 <?php $saved = $openCounts[(string) $key] ?? 0; ?>
-                <input type="hidden" name="count_<?= View::text((string) $key) ?>" value="<?= View::text((string) $saved) ?>">
+                <input type="hidden" name="count_<?= View::text((string) $key) ?>" value="<?= View::text($saved) ?>">
             <?php endforeach; ?>
             <label for="cashier">Cashier</label>
             <input class="input" id="cashier" name="cashier" value="<?= View::text($openCashier) ?>" required>

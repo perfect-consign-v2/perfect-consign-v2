@@ -45,7 +45,7 @@ $stored = [
         <ul>
             <?php foreach ($opening as $row): ?>
                 <?php if (!is_array($row)) { continue; } ?>
-                <li><?= View::text(is_string($row['label'] ?? null) ? $row['label'] : '') ?> × <?= View::text((string) ($row['count'] ?? 0)) ?></li>
+                <li><?= View::text(is_string($row['label'] ?? null) ? $row['label'] : '') ?> × <?= View::text($row['count'] ?? 0) ?></li>
             <?php endforeach; ?>
         </ul>
         <p>Opening float <?= View::text(is_string($tape['opening_cash'] ?? null) ? $tape['opening_cash'] : '') ?></p>
@@ -54,7 +54,7 @@ $stored = [
             <ul>
                 <?php foreach ($closing as $row): ?>
                     <?php if (!is_array($row)) { continue; } ?>
-                    <li><?= View::text(is_string($row['label'] ?? null) ? $row['label'] : '') ?> × <?= View::text((string) ($row['count'] ?? 0)) ?></li>
+                    <li><?= View::text(is_string($row['label'] ?? null) ? $row['label'] : '') ?> × <?= View::text($row['count'] ?? 0) ?></li>
                 <?php endforeach; ?>
             </ul>
             <p>Counted cash <?= View::text(is_string($tape['counted_cash'] ?? null) ? $tape['counted_cash'] : '') ?></p>
