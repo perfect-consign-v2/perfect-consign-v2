@@ -32,6 +32,8 @@ final class MapController
                 'name' => RowValue::string($booth['name'] ?? null),
                 'width' => self::optionalFeet($booth['width_ft'] ?? null),
                 'depth' => self::optionalFeet($booth['depth_ft'] ?? null),
+                'x' => self::optionalFeet($booth['x_ft'] ?? null),
+                'z' => self::optionalFeet($booth['z_ft'] ?? null),
             ];
         }
         $tiles = BoothMap::tiles(

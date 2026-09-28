@@ -67,25 +67,20 @@ final class BoothMap
     }
 
     /**
-     * @param list<array{id: string, code: string, name: string, width?: int|null, depth?: int|null}> $booths
+     * @param list<array{id: string, code: string, name: string, width?: int|null, depth?: int|null, x?: int|null, z?: int|null}> $booths
      * @param list<array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
      * @return list<array{id: string, code: string, name: string, x: int, z: int, width: int, depth: int, status: string, vendor: ?string, label: string}>
      */
     public static function tiles(array $booths, array $stays, string $today, int $defaultWidth = 10, int $defaultDepth = 10): array
     {
         $tiles = [];
-        $x = 2;
-        $z = 2;
-        $rowDepth = 0;
         foreach ($booths as $booth) {
-            $spot = self::occupancy($stays, $booth['id'], $today);
-            $width = self::feet($booth['width'] ?? null, $defaultWidth);
-            $depth = self::feet($booth['depth'] ?? null, $defaultDepth);
-            if ($x !== 2 && $x + $width > 120) {
-                $x = 2;
-                $z += $rowDepth + 2;
-                $rowDepth = 0;
+            $x = $booth['x'] ?? null;
+            $z = $booth['z'] ?? null;
+            if (!is_int($x) || !is_int($z)) {
+                continue;
             }
+            $spot = self::occupancy($stays, $booth['id'], $today);
             $vendor = $spot['vendor'];
             $tiles[] = [
                 'id' => $booth['id'],
@@ -93,14 +88,12 @@ final class BoothMap
                 'name' => $booth['name'],
                 'x' => $x,
                 'z' => $z,
-                'width' => $width,
-                'depth' => $depth,
+                'width' => self::feet($booth['width'] ?? null, $defaultWidth),
+                'depth' => self::feet($booth['depth'] ?? null, $defaultDepth),
                 'status' => $spot['status'],
                 'vendor' => $vendor,
                 'label' => $vendor === null ? $booth['code'] : $booth['code'] . ' — ' . $vendor,
             ];
-            $rowDepth = max($rowDepth, $depth);
-            $x += $width + 2;
         }
 
         return $tiles;

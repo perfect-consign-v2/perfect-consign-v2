@@ -19,8 +19,6 @@ $heading = $editing ? 'Edit booth' : 'New booth';
 $crumb = $editing && is_string($code) && $code !== '' ? $code : 'New';
 $width = is_array($booth) ? ($booth['width_ft'] ?? '') : '';
 $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
-$x = is_array($booth) ? ($booth['x_ft'] ?? '') : '';
-$z = is_array($booth) ? ($booth['z_ft'] ?? '') : '';
 ?>
 <div class="page-head">
     <div class="titles">
@@ -53,20 +51,12 @@ $z = is_array($booth) ? ($booth['z_ft'] ?? '') : '';
                 <label for="depth_ft">Depth (ft)</label>
                 <input class="input" id="depth_ft" name="depth_ft" inputmode="numeric" value="<?= View::text($depth) ?>" placeholder="<?= View::text($defaultDepth) ?>">
             </div>
-            <div class="field">
-                <label for="x_ft">X (ft)</label>
-                <input class="input" id="x_ft" name="x_ft" inputmode="numeric" value="<?= View::text($x) ?>">
-            </div>
-            <div class="field">
-                <label for="z_ft">Z (ft)</label>
-                <input class="input" id="z_ft" name="z_ft" inputmode="numeric" value="<?= View::text($z) ?>">
-            </div>
         </div>
     </div>
     <div class="card">
         <div class="card-head"><div class="h3">Notes</div></div>
         <div class="card-body">
-            <p class="muted text-sm">Leave the size empty to use the mall default, <?= View::text($defaultWidth) ?> by <?= View::text($defaultDepth) ?> feet. Leave X and Z empty to keep the booth off the floor, or set both to place it. Delete a booth only while no assignment, rate, or posted rent uses it.</p>
+            <p class="muted text-sm">Leave the size empty to use the mall default, <?= View::text($defaultWidth) ?> by <?= View::text($defaultDepth) ?> feet. Delete a booth only while no assignment, rate, or posted rent uses it.</p>
         </div>
         <div class="card-foot row between">
             <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/booths">Cancel</a>

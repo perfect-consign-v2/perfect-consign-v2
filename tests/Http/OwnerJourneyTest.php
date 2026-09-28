@@ -61,7 +61,7 @@ final class OwnerJourneyTest extends WebTestCase
         $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
         $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
-        $boothId = HtmlPage::taggedId($booths->body, 'article', 'booth', $booth);
+        $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
         $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
             'booth_id' => $boothId,
             'vendor_id' => $vendorId,
@@ -140,9 +140,8 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
         self::assertSees($code, $page);
         self::assertSees('10 × 10 ft', $page);
-        $edit = HtmlPage::articleLink($page->body, $code);
-        $update = preg_replace('#/edit$#', '', $edit);
-        self::assertIsString($update);
+        $boothId = HtmlPage::taggedId($page->body, 'tr', 'booth', $code);
+        $update = '/' . ProbeMall::SLUG . '/booths/' . $boothId;
         $renamedPage = $this->client->post($update, [
             'code' => $renamed,
             'name' => 'Front',
@@ -223,7 +222,7 @@ final class OwnerJourneyTest extends WebTestCase
         $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
         $booth = $this->booth();
         $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
-        $boothId = HtmlPage::taggedId($booths->body, 'article', 'booth', $booth);
+        $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
         $assigned = $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
             'booth_id' => $boothId,
             'vendor_id' => $vendorId,
@@ -308,7 +307,7 @@ final class OwnerJourneyTest extends WebTestCase
         $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
         $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
-        $boothId = HtmlPage::taggedId($booths->body, 'article', 'booth', $booth);
+        $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
         $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
             'booth_id' => $boothId,
             'vendor_id' => $vendorId,

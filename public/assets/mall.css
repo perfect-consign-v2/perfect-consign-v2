@@ -98,6 +98,10 @@
     color: #1d4ed8;
     background: #dbeafe;
 }
+.occupancy-pill.available {
+    color: var(--info);
+    background: var(--info-soft);
+}
 
 a.mailto {
     color: var(--accent);

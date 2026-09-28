@@ -56,4 +56,15 @@
             }
         });
     });
+
+    var hash = /^#booth-([0-9a-fA-F-]{36})$/.exec(window.location.hash);
+    if (!hash) {
+        return;
+    }
+    var opened = document.querySelector('.booth-cell[data-booth="' + hash[1] + '"]');
+    if (!opened) {
+        return;
+    }
+    select(opened);
+    opened.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }());

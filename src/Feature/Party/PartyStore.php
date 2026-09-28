@@ -216,19 +216,19 @@ final class PartyStore
         return $rows[0] ?? null;
     }
 
-    public function addBooth(string $code, string $name, ?int $width, ?int $depth, ?int $x, ?int $z): void
+    public function addBooth(string $code, string $name, ?int $width, ?int $depth): void
     {
         $this->statements->change(
-            'INSERT INTO booths (code, name, width_ft, depth_ft, x_ft, z_ft) VALUES (?, ?, ?, ?, ?, ?)',
-            [$code, $name, $width, $depth, $x, $z]
+            'INSERT INTO booths (code, name, width_ft, depth_ft) VALUES (?, ?, ?, ?)',
+            [$code, $name, $width, $depth]
         );
     }
 
-    public function saveBooth(string $id, string $code, string $name, ?int $width, ?int $depth, ?int $x, ?int $z): void
+    public function saveBooth(string $id, string $code, string $name, ?int $width, ?int $depth): void
     {
         $count = $this->statements->affected(
-            'UPDATE booths SET code = ?, name = ?, width_ft = ?, depth_ft = ?, x_ft = ?, z_ft = ? WHERE id = ?::uuid',
-            [$code, $name, $width, $depth, $x, $z, $id]
+            'UPDATE booths SET code = ?, name = ?, width_ft = ?, depth_ft = ? WHERE id = ?::uuid',
+            [$code, $name, $width, $depth, $id]
         );
         if ($count === 0) {
             throw new \InvalidArgumentException('that booth is not in this mall');

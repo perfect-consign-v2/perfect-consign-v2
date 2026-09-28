@@ -84,7 +84,7 @@ final class OwnerJourneyTest extends WebTestCase
         $vendor = $this->vendor();
         $vendorId = HtmlPage::taggedId($this->session->html(), 'article', 'vendor', $vendor);
         $booth = $this->booth();
-        $boothId = HtmlPage::taggedId($this->session->html(), 'article', 'booth', $booth);
+        $boothId = HtmlPage::taggedId($this->session->html(), 'tr', 'booth', $booth);
         $this->session->open('/' . ProbeMall::SLUG . '/vendors/' . $vendorId);
         $this->session->submit('/' . ProbeMall::SLUG . '/assignments', [
             'booth_id' => $boothId,
@@ -167,9 +167,9 @@ final class OwnerJourneyTest extends WebTestCase
             'name' => 'Front',
         ]);
         self::assertSees($code, $page);
-        $edit = HtmlPage::articleLink($page, $code);
-        $update = preg_replace('#/edit$#', '', $edit);
-        self::assertIsString($update);
+        $boothId = HtmlPage::taggedId($page, 'tr', 'booth', $code);
+        $edit = '/' . ProbeMall::SLUG . '/booths/' . $boothId . '/edit';
+        $update = '/' . ProbeMall::SLUG . '/booths/' . $boothId;
         $this->session->open($edit);
         $renamedPage = $this->session->submit($update, [
             'code' => $renamed,

@@ -33,12 +33,25 @@ final class BoothMapTest extends TestCase
         self::assertSame('Next', $after['vendor']);
     }
 
-    public function testAnEmptyBoothIsAvailableAndTilesStayOnTheFloor(): void
+    public function testAnUnplacedBoothIsLeftOffTheMap(): void
     {
         $tiles = BoothMap::tiles(
             [
                 ['id' => 'a', 'code' => 'A1', 'name' => 'Front'],
-                ['id' => 'b', 'code' => 'B1', 'name' => 'Back'],
+                ['id' => 'b', 'code' => 'B1', 'name' => 'Back', 'x' => 4, 'z' => null],
+            ],
+            [],
+            '2026-09-26'
+        );
+        self::assertSame([], $tiles);
+    }
+
+    public function testAPlacedBoothKeepsItsFeetAndStanding(): void
+    {
+        $tiles = BoothMap::tiles(
+            [
+                ['id' => 'a', 'code' => 'A1', 'name' => 'Front', 'x' => 12, 'z' => 8],
+                ['id' => 'b', 'code' => 'B1', 'name' => 'Back', 'x' => 0, 'z' => 0],
             ],
             [],
             '2026-09-26'
@@ -46,16 +59,19 @@ final class BoothMapTest extends TestCase
         self::assertSame('available', $tiles[0]['status']);
         self::assertNull($tiles[0]['vendor']);
         self::assertSame('A1', $tiles[0]['label']);
-        self::assertLessThanOrEqual(120, $tiles[1]['x'] + $tiles[1]['width']);
+        self::assertSame(12, $tiles[0]['x']);
+        self::assertSame(8, $tiles[0]['z']);
         self::assertSame(10, $tiles[0]['width']);
         self::assertSame(10, $tiles[0]['depth']);
+        self::assertSame(0, $tiles[1]['x']);
+        self::assertSame(0, $tiles[1]['z']);
     }
 
     public function testABoothSizeReplacesTheMallDefault(): void
     {
         $tiles = BoothMap::tiles(
             [
-                ['id' => 'a', 'code' => 'A1', 'name' => 'Front', 'width' => 20, 'depth' => 10],
+                ['id' => 'a', 'code' => 'A1', 'name' => 'Front', 'width' => 20, 'depth' => 10, 'x' => 2, 'z' => 2],
             ],
             [],
             '2026-09-26',
