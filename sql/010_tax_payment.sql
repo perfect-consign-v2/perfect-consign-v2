@@ -1,4 +1,4 @@
--- A tax payment debits sales-tax payable and credits cash or bank.
+-- A tax payment debits sales-tax payable and credits the bank.
 -- Sales-tax payable cannot go below zero. Safe to run again.
 
 CREATE OR REPLACE FUNCTION stall_assert_tax_payment()
@@ -36,12 +36,12 @@ BEGIN
     FROM public.journal_lines AS line
     JOIN public.chart_roles AS role ON role.account_id = line.account_id
     WHERE line.journal_id = NEW.id
-      AND role.role IN ('cash', 'bank')
+      AND role.role = 'bank'
       AND line.credit_minor > 0
       AND line.subledger_type IS NULL;
 
     IF line_count <> 2 OR tax_ok <> 1 OR cash_ok <> 1 THEN
-        RAISE EXCEPTION 'a tax payment debits sales tax payable and credits cash or bank'
+        RAISE EXCEPTION 'a tax payment debits sales tax payable and credits the bank'
             USING ERRCODE = '23514';
     END IF;
     RETURN NULL;

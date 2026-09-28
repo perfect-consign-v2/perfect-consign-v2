@@ -39,8 +39,8 @@ final class TaxController
             }
             $amount = Money::parseMinor($this->app->request()->field('amount'));
             $credit = $this->app->request()->field('credit');
-            if ($credit !== 'cash' && $credit !== 'bank') {
-                throw new DatabaseRefusal('a tax payment credits cash or bank');
+            if ($credit !== 'bank') {
+                throw new DatabaseRefusal('a tax payment credits the bank');
             }
             $journalId = $this->ledger->post(new JournalDraft(
                 postingKey: 'tax-payment:' . $reference,

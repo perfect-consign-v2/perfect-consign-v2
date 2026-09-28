@@ -393,12 +393,40 @@ ALTER TABLE register_session_posts
     ENABLE ALWAYS TRIGGER register_session_posts_no_delete,
     ENABLE ALWAYS TRIGGER register_session_posts_no_truncate;
 
+CREATE OR REPLACE FUNCTION stall_reject_register_check()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'a check number cannot be deleted'
+            USING ERRCODE = '23514';
+    END IF;
+    RAISE EXCEPTION 'a check number cannot be changed'
+        USING ERRCODE = '23514';
+END;
+$$;
+
+CREATE TRIGGER register_checks_append_only
+    BEFORE UPDATE ON register_checks
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_reject_register_check();
+
+CREATE TRIGGER register_checks_no_delete
+    BEFORE DELETE ON register_checks
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_reject_register_check();
+
 CREATE TRIGGER register_checks_no_truncate
     BEFORE TRUNCATE ON register_checks
     FOR EACH STATEMENT
     EXECUTE FUNCTION ledger_reject_truncate();
 
-ALTER TABLE register_checks ENABLE ALWAYS TRIGGER register_checks_no_truncate;
+ALTER TABLE register_checks
+    ENABLE ALWAYS TRIGGER register_checks_append_only,
+    ENABLE ALWAYS TRIGGER register_checks_no_delete,
+    ENABLE ALWAYS TRIGGER register_checks_no_truncate;
 
 CREATE OR REPLACE FUNCTION stall_assert_register_session()
 RETURNS trigger

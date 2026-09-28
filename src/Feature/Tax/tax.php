@@ -17,11 +17,7 @@ use PerfectConsign\Shared\Http\View;
     <input id="source_reference" name="source_reference" required>
     <label for="amount">Amount</label>
     <input id="amount" name="amount" inputmode="decimal" required>
-    <label for="credit">Credit</label>
-    <select id="credit" name="credit">
-        <option value="cash">Cash</option>
-        <option value="bank">Bank</option>
-    </select>
+    <input type="hidden" name="credit" value="bank">
     <label for="posting_date">Posting date</label>
     <input id="posting_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
     <p><button type="submit">Post tax payment</button></p>

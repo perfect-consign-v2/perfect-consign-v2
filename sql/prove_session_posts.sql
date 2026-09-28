@@ -353,4 +353,31 @@ EXCEPTION
         END IF;
 END $$;
 
+INSERT INTO register_checks (journal_id, check_number)
+VALUES ('01900000-0000-7000-8000-000000000d70', '1001');
+
+DO $$
+BEGIN
+    UPDATE register_checks SET check_number = '1002'
+    WHERE journal_id = '01900000-0000-7000-8000-000000000d70';
+    RAISE EXCEPTION 'a check number change was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a check number cannot be changed%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    DELETE FROM register_checks
+    WHERE journal_id = '01900000-0000-7000-8000-000000000d70';
+    RAISE EXCEPTION 'a check number delete was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a check number cannot be deleted%' THEN
+            RAISE;
+        END IF;
+END $$;
+
 ROLLBACK;

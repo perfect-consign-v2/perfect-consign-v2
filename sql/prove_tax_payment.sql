@@ -104,6 +104,39 @@ WHERE journal.source_type IN (
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
+DO $$
+BEGIN
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000b06',
+        '01900000-0000-7000-8000-000000000001',
+        'tax-payment:drawer',
+        '2026-03-02',
+        '2026-03-02 13:00:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'tax_payment',
+        'drawer',
+        'Cash tax payment',
+        100,
+        100
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES
+        ('01900000-0000-7000-8000-000000000b06', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000013', 100, 0),
+        ('01900000-0000-7000-8000-000000000b06', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000010', 0, 100);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'a tax payment that credits cash was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a tax payment debits sales tax payable and credits the bank%' THEN
+            RAISE;
+        END IF;
+END $$;
+SET CONSTRAINTS ALL DEFERRED;
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
@@ -125,7 +158,7 @@ INSERT INTO journals (
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES
     ('01900000-0000-7000-8000-000000000b02', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000013', 800, 0),
-    ('01900000-0000-7000-8000-000000000b02', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000010', 0, 800);
+    ('01900000-0000-7000-8000-000000000b02', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000011', 0, 800);
 
 INSERT INTO register_session_posts (session_id, journal_id)
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
@@ -229,7 +262,7 @@ INSERT INTO journals (
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES
-    ('01900000-0000-7000-8000-000000000b05', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 800, 0),
+    ('01900000-0000-7000-8000-000000000b05', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000011', 800, 0),
     ('01900000-0000-7000-8000-000000000b05', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000013', 0, 800);
 
 INSERT INTO register_session_posts (session_id, journal_id)
