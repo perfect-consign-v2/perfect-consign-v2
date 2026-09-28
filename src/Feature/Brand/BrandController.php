@@ -19,19 +19,46 @@ final class BrandController
     #[Route('/([a-z][a-z0-9-]{0,62})/brands', ['GET'])]
     public function show(string $slug): void
     {
+        $this->list($slug, null);
+    }
+
+    private function list(string $slug, ?string $error, ?string $modal = null, string $draft = ''): void
+    {
         $tenant = $this->app->open($slug, true);
+        $query = trim($this->app->request()->query('q'));
+        $brands = $this->withUse($this->brands->brands($query));
+        if ($modal === null) {
+            $modal = '';
+            if ($this->app->request()->query('new') === '1') {
+                $modal = 'new';
+            }
+            $rename = $this->app->request()->query('rename');
+            if (preg_match('/^[0-9a-fA-F-]{36}$/', $rename) === 1) {
+                $modal = $rename;
+            }
+        }
+        if ($modal !== '' && $modal !== 'new' && $draft === '') {
+            $draft = $this->draftName($brands, $modal);
+        }
         $this->app->show('Feature/Brand/brands', [
             'title' => 'Brands',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'brands' => $this->brands->brands(),
+            'brands' => $brands,
+            'query' => $query,
+            'total' => $query === '' ? count($brands) : $this->brands->count(),
+            'confirm' => $this->confirming($brands, $this->app->request()->query('confirm')),
+            'modal' => $modal,
+            'draft' => $draft,
+            'error' => $error,
         ]);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/brands/new', ['GET'])]
     public function create(string $slug): void
     {
-        $this->form($slug, null, null);
+        $this->app->open($slug, true);
+        $this->app->redirect('/' . $slug . '/brands?new=1');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/brands', ['POST'])]
@@ -47,11 +74,10 @@ final class BrandController
     public function edit(string $slug, string $id): void
     {
         $this->app->open($slug, true);
-        $brand = $this->brands->find($id);
-        if ($brand === null) {
+        if ($this->brands->find($id) === null) {
             $this->app->notFound();
         }
-        $this->form($slug, $brand, null);
+        $this->app->redirect('/' . $slug . '/brands?rename=' . $id);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/brands/([0-9a-fA-F-]{36})', ['POST'])]
@@ -72,21 +98,14 @@ final class BrandController
         try {
             $this->brands->remove($id);
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->app->catchRefusal($refusal);
+            $error = $this->brandError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/brands', 'Brand deleted.');
         }
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Brand/brands', [
-            'title' => 'Brands',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'brands' => $this->brands->brands(),
-            'error' => $error,
-        ]);
+        $this->list($slug, $error);
     }
 
     private function change(string $slug, ?string $id, callable $action): void
@@ -96,34 +115,79 @@ final class BrandController
         try {
             $action();
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->app->catchRefusal($refusal);
+            $error = $this->brandError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/brands', $id === null ? 'Brand created.' : 'Brand saved.');
         }
-        $brand = [
-            'name' => $this->app->request()->field('name'),
-        ];
-        if ($id !== null) {
-            $brand['id'] = $id;
-        }
-        $this->form($slug, $brand, $error);
+        $this->list($slug, $error, $id ?? 'new', $this->app->request()->field('name'));
     }
 
     /**
-     * @param array<string, mixed>|null $brand
+     * @param list<array<string, mixed>> $brands
      */
-    private function form(string $slug, ?array $brand, ?string $error): void
+    private function draftName(array $brands, string $id): string
     {
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Brand/brand-form', [
-            'title' => $brand !== null && isset($brand['id']) ? 'Edit brand' : 'New brand',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'brand' => $brand,
-            'error' => $error,
-        ]);
+        foreach ($brands as $brand) {
+            if (($brand['id'] ?? null) === $id && is_string($brand['name'] ?? null)) {
+                return $brand['name'];
+            }
+        }
+        $brand = $this->brands->find($id);
+
+        return is_array($brand) && is_string($brand['name'] ?? null) ? $brand['name'] : '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $brands
+     * @return list<array<string, mixed>>
+     */
+    private function withUse(array $brands): array
+    {
+        $held = $this->brands->referenced();
+        $marked = [];
+        foreach ($brands as $brand) {
+            $id = $brand['id'] ?? null;
+            $brand['deletable'] = is_string($id) && !isset($held[$id]);
+            $marked[] = $brand;
+        }
+
+        return $marked;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $brands
+     */
+    private function confirming(array $brands, string $confirm): string
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $confirm) !== 1) {
+            return '';
+        }
+        $needle = strtolower($confirm);
+        foreach ($brands as $brand) {
+            $id = $brand['id'] ?? null;
+            if (is_string($id) && strtolower($id) === $needle && ($brand['deletable'] ?? false) === true) {
+                return $id;
+            }
+        }
+
+        return '';
+    }
+
+    private function brandError(string $message): string
+    {
+        if (str_contains($message, 'brands_name_key')) {
+            return 'That name is already used.';
+        }
+        if (str_contains($message, 'brands_name_chk')) {
+            return 'Enter a brand name.';
+        }
+        if (str_contains($message, 'foreign key constraint') || str_contains($message, 'is still referenced')) {
+            return 'That brand is in use.';
+        }
+
+        return $message;
     }
 }

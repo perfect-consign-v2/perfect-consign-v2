@@ -15,7 +15,8 @@
     font-size: var(--text-lg);
     font-weight: 600;
 }
-.alert .error {
+.alert .error,
+.alert .notice {
     margin: 0;
     padding: 0;
     border: 0;

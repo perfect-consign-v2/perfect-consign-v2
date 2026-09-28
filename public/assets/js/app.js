@@ -79,7 +79,50 @@
   });
   document.addEventListener('click', function () { closeAllMenus(null); });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeAllMenus(null);
+    if (e.key === 'Escape') {
+      closeAllMenus(null);
+      document.querySelectorAll('.modal').forEach(function (modal) {
+        modal.hidden = true;
+      });
+    }
+  });
+
+  document.querySelectorAll('[data-open-modal]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var modal = document.getElementById(button.getAttribute('data-open-modal'));
+      if (!modal) {
+        return;
+      }
+      var form = modal.querySelector('form');
+      var action = button.getAttribute('data-brand-action');
+      var name = button.getAttribute('data-brand-name');
+      var field = modal.querySelector('input[name="name"]');
+      if (form && action) {
+        form.action = action;
+      }
+      if (field && name !== null) {
+        field.value = name;
+      }
+      modal.hidden = false;
+      if (field) {
+        field.focus();
+      }
+    });
+  });
+  document.querySelectorAll('[data-close-modal]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var modal = document.getElementById(button.getAttribute('data-close-modal'));
+      if (modal) {
+        modal.hidden = true;
+      }
+    });
+  });
+  document.querySelectorAll('.modal').forEach(function (modal) {
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) {
+        modal.hidden = true;
+      }
+    });
   });
 
   /* ---- Global search shortcut ("/") ------------------------------------ */

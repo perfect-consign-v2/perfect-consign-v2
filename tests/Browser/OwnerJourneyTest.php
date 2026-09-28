@@ -133,8 +133,9 @@ final class OwnerJourneyTest extends WebTestCase
             'name' => $name,
         ]);
         self::assertSees($name, $page);
-        $edit = HtmlPage::articleLink($page, $name);
-        $update = preg_replace('#/edit$#', '', $edit);
+        $brandId = HtmlPage::taggedId($page, 'tr', 'brand', $name);
+        $edit = '/' . ProbeMall::SLUG . '/brands/' . $brandId . '/edit';
+        $update = '/' . ProbeMall::SLUG . '/brands/' . $brandId;
         self::assertIsString($update);
         $this->session->open($edit);
         $renamedPage = $this->session->submit($update, [
@@ -153,7 +154,7 @@ final class OwnerJourneyTest extends WebTestCase
             'name' => $name,
         ]);
 
-        self::assertSees('brands_name_key', $duplicate);
+        self::assertSees('That name is already used.', $duplicate);
     }
 
     public function testTheOwnerAddsRenamesAndDeletesABooth(): void

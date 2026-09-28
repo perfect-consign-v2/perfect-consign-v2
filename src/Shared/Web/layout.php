@@ -174,11 +174,11 @@ $groups = [
     <?php if ($notice !== null && $notice !== ''): ?>
         <div class="alert alert-success" role="status">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-check"></use></svg>
-            <p class="error"><?= View::text($notice) ?></p>
+            <p class="notice"><?= View::text($notice) ?></p>
         </div>
     <?php endif; ?>
     <?php if ($error !== null && $error !== ''): ?>
-        <div class="alert alert-danger" role="status">
+        <div class="alert alert-danger" role="alert">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
             <p class="error"><?= View::text($error) ?></p>
         </div>
