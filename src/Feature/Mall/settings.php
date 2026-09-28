@@ -13,15 +13,28 @@ use PerfectConsign\Shared\Http\View;
 /** @var int $floorDepth */
 /** @var string $storeTake */
 /** @var string $floorDays */
+/** @var string $backupHeadline */
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, and how long pieces stay out.</p>
+        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, how long pieces stay out, and a copy of the mall.</p>
     </div>
 </div>
 
-<form method="post" action="/<?= View::text($slug) ?>/settings" class="grid form-split" style="grid-template-columns: 2fr 1fr">
+<div class="card">
+    <div class="card-head"><div class="h3">Backup</div></div>
+    <div class="card-body stack">
+        <p>Last backup you downloaded: <?= View::text($backupHeadline) ?></p>
+        <form method="post" action="/<?= View::text($slug) ?>/backup">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <input type="hidden" name="return" value="settings">
+            <button class="btn" type="submit">Download backup</button>
+        </form>
+    </div>
+</div>
+
+<form method="post" action="/<?= View::text($slug) ?>/settings" class="grid form-split mt-6" style="grid-template-columns: 2fr 1fr">
     <div class="card">
         <div class="card-head"><div class="h3">Mall</div></div>
         <div class="card-body grid cols-2">

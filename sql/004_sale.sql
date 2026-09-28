@@ -1,4 +1,4 @@
--- A sale debits cash or card, and credits commission, sales tax, and that vendor's payable.
+-- A sale debits one or more tenders once each, and credits commission, sales tax, and that vendor's payable.
 -- The posting key is the sale. A second insert of that key is refused. A void is a reversal.
 
 INSERT INTO accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type)
@@ -40,7 +40,9 @@ LANGUAGE plpgsql
 SET search_path = pg_catalog
 AS $$
 DECLARE
-    debit_accounts integer;
+    tender_lines integer;
+    tender_roles integer;
+    tender_sum bigint;
     payable_lines integer;
     foreign_lines integer;
 BEGIN
@@ -48,15 +50,34 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    SELECT count(*) INTO debit_accounts
+    SELECT count(*), count(DISTINCT role.role), COALESCE(sum(line.debit_minor), 0)
+    INTO tender_lines, tender_roles, tender_sum
     FROM public.journal_lines AS line
     JOIN public.chart_roles AS role ON role.account_id = line.account_id
     WHERE line.journal_id = NEW.id
       AND line.debit_minor > 0
-      AND role.role IN ('cash', 'card');
+      AND role.role IN ('cash', 'card', 'checks', 'gift_certificate', 'gift_card', 'store_credit');
 
-    IF debit_accounts <> 1 THEN
-        RAISE EXCEPTION 'a sale debits cash or card once'
+    IF tender_lines < 1 OR tender_lines <> tender_roles OR tender_sum <> NEW.debit_total_minor THEN
+        RAISE EXCEPTION 'a sale debits each tender once'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        WHERE line.journal_id = NEW.id
+          AND line.debit_minor > 0
+          AND (
+              (role.role IN ('cash', 'card', 'checks') AND line.subledger_type IS NOT NULL)
+              OR (
+                  role.role IN ('gift_certificate', 'gift_card', 'store_credit')
+                  AND line.subledger_type IS DISTINCT FROM role.role
+              )
+          )
+    ) THEN
+        RAISE EXCEPTION 'a sale debits each tender once'
             USING ERRCODE = '23514';
     END IF;
 
@@ -81,7 +102,7 @@ BEGIN
           FROM public.chart_roles AS role
           WHERE role.account_id = line.account_id
             AND (
-                (role.role IN ('cash', 'card') AND line.debit_minor > 0)
+                (role.role IN ('cash', 'card', 'checks', 'gift_certificate', 'gift_card', 'store_credit') AND line.debit_minor > 0)
                 OR (role.role = 'commission_revenue' AND line.credit_minor > 0)
                 OR (role.role = 'sales_tax_payable' AND line.credit_minor > 0)
                 OR (role.role = 'vendor_payable' AND line.credit_minor > 0)

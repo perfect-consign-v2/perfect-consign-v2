@@ -241,6 +241,111 @@ END $$;
 ALTER EVENT TRIGGER platform_reject_append_only_trigger_change ENABLE ALWAYS;
 ALTER EVENT TRIGGER platform_reject_append_only_trigger_drop ENABLE ALWAYS;
 
+CREATE OR REPLACE FUNCTION platform.reject_guard_function_replace()
+RETURNS event_trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+DECLARE
+    command record;
+BEGIN
+    FOR command IN
+        SELECT schema_name, objid, command_tag
+        FROM pg_event_trigger_ddl_commands()
+    LOOP
+        IF command.command_tag <> 'CREATE FUNCTION' OR command.objid IS NULL THEN
+            CONTINUE;
+        END IF;
+        IF command.schema_name = 'platform'
+            AND command.objid IN (
+                'platform.reject_guard_function_replace()'::regprocedure,
+                'platform.reject_guard_function_again()'::regprocedure,
+                'platform.reject_append_only_trigger_change()'::regprocedure
+            ) THEN
+            RAISE EXCEPTION 'a guard function cannot be replaced'
+                USING ERRCODE = '25006';
+        END IF;
+        IF command.schema_name IS NULL OR command.schema_name !~ '^tenant_[0-9a-f]{32}$' THEN
+            CONTINUE;
+        END IF;
+        IF EXISTS (
+            SELECT 1
+            FROM pg_trigger
+            WHERE tgfoid = command.objid
+              AND NOT tgisinternal
+              AND tgname ~ '(_append_only|_no_truncate|_no_delete)$'
+        ) THEN
+            RAISE EXCEPTION 'a guard function cannot be replaced'
+                USING ERRCODE = '25006';
+        END IF;
+    END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION platform.reject_guard_function_again()
+RETURNS event_trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+DECLARE
+    command record;
+BEGIN
+    FOR command IN
+        SELECT schema_name, objid, command_tag
+        FROM pg_event_trigger_ddl_commands()
+    LOOP
+        IF command.command_tag <> 'CREATE FUNCTION' OR command.objid IS NULL THEN
+            CONTINUE;
+        END IF;
+        IF command.schema_name = 'platform'
+            AND command.objid IN (
+                'platform.reject_guard_function_replace()'::regprocedure,
+                'platform.reject_guard_function_again()'::regprocedure,
+                'platform.reject_append_only_trigger_change()'::regprocedure
+            ) THEN
+            RAISE EXCEPTION 'a guard function cannot be replaced'
+                USING ERRCODE = '25006';
+        END IF;
+        IF command.schema_name IS NULL OR command.schema_name !~ '^tenant_[0-9a-f]{32}$' THEN
+            CONTINUE;
+        END IF;
+        IF EXISTS (
+            SELECT 1
+            FROM pg_trigger
+            WHERE tgfoid = command.objid
+              AND NOT tgisinternal
+              AND tgname ~ '(_append_only|_no_truncate|_no_delete)$'
+        ) THEN
+            RAISE EXCEPTION 'a guard function cannot be replaced'
+                USING ERRCODE = '25006';
+        END IF;
+    END LOOP;
+END;
+$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_event_trigger WHERE evtname = 'platform_reject_guard_function_replace'
+    ) THEN
+        CREATE EVENT TRIGGER platform_reject_guard_function_replace
+            ON ddl_command_end
+            WHEN TAG IN ('CREATE FUNCTION')
+            EXECUTE FUNCTION platform.reject_guard_function_replace();
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_event_trigger WHERE evtname = 'platform_reject_guard_function_again'
+    ) THEN
+        CREATE EVENT TRIGGER platform_reject_guard_function_again
+            ON ddl_command_end
+            WHEN TAG IN ('CREATE FUNCTION')
+            EXECUTE FUNCTION platform.reject_guard_function_again();
+    END IF;
+END $$;
+
+ALTER EVENT TRIGGER platform_reject_guard_function_replace ENABLE ALWAYS;
+ALTER EVENT TRIGGER platform_reject_guard_function_again ENABLE ALWAYS;
+
 ALTER TABLE platform.owner_backups
     ENABLE ALWAYS TRIGGER owner_backups_append_only,
     ENABLE ALWAYS TRIGGER owner_backups_no_truncate;

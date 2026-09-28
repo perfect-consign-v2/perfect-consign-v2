@@ -28,6 +28,15 @@ VALUES (
     'open'
 );
 
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d22',
+    '01900000-0000-7000-8000-000000000d10',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    0
+);
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
@@ -158,6 +167,11 @@ VALUES (
     5700
 );
 
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES
+    ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000801'),
+    ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000803');
+
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
@@ -202,6 +216,8 @@ BEGIN
             'vendor',
             '01900000-0000-7000-8000-000000000101'
         );
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000807');
     SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'sale void after payout was accepted';
 EXCEPTION
@@ -338,6 +354,9 @@ VALUES (
     5700,
     0
 );
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000806');
 
 SET CONSTRAINTS ALL IMMEDIATE;
 

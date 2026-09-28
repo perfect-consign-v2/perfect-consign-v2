@@ -14,6 +14,15 @@ VALUES (
     'open'
 );
 
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d22',
+    '01900000-0000-7000-8000-000000000d10',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    0
+);
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
@@ -51,6 +60,9 @@ INSERT INTO journal_lines (
         'vendor',
         '01900000-0000-7000-8000-000000000101'
     );
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000501');
 
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
@@ -95,6 +107,9 @@ INSERT INTO journal_lines (
     'vendor',
     '01900000-0000-7000-8000-000000000101'
 );
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000508');
 
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
@@ -183,8 +198,11 @@ INSERT INTO journal_lines (
     0,
     5000,
     'vendor',
-    '01900000-0000-7000-8000-000000000101'
+        '01900000-0000-7000-8000-000000000101'
 );
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000502');
 
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
@@ -255,6 +273,8 @@ BEGIN
         'vendor',
         '01900000-0000-7000-8000-000000000101'
     );
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000504');
     SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'bank debit sale was accepted';
 EXCEPTION
@@ -286,6 +306,8 @@ BEGIN
     VALUES
         ('01900000-0000-7000-8000-000000000505', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 1000, 0),
         ('01900000-0000-7000-8000-000000000505', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000012', 0, 1000);
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000505');
     SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'sale without vendor payable was accepted';
 EXCEPTION
@@ -335,6 +357,9 @@ INSERT INTO journal_lines (
         'vendor',
         '01900000-0000-7000-8000-000000000101'
     );
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000506');
 
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;

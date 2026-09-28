@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Payout;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Party\PartyStore;
+use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
@@ -19,6 +20,7 @@ final class PayoutController
         private readonly LedgerStore $ledger,
         private readonly PayoutStore $payouts,
         private readonly PartyStore $parties,
+        private readonly RegisterStore $registers,
     ) {
     }
 
@@ -70,7 +72,9 @@ final class PayoutController
                 'payout',
                 $vendorId . ':' . $month,
                 'Payout',
-                $lines
+                $lines,
+                null,
+                $this->registers->openSession($this->app->postedRegister($slug))
             );
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $vendorId, $this->app->catchRefusal($refusal));

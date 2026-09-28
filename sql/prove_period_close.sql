@@ -3,6 +3,15 @@
 
 BEGIN;
 
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d22',
+    '01900000-0000-7000-8000-000000000d10',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    0
+);
+
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
@@ -73,7 +82,17 @@ BEGIN
     VALUES
         ('01900000-0000-7000-8000-000000000e20', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000012', 100, 0),
         ('01900000-0000-7000-8000-000000000e20', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000019', 0, 100);
-    SET CONSTRAINTS ALL IMMEDIATE;
+    INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
+SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'journal close of 2026 while 2023 is open was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -141,6 +160,16 @@ VALUES
     ('01900000-0000-7000-8000-000000000e17', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000012', 1000, 0),
     ('01900000-0000-7000-8000-000000000e17', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000018', 0, 1000);
 
+INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
@@ -334,6 +363,16 @@ INSERT INTO journal_lines (
     3, '01900000-0000-7000-8000-000000000014', 200, 0, 'vendor', '01900000-0000-7000-8000-000000000101'
 );
 
+INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
@@ -438,7 +477,17 @@ BEGIN
     VALUES
         ('01900000-0000-7000-8000-000000000e07', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000012', 800, 0),
         ('01900000-0000-7000-8000-000000000e07', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000019', 0, 800);
-    SET CONSTRAINTS ALL IMMEDIATE;
+    INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
+SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'a short period close was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -466,7 +515,17 @@ BEGIN
         ('01900000-0000-7000-8000-000000000e08', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000012', 800, 0),
         ('01900000-0000-7000-8000-000000000e08', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000018', 0, 300),
         ('01900000-0000-7000-8000-000000000e08', '01900000-0000-7000-8000-000000000001', 3, '01900000-0000-7000-8000-000000000019', 0, 500);
-    SET CONSTRAINTS ALL IMMEDIATE;
+    INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
+SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'a period close with another posting key was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -528,6 +587,16 @@ VALUES
     ('01900000-0000-7000-8000-000000000e03', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000018', 0, 300),
     ('01900000-0000-7000-8000-000000000e03', '01900000-0000-7000-8000-000000000001', 3, '01900000-0000-7000-8000-000000000019', 0, 500);
 
+INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
@@ -619,7 +688,17 @@ BEGIN
         ('01900000-0000-7000-8000-000000000e06', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000012', 0, 800),
         ('01900000-0000-7000-8000-000000000e06', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000018', 300, 0),
         ('01900000-0000-7000-8000-000000000e06', '01900000-0000-7000-8000-000000000001', 3, '01900000-0000-7000-8000-000000000019', 500, 0);
-    SET CONSTRAINTS ALL IMMEDIATE;
+    INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
+SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'period close reversal was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -656,7 +735,17 @@ BEGIN
     VALUES
         ('01900000-0000-7000-8000-000000000e07', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000018', 800, 0),
         ('01900000-0000-7000-8000-000000000e07', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000012', 0, 800);
-    SET CONSTRAINTS ALL IMMEDIATE;
+    INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
+SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'adjustment reversal of a period close was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN

@@ -2,6 +2,15 @@
 
 BEGIN;
 
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d22',
+    '01900000-0000-7000-8000-000000000d10',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    0
+);
+
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
@@ -65,6 +74,16 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000101'
 );
 
+INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
@@ -91,6 +110,16 @@ VALUES
     ('01900000-0000-7000-8000-000000000b02', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000013', 800, 0),
     ('01900000-0000-7000-8000-000000000b02', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000010', 0, 800);
 
+INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
@@ -118,7 +147,17 @@ BEGIN
     VALUES
         ('01900000-0000-7000-8000-000000000b03', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000013', 100, 0),
         ('01900000-0000-7000-8000-000000000b03', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000011', 0, 100);
-    SET CONSTRAINTS ALL IMMEDIATE;
+    INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
+SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'tax overpayment was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -176,6 +215,16 @@ VALUES
     ('01900000-0000-7000-8000-000000000b05', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 800, 0),
     ('01900000-0000-7000-8000-000000000b05', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000013', 0, 800);
 
+INSERT INTO register_session_posts (session_id, journal_id)
+SELECT '01900000-0000-7000-8000-000000000d22', journal.id
+FROM journals AS journal
+WHERE journal.source_type IN (
+    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'store_credit_issue', 'cash_drop', 'register_variance'
+)
+  AND NOT EXISTS (
+      SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
+  );
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 

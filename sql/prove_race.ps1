@@ -325,6 +325,20 @@ if ($tenant.Code -eq 0 -or $tenant.Output -notmatch 'tenants_slug_key') {
     throw "duplicate tenant slug was not refused`n$($tenant.Output)"
 }
 
+$registerJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_register_a.sql'), $script:TenantSchema
+Start-Sleep -Seconds 1
+$registerWatch = [Diagnostics.Stopwatch]::StartNew()
+$registerRace = Invoke-Psql -Path (Join-Path $root 'prove_race_register_b.sql')
+$registerWatch.Stop()
+Wait-Job $registerJob | Out-Null
+Receive-Job $registerJob | Out-Null
+if ($registerWatch.ElapsedMilliseconds -lt 4500) {
+    throw "second open session did not wait ($($registerWatch.ElapsedMilliseconds) ms)`n$($registerRace.Output)"
+}
+if ($registerRace.Code -ne 0) {
+    throw "second open session failed after the first rolled back`n$($registerRace.Output)"
+}
+
 $left = Invoke-Value -Command @"
 SELECT
     (SELECT count(*) FROM journals WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
@@ -333,9 +347,10 @@ SELECT
     || ',' || (SELECT count(*) FROM accounting_periods WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
     || ',' || (SELECT count(*) FROM brands WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
     || ',' || (SELECT count(*) FROM items WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
-    || ',' || (SELECT count(*) FROM wait_list WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%');
+    || ',' || (SELECT count(*) FROM wait_list WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
+    || ',' || (SELECT count(*) FROM register_sessions WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%');
 "@
-if ($left.Trim() -ne '0,0,0,0,0,0,0') {
+if ($left.Trim() -ne '0,0,0,0,0,0,0,0') {
     throw "race proof left rows: $left"
 }
-Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) item_ms=$($itemWatch.ElapsedMilliseconds) barcode_ms=$($barcodeWatch.ElapsedMilliseconds) wait_ms=$($waitWatch.ElapsedMilliseconds) place_ms=$($placeWatch.ElapsedMilliseconds) floor_ms=$($floorWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"
+Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) item_ms=$($itemWatch.ElapsedMilliseconds) barcode_ms=$($barcodeWatch.ElapsedMilliseconds) wait_ms=$($waitWatch.ElapsedMilliseconds) place_ms=$($placeWatch.ElapsedMilliseconds) floor_ms=$($floorWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds) register_ms=$($registerWatch.ElapsedMilliseconds)"

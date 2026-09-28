@@ -16,6 +16,9 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $path */
 
 $path = $path ?? '';
+$activeRegister = $activeRegister ?? '';
+$chooseRegister = $chooseRegister ?? false;
+$leftOpen = is_array($leftOpen ?? null) ? $leftOpen : [];
 $notice = $notice ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $groups = [
@@ -24,7 +27,8 @@ $groups = [
         ['/journals', 'Journals', 'i-receipt'],
     ],
     'Operations' => [
-        ['/sale', 'Sale', 'i-pos'],
+        ['/registers', 'Registers', 'i-pos'],
+        ['/sale', 'Sale', 'i-cart'],
         ['/rent', 'Rent', 'i-booth'],
         ['/payout', 'Payout', 'i-wallet'],
         ['/parties', 'Vendors', 'i-vendor'],
@@ -114,6 +118,11 @@ $groups = [
                 <kbd>/</kbd>
             </form>
             <div class="topbar-spacer"></div>
+            <?php if ($chooseRegister): ?>
+                <a class="btn" href="/<?= View::text($slug) ?>/registers">Choose a register</a>
+            <?php elseif ($activeRegister !== ''): ?>
+                <a class="btn" href="/<?= View::text($slug) ?>/registers">Active: <?= View::text($activeRegister) ?></a>
+            <?php endif; ?>
             <div class="topbar-actions">
                 <button class="icon-btn" type="button" aria-label="Notifications">
                     <svg aria-hidden="true"><use href="#i-bell"></use></svg>
@@ -173,13 +182,23 @@ $groups = [
 <?php else: ?>
 <main id="main">
 <?php endif; ?>
+    <?php foreach ($leftOpen as $stale): ?>
+        <?php if (!is_array($stale)) {
+            continue;
+        } ?>
+        <div class="alert alert-danger" role="alert">
+            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
+            <p><?= View::text(is_string($stale['name'] ?? null) ? $stale['name'] : 'A register') ?> was opened <?= View::text(is_string($stale['opened'] ?? null) ? $stale['opened'] : '') ?> and was not closed.</p>
+            <a class="btn" href="/<?= View::text($slug) ?>/registers?close=<?= View::text(is_string($stale['id'] ?? null) ? $stale['id'] : '') ?>">Close register</a>
+        </div>
+    <?php endforeach; ?>
     <?php if ($notice !== null && $notice !== ''): ?>
         <div class="alert alert-success" role="status">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-check"></use></svg>
             <p class="notice"><?= View::text($notice) ?></p>
         </div>
     <?php endif; ?>
-    <?php if ($error !== null && $error !== ''): ?>
+    <?php if (($error !== null && $error !== '') && ($modal ?? '') === ''): ?>
         <div class="alert alert-danger" role="alert">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
             <p class="error"><?= View::text($error) ?></p>

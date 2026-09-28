@@ -51,3 +51,17 @@ Preferred booth size is a width and a depth in whole feet, or both empty. One si
 Status is Waiting, Contacted, Placed, or Declined. A new row starts at Waiting. The open list is Waiting and Contacted, oldest first. The same email cannot be Waiting or Contacted twice. After the row is Placed or Declined, that email can be added again.
 
 A row can be edited or deleted. Deleting it does not change a vendor or a booth.
+
+## Registers
+
+A mall starts with one register named Register. The name is unique, ignoring case, and at most 40 characters. The last register cannot be deleted. A register that a shift points at cannot be deleted. Rename is allowed.
+
+One shift can be open on a register. The cashier name is required. The signed-in owner is the default. Opening cash is the amount entered. A bill and coin count replaces that amount. The bills and coins are $100, $50, $20, $10, $5, $1, 25¢, 10¢, 5¢, and 1¢. Zero is allowed. An amount entered with no count is stored as the largest bills and coins that add up to it. The opening count cannot be changed. A closed shift cannot be changed or deleted.
+
+A sale, a cash rent payment, a payout, a stored-value issue, a cash drop, a register over/short, and a void of any of those must name the open shift. No open register refuses the post. A sale debits cash, card, checks, a gift certificate, a gift card, or store credit. Each tender is used at most once, at least one is required, and they add up to the sale. A check sale stores the check number. Gift certificates, gift cards, and store credit are redeemed by number, and the open credit cannot go below zero.
+
+Expected drawer cash is the opening count, plus cash sales, cash rent, and stored value sold for cash, minus cash reversals, cash payouts, and cash drops. A cash drop moves drawer cash to cash in the safe. It is not a payout. The drop date is a mall day from the day the register was opened through today. If that day is not already in an open year, the year is opened for it. A day that was closed stays closed. The Book does not ask anyone to add a period.
+
+Close takes the counted cash you type. A bill and coin count replaces that amount. Card and checks are entered as counted amounts next to the posted totals. Store credit, gift cards, gift certificates, and cash drops are shown and are not counted again. When counted cash matches the expected drawer, close posts no difference. When it does not, close waits until the cashier confirms both amounts, then one journal moves the difference between cash and cash over/short. Card and check differences stay on the shift. Vendor payable and sales tax are never the plug.
+
+Each closed shift has a Z-tape: both counts, the expected-cash lines, the drops, card and checks counted versus posted, and the gift certificate, gift card, and store credit totals.

@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Rent;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Party\PartyStore;
+use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\Money;
@@ -19,6 +20,7 @@ final class RentController
         private readonly LedgerStore $ledger,
         private readonly RentStore $rent,
         private readonly PartyStore $parties,
+        private readonly RegisterStore $registers,
     ) {
     }
 
@@ -80,7 +82,9 @@ final class RentController
                 [
                     PostedLines::entry($this->ledger->roleAccount('cash'), $amount, 0, null, null),
                     PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), 0, $amount, 'booth', $boothId),
-                ]
+                ],
+                null,
+                $this->registers->openSession($this->app->postedRegister($slug))
             );
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));

@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Feature\Mall\MallController;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -18,7 +18,7 @@ final class BackupController
         private readonly MallApp $app,
         private readonly BackupStore $backups,
         private readonly TenantBackup $archives,
-        private readonly LedgerStore $ledger,
+        private readonly MallController $settings,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -28,7 +28,7 @@ final class BackupController
     {
         $this->app->checkCsrf();
         $tenant = $this->app->open($slug, true);
-        $return = $this->app->request()->field('return') === 'sign-out' ? 'sign-out' : 'book';
+        $return = $this->app->request()->field('return') === 'sign-out' ? 'sign-out' : 'settings';
         $archive = null;
         try {
             $archive = $this->archives->create(BackupConnection::stallBackup(), $slug);
@@ -61,11 +61,11 @@ final class BackupController
     private function showFailure(string $slug, string $return, string $error): void
     {
         $tenant = $this->app->open($slug, true);
-        $headline = BackupHeadline::text(
-            $this->backups->latest($tenant->id),
-            new DateTimeImmutable('now', new DateTimeZone('UTC'))
-        );
         if ($return === 'sign-out') {
+            $headline = BackupHeadline::text(
+                $this->backups->latest($tenant->id),
+                new DateTimeImmutable('now', new DateTimeZone('UTC'))
+            );
             $this->app->show('Feature/Session/sign-out', [
                 'title' => 'Sign out',
                 'displayName' => $tenant->displayName,
@@ -75,14 +75,6 @@ final class BackupController
             ]);
             return;
         }
-        $this->app->show('Feature/Book/book', [
-            'title' => 'Book',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'accounts' => $this->ledger->accounts(),
-            'periods' => $this->ledger->periods(),
-            'backupHeadline' => $headline,
-            'error' => $error,
-        ]);
+        $this->settings->showError($slug, $error);
     }
 }

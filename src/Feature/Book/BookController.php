@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Book;
 
-use DateTimeImmutable;
-use DateTimeZone;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
-use PerfectConsign\Feature\Backup\BackupHeadline;
-use PerfectConsign\Feature\Backup\BackupStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 
@@ -18,7 +14,6 @@ final class BookController
     public function __construct(
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
-        private readonly BackupStore $backups,
     ) {
     }
 
@@ -57,10 +52,6 @@ final class BookController
             'slug' => $tenant->slug,
             'accounts' => $this->ledger->accounts(),
             'periods' => $this->ledger->periods(),
-            'backupHeadline' => BackupHeadline::text(
-                $this->backups->latest($tenant->id),
-                new DateTimeImmutable('now', new DateTimeZone('UTC'))
-            ),
             'error' => $error,
         ]);
     }

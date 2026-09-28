@@ -27,6 +27,11 @@ final class TenantProvisioner
         '023_items.sql',
         '024_wait_list.sql',
         '025_item_intake.sql',
+        '026_registers.sql',
+        '027_register_sessions.sql',
+        '028_tenders.sql',
+        '029_register_posts.sql',
+        '030_register_close.sql',
     ];
 
     public function __construct(

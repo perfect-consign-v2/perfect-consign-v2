@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Book;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -16,6 +17,7 @@ final class JournalController
     public function __construct(
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
+        private readonly RegisterStore $registers,
     ) {
     }
 
@@ -59,14 +61,19 @@ final class JournalController
             $this->app->notFound();
         }
         try {
+            $source = RowValue::string($journal['source_type'] ?? null);
+            $sessionId = $this->registers->drawerSource($source)
+                ? $this->registers->openSession($this->app->postedRegister($slug))
+                : null;
             $voidId = $this->ledger->post(
                 'reversal:' . $id,
                 $this->postingDate($journal),
-                RowValue::string($journal['source_type'] ?? null),
+                $source,
                 RowValue::string($journal['source_reference'] ?? null) . ':void',
                 'Void of ' . RowValue::string($journal['posting_key'] ?? null),
                 $this->swappedLines($id),
-                $id
+                $id,
+                $sessionId
             );
         } catch (DatabaseRefusal $refusal) {
             $this->showRefusal($tenant, $journal, $id, $refusal);

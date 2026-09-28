@@ -16,10 +16,22 @@ final class DatabaseRefusal extends RuntimeException
             $text = preg_split('/\r?\n|DETAIL:|CONTEXT:/', $matches[1]) ?: [];
             $first = trim((string) ($text[0] ?? ''));
             if ($first !== '') {
-                return new self($first, 0, $error);
+                return new self(self::shown($first, $message), 0, $error);
             }
         }
 
-        return new self('the database refused the change', 0, $error);
+        return new self('That could not be saved.', 0, $error);
+    }
+
+    private static function shown(string $first, string $raw): string
+    {
+        if (preg_match('/violates (unique|foreign key|check|not-null) constraint/i', $first) !== 1) {
+            return $first;
+        }
+        if (str_contains($raw, 'registers_name_key')) {
+            return 'Another register already has that name.';
+        }
+
+        return 'That could not be saved.';
     }
 }

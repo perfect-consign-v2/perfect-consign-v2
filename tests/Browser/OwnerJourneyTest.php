@@ -60,13 +60,14 @@ final class OwnerJourneyTest extends WebTestCase
     public function testTheOwnerPostsASaleAndSeesItOnJournals(): void
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $this->openRegister();
         $code = $this->vendor();
         $form = $this->session->open('/' . ProbeMall::SLUG . '/sale');
         $saleId = HtmlPage::inputValue($form, 'sale_id');
         $journal = $this->session->submit('/' . ProbeMall::SLUG . '/sale', [
             'sale_id' => $saleId,
             'vendor_id' => HtmlPage::option($form, 'vendor_id', $code),
-            'tender' => 'cash',
+            'tender_cash' => '25.00',
             'amount' => '25.00',
             'commission' => '5.00',
             'tax' => '0.00',
@@ -306,6 +307,27 @@ final class OwnerJourneyTest extends WebTestCase
         $home = $this->session->submit('/' . ProbeMall::SLUG . '/logout/confirm', []);
 
         self::assertSees('Sign in', $home);
+    }
+
+    private function openRegister(): void
+    {
+        $page = $this->session->open('/' . ProbeMall::SLUG . '/registers');
+        if (str_contains($page, 'Close register')) {
+            return;
+        }
+        $pattern = '#(/' . ProbeMall::SLUG . '/registers/[0-9a-fA-F-]{36}/open)#';
+        if (preg_match($pattern, $page, $match) !== 1) {
+            self::fail('the open register action was not on the page');
+        }
+        $fields = [
+            'cashier' => ProbeMall::USERNAME,
+            'opening_float' => '0.00',
+        ];
+        foreach ([10000, 5000, 2000, 1000, 500, 100, 25, 10, 5, 1] as $key) {
+            $fields['count_' . $key] = '0';
+        }
+        $opened = $this->session->submit($match[1], $fields);
+        self::assertSees('Close register', $opened);
     }
 
     private function vendor(): string

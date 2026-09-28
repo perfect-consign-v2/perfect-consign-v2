@@ -396,3 +396,24 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 @media (max-width: 720px) {
     .form-split { grid-template-columns: 1fr !important; }
 }
+
+.register-grid {
+    display: grid;
+    gap: var(--space-4);
+}
+@media (min-width: 48rem) {
+    .register-grid { grid-template-columns: 1fr 1fr; }
+}
+.count-grid {
+    display: grid;
+    grid-template-columns: 1fr 6rem;
+    gap: var(--space-2) var(--space-3);
+    align-items: center;
+}
+.print-only { display: none; }
+.z-tape { max-width: 28rem; }
+@media print {
+    .sidebar, .topbar, .sidebar-scrim, .no-print { display: none !important; }
+    .print-only { display: block; }
+    .app, .main, .content { display: block; }
+}

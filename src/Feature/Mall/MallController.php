@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Mall;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Backup\BackupHeadline;
+use PerfectConsign\Feature\Backup\BackupStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class MallController
@@ -13,7 +17,24 @@ final class MallController
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
+        private readonly BackupStore $backups,
     ) {
+    }
+
+    public function showError(string $slug, string $error): void
+    {
+        $this->app->open($slug, true);
+        $this->form(
+            $slug,
+            $this->mall->timeZone(),
+            $this->mall->boothWidth(),
+            $this->mall->boothDepth(),
+            $this->mall->floorWidth(),
+            $this->mall->floorDepth(),
+            $this->percent($this->mall->storeTake()),
+            $this->dayText($this->mall->floorDays()),
+            $error
+        );
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/settings', ['GET'])]
@@ -183,6 +204,10 @@ final class MallController
             'floorDepth' => $floorDepth,
             'storeTake' => $storeTake,
             'floorDays' => $floorDays,
+            'backupHeadline' => BackupHeadline::text(
+                $this->backups->latest($tenant->id),
+                new DateTimeImmutable('now', new DateTimeZone('UTC'))
+            ),
             'error' => $error,
         ]);
     }

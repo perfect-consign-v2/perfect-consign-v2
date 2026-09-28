@@ -1,0 +1,19 @@
+---
+description: Never mention JetBrains .idea files to the user.
+alwaysApply: true
+---
+
+# Never mention .idea
+
+Do not tell the user about `.idea` files. Not in a commit summary, a status report, a leftover list, or any other reply.
+
+- Do not add `.idea/` to a commit unless the user explicitly asks for those files in that turn.
+- If `.idea` is the only local change, say there is nothing to commit. Do not name the folder.
+- Other untracked paths that matter (secrets, source, migrations) may still be reported.
+
+```text
+BAD: Pushed master. The .idea project files were left uncommitted.
+BAD: Nothing to commit except PhpStorm files under .idea.
+GOOD: Pushed master at <sha>.
+GOOD: Nothing to commit. master matches origin.
+```
