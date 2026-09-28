@@ -94,6 +94,11 @@ final class MallSettings
         return RowValue::integer($days);
     }
 
+    public function cashRoundNickel(): bool
+    {
+        return self::flag($this->row()['cash_round_nickel'] ?? null);
+    }
+
     public function save(
         string $timeZone,
         int $width,
@@ -102,6 +107,7 @@ final class MallSettings
         int $floorDepth,
         int $storeTake,
         ?int $floorDays,
+        string $cashRound,
     ): void {
         if (!in_array($timeZone, timezone_identifiers_list(DateTimeZone::ALL_WITH_BC), true)) {
             throw new \InvalidArgumentException('that time zone is not an IANA name');
@@ -117,9 +123,14 @@ final class MallSettings
         }
         $this->guardDays($floorDays);
         $this->statements->change(
-            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?',
-            [$timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake, $floorDays]
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean',
+            [$timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake, $floorDays, $cashRound === '1' ? 'true' : 'false']
         );
+    }
+
+    private static function flag(mixed $value): bool
+    {
+        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
     private function guardDays(?int $floorDays): void
@@ -135,7 +146,7 @@ final class MallSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days FROM mall'
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

@@ -113,6 +113,15 @@ final class BackupProof
                 '2026-01-01', '2026-12-31', 'open')"
         );
         $this->pdo->exec(
+            "INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+             VALUES (
+                '01900000-0000-7000-8000-000000000d22',
+                '01900000-0000-7000-8000-000000000d10',
+                'Ada',
+                '{\"10000\":0,\"5000\":0,\"2000\":0,\"1000\":0,\"500\":0,\"100\":0,\"25\":0,\"10\":0,\"5\":0,\"1\":0}'::jsonb,
+                0)"
+        );
+        $this->pdo->exec(
             "INSERT INTO journals (
                 id, book_id, posting_key, posting_date, occurred_at, period_id,
                 currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
@@ -121,20 +130,58 @@ final class BackupProof
                 '01900000-0000-7000-8000-000000000001',
                 'sale:1001', '2026-03-01', '2026-03-01 12:00:00+00',
                 '01900000-0000-7000-8000-000000000021',
-                'USD', 'sale', '1001', 'Cash sale 1001', 10000, 10000)"
+                'USD', 'sale', '1001', 'Cash sale 1001', 7200, 7200)"
         );
         $this->pdo->exec(
             "INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
-             VALUES
-                ('01900000-0000-7000-8000-000000000501', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 10000, 0),
-                ('01900000-0000-7000-8000-000000000501', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000012', 0, 2000)"
+             VALUES (
+                '01900000-0000-7000-8000-000000000501',
+                '01900000-0000-7000-8000-000000000001',
+                1,
+                '01900000-0000-7000-8000-000000000010',
+                7200,
+                0)"
         );
         $this->pdo->exec(
             "INSERT INTO journal_lines (
                 journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
-             ) VALUES
-                ('01900000-0000-7000-8000-000000000501', '01900000-0000-7000-8000-000000000001', 3, '01900000-0000-7000-8000-000000000013', 0, 800, NULL, NULL),
-                ('01900000-0000-7000-8000-000000000501', '01900000-0000-7000-8000-000000000001', 4, '01900000-0000-7000-8000-000000000014', 0, 7200, 'vendor', '01900000-0000-7000-8000-000000000101')"
+             ) VALUES (
+                '01900000-0000-7000-8000-000000000501',
+                '01900000-0000-7000-8000-000000000001',
+                2,
+                '01900000-0000-7000-8000-000000000014',
+                0,
+                7200,
+                'vendor',
+                '01900000-0000-7000-8000-000000000101')"
+        );
+        $this->pdo->exec(
+            "INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+             VALUES (
+                '01900000-0000-7000-8000-0000000005a1',
+                'Coat',
+                '01900000-0000-7000-8000-000000000101',
+                'Wool coat',
+                7200,
+                'BC-BACKUP',
+                DATE '2026-03-01',
+                0)"
+        );
+        $this->pdo->exec(
+            "INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+             VALUES (
+                '01900000-0000-7000-8000-000000000501',
+                1,
+                '01900000-0000-7000-8000-0000000005a1',
+                7200,
+                0,
+                0)"
+        );
+        $this->pdo->exec(
+            "INSERT INTO register_session_posts (session_id, journal_id)
+             VALUES (
+                '01900000-0000-7000-8000-000000000d22',
+                '01900000-0000-7000-8000-000000000501')"
         );
         $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
         $this->pdo->commit();

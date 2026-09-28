@@ -65,3 +65,21 @@ Expected drawer cash is the opening count, plus cash sales, cash rent, and store
 Close takes the counted cash you type. A bill and coin count replaces that amount. Card and checks are entered as counted amounts next to the posted totals. Store credit, gift cards, gift certificates, and cash drops are shown and are not counted again. When counted cash matches the expected drawer, close posts no difference. When it does not, close waits until the cashier confirms both amounts, then one journal moves the difference between cash and cash over/short. Card and check differences stay on the shift. Vendor payable and sales tax are never the plug.
 
 Each closed shift has a Z-tape: both counts, the expected-cash lines, the drops, card and checks counted versus posted, and the gift certificate, gift card, and store credit totals.
+
+## Sales
+
+A sale is one or more pieces on one journal. The customer pays the sold prices plus sales tax. Store take comes out of the sold price. Tax does not reduce what a vendor is owed.
+
+The sold price starts at the asking price and can differ. Store take is the piece's percent, otherwise the vendor's, otherwise the mall default, rounded half up to the cent. Sales tax is the mall rate on that sold price, rounded the same way. A tax-exempt vendor's pieces have no tax.
+
+The journal debits each tender once. Those tenders add up to the sold prices plus tax. It credits store take once when that total is not zero, sales tax once when that total is not zero, and one payable for each vendor who is owed at least one cent. A vendor owed nothing has no payable line.
+
+A piece is on at most one sale that has not been voided. A void reverses the whole journal and the piece can be sold again. The asking price stays on the piece.
+
+A ticket is the open cart on one register shift. It is not a journal. The shift has one open ticket. A piece sits on one open ticket, and not on an open ticket and a sale at the same time. The sold price can change until pay. Pay posts the sale and freezes the ticket. Discard removes a ticket only before pay. Close is refused while that shift still has an open ticket.
+
+When the mall rounds cash to the nearest nickel, the cash portion of a sale rounds to a nickel and the difference posts to cash rounding. That round amount shows on the register for a cash sale and on the receipt. Card, checks, and stored value stay exact. Cash handed over above the rounded cash due is change. It is not a second tender, and the journal debits only the amount due.
+
+Void from the receipt reverses the whole sale and frees every piece. A second void is refused. A return is its own journal for one piece. It reverses that piece's store take, tax, and vendor payable, and credits one tender. That piece can be sold again. The rest of the ticket stays sold.
+
+Park takes the open ticket off the shift so close can finish. Recall puts it on the active shift. A parked ticket is not drawer cash. Two shifts cannot hold the same piece. A parked ticket can be discarded. Its lines cannot be changed until it is recalled.

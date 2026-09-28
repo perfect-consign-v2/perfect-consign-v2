@@ -25,13 +25,10 @@ final class DatabaseRefusal extends RuntimeException
 
     private static function shown(string $first, string $raw): string
     {
-        if (preg_match('/violates (unique|foreign key|check|not-null) constraint/i', $first) !== 1) {
-            return $first;
-        }
         if (str_contains($raw, 'registers_name_key')) {
             return 'Another register already has that name.';
         }
 
-        return 'That could not be saved.';
+        return $first;
     }
 }

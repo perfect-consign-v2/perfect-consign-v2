@@ -61,22 +61,31 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         $this->openRegister();
-        $code = $this->vendor();
-        $form = $this->session->open('/' . ProbeMall::SLUG . '/sale');
-        $saleId = HtmlPage::inputValue($form, 'sale_id');
-        $journal = $this->session->submit('/' . ProbeMall::SLUG . '/sale', [
-            'sale_id' => $saleId,
-            'vendor_id' => HtmlPage::option($form, 'vendor_id', $code),
-            'tender_cash' => '25.00',
-            'amount' => '25.00',
-            'commission' => '5.00',
-            'tax' => '0.00',
-            'posting_date' => ProbeMall::POSTING_DATE,
+        $vendor = $this->vendor();
+        $vendorId = HtmlPage::taggedId($this->session->open('/' . ProbeMall::SLUG . '/parties'), 'tr', 'vendor', $vendor);
+        $tag = 't' . bin2hex(random_bytes(4));
+        $description = 'Coat ' . $tag;
+        $this->session->open('/' . ProbeMall::SLUG . '/inventory/new');
+        $this->session->submit('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $tag,
+            'description' => $description,
+            'vendor_id' => $vendorId,
+            'brand_id' => '',
+            'price' => '10.00',
+            'intake_on' => '2026-09-01',
         ]);
-
-        self::assertSees('<p>Sale</p>', $journal);
-        self::assertSees($saleId, $journal);
-        self::assertSees($saleId, $this->session->open('/' . ProbeMall::SLUG . '/journals'));
+        $pos = $this->session->open('/' . ProbeMall::SLUG . '/pos');
+        if (str_contains($pos, '/' . ProbeMall::SLUG . '/pos/discard')) {
+            $this->session->submit('/' . ProbeMall::SLUG . '/pos/discard', []);
+        }
+        $cart = $this->session->submit('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => $tag]);
+        self::assertSees($description, $cart);
+        $paid = $this->session->submit('/' . ProbeMall::SLUG . '/pos/pay', ['tender_cash' => '10.00']);
+        self::assertSees($description, $paid);
+        self::assertSame(1, preg_match('/sale:[0-9a-f-]{36}/', $paid, $key));
+        self::assertSees($key[0], $this->session->open('/' . ProbeMall::SLUG . '/journals'));
+        self::assertSame(1, preg_match('#/journals/([0-9a-f-]{36})#', $paid, $journalId));
+        self::assertSees('<p>Sale</p>', $this->session->open('/' . ProbeMall::SLUG . '/journals/' . $journalId[1]));
     }
 
     public function testTheOwnerPostsRentAndSeesTheCharge(): void

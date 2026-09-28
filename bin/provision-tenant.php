@@ -32,6 +32,11 @@ final class TenantProvisioner
         '028_tenders.sql',
         '029_register_posts.sql',
         '030_register_close.sql',
+        '031_sale_lines.sql',
+        '032_tickets.sql',
+        '033_cash_round.sql',
+        '034_piece_return.sql',
+        '035_park_ticket.sql',
     ];
 
     public function __construct(

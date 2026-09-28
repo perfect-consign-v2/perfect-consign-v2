@@ -47,25 +47,48 @@ final class OwnerJourneyTest extends WebTestCase
     public function testTheOwnerPostsASaleAndSeesTheJournal(): void
     {
         $this->openRegister();
-        $code = $this->vendor();
-        $form = $this->client->get('/' . ProbeMall::SLUG . '/sale');
-        $saleId = HtmlPage::inputValue($form->body, 'sale_id');
-        $vendorId = HtmlPage::option($form->body, 'vendor_id', $code);
-        $journal = $this->client->post('/' . ProbeMall::SLUG . '/sale', [
-            'sale_id' => $saleId,
+        $this->roundCash(true);
+        $vendor = $this->vendor();
+        $directory = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $vendor);
+        $tag = 't' . bin2hex(random_bytes(4));
+        $description = 'Coat ' . $tag;
+        $created = $this->client->post('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $tag,
+            'description' => $description,
             'vendor_id' => $vendorId,
-            'tender_cash' => '25.00',
-            'amount' => '25.00',
-            'commission' => '5.00',
-            'tax' => '0.00',
-            'posting_date' => ProbeMall::POSTING_DATE,
+            'brand_id' => '',
+            'price' => '10.02',
+            'barcode' => 'BC-' . $tag,
+            'intake_on' => '2026-09-01',
         ]);
-
-        self::assertSame(200, $journal->status);
+        self::assertSees('Piece created.', $created);
+        $this->client->post('/' . ProbeMall::SLUG . '/pos/discard', []);
+        $cart = $this->client->post('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => 'BC-' . $tag]);
+        self::assertSees($description, $cart);
+        self::assertSees('id="cash-round">-0.02', $cart);
+        self::assertSame(1, preg_match('/name="line_no" value="(\d+)"/', $cart->body, $line));
+        $again = $this->client->post('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => 'BC-' . $tag]);
+        self::assertSees('a piece is already on the ticket', $again);
+        $priced = $this->client->post('/' . ProbeMall::SLUG . '/pos/price', [
+            'line_no' => $line[1],
+            'price' => '10.03',
+        ]);
+        self::assertSees('id="amount-due">10.03', $priced);
+        self::assertSees('id="cash-round">0.02', $priced);
+        $paid = $this->client->post('/' . ProbeMall::SLUG . '/pos/pay', [
+            'tender_cash' => '10.03',
+            'cash_received' => '20.00',
+        ]);
+        self::assertSees($description, $paid);
+        self::assertSees('id="cash-round">0.02', $paid);
+        self::assertSees('id="change">9.95', $paid);
+        self::assertSame(1, preg_match('/sale:[0-9a-f-]{36}/', $paid->body, $key));
+        self::assertSees($key[0], $this->client->get('/' . ProbeMall::SLUG . '/journals'));
+        self::assertSame(1, preg_match('#/journals/([0-9a-f-]{36})#', $paid->body, $journalId));
+        $journal = $this->client->get('/' . ProbeMall::SLUG . '/journals/' . $journalId[1]);
         self::assertSees('<p>Sale</p>', $journal);
-        self::assertSees($saleId, $journal);
-        $journals = $this->client->get('/' . ProbeMall::SLUG . '/journals');
-        self::assertSees($saleId, $journals);
+        $this->roundCash(false);
     }
 
     public function testTheOwnerPostsRentAndSeesTheCharge(): void
@@ -504,6 +527,24 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSame(200, $refused->status);
         self::assertSees('A vendor with open rent cannot be made inactive.', $refused);
         self::assertSees('Make inactive', $refused);
+    }
+
+    private function roundCash(bool $on): void
+    {
+        $fields = [
+            'time_zone' => 'America/Los_Angeles',
+            'booth_width_ft' => '10',
+            'booth_depth_ft' => '10',
+            'floor_width_ft' => '120',
+            'floor_depth_ft' => '90',
+            'default_store_take' => '0',
+            'floor_days' => '',
+        ];
+        if ($on) {
+            $fields['cash_round_nickel'] = '1';
+        }
+        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', $fields);
+        self::assertSees('Settings saved.', $saved);
     }
 
     private function openRegister(): void

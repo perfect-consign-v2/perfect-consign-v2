@@ -5,6 +5,29 @@ BEGIN;
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+VALUES
+    (
+        '01900000-0000-7000-8000-000000000db1',
+        'Drawer',
+        '01900000-0000-7000-8000-000000000101',
+        'Drawer piece',
+        5000,
+        'BC-DRAWER',
+        DATE '2033-02-01',
+        0
+    ),
+    (
+        '01900000-0000-7000-8000-000000000db2',
+        'Later',
+        '01900000-0000-7000-8000-000000000101',
+        'Later piece',
+        2000,
+        'BC-LATER',
+        DATE '2033-02-02',
+        0
+    );
+
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (
     '01900000-0000-7000-8000-000000000d42',
@@ -14,10 +37,13 @@ VALUES (
     'open'
 );
 
+INSERT INTO registers (id, name)
+VALUES ('01900000-0000-7000-8000-000000000d93', 'Close proof');
+
 INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
 VALUES (
     '01900000-0000-7000-8000-000000000d26',
-    '01900000-0000-7000-8000-000000000d10',
+    '01900000-0000-7000-8000-000000000d93',
     'Ada',
     '{"10000":0,"5000":0,"2000":1,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
     2000
@@ -50,6 +76,9 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000001',
     2, '01900000-0000-7000-8000-000000000014', 0, 5000, 'vendor', '01900000-0000-7000-8000-000000000101'
 );
+
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000d80', 1, '01900000-0000-7000-8000-000000000db1', 5000, 0, 0);
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
@@ -95,7 +124,7 @@ END $$;
 INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
 VALUES (
     '01900000-0000-7000-8000-000000000d27',
-    '01900000-0000-7000-8000-000000000d10',
+    '01900000-0000-7000-8000-000000000d93',
     'Ada',
     '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
     0
@@ -128,6 +157,9 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000001',
     2, '01900000-0000-7000-8000-000000000014', 0, 2000, 'vendor', '01900000-0000-7000-8000-000000000101'
 );
+
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000d82', 1, '01900000-0000-7000-8000-000000000db2', 2000, 0, 0);
 
 INSERT INTO register_session_posts (session_id, journal_id)
 VALUES ('01900000-0000-7000-8000-000000000d27', '01900000-0000-7000-8000-000000000d82');

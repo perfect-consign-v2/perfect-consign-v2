@@ -15,6 +15,29 @@ VALUES (
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+VALUES
+    (
+        '01900000-0000-7000-8000-000000000ea1',
+        'Voided',
+        '01900000-0000-7000-8000-000000000101',
+        'Voided piece',
+        1000,
+        'BC-VOIDED',
+        DATE '2025-04-01',
+        8000
+    ),
+    (
+        '01900000-0000-7000-8000-000000000ea2',
+        'Close',
+        '01900000-0000-7000-8000-000000000101',
+        'Close piece',
+        1000,
+        'BC-CLOSE',
+        DATE '2026-03-01',
+        8000
+    );
+
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES
     (
@@ -336,6 +359,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000001',
     3, '01900000-0000-7000-8000-000000000014', 0, 200, 'vendor', '01900000-0000-7000-8000-000000000101'
 );
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000e11', 1, '01900000-0000-7000-8000-000000000ea1', 1000, 800, 0);
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, is_reversal, reverses_journal_id,
@@ -441,6 +466,9 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000001',
     3, '01900000-0000-7000-8000-000000000014', 0, 200, 'vendor', '01900000-0000-7000-8000-000000000101'
 );
+
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000e01', 1, '01900000-0000-7000-8000-000000000ea2', 1000, 800, 0);
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,

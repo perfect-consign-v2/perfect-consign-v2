@@ -14,6 +14,8 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class MallController
 {
+    private ?string $postedCashRound = null;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
@@ -72,6 +74,7 @@ final class MallController
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
         }
+        $this->postedCashRound = $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '';
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
     }
 
@@ -110,7 +113,16 @@ final class MallController
         ?int $floorDays,
     ): ?string {
         try {
-            $this->mall->save($timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake, $floorDays);
+            $this->mall->save(
+                $timeZone,
+                $width,
+                $depth,
+                $floorWidth,
+                $floorDepth,
+                $storeTake,
+                $floorDays,
+                $this->app->request()->field('cash_round_nickel') === '1' ? '1' : ''
+            );
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
@@ -204,6 +216,7 @@ final class MallController
             'floorDepth' => $floorDepth,
             'storeTake' => $storeTake,
             'floorDays' => $floorDays,
+            'cashRound' => $this->postedCashRound ?? ($this->mall->cashRoundNickel() ? '1' : ''),
             'backupHeadline' => BackupHeadline::text(
                 $this->backups->latest($tenant->id),
                 new DateTimeImmutable('now', new DateTimeZone('UTC'))

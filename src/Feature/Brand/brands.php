@@ -10,6 +10,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var int $total */
 /** @var string $confirm */
 /** @var string $modal */
+/** @var string|null $error */
 /** @var string $draft */
 /** @var list<array<string, mixed>> $brands */
 
@@ -92,6 +93,9 @@ $renameAction = $renaming ? '/' . $slug . '/brands/' . $modal : $list;
         <div class="card-head"><div class="h3" id="brand-new-title">New brand</div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <?php if ($modal === 'new' && is_string($error) && $error !== ''): ?>
+                <p class="error"><?= View::text($error) ?></p>
+            <?php endif; ?>
             <label for="brand-new-name">Name</label>
             <input class="input" id="brand-new-name" name="name" value="<?= $modal === 'new' ? View::text($draft) : '' ?>" placeholder="e.g. Northwind" required>
             <div class="row gap-2">
@@ -107,6 +111,9 @@ $renameAction = $renaming ? '/' . $slug . '/brands/' . $modal : $list;
         <div class="card-head"><div class="h3" id="brand-rename-title">Rename brand</div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <?php if ($renaming && is_string($error) && $error !== ''): ?>
+                <p class="error"><?= View::text($error) ?></p>
+            <?php endif; ?>
             <label for="brand-rename-name">Name</label>
             <input class="input" id="brand-rename-name" name="name" value="<?= $renaming ? View::text($draft) : '' ?>" required>
             <div class="row gap-2">

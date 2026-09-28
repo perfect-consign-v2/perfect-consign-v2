@@ -152,9 +152,7 @@ final class LedgerStore
 
     /**
      * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $lines
-     */
-    /**
-     * @param null|callable(): void $beforeCommit
+     * @param null|callable(string): void $beforeCommit
      */
     public function post(
         string $postingKey,
@@ -185,7 +183,7 @@ final class LedgerStore
 
     /**
      * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $lines
-     * @param null|callable(): void $beforeCommit
+     * @param null|callable(string): void $beforeCommit
      */
     private function commitJournal(
         string $postingKey,
@@ -213,10 +211,10 @@ final class LedgerStore
                 $reversesJournalId,
             );
             $this->linkSession($journalId, $sessionId, $checkNumber);
-            $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
             if ($beforeCommit !== null) {
-                $beforeCommit();
+                $beforeCommit($journalId);
             }
+            $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
             $this->pdo->commit();
 
             return $journalId;

@@ -14,6 +14,8 @@ VALUES (
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
+UPDATE mall SET tax_bps = 800;
+
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000201', 'A1', 'Booth A1');
 
@@ -72,11 +74,11 @@ INSERT INTO journals (
     '2026-03-02',
     '2026-03-02 12:00:00+00',
     '01900000-0000-7000-8000-000000000021',
-    'USD', 'sale', '1001', 'March sale', 1000, 1000
+    'USD', 'sale', '1001', 'March sale', 1080, 1080
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES
-    ('01900000-0000-7000-8000-000000000d02', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 1000, 0),
+    ('01900000-0000-7000-8000-000000000d02', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 1080, 0),
     ('01900000-0000-7000-8000-000000000d02', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000012', 0, 200),
     ('01900000-0000-7000-8000-000000000d02', '01900000-0000-7000-8000-000000000001', 3, '01900000-0000-7000-8000-000000000013', 0, 80);
 INSERT INTO journal_lines (
@@ -84,8 +86,21 @@ INSERT INTO journal_lines (
 ) VALUES (
     '01900000-0000-7000-8000-000000000d02',
     '01900000-0000-7000-8000-000000000001',
-    4, '01900000-0000-7000-8000-000000000014', 0, 720, 'vendor', '01900000-0000-7000-8000-000000000101'
+    4, '01900000-0000-7000-8000-000000000014', 0, 800, 'vendor', '01900000-0000-7000-8000-000000000101'
 );
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+VALUES (
+    '01900000-0000-7000-8000-000000000da1',
+    'Coat',
+    '01900000-0000-7000-8000-000000000101',
+    'Wool coat',
+    1000,
+    'BC-EXPORT',
+    DATE '2026-03-02',
+    2000
+);
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000d02', 1, '01900000-0000-7000-8000-000000000da1', 1000, 200, 80);
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
@@ -157,14 +172,14 @@ INSERT INTO journals (
     '2026-03-31',
     '2026-03-31 12:00:00+00',
     '01900000-0000-7000-8000-000000000021',
-    'USD', 'payout', '2026-03', 'March payout', 20720, 20720
+    'USD', 'payout', '2026-03', 'March payout', 20800, 20800
 );
 INSERT INTO journal_lines (
     journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
 ) VALUES (
     '01900000-0000-7000-8000-000000000d06',
     '01900000-0000-7000-8000-000000000001',
-    1, '01900000-0000-7000-8000-000000000014', 20720, 0, 'vendor', '01900000-0000-7000-8000-000000000101'
+    1, '01900000-0000-7000-8000-000000000014', 20800, 0, 'vendor', '01900000-0000-7000-8000-000000000101'
 );
 INSERT INTO journal_lines (
     journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
@@ -177,7 +192,7 @@ INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor
 VALUES (
     '01900000-0000-7000-8000-000000000d06',
     '01900000-0000-7000-8000-000000000001',
-    3, '01900000-0000-7000-8000-000000000010', 0, 10720
+    3, '01900000-0000-7000-8000-000000000010', 0, 10800
 );
 
 INSERT INTO register_session_posts (session_id, journal_id)

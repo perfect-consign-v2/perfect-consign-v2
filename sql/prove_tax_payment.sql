@@ -14,6 +14,8 @@ VALUES (
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
+UPDATE mall SET tax_bps = 800;
+
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (
     '01900000-0000-7000-8000-000000000021',
@@ -37,8 +39,8 @@ INSERT INTO journals (
     'sale',
     'tax-1',
     'Sale with tax',
-    1000,
-    1000
+    10800,
+    10800
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
@@ -47,7 +49,7 @@ VALUES (
     '01900000-0000-7000-8000-000000000001',
     1,
     '01900000-0000-7000-8000-000000000010',
-    1000,
+    10800,
     0
 );
 
@@ -69,10 +71,25 @@ INSERT INTO journal_lines (
     3,
     '01900000-0000-7000-8000-000000000014',
     0,
-    200,
+    10000,
     'vendor',
     '01900000-0000-7000-8000-000000000101'
 );
+
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+VALUES (
+    '01900000-0000-7000-8000-000000000ba1',
+    'Coat',
+    '01900000-0000-7000-8000-000000000101',
+    'Wool coat',
+    10000,
+    'BC-TAX',
+    DATE '2026-03-01',
+    0
+);
+
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000b01', 1, '01900000-0000-7000-8000-000000000ba1', 10000, 0, 800);
 
 INSERT INTO register_session_posts (session_id, journal_id)
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id

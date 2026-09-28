@@ -23,7 +23,7 @@ use PerfectConsign\Shared\Http\View;
     </div>
     <div class="row gap-2">
         <a class="btn" href="/<?= View::text($slug) ?>/journals"><svg aria-hidden="true"><use href="#i-report"></use></svg> Journals</a>
-        <a class="btn btn-primary" href="/<?= View::text($slug) ?>/sale"><svg aria-hidden="true"><use href="#i-pos"></use></svg> Open sale</a>
+        <a class="btn btn-primary" href="/<?= View::text($slug) ?>/pos"><svg aria-hidden="true"><use href="#i-pos"></use></svg> Open POS</a>
     </div>
 </div>
 

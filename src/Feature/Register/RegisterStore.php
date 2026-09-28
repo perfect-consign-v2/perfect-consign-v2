@@ -16,6 +16,7 @@ final class RegisterStore
     /** @var list<string> */
     private const DRAWER_SOURCES = [
         'sale',
+        'piece_return',
         'rent_payment',
         'payout',
         'gift_certificate_issue',

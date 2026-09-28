@@ -13,6 +13,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var int $floorDepth */
 /** @var string $storeTake */
 /** @var string $floorDays */
+/** @var string $cashRound */
 /** @var string $backupHeadline */
 ?>
 <div class="page-head">
@@ -62,6 +63,13 @@ use PerfectConsign\Shared\Http\View;
                 <label for="default_store_take">Store take</label>
                 <input class="input" id="default_store_take" name="default_store_take" inputmode="decimal" value="<?= View::text($storeTake) ?>">
                 <p class="muted text-sm">Percent of a sale this mall keeps. 25 is 25%. A different amount saved on a vendor is marked overridden.</p>
+            </div>
+            <div class="field" style="grid-column:1/-1">
+                <label for="cash_round_nickel">
+                    <input id="cash_round_nickel" name="cash_round_nickel" type="checkbox" value="1"<?= ($cashRound ?? '') === '1' ? ' checked' : '' ?>>
+                    Round cash sales to the nearest nickel
+                </label>
+                <p class="muted text-sm">Cash taken on a sale rounds to a nickel. The round amount shows on the register and on the receipt. Card, checks, and stored value stay exact.</p>
             </div>
             <div class="field" style="grid-column:1/-1">
                 <label for="floor_days">Days on the floor</label>

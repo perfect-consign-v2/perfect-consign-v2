@@ -5,6 +5,49 @@ BEGIN;
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+VALUES
+    (
+        '01900000-0000-7000-8000-000000000dc1',
+        'Open',
+        '01900000-0000-7000-8000-000000000101',
+        'Open piece',
+        1000,
+        'BC-OPEN',
+        DATE '2032-01-03',
+        0
+    ),
+    (
+        '01900000-0000-7000-8000-000000000dc2',
+        'Split',
+        '01900000-0000-7000-8000-000000000101',
+        'Split piece',
+        3000,
+        'BC-SPLIT',
+        DATE '2032-01-04',
+        0
+    ),
+    (
+        '01900000-0000-7000-8000-000000000dc3',
+        'Over',
+        '01900000-0000-7000-8000-000000000101',
+        'Over piece',
+        5000,
+        'BC-OVER',
+        DATE '2032-01-05',
+        0
+    ),
+    (
+        '01900000-0000-7000-8000-000000000dc4',
+        'Check',
+        '01900000-0000-7000-8000-000000000101',
+        'Check piece',
+        1000,
+        'BC-CHECK',
+        DATE '2032-01-06',
+        0
+    );
+
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (
     '01900000-0000-7000-8000-000000000d41',
@@ -110,6 +153,8 @@ BEGIN
         'vendor',
         '01900000-0000-7000-8000-000000000101'
     );
+    INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+    VALUES ('01900000-0000-7000-8000-000000000d71', 1, '01900000-0000-7000-8000-000000000dc1', 1000, 0, 0);
     SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'a sale without a register was accepted';
 EXCEPTION
@@ -168,6 +213,9 @@ INSERT INTO journal_lines (
         '01900000-0000-7000-8000-000000000101'
     );
 
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000d72', 1, '01900000-0000-7000-8000-000000000dc2', 3000, 0, 0);
+
 INSERT INTO register_session_posts (session_id, journal_id)
 VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000d72');
 
@@ -217,6 +265,8 @@ BEGIN
         'vendor',
         '01900000-0000-7000-8000-000000000101'
     );
+    INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+    VALUES ('01900000-0000-7000-8000-000000000d73', 1, '01900000-0000-7000-8000-000000000dc3', 5000, 0, 0);
     INSERT INTO register_session_posts (session_id, journal_id)
     VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000d73');
     SET CONSTRAINTS ALL IMMEDIATE;
@@ -270,6 +320,8 @@ BEGIN
         'vendor',
         '01900000-0000-7000-8000-000000000101'
     );
+    INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+    VALUES ('01900000-0000-7000-8000-000000000d74', 1, '01900000-0000-7000-8000-000000000dc4', 1000, 0, 0);
     INSERT INTO register_session_posts (session_id, journal_id)
     VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000d74');
     SET CONSTRAINTS ALL IMMEDIATE;
