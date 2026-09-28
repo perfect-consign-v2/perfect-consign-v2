@@ -157,6 +157,113 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('That name is already used.', $duplicate);
     }
 
+    public function testTheOwnerAddsEditsAndDeletesAWaitListPerson(): void
+    {
+        $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $last = bin2hex(random_bytes(4));
+        $name = 'Ada ' . $last;
+        $email = $last . '@example.com';
+        $fields = [
+            'first_name' => 'Ada',
+            'last_name' => $last,
+            'email' => $email,
+            'phone' => '555-0100',
+            'width_ft' => '10',
+            'depth_ft' => '8',
+        ];
+        $this->session->open('/' . ProbeMall::SLUG . '/wait-list/new');
+        $page = $this->session->submit('/' . ProbeMall::SLUG . '/wait-list', $fields);
+        self::assertSees($name, $page);
+        self::assertSees('Waiting', $page);
+        self::assertSees('10 × 8 ft', $page);
+        $id = HtmlPage::taggedId($page, 'article', 'wait', $name);
+        $this->session->open('/' . ProbeMall::SLUG . '/wait-list/' . $id . '/edit');
+        $edited = $this->session->submit('/' . ProbeMall::SLUG . '/wait-list/' . $id, $fields + [
+            'status' => 'contacted',
+            'notes' => 'Called Tuesday',
+        ]);
+        self::assertSees('Contacted', $edited);
+        self::assertSees('Called Tuesday', $edited);
+        $this->session->open('/' . ProbeMall::SLUG . '/wait-list/new');
+        $duplicate = $this->session->submit('/' . ProbeMall::SLUG . '/wait-list', [
+            'first_name' => 'Bea',
+            'last_name' => $last,
+            'email' => $email,
+            'phone' => '555-0101',
+        ]);
+        self::assertSees('That email is already on the wait list.', $duplicate);
+        $this->session->open('/' . ProbeMall::SLUG . '/wait-list?confirm=' . rawurlencode($id));
+        $deleted = $this->session->submit('/' . ProbeMall::SLUG . '/wait-list/' . $id . '/delete', []);
+        self::assertStringNotContainsString($name, $deleted);
+    }
+
+    public function testTheOwnerAddsEditsAndDeletesAnItem(): void
+    {
+        $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $vendor = $this->vendor();
+        $directory = $this->session->open('/' . ProbeMall::SLUG . '/parties');
+        $vendorId = HtmlPage::taggedId($directory, 'tr', 'vendor', $vendor);
+        $brand = 'Brand ' . bin2hex(random_bytes(4));
+        $other = $brand . ' other';
+        $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
+        $this->session->submit('/' . ProbeMall::SLUG . '/brands', ['name' => $brand]);
+        $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
+        $this->session->submit('/' . ProbeMall::SLUG . '/brands', ['name' => $other]);
+        $brands = $this->session->open('/' . ProbeMall::SLUG . '/brands');
+        $brandId = HtmlPage::taggedId($brands, 'tr', 'brand', $brand);
+        $otherId = HtmlPage::taggedId($brands, 'tr', 'brand', $other);
+        $tag = 't' . bin2hex(random_bytes(4));
+        $created = 'Blue ' . $tag;
+        $renamed = 'Green ' . $tag;
+        $this->session->open('/' . ProbeMall::SLUG . '/inventory/new');
+        $page = $this->session->submit('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $tag,
+            'description' => $created,
+            'vendor_id' => $vendorId,
+            'brand_id' => $brandId,
+            'price' => '12.50',
+        ]);
+        self::assertSees($tag, $page);
+        self::assertSees($created, $page);
+        self::assertSees('12.50', $page);
+        $itemId = HtmlPage::taggedId($page, 'tr', 'item', $tag);
+        $edit = '/' . ProbeMall::SLUG . '/inventory/' . $itemId . '/edit';
+        $update = '/' . ProbeMall::SLUG . '/inventory/' . $itemId;
+        $this->session->open($edit);
+        $edited = $this->session->submit($update, [
+            'code' => $tag,
+            'description' => $renamed,
+            'vendor_id' => $vendorId,
+            'brand_id' => $otherId,
+            'price' => '15.00',
+        ]);
+        self::assertSees($renamed, $edited);
+        self::assertSees($other, $edited);
+        self::assertSees('15.00', $edited);
+        $this->session->open('/' . ProbeMall::SLUG . '/inventory?confirm=' . rawurlencode($itemId));
+        $deleted = $this->session->submit($update . '/delete', []);
+        self::assertStringNotContainsString($renamed, $deleted);
+        $this->session->open('/' . ProbeMall::SLUG . '/inventory/new');
+        $added = $this->session->submit('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $tag,
+            'description' => $created,
+            'vendor_id' => $vendorId,
+            'brand_id' => $brandId,
+            'price' => '12.50',
+        ]);
+        self::assertSees($tag, $added);
+        $this->session->open('/' . ProbeMall::SLUG . '/inventory/new');
+        $duplicate = $this->session->submit('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $tag,
+            'description' => 'Another vase',
+            'vendor_id' => $vendorId,
+            'brand_id' => '',
+            'price' => '9.00',
+        ]);
+
+        self::assertSees('That tag is already used.', $duplicate);
+    }
+
     public function testTheOwnerAddsRenamesAndDeletesABooth(): void
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);

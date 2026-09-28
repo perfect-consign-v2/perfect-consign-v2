@@ -34,6 +34,28 @@ END $$;
 
 DO $$
 BEGIN
+    ALTER TABLE items ENABLE REPLICA TRIGGER items_no_truncate;
+    RAISE EXCEPTION 'replica-only item trigger was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be disabled%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    ALTER TABLE wait_list ENABLE REPLICA TRIGGER wait_list_no_truncate;
+    RAISE EXCEPTION 'replica-only wait list trigger was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be disabled%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
     ALTER TABLE journals ENABLE REPLICA TRIGGER journals_append_only;
     RAISE EXCEPTION 'replica-only journal trigger was accepted';
 EXCEPTION
@@ -58,6 +80,28 @@ DO $$
 BEGIN
     DROP TRIGGER brands_no_truncate ON brands;
     RAISE EXCEPTION 'dropping the brand trigger was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be dropped%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    DROP TRIGGER items_no_truncate ON items;
+    RAISE EXCEPTION 'dropping the item trigger was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be dropped%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    DROP TRIGGER wait_list_no_truncate ON wait_list;
+    RAISE EXCEPTION 'dropping the wait list trigger was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
         IF SQLERRM NOT LIKE '%append-only triggers cannot be dropped%' THEN
@@ -143,6 +187,20 @@ BEGIN
         FROM pg_trigger
         WHERE tgrelid = 'brands'::regclass
           AND tgname = 'brands_no_truncate'
+          AND tgenabled = 'A'
+          AND NOT tgisinternal
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'items'::regclass
+          AND tgname = 'items_no_truncate'
+          AND tgenabled = 'A'
+          AND NOT tgisinternal
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'wait_list'::regclass
+          AND tgname = 'wait_list_no_truncate'
           AND tgenabled = 'A'
           AND NOT tgisinternal
     ) OR NOT EXISTS (
@@ -236,12 +294,37 @@ END $$;
 
 DO $$
 BEGIN
+    ALTER TABLE items DROP CONSTRAINT items_brand_id_fkey;
     SET LOCAL session_replication_role = replica;
     TRUNCATE brands;
     RAISE EXCEPTION 'replica brand truncate was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%table brands is append-only and cannot be truncated%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    SET LOCAL session_replication_role = replica;
+    TRUNCATE items;
+    RAISE EXCEPTION 'replica item truncate was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
         IF SQLERRM NOT LIKE '%append-only and cannot be truncated%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    SET LOCAL session_replication_role = replica;
+    TRUNCATE wait_list;
+    RAISE EXCEPTION 'replica wait list truncate was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%table wait_list is append-only and cannot be truncated%' THEN
             RAISE;
         END IF;
 END $$;
@@ -271,11 +354,34 @@ END $$;
 
 DO $$
 BEGIN
+    ALTER TABLE items DROP CONSTRAINT items_brand_id_fkey;
     TRUNCATE brands;
     RAISE EXCEPTION 'brand truncate was accepted after the guard held';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%table brands is append-only and cannot be truncated%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    TRUNCATE items;
+    RAISE EXCEPTION 'item truncate was accepted after the guard held';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
         NULL;
+END $$;
+
+DO $$
+BEGIN
+    TRUNCATE wait_list;
+    RAISE EXCEPTION 'wait list truncate was accepted after the guard held';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%table wait_list is append-only and cannot be truncated%' THEN
+            RAISE;
+        END IF;
 END $$;
 
 DO $$

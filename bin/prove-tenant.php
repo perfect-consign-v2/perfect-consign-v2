@@ -65,6 +65,8 @@ final class TenantProof
             '020_mall.sql',
             '021_map_floors.sql',
             '022_assignment_rent.sql',
+            '023_items.sql',
+            '024_wait_list.sql',
         ];
         $sql = 'SET search_path TO ' . $schema . ', pg_catalog, extensions;';
         foreach ($files as $file) {

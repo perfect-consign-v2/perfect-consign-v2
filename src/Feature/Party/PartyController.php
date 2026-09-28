@@ -196,7 +196,7 @@ final class PartyController
         try {
             $this->parties->removeVendor($id);
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->app->catchRefusal($refusal);
+            $error = $this->vendorError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
@@ -312,6 +312,9 @@ final class PartyController
     {
         if (str_contains($message, 'vendors_code_key')) {
             return 'That code is already used.';
+        }
+        if (str_contains($message, 'items_vendor_id_fkey')) {
+            return 'That vendor still has inventory.';
         }
 
         return $message;
@@ -437,7 +440,7 @@ final class PartyController
         if ($vendor === null) {
             $this->app->notFound();
         }
-        $this->form($slug, $vendor, 'A vendor who owes the store cannot be made inactive.');
+        $this->form($slug, $vendor, 'A vendor with open rent cannot be made inactive.');
     }
 
     private function showRecord(string $slug, string $id, ?string $error): void

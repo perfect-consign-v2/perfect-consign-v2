@@ -127,6 +127,102 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('That name is already used.', $duplicate);
     }
 
+    public function testTheOwnerAddsEditsAndDeletesAnItem(): void
+    {
+        $vendor = $this->vendor();
+        $directory = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $vendor);
+        $brand = 'Brand ' . bin2hex(random_bytes(4));
+        $other = $brand . ' other';
+        $this->client->post('/' . ProbeMall::SLUG . '/brands', ['name' => $brand]);
+        $this->client->post('/' . ProbeMall::SLUG . '/brands', ['name' => $other]);
+        $brands = $this->client->get('/' . ProbeMall::SLUG . '/brands');
+        $brandId = HtmlPage::taggedId($brands->body, 'tr', 'brand', $brand);
+        $otherId = HtmlPage::taggedId($brands->body, 'tr', 'brand', $other);
+        $tag = 't' . bin2hex(random_bytes(4));
+        $created = 'Blue ' . $tag;
+        $renamed = 'Green ' . $tag;
+        $page = $this->client->post('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $tag,
+            'description' => $created,
+            'vendor_id' => $vendorId,
+            'brand_id' => $brandId,
+            'price' => '12.50',
+        ]);
+        self::assertSees($tag, $page);
+        self::assertSees($created, $page);
+        self::assertSees($brand, $page);
+        self::assertSees('12.50', $page);
+        $itemId = HtmlPage::taggedId($page->body, 'tr', 'item', $tag);
+        $update = '/' . ProbeMall::SLUG . '/inventory/' . $itemId;
+        $edited = $this->client->post($update, [
+            'code' => $tag,
+            'description' => $renamed,
+            'vendor_id' => $vendorId,
+            'brand_id' => $otherId,
+            'price' => '15.00',
+        ]);
+        self::assertSees($renamed, $edited);
+        self::assertSees($other, $edited);
+        self::assertSees('15.00', $edited);
+        $deleted = $this->client->post($update . '/delete', []);
+        self::assertStringNotContainsString($renamed, $deleted->body);
+        $added = $this->client->post('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $tag,
+            'description' => $created,
+            'vendor_id' => $vendorId,
+            'brand_id' => $brandId,
+            'price' => '12.50',
+        ]);
+        self::assertSees($tag, $added);
+        $duplicate = $this->client->post('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $tag,
+            'description' => 'Another vase',
+            'vendor_id' => $vendorId,
+            'brand_id' => '',
+            'price' => '9.00',
+        ]);
+
+        self::assertSame(200, $duplicate->status);
+        self::assertSees('That tag is already used.', $duplicate);
+    }
+
+    public function testTheOwnerAddsEditsAndDeletesAWaitListPerson(): void
+    {
+        $last = bin2hex(random_bytes(4));
+        $name = 'Ada ' . $last;
+        $email = $last . '@example.com';
+        $fields = [
+            'first_name' => 'Ada',
+            'last_name' => $last,
+            'email' => $email,
+            'phone' => '555-0100',
+            'width_ft' => '10',
+            'depth_ft' => '8',
+        ];
+        $page = $this->client->post('/' . ProbeMall::SLUG . '/wait-list', $fields);
+        self::assertSees($name, $page);
+        self::assertSees('Waiting', $page);
+        self::assertSees('10 × 8 ft', $page);
+        $id = HtmlPage::taggedId($page->body, 'article', 'wait', $name);
+        $edited = $this->client->post('/' . ProbeMall::SLUG . '/wait-list/' . $id, $fields + [
+            'status' => 'contacted',
+            'notes' => 'Called Tuesday',
+        ]);
+        self::assertSees('Contacted', $edited);
+        self::assertSees('Called Tuesday', $edited);
+        $duplicate = $this->client->post('/' . ProbeMall::SLUG . '/wait-list', [
+            'first_name' => 'Bea',
+            'last_name' => $last,
+            'email' => $email,
+            'phone' => '555-0101',
+        ]);
+        self::assertSame(200, $duplicate->status);
+        self::assertSees('That email is already on the wait list.', $duplicate);
+        $deleted = $this->client->post('/' . ProbeMall::SLUG . '/wait-list/' . $id . '/delete', []);
+        self::assertStringNotContainsString($name, $deleted->body);
+    }
+
     public function testTheOwnerAddsRenamesAndDeletesABooth(): void
     {
         $code = 'b' . bin2hex(random_bytes(4));
@@ -327,7 +423,7 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
 
         self::assertSame(200, $refused->status);
-        self::assertSees('A vendor who owes the store cannot be made inactive.', $refused);
+        self::assertSees('A vendor with open rent cannot be made inactive.', $refused);
         self::assertSees('Make inactive', $refused);
     }
 

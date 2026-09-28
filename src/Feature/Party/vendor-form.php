@@ -120,7 +120,7 @@ $active = !is_array($vendor) || ($vendor['active'] ?? true) === true || ($vendor
 <?php if ($editing): ?>
     <div class="card form-sheet mt-6">
         <div class="card-body stack">
-            <p class="muted text-sm">A vendor who owes the store cannot be made inactive. Delete is refused once this vendor has a booth assignment or a posted line.</p>
+            <p class="muted text-sm">A vendor with open rent cannot be made inactive. Delete is refused once this vendor has a booth assignment or a posted line.</p>
             <form method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($id) ?>/standing">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                 <input type="hidden" name="standing" value="<?= $active ? 'inactive' : 'active' ?>">

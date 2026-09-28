@@ -647,6 +647,7 @@ END $$;
 
 DO $$
 BEGIN
+    ALTER TABLE items DROP CONSTRAINT items_vendor_id_fkey;
     TRUNCATE assignment_rent, booth_rent_rates, booth_assignments, booths, vendors;
     RAISE EXCEPTION 'vendor truncate was accepted';
 EXCEPTION

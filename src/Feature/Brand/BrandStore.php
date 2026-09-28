@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Brand;
 
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\RowValue;
 
 final class BrandStore
 {
@@ -31,9 +32,8 @@ final class BrandStore
     public function count(): int
     {
         $rows = $this->statements->rows('SELECT count(*)::int AS total FROM brands');
-        $total = $rows[0]['total'] ?? 0;
 
-        return is_int($total) ? $total : (int) $total;
+        return RowValue::integer($rows[0]['total'] ?? 0);
     }
 
     /**

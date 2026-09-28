@@ -122,11 +122,14 @@ DROP TABLE brand_hold;
 
 DO $$
 BEGIN
+    ALTER TABLE items DROP CONSTRAINT items_brand_id_fkey;
     TRUNCATE brands;
     RAISE EXCEPTION 'brand truncate was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
-        NULL;
+        IF SQLERRM NOT LIKE '%table brands is append-only and cannot be truncated%' THEN
+            RAISE;
+        END IF;
 END $$;
 
 DO $$
@@ -145,6 +148,7 @@ VALUES ('01900000-0000-7000-8000-000000000b05', 'Poster brand');
 
 DO $$
 BEGIN
+    ALTER TABLE items DROP CONSTRAINT items_brand_id_fkey;
     SET LOCAL ROLE stall_poster;
     DELETE FROM brands WHERE id = '01900000-0000-7000-8000-000000000b05';
     IF EXISTS (

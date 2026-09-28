@@ -232,6 +232,36 @@ if ($brand.Code -ne 0) {
     throw "brand code race failed`n$($brand.Output)"
 }
 
+Invoke-Exec -Command "DELETE FROM items WHERE vendor_id IN (SELECT id FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item'); DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item'; INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d0c0', 'race-item', 'Race', 'Item');" | Out-Null
+$itemJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_item_a.sql'), $script:TenantSchema
+Start-Sleep -Seconds 1
+$itemWatch = [Diagnostics.Stopwatch]::StartNew()
+$item = Invoke-Psql -Path (Join-Path $root 'prove_race_item_b.sql')
+$itemWatch.Stop()
+Wait-Job $itemJob | Out-Null
+Receive-Job $itemJob | Out-Null
+Invoke-Exec -Command "DELETE FROM items WHERE vendor_id IN (SELECT id FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item'); DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item';" | Out-Null
+if ($itemWatch.ElapsedMilliseconds -lt 4500) {
+    throw "second item tag did not wait ($($itemWatch.ElapsedMilliseconds) ms)`n$($item.Output)"
+}
+if ($item.Code -ne 0) {
+    throw "item tag race failed`n$($item.Output)"
+}
+
+$waitJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_wait_a.sql'), $script:TenantSchema
+Start-Sleep -Seconds 1
+$waitWatch = [Diagnostics.Stopwatch]::StartNew()
+$wait = Invoke-Psql -Path (Join-Path $root 'prove_race_wait_b.sql')
+$waitWatch.Stop()
+Wait-Job $waitJob | Out-Null
+Receive-Job $waitJob | Out-Null
+if ($waitWatch.ElapsedMilliseconds -lt 4500) {
+    throw "second wait-list email did not wait ($($waitWatch.ElapsedMilliseconds) ms)`n$($wait.Output)"
+}
+if ($wait.Code -ne 0) {
+    throw "wait-list email race failed`n$($wait.Output)"
+}
+
 $placeJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_place_hold.sql'), $script:TenantSchema
 Start-Sleep -Seconds 1
 $placeWatch = [Diagnostics.Stopwatch]::StartNew()
@@ -286,9 +316,11 @@ SELECT
     || ',' || (SELECT count(*) FROM vendors WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
     || ',' || (SELECT count(*) FROM booths WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
     || ',' || (SELECT count(*) FROM accounting_periods WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
-    || ',' || (SELECT count(*) FROM brands WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%');
+    || ',' || (SELECT count(*) FROM brands WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
+    || ',' || (SELECT count(*) FROM items WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')
+    || ',' || (SELECT count(*) FROM wait_list WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%');
 "@
-if ($left.Trim() -ne '0,0,0,0,0') {
+if ($left.Trim() -ne '0,0,0,0,0,0,0') {
     throw "race proof left rows: $left"
 }
-Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) place_ms=$($placeWatch.ElapsedMilliseconds) floor_ms=$($floorWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"
+Write-Output "RACE_OK line_ms=$($lineWatch.ElapsedMilliseconds) key_ms=$($keyWatch.ElapsedMilliseconds) rate_ms=$($rateWatch.ElapsedMilliseconds) end_ms=$($endWatch.ElapsedMilliseconds) period_ms=$($periodWatch.ElapsedMilliseconds) currency_ms=$($currencyWatch.ElapsedMilliseconds) account_ms=$($accountWatch.ElapsedMilliseconds) number_ms=$($numberWatch.ElapsedMilliseconds) quiet_ms=$($quietWatch.ElapsedMilliseconds) order_ms=$($orderWatch.ElapsedMilliseconds) opening_ms=$($openingWatch.ElapsedMilliseconds) brand_ms=$($brandWatch.ElapsedMilliseconds) item_ms=$($itemWatch.ElapsedMilliseconds) wait_ms=$($waitWatch.ElapsedMilliseconds) place_ms=$($placeWatch.ElapsedMilliseconds) floor_ms=$($floorWatch.ElapsedMilliseconds) tenant_ms=$($tenantWatch.ElapsedMilliseconds)"
