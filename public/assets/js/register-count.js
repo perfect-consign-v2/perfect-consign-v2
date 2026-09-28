@@ -79,6 +79,7 @@
     var floatField = form.querySelector('[name="opening_float"], [name="counted_cash"]');
     if (floatField && counted) {
       floatField.value = dollars(total);
+      floatField.dispatchEvent(new Event('input', { bubbles: true }));
     }
     liveTotal();
     if (closeModal) {
@@ -92,4 +93,65 @@
       applyCount(true);
     });
   }
+})();
+
+(function () {
+  function cents(value) {
+    var text = String(value).trim().replace(/[$,]/g, '');
+    if (!/^-?\d+(\.\d{0,2})?$/.test(text)) {
+      return null;
+    }
+    var negative = text.startsWith('-');
+    var parts = text.replace('-', '').split('.');
+    var whole = Number(parts[0]);
+    var fraction = (parts[1] || '').padEnd(2, '0').slice(0, 2);
+    var minor = whole * 100 + Number(fraction || '0');
+    return negative ? -minor : minor;
+  }
+
+  function phrase(diff) {
+    var amount = dollars(Math.abs(diff));
+    if (diff === 0) {
+      return 'Even';
+    }
+    return '$' + amount.replace('-', '') + (diff > 0 ? ' over' : ' short');
+  }
+
+  function dollars(minor) {
+    var sign = minor < 0 ? '-' : '';
+    var value = Math.abs(minor);
+    return sign + Math.floor(value / 100) + '.' + String(value % 100).padStart(2, '0');
+  }
+
+  document.querySelectorAll('[data-close-sheet]').forEach(function (form) {
+    var expected = {
+      cash: Number(form.getAttribute('data-expected-cash')),
+      card: Number(form.getAttribute('data-expected-card')),
+      checks: Number(form.getAttribute('data-expected-checks'))
+    };
+
+    function refresh() {
+      ['cash', 'card', 'checks'].forEach(function (kind) {
+        var input = form.querySelector('[data-counted="' + kind + '"]');
+        var cell = form.querySelector('[data-difference="' + kind + '"]');
+        if (!input || !cell) {
+          return;
+        }
+        var counted = cents(input.value);
+        cell.classList.remove('diff-over', 'diff-short', 'diff-even');
+        if (counted === null || input.value.trim() === '') {
+          cell.textContent = '—';
+          return;
+        }
+        var diff = counted - expected[kind];
+        cell.textContent = phrase(diff);
+        cell.classList.add(diff === 0 ? 'diff-even' : (diff > 0 ? 'diff-over' : 'diff-short'));
+      });
+    }
+
+    form.querySelectorAll('[data-counted]').forEach(function (input) {
+      input.addEventListener('input', refresh);
+    });
+    refresh();
+  });
 })();

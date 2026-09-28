@@ -40,7 +40,7 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
     : '';
 $pageError = is_string($error ?? null) ? $error : '';
 ?>
-<div class="page-head">
+<div class="page-head"<?= $leftOpen !== [] ? ' inert' : '' ?>>
     <div class="titles">
         <h1 class="h1">Registers</h1>
         <?php if (($chooseRegister ?? false) === true): ?>
@@ -59,7 +59,7 @@ $pageError = is_string($error ?? null) ? $error : '';
     $tenders = is_array($register['tenders'] ?? null) ? $register['tenders'] : [];
     $drops = is_array($register['drops'] ?? null) ? $register['drops'] : [];
     ?>
-    <article class="card" id="register-<?= View::text($id) ?>">
+    <article class="card" id="register-<?= View::text($id) ?>"<?= $leftOpen !== [] ? ' inert' : '' ?>>
         <div class="card-head">
             <div class="h3"><?= View::text($name) ?></div>
             <?php if ($open && ($register['session_id'] ?? '') === ($activeSessionId ?? '')): ?>
@@ -120,12 +120,30 @@ $pageError = is_string($error ?? null) ? $error : '';
         </div>
     <?php endif; ?>
 
+    <?php
+    $mustClose = false;
+    foreach ($leftOpen as $stale) {
+        if (is_array($stale) && ($stale['id'] ?? '') === $id) {
+            $mustClose = true;
+        }
+    }
+    ?>
+    <?php
+    $expectedCash = is_int($register['expected_minor'] ?? null) ? $register['expected_minor'] : 0;
+    $expectedCard = is_int($tenders['card'] ?? null) ? $tenders['card'] : 0;
+    $expectedChecks = is_int($tenders['checks'] ?? null) ? $tenders['checks'] : 0;
+    ?>
     <?php if ($open): ?>
-        <div id="close-<?= View::text($id) ?>" class="modal" role="dialog" aria-modal="true" aria-labelledby="close-title-<?= View::text($id) ?>"<?= $modal === 'close-' . $id ? '' : ' hidden' ?>>
-            <form id="close-form-<?= View::text($id) ?>" class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/close">
+        <div id="close-<?= View::text($id) ?>" class="modal" role="dialog" aria-modal="true" aria-labelledby="close-title-<?= View::text($id) ?>"<?= $mustClose ? ' data-lock' : '' ?><?= $modal === 'close-' . $id ? '' : ' hidden' ?>>
+            <form id="close-form-<?= View::text($id) ?>" class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/close" data-close-sheet data-expected-cash="<?= View::text((string) $expectedCash) ?>" data-expected-card="<?= View::text((string) $expectedCard) ?>" data-expected-checks="<?= View::text((string) $expectedChecks) ?>">
                 <div class="card-head"><div class="h3" id="close-title-<?= View::text($id) ?>">Close <?= View::text($name) ?></div></div>
                 <div class="card-body stack">
-                    <?php if ($modal === 'close-' . $id && $pageError !== ''): ?>
+                    <?php if (($register['open_ticket'] ?? false) === true): ?>
+                        <div class="alert alert-danger" role="alert">
+                            <p class="error">A sale is still open on this register. Finish it or cancel it, then close.</p>
+                            <p><a class="text-link" href="/<?= View::text($slug) ?>/pos">Open the sale</a></p>
+                        </div>
+                    <?php elseif ($modal === 'close-' . $id && $pageError !== ''): ?>
                         <div class="alert alert-danger" role="alert">
                             <p class="error"><?= View::text($pageError) ?></p>
                         </div>
@@ -135,19 +153,48 @@ $pageError = is_string($error ?? null) ? $error : '';
                         <?php $saved = $modal === 'close-' . $id ? ($draftCounts[(string) $key] ?? 0) : 0; ?>
                         <input type="hidden" name="count_<?= View::text((string) $key) ?>" value="<?= View::text($saved) ?>">
                     <?php endforeach; ?>
-                    <p>Expected drawer <strong><?= View::text(is_string($register['expected_cash'] ?? null) ? $register['expected_cash'] : '') ?></strong></p>
-                    <label for="counted-cash-<?= View::text($id) ?>">Counted cash</label>
-                    <input class="input" id="counted-cash-<?= View::text($id) ?>" name="counted_cash" inputmode="decimal" value="<?= $modal === 'close-' . $id ? View::text($draftCash) : '' ?>" required>
-                    <button class="btn" type="button" data-open-modal="register-count" data-count-form="close-form-<?= View::text($id) ?>">Count bills and coins</button>
-                    <?php foreach ($labels as $role => $label): ?>
-                        <?php if ($role === 'cash') { continue; } ?>
-                        <?php $net = is_int($tenders[$role] ?? null) ? $tenders[$role] : (is_string($tenders[$role] ?? null) ? (int) $tenders[$role] : 0); ?>
-                        <p><?= View::text($label) ?> posted <?= View::text(DenominationCount::dollars($net)) ?></p>
-                    <?php endforeach; ?>
-                    <label for="counted-card-<?= View::text($id) ?>">Counted card</label>
-                    <input class="input" id="counted-card-<?= View::text($id) ?>" name="counted_card" inputmode="decimal" value="<?= $modal === 'close-' . $id ? View::text($draftCard) : '0.00' ?>">
-                    <label for="counted-checks-<?= View::text($id) ?>">Counted checks</label>
-                    <input class="input" id="counted-checks-<?= View::text($id) ?>" name="counted_checks" inputmode="decimal" value="<?= $modal === 'close-' . $id ? View::text($draftChecks) : '0.00' ?>">
+                    <table class="close-sheet">
+                        <thead>
+                            <tr>
+                                <th>Tender</th>
+                                <th>Expected</th>
+                                <th>Your count</th>
+                                <th>Difference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">Cash</th>
+                                <td><?= View::text(DenominationCount::dollars($expectedCash)) ?></td>
+                                <td>
+                                    <input class="input" id="counted-cash-<?= View::text($id) ?>" name="counted_cash" inputmode="decimal" data-counted="cash" value="<?= $modal === 'close-' . $id ? View::text($draftCash) : '' ?>" required>
+                                    <button class="btn" type="button" data-open-modal="register-count" data-count-form="close-form-<?= View::text($id) ?>">Count bills and coins</button>
+                                </td>
+                                <td data-difference="cash">—</td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="counted-card-<?= View::text($id) ?>">Card</label></th>
+                                <td><?= View::text(DenominationCount::dollars($expectedCard)) ?></td>
+                                <td><input class="input" id="counted-card-<?= View::text($id) ?>" name="counted_card" inputmode="decimal" data-counted="card" value="<?= $modal === 'close-' . $id ? View::text($draftCard) : '0.00' ?>"></td>
+                                <td data-difference="card">—</td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="counted-checks-<?= View::text($id) ?>">Checks</label></th>
+                                <td><?= View::text(DenominationCount::dollars($expectedChecks)) ?></td>
+                                <td><input class="input" id="counted-checks-<?= View::text($id) ?>" name="counted_checks" inputmode="decimal" data-counted="checks" value="<?= $modal === 'close-' . $id ? View::text($draftChecks) : '0.00' ?>"></td>
+                                <td data-difference="checks">—</td>
+                            </tr>
+                            <?php foreach (['gift_certificate' => 'Gift certificates', 'gift_card' => 'Gift cards', 'store_credit' => 'Store credit'] as $role => $label): ?>
+                                <?php $net = is_int($tenders[$role] ?? null) ? $tenders[$role] : 0; ?>
+                                <tr>
+                                    <th scope="row"><?= View::text($label) ?></th>
+                                    <td><?= View::text(DenominationCount::dollars($net)) ?></td>
+                                    <td class="muted">Posted</td>
+                                    <td>—</td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                     <?php if ($drops !== []): ?>
                         <p>Cash drops</p>
                         <ul>
@@ -165,7 +212,9 @@ $pageError = is_string($error ?? null) ? $error : '';
                     <?php endif; ?>
                     <div class="row gap-2">
                         <button class="btn btn-primary" type="submit"><?= $confirmVariance && $modal === 'close-' . $id ? 'Confirm and close' : 'Close register' ?></button>
-                        <button class="btn" type="button" data-close-modal="close-<?= View::text($id) ?>">Cancel</button>
+                        <?php if (!$mustClose): ?>
+                            <button class="btn" type="button" data-close-modal="close-<?= View::text($id) ?>">Cancel</button>
+                        <?php endif; ?>
                     </div>
                 </div>
             </form>

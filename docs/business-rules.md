@@ -68,11 +68,13 @@ Each closed shift has a Z-tape: both counts, the expected-cash lines, the drops,
 
 ## Sales
 
-A sale is one or more pieces on one journal. The customer pays the sold prices plus sales tax. Store take comes out of the sold price. Tax does not reduce what a vendor is owed.
+A sale is one or more pieces on one journal. The customer pays the sold prices, minus any ticket discount, plus sales tax. Store take comes out of the sold price. Tax does not reduce what a vendor is owed.
 
-The sold price starts at the asking price and can differ. Store take is the piece's percent, otherwise the vendor's, otherwise the mall default, rounded half up to the cent. Sales tax is the mall rate on that sold price, rounded the same way. A tax-exempt vendor's pieces have no tax.
+The sold price starts at the asking price and can differ. Store take is the piece's percent, otherwise the vendor's, otherwise the mall default, rounded half up to the cent. Sales tax is the mall rate on the sold price after that line's discount, rounded the same way. A tax-exempt vendor's pieces have no tax.
 
-The journal debits each tender once. Those tenders add up to the sold prices plus tax. It credits store take once when that total is not zero, sales tax once when that total is not zero, and one payable for each vendor who is owed at least one cent. A vendor owed nothing has no payable line.
+A discount is the store giving up take on this ticket. It does not change the sold price and it does not change what a vendor is owed. Percent is half up on each sold price. A flat amount is split across the lines by sold price, half up, and the last line takes the remainder. A discount larger than the store take is refused. A zero discount clears it. Tax-free is this ticket only. It stores a reason and every line's tax is zero. Restore tax clears it.
+
+The journal debits each tender once. Those tenders add up to the sold prices, minus the discount, plus tax, and the cash-round difference when cash is rounded. It credits store take, minus the discount, once when that net is not zero, sales tax once when that total is not zero, and one payable for each vendor who is owed at least one cent. A vendor owed nothing has no payable line. Vendor payable and sales tax are still never the plug.
 
 A piece is on at most one sale that has not been voided. A void reverses the whole journal and the piece can be sold again. The asking price stays on the piece.
 
@@ -80,6 +82,6 @@ A ticket is the open cart on one register shift. It is not a journal. The shift 
 
 When the mall rounds cash to the nearest nickel, the cash portion of a sale rounds to a nickel and the difference posts to cash rounding. That round amount shows on the register for a cash sale and on the receipt. Card, checks, and stored value stay exact. Cash handed over above the rounded cash due is change. It is not a second tender, and the journal debits only the amount due.
 
-Void from the receipt reverses the whole sale and frees every piece. A second void is refused. A return is its own journal for one piece. It reverses that piece's store take, tax, and vendor payable, and credits one tender. That piece can be sold again. The rest of the ticket stays sold.
+Void from the receipt reverses the whole sale and frees every piece. A second void is refused. A return is its own journal for one piece. It reverses that piece's discount share, store take, tax, and vendor payable, and credits one tender. That piece can be sold again. The rest of the ticket stays sold.
 
 Park takes the open ticket off the shift so close can finish. Recall puts it on the active shift. A parked ticket is not drawer cash. Two shifts cannot hold the same piece. A parked ticket can be discarded. Its lines cannot be changed until it is recalled.

@@ -78,6 +78,7 @@ final class TenantProof
             '033_cash_round.sql',
             '034_piece_return.sql',
             '035_park_ticket.sql',
+            '036_ticket_adjustments.sql',
         ];
         $sql = 'SET search_path TO ' . $schema . ', pg_catalog, extensions;';
         foreach ($files as $file) {

@@ -169,7 +169,7 @@ final class PosPayController
         $itemId = $this->itemId();
         foreach ($this->poster->receipt($saleId)['lines'] as $line) {
             if ($line['item_id'] === $itemId) {
-                return RowValue::integer($line['price']) + RowValue::integer($line['tax']);
+                return RowValue::integer($line['price']) - RowValue::integer($line['discount']) + RowValue::integer($line['tax']);
             }
         }
 

@@ -66,6 +66,33 @@ final class PosController
         }, 'Ticket parked.');
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/pos/discount', ['POST'])]
+    public function discount(string $slug): void
+    {
+        $this->act($slug, function (string $session): void {
+            $request = $this->app->request();
+            $posted = TicketAdjustment::discount(
+                $request->field('discount_action'),
+                $request->field('discount_kind'),
+                $request->field('discount_value'),
+                $request->field('discount_reason'),
+            );
+            $this->tickets->discount($session, $posted['kind'], $posted['value'], $posted['reason']);
+        }, 'Discount saved.');
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/pos/tax-free', ['POST'])]
+    public function taxFree(string $slug): void
+    {
+        $this->act($slug, function (string $session): void {
+            $request = $this->app->request();
+            $this->tickets->waive($session, TicketAdjustment::waiver(
+                $request->field('waiver_action'),
+                $request->field('waiver_reason'),
+            ));
+        }, 'Tax updated.');
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/recall', ['POST'])]
     public function recall(string $slug): void
     {

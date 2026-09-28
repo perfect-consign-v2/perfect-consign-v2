@@ -9,18 +9,25 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
+
 final class TicketStore
 {
-    public function __construct(private readonly Statements $statements)
-    {
+    public function __construct(
+        private readonly Statements $statements,
+        private readonly TicketPricing $pricing,
+    ) {
     }
 
     /**
      * @return array{
      *     ticket_id: string,
-     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int}>,
+     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int, discount: int}>,
      *     merchandise: int,
+     *     discount: int,
+     *     discount_reason: string,
      *     tax: int,
+     *     tax_bps: int,
+     *     waiver: string,
      *     due: int,
      *     cash_round: int,
      *     cash_due: int,
@@ -28,25 +35,57 @@ final class TicketStore
      *     parked: list<array{id: string, pieces: int}>
      * }
      */
+    /**
+     * @return array{id: string, name: string}|null
+     */
+    public function openDrawer(): ?array
+    {
+        $rows = $this->statements->rows(
+            "SELECT session.id, register.name
+             FROM tickets AS ticket
+             JOIN register_sessions AS session ON session.id = ticket.session_id
+             JOIN registers AS register ON register.id = session.register_id
+             WHERE ticket.status = 'open' AND session.closed_at IS NULL
+             ORDER BY session.opened_at
+             LIMIT 1"
+        );
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            return null;
+        }
+
+        return [
+            'id' => RowValue::string($row['id'] ?? null),
+            'name' => RowValue::string($row['name'] ?? null),
+        ];
+    }
+
     public function cart(string $sessionId): array
     {
         $mall = $this->mall();
         $ticketId = $this->openId($sessionId);
-        $lines = $ticketId === null ? [] : $this->lines($ticketId, $mall['tax']);
+        $adjustment = $ticketId === null ? $this->pricing->emptyAdjustment() : $this->pricing->adjustment($ticketId);
+        $lines = $ticketId === null ? [] : $this->pricing->lines($ticketId, $mall['tax'], $adjustment);
         $merchandise = 0;
+        $discount = 0;
         $tax = 0;
         foreach ($lines as $line) {
             $merchandise += $line['price'];
+            $discount += $line['discount'];
             $tax += $line['tax'];
         }
-        $due = $merchandise + $tax;
+        $due = $merchandise - $discount + $tax;
         $round = $mall['round'] === '1' ? CashRound::adjustment($due) : 0;
 
         return [
             'ticket_id' => $ticketId ?? '',
             'lines' => $lines,
             'merchandise' => $merchandise,
+            'discount' => $discount,
+            'discount_reason' => $adjustment['reason'],
             'tax' => $tax,
+            'tax_bps' => $mall['tax'],
+            'waiver' => $adjustment['waiver'],
             'due' => $due,
             'cash_round' => $round,
             'cash_due' => $due + $round,
@@ -68,29 +107,48 @@ final class TicketStore
                 'INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor) VALUES (?::uuid, ?, ?::uuid, ?)',
                 [$ticketId, $this->nextLine($ticketId), $piece['id'], $piece['price']]
             );
+            $this->pricing->recheck($ticketId);
         });
     }
 
     public function price(string $sessionId, int $lineNo, int $price): void
     {
-        $updated = $this->statements->affected(
-            'UPDATE ticket_lines SET price_minor = ? WHERE ticket_id = ?::uuid AND line_no = ?',
-            [$price, $this->requireOpen($sessionId), $lineNo]
-        );
-        if ($updated !== 1) {
-            throw new DatabaseRefusal('that piece is not on the ticket');
-        }
+        $ticketId = $this->requireOpen($sessionId);
+        $this->statements->transaction(function () use ($ticketId, $lineNo, $price): void {
+            $updated = $this->statements->affected(
+                'UPDATE ticket_lines SET price_minor = ? WHERE ticket_id = ?::uuid AND line_no = ?',
+                [$price, $ticketId, $lineNo]
+            );
+            if ($updated !== 1) {
+                throw new DatabaseRefusal('that piece is not on the ticket');
+            }
+            $this->pricing->recheck($ticketId);
+        });
     }
 
     public function remove(string $sessionId, int $lineNo): void
     {
-        $deleted = $this->statements->affected(
-            'DELETE FROM ticket_lines WHERE ticket_id = ?::uuid AND line_no = ?',
-            [$this->requireOpen($sessionId), $lineNo]
-        );
-        if ($deleted !== 1) {
-            throw new DatabaseRefusal('that piece is not on the ticket');
-        }
+        $ticketId = $this->requireOpen($sessionId);
+        $this->statements->transaction(function () use ($ticketId, $lineNo): void {
+            $deleted = $this->statements->affected(
+                'DELETE FROM ticket_lines WHERE ticket_id = ?::uuid AND line_no = ?',
+                [$ticketId, $lineNo]
+            );
+            if ($deleted !== 1) {
+                throw new DatabaseRefusal('that piece is not on the ticket');
+            }
+            $this->pricing->recheck($ticketId);
+        });
+    }
+
+    public function discount(string $sessionId, ?string $kind, ?int $value, ?string $reason): void
+    {
+        $this->pricing->discount($this->requireOpen($sessionId), $kind, $value, $reason);
+    }
+
+    public function waive(string $sessionId, ?string $reason): void
+    {
+        $this->pricing->waive($this->requireOpen($sessionId), $reason);
     }
 
     public function discard(string $sessionId): void
@@ -228,52 +286,6 @@ final class TicketStore
         );
 
         return RowValue::integer($rows[0]['line_no'] ?? null);
-    }
-
-    /**
-     * @return list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int}>
-     */
-    private function lines(string $ticketId, int $taxBps): array
-    {
-        $rows = $this->statements->bound(
-            'SELECT line.line_no, line.item_id, line.price_minor, item.code, item.description, item.vendor_id,
-                    vendor.name AS vendor_name, vendor.tax_exempt,
-                    COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) AS commission_bps
-             FROM ticket_lines AS line
-             JOIN items AS item ON item.id = line.item_id
-             JOIN vendors AS vendor ON vendor.id = item.vendor_id
-             CROSS JOIN mall
-             WHERE line.ticket_id = ?::uuid
-             ORDER BY line.line_no',
-            [$ticketId]
-        );
-        $lines = [];
-        foreach ($rows as $row) {
-            $lines[] = $this->quote($row, $taxBps);
-        }
-
-        return $lines;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int}
-     */
-    private function quote(array $row, int $taxBps): array
-    {
-        $price = RowValue::integer($row['price_minor'] ?? null);
-
-        return [
-            'line_no' => RowValue::integer($row['line_no'] ?? null),
-            'item_id' => RowValue::string($row['item_id'] ?? null),
-            'code' => RowValue::string($row['code'] ?? null),
-            'description' => RowValue::string($row['description'] ?? null),
-            'vendor' => RowValue::string($row['vendor_name'] ?? null),
-            'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
-            'price' => $price,
-            'commission' => TicketQuote::halfUp($price, RowValue::integer($row['commission_bps'] ?? null)),
-            'tax' => self::flag($row['tax_exempt'] ?? null) ? 0 : TicketQuote::halfUp($price, $taxBps),
-        ];
     }
 
     /**

@@ -42,13 +42,17 @@ final class RegisterStore
     public function cards(): array
     {
         $rows = $this->statements->rows(
-            'SELECT register.id, register.name,
+            "SELECT register.id, register.name,
                     (SELECT count(*) FROM register_sessions WHERE register_id = register.id) AS shift_count,
-                    session.id AS session_id, session.cashier, session.opened_at, session.opening_cash_minor
+                    session.id AS session_id, session.cashier, session.opened_at, session.opening_cash_minor,
+                    CASE WHEN EXISTS (
+                        SELECT 1 FROM tickets
+                        WHERE session_id = session.id AND status = 'open'
+                    ) THEN 1 ELSE 0 END AS open_ticket
              FROM registers AS register
              LEFT JOIN register_sessions AS session
                ON session.register_id = register.id AND session.closed_at IS NULL
-             ORDER BY lower(register.name), register.name'
+             ORDER BY lower(register.name), register.name"
         );
         $cards = [];
         foreach ($rows as $row) {
@@ -188,6 +192,7 @@ final class RegisterStore
             'open' => $open,
             'shifts' => RowValue::integer($row['shift_count'] ?? 0),
             'session_id' => $sessionId ?? '',
+            'open_ticket' => RowValue::integer($row['open_ticket'] ?? 0) === 1,
             'cashier' => $open ? RowValue::string($row['cashier'] ?? null) : '',
             'opened_at' => $open ? $this->activity->local($row['opened_at'] ?? null) : '',
             'opened_on' => $open ? $this->mall->localDate($row['opened_at'] ?? null) : '',

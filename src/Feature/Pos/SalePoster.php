@@ -18,13 +18,14 @@ final class SalePoster
     public function __construct(
         private readonly LedgerStore $ledger,
         private readonly Statements $statements,
+        private readonly SaleReceipt $receipts,
     ) {
     }
 
     /**
      * @param array{
      *     ticket_id: string,
-     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int}>,
+     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int, discount: int}>,
      *     due: int
      * } $cart
      * @param array{
@@ -102,6 +103,7 @@ final class SalePoster
                 $piece['price'],
                 $piece['commission'],
                 $piece['tax'],
+                $piece['discount'],
                 $piece['vendor_id'],
                 $credit
             ),
@@ -109,9 +111,9 @@ final class SalePoster
             checkNumber: $check,
             beforeCommit: function (string $journalId) use ($saleId, $itemId, $piece): void {
                 $this->statements->change(
-                    'INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor)
-                     VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?)',
-                    [$journalId, $saleId, $itemId, $piece['price'], $piece['commission'], $piece['tax']]
+                    'INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor, discount_minor)
+                     VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?)',
+                    [$journalId, $saleId, $itemId, $piece['price'], $piece['commission'], $piece['tax'], $piece['discount']]
                 );
             },
         ));
@@ -123,31 +125,24 @@ final class SalePoster
      *     posting_key: string,
      *     description: string,
      *     voided: bool,
-     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, returned: bool}>,
+     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, discount: int, returned: bool}>,
      *     tenders: list<array{name: string, amount: int}>,
      *     round: int,
-     *     cash: int
+     *     cash: int,
+     *     discount: int,
+     *     discount_reason: string,
+     *     waiver: string
      * }
      */
     public function receipt(string $journalId): array
     {
         $journal = $this->sale($journalId);
-        $money = $this->money($journalId);
 
-        return [
-            'journal_id' => $journalId,
-            'posting_key' => RowValue::string($journal['posting_key'] ?? null),
-            'description' => RowValue::string($journal['description'] ?? null),
-            'voided' => $this->ledger->reversed($journalId) || self::flag($journal['is_reversal'] ?? null),
-            'lines' => $this->receiptLines($journalId),
-            'tenders' => $money['tenders'],
-            'round' => $money['round'],
-            'cash' => $money['cash'],
-        ];
+        return $this->receipts->read($journalId, $journal);
     }
 
     /**
-     * @param list<array{line_no: int, item_id: string, price: int, commission: int, tax: int}> $pieces
+     * @param list<array{line_no: int, item_id: string, price: int, commission: int, tax: int, discount: int}> $pieces
      */
     private function attach(string $journalId, string $ticketId, array $pieces): void
     {
@@ -158,9 +153,9 @@ final class SalePoster
         $this->samePrices($ticketId, $pieces);
         foreach ($pieces as $piece) {
             $this->statements->change(
-                'INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
-                 VALUES (?::uuid, ?, ?::uuid, ?, ?, ?)',
-                [$journalId, $piece['line_no'], $piece['item_id'], $piece['price'], $piece['commission'], $piece['tax']]
+                'INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor, discount_minor)
+                 VALUES (?::uuid, ?, ?::uuid, ?, ?, ?, ?)',
+                [$journalId, $piece['line_no'], $piece['item_id'], $piece['price'], $piece['commission'], $piece['tax'], $piece['discount']]
             );
         }
         $updated = $this->statements->affected(
@@ -226,12 +221,12 @@ final class SalePoster
     }
 
     /**
-     * @return array{price: int, commission: int, tax: int, vendor_id: string}
+     * @return array{price: int, commission: int, tax: int, discount: int, vendor_id: string}
      */
     private function piece(string $saleId, string $itemId): array
     {
         $rows = $this->statements->bound(
-            'SELECT sale.price_minor, sale.commission_minor, sale.tax_minor, item.vendor_id
+            'SELECT sale.price_minor, sale.commission_minor, sale.tax_minor, sale.discount_minor, item.vendor_id
              FROM sale_lines AS sale
              JOIN items AS item ON item.id = sale.item_id
              JOIN journals AS journal ON journal.id = sale.journal_id
@@ -250,6 +245,7 @@ final class SalePoster
             'price' => RowValue::integer($row['price_minor'] ?? null),
             'commission' => RowValue::integer($row['commission_minor'] ?? null),
             'tax' => RowValue::integer($row['tax_minor'] ?? null),
+            'discount' => RowValue::integer($row['discount_minor'] ?? null),
             'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
         ];
     }
@@ -271,100 +267,6 @@ final class SalePoster
         }
 
         return $lines;
-    }
-
-    /**
-     * @return list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, returned: bool}>
-     */
-    private function receiptLines(string $journalId): array
-    {
-        $rows = $this->statements->bound(
-            'SELECT sale.item_id, sale.price_minor, sale.commission_minor, sale.tax_minor,
-                    item.code, item.description, vendor.name AS vendor_name,
-                    EXISTS (
-                        SELECT 1 FROM piece_returns AS returned
-                        WHERE returned.sale_journal_id = sale.journal_id
-                          AND returned.item_id = sale.item_id
-                    ) AS returned
-             FROM sale_lines AS sale
-             JOIN items AS item ON item.id = sale.item_id
-             JOIN vendors AS vendor ON vendor.id = item.vendor_id
-             WHERE sale.journal_id = ?::uuid
-             ORDER BY sale.line_no',
-            [$journalId]
-        );
-        $lines = [];
-        foreach ($rows as $row) {
-            $lines[] = [
-                'item_id' => RowValue::string($row['item_id'] ?? null),
-                'code' => RowValue::string($row['code'] ?? null),
-                'description' => RowValue::string($row['description'] ?? null),
-                'vendor' => RowValue::string($row['vendor_name'] ?? null),
-                'price' => RowValue::integer($row['price_minor'] ?? null),
-                'commission' => RowValue::integer($row['commission_minor'] ?? null),
-                'tax' => RowValue::integer($row['tax_minor'] ?? null),
-                'returned' => self::flag($row['returned'] ?? null),
-            ];
-        }
-
-        return $lines;
-    }
-
-    /**
-     * @return array{tenders: list<array{name: string, amount: int}>, round: int, cash: int}
-     */
-    private function money(string $journalId): array
-    {
-        $rows = $this->statements->bound(
-            'SELECT account.name, line.debit_minor, line.credit_minor, role.role
-             FROM journal_lines AS line
-             JOIN accounts AS account ON account.id = line.account_id
-             LEFT JOIN chart_roles AS role ON role.account_id = line.account_id
-             WHERE line.journal_id = ?::uuid
-             ORDER BY line.line_no',
-            [$journalId]
-        );
-        $tenders = [];
-        $round = 0;
-        $cash = 0;
-        foreach ($rows as $row) {
-            $read = $this->moneyLine($row);
-            if ($read['tender'] !== null) {
-                $tenders[] = $read['tender'];
-            }
-            $round += $read['round'];
-            $cash += $read['cash'];
-        }
-
-        return ['tenders' => $tenders, 'round' => $round, 'cash' => $cash];
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     * @return array{tender: ?array{name: string, amount: int}, round: int, cash: int}
-     */
-    private function moneyLine(array $row): array
-    {
-        $role = is_string($row['role'] ?? null) ? $row['role'] : '';
-        $debit = RowValue::integer($row['debit_minor'] ?? null);
-        $credit = RowValue::integer($row['credit_minor'] ?? null);
-        if ($role === 'cash_rounding') {
-            return ['tender' => null, 'round' => $credit - $debit, 'cash' => 0];
-        }
-        if ($debit < 1 || !$this->tenderRole($role)) {
-            return ['tender' => null, 'round' => 0, 'cash' => 0];
-        }
-
-        return [
-            'tender' => ['name' => RowValue::string($row['name'] ?? null), 'amount' => $debit],
-            'round' => 0,
-            'cash' => $role === 'cash' ? $debit : 0,
-        ];
-    }
-
-    private function tenderRole(string $role): bool
-    {
-        return in_array($role, ['cash', 'card', 'checks', 'gift_certificate', 'gift_card', 'store_credit'], true);
     }
 
     private static function flag(mixed $value): bool

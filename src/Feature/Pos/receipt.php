@@ -12,10 +12,13 @@ use PerfectConsign\Shared\Scalar\RowValue;
  *     posting_key: string,
  *     description: string,
  *     voided: bool,
- *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, returned: bool}>,
+ *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, discount: int, returned: bool}>,
  *     tenders: list<array{name: string, amount: int}>,
  *     round: int,
- *     cash: int
+ *     cash: int,
+ *     discount: int,
+ *     discount_reason: string,
+ *     waiver: string
  * } $receipt
  */
 /** @var int|null $change */
@@ -72,6 +75,12 @@ $voided = $receipt['voided'] === true;
             <?php endforeach; ?>
             </tbody>
         </table>
+        <?php if ($receipt['discount'] > 0): ?>
+            <p>Discount <span id="discount"><?= View::text(View::money(RowValue::integer($receipt['discount']))) ?></span> <?= View::text($receipt['discount_reason']) ?></p>
+        <?php endif; ?>
+        <?php if ($receipt['waiver'] !== ''): ?>
+            <p><span class="badge" id="tax-waived">Tax waived</span> <?= View::text($receipt['waiver']) ?></p>
+        <?php endif; ?>
         <?php foreach ($tenders as $tender): ?>
             <p><?= View::text($tender['name']) ?> <?= View::text(View::money(RowValue::integer($tender['amount']))) ?></p>
         <?php endforeach; ?>
@@ -86,8 +95,18 @@ $voided = $receipt['voided'] === true;
 </div>
 
 <?php if (!$voided): ?>
-<form method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/void" class="mt-6">
-    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-    <button class="btn" type="submit">Void ticket</button>
-</form>
+<button class="btn mt-6" type="button" data-open-modal="void-ticket">Void ticket</button>
+<div id="void-ticket" class="modal" role="dialog" aria-modal="true" aria-labelledby="void-ticket-title" hidden>
+    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/void">
+        <div class="card-head"><div class="h3" id="void-ticket-title">Void ticket</div></div>
+        <div class="card-body stack">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <p>Voiding reverses this sale and frees every piece.</p>
+            <div class="row gap-2">
+                <button class="btn btn-primary" type="submit">Confirm void</button>
+                <button class="btn" type="button" data-close-modal="void-ticket">Cancel</button>
+            </div>
+        </div>
+    </form>
+</div>
 <?php endif; ?>

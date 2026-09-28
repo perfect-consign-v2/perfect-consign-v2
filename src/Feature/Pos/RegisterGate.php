@@ -12,11 +12,16 @@ final class RegisterGate
     public function __construct(
         private readonly MallApp $app,
         private readonly ActiveRegister $drawers,
+        private readonly TicketStore $tickets,
     ) {
     }
 
     public function session(string $slug): string
     {
+        $open = $this->tickets->openDrawer();
+        if ($open !== null) {
+            $this->drawers->use($slug, $open['id'], $open['name']);
+        }
         $session = $this->drawers->current($slug, true);
         if ($session === '') {
             $this->app->redirect(

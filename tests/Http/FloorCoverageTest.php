@@ -92,6 +92,70 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('a second void is refused', $secondVoid);
     }
 
+    public function testADiscountAndATaxWaiverStayOnTheReceipt(): void
+    {
+        $this->settings(false);
+        $this->openRegister();
+        $this->client->post('/' . self::SLUG . '/pos/discard', []);
+        $code = 'v' . bin2hex(random_bytes(3));
+        $created = $this->client->post('/' . self::SLUG . '/vendors', [
+            'code' => $code,
+            'first_name' => 'Ada',
+            'last_name' => $code,
+            'store_take' => '50',
+        ]);
+        self::assertSees('Vendor created.', $created);
+        $directory = $this->client->get('/' . self::SLUG . '/parties');
+        $vendor = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
+        $first = $this->piece($vendor, '10.00');
+        $second = $this->piece($vendor, '30.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $first['code']]);
+        $cart = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $second['code']]);
+        self::assertSees('5.00', $cart);
+        $discounted = $this->client->post('/' . self::SLUG . '/pos/discount', [
+            'discount_action' => 'apply',
+            'discount_kind' => 'percent',
+            'discount_value' => '10',
+            'discount_reason' => 'promotion',
+        ]);
+        self::assertSees('Discount saved.', $discounted);
+        self::assertSees('id="discount"', $discounted);
+        self::assertSees('promotion', $discounted);
+        self::assertSees('36.00', $discounted);
+        $paid = $this->client->post('/' . self::SLUG . '/pos/pay', [
+            'tender_cash' => '36.00',
+            'cash_received' => '36.00',
+        ]);
+        self::assertSees('Sale posted.', $paid);
+        self::assertSees('id="discount"', $paid);
+        self::assertSees('promotion', $paid);
+        $itemId = $this->match(
+            $paid->body,
+            '/' . preg_quote($first['description'], '/') . '.*?name="item_id" value="([0-9a-fA-F-]{36})"/s'
+        );
+        $returned = $this->client->post($this->receiptAction($paid->body, 'return'), [
+            'item_id' => $itemId,
+            'return_tender' => 'cash',
+        ]);
+        self::assertSees('Piece returned.', $returned);
+        self::assertSees($second['description'], $returned);
+        $third = $this->piece($vendor, '8.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $third['code']]);
+        $waived = $this->client->post('/' . self::SLUG . '/pos/tax-free', [
+            'waiver_action' => 'waive',
+            'waiver_reason' => 'charity',
+        ]);
+        self::assertSees('Tax updated.', $waived);
+        self::assertSees('Tax waived', $waived);
+        self::assertSees('charity', $waived);
+        $free = $this->client->post('/' . self::SLUG . '/pos/pay', [
+            'tender_card' => '8.00',
+        ]);
+        self::assertSees('Sale posted.', $free);
+        self::assertSees('Tax waived', $free);
+        self::assertSees('charity', $free);
+    }
+
     public function testARegisterDropsAndPrintsTheTape(): void
     {
         $name = 'Tape ' . bin2hex(random_bytes(3));

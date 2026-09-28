@@ -19,6 +19,8 @@ $path = $path ?? '';
 $activeRegister = $activeRegister ?? '';
 $chooseRegister = $chooseRegister ?? false;
 $leftOpen = is_array($leftOpen ?? null) ? $leftOpen : [];
+$priorCloseStarted = ($priorCloseStarted ?? false) === true;
+$priorPrompt = ($priorPrompt ?? false) === true;
 $notice = $notice ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $groups = [
@@ -78,7 +80,7 @@ $groups = [
 <?php require $templateDirectory . '/Shared/Web/icons.php'; ?>
 <?php if ($nav): ?>
 <div class="app" id="app" data-collapsed="false" data-mobile-open="false">
-    <aside class="sidebar" id="sidebar" aria-label="Primary">
+    <aside class="sidebar" id="sidebar" aria-label="Primary"<?= $leftOpen !== [] && !$priorPrompt ? ' inert' : '' ?>>
         <div class="sidebar-brand">
             <span class="brand-mark" aria-hidden="true"><?= View::text($mark) ?></span>
             <span class="brand-text">
@@ -87,6 +89,14 @@ $groups = [
             </span>
         </div>
         <nav class="sidebar-nav">
+            <?php if ($leftOpen !== [] && $priorCloseStarted): ?>
+                <div class="nav-group-label">Registers</div>
+                <a class="nav-item" href="/<?= View::text($slug) ?>/registers" aria-current="page">
+                    <svg aria-hidden="true"><use href="#i-pos"></use></svg>
+                    <span class="nav-label">Close the register</span>
+                </a>
+            <?php endif; ?>
+            <?php if ($leftOpen === [] || !$priorCloseStarted): ?>
             <?php foreach ($groups as $group => $links): ?>
                 <div class="nav-group-label"><?= View::text($group) ?></div>
                 <?php foreach ($links as $link): ?>
@@ -100,6 +110,7 @@ $groups = [
                     </a>
                 <?php endforeach; ?>
             <?php endforeach; ?>
+            <?php endif; ?>
         </nav>
         <div class="sidebar-foot">
             <button class="collapse-btn" type="button" data-collapse-toggle aria-label="Collapse sidebar">
@@ -113,7 +124,7 @@ $groups = [
             <button class="icon-btn mobile-only" type="button" data-mobile-toggle aria-label="Open navigation">
                 <svg aria-hidden="true"><use href="#i-menu"></use></svg>
             </button>
-            <form class="topbar-search" role="search" action="<?= View::text($path) ?>" method="get">
+            <form class="topbar-search" role="search" action="<?= View::text($path) ?>" method="get"<?= $leftOpen !== [] && !$priorPrompt ? ' inert' : '' ?>>
                 <svg aria-hidden="true"><use href="#i-search"></use></svg>
                 <input type="search" name="q" placeholder="Search items, vendors, booths…" aria-label="Search" autocomplete="off" data-global-search>
                 <kbd>/</kbd>
@@ -183,16 +194,6 @@ $groups = [
 <?php else: ?>
 <main id="main">
 <?php endif; ?>
-    <?php foreach ($leftOpen as $stale): ?>
-        <?php if (!is_array($stale)) {
-            continue;
-        } ?>
-        <div class="alert alert-danger" role="alert">
-            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
-            <p><?= View::text(is_string($stale['name'] ?? null) ? $stale['name'] : 'A register') ?> was opened <?= View::text(is_string($stale['opened'] ?? null) ? $stale['opened'] : '') ?> and was not closed.</p>
-            <a class="btn" href="/<?= View::text($slug) ?>/registers?close=<?= View::text(is_string($stale['id'] ?? null) ? $stale['id'] : '') ?>">Close register</a>
-        </div>
-    <?php endforeach; ?>
     <?php if ($notice !== null && $notice !== ''): ?>
         <div class="alert alert-success" role="status">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-check"></use></svg>
@@ -212,6 +213,38 @@ $groups = [
     <div class="sidebar-scrim" data-mobile-toggle></div>
 </div>
 <script src="/assets/js/app.js" defer></script>
+<?php endif; ?>
+<?php if ($nav && $priorPrompt): ?>
+<dialog class="prior-register" id="prior-register" aria-labelledby="prior-register-title">
+    <div class="prior-register-panel">
+        <h2 class="h3" id="prior-register-title">Close the register from an earlier day</h2>
+        <p>A register is still open from an earlier day. Close it before taking sales.</p>
+        <ul>
+            <?php foreach ($leftOpen as $stale): ?>
+                <?php if (!is_array($stale)) {
+                    continue;
+                } ?>
+                <li>
+                    <strong><?= View::text(is_string($stale['name'] ?? null) ? $stale['name'] : 'Register') ?></strong>
+                    was opened <?= View::text(is_string($stale['opened'] ?? null) ? $stale['opened'] : '') ?>.
+                    <a class="text-link" href="/<?= View::text($slug) ?>/registers?close=<?= View::text(is_string($stale['id'] ?? null) ? $stale['id'] : '') ?>">Close this register</a>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</dialog>
+<script>
+(function () {
+    var dialog = document.getElementById('prior-register');
+    if (!dialog || typeof dialog.showModal !== 'function') {
+        return;
+    }
+    dialog.addEventListener('cancel', function (event) {
+        event.preventDefault();
+    });
+    dialog.showModal();
+})();
+</script>
 <?php endif; ?>
 </body>
 </html>

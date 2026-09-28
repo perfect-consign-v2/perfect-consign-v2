@@ -82,7 +82,9 @@
     if (e.key === 'Escape') {
       closeAllMenus(null);
       document.querySelectorAll('.modal').forEach(function (modal) {
-        modal.hidden = true;
+        if (!modal.hasAttribute('data-lock')) {
+          modal.hidden = true;
+        }
       });
     }
   });
@@ -119,7 +121,7 @@
   });
   document.querySelectorAll('.modal').forEach(function (modal) {
     modal.addEventListener('click', function (event) {
-      if (event.target === modal) {
+      if (event.target === modal && !modal.hasAttribute('data-lock')) {
         modal.hidden = true;
       }
     });

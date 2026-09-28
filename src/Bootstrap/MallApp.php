@@ -65,6 +65,9 @@ final class MallApp
             $data['activeSessionId'] = $chosen['id'];
             $data['chooseRegister'] = $chosen['choose'];
             $data['leftOpen'] = $this->drawers->leftOpen($this->roled);
+            $this->holdForClose($slug, $data['leftOpen']);
+            $data['priorCloseStarted'] = $this->session->get('close_prior:' . $slug) === 'yes';
+            $data['priorPrompt'] = $data['leftOpen'] !== [] && $data['priorCloseStarted'] !== true;
         }
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
@@ -84,6 +87,53 @@ final class MallApp
             'body' => 'Shared/Web/not-found',
         ]);
         throw new ResponseSent('not found');
+    }
+
+    /**
+     * @param list<array{id: string, name: string, opened: string}> $leftOpen
+     */
+    private function holdForClose(string $slug, array $leftOpen): void
+    {
+        $key = 'close_prior:' . $slug;
+        if ($leftOpen === []) {
+            $this->session->delete($key);
+
+            return;
+        }
+        $id = $leftOpen[0]['id'];
+        if (preg_match('#/pos(/|$)#', $this->request->path) === 1) {
+            return;
+        }
+        if ($this->closingRegister($leftOpen) !== null) {
+            $this->session->set($key, 'yes');
+
+            return;
+        }
+        if ($this->session->get($key) === 'yes') {
+            $this->redirect('/' . $slug . '/registers?close=' . rawurlencode($id));
+        }
+    }
+
+    /**
+     * @param list<array{id: string, name: string, opened: string}> $leftOpen
+     */
+    private function closingRegister(array $leftOpen): ?string
+    {
+        $path = $this->request->path;
+        if (preg_match('#/registers/([0-9a-fA-F-]{36})/close$#', $path, $match) === 1) {
+            return $match[1];
+        }
+        if (preg_match('#/registers$#', $path) !== 1) {
+            return null;
+        }
+        $query = $this->request->query('close');
+        foreach ($leftOpen as $row) {
+            if ($row['id'] === $query) {
+                return $query;
+            }
+        }
+
+        return null;
     }
 
     public function redirect(string $path, ?string $notice = null): never

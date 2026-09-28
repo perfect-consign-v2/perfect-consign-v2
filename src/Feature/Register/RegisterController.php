@@ -149,6 +149,9 @@ final class RegisterController
         } catch (DatabaseRefusal $refusal) {
             $message = $this->app->catchRefusal($refusal);
             $confirm = !$confirmed && $message === 'counted cash does not match the expected drawer';
+            if ($message === 'close is refused while a ticket is open') {
+                $message = 'A sale is still open on this register. Finish it or cancel it, then close.';
+            }
             $this->hub($slug, $confirm ? 'Counted cash does not match the drawer. Confirm the difference to close.' : $message, 'close-' . $id, $id, $confirm, $draft);
             return;
         } catch (\InvalidArgumentException $error) {
