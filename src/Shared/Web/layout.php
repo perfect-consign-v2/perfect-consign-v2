@@ -23,6 +23,7 @@ $notice = $notice ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $groups = [
     'Overview' => [
+        ['/dashboard', 'Dashboard', 'i-dashboard'],
         ['/book', 'Book', 'i-report'],
         ['/journals', 'Journals', 'i-receipt'],
     ],

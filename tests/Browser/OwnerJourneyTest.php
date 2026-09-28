@@ -54,7 +54,7 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $book = $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
 
-        self::assertSees('<h1>Book</h1>', $book);
+        self::assertSees("Today's sales", $book);
     }
 
     public function testTheOwnerPostsASaleAndSeesItOnJournals(): void

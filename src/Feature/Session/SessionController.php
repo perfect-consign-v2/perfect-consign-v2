@@ -47,7 +47,7 @@ final class SessionController
             ]);
             return;
         }
-        $this->app->redirect('/' . $slug . '/book', 'Signed in.');
+        $this->app->redirect('/' . $slug . '/dashboard', 'Signed in.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/logout', ['POST'])]

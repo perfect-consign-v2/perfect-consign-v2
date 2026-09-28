@@ -58,6 +58,6 @@ final class SmokeTest extends WebTestCase
         $page = self::client()->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
 
         self::assertSame(200, $page->status);
-        self::assertSees('<h1>Book</h1>', $page);
+        self::assertSees("Today's sales", $page);
     }
 }

@@ -28,7 +28,20 @@ final class OwnerJourneyTest extends WebTestCase
         parent::setUp();
         $this->client = self::client();
         $signedIn = $this->client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
-        self::assertSees('<h1>Book</h1>', $signedIn);
+        self::assertSees("Today's sales", $signedIn);
+        self::assertSees('Inventory value', $signedIn);
+        self::assertSees('Low stock', $signedIn);
+    }
+
+    public function testTheDashboardKeepsInventoryCardsEmpty(): void
+    {
+        $page = $this->client->get('/' . ProbeMall::SLUG . '/dashboard');
+
+        self::assertSame(200, $page->status);
+        self::assertSees('Sales trend', $page);
+        self::assertSees('Booth occupancy', $page);
+        self::assertSees('Vendor payables', $page);
+        self::assertDoesNotMatchRegularExpression('/Inventory value<\\/div>\\s*<div class="stat-value">\\$/', $page->body);
     }
 
     public function testTheOwnerPostsASaleAndSeesTheJournal(): void
