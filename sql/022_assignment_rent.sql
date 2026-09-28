@@ -151,5 +151,5 @@ BEGIN
 END;
 $$;
 
-GRANT INSERT, UPDATE ON assignment_rent TO stall_poster;
+GRANT SELECT, INSERT, UPDATE ON assignment_rent TO stall_poster;
 REVOKE DELETE, TRUNCATE, TRIGGER ON assignment_rent FROM stall_poster;
