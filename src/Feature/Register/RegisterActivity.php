@@ -44,7 +44,8 @@ final class RegisterActivity
     public function shifts(string $registerId): array
     {
         $rows = $this->statements->bound(
-            'SELECT id, cashier, opened_at, closed_at, opening_cash_minor, counted_cash_minor
+            'SELECT id, cashier, opened_at, closed_at, opening_cash_minor,
+                    counted_cash_minor, counted_card_minor, counted_checks_minor
              FROM register_sessions
              WHERE register_id = ?::uuid
              ORDER BY opened_at DESC',
@@ -52,8 +53,25 @@ final class RegisterActivity
         );
         $shifts = [];
         foreach ($rows as $row) {
+            $closed = is_string($row['closed_at'] ?? null) && $row['closed_at'] !== '';
             $row['opened_at'] = $this->local($row['opened_at'] ?? null);
             $row['closed_at'] = $this->local($row['closed_at'] ?? null);
+            if ($closed) {
+                $sessionId = RowValue::string($row['id'] ?? null);
+                $drawer = $this->drawer($sessionId);
+                $row['cash_difference'] = DenominationCount::difference(
+                    RowValue::integer($row['counted_cash_minor'] ?? 0),
+                    $drawer['expected']
+                );
+                $row['card_difference'] = DenominationCount::difference(
+                    RowValue::integer($row['counted_card_minor'] ?? 0),
+                    $drawer['tenders']['card'] ?? 0
+                );
+                $row['checks_difference'] = DenominationCount::difference(
+                    RowValue::integer($row['counted_checks_minor'] ?? 0),
+                    $drawer['tenders']['checks'] ?? 0
+                );
+            }
             $shifts[] = $row;
         }
 

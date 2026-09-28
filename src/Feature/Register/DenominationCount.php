@@ -106,6 +106,16 @@ final class DenominationCount
         return $minor;
     }
 
+    public static function difference(int $counted, int $expected): string
+    {
+        $diff = $counted - $expected;
+        if ($diff === 0) {
+            return 'Even';
+        }
+
+        return self::dollars(abs($diff)) . ($diff > 0 ? ' over' : ' short');
+    }
+
     public static function dollars(int $minor): string
     {
         $sign = $minor < 0 ? '-' : '';

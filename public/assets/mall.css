@@ -216,10 +216,18 @@
     max-width: 100%;
 }
 
+.content a:not(.btn):not(.stat):not(.stat-link):not(.seg-btn):not(.occupancy-pill):not(.booth-cell):not(.map-floor-tab),
 a.mailto,
 a.text-link {
     color: var(--accent);
     text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.content a:not(.btn):not(.stat):not(.stat-link):not(.seg-btn):not(.occupancy-pill):not(.booth-cell):not(.map-floor-tab):hover,
+a.mailto:hover,
+a.text-link:hover {
+    color: var(--accent-hover);
 }
 
 .modal[data-lock] {
