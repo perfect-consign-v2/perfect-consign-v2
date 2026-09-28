@@ -51,6 +51,16 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
                 <label for="depth_ft">Depth (ft)</label>
                 <input class="input" id="depth_ft" name="depth_ft" inputmode="numeric" value="<?= View::text($depth) ?>" placeholder="<?= View::text($defaultDepth) ?>">
             </div>
+            <?php if (!$editing): ?>
+                <div class="field">
+                    <label for="month_start">Month</label>
+                    <input class="input" id="month_start" name="month_start" type="date" value="<?= View::text(is_array($booth) ? ($booth['month_start'] ?? '') : '') ?>">
+                </div>
+                <div class="field">
+                    <label for="amount">Amount</label>
+                    <input class="input" id="amount" name="amount" inputmode="decimal" value="<?= View::text(is_array($booth) ? ($booth['amount'] ?? '') : '') ?>">
+                </div>
+            <?php endif; ?>
         </div>
     </div>
     <div class="card">

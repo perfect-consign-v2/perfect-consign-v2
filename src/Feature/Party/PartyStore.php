@@ -28,7 +28,7 @@ final class PartyStore
     public function booths(): array
     {
         return $this->statements->rows(
-            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft FROM booths ORDER BY code'
+            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id FROM booths ORDER BY code'
         );
     }
 
@@ -56,10 +56,11 @@ final class PartyStore
             'SELECT vendor.id AS vendor_id, vendor.code AS vendor_code, vendor.name AS vendor_name,
                     vendor.first_name, vendor.last_name, vendor.phone, vendor.email, vendor.address, vendor.active,
                     assignment.id AS assignment_id, assignment.booth_id, booth.code AS booth_code,
-                    assignment.starts_on, assignment.ends_on
+                    assignment.starts_on, assignment.ends_on, rent.amount_minor AS rent_minor
              FROM vendors AS vendor
              LEFT JOIN booth_assignments AS assignment ON assignment.vendor_id = vendor.id
              LEFT JOIN booths AS booth ON booth.id = assignment.booth_id
+             LEFT JOIN assignment_rent AS rent ON rent.assignment_id = assignment.id
              ORDER BY vendor.name, vendor.code, assignment.starts_on'
         );
     }
@@ -209,19 +210,39 @@ final class PartyStore
     public function findBooth(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft FROM booths WHERE id = ?::uuid',
+            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id FROM booths WHERE id = ?::uuid',
             [$id]
         );
 
         return $rows[0] ?? null;
     }
 
-    public function addBooth(string $code, string $name, ?int $width, ?int $depth): void
-    {
-        $this->statements->change(
-            'INSERT INTO booths (code, name, width_ft, depth_ft) VALUES (?, ?, ?, ?)',
-            [$code, $name, $width, $depth]
-        );
+    public function addBooth(
+        string $code,
+        string $name,
+        ?int $width,
+        ?int $depth,
+        ?string $month = null,
+        ?int $amount = null,
+    ): void {
+        $insert = function () use ($code, $name, $width, $depth, $month, $amount): void {
+            $rows = $this->statements->bound(
+                'INSERT INTO booths (code, name, width_ft, depth_ft) VALUES (?, ?, ?, ?) RETURNING id',
+                [$code, $name, $width, $depth]
+            );
+            $id = $rows[0]['id'] ?? null;
+            if (!is_string($id) || $id === '') {
+                throw new \InvalidArgumentException('that booth was not created');
+            }
+            if ($month !== null && $amount !== null) {
+                $this->addRate($id, $month, $amount);
+            }
+        };
+        if ($month === null && $amount === null) {
+            $insert();
+            return;
+        }
+        $this->statements->transaction($insert);
     }
 
     public function saveBooth(string $id, string $code, string $name, ?int $width, ?int $depth): void
@@ -243,19 +264,50 @@ final class PartyStore
         }
     }
 
-    public function addAssignment(string $boothId, string $vendorId, string $startsOn, string $endsOn): void
-    {
-        if ($endsOn === '') {
+    public function addAssignment(
+        string $boothId,
+        string $vendorId,
+        string $startsOn,
+        string $endsOn,
+        ?int $rentMinor = null,
+    ): void {
+        $this->statements->transaction(function () use ($boothId, $vendorId, $startsOn, $endsOn, $rentMinor): void {
+            $sql = $endsOn === ''
+                ? 'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on) VALUES (?::uuid, ?::uuid, ?::date) RETURNING id'
+                : 'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on, ends_on) VALUES (?::uuid, ?::uuid, ?::date, ?::date) RETURNING id';
+            $params = $endsOn === ''
+                ? [$boothId, $vendorId, $startsOn]
+                : [$boothId, $vendorId, $startsOn, $endsOn];
+            $rows = $this->statements->bound($sql, $params);
+            $id = $rows[0]['id'] ?? null;
+            if (!is_string($id) || $id === '') {
+                throw new \InvalidArgumentException('that assignment was not created');
+            }
+            if ($rentMinor === null) {
+                return;
+            }
             $this->statements->change(
-                'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on) VALUES (?::uuid, ?::uuid, ?::date)',
-                [$boothId, $vendorId, $startsOn]
+                'INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES (?::uuid, ?)',
+                [$id, $rentMinor]
             );
-            return;
-        }
-        $this->statements->change(
-            'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on, ends_on) VALUES (?::uuid, ?::uuid, ?::date, ?::date)',
-            [$boothId, $vendorId, $startsOn, $endsOn]
+        });
+    }
+
+    public function getBoothRateMinor(string $boothId, string $day): ?int
+    {
+        $rows = $this->statements->bound(
+            'SELECT amount_minor FROM booth_rent_rates
+             WHERE booth_id = ?::uuid AND month_start <= ?::date
+             ORDER BY month_start DESC
+             LIMIT 1',
+            [$boothId, $day]
         );
+        $amount = $rows[0]['amount_minor'] ?? null;
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        return \PerfectConsign\Shared\Scalar\RowValue::integer($amount);
     }
 
     public function endAssignment(string $id, string $endsOn): void

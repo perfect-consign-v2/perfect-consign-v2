@@ -81,6 +81,12 @@ AS $$
 DECLARE
     booth_ref text;
     rate_minor bigint;
+    override_minor bigint;
+    assign_start date;
+    charge_month date;
+    charge_end date;
+    days_in_month integer;
+    days_charged integer;
     line_count integer;
     debit_ok integer;
     credit_ok integer;
@@ -113,14 +119,33 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    PERFORM 1
+    SELECT override.amount_minor INTO override_minor
+    FROM public.booth_assignments AS assignment
+    JOIN public.assignment_rent AS override ON override.assignment_id = assignment.id
+    WHERE assignment.booth_id = booth_ref::uuid
+      AND assignment.assignment_range @> NEW.posting_date
+    FOR UPDATE;
+
+    IF override_minor IS NOT NULL THEN
+        rate_minor := override_minor;
+    END IF;
+
+    SELECT assignment.starts_on INTO assign_start
     FROM public.booth_assignments AS assignment
     WHERE assignment.booth_id = booth_ref::uuid
       AND assignment.assignment_range @> NEW.posting_date
     FOR UPDATE;
-    IF NOT FOUND THEN
+    IF assign_start IS NULL THEN
         RAISE EXCEPTION 'a rent charge requires an assignment that covers the charge date'
             USING ERRCODE = '23514';
+    END IF;
+
+    charge_month := date_trunc('month', NEW.posting_date)::date;
+    charge_end := (charge_month + interval '1 month' - interval '1 day')::date;
+    IF assign_start > charge_month AND assign_start <= charge_end THEN
+        days_in_month := (charge_end - charge_month) + 1;
+        days_charged := (charge_end - assign_start) + 1;
+        rate_minor := (days_charged * rate_minor) / days_in_month;
     END IF;
 
     SELECT count(*) INTO line_count

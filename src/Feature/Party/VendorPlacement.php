@@ -10,7 +10,7 @@ namespace PerfectConsign\Feature\Party;
 final class VendorPlacement
 {
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $assignments
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $assignments
      */
     public function status(array $assignments, string $today): string
     {
@@ -28,8 +28,8 @@ final class VendorPlacement
     }
 
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $assignments
-     * @return list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $assignments
+     * @return list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      */
     public function covering(array $assignments, string $today): array
     {
@@ -37,8 +37,8 @@ final class VendorPlacement
     }
 
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $assignments
-     * @return list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $assignments
+     * @return list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      */
     public function upcoming(array $assignments, string $today): array
     {
@@ -46,8 +46,8 @@ final class VendorPlacement
     }
 
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $assignments
-     * @return list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $assignments
+     * @return list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      */
     public function past(array $assignments, string $today): array
     {
@@ -55,7 +55,7 @@ final class VendorPlacement
     }
 
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $assignments
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $assignments
      */
     public function since(array $assignments): string
     {
@@ -70,8 +70,8 @@ final class VendorPlacement
     }
 
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $current
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $upcoming
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $current
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $upcoming
      * @return list<array{id: string, code: string, occupancy: string}>
      */
     public function held(array $current, array $upcoming): array
@@ -99,7 +99,7 @@ final class VendorPlacement
     }
 
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $assignments
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $assignments
      */
     private function openCovering(array $assignments, string $today): bool
     {
@@ -113,8 +113,8 @@ final class VendorPlacement
     }
 
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $assignments
-     * @return list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $assignments
+     * @return list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      */
     private function select(array $assignments, string $today, string $kind): array
     {
@@ -129,7 +129,7 @@ final class VendorPlacement
     }
 
     /**
-     * @param array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string} $assignment
+     * @param array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int} $assignment
      */
     private function keeps(array $assignment, string $today, string $kind): bool
     {

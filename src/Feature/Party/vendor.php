@@ -2,13 +2,16 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Party\MoveInRent;
+use PerfectConsign\Feature\Party\PartyRecord;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $today */
-/** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>} $vendor */
+/** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>} $vendor */
 /** @var list<array<string, mixed>> $booths */
+/** @var list<array<string, mixed>> $rates */
 
 $sections = [
     'Current Booths' => $vendor['current'],
@@ -19,24 +22,6 @@ $currentBooth = $vendor['current'][0]['booth_code'] ?? '';
 $weOwe = max(0, $vendor['payable_minor']);
 $blank = '—';
 
-/**
- * @param list<array{label: string, value: string, href: string}> $rows
- */
-$record = static function (array $rows) use ($blank): void {
-    echo '<dl class="record-dl">';
-    foreach ($rows as $row) {
-        echo '<div class="record-row"><dt>' . View::text($row['label']) . '</dt><dd>';
-        if ($row['value'] === '') {
-            echo $blank;
-        } elseif ($row['href'] !== '') {
-            echo '<a class="' . ($row['label'] === 'Email' ? 'mailto' : '') . '" href="' . View::text($row['href']) . '">' . View::text($row['value']) . '</a>';
-        } else {
-            echo View::text($row['value']);
-        }
-        echo '</dd></div>';
-    }
-    echo '</dl>';
-};
 ?>
 <article id="vendor-<?= View::text($vendor['id']) ?>">
     <div class="page-head">
@@ -75,22 +60,22 @@ $record = static function (array $rows) use ($blank): void {
                 <section class="card" aria-labelledby="vendor-account">
                     <div class="card-head"><div class="h3" id="vendor-account">Account</div></div>
                     <div class="card-body">
-                        <?php $record([
+                        <?php PartyRecord::list([
                             ['label' => 'Code', 'value' => $vendor['code'], 'href' => ''],
                             ['label' => 'Display name', 'value' => $vendor['name'], 'href' => ''],
                             ['label' => 'First name', 'value' => $vendor['first_name'], 'href' => ''],
                             ['label' => 'Last name', 'value' => $vendor['last_name'], 'href' => ''],
-                        ]); ?>
+                        ], $blank); ?>
                     </div>
                 </section>
                 <section class="card" aria-labelledby="vendor-contact">
                     <div class="card-head"><div class="h3" id="vendor-contact">Contact</div></div>
                     <div class="card-body">
-                        <?php $record([
+                        <?php PartyRecord::list([
                             ['label' => 'Email', 'value' => $vendor['email'], 'href' => $vendor['email'] === '' ? '' : 'mailto:' . $vendor['email']],
                             ['label' => 'Phone', 'value' => $vendor['phone'], 'href' => $vendor['phone'] === '' ? '' : 'tel:' . $vendor['phone']],
                             ['label' => 'Address', 'value' => $vendor['address'], 'href' => ''],
-                        ]); ?>
+                        ], $blank); ?>
                     </div>
                 </section>
                 <section class="card" aria-labelledby="vendor-split">
@@ -116,13 +101,13 @@ $record = static function (array $rows) use ($blank): void {
                 <section class="card" aria-labelledby="vendor-agreement">
                     <div class="card-head"><div class="h3" id="vendor-agreement">Agreement and tax</div></div>
                     <div class="card-body">
-                        <?php $record([
+                        <?php PartyRecord::list([
                             ['label' => 'Starts', 'value' => $vendor['agreement_starts_on'], 'href' => ''],
                             ['label' => 'Ends', 'value' => $vendor['agreement_ends_on'], 'href' => ''],
                             ['label' => 'Tax id', 'value' => $vendor['tax_id'], 'href' => ''],
                             ['label' => 'Tax exempt', 'value' => $vendor['tax_exempt'] ? 'Yes' : 'No', 'href' => ''],
                             ['label' => 'Resale number', 'value' => $vendor['tax_exempt'] ? $vendor['tax_exempt_number'] : '', 'href' => ''],
-                        ]); ?>
+                        ], $blank); ?>
                     </div>
                 </section>
                 <section class="card record-span" aria-labelledby="vendor-notes">
@@ -154,6 +139,7 @@ $record = static function (array $rows) use ($blank): void {
                                     <th>Booth</th>
                                     <th>Start</th>
                                     <th>End</th>
+                                    <th class="num">Rent</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -171,6 +157,31 @@ $record = static function (array $rows) use ($blank): void {
                                             </form>
                                         <?php else: ?>
                                             <?= View::text($assignment['ends_on']) ?>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="num">
+                                        <?php
+                                        $thisRate = null;
+                                        $thisMonth = '';
+                                        foreach ($rates as $rate) {
+                                            if (($rate['booth_id'] ?? null) !== $assignment['booth_id']) {
+                                                continue;
+                                            }
+                                            $month = is_string($rate['month_start'] ?? null) ? substr($rate['month_start'], 0, 10) : '';
+                                            if ($month !== '' && $month <= $assignment['starts_on'] && $month >= $thisMonth) {
+                                                $thisMonth = $month;
+                                                $thisRate = View::minor($rate['amount_minor']);
+                                            }
+                                        }
+                                        $monthly = $assignment['rent_minor'] ?? $thisRate;
+                                        ?>
+                                        <?php if ($monthly === null): ?>
+                                            <?= $blank ?>
+                                        <?php else: ?>
+                                            <?= View::text(View::money(MoveInRent::due($monthly, $assignment['starts_on']))) ?>
+                                            <?php if ($assignment['rent_minor'] !== null): ?>
+                                                <span class="badge badge-warning">Overridden</span>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -193,9 +204,13 @@ $record = static function (array $rows) use ($blank): void {
                             <label for="assign_booth">Booth</label>
                             <select class="select" id="assign_booth" name="booth_id" required>
                                 <?php foreach ($booths as $booth): ?>
-                                    <option value="<?= View::text($booth['id']) ?>"><?= View::text($booth['code']) ?></option>
+                                    <option value="<?= View::text($booth['id']) ?>" data-rent="<?= View::text($booth['rent'] ?? '') ?>"><?= View::text($booth['code']) ?></option>
                                 <?php endforeach; ?>
                             </select>
+                        </div>
+                        <div class="field">
+                            <label for="assign_rent">Rent</label>
+                            <input class="input" id="assign_rent" name="rent" inputmode="decimal">
                         </div>
                         <div class="field">
                             <label for="starts_on">Start</label>
@@ -210,6 +225,21 @@ $record = static function (array $rows) use ($blank): void {
                         <button class="btn btn-primary" type="submit">Add assignment</button>
                     </div>
                 </form>
+                <script>
+                    (function () {
+                        var select = document.getElementById('assign_booth');
+                        var rent = document.getElementById('assign_rent');
+                        if (!select || !rent) {
+                            return;
+                        }
+                        var fill = function () {
+                            var option = select.options[select.selectedIndex];
+                            rent.value = option ? (option.getAttribute('data-rent') || '') : '';
+                        };
+                        select.addEventListener('change', fill);
+                        fill();
+                    }());
+                </script>
             </div>
         </div>
     </div>

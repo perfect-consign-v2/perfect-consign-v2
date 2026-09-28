@@ -647,7 +647,7 @@ END $$;
 
 DO $$
 BEGIN
-    TRUNCATE booth_rent_rates, booth_assignments, booths, vendors;
+    TRUNCATE assignment_rent, booth_rent_rates, booth_assignments, booths, vendors;
     RAISE EXCEPTION 'vendor truncate was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN

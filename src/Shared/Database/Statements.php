@@ -23,6 +23,20 @@ final class Statements
         $this->affected($sql, $params);
     }
 
+    public function transaction(callable $work): void
+    {
+        $this->pdo->beginTransaction();
+        try {
+            $work();
+            $this->pdo->commit();
+        } catch (\Throwable $error) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $error;
+        }
+    }
+
     /**
      * @param list<mixed> $params
      */

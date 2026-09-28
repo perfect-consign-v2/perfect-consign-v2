@@ -7,12 +7,20 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $query */
+/** @var string $standing */
+/** @var array{available: int, occupied: int, ending: int, incoming: int} $counts */
 /** @var string $confirm */
 /** @var int $total */
 /** @var list<array{id: string, code: string, name: string, width: int, depth: int, status: string, status_label: string, vendor_id: ?string, vendor_name: ?string, rent_minor: ?int, open_minor: ?int, placed: bool, deletable: bool}> $booths */
 
 $blank = '—';
 $list = '/' . $slug . '/booths';
+$legend = [
+    'available' => 'Available',
+    'occupied' => 'Occupied',
+    'ending' => 'Ending',
+    'incoming' => 'Incoming',
+];
 ?>
 <div class="page-head">
     <div class="titles">
@@ -32,8 +40,33 @@ $list = '/' . $slug . '/booths';
 <?php else: ?>
     <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
         <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search code or name" aria-label="Search booths">
+        <?php if ($standing !== ''): ?>
+            <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
+        <?php endif; ?>
         <button class="btn" type="submit">Search</button>
     </form>
+
+    <p class="occupancy-summary" aria-label="Booth standing">
+        <?php foreach ($legend as $status => $label): ?>
+            <?php
+            $count = $counts[$status];
+            $text = $label . ' (' . $count . ')';
+            $params = [];
+            if ($query !== '') {
+                $params['q'] = $query;
+            }
+            if ($standing !== $status && $count > 0) {
+                $params['standing'] = $status;
+            }
+            $href = $list . ($params === [] ? '' : '?' . http_build_query($params));
+            ?>
+            <?php if ($count < 1): ?>
+                <span class="occupancy-pill <?= View::text($status) ?>"><?= View::text($text) ?></span>
+            <?php else: ?>
+                <a class="occupancy-pill <?= View::text($status) ?>" href="<?= View::text($href) ?>"<?= $standing === $status ? ' aria-current="page"' : '' ?>><?= View::text($text) ?></a>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    </p>
 
     <div class="card table-wrap mt-4">
         <?php if ($booths === []): ?>
@@ -59,6 +92,9 @@ $list = '/' . $slug . '/booths';
                     $keep = [];
                     if ($query !== '') {
                         $keep['q'] = $query;
+                    }
+                    if ($standing !== '') {
+                        $keep['standing'] = $standing;
                     }
                     $cancel = $list;
                     if ($keep !== []) {

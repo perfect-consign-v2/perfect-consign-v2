@@ -18,6 +18,7 @@ final class PartyController
         private readonly MallSettings $mall,
         private readonly VendorRoster $roster,
         private readonly PayoutStore $payouts,
+        private readonly AssignmentOffer $offers,
     ) {
     }
 
@@ -216,11 +217,14 @@ final class PartyController
         $this->app->checkCsrf();
         $vendorId = $this->app->request()->field('vendor_id');
         $this->attempt($slug, $vendorId, 'Booth assigned.', function (): void {
+            $boothId = $this->app->request()->field('booth_id');
+            $startsOn = $this->app->request()->field('starts_on');
             $this->parties->addAssignment(
-                $this->app->request()->field('booth_id'),
+                $boothId,
                 $this->app->request()->field('vendor_id'),
-                $this->app->request()->field('starts_on'),
-                $this->app->request()->field('ends_on')
+                $startsOn,
+                $this->app->request()->field('ends_on'),
+                $this->offers->override($boothId, $startsOn, $this->app->request()->field('rent'))
             );
         });
     }
@@ -479,7 +483,8 @@ final class PartyController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'vendor' => $vendor,
-            'booths' => $this->parties->booths(),
+            'booths' => $this->offers->booths(),
+            'rates' => $this->parties->rates(),
             'error' => $error,
         ]);
     }

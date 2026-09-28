@@ -29,8 +29,8 @@ $groups = [
         ['/payout', 'Payout', 'i-wallet'],
         ['/parties', 'Vendors', 'i-vendor'],
         ['/booths', 'Booths', 'i-booth'],
+        ['/map', 'Booths Map', 'i-map'],
         ['/brands', 'Brands', 'i-tag'],
-        ['/map', 'Booth map', 'i-map'],
     ],
     'Business' => [
         ['/adjustment', 'Adjustment', 'i-edit'],

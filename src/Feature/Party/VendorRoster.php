@@ -41,9 +41,9 @@ final class VendorRoster
      *     status_badge: string,
      *     since: string,
      *     booths: list<array{id: string, code: string, occupancy: string}>,
-     *     current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *     upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *     past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     *     current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *     upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *     past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      *   }>
      * }
      */
@@ -95,9 +95,9 @@ final class VendorRoster
      *   status_badge: string,
      *   since: string,
      *   booths: list<array{id: string, code: string, occupancy: string}>,
-     *   current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *   upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *   past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     *   current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *   upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *   past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      * }> $vendors
      * @return list<array{
      *   id: string,
@@ -111,9 +111,9 @@ final class VendorRoster
      *   status_badge: string,
      *   since: string,
      *   booths: list<array{id: string, code: string, occupancy: string}>,
-     *   current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *   upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *   past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     *   current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *   upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *   past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      * }>
      */
     public function matching(array $vendors, string $status, string $query): array
@@ -149,7 +149,7 @@ final class VendorRoster
      *   email: string,
      *   address: string,
      *   active: bool,
-     *   assignments: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     *   assignments: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      * }>
      */
     private function group(array $rows): array
@@ -181,7 +181,7 @@ final class VendorRoster
 
     /**
      * @param array<string, mixed> $row
-     * @return array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}|null
+     * @return array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}|null
      */
     private function assignment(array $row): ?array
     {
@@ -200,6 +200,7 @@ final class VendorRoster
             'booth_code' => $this->text($row['booth_code'] ?? null),
             'starts_on' => $starts,
             'ends_on' => $ends ?? '',
+            'rent_minor' => $this->minor($row['rent_minor'] ?? null),
         ];
     }
 
@@ -212,7 +213,7 @@ final class VendorRoster
      *   email: string,
      *   address: string,
      *   active: bool,
-     *   assignments: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     *   assignments: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      * } $vendor
      * @return array{
      *   id: string,
@@ -226,9 +227,9 @@ final class VendorRoster
      *   status_badge: string,
      *   since: string,
      *   booths: list<array{id: string, code: string, occupancy: string}>,
-     *   current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *   upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *   past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     *   current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *   upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *   past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      * }
      */
     private function present(array $vendor, string $today): array
@@ -257,8 +258,8 @@ final class VendorRoster
     /**
      * @param array{
      *   status: string,
-     *   current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>,
-     *   upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}>
+     *   current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>,
+     *   upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      * } $vendor
      */
     private function facet(string $filter, array $vendor): bool
@@ -286,7 +287,7 @@ final class VendorRoster
     }
 
     /**
-     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string}> $assignments
+     * @param list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}> $assignments
      */
     private function hasDated(array $assignments): bool
     {
@@ -365,6 +366,15 @@ final class VendorRoster
         }
 
         return $value;
+    }
+
+    private function minor(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return \PerfectConsign\Shared\Scalar\RowValue::integer($value);
     }
 
     private function text(mixed $value): string

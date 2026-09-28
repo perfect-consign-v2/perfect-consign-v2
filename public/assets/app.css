@@ -355,15 +355,20 @@
    ========================================================================== */
 .booth-map {
   position: relative;
-  width: 100%;
-  min-height: 420px;
-  background:
-    linear-gradient(var(--surface-inset) 1px, transparent 1px) 0 0 / 64px 64px,
-    linear-gradient(90deg, var(--surface-inset) 1px, transparent 1px) 0 0 / 64px 64px,
-    var(--surface-2);
+  max-width: none;
+  min-height: 0;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: auto;
+}
+.booth-map.is-grid {
+  min-height: 0;
+  overflow: visible;
+  background:
+    linear-gradient(var(--surface-inset) 1px, transparent 1px) 0 0 / 12px 12px,
+    linear-gradient(90deg, var(--surface-inset) 1px, transparent 1px) 0 0 / 12px 12px,
+    var(--surface-2);
 }
 .booth-cell {
   position: absolute;

@@ -39,11 +39,14 @@ final class BoothController
         $this->app->checkCsrf();
         $this->change($slug, null, function (): void {
             $size = $this->size();
+            $rate = $this->openingRate();
             $this->booths->addBooth(
                 $this->app->request()->field('code'),
                 $this->app->request()->field('name'),
                 $size['width'],
-                $size['depth']
+                $size['depth'],
+                $rate['month'],
+                $rate['amount']
             );
         });
     }
@@ -142,6 +145,8 @@ final class BoothController
             'name' => $this->app->request()->field('name'),
             'width_ft' => $this->app->request()->field('width_ft'),
             'depth_ft' => $this->app->request()->field('depth_ft'),
+            'month_start' => $this->app->request()->field('month_start'),
+            'amount' => $this->app->request()->field('amount'),
         ];
         if ($id !== null) {
             $booth['id'] = $id;
@@ -183,7 +188,26 @@ final class BoothController
             $this->mall->boothDepth(),
         );
         $query = $this->app->request()->query('q');
-        $visible = $this->roster->matching($rows, $query);
+        $matched = $this->roster->matching($rows, $query);
+        $standing = $this->standing($this->app->request()->query('standing'));
+        $counts = ['available' => 0, 'occupied' => 0, 'ending' => 0, 'incoming' => 0];
+        foreach ($matched as $row) {
+            $status = $row['status'];
+            if (isset($counts[$status])) {
+                $counts[$status]++;
+            }
+        }
+        $visible = $matched;
+        if ($standing !== '' && ($counts[$standing] ?? 0) > 0) {
+            $visible = [];
+            foreach ($matched as $row) {
+                if ($row['status'] === $standing) {
+                    $visible[] = $row;
+                }
+            }
+        } else {
+            $standing = '';
+        }
         $this->app->show('Feature/Party/booths', [
             'title' => 'Booths',
             'displayName' => $tenant->displayName,
@@ -191,6 +215,8 @@ final class BoothController
             'booths' => $visible,
             'total' => count($rows),
             'query' => $query,
+            'standing' => $standing,
+            'counts' => $counts,
             'confirm' => $this->roster->confirming($visible, $this->app->request()->query('confirm')),
             'error' => $error,
         ]);
@@ -212,6 +238,23 @@ final class BoothController
     }
 
     /**
+     * @return array{month: ?string, amount: ?int}
+     */
+    private function openingRate(): array
+    {
+        $month = $this->app->request()->field('month_start');
+        $amount = $this->app->request()->field('amount');
+        if ($month === '' && $amount === '') {
+            return ['month' => null, 'amount' => null];
+        }
+        if ($month === '' || $amount === '') {
+            throw new \InvalidArgumentException('set both the rent month and the amount, or leave both empty');
+        }
+
+        return ['month' => $month, 'amount' => Money::parseMinor($amount)];
+    }
+
+    /**
      * @return array{width: ?int, depth: ?int}
      */
     private function size(): array
@@ -226,6 +269,15 @@ final class BoothController
         }
 
         return ['width' => $width, 'depth' => $depth];
+    }
+
+    private function standing(string $value): string
+    {
+        if (in_array($value, ['available', 'occupied', 'ending', 'incoming'], true)) {
+            return $value;
+        }
+
+        return '';
     }
 
     private function feet(string $value): int|false|null
