@@ -10,6 +10,7 @@ final class Money
 {
     public static function parseMinor(string $amount): int
     {
+        $amount = str_replace(['$', ',', ' '], '', trim($amount));
         if (preg_match('/^(\d+)(?:\.(\d{1,2}))?$/', $amount, $matches) !== 1) {
             throw new InvalidArgumentException('enter an amount in dollars and cents');
         }

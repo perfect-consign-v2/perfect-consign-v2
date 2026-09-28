@@ -201,6 +201,14 @@ final class RegisterController
         $this->hub($slug, 'That register is not open.', '', '', false);
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/registers/close-cancel', ['POST'])]
+    public function cancelClose(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $this->app->releaseClose($slug);
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/registers/([0-9a-fA-F-]{36})/drop', ['POST'])]
     public function drop(string $slug, string $id): void
     {

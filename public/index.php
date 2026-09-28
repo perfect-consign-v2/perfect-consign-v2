@@ -63,6 +63,7 @@ session_set_cookie_params([
     'path' => '/',
 ]);
 
+$container = null;
 try {
     $request = requestFromGlobals();
     if (str_starts_with($request->path, '/assets/')) {
@@ -79,13 +80,20 @@ try {
     $container->set(MallApp::class, $container->get(MallApp::class));
     $router = new Router($container);
     $router->setNotFoundHandler(static function () use ($container): void {
-        $container->get(MallApp::class)->notFound();
+        $container->get(MallApp::class)->notFound(MallApp::MISS_ROUTE);
     });
     RegisterFeatures::register($router, dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature');
     $router->dispatch($request->path, $request->method);
 } catch (ResponseSent) {
     return;
 } catch (RouteNotFoundException) {
+    if ($container !== null) {
+        try {
+            $container->get(MallApp::class)->notFound(MallApp::MISS_ROUTE);
+        } catch (ResponseSent) {
+            return;
+        }
+    }
     http_response_code(404);
     echo 'Not found';
 } catch (Throwable $error) {
@@ -209,7 +217,56 @@ function requestFromGlobals(): Request
         $path = rtrim($path, '/');
     }
 
-    return new Request($method, $path, $_GET, $_POST);
+    return new Request($method, $path, $_GET, $_POST, sameHostPath(refererHeader(), hostHeader()));
+}
+
+function refererHeader(): string
+{
+    $referer = $_SERVER['HTTP_REFERER'] ?? '';
+    if (!is_string($referer)) {
+        return '';
+    }
+
+    return $referer;
+}
+
+function hostHeader(): string
+{
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if (!is_string($host)) {
+        return '';
+    }
+
+    return $host;
+}
+
+function sameHostPath(string $referer, string $host): string
+{
+    if ($referer === '' || $host === '') {
+        return '';
+    }
+    $parts = parse_url($referer);
+    if (!is_array($parts)) {
+        return '';
+    }
+    $scheme = $parts['scheme'] ?? '';
+    $refererHost = $parts['host'] ?? '';
+    $path = $parts['path'] ?? '';
+    if (!is_string($scheme) || !is_string($refererHost) || !is_string($path)) {
+        return '';
+    }
+    if ($scheme !== 'http' && $scheme !== 'https') {
+        return '';
+    }
+    $requestHost = preg_replace('/:\d+$/', '', strtolower($host));
+    if (!is_string($requestHost) || strtolower($refererHost) !== $requestHost) {
+        return '';
+    }
+    if ($path === '' || !str_starts_with($path, '/') || str_starts_with($path, '//')) {
+        return '';
+    }
+
+    return $path;
 }
 
 /**

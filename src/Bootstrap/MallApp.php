@@ -16,6 +16,14 @@ use Psr\Log\LoggerInterface;
 
 final class MallApp
 {
+    public const MISS_HIDDEN = 'hidden';
+
+    public const MISS_MALL = 'missing-mall';
+
+    public const MISS_RECORD = 'missing-record';
+
+    public const MISS_ROUTE = 'unknown-route';
+
     private ?TenantRecord $tenant = null;
 
     private bool $roled = false;
@@ -67,24 +75,43 @@ final class MallApp
             $data['leftOpen'] = $this->drawers->leftOpen($this->roled);
             $this->holdForClose($slug, $data['leftOpen']);
             $data['priorCloseStarted'] = $this->session->get('close_prior:' . $slug) === 'yes';
-            $data['priorPrompt'] = $data['leftOpen'] !== [] && $data['priorCloseStarted'] !== true;
+            $onHub = preg_match('#/registers$#', $this->request->path) === 1;
+            $data['priorPrompt'] = $data['leftOpen'] !== [] && $data['priorCloseStarted'] !== true && !$onHub;
         }
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
 
-    public function notFound(): never
+    public function notFound(string $reason = self::MISS_RECORD): never
     {
         http_response_code(404);
+        $homeTenant = $this->sessionTenant();
+        $pathTenant = $this->pathTenant();
+        $displayName = '';
+        $home = '';
+        $signIn = '';
+        if ($homeTenant !== null) {
+            $displayName = $homeTenant->displayName;
+            $home = $homeTenant->slug;
+        } elseif ($pathTenant !== null) {
+            $displayName = $pathTenant->displayName;
+            $signIn = $pathTenant->slug;
+        }
+        $this->recordMiss($reason, $reason === self::MISS_ROUTE && $pathTenant === null);
         $this->view->render('Shared/Web/layout', [
             'title' => 'Not found',
-            'displayName' => '',
-            'slug' => '',
-            'nav' => false,
-            'csrf' => '',
+            'displayName' => $displayName,
+            'slug' => $home,
+            'nav' => $home !== '',
+            'csrf' => $home !== '' ? $this->csrf() : '',
             'error' => null,
             'notice' => null,
             'path' => $this->request->path,
             'body' => 'Shared/Web/not-found',
+            'robots' => 'noindex',
+            'showSearch' => false,
+            'homeSlug' => $home,
+            'signInSlug' => $signIn,
+            'back' => $this->backPath(),
         ]);
         throw new ResponseSent('not found');
     }
@@ -136,6 +163,12 @@ final class MallApp
         return null;
     }
 
+    public function releaseClose(string $slug): never
+    {
+        $this->session->delete('close_prior:' . $slug);
+        $this->redirect('/' . $slug . '/registers');
+    }
+
     public function redirect(string $path, ?string $notice = null): never
     {
         if ($notice !== null && $notice !== '') {
@@ -176,7 +209,7 @@ final class MallApp
     {
         $tenant = $this->tenants->find($slug);
         if ($tenant === null) {
-            $this->notFound();
+            $this->notFound(self::MISS_MALL);
         }
         $statement = $this->pdo->prepare(
             'SELECT password_hash FROM platform.owners WHERE tenant_id = ?::uuid AND username = ?'
@@ -226,7 +259,7 @@ final class MallApp
     private function refuseForeign(string $slug): void
     {
         if ($this->access->isForeign($this->sessionSlug(), $slug)) {
-            $this->notFound();
+            $this->notFound(self::MISS_HIDDEN);
         }
     }
 
@@ -243,7 +276,7 @@ final class MallApp
     {
         $tenant = $this->tenants->find($slug);
         if ($tenant === null) {
-            $this->notFound();
+            $this->notFound(self::MISS_MALL);
         }
 
         return $tenant;
@@ -263,6 +296,50 @@ final class MallApp
         $this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog, extensions');
         $this->pdo->exec('SET ROLE ' . $tenant->role);
         $this->roled = true;
+    }
+
+    private function recordMiss(string $reason, bool $debug): void
+    {
+        $context = [
+            'method' => $this->request->method,
+            'path' => $this->request->path,
+            'reason' => $reason,
+        ];
+        if ($debug) {
+            $this->logger->debug('page not found', $context);
+
+            return;
+        }
+        $this->logger->info('page not found', $context);
+    }
+
+    private function sessionTenant(): ?TenantRecord
+    {
+        $slug = $this->sessionSlug();
+        if ($slug === null) {
+            return null;
+        }
+
+        return $this->tenants->find($slug);
+    }
+
+    private function pathTenant(): ?TenantRecord
+    {
+        if (preg_match('#^/([a-z][a-z0-9-]{0,62})(?:/|$)#', $this->request->path, $match) !== 1) {
+            return null;
+        }
+
+        return $this->tenants->find($match[1]);
+    }
+
+    private function backPath(): string
+    {
+        $referer = $this->request->referer;
+        if ($referer === '' || $referer === $this->request->path) {
+            return '';
+        }
+
+        return $referer;
     }
 
     private function sessionSlug(): ?string

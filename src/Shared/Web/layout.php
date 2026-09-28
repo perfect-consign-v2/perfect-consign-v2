@@ -14,8 +14,12 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $body */
 /** @var string $templateDirectory */
 /** @var string $path */
+/** @var string $robots */
+/** @var bool $showSearch */
 
 $path = $path ?? '';
+$robots = $robots ?? '';
+$showSearch = ($showSearch ?? true) === true;
 $activeRegister = $activeRegister ?? '';
 $chooseRegister = $chooseRegister ?? false;
 $leftOpen = is_array($leftOpen ?? null) ? $leftOpen : [];
@@ -58,6 +62,9 @@ $groups = [
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <title><?= View::text($title) ?><?= $displayName !== '' ? ' · ' . View::text($displayName) : '' ?></title>
+    <?php if ($robots === 'noindex'): ?>
+        <meta name="robots" content="noindex">
+    <?php endif; ?>
     <link rel="preconnect" href="https://rsms.me/">
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <link rel="stylesheet" href="/assets/theme.css">
@@ -80,7 +87,7 @@ $groups = [
 <?php require $templateDirectory . '/Shared/Web/icons.php'; ?>
 <?php if ($nav): ?>
 <div class="app" id="app" data-collapsed="false" data-mobile-open="false">
-    <aside class="sidebar" id="sidebar" aria-label="Primary"<?= $leftOpen !== [] && !$priorPrompt ? ' inert' : '' ?>>
+    <aside class="sidebar" id="sidebar" aria-label="Primary"<?= $priorCloseStarted ? ' inert' : '' ?>>
         <div class="sidebar-brand">
             <span class="brand-mark" aria-hidden="true"><?= View::text($mark) ?></span>
             <span class="brand-text">
@@ -124,11 +131,13 @@ $groups = [
             <button class="icon-btn mobile-only" type="button" data-mobile-toggle aria-label="Open navigation">
                 <svg aria-hidden="true"><use href="#i-menu"></use></svg>
             </button>
-            <form class="topbar-search" role="search" action="<?= View::text($path) ?>" method="get"<?= $leftOpen !== [] && !$priorPrompt ? ' inert' : '' ?>>
+            <?php if ($showSearch): ?>
+            <form class="topbar-search" role="search" action="<?= View::text($path) ?>" method="get"<?= $priorCloseStarted ? ' inert' : '' ?>>
                 <svg aria-hidden="true"><use href="#i-search"></use></svg>
                 <input type="search" name="q" placeholder="Search items, vendors, booths…" aria-label="Search" autocomplete="off" data-global-search>
                 <kbd>/</kbd>
             </form>
+            <?php endif; ?>
             <div class="topbar-spacer"></div>
             <?php if ($chooseRegister): ?>
                 <a class="btn" href="/<?= View::text($slug) ?>/registers">Choose a register</a>

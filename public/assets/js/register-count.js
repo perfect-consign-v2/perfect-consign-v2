@@ -21,11 +21,16 @@
       if (!Number.isFinite(count) || count < 0) {
         count = 0;
       }
-      total += key * Math.floor(count);
+      var line = key * Math.floor(count);
+      total += line;
+      var shown = input.parentElement ? input.parentElement.querySelector('[data-count-line]') : null;
+      if (shown) {
+        shown.textContent = '$' + dollars(line);
+      }
     });
     var label = modal.querySelector('[data-live-total]');
     if (label) {
-      label.textContent = dollars(total);
+      label.textContent = '$' + dollars(total);
     }
     return total;
   }

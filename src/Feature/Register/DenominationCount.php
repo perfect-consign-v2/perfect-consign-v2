@@ -93,7 +93,8 @@ final class DenominationCount
 
     public static function money(string $amount, bool $allowZero): int
     {
-        if (preg_match('/^(\d+)(?:\.(\d{1,2}))?$/', trim($amount), $matches) !== 1) {
+        $amount = str_replace(['$', ',', ' '], '', trim($amount));
+        if (preg_match('/^(\d+)(?:\.(\d{1,2}))?$/', $amount, $matches) !== 1) {
             throw new InvalidArgumentException('enter an amount in dollars and cents');
         }
         $cents = str_pad($matches[2] ?? '', 2, '0');
@@ -110,6 +111,6 @@ final class DenominationCount
         $sign = $minor < 0 ? '-' : '';
         $minor = abs($minor);
 
-        return $sign . number_format($minor / 100, 2, '.', '');
+        return $sign . '$' . number_format($minor / 100, 2, '.', '');
     }
 }

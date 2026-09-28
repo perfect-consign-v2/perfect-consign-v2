@@ -40,7 +40,7 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
     : '';
 $pageError = is_string($error ?? null) ? $error : '';
 ?>
-<div class="page-head"<?= $leftOpen !== [] ? ' inert' : '' ?>>
+<div class="page-head">
     <div class="titles">
         <h1 class="h1">Registers</h1>
         <?php if (($chooseRegister ?? false) === true): ?>
@@ -59,7 +59,7 @@ $pageError = is_string($error ?? null) ? $error : '';
     $tenders = is_array($register['tenders'] ?? null) ? $register['tenders'] : [];
     $drops = is_array($register['drops'] ?? null) ? $register['drops'] : [];
     ?>
-    <article class="card" id="register-<?= View::text($id) ?>"<?= $leftOpen !== [] ? ' inert' : '' ?>>
+    <article class="card" id="register-<?= View::text($id) ?>">
         <div class="card-head">
             <div class="h3"><?= View::text($name) ?></div>
             <?php if ($open && ($register['session_id'] ?? '') === ($activeSessionId ?? '')): ?>
@@ -212,7 +212,9 @@ $pageError = is_string($error ?? null) ? $error : '';
                     <?php endif; ?>
                     <div class="row gap-2">
                         <button class="btn btn-primary" type="submit"><?= $confirmVariance && $modal === 'close-' . $id ? 'Confirm and close' : 'Close register' ?></button>
-                        <?php if (!$mustClose): ?>
+                        <?php if ($mustClose): ?>
+                            <button class="btn" type="submit" formnovalidate formaction="/<?= View::text($slug) ?>/registers/close-cancel">Cancel</button>
+                        <?php else: ?>
                             <button class="btn" type="button" data-close-modal="close-<?= View::text($id) ?>">Cancel</button>
                         <?php endif; ?>
                     </div>
@@ -293,16 +295,36 @@ $pageError = is_string($error ?? null) ? $error : '';
 </div>
 
 <div id="register-count" class="modal" role="dialog" aria-modal="true" aria-labelledby="register-count-title" hidden>
-    <div class="modal-panel card">
+    <div class="modal-panel card count-panel">
         <div class="card-head"><div class="h3" id="register-count-title">Count cash</div></div>
         <div class="card-body stack">
-            <div class="count-grid">
-                <?php foreach ($denominations as $key => $label): ?>
-                    <label for="count-<?= View::text((string) $key) ?>"><?= View::text($label) ?></label>
-                    <input class="input" id="count-<?= View::text((string) $key) ?>" data-count-key="<?= View::text((string) $key) ?>" inputmode="numeric" value="0">
-                <?php endforeach; ?>
+            <div class="count-columns">
+                <div class="count-card">
+                    <h3>Cash</h3>
+                    <div class="count-card-body">
+                    <?php foreach ([10000, 5000, 2000, 1000, 500, 100] as $key): ?>
+                        <div class="count-row">
+                            <label for="count-<?= View::text((string) $key) ?>"><?= View::text($denominations[$key]) ?></label>
+                            <input class="input" id="count-<?= View::text((string) $key) ?>" data-count-key="<?= View::text((string) $key) ?>" inputmode="numeric" value="0">
+                            <span data-count-line>$0.00</span>
+                        </div>
+                    <?php endforeach; ?>
+                    </div>
+                </div>
+                <div class="count-card">
+                    <h3>Coins</h3>
+                    <div class="count-card-body">
+                    <?php foreach ([25, 10, 5, 1] as $key): ?>
+                        <div class="count-row">
+                            <label for="count-<?= View::text((string) $key) ?>"><?= View::text($denominations[$key]) ?></label>
+                            <input class="input" id="count-<?= View::text((string) $key) ?>" data-count-key="<?= View::text((string) $key) ?>" inputmode="numeric" value="0">
+                            <span data-count-line>$0.00</span>
+                        </div>
+                    <?php endforeach; ?>
+                    </div>
+                </div>
             </div>
-            <p>Total <strong data-live-total>0.00</strong></p>
+            <p class="count-total">Counted total <strong data-live-total>$0.00</strong></p>
             <div class="row gap-2">
                 <button class="btn btn-primary" type="button" data-apply-count>Use this count</button>
                 <button class="btn" type="button" data-close-modal="register-count">Cancel</button>
