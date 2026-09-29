@@ -39,7 +39,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
  *     posting_key: string,
  *     description: string,
  *     voided: bool,
- *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, discount: int, returned: bool}>,
+ *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, returned: bool}>,
  *     tenders: list<array{name: string, amount: int}>,
  *     round: int,
  *     cash: int,
@@ -136,6 +136,9 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <?php endif; ?>
                 </div>
             </fieldset>
+            <?php if ($locked): ?>
+                <button class="btn" type="button" data-open-modal="sale-completed">Sale completed</button>
+            <?php endif; ?>
             <?php if ($lines === []): ?>
                 <p class="muted"><?php if ($locked): ?>Scan and Instant inventory stay locked until you start a new sale.<?php else: ?>Cart is empty. Scan a barcode, search by code, or use <strong>Instant inventory</strong>.<?php endif; ?></p>
             <?php else: ?>

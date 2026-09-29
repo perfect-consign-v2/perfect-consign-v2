@@ -374,6 +374,12 @@ document.querySelectorAll('[data-open-modal]').forEach(function (button) {
                     buyer.focus();
                 }
             }
+            if (modal.id === 'sale-completed') {
+                const next = modal.querySelector('button[type="submit"]');
+                if (next) {
+                    next.focus();
+                }
+            }
         }
     });
 });
@@ -395,7 +401,7 @@ document.querySelectorAll('[data-close-modal]').forEach(function (button) {
 });
 document.querySelectorAll('.modal').forEach(function (modal) {
     modal.addEventListener('click', function (event) {
-        if (event.target === modal) {
+        if (event.target === modal && !modal.hasAttribute('data-lock')) {
             modal.hidden = true;
         }
     });

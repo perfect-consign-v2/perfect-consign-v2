@@ -234,6 +234,10 @@ a.text-link:hover {
     z-index: 80;
 }
 
+#void-ticket {
+    z-index: 90;
+}
+
 #register-count {
     z-index: 100;
 }
@@ -492,7 +496,10 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 @media (min-width: 40rem) {
     .pos-main { padding: var(--space-6); }
 }
-.register-finished { margin-bottom: var(--space-4); }
+.modal-panel.register-finished {
+    max-width: 40rem;
+    max-height: calc(100dvh - 1.5rem);
+}
 .register > .card { min-width: 0; }
 .register-nav {
     display: flex;
@@ -637,6 +644,12 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     font-size: 1.3125rem;
     line-height: 1.3;
 }
+.pay-math, .pay-collected {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.pay-collected { margin-top: var(--space-5); }
 .pay-rail .register-summary { flex-wrap: nowrap; }
 .pay-rail .register-summary span,
 .pay-rail .register-summary strong {
@@ -732,10 +745,55 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     font-weight: 700;
 }
 
+.slip-page { display: flex; flex-direction: column; gap: var(--space-4); align-items: center; }
+.slip-page > .no-print,
+.slip-page > .card,
+.slip-page > .modal { align-self: stretch; }
+.slip {
+    width: min(100%, 22rem);
+    margin: 0 auto;
+    padding: var(--space-5) var(--space-4);
+    background: #fff;
+    color: #1a2230;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", monospace;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+.slip-center { text-align: center; margin-bottom: var(--space-4); }
+.slip-store { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.slip-kicker { margin: var(--space-1) 0 0; letter-spacing: 0.14em; text-transform: uppercase; }
+.slip-void {
+    margin: 0 0 var(--space-3);
+    padding: var(--space-2);
+    border: 2px solid #1a2230;
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.slip-row { display: flex; justify-content: space-between; gap: var(--space-3); margin: 0.2rem 0; }
+.slip-row span:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.slip-item { margin: var(--space-2) 0; }
+.slip-meta { margin: 0; color: #5c6775; font-size: 0.75rem; }
+.slip-rule { border: 0; border-top: 1px dashed #1a2230; margin: var(--space-3) 0; }
+.slip-total { font-weight: 700; font-size: 1rem; margin-top: var(--space-2); }
+.slip-thanks { margin: var(--space-5) 0 0; text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
 .print-only { display: none; }
 .z-tape { max-width: 28rem; }
 @media print {
     .sidebar, .topbar, .sidebar-scrim, .no-print { display: none !important; }
     .print-only { display: block; }
-    .app, .main, .content { display: block; }
+    .app, .main, .content { display: block; background: #fff; }
+    .slip-page { display: block; }
+    .slip {
+        width: 72mm;
+        max-width: none;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
 }

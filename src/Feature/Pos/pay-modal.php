@@ -85,10 +85,15 @@ $amount = static function (int $minor): string {
                 </div>
             </div>
             <div class="pay-rail">
-                <p class="register-summary"><span>Amount due</span><strong><?= View::text(View::money($due)) ?></strong></p>
-                <p class="register-summary"><span>Total tendered</span><strong id="pay-tendered"><?= View::text(View::money(0)) ?></strong></p>
-                <p class="register-summary" id="pay-round" hidden></p>
-                <p id="pay-change" class="pay-note" hidden></p>
+                <div class="pay-math">
+                    <p class="register-summary"><span>Subtotal</span><strong><?= View::text(View::money($due)) ?></strong></p>
+                    <p class="register-summary" id="pay-round" hidden><span>Cash rounding</span><strong id="pay-round-amount"></strong></p>
+                    <p class="register-summary" id="pay-settled" hidden><span>Amount due</span><strong id="pay-settled-amount"></strong></p>
+                </div>
+                <div class="pay-collected">
+                    <p class="register-summary"><span>Total tendered</span><strong id="pay-tendered"><?= View::text(View::money(0)) ?></strong></p>
+                    <p id="pay-change" class="pay-note" hidden></p>
+                </div>
                 <button class="btn" id="pay-done" type="button" data-close-modal="enter-payment">Done</button>
             </div>
         </form>

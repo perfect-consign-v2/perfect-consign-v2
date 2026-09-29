@@ -21,9 +21,11 @@ final class SaleReceipt
      * @return array{
      *     journal_id: string,
      *     posting_key: string,
+     *     sale_number: int,
+     *     posted_on: string,
      *     description: string,
      *     voided: bool,
-     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, discount: int, returned: bool}>,
+     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, returned: bool}>,
      *     tenders: list<array{name: string, amount: int}>,
      *     round: int,
      *     cash: int,
@@ -45,6 +47,10 @@ final class SaleReceipt
         return [
             'journal_id' => $journalId,
             'posting_key' => RowValue::string($journal['posting_key'] ?? null),
+            'sale_number' => RowValue::integer($journal['journal_no'] ?? null),
+            'posted_on' => $journal['posting_date'] instanceof \DateTimeInterface
+                ? $journal['posting_date']->format('Y-m-d')
+                : RowValue::string($journal['posting_date'] ?? null),
             'description' => RowValue::string($journal['description'] ?? null),
             'voided' => $this->ledger->reversed($journalId) || self::flag($journal['is_reversal'] ?? null),
             'lines' => $lines,
@@ -58,12 +64,12 @@ final class SaleReceipt
     }
 
     /**
-     * @return list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, discount: int, returned: bool}>
+     * @return list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, returned: bool}>
      */
     private function lines(string $journalId): array
     {
         $rows = $this->statements->bound(
-            'SELECT sale.item_id, sale.price_minor, sale.commission_minor, sale.tax_minor, sale.discount_minor,
+            'SELECT sale.item_id, sale.price_minor, sale.quantity, sale.commission_minor, sale.tax_minor, sale.discount_minor,
                     item.code, item.description, vendor.name AS vendor_name,
                     EXISTS (
                         SELECT 1 FROM piece_returns AS returned
@@ -85,6 +91,7 @@ final class SaleReceipt
                 'description' => RowValue::string($row['description'] ?? null),
                 'vendor' => RowValue::string($row['vendor_name'] ?? null),
                 'price' => RowValue::integer($row['price_minor'] ?? null),
+                'quantity' => RowValue::integer($row['quantity'] ?? null),
                 'commission' => RowValue::integer($row['commission_minor'] ?? null),
                 'tax' => RowValue::integer($row['tax_minor'] ?? null),
                 'discount' => RowValue::integer($row['discount_minor'] ?? null),

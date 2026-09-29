@@ -12,7 +12,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
  *     journal_id: string,
  *     posting_key: string,
  *     voided: bool,
- *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, returned: bool}>,
+ *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, tax: int, discount: int, returned: bool}>,
  *     tenders: list<array{name: string, amount: int}>,
  *     round: int,
  *     cash: int,
@@ -23,9 +23,28 @@ use PerfectConsign\Shared\Scalar\RowValue;
 if ($completed === null) {
     return;
 }
+/** @param array{price: int, quantity: int, discount: int, tax: int} $line */
+$charged = static function (array $line): int {
+    $quantity = RowValue::integer($line['quantity']);
+
+    return RowValue::integer($line['price']) * ($quantity > 0 ? $quantity : 1)
+        - RowValue::integer($line['discount'])
+        + RowValue::integer($line['tax']);
+};
+$cartTotal = 0;
+foreach ($completed['lines'] as $line) {
+    $cartTotal += $charged($line);
+}
+$round = RowValue::integer($completed['round']);
+$paid = $cartTotal + $round;
+$roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
 ?>
-<article class="card register-finished">
-    <div class="card-head"><div class="h3">Sale completed</div></div>
+<div id="sale-completed" class="modal" role="dialog" aria-modal="true" aria-labelledby="sale-completed-title" data-lock>
+    <div class="modal-panel card register-finished">
+    <div class="card-head">
+        <h2 class="h3" id="sale-completed-title">Sale completed</h2>
+        <button class="btn btn-sm" type="submit" form="sale-new">Close</button>
+    </div>
     <div class="card-body stack">
         <p><?= View::text($completed['posting_key']) ?></p>
         <p>Scan and Instant inventory stay locked until you start a new sale.</p>
@@ -45,7 +64,7 @@ if ($completed === null) {
                                 <p><?= View::text($line['description']) ?></p>
                                 <p class="ticket-meta"><?= View::text($line['code']) ?> <?= View::text($line['vendor']) ?></p>
                             </td>
-                            <td><?= View::text(View::money(RowValue::integer($line['price']))) ?></td>
+                            <td><?= View::text(View::money($charged($line))) ?></td>
                             <td>
                                 <?php if ($completed['voided'] !== true && $line['returned'] !== true): ?>
                                     <form method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($completed['journal_id']) ?>/return">
@@ -71,27 +90,39 @@ if ($completed === null) {
             <?php if ($completed['waiver'] !== ''): ?>
                 <p><span class="badge" id="tax-waived">Tax waived</span> <?= View::text($completed['waiver']) ?></p>
             <?php endif; ?>
-            <?php foreach ($completed['tenders'] as $tender): ?>
+            <div class="pay-math">
                 <p class="register-summary">
-                    <span><?= View::text($tender['name']) ?></span>
-                    <span><?= View::text(View::money(RowValue::integer($tender['amount']))) ?></span>
+                    <span>Cart total</span>
+                    <span><?= View::text(View::money($cartTotal)) ?></span>
                 </p>
-            <?php endforeach; ?>
-            <?php if ($completed['round'] !== 0): ?>
                 <p class="register-summary">
                     <span>Cash round</span>
-                    <span id="cash-round"><?= View::text(View::money(RowValue::integer($completed['round']))) ?></span>
+                    <span id="cash-round"><?= View::text($roundText) ?></span>
                 </p>
-            <?php endif; ?>
-            <p class="register-summary">
-                <span><?= is_int($change) ? 'Change due' : 'Total' ?></span>
-                <span class="register-due" id="change"><?= is_int($change) ? View::text(View::money($change)) : View::text(View::money(RowValue::integer($completed['cash']))) ?></span>
-            </p>
+                <p class="register-summary">
+                    <span>Total paid</span>
+                    <span class="register-due"><?= View::text(View::money($paid)) ?></span>
+                </p>
+            </div>
+            <div class="pay-collected">
+                <?php foreach ($completed['tenders'] as $tender): ?>
+                    <p class="register-summary">
+                        <span><?= View::text($tender['name']) ?></span>
+                        <span><?= View::text(View::money(RowValue::integer($tender['amount']))) ?></span>
+                    </p>
+                <?php endforeach; ?>
+                <?php if (is_int($change)): ?>
+                    <p class="register-summary">
+                        <span>Change due</span>
+                        <span class="register-due" id="change"><?= View::text(View::money($change)) ?></span>
+                    </p>
+                <?php endif; ?>
+            </div>
         </div>
-        <div class="row gap-2">
-            <form method="post" action="/<?= View::text($slug) ?>/pos/new">
+        <div class="row wrap gap-2">
+            <form id="sale-new" method="post" action="/<?= View::text($slug) ?>/pos/new">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                <button class="btn btn-primary" type="submit">New sale</button>
+                <button class="btn btn-primary" type="submit" autofocus>New sale</button>
             </form>
             <a class="btn" href="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($completed['journal_id']) ?>">View receipt</a>
             <?php if ($completed['voided'] !== true): ?>
@@ -99,4 +130,5 @@ if ($completed === null) {
             <?php endif; ?>
         </div>
     </div>
-</article>
+    </div>
+</div>

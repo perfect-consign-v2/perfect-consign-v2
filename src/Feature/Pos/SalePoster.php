@@ -126,9 +126,11 @@ final class SalePoster
      * @return array{
      *     journal_id: string,
      *     posting_key: string,
+     *     sale_number: int,
+     *     posted_on: string,
      *     description: string,
      *     voided: bool,
-     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, discount: int, returned: bool}>,
+     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, returned: bool}>,
      *     tenders: list<array{name: string, amount: int}>,
      *     round: int,
      *     cash: int,

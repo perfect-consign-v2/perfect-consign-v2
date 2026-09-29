@@ -11,6 +11,9 @@ declare(strict_types=1);
     const tendered = document.getElementById('pay-tendered');
     const shellTendered = document.getElementById('shell-tendered');
     const roundLine = document.getElementById('pay-round');
+    const roundAmount = document.getElementById('pay-round-amount');
+    const settledLine = document.getElementById('pay-settled');
+    const settledAmount = document.getElementById('pay-settled-amount');
     const changeLine = document.getElementById('pay-change');
     const shellChange = document.getElementById('shell-change');
     const process = document.querySelector('button.register-complete[form="pos-pay"]');
@@ -89,7 +92,8 @@ declare(strict_types=1);
         const due = cents(form.getAttribute('data-due'));
         const nonCash = Math.max(0, sum - cashCents);
         const residual = Math.max(0, due - nonCash);
-        const cashDue = nonCash === 0 ? nickel(residual) : residual;
+        const allCash = cashCents > 0 && nonCash === 0;
+        const cashDue = allCash ? nickel(residual) : residual;
         const settled = due + (cashDue - residual);
         if (tendered) {
             tendered.textContent = money(sum);
@@ -98,10 +102,18 @@ declare(strict_types=1);
             shellTendered.textContent = money(sum);
         }
         const adjustment = cashDue - residual;
-        if (adjustment === 0) {
-            paint(roundLine, '', false);
-        } else {
-            paint(roundLine, 'Cash rounding ' + (adjustment > 0 ? '+' : '−') + money(Math.abs(adjustment)), true);
+        const showRound = adjustment !== 0;
+        if (roundLine) {
+            roundLine.hidden = !showRound;
+        }
+        if (roundAmount) {
+            roundAmount.textContent = showRound ? (adjustment > 0 ? '+' : '−') + money(Math.abs(adjustment)) : '';
+        }
+        if (settledLine) {
+            settledLine.hidden = !showRound;
+        }
+        if (settledAmount) {
+            settledAmount.textContent = showRound ? money(due + adjustment) : '';
         }
         note(changeLine, sum, settled);
         note(shellChange, sum, settled);
