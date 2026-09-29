@@ -161,6 +161,109 @@ final class BoothRosterTest extends TestCase
         self::assertFalse($rows[0]['placed']);
     }
 
+    public function testBoundariesKeepTheStayThatCoversToday(): void
+    {
+        $rows = $this->roster()->assemble(
+            [
+                $this->booth(self::NORTH, 'A1', 'North', null, 8, null, null),
+                $this->booth(self::SOUTH, 'A2', 'South', null, null, null, null),
+                $this->booth(self::EAST, 'A3', 'East', null, null, null, null),
+            ],
+            [
+                $this->stay(self::NORTH, self::ADA, 'Ada', '2026-09-27', '2026-09-27'),
+                $this->stay(self::EAST, self::EAST, 'Ada', '2020-01-01', null),
+                $this->stay(self::NORTH, self::ADA, 'Ada', '2026-10-01', null),
+                $this->stay(self::SOUTH, self::ADA, 'Later', '2026-10-03', null),
+                $this->stay(self::SOUTH, self::ADA, 'Soon', '2026-10-01', null),
+                $this->stay(self::SOUTH, self::EAST, 'Soon', '2026-10-01', null),
+                $this->stay(self::NORTH, self::EAST, 'Ada', '2026-10-03', null),
+            ],
+            [
+                ['booth_id' => self::NORTH, 'month_start' => '2026-09-27', 'amount_minor' => 1000],
+                ['booth_id' => self::NORTH, 'month_start' => '2026-09-27', 'amount_minor' => 2000],
+                ['booth_id' => self::NORTH, 'month_start' => '2026-09-28', 'amount_minor' => 3000],
+            ],
+            [],
+            [],
+            '2026-09-27',
+            10,
+            10
+        );
+        $byCode = [];
+        foreach ($rows as $row) {
+            $byCode[$row['code']] = $row;
+        }
+        self::assertSame('ending', $byCode['A1']['status']);
+        self::assertSame('Ada', $byCode['A1']['vendor_name']);
+        self::assertSame(self::ADA, $byCode['A1']['vendor_id']);
+        self::assertSame(1000, $byCode['A1']['rent_minor']);
+        self::assertSame(10, $byCode['A1']['width']);
+        self::assertSame(10, $byCode['A1']['depth']);
+        self::assertSame('incoming', $byCode['A2']['status']);
+        self::assertSame('Soon', $byCode['A2']['vendor_name']);
+        self::assertSame(self::ADA, $byCode['A2']['vendor_id']);
+    }
+
+    public function testABlankVendorNameIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->roster()->assemble(
+            [$this->booth(self::NORTH, 'A1', 'North', null, null, null, null)],
+            [$this->stay(self::NORTH, self::ADA, '', '2026-09-01', null)],
+            [],
+            [],
+            [],
+            '2026-09-27',
+            10,
+            10
+        );
+    }
+
+    public function testABadStayDateIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->roster()->assemble(
+            [$this->booth(self::NORTH, 'A1', 'North', null, null, null, null)],
+            [$this->stay(self::NORTH, self::ADA, 'Ada', 'September', null)],
+            [],
+            [],
+            [],
+            '2026-09-27',
+            10,
+            10
+        );
+    }
+
+    public function testABlankBoothCodeIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->roster()->assemble(
+            [['id' => self::NORTH, 'code' => '', 'name' => 'North']],
+            [],
+            [],
+            [],
+            [],
+            '2026-09-27',
+            10,
+            10
+        );
+    }
+
+    public function testAZeroFootBoothIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->roster()->assemble(
+            [$this->booth(self::NORTH, 'A1', 'North', 0, 8, null, null)],
+            [],
+            [],
+            [],
+            [],
+            '2026-09-27',
+            10,
+            10
+        );
+    }
+
     public function testTodayMustBeADate(): void
     {
         $this->expectException(InvalidArgumentException::class);

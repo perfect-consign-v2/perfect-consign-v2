@@ -91,6 +91,49 @@ final class DailyBackupFilesTest extends TestCase
         new DailyBackupFiles('C:\\data\\perfect_consign_pg\\backups');
     }
 
+    public function testAnEmptyDirectoryIsRefused(): void
+    {
+        try {
+            new DailyBackupFiles('');
+            self::fail('an empty backup directory was accepted');
+        } catch (BackupException $exception) {
+            self::assertSame('STALL_BACKUP_DIR must be outside the database volume', $exception->getMessage());
+        }
+    }
+
+    public function testAFileBlockingTheTenantFolderIsRefused(): void
+    {
+        $schema = 'tenant_' . str_repeat('c', 32);
+        $blocked = $this->root . DIRECTORY_SEPARATOR . $schema;
+        $written = file_put_contents($blocked, 'not a directory');
+        if ($written === false) {
+            self::fail('could not block the tenant folder');
+        }
+        $source = $this->source('blocked');
+        set_error_handler(static fn (int $severity, string $message): bool => true);
+        try {
+            (new DailyBackupFiles($this->root))->replace($schema, '2026-09-26', $source);
+            self::fail('a file in place of the tenant folder was accepted');
+        } catch (BackupException) {
+            self::assertTrue(true);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function testAFileNamedLikeATenantIsLeftAlone(): void
+    {
+        $schema = 'tenant_' . str_repeat('d', 32);
+        $blocked = $this->root . DIRECTORY_SEPARATOR . $schema;
+        $written = file_put_contents($blocked, 'not a directory');
+        if ($written === false) {
+            self::fail('could not write a tenant-named file');
+        }
+        $files = new DailyBackupFiles($this->root);
+        $files->removeOlderThan(new DateTimeImmutable('2026-09-26 12:00:00+00'));
+        self::assertFileExists($blocked);
+    }
+
     private function source(string $contents): string
     {
         $path = $this->root . DIRECTORY_SEPARATOR . $contents . '.src';

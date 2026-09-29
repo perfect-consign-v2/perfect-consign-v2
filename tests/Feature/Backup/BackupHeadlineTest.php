@@ -39,6 +39,17 @@ final class BackupHeadlineTest extends TestCase
         );
     }
 
+    public function testAFutureCompletionIsStillToday(): void
+    {
+        $completed = new DateTimeImmutable('2026-09-27 01:00:00+00');
+        $now = new DateTimeImmutable('2026-09-26 12:00:00+00');
+
+        self::assertSame(
+            'Sep 27, 2026, 1:00 AM UTC · today',
+            BackupHeadline::text($completed, $now)
+        );
+    }
+
     public function testOneDayIsSingular(): void
     {
         $completed = new DateTimeImmutable('2026-09-12 18:41:00+00');

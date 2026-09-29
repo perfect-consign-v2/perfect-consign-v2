@@ -101,6 +101,66 @@ final class VendorRosterTest extends TestCase
         self::assertSame(1, $page['stats']['ending']);
     }
 
+    public function testAssignmentEdgesStayInTheRightList(): void
+    {
+        $page = $this->roster()->assemble([
+            $this->vendor('v1', 'ada', 'Ada', 'open', 'b1', 'North', '2026-09-27', null, '', 't'),
+            $this->vendor('v1', 'ada', 'Ada', 'later', 'b2', 'South', '2026-09-28', null, null, 't'),
+            $this->vendor('v1', 'ada', 'Ada', 'done', 'b3', 'East', '2026-01-01', '2026-09-26', '1500', 't'),
+            $this->vendor('v1', 'ada', 'Ada', 'same', 'b4', 'West', '2026-09-01', '2026-09-27', 0, 't'),
+        ], [], '2026-09-27');
+        $ada = $page['vendors'][0];
+        self::assertSame('2026-09-01', $ada['since']);
+        self::assertSame(['open', 'same'], array_column($ada['current'], 'id'));
+        self::assertSame(['later'], array_column($ada['upcoming'], 'id'));
+        self::assertSame(['done'], array_column($ada['past'], 'id'));
+        self::assertNull($ada['current'][0]['rent_minor']);
+        self::assertSame(0, $ada['current'][1]['rent_minor']);
+        self::assertSame(1500, $ada['past'][0]['rent_minor']);
+    }
+
+    public function testInactiveSpellingsStayInactive(): void
+    {
+        $page = $this->roster()->assemble([
+            $this->vendor('v1', 'ada', 'Ada', null, null, null, null, null, null, false),
+            $this->vendor('v2', 'bea', 'Bea', null, null, null, null, null, null, 'f'),
+            $this->vendor('v3', 'cy', 'Cy', null, null, null, null, null, null, 'false'),
+            $this->vendor('v4', 'dee', 'Dee', null, null, null, null, null, null, '0'),
+            $this->vendor('v5', 'eve', 'Eve', null, null, null, null, null, null, true),
+            $this->vendor('v6', 'fay', 'Fay', null, null, null, null, null, null, '1'),
+            $this->vendor('v7', 'gia', 'Gia', null, null, null, null, null, null, 'true'),
+            $this->vendor('v8', 'hoa', 'Hoa', null, null, null, null, null, null, 't'),
+        ], [], '2026-09-27');
+        $byCode = [];
+        foreach ($page['vendors'] as $vendor) {
+            $byCode[$vendor['code']] = $vendor['status'];
+        }
+        self::assertSame('inactive', $byCode['ada']);
+        self::assertSame('inactive', $byCode['bea']);
+        self::assertSame('inactive', $byCode['cy']);
+        self::assertSame('inactive', $byCode['dee']);
+        self::assertSame('active', $byCode['eve']);
+        self::assertSame('active', $byCode['fay']);
+        self::assertSame('active', $byCode['gia']);
+        self::assertSame('active', $byCode['hoa']);
+    }
+
+    public function testABlankNameIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->roster()->assemble([
+            $this->vendor('v1', 'ada', ''),
+        ], [], '2026-09-27');
+    }
+
+    public function testABadAssignmentDateIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->roster()->assemble([
+            $this->vendor('v1', 'ada', 'Ada', 'a1', 'b1', 'North', 'September', null),
+        ], [], '2026-09-27');
+    }
+
     public function testTodayMustBeADate(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -124,6 +184,8 @@ final class VendorRosterTest extends TestCase
         ?string $boothCode = null,
         ?string $startsOn = null,
         ?string $endsOn = null,
+        mixed $rentMinor = null,
+        mixed $active = null,
     ): array {
         return [
             'vendor_id' => $id,
@@ -134,6 +196,8 @@ final class VendorRosterTest extends TestCase
             'booth_code' => $boothCode,
             'starts_on' => $startsOn,
             'ends_on' => $endsOn,
+            'rent_minor' => $rentMinor,
+            'active' => $active,
         ];
     }
 }

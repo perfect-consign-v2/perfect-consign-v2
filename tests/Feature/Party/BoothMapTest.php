@@ -81,4 +81,43 @@ final class BoothMapTest extends TestCase
         self::assertSame(20, $tiles[0]['width']);
         self::assertSame(10, $tiles[0]['depth']);
     }
+
+    public function testZeroOrNegativeFeetUseTheMallDefault(): void
+    {
+        $tiles = BoothMap::tiles(
+            [
+                ['id' => 'a', 'code' => 'A1', 'name' => 'Front', 'width' => 0, 'depth' => -4, 'x' => 1, 'z' => 1],
+            ],
+            [],
+            '2026-09-26',
+            10,
+            8
+        );
+        self::assertSame(10, $tiles[0]['width']);
+        self::assertSame(8, $tiles[0]['depth']);
+    }
+
+    public function testTheEarlierFutureStayIsTheIncomingVendor(): void
+    {
+        $stays = [
+            ['boothId' => 'a', 'vendorName' => 'Later', 'startsOn' => '2026-10-02', 'endsOn' => null],
+            ['boothId' => 'b', 'vendorName' => 'Other', 'startsOn' => '2026-10-01', 'endsOn' => null],
+            ['boothId' => 'a', 'vendorName' => 'Soon', 'startsOn' => '2026-10-01', 'endsOn' => null],
+            ['boothId' => 'a', 'vendorName' => 'Today', 'startsOn' => '2026-09-26', 'endsOn' => null],
+        ];
+        $spot = BoothMap::occupancy($stays, 'a', '2026-09-26');
+        self::assertSame('occupied', $spot['status']);
+        self::assertSame('Today', $spot['vendor']);
+        $next = BoothMap::occupancy(
+            [
+                ['boothId' => 'a', 'vendorName' => 'Later', 'startsOn' => '2026-10-02', 'endsOn' => null],
+                ['boothId' => 'a', 'vendorName' => 'Soon', 'startsOn' => '2026-10-01', 'endsOn' => null],
+                ['boothId' => 'a', 'vendorName' => 'Also', 'startsOn' => '2026-10-01', 'endsOn' => null],
+            ],
+            'a',
+            '2026-09-26'
+        );
+        self::assertSame('incoming', $next['status']);
+        self::assertSame('Soon', $next['vendor']);
+    }
 }
