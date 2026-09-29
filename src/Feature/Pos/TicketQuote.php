@@ -13,7 +13,7 @@ final class TicketQuote
 
     public static function tax(int $price, int $discount, int $taxBps): int
     {
-        return self::halfUp($price - $discount, $taxBps);
+        return intdiv(($price - $discount) * $taxBps + 50000, 100000);
     }
 
     public static function percentLabel(int $bps): string

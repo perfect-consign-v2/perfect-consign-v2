@@ -520,18 +520,50 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     justify-content: space-between;
     gap: var(--space-3);
 }
+.register > .card > .card-head { position: relative; }
+.register-status {
+    position: absolute;
+    top: 50%;
+    right: var(--space-5);
+    max-width: calc(100% - 11rem);
+    margin: 0;
+    transform: translateY(-50%);
+}
+.register-status .alert {
+    margin: 0;
+    align-items: center;
+    padding: var(--space-1) var(--space-3);
+}
+.register-status .alert p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.register-cart { table-layout: auto; }
+.register-cart .register-item { width: 99%; }
+.register-cart .register-qty-col,
+.register-cart .register-price-col { width: 1%; white-space: nowrap; }
 .register-qty {
     display: flex;
     align-items: center;
     gap: var(--space-1);
+    width: max-content;
 }
-.register-qty .input {
-    width: 3.25rem;
+.content td.register-qty-col form input.register-qty-input {
+    width: 4ch;
+    min-width: 4ch;
+    flex: 0 0 4ch;
+    box-sizing: content-box;
     text-align: center;
     padding: 0;
 }
 .register-qty .btn { width: 2.25rem; padding: 0; }
-.register-price { width: 6.5rem; }
+.content td.register-price-col form input.register-price {
+    width: 8ch;
+    min-width: 8ch;
+    box-sizing: content-box;
+    padding: 0 0.45rem;
+}
 .segmented .seg-btn { position: relative; }
 .register-line {
     display: flex;

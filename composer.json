@@ -35,6 +35,7 @@
         "test:http": "php vendor/bin/phpunit --testsuite http",
         "test:browser": "php vendor/bin/phpunit --testsuite browser",
         "test:coverage": "php bin/coverage-run.php",
+        "test:mutate": "php bin/mutate.php",
         "check": [
             "@check:max-lines",
             "@check:phpmd",

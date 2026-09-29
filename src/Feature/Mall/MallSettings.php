@@ -90,6 +90,11 @@ final class MallSettings
         return RowValue::integer($this->row()['commission_bps'] ?? null);
     }
 
+    public function taxRate(): int
+    {
+        return RowValue::integer($this->row()['tax_bps'] ?? null);
+    }
+
     public function floorDays(): ?int
     {
         $days = $this->row()['floor_days'] ?? null;
@@ -114,6 +119,7 @@ final class MallSettings
         int $storeTake,
         ?int $floorDays,
         string $cashRound,
+        int $taxRate,
     ): void {
         if (!in_array($timeZone, timezone_identifiers_list(DateTimeZone::ALL_WITH_BC), true)) {
             throw new \InvalidArgumentException('that time zone is not an IANA name');
@@ -127,10 +133,13 @@ final class MallSettings
         if ($storeTake < 0 || $storeTake > 10000) {
             throw new \InvalidArgumentException('store take is a percent from 0 to 100');
         }
+        if ($taxRate < 0 || $taxRate > 100000) {
+            throw new \InvalidArgumentException('tax rate is a percent from 0 to 100');
+        }
         $this->guardDays($floorDays);
         $this->statements->change(
-            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean',
-            [$timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake, $floorDays, $cashRound === '1' ? 'true' : 'false']
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?',
+            [$timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake, $floorDays, $cashRound === '1' ? 'true' : 'false', $taxRate]
         );
     }
 
@@ -152,7 +161,7 @@ final class MallSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel FROM mall'
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

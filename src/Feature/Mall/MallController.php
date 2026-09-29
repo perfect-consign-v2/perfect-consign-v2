@@ -16,6 +16,8 @@ final class MallController
 {
     private ?string $postedCashRound = null;
 
+    private ?string $postedTaxRate = null;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
@@ -71,19 +73,23 @@ final class MallController
         $floorWidth = $this->feet($this->app->request()->field('floor_width_ft'));
         $floorDepth = $this->feet($this->app->request()->field('floor_depth_ft'));
         $storeTake = $this->app->request()->field('default_store_take');
+        $taxRate = $this->app->request()->field('tax_rate');
         $floorRaw = $this->app->request()->field('floor_days');
         $basis = $this->basisPoints($storeTake);
+        $taxBasis = $this->taxMillis($taxRate);
         $days = $this->wholeDays($floorRaw);
-        $error = $this->refusal($basis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
+        $error = $this->refusal($basis, $taxBasis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
         }
         $this->postedCashRound = $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '';
+        $this->postedTaxRate = $taxRate;
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
     }
 
     private function refusal(
         ?int $basis,
+        ?int $taxBasis,
         int|false|null $days,
         string $timeZone,
         ?int $width,
@@ -93,6 +99,9 @@ final class MallController
     ): ?string {
         if ($basis === null) {
             return 'store take is a percent from 0 to 100';
+        }
+        if ($taxBasis === null) {
+            return 'tax rate is a percent from 0 to 100';
         }
         if ($days === false) {
             return 'days on the floor is a whole number from 1 to 365, or empty';
@@ -104,7 +113,7 @@ final class MallController
             return 'floor size is whole feet';
         }
 
-        return $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth, $basis, $days);
+        return $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth, $basis, $days, $taxBasis);
     }
 
     private function store(
@@ -115,6 +124,7 @@ final class MallController
         int $floorDepth,
         int $storeTake,
         ?int $floorDays,
+        int $taxRate,
     ): ?string {
         try {
             $this->mall->save(
@@ -125,7 +135,8 @@ final class MallController
                 $floorDepth,
                 $storeTake,
                 $floorDays,
-                $this->app->request()->field('cash_round_nickel') === '1' ? '1' : ''
+                $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
+                $taxRate
             );
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
@@ -134,6 +145,23 @@ final class MallController
         }
 
         return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function timeZoneChoices(string $current): array
+    {
+        $zones = array_values(array_unique([
+            ...timezone_identifiers_list(\DateTimeZone::PER_COUNTRY, 'US'),
+            ...timezone_identifiers_list(\DateTimeZone::PER_COUNTRY, 'CA'),
+        ]));
+        sort($zones, SORT_STRING);
+        if ($current !== '' && !in_array($current, $zones, true)) {
+            array_unshift($zones, $current);
+        }
+
+        return $zones;
     }
 
     private function feet(string $value): ?int
@@ -183,6 +211,34 @@ final class MallController
         return $basis;
     }
 
+    private function taxMillis(string $percent): ?int
+    {
+        if ($percent === '') {
+            return 0;
+        }
+        if (preg_match('/^(\d{1,3})(?:\.(\d{1,3}))?$/', $percent, $parts) !== 1) {
+            return null;
+        }
+        $fraction = str_pad($parts[2] ?? '', 3, '0');
+        $millis = ((int) $parts[1] * 1000) + (int) $fraction;
+        if ($millis > 100000) {
+            return null;
+        }
+
+        return $millis;
+    }
+
+    private function taxPercent(int $millis): string
+    {
+        $whole = intdiv($millis, 1000);
+        $fraction = $millis % 1000;
+        if ($fraction === 0) {
+            return (string) $whole;
+        }
+
+        return $whole . '.' . rtrim(str_pad((string) $fraction, 3, '0', STR_PAD_LEFT), '0');
+    }
+
     private function percent(int $basis): string
     {
         $whole = intdiv($basis, 100);
@@ -214,6 +270,7 @@ final class MallController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'timeZone' => $timeZone,
+            'timeZones' => $this->timeZoneChoices($timeZone),
             'boothWidth' => $width,
             'boothDepth' => $depth,
             'floorWidth' => $floorWidth,
@@ -221,6 +278,7 @@ final class MallController
             'storeTake' => $storeTake,
             'floorDays' => $floorDays,
             'cashRound' => $this->postedCashRound ?? ($this->mall->cashRoundNickel() ? '1' : ''),
+            'taxRate' => $this->postedTaxRate ?? $this->taxPercent($this->mall->taxRate()),
             'backupHeadline' => BackupHeadline::text(
                 $this->backups->latest($tenant->id),
                 new DateTimeImmutable('now', new DateTimeZone('UTC'))

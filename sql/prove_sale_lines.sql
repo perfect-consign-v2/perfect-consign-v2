@@ -2,7 +2,7 @@
 
 BEGIN;
 
-UPDATE mall SET tax_bps = 800, commission_bps = 0;
+UPDATE mall SET tax_bps = 8000, commission_bps = 0;
 
 INSERT INTO vendors (id, code, first_name, last_name, commission_bps, tax_exempt, tax_exempt_number)
 VALUES
@@ -195,7 +195,7 @@ END $$;
 
 DO $$
 BEGIN
-    UPDATE mall SET tax_bps = 10001;
+    UPDATE mall SET tax_bps = 100001;
     RAISE EXCEPTION 'a tax rate over 100 percent was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN

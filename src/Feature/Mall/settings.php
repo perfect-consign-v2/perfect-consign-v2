@@ -7,6 +7,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $timeZone */
+/** @var list<string> $timeZones */
 /** @var int $boothWidth */
 /** @var int $boothDepth */
 /** @var int $floorWidth */
@@ -14,12 +15,13 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $storeTake */
 /** @var string $floorDays */
 /** @var string $cashRound */
+/** @var string $taxRate */
 /** @var string $backupHeadline */
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, how long pieces stay out, and a copy of the mall.</p>
+        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, how long pieces stay out, and a copy of the mall.</p>
     </div>
 </div>
 
@@ -41,7 +43,11 @@ use PerfectConsign\Shared\Http\View;
         <div class="card-body grid cols-2">
             <div class="field" style="grid-column:1/-1">
                 <label for="time_zone">Time zone</label>
-                <input class="input" id="time_zone" name="time_zone" value="<?= View::text($timeZone) ?>" required>
+                <select class="select" id="time_zone" name="time_zone" required>
+                    <?php foreach ($timeZones as $zone): ?>
+                        <option value="<?= View::text($zone) ?>"<?= $zone === $timeZone ? ' selected' : '' ?>><?= View::text($zone) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div class="field">
                 <label for="booth_width_ft">Default width (ft)</label>
@@ -65,6 +71,11 @@ use PerfectConsign\Shared\Http\View;
                 <p class="muted text-sm">Percent of a sale this mall keeps. 25 is 25%. A different amount saved on a vendor is marked overridden.</p>
             </div>
             <div class="field" style="grid-column:1/-1">
+                <label for="tax_rate">Sales tax</label>
+                <input class="input" id="tax_rate" name="tax_rate" inputmode="decimal" value="<?= View::text($taxRate) ?>">
+                <p class="muted text-sm">Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A vendor marked tax exempt is charged no tax.</p>
+            </div>
+            <div class="field" style="grid-column:1/-1">
                 <label for="cash_round_nickel">
                     <input id="cash_round_nickel" name="cash_round_nickel" type="checkbox" value="1"<?= ($cashRound ?? '') === '1' ? ' checked' : '' ?>>
                     Round cash sales to the nearest nickel
@@ -81,7 +92,7 @@ use PerfectConsign\Shared\Http\View;
     <div class="card">
         <div class="card-head"><div class="h3">Notes</div></div>
         <div class="card-body">
-            <p class="muted text-sm">Today, rent months, and the posting date start from this time zone. A booth with no size uses the width and depth here. The floor starts at 120 by 90 feet. Store take is this mall's default split. Days on the floor is the consignment expire default.</p>
+            <p class="muted text-sm">Today, rent months, and the posting date start from this time zone. A booth with no size uses the width and depth here. The floor starts at 120 by 90 feet. Store take is this mall's default split. Sales tax is the rate the register adds. Days on the floor is the consignment expire default.</p>
         </div>
         <div class="card-foot row between">
             <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/book">Cancel</a>

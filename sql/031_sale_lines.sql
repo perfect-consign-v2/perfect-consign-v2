@@ -5,10 +5,23 @@ ALTER TABLE mall ADD COLUMN IF NOT EXISTS tax_bps integer NOT NULL DEFAULT 0;
 
 DO $$
 BEGIN
-    ALTER TABLE mall ADD CONSTRAINT mall_tax_bps_chk CHECK (tax_bps >= 0 AND tax_bps <= 10000);
-EXCEPTION
-    WHEN duplicate_object THEN
-        NULL;
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'mall_tax_bps_chk'
+          AND conrelid = 'mall'::regclass
+    ) THEN
+        ALTER TABLE mall DROP CONSTRAINT mall_tax_bps_chk;
+        UPDATE mall SET tax_bps = tax_bps * 10;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'mall_tax_millis_chk'
+          AND conrelid = 'mall'::regclass
+    ) THEN
+        ALTER TABLE mall ADD CONSTRAINT mall_tax_millis_chk CHECK (tax_bps >= 0 AND tax_bps <= 100000);
+    END IF;
 END $$;
 
 CREATE TABLE IF NOT EXISTS sale_lines (

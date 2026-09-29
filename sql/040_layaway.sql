@@ -492,7 +492,7 @@ BEGIN
         IF tax_exempt OR waiver THEN
             expected_tax := 0;
         ELSE
-            expected_tax := ((NEW.price_minor * NEW.quantity - NEW.discount_minor) * tax_bps + 5000) / 10000;
+            expected_tax := ((NEW.price_minor * NEW.quantity - NEW.discount_minor) * tax_bps + 50000) / 100000;
         END IF;
 
         IF NEW.commission_minor IS DISTINCT FROM expected_commission THEN

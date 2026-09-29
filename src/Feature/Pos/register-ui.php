@@ -365,6 +365,14 @@ document.querySelectorAll('[data-open-modal]').forEach(function (button) {
         }
     });
 });
+document.querySelectorAll('#gift-sell input[name="gift_tender"]').forEach(function (input) {
+    input.addEventListener('change', function () {
+        const checkField = document.getElementById('gift-check-field');
+        if (checkField) {
+            checkField.hidden = input.value !== 'checks' || !input.checked;
+        }
+    });
+});
 document.querySelectorAll('[data-close-modal]').forEach(function (button) {
     button.addEventListener('click', function () {
         const modal = document.getElementById(button.getAttribute('data-close-modal'));

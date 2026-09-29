@@ -209,7 +209,7 @@ $groups = [
 <?php else: ?>
 <main id="main">
 <?php endif; ?>
-    <?php if ($notice !== null && $notice !== ''): ?>
+    <?php if ($body !== 'Feature/Pos/pos' && $notice !== null && $notice !== ''): ?>
         <div class="alert alert-success" role="status">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-check"></use></svg>
             <p class="notice"><?= View::text($notice) ?></p>
@@ -221,7 +221,7 @@ $groups = [
             <p class="warning"><?= View::text($warning) ?></p>
         </div>
     <?php endif; ?>
-    <?php if (($error !== null && $error !== '') && ($modal ?? '') === ''): ?>
+    <?php if ($body !== 'Feature/Pos/pos' && ($error !== null && $error !== '') && ($modal ?? '') === ''): ?>
         <div class="alert alert-danger" role="alert">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
             <p class="error"><?= View::text($error) ?></p>

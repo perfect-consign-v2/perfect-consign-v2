@@ -359,6 +359,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('value="120"', $page);
         self::assertSees('value="90"', $page);
         self::assertSees('Days on the floor', $page);
+        self::assertSees('Sales tax', $page);
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
             'time_zone' => 'Not/AZone',
             'booth_width_ft' => '10',
@@ -388,9 +389,11 @@ final class OwnerJourneyTest extends WebTestCase
             'floor_depth_ft' => '80',
             'default_store_take' => '0',
             'floor_days' => '45',
+            'tax_rate' => '9.997',
         ]);
         self::assertSees('America/Chicago', $saved);
         self::assertSees('value="45"', $saved);
+        self::assertSees('value="9.997"', $saved);
         $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',

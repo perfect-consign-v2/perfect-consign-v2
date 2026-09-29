@@ -50,6 +50,8 @@ use PerfectConsign\Shared\Scalar\RowValue;
  */
 /** @var int|null $change */
 /** @var bool $openInstant */
+/** @var string|null $notice */
+/** @var string|null $error */
 $open = $cart['ticket_id'] !== '' && $completed === null;
 $locked = $completed !== null;
 $lines = $cart['lines'];
@@ -82,7 +84,25 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
 
 <div class="register">
     <section class="card">
-        <div class="card-head"><div class="h3">Current sale</div></div>
+        <div class="card-head">
+            <div class="h3">Current sale</div>
+            <?php if (($notice !== null && $notice !== '') || ($error !== null && $error !== '')): ?>
+                <div class="register-status">
+                    <?php if ($notice !== null && $notice !== ''): ?>
+                        <div class="alert alert-success" role="status">
+                            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-check"></use></svg>
+                            <p class="notice"><?= View::text($notice) ?></p>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($error !== null && $error !== ''): ?>
+                        <div class="alert alert-danger" role="alert">
+                            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
+                            <p class="error"><?= View::text($error) ?></p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+        </div>
         <div class="card-body stack">
             <fieldset class="register-lock" <?= $locked ? 'disabled' : '' ?>>
                 <form class="row gap-2 register-scan" method="post" action="/<?= View::text($slug) ?>/pos/scan">
@@ -100,8 +120,8 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                         <button class="btn" type="button" data-open-modal="cart-discount">Discount</button>
                         <button class="btn" type="button" data-open-modal="tax-free">Tax-free</button>
                     <?php endif; ?>
-                    <button class="btn btn-primary" type="button" data-open-modal="gift-sell">Gift Certificate</button>
-                    <button class="btn" type="button" data-open-modal="instant-add"><?= $lines === [] ? 'Instant inventory (quick add)' : 'Quick add' ?></button>
+                    <button class="btn btn-primary" type="button" data-open-modal="instant-add">Instant Inventory</button>
+                    <button class="btn" type="button" data-open-modal="gift-sell">Gift Certificate</button>
                     <?php if ($open): ?>
                         <form method="post" action="/<?= View::text($slug) ?>/pos/park">
                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -115,12 +135,12 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <p class="muted"><?php if ($locked): ?>Scan and Instant inventory stay locked until you start a new sale.<?php else: ?>Cart is empty. Scan a barcode, search by code, or use <strong>Instant inventory</strong>.<?php endif; ?></p>
             <?php else: ?>
                 <div class="table-wrap">
-                    <table class="table">
+                    <table class="table register-cart">
                         <thead>
                             <tr>
-                                <th>Item</th>
-                                <th>Qty</th>
-                                <th>Price</th>
+                                <th class="register-item">Item</th>
+                                <th class="register-qty-col">Qty</th>
+                                <th class="register-price-col">Price</th>
                                 <th>Line discount</th>
                                 <th>Line</th>
                                 <th></th>
@@ -129,12 +149,12 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                         <tbody>
                             <?php foreach ($lines as $line): ?>
                                 <tr>
-                                    <td>
+                                    <td class="register-item">
                                         <p><?= View::text($line['description']) ?></p>
                                         <p class="ticket-meta"><?= View::text($line['code']) ?></p>
                                         <p class="ticket-meta"><?= View::text($line['vendor']) ?></p>
                                     </td>
-                                    <td>
+                                    <td class="register-qty-col">
                                         <form method="post" action="/<?= View::text($slug) ?>/pos/quantity">
                                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                             <input type="hidden" name="line_no" value="<?= View::text((string) $line['line_no']) ?>">
@@ -145,7 +165,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                                             </div>
                                         </form>
                                     </td>
-                                    <td>
+                                    <td class="register-price-col">
                                         <form method="post" action="/<?= View::text($slug) ?>/pos/price">
                                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                             <input type="hidden" name="line_no" value="<?= View::text((string) $line['line_no']) ?>">
@@ -308,7 +328,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <div class="field">
-                <label for="instant_vendor">Vendor # *</label>
+                <label for="instant_vendor">Vendor #</label>
                 <input class="input" id="instant_vendor" name="vendor_code" autocomplete="off" required placeholder="Vendor #"<?= $openInstant ? ' autofocus' : '' ?>>
                 <input type="hidden" id="instant_vendor_id" name="vendor_id">
                 <p class="muted text-sm" id="instant-vendor-hint" hidden></p>
@@ -366,20 +386,35 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
 </div>
 <div id="gift-sell" class="modal" role="dialog" aria-modal="true" aria-labelledby="gift-sell-title" hidden>
     <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/gift">
-        <div class="card-head"><div class="h3" id="gift-sell-title">Sell gift certificate</div></div>
+        <div class="card-head">
+            <div class="h3" id="gift-sell-title">Sell gift certificate</div>
+            <button class="btn" type="button" data-close-modal="gift-sell">Close</button>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <label for="gift_number">Number</label>
-            <input class="input" id="gift_number" name="gift_number" required>
-            <label for="gift_amount">Amount</label>
-            <input class="input" id="gift_amount" name="gift_amount" inputmode="decimal" required>
-            <label><input type="radio" name="gift_tender" value="cash" checked> Cash</label>
-            <label><input type="radio" name="gift_tender" value="card"> Card</label>
-            <label><input type="radio" name="gift_tender" value="checks"> Check</label>
-            <label for="gift_check">Check number</label>
-            <input class="input" id="gift_check" name="check_number">
-            <button class="btn btn-primary" type="submit">Sell</button>
-            <button class="btn" type="button" data-close-modal="gift-sell">Close</button>
+            <div class="field">
+                <label for="gift_number">Number</label>
+                <input class="input" id="gift_number" name="gift_number" required>
+            </div>
+            <div class="field">
+                <label for="gift_amount">Amount</label>
+                <input class="input" id="gift_amount" name="gift_amount" inputmode="decimal" required placeholder="0.00">
+            </div>
+            <div class="field">
+                <span class="strong">Paid with</span>
+                <div class="segmented" role="radiogroup" aria-label="Paid with">
+                    <label class="seg-btn"><input class="sr-only" type="radio" name="gift_tender" value="cash" checked> Cash</label>
+                    <label class="seg-btn"><input class="sr-only" type="radio" name="gift_tender" value="card"> Card</label>
+                    <label class="seg-btn"><input class="sr-only" type="radio" name="gift_tender" value="checks"> Check</label>
+                </div>
+            </div>
+            <div class="field" id="gift-check-field" hidden>
+                <label for="gift_check">Check number</label>
+                <input class="input" id="gift_check" name="check_number">
+            </div>
+            <div class="row">
+                <button class="btn btn-primary" type="submit">Sell</button>
+            </div>
         </div>
     </form>
 </div>
