@@ -482,7 +482,7 @@ BEGIN
         ELSE 0
     END;
 
-    IF cash_debit = 0 OR round_cash IS DISTINCT FROM true THEN
+    IF cash_debit = 0 OR cash_debit <> tender_sum OR round_cash IS DISTINCT FROM true THEN
         IF round_lines <> 0 OR tender_sum <> prices - discounts + taxes THEN
             RAISE EXCEPTION 'a sale debits the sold prices plus tax'
                 USING ERRCODE = '23514';

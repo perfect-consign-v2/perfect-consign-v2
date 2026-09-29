@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\Money;
 
 final class PosPage
@@ -18,10 +19,21 @@ final class PosPage
         private readonly SaleHold $sales,
         private readonly SalePoster $poster,
         private readonly LayawayBook $layaways,
+        private readonly PayoutStore $payouts,
     ) {
     }
 
-    public function cart(string $slug, ?string $error, bool $reopenInstant = false): void
+    public function cart(string $slug, ?string $error): void
+    {
+        $this->render($slug, $error, $this->app->request()->query('instant') === '1');
+    }
+
+    public function instant(string $slug, ?string $error): void
+    {
+        $this->render($slug, $error, true);
+    }
+
+    private function render(string $slug, ?string $error, bool $reopenInstant): void
     {
         $tenant = $this->app->open($slug, true);
         $cart = $this->tickets->cart($this->gate->session($slug));
@@ -40,6 +52,7 @@ final class PosPage
             'cart' => $cart,
             'tenders' => $tenders,
             'deposits' => $this->layaways->balance($cart['ticket_id']),
+            'salesAvailable' => $cart['buyer_id'] === '' ? 0 : max(0, $this->payouts->openPayout($cart['buyer_id'])['payable']),
             'remaining' => $cart['due'] - $applied,
             'giftNumber' => $giftNumber,
             'giftBalance' => $giftNumber === '' ? null : $this->gifts->balance($giftNumber),

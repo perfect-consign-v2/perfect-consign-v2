@@ -512,4 +512,129 @@ BEGIN
     RESET ROLE;
 END $$;
 
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d29',
+    '01900000-0000-7000-8000-000000000d95',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    0
+);
+
+DO $$
+BEGIN
+    INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps, quantity)
+    VALUES (
+        '01900000-0000-7000-8000-0000000006a6',
+        'Qty',
+        '01900000-0000-7000-8000-000000000101',
+        'Two on the ticket',
+        1000,
+        'BC-TICKET-QTY',
+        DATE '2095-03-01',
+        0,
+        5
+    );
+    INSERT INTO tickets (id, session_id)
+    VALUES ('01900000-0000-7000-8000-0000000006b6', '01900000-0000-7000-8000-000000000d29');
+    INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor, quantity)
+    VALUES ('01900000-0000-7000-8000-0000000006b6', 1, '01900000-0000-7000-8000-0000000006a6', 1000, 2);
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-0000000006c6',
+        '01900000-0000-7000-8000-000000000001',
+        'sale:ticket-qty',
+        '2095-03-01',
+        '2095-03-01 14:00:00+00',
+        '01900000-0000-7000-8000-0000000006a4',
+        'USD', 'sale', 'ticket-qty', 'Quantity does not match the ticket', 1000, 1000
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES (
+        '01900000-0000-7000-8000-0000000006c6',
+        '01900000-0000-7000-8000-000000000001',
+        1, '01900000-0000-7000-8000-000000000010', 1000, 0
+    );
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES (
+        '01900000-0000-7000-8000-0000000006c6',
+        '01900000-0000-7000-8000-000000000001',
+        2, '01900000-0000-7000-8000-000000000014', 0, 1000, 'vendor', '01900000-0000-7000-8000-000000000101'
+    );
+    INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, quantity, commission_minor, tax_minor)
+    VALUES ('01900000-0000-7000-8000-0000000006c6', 1, '01900000-0000-7000-8000-0000000006a6', 1000, 1, 0, 0);
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d29', '01900000-0000-7000-8000-0000000006c6');
+    UPDATE tickets
+    SET status = 'posted', posted_journal_id = '01900000-0000-7000-8000-0000000006c6'
+    WHERE id = '01900000-0000-7000-8000-0000000006b6';
+    RAISE EXCEPTION 'a ticket posted a different quantity';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a paid ticket must match its sale%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps, quantity)
+    VALUES (
+        '01900000-0000-7000-8000-0000000006a7',
+        'Extra',
+        '01900000-0000-7000-8000-000000000101',
+        'Sale has the extra unit',
+        1000,
+        'BC-TICKET-EXTRA',
+        DATE '2095-03-01',
+        0,
+        5
+    );
+    INSERT INTO tickets (id, session_id)
+    VALUES ('01900000-0000-7000-8000-0000000006b7', '01900000-0000-7000-8000-000000000d29');
+    INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor, quantity)
+    VALUES ('01900000-0000-7000-8000-0000000006b7', 1, '01900000-0000-7000-8000-0000000006a7', 1000, 1);
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-0000000006c7',
+        '01900000-0000-7000-8000-000000000001',
+        'sale:ticket-extra',
+        '2095-03-01',
+        '2095-03-01 14:10:00+00',
+        '01900000-0000-7000-8000-0000000006a4',
+        'USD', 'sale', 'ticket-extra', 'Sale quantity exceeds the ticket', 2000, 2000
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES (
+        '01900000-0000-7000-8000-0000000006c7',
+        '01900000-0000-7000-8000-000000000001',
+        1, '01900000-0000-7000-8000-000000000010', 2000, 0
+    );
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES (
+        '01900000-0000-7000-8000-0000000006c7',
+        '01900000-0000-7000-8000-000000000001',
+        2, '01900000-0000-7000-8000-000000000014', 0, 2000, 'vendor', '01900000-0000-7000-8000-000000000101'
+    );
+    INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, quantity, commission_minor, tax_minor)
+    VALUES ('01900000-0000-7000-8000-0000000006c7', 1, '01900000-0000-7000-8000-0000000006a7', 1000, 2, 0, 0);
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d29', '01900000-0000-7000-8000-0000000006c7');
+    UPDATE tickets
+    SET status = 'posted', posted_journal_id = '01900000-0000-7000-8000-0000000006c7'
+    WHERE id = '01900000-0000-7000-8000-0000000006b7';
+    RAISE EXCEPTION 'a sale posted a different quantity';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a paid ticket must match its sale%' THEN
+            RAISE;
+        END IF;
+END $$;
+
 ROLLBACK;

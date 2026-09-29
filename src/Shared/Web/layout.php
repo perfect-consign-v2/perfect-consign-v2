@@ -155,37 +155,41 @@ $groups = [
                     <svg aria-hidden="true"><use href="#i-bell"></use></svg>
                 </button>
                 <div class="account" data-menu>
-                    <button class="icon-btn" type="button" data-menu-trigger aria-haspopup="true" aria-expanded="false" aria-label="Appearance">
+                    <button class="icon-btn" type="button" data-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="Appearance">
                         <svg aria-hidden="true"><use href="#i-palette"></use></svg>
                     </button>
-                    <div class="menu" data-menu-panel hidden>
-                        <div class="menu-label">Theme</div>
-                        <button class="menu-item" type="button" role="menuitemradio" data-set-theme="neutral" aria-checked="true">
-                            <span class="swatch" style="background:#4f46e5"></span>
-                            Neutral
-                            <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
-                        </button>
-                        <button class="menu-item" type="button" role="menuitemradio" data-set-theme="dark-blue" aria-checked="false">
-                            <span class="swatch" style="background:#1e3a8a"></span>
-                            Dark blue
-                            <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
-                        </button>
-                        <div class="menu-sep"></div>
-                        <div class="menu-label">Mode</div>
-                        <button class="menu-item" type="button" role="menuitemradio" data-set-mode="light" aria-checked="true">
-                            <svg aria-hidden="true"><use href="#i-sun"></use></svg>
-                            Light
-                            <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
-                        </button>
-                        <button class="menu-item" type="button" role="menuitemradio" data-set-mode="dark" aria-checked="false">
-                            <svg aria-hidden="true"><use href="#i-moon"></use></svg>
-                            Dark
-                            <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
-                        </button>
+                    <div class="menu" data-menu-panel role="menu" aria-label="Appearance" hidden>
+                        <div role="group" aria-label="Theme">
+                            <div class="menu-label" role="presentation">Theme</div>
+                            <button class="menu-item" type="button" role="menuitemradio" data-set-theme="neutral" aria-checked="true">
+                                <span class="swatch" style="background:#4f46e5"></span>
+                                Neutral
+                                <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                            </button>
+                            <button class="menu-item" type="button" role="menuitemradio" data-set-theme="dark-blue" aria-checked="false">
+                                <span class="swatch" style="background:#1e3a8a"></span>
+                                Dark blue
+                                <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                            </button>
+                        </div>
+                        <div class="menu-sep" role="separator"></div>
+                        <div role="group" aria-label="Mode">
+                            <div class="menu-label" role="presentation">Mode</div>
+                            <button class="menu-item" type="button" role="menuitemradio" data-set-mode="light" aria-checked="true">
+                                <svg aria-hidden="true"><use href="#i-sun"></use></svg>
+                                Light
+                                <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                            </button>
+                            <button class="menu-item" type="button" role="menuitemradio" data-set-mode="dark" aria-checked="false">
+                                <svg aria-hidden="true"><use href="#i-moon"></use></svg>
+                                Dark
+                                <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="account" data-menu>
-                    <button class="account-btn" type="button" data-menu-trigger aria-haspopup="true" aria-expanded="false">
+                    <button class="account-btn" type="button" data-menu-trigger aria-haspopup="true" aria-expanded="false" aria-label="<?= View::text($displayName) ?>">
                         <span class="avatar" aria-hidden="true"><?= View::text($mark) ?></span>
                         <span class="account-meta">
                             <span class="name"><?= View::text($displayName) ?></span>

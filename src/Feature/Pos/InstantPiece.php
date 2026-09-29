@@ -17,55 +17,56 @@ final class InstantPiece
     ) {
     }
 
-    public function add(
-        string $session,
-        string $today,
-        string $vendorId,
-        string $description,
-        string $price,
-        string $barcode,
-        string $quantity,
-        string $brandId,
-        string $brandLabel,
-        string $discountKind,
-        string $discountValue,
-    ): void {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
+    public function add(string $session, string $today, InstantAdd $piece): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $piece->vendorId) !== 1) {
             throw new \InvalidArgumentException('Choose a vendor.');
         }
-        $description = trim($description);
+        $description = trim($piece->description);
         if ($description === '') {
             throw new \InvalidArgumentException('Enter a description.');
         }
-        if (trim($price) === '') {
+        if (trim($piece->price) === '') {
             throw new \InvalidArgumentException('Enter a price.');
         }
-        $piece = $this->writer->entry([
+        $saved = $this->writer->entry([
             'id' => '',
             'code' => $this->code(),
-            'barcode' => trim($barcode),
+            'barcode' => trim($piece->barcode),
             'description' => $description,
-            'price' => $price,
-            'quantity' => trim($quantity) === '' ? '1' : trim($quantity),
-            'vendor_id' => $vendorId,
+            'price' => $piece->price,
+            'quantity' => trim($piece->quantity) === '' ? '1' : trim($piece->quantity),
+            'vendor_id' => $piece->vendorId,
             'vendor_label' => '',
-            'brand_id' => trim($brandId),
-            'brand_label' => trim($brandLabel),
+            'brand_id' => trim($piece->brandId),
+            'brand_label' => trim($piece->brandLabel),
             'store_take' => '',
             'intake_on' => $today,
             'expires_on' => '',
             'fill_expire' => '',
         ]);
-        $this->items->add($piece, $today);
-        $this->tickets->scan($session, $piece->code);
-        $this->finish($session, $piece->code, $piece->quantity, $discountKind, $discountValue);
+        $this->items->add($saved, $today);
+        $this->tickets->scan($session, $saved->code);
+        $this->finish($session, $saved->code, $saved->quantity, $piece->discountKind, $piece->discountValue);
     }
 
     private function finish(string $session, string $code, int $quantity, string $discountKind, string $discountValue): void
     {
         $cart = $this->tickets->cart($session);
+        $lineNo = $this->lineNo($cart['lines'], $code);
+        if ($quantity > 1) {
+            $this->lines->quantity($cart['ticket_id'], $lineNo, $quantity);
+        }
+        $this->discount($cart['ticket_id'], $lineNo, $discountKind, $discountValue);
+    }
+
+    /**
+     * @param list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}> $lines
+     */
+    private function lineNo(array $lines, string $code): int
+    {
         $lineNo = 0;
-        foreach ($cart['lines'] as $line) {
+        foreach ($lines as $line) {
             if ($line['code'] === $code) {
                 $lineNo = $line['line_no'];
             }
@@ -73,9 +74,12 @@ final class InstantPiece
         if ($lineNo < 1) {
             throw new \InvalidArgumentException('That piece is not on the ticket.');
         }
-        if ($quantity > 1) {
-            $this->lines->quantity($cart['ticket_id'], $lineNo, $quantity);
-        }
+
+        return $lineNo;
+    }
+
+    private function discount(string $ticketId, int $lineNo, string $discountKind, string $discountValue): void
+    {
         $kind = strtolower(trim($discountKind));
         if ($kind === 'flat') {
             $kind = 'amount';
@@ -90,7 +94,7 @@ final class InstantPiece
         if ($posted['kind'] === null) {
             return;
         }
-        $this->lines->discount($cart['ticket_id'], $lineNo, $posted['kind'], $posted['value'], $posted['reason']);
+        $this->lines->discount($ticketId, $lineNo, $posted['kind'], $posted['value'], $posted['reason']);
     }
 
     private function code(): string

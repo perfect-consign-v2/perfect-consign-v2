@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Register;
 
-use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -26,7 +26,7 @@ final class RegisterStore
 
     public function __construct(
         private readonly Statements $statements,
-        private readonly MallSettings $mall,
+        private readonly MallClock $clock,
         private readonly RegisterActivity $activity,
     ) {
     }
@@ -195,7 +195,7 @@ final class RegisterStore
             'open_ticket' => RowValue::integer($row['open_ticket'] ?? 0) === 1,
             'cashier' => $open ? RowValue::string($row['cashier'] ?? null) : '',
             'opened_at' => $open ? $this->activity->local($row['opened_at'] ?? null) : '',
-            'opened_on' => $open ? $this->mall->localDate($row['opened_at'] ?? null) : '',
+            'opened_on' => $open ? $this->clock->localDate($row['opened_at'] ?? null) : '',
             'opening_cash' => $open ? DenominationCount::dollars(RowValue::integer($row['opening_cash_minor'] ?? 0)) : '',
             'expected_cash' => $open ? DenominationCount::dollars($drawer['expected']) : '',
             'expected_minor' => $drawer['expected'],

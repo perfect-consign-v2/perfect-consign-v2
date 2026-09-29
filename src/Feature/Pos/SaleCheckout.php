@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Http\Request;
 
@@ -25,33 +26,70 @@ final class SaleCheckout
     {
         $this->sales->refuse($slug);
         $cart = $this->tickets->cart($session);
-        $round = $this->mall->cashRoundNickel() ? 1 : 0;
         $deposits = $this->layaways->balance($cart['ticket_id']);
+        $tender = $this->layaways->include(
+            $cart['ticket_id'],
+            $deposits,
+            $this->held->split($cart['ticket_id'], $cart['due'], $deposits)
+                ?? $this->tenders->read($request),
+        );
+        $nonCash = $tender['sum'] - $tender['cash'];
+        $residual = $cart['due'] - $nonCash;
+        $allCash = $tender['cash'] > 0 && $nonCash === 0 && $deposits === 0;
+        $roundOn = $this->mall->cashRoundNickel() && $allCash ? 1 : 0;
+        $cashDue = $roundOn === 1 ? CashRound::rounded(max(0, $residual)) : max(0, $residual);
+        $shown = $request->field('cash_received');
+        if ($tender['cash'] > $cashDue) {
+            if ($shown === '') {
+                $shown = $this->dollars($tender['cash']);
+            }
+            $tender = $this->cashAt($tender, $cashDue);
+        }
         $journalId = $this->poster->pay(
             $session,
             $this->mall->today(),
-            $round,
+            $roundOn,
             $cart,
-            $this->layaways->include(
-                $cart['ticket_id'],
-                $deposits,
-                $this->held->split($cart['ticket_id'], $cart['due'], $round, $deposits)
-                    ?? $this->tenders->read($request),
-            ),
-            $this->handed($request),
+            $tender,
+            $shown === '' ? null : Money::parseMinor($shown),
         );
-        $this->sales->keep($slug, $journalId, $request->field('cash_received'));
+        $this->sales->keep($slug, $journalId, $shown);
 
         return $journalId;
     }
 
-    private function handed(Request $request): ?int
+    /**
+     * @param array{
+     *     lines: list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>,
+     *     sum: int,
+     *     check: ?string,
+     *     cash: int
+     * } $tender
+     * @return array{
+     *     lines: list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>,
+     *     sum: int,
+     *     check: ?string,
+     *     cash: int
+     * }
+     */
+    private function cashAt(array $tender, int $cash): array
     {
-        $value = $request->field('cash_received');
-        if ($value === '') {
-            return null;
+        $replaced = false;
+        foreach ($tender['lines'] as $index => $line) {
+            if ($replaced || $line['debit'] !== $tender['cash']) {
+                continue;
+            }
+            $tender['lines'][$index]['debit'] = $cash;
+            $replaced = true;
         }
+        $tender['sum'] = $tender['sum'] - $tender['cash'] + $cash;
+        $tender['cash'] = $cash;
 
-        return Money::parseMinor($value);
+        return $tender;
+    }
+
+    private function dollars(int $minor): string
+    {
+        return intdiv($minor, 100) . '.' . str_pad((string) ($minor % 100), 2, '0', STR_PAD_LEFT);
     }
 }

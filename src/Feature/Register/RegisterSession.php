@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Register;
 
-use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -18,7 +18,7 @@ final class RegisterSession
     public function __construct(
         private readonly Statements $statements,
         private readonly LedgerStore $ledger,
-        private readonly MallSettings $mall,
+        private readonly MallClock $clock,
         private readonly RegisterActivity $activity,
     ) {
     }
@@ -76,7 +76,7 @@ final class RegisterSession
     public function drop(string $registerId, int $amount, string $postingDate): void
     {
         $sessionId = $this->openSessionId($registerId);
-        $openedOn = $this->mall->localDate($this->openedAt($registerId));
+        $openedOn = $this->clock->localDate($this->openedAt($registerId));
         if ($openedOn !== '' && $postingDate < $openedOn) {
             throw new DatabaseRefusal('A cash drop cannot be dated before the register was opened.');
         }

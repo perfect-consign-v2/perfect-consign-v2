@@ -80,7 +80,7 @@ $voided = $receipt['voided'] === true;
         <?php foreach ($tenders as $tender): ?>
             <p><?= View::text($tender['name']) ?> <?= View::text(View::money(RowValue::integer($tender['amount']))) ?></p>
         <?php endforeach; ?>
-        <?php if ($receipt['cash'] > 0): ?>
+        <?php if ($receipt['round'] !== 0): ?>
             <p>Cash round <span id="cash-round"><?= View::text(View::money(RowValue::integer($receipt['round']))) ?></span></p>
         <?php endif; ?>
         <?php if (is_int($change)): ?>

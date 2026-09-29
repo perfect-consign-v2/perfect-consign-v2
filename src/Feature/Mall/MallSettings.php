@@ -25,40 +25,6 @@ final class MallSettings
         return RowValue::string($this->row()['time_zone'] ?? null);
     }
 
-    public function localTime(mixed $value): string
-    {
-        $time = $this->local($value);
-        if ($time === null) {
-            return is_string($value) ? $value : '';
-        }
-
-        return $time->format('M j, Y g:i a');
-    }
-
-    public function localDate(mixed $value): string
-    {
-        $time = $this->local($value);
-        if ($time === null) {
-            return '';
-        }
-
-        return $time->format('Y-m-d');
-    }
-
-    private function local(mixed $value): ?\DateTime
-    {
-        if (!is_string($value) || $value === '') {
-            return null;
-        }
-        $time = date_create($value);
-        if ($time === false) {
-            return null;
-        }
-        $time->setTimezone(new DateTimeZone($this->timeZone()));
-
-        return $time;
-    }
-
     /**
      * @return array{width: int, depth: int}
      */
@@ -121,21 +87,11 @@ final class MallSettings
         string $cashRound,
         int $taxRate,
     ): void {
-        if (!in_array($timeZone, timezone_identifiers_list(DateTimeZone::ALL_WITH_BC), true)) {
-            throw new \InvalidArgumentException('that time zone is not an IANA name');
-        }
-        if ($width < 1 || $depth < 1) {
-            throw new \InvalidArgumentException('booth size is whole feet');
-        }
-        if ($floorWidth < 1 || $floorDepth < 1) {
-            throw new \InvalidArgumentException('floor size is whole feet');
-        }
-        if ($storeTake < 0 || $storeTake > 10000) {
-            throw new \InvalidArgumentException('store take is a percent from 0 to 100');
-        }
-        if ($taxRate < 0 || $taxRate > 100000) {
-            throw new \InvalidArgumentException('tax rate is a percent from 0 to 100');
-        }
+        $this->requireZone($timeZone);
+        $this->requireFeet($width, $depth, 'booth size is whole feet');
+        $this->requireFeet($floorWidth, $floorDepth, 'floor size is whole feet');
+        $this->requireTake($storeTake);
+        $this->requireTax($taxRate);
         $this->guardDays($floorDays);
         $this->statements->change(
             'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?',
@@ -146,6 +102,34 @@ final class MallSettings
     private static function flag(mixed $value): bool
     {
         return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
+    }
+
+    private function requireZone(string $timeZone): void
+    {
+        if (!in_array($timeZone, timezone_identifiers_list(DateTimeZone::ALL_WITH_BC), true)) {
+            throw new \InvalidArgumentException('that time zone is not an IANA name');
+        }
+    }
+
+    private function requireFeet(int $width, int $depth, string $message): void
+    {
+        if ($width < 1 || $depth < 1) {
+            throw new \InvalidArgumentException($message);
+        }
+    }
+
+    private function requireTake(int $storeTake): void
+    {
+        if ($storeTake < 0 || $storeTake > 10000) {
+            throw new \InvalidArgumentException('store take is a percent from 0 to 100');
+        }
+    }
+
+    private function requireTax(int $taxRate): void
+    {
+        if ($taxRate < 0 || $taxRate > 100000) {
+            throw new \InvalidArgumentException('tax rate is a percent from 0 to 100');
+        }
     }
 
     private function guardDays(?int $floorDays): void

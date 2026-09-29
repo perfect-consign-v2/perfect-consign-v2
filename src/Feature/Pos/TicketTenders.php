@@ -6,7 +6,6 @@ namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Register\RegisterStore;
-use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
@@ -92,7 +91,7 @@ final class TicketTenders
      *     cash: int
      * }|null
      */
-    public function split(string $ticketId, int $due, int $roundCash, int $already = 0): ?array
+    public function split(string $ticketId, int $due, int $already = 0): ?array
     {
         $held = $this->list($ticketId);
         if ($held === []) {
@@ -120,7 +119,7 @@ final class TicketTenders
                 $check = $tender['reference'];
             }
         }
-        $this->covered($due - $already, $cash, $nonCash, $roundCash);
+        $this->covered($due - $already, $cash, $nonCash);
 
         return [
             'lines' => $lines,
@@ -158,7 +157,7 @@ final class TicketTenders
         }
     }
 
-    private function covered(int $due, int $cash, int $nonCash, int $roundCash): void
+    private function covered(int $due, int $cash, int $nonCash): void
     {
         if ($cash === 0 && $nonCash !== $due) {
             throw new DatabaseRefusal('the tenders do not cover the amount due');
@@ -167,8 +166,7 @@ final class TicketTenders
             return;
         }
         $exact = $due - $nonCash;
-        $expected = $roundCash === 1 ? CashRound::rounded($exact) : $exact;
-        if ($exact < 0 || $cash !== $expected) {
+        if ($exact < 0 || $cash !== $exact) {
             throw new DatabaseRefusal('the tenders do not cover the amount due');
         }
     }

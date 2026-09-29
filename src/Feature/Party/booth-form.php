@@ -31,7 +31,7 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
     <a class="btn" href="/<?= View::text($slug) ?>/booths"><svg aria-hidden="true"><use href="#i-arrow-left"></use></svg> Back</a>
 </div>
 
-<form method="post" action="<?= View::text($action) ?>" class="grid form-split" style="grid-template-columns: 2fr 1fr">
+<form method="post" action="<?= View::text($action) ?>" class="grid form-split">
     <div class="card">
         <div class="card-head"><div class="h3">Booth details</div></div>
         <div class="card-body grid cols-2">

@@ -77,7 +77,7 @@ if ($completed === null) {
                     <span><?= View::text(View::money(RowValue::integer($tender['amount']))) ?></span>
                 </p>
             <?php endforeach; ?>
-            <?php if ($completed['cash'] > 0): ?>
+            <?php if ($completed['round'] !== 0): ?>
                 <p class="register-summary">
                     <span>Cash round</span>
                     <span id="cash-round"><?= View::text(View::money(RowValue::integer($completed['round']))) ?></span>

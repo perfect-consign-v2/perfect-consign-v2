@@ -50,7 +50,7 @@ use PerfectConsign\Shared\Http\View;
     </div>
 </div>
 
-<div class="grid cols-2 mt-6" style="grid-template-columns: 2fr 1fr">
+<div class="grid split-aside mt-6">
     <div class="card">
         <div class="card-head">
             <div>

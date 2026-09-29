@@ -462,10 +462,6 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     .map-layout { display: grid; grid-template-columns: 1fr 18.75rem; gap: var(--space-4); }
     .inspector { margin-top: 0; }
 }
-@media (max-width: 720px) {
-    .form-split { grid-template-columns: 1fr !important; }
-}
-
 .register {
     display: grid;
     gap: var(--space-4);
@@ -483,13 +479,19 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .ticket-meta { color: var(--text-muted); font-size: var(--text-sm); }
 .ticket-foot { display: flex; flex-direction: column; gap: var(--space-2); }
 .register-due { font-size: 1.75rem; font-weight: 650; }
-.pay-choice { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.pay-choice { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
+@media (min-width: 40rem) {
+    .pay-choice { grid-template-columns: 1fr 1fr; }
+}
 .pay-choice .btn, .register-complete { width: 100%; min-height: 3rem; }
 @media (min-width: 64rem) {
     .register { grid-template-columns: minmax(0, 1fr) 22rem; }
     .register-pay { position: sticky; top: var(--space-4); }
 }
-.pos-main { padding: var(--space-6); }
+.pos-main { padding: var(--space-4); }
+@media (min-width: 40rem) {
+    .pos-main { padding: var(--space-6); }
+}
 .register-finished { margin-bottom: var(--space-4); }
 .register > .card { min-width: 0; }
 .register-nav {
@@ -574,13 +576,85 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .register-line .input,
 .register-line .select { width: 5.5rem; }
 #instant-form .register-line {
-    flex-wrap: nowrap;
-    width: calc((100% - var(--space-5)) / 2);
+    flex-wrap: wrap;
+    width: 100%;
     max-width: 100%;
+}
+@media (min-width: 40rem) {
+    #instant-form .register-line {
+        flex-wrap: nowrap;
+        width: calc((100% - var(--space-5)) / 2);
+    }
 }
 .content form .register-line #instant_discount_kind { width: auto; flex: 1 1 auto; min-width: 0; }
 .content form .register-line #instant_discount_value { width: 4.75rem; flex: 0 0 4.75rem; }
-.modal-panel.register-pay-modal { max-width: 40rem; }
+.modal-panel.register-pay-modal {
+    max-width: 52rem;
+    max-height: calc(100dvh - 1.5rem);
+}
+.content .register-pay-modal form label { margin: 0; }
+.pay-split { display: grid; }
+.pay-split > .card-body { container-type: inline-size; min-width: 0; }
+.pay-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.pay-quick .btn { flex: 1 1 100%; min-height: 2.75rem; }
+.pay-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+.pay-note { margin: 0; font-weight: 650; }
+.pay-note[data-kind="short"] { color: var(--danger); }
+.pay-note[data-kind="change"] { color: var(--success); }
+.pay-sales {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+    align-items: stretch;
+}
+@container (min-width: 26rem) {
+    .pay-quick .btn { flex: 1 1 0; }
+    .pay-grid { grid-template-columns: 1fr 1fr; }
+    .pay-sales { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+}
+@media (min-width: 48rem) {
+    .pay-split { grid-template-columns: minmax(0, 1fr) 21rem; }
+}
+#customer.modal { overflow: hidden; }
+.modal-panel.register-customer { overflow: visible; max-height: none; }
+.modal-panel.register-customer .card-body { min-height: 16rem; }
+#customer .suggest { max-height: 12rem; overflow: auto; }
+.pay-rail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-top: 1px solid var(--border);
+    background: var(--surface-2, var(--surface));
+    font-size: 1.3125rem;
+    line-height: 1.3;
+}
+.pay-rail .register-summary { flex-wrap: nowrap; }
+.pay-rail .register-summary span,
+.pay-rail .register-summary strong {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.pay-rail .btn {
+    min-height: 3.5rem;
+    height: auto;
+    font-size: 1.3125rem;
+}
+@media (min-width: 48rem) {
+    .pay-rail {
+        padding: var(--space-5);
+        border-top: 0;
+        border-left: 1px solid var(--border);
+    }
+}
 .modal-panel.register-instant { max-width: 36rem; max-height: calc(100vh - 4rem); overflow: auto; }
 .register-grid {
     display: grid;
@@ -595,8 +669,11 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 
 .count-columns {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: var(--space-4);
+}
+@media (min-width: 45rem) {
+    .count-columns { grid-template-columns: 1fr 1fr; }
 }
 
 .count-card {
@@ -655,9 +732,6 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     font-weight: 700;
 }
 
-@media (max-width: 720px) {
-    .count-columns { grid-template-columns: 1fr; }
-}
 .print-only { display: none; }
 .z-tape { max-width: 28rem; }
 @media print {

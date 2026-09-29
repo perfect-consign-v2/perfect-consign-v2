@@ -88,7 +88,7 @@ A gift certificate is sold for cash, card, or a check. That journal debits the t
 
 A ticket is the open cart on one register shift. It is not a journal. The shift has one open ticket. Scanning a piece that is already on the open ticket adds one. Open, parked, and layaway tickets together cannot hold more than what is on hand. The sold price can change until pay. Pay posts the sale and freezes the ticket. Discard removes a ticket only before pay. Close is refused while that shift still has an open ticket.
 
-When the mall rounds cash to the nearest nickel, the cash portion of a sale rounds to a nickel and the difference posts to cash rounding. That round amount shows on the register for a cash sale and on the receipt. Card, checks, and stored value stay exact. Cash handed over above the rounded cash due is change. It is not a second tender, and the journal debits only the amount due.
+When the mall rounds cash to the nearest nickel, that round happens only when the sale is paid entirely in cash. The difference posts to cash rounding. It shows on the register once cash is the only payment, and on the receipt. Card, checks, stored value, and any mix of those with cash stay on the cent. Cash handed over above the rounded cash due is change. It is not a second tender, and the journal debits only the amount due.
 
 Void from the receipt reverses the whole sale and frees every piece. A second void is refused. A return is its own journal for one piece. It reverses that piece's discount share, store take, tax, and vendor payable, and credits one tender. That piece can be sold again. The rest of the ticket stays sold.
 

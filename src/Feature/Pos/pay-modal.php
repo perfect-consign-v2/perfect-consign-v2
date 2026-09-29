@@ -9,12 +9,19 @@ use PerfectConsign\Shared\Http\View;
 /** @var bool $open */
 /** @var int $remaining */
 /** @var int $cashFill */
-/** @var array<string, true> $used */
-/** @var array<string, string> $ask */
-/** @var array{buyer_id: string, buyer_name: string} $cart */
-if (!$open || $remaining <= 0) {
+/** @var int $roundStep */
+/** @var int $salesAvailable */
+/** @var array{lines: list<mixed>, buyer_id: string, buyer_name: string} $cart */
+if (!$open) {
     return;
 }
+$due = max(0, $remaining);
+$cashDue = max(0, $cashFill);
+$sales = max(0, $salesAvailable);
+$canDraw = $cart['buyer_id'] !== '' && $sales > 0;
+$amount = static function (int $minor): string {
+    return intdiv($minor, 100) . '.' . str_pad((string) ($minor % 100), 2, '0', STR_PAD_LEFT);
+};
 ?>
 <div id="enter-payment" class="modal" role="dialog" aria-modal="true" aria-labelledby="enter-payment-title" hidden>
     <div class="modal-panel card register-pay-modal">
@@ -22,56 +29,68 @@ if (!$open || $remaining <= 0) {
             <div class="h3" id="enter-payment-title">Payment</div>
             <button class="btn btn-sm" type="button" data-close-modal="enter-payment">Close</button>
         </div>
-        <div class="card-body stack">
-            <p>Still due <strong><?= View::text(View::money(max(0, $remaining))) ?></strong></p>
-            <div class="register-tools">
-                <?php if (!isset($used['cash']) && $cashFill > 0): ?>
-                    <form method="post" action="/<?= View::text($slug) ?>/pos/tender">
-                        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                        <input type="hidden" name="tender_role" value="cash">
-                        <input type="hidden" name="tender_amount" value="<?= View::text(View::money($cashFill)) ?>">
-                        <button class="btn" type="submit">Full Amount Cash</button>
-                    </form>
-                <?php endif; ?>
-                <?php if (!isset($used['card'])): ?>
-                    <form method="post" action="/<?= View::text($slug) ?>/pos/tender">
-                        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                        <input type="hidden" name="tender_role" value="card">
-                        <input type="hidden" name="tender_amount" value="<?= View::text(View::money($remaining)) ?>">
-                        <button class="btn" type="submit">Full Amount Card</button>
-                    </form>
-                <?php endif; ?>
-                <?php if (!isset($used['checks'])): ?>
-                    <form method="post" action="/<?= View::text($slug) ?>/pos/tender">
-                        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                        <input type="hidden" name="tender_role" value="checks">
-                        <input type="hidden" name="tender_amount" value="<?= View::text(View::money($remaining)) ?>">
-                        <button class="btn" type="submit">Full Amount Check</button>
-                    </form>
-                <?php endif; ?>
+        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>">
+            <div class="card-body stack">
+                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                <input type="hidden" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
+                <div class="pay-quick" role="group" aria-label="Pay the full amount">
+                    <button class="btn" type="button" data-pay-full="cash">Full Amount Cash</button>
+                    <button class="btn" type="button" data-pay-full="card">Full Amount Card</button>
+                    <button class="btn" type="button" data-pay-full="checks">Full Amount Check</button>
+                </div>
+                <div class="pay-grid">
+                    <div class="field">
+                        <label for="pay-cash">Cash</label>
+                        <input class="input" id="pay-cash" name="tender_cash" inputmode="decimal" placeholder="0.00">
+                    </div>
+                    <div class="field">
+                        <label for="pay-card">Card</label>
+                        <input class="input" id="pay-card" name="tender_card" inputmode="decimal" placeholder="0.00">
+                    </div>
+                    <div class="field">
+                        <label for="pay-check">Check</label>
+                        <input class="input" id="pay-check" name="tender_checks" inputmode="decimal" placeholder="0.00">
+                    </div>
+                    <div class="field">
+                        <label for="pay-check-number">Check number</label>
+                        <input class="input" id="pay-check-number" name="check_number" autocomplete="off" aria-describedby="pay-check-error">
+                        <p class="field-error" id="pay-check-error" hidden>Enter a check number when taking payment by check.</p>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="pay-vendor">Pay from sales</label>
+                    <div class="pay-sales">
+                        <input class="input" id="pay-vendor" name="tender_vendor_draw" inputmode="decimal" placeholder="0.00"<?= $canDraw ? '' : ' disabled' ?>>
+                        <button class="btn" id="pay-sales-max" type="button"<?= $canDraw ? '' : ' disabled' ?>>Apply max from sales</button>
+                    </div>
+                    <p class="muted text-sm" id="pay-sales-hint"><?php if ($cart['buyer_id'] === ''): ?>Choose a buyer.<?php elseif ($sales > 0): ?>Available from sales: <?= View::text(View::money($sales)) ?> (cannot exceed this on checkout).<?php else: ?>No Pay from Sales balance is available for this buyer on this sale.<?php endif; ?></p>
+                </div>
+                <div class="pay-grid">
+                    <div class="field">
+                        <label for="pay-gift">Gift certificate</label>
+                        <input class="input" id="pay-gift" name="tender_gift_certificate" inputmode="decimal" placeholder="0.00">
+                    </div>
+                    <div class="field">
+                        <label for="pay-gift-number">Gift certificate number</label>
+                        <input class="input" id="pay-gift-number" name="gift_certificate_number" autocomplete="off">
+                    </div>
+                    <div class="field">
+                        <label for="pay-credit">Store credit</label>
+                        <input class="input" id="pay-credit" name="tender_store_credit" inputmode="decimal" placeholder="0.00">
+                    </div>
+                    <div class="field">
+                        <label for="pay-credit-number">Store credit number</label>
+                        <input class="input" id="pay-credit-number" name="store_credit_number" autocomplete="off">
+                    </div>
+                </div>
             </div>
-            <?php foreach ($ask as $role => $label): ?>
-                <?php if (isset($used[$role])) {
-                    continue;
-                } ?>
-                <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/tender">
-                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <input type="hidden" name="tender_role" value="<?= View::text($role) ?>">
-                    <?php if ($role === 'vendor_draw'): ?>
-                        <input type="hidden" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
-                    <?php endif; ?>
-                    <label><?= View::text($label) ?></label>
-                    <input class="input" name="tender_amount" value="<?= View::text(View::money(max(0, $remaining))) ?>" inputmode="decimal" aria-label="<?= View::text($label) ?> amount">
-                    <?php if ($role === 'checks'): ?>
-                        <input class="input" name="tender_reference" aria-label="Check number" placeholder="Check number">
-                    <?php elseif ($role === 'gift_certificate' || $role === 'gift_card' || $role === 'store_credit'): ?>
-                        <input class="input" name="tender_reference" aria-label="Number" placeholder="Number">
-                    <?php elseif ($role === 'vendor_draw'): ?>
-                        <p><?= $cart['buyer_name'] !== '' ? View::text($cart['buyer_name']) : 'Choose a buyer.' ?></p>
-                    <?php endif; ?>
-                    <button class="btn" type="submit">Apply</button>
-                </form>
-            <?php endforeach; ?>
-        </div>
+            <div class="pay-rail">
+                <p class="register-summary"><span>Amount due</span><strong><?= View::text(View::money($due)) ?></strong></p>
+                <p class="register-summary"><span>Total tendered</span><strong id="pay-tendered"><?= View::text(View::money(0)) ?></strong></p>
+                <p class="register-summary" id="pay-round" hidden></p>
+                <p id="pay-change" class="pay-note" hidden></p>
+                <button class="btn" id="pay-done" type="button" data-close-modal="enter-payment">Done</button>
+            </div>
+        </form>
     </div>
 </div>

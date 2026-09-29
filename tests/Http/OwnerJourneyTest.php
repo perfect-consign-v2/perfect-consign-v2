@@ -66,7 +66,7 @@ final class OwnerJourneyTest extends WebTestCase
         $this->client->post('/' . ProbeMall::SLUG . '/pos/discard', []);
         $cart = $this->client->post('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => 'BC-' . $tag]);
         self::assertSees($description, $cart);
-        self::assertSees('id="cash-round">-0.02', $cart);
+        self::assertStringNotContainsString('id="cash-round"', $cart->body);
         self::assertSame(1, preg_match('/name="line_no" value="(\d+)"/', $cart->body, $line));
         $again = $this->client->post('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => 'BC-' . $tag]);
         self::assertSees('a piece is already on the ticket', $again);
@@ -75,7 +75,7 @@ final class OwnerJourneyTest extends WebTestCase
             'price' => '10.03',
         ]);
         self::assertSees('id="amount-due">10.03', $priced);
-        self::assertSees('id="cash-round">0.02', $priced);
+        self::assertStringNotContainsString('id="cash-round"', $priced->body);
         $paid = $this->client->post('/' . ProbeMall::SLUG . '/pos/pay', [
             'tender_cash' => '10.03',
             'cash_received' => '20.00',

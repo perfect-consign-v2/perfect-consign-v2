@@ -15,10 +15,14 @@ final class SaleJournal
      * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $tenders
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
-    public static function sale(LedgerStore $ledger, array $pieces, array $tenders, int $cash, int $roundOn): array
+    public static function sale(LedgerStore $ledger, array $pieces, array $tenders, int $cash, int $roundOn, int $due): array
     {
-        $delta = $roundOn === 1 && $cash > 0 ? CashRound::adjustment($cash) : 0;
-        $lines = $delta === 0 ? $tenders : self::roundedCash($ledger, $tenders, $cash, $delta);
+        $delta = $roundOn === 1 && self::onlyCash($tenders, $cash) ? CashRound::rounded($due) - $due : 0;
+        if ($delta === 0 || $cash === $due) {
+            $lines = $delta === 0 ? $tenders : self::roundedCash($ledger, $tenders, $cash, $delta);
+        } else {
+            $lines = self::keptCash($ledger, $tenders, $delta);
+        }
 
         return array_merge($lines, self::credits($ledger, $pieces));
     }
@@ -54,6 +58,19 @@ final class SaleJournal
 
     /**
      * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $tenders
+     */
+    private static function onlyCash(array $tenders, int $cash): bool
+    {
+        $sum = 0;
+        foreach ($tenders as $tender) {
+            $sum += $tender['debit'];
+        }
+
+        return $cash > 0 && $sum === $cash;
+    }
+
+    /**
+     * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $tenders
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
     private static function roundedCash(LedgerStore $ledger, array $tenders, int $cash, int $delta): array
@@ -66,6 +83,23 @@ final class SaleJournal
             }
             $lines[] = $tender;
         }
+        $account = $ledger->roleAccount('cash_rounding');
+        if ($delta > 0) {
+            $lines[] = PostedLines::entry($account, 0, $delta, null, null);
+        } else {
+            $lines[] = PostedLines::entry($account, -$delta, 0, null, null);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $tenders
+     * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
+     */
+    private static function keptCash(LedgerStore $ledger, array $tenders, int $delta): array
+    {
+        $lines = $tenders;
         $account = $ledger->roleAccount('cash_rounding');
         if ($delta > 0) {
             $lines[] = PostedLines::entry($account, 0, $delta, null, null);

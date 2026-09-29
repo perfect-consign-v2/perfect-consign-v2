@@ -12,7 +12,6 @@ use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
-use Psr\Log\LoggerInterface;
 
 final class MallApp
 {
@@ -31,23 +30,14 @@ final class MallApp
     public function __construct(
         private readonly PDO $pdo,
         private readonly Session $session,
-        private readonly LoggerInterface $logger,
         private readonly View $view,
         private readonly Request $request,
         private readonly OwnerAccess $access,
         private readonly MallSettings $mall,
         private readonly ActiveRegister $drawers,
         private readonly TenantLookup $tenants,
+        private readonly FrontDoor $door,
     ) {
-    }
-
-    public function today(): string
-    {
-        if (!$this->roled) {
-            return '';
-        }
-
-        return $this->mall->today();
     }
 
     public function request(): Request
@@ -62,7 +52,7 @@ final class MallApp
     {
         $slug = $data['slug'] ?? null;
         $data['nav'] = is_string($slug) && $this->sessionSlug() === $slug;
-        $data['csrf'] = $this->csrf();
+        $data['csrf'] = $this->door->token();
         $data['error'] = $data['error'] ?? null;
         $data['notice'] = $this->takeFlash('notice');
         $data['warning'] = $this->takeFlash('warning');
@@ -73,96 +63,22 @@ final class MallApp
             $data['activeRegister'] = $chosen['name'];
             $data['activeSessionId'] = $chosen['id'];
             $data['chooseRegister'] = $chosen['choose'];
-            $data['leftOpen'] = $this->drawers->leftOpen($this->roled);
-            $this->holdForClose($slug, $data['leftOpen']);
+            $leftOpen = $this->drawers->leftOpen($this->roled);
+            $data['leftOpen'] = $leftOpen;
+            $away = $this->door->priorShift($slug, $leftOpen);
+            if ($away !== null) {
+                $this->redirect($away);
+            }
             $data['priorCloseStarted'] = $this->session->get('close_prior:' . $slug) === 'yes';
             $onHub = preg_match('#/registers$#', $this->request->path) === 1;
-            $data['priorPrompt'] = $data['leftOpen'] !== [] && $data['priorCloseStarted'] !== true && !$onHub;
+            $data['priorPrompt'] = $leftOpen !== [] && $data['priorCloseStarted'] !== true && !$onHub;
         }
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
 
     public function notFound(string $reason = self::MISS_RECORD): never
     {
-        http_response_code(404);
-        $homeTenant = $this->sessionTenant();
-        $pathTenant = $this->pathTenant();
-        $displayName = '';
-        $home = '';
-        $signIn = '';
-        if ($homeTenant !== null) {
-            $displayName = $homeTenant->displayName;
-            $home = $homeTenant->slug;
-        } elseif ($pathTenant !== null) {
-            $displayName = $pathTenant->displayName;
-            $signIn = $pathTenant->slug;
-        }
-        $this->recordMiss($reason, $reason === self::MISS_ROUTE && $pathTenant === null);
-        $this->view->render('Shared/Web/layout', [
-            'title' => 'Not found',
-            'displayName' => $displayName,
-            'slug' => $home,
-            'nav' => $home !== '',
-            'csrf' => $home !== '' ? $this->csrf() : '',
-            'error' => null,
-            'notice' => null,
-            'warning' => null,
-            'path' => $this->request->path,
-            'body' => 'Shared/Web/not-found',
-            'robots' => 'noindex',
-            'showSearch' => false,
-            'homeSlug' => $home,
-            'signInSlug' => $signIn,
-            'back' => $this->backPath(),
-        ]);
-        throw new ResponseSent('not found');
-    }
-
-    /**
-     * @param list<array{id: string, name: string, opened: string}> $leftOpen
-     */
-    private function holdForClose(string $slug, array $leftOpen): void
-    {
-        $key = 'close_prior:' . $slug;
-        if ($leftOpen === []) {
-            $this->session->delete($key);
-
-            return;
-        }
-        $id = $leftOpen[0]['id'];
-        if (preg_match('#/pos(/|$)#', $this->request->path) === 1) {
-            return;
-        }
-        if ($this->closingRegister($leftOpen) !== null) {
-            $this->session->set($key, 'yes');
-
-            return;
-        }
-        if ($this->session->get($key) === 'yes') {
-            $this->redirect('/' . $slug . '/registers?close=' . rawurlencode($id));
-        }
-    }
-
-    /**
-     * @param list<array{id: string, name: string, opened: string}> $leftOpen
-     */
-    private function closingRegister(array $leftOpen): ?string
-    {
-        $path = $this->request->path;
-        if (preg_match('#/registers/([0-9a-fA-F-]{36})/close$#', $path, $match) === 1) {
-            return $match[1];
-        }
-        if (preg_match('#/registers$#', $path) !== 1) {
-            return null;
-        }
-        $query = $this->request->query('close');
-        foreach ($leftOpen as $row) {
-            if ($row['id'] === $query) {
-                return $query;
-            }
-        }
-
-        return null;
+        $this->door->miss($reason);
     }
 
     public function releaseClose(string $slug): never
@@ -216,53 +132,22 @@ final class MallApp
 
     public function signIn(string $slug, string $username, string $password): bool
     {
-        $tenant = $this->tenants->find($slug);
-        if ($tenant === null) {
-            $this->notFound(self::MISS_MALL);
-        }
-        $statement = $this->pdo->prepare(
-            'SELECT password_hash FROM platform.owners WHERE tenant_id = ?::uuid AND username = ?'
-        );
-        $statement->execute([$tenant->id, $username]);
-        $hash = $statement->fetchColumn();
-        if (!is_string($hash) || !password_verify($password, $hash)) {
-            $this->logger->info('owner sign-in refused', ['slug' => $slug]);
-            return false;
-        }
-        $this->session->regenerateId(true);
-        $this->session->set('owner_slug', $slug);
-        $this->session->set('owner_name', $username);
-        $this->session->set('csrf', bin2hex(random_bytes(16)));
-
-        return true;
+        return $this->door->signIn($slug, $username, $password);
     }
 
     public function signOut(): void
     {
-        $this->session->destroy();
+        $this->door->signOut();
     }
 
     public function checkCsrf(): void
     {
-        $sent = $this->request->field('csrf');
-        $stored = $this->session->get('csrf');
-        if (!is_string($stored) || $stored === '' || !hash_equals($stored, $sent)) {
-            $this->logger->warning('csrf token refused');
-            http_response_code(400);
-            echo 'The form expired. Go back and try again.';
-            throw new ResponseSent('csrf');
-        }
+        $this->door->checkCsrf();
     }
 
     public function catchRefusal(\Throwable $error): string
     {
-        $detail = $error->getPrevious();
-        $this->logger->info('ledger refused a post', [
-            'message' => $error->getMessage(),
-            'database' => $detail instanceof \Throwable ? $detail->getMessage() : null,
-        ]);
-
-        return $error->getMessage();
+        return $this->door->catchRefusal($error);
     }
 
     private function refuseForeign(string $slug): void
@@ -307,50 +192,6 @@ final class MallApp
         $this->roled = true;
     }
 
-    private function recordMiss(string $reason, bool $debug): void
-    {
-        $context = [
-            'method' => $this->request->method,
-            'path' => $this->request->path,
-            'reason' => $reason,
-        ];
-        if ($debug) {
-            $this->logger->debug('page not found', $context);
-
-            return;
-        }
-        $this->logger->info('page not found', $context);
-    }
-
-    private function sessionTenant(): ?TenantRecord
-    {
-        $slug = $this->sessionSlug();
-        if ($slug === null) {
-            return null;
-        }
-
-        return $this->tenants->find($slug);
-    }
-
-    private function pathTenant(): ?TenantRecord
-    {
-        if (preg_match('#^/([a-z][a-z0-9-]{0,62})(?:/|$)#', $this->request->path, $match) !== 1) {
-            return null;
-        }
-
-        return $this->tenants->find($match[1]);
-    }
-
-    private function backPath(): string
-    {
-        $referer = $this->request->referer;
-        if ($referer === '' || $referer === $this->request->path) {
-            return '';
-        }
-
-        return $referer;
-    }
-
     private function sessionSlug(): ?string
     {
         $slug = $this->session->get('owner_slug');
@@ -361,14 +202,4 @@ final class MallApp
         return $slug;
     }
 
-    private function csrf(): string
-    {
-        $token = $this->session->get('csrf');
-        if (!is_string($token) || $token === '') {
-            $token = bin2hex(random_bytes(16));
-            $this->session->set('csrf', $token);
-        }
-
-        return $token;
-    }
 }

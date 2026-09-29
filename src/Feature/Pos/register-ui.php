@@ -362,6 +362,18 @@ document.querySelectorAll('[data-open-modal]').forEach(function (button) {
                     consignor.focus();
                 }
             }
+            if (modal.id === 'enter-payment') {
+                const cash = document.getElementById('pay-cash');
+                if (cash) {
+                    cash.focus();
+                }
+            }
+            if (modal.id === 'customer') {
+                const buyer = document.getElementById('buyer');
+                if (buyer) {
+                    buyer.focus();
+                }
+            }
         }
     });
 });
@@ -388,4 +400,5 @@ document.querySelectorAll('.modal').forEach(function (modal) {
         }
     });
 });
+<?php require __DIR__ . '/pay-ui.php'; ?>
 </script>

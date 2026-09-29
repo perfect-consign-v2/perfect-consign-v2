@@ -30,9 +30,7 @@ final class PosAddController
         $request = $this->app->request();
         try {
             $this->sales->refuse($slug);
-            $this->instant->add(
-                $session,
-                $this->mall->today(),
+            $this->instant->add($session, $this->mall->today(), new InstantAdd(
                 $request->field('vendor_id'),
                 $request->field('description'),
                 $request->field('price'),
@@ -42,13 +40,13 @@ final class PosAddController
                 $request->field('brand_label'),
                 $request->field('discount_kind'),
                 $request->field('discount_value'),
-            );
+            ));
         } catch (DatabaseRefusal $refusal) {
-            $this->page->cart($slug, $this->app->catchRefusal($refusal), true);
+            $this->page->instant($slug, $this->app->catchRefusal($refusal));
 
             return;
         } catch (\InvalidArgumentException $error) {
-            $this->page->cart($slug, $error->getMessage(), true);
+            $this->page->instant($slug, $error->getMessage());
 
             return;
         }

@@ -41,7 +41,9 @@ final class SalePoster
         if ($pieces === []) {
             throw new DatabaseRefusal('a ticket needs a piece');
         }
-        if ($tender['sum'] !== $cart['due']) {
+        $cashOnly = $tender['cash'] > 0 && $tender['cash'] === $tender['sum'];
+        $settled = $roundOn === 1 && $cashOnly ? CashRound::rounded($cart['due']) : $cart['due'];
+        if ($tender['sum'] !== $cart['due'] && $tender['sum'] !== $settled) {
             throw new DatabaseRefusal('the tenders must add up to the amount due');
         }
         $this->guardCash($tender['cash'], $roundOn, $handed);
@@ -51,7 +53,7 @@ final class SalePoster
             postingKey: 'sale:' . $ticketId,
             postingDate: $date,
             source: new JournalSource('sale', 'sale:' . $ticketId, 'Sale'),
-            lines: SaleJournal::sale($this->ledger, $pieces, $tender['lines'], $tender['cash'], $roundOn),
+            lines: SaleJournal::sale($this->ledger, $pieces, $tender['lines'], $tender['cash'], $roundOn, $cart['due']),
             sessionId: $sessionId,
             checkNumber: $tender['check'],
             beforeCommit: function (string $journalId) use ($ticketId, $pieces): void {

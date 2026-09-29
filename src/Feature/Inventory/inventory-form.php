@@ -35,7 +35,7 @@ $expireHint = $floorDays === ''
     <p class="muted">Adding pieces for <?= View::text($piece['vendor_label']) ?>.</p>
 <?php endif; ?>
 
-<form method="post" action="<?= View::text($action) ?>" id="piece-form" class="grid form-split" style="grid-template-columns: 2fr 1fr"
+<form method="post" action="<?= View::text($action) ?>" id="piece-form" class="grid form-split"
     data-vendors="<?= View::text($vendorsUrl) ?>"
     data-brands="<?= View::text($brandsUrl) ?>"
     data-brand-create="<?= View::text($brandCreateUrl) ?>"

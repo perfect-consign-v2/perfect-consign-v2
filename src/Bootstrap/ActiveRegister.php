@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
+use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PDO;
 
@@ -14,6 +15,7 @@ final class ActiveRegister
         private readonly PDO $pdo,
         private readonly Session $session,
         private readonly MallSettings $mall,
+        private readonly MallClock $clock,
     ) {
     }
 
@@ -90,14 +92,14 @@ final class ActiveRegister
         $today = $this->mall->today();
         $left = [];
         foreach ($rows as $row) {
-            $openedOn = $this->mall->localDate($row['opened_at']);
+            $openedOn = $this->clock->localDate($row['opened_at']);
             if ($openedOn === '' || $openedOn >= $today) {
                 continue;
             }
             $left[] = [
                 'id' => $row['id'],
                 'name' => $row['name'],
-                'opened' => $this->mall->localTime($row['opened_at']),
+                'opened' => $this->clock->localTime($row['opened_at']),
             ];
         }
 

@@ -14,9 +14,9 @@ final class RegisterController
     public function __construct(
         private readonly MallApp $app,
         private readonly RegisterStore $registers,
-        private readonly RegisterSession $sessions,
         private readonly RegisterActivity $activity,
         private readonly ActiveRegister $drawers,
+        private readonly RegisterHub $hub,
     ) {
     }
 
@@ -26,10 +26,10 @@ final class RegisterController
         $this->app->open($slug, true);
         $close = $this->app->request()->query('close');
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $close) !== 1) {
-            $this->hub($slug, null, '', '', false);
+            $this->hub->show($slug, null, '', '', '');
             return;
         }
-        $this->hub($slug, null, 'close-' . $close, $close, false);
+        $this->hub->show($slug, null, 'close-' . $close, $close, '');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/registers/new', ['GET'])]
@@ -65,7 +65,7 @@ final class RegisterController
             $this->app->notFound();
         }
         $name = $register['name'] ?? '';
-        $this->hub($slug, null, 'register-rename', $id, false, ['name' => is_string($name) ? $name : '']);
+        $this->hub->show($slug, null, 'register-rename', $id, '', ['name' => is_string($name) ? $name : '']);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/registers/([0-9a-fA-F-]{36})', ['POST'])]
@@ -80,85 +80,13 @@ final class RegisterController
         try {
             $this->registers->rename($id, $name);
         } catch (DatabaseRefusal $refusal) {
-            $this->hub($slug, $this->app->catchRefusal($refusal), 'register-rename', $id, false, ['name' => $name]);
+            $this->hub->show($slug, $this->app->catchRefusal($refusal), 'register-rename', $id, '', ['name' => $name]);
             return;
         } catch (\InvalidArgumentException $error) {
-            $this->hub($slug, $error->getMessage(), 'register-rename', $id, false, ['name' => $name]);
+            $this->hub->show($slug, $error->getMessage(), 'register-rename', $id, '', ['name' => $name]);
             return;
         }
         $this->app->redirect('/' . $slug . '/registers', 'Register renamed.');
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/registers/([0-9a-fA-F-]{36})/open', ['POST'])]
-    public function open(string $slug, string $id): void
-    {
-        $this->app->checkCsrf();
-        $this->app->open($slug, true);
-        if ($this->registers->find($id) === null) {
-            $this->app->notFound();
-        }
-        $draft = [
-            'cashier' => $this->app->request()->field('cashier'),
-            'float' => $this->app->request()->field('opening_float'),
-        ];
-        try {
-            $counts = DenominationCount::fromRequest($this->app->request());
-            $draft['counts'] = $counts;
-            $sessionId = $this->sessions->open(
-                $id,
-                $draft['cashier'],
-                $counts,
-                DenominationCount::money($draft['float'], true)
-            );
-            $opened = $this->registers->find($id);
-            $openedName = is_string($opened['name'] ?? null) ? $opened['name'] : 'Register';
-            $this->drawers->use($slug, $sessionId, $openedName);
-        } catch (DatabaseRefusal $refusal) {
-            $this->hub($slug, $this->app->catchRefusal($refusal), 'register-open', $id, false, $draft);
-            return;
-        } catch (\InvalidArgumentException $error) {
-            $this->hub($slug, $error->getMessage(), 'register-open', $id, false, $draft);
-            return;
-        }
-        $this->app->redirect('/' . $slug . '/registers', 'Register opened.');
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/registers/([0-9a-fA-F-]{36})/close', ['POST'])]
-    public function close(string $slug, string $id): void
-    {
-        $this->app->checkCsrf();
-        $this->app->open($slug, true);
-        if ($this->registers->find($id) === null) {
-            $this->app->notFound();
-        }
-        $confirmed = $this->app->request()->field('confirm_variance') === 'yes';
-        $draft = [];
-        try {
-            $counts = DenominationCount::fromRequest($this->app->request());
-            $cash = DenominationCount::money($this->app->request()->field('counted_cash'), true);
-            $card = DenominationCount::counted($this->app->request()->field('counted_card'));
-            $checks = DenominationCount::counted($this->app->request()->field('counted_checks'));
-            $draft = [
-                'counts' => $counts,
-                'cash' => DenominationCount::dollars($cash),
-                'card' => DenominationCount::dollars($card),
-                'checks' => DenominationCount::dollars($checks),
-            ];
-            $closed = $this->sessions->close($id, $counts, $cash, $card, $checks, $confirmed, $this->app->today());
-            $this->drawers->clear($slug, $closed);
-        } catch (DatabaseRefusal $refusal) {
-            $message = $this->app->catchRefusal($refusal);
-            $confirm = !$confirmed && $message === 'counted cash does not match the expected drawer';
-            if ($message === 'close is refused while a ticket is open') {
-                $message = 'A sale is still open on this register. Finish it or cancel it, then close.';
-            }
-            $this->hub($slug, $confirm ? 'Counted cash does not match the drawer. Confirm the difference to close.' : $message, 'close-' . $id, $id, $confirm, $draft);
-            return;
-        } catch (\InvalidArgumentException $error) {
-            $this->hub($slug, $error->getMessage(), 'close-' . $id, $id, false, $draft);
-            return;
-        }
-        $this->app->redirect('/' . $slug . '/registers', 'Register closed.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/registers/([0-9a-fA-F-]{36})/delete', ['POST'])]
@@ -172,7 +100,7 @@ final class RegisterController
         try {
             $this->registers->remove($id);
         } catch (DatabaseRefusal $refusal) {
-            $this->hub($slug, $this->app->catchRefusal($refusal), 'delete-' . $id, $id, false);
+            $this->hub->show($slug, $this->app->catchRefusal($refusal), 'delete-' . $id, $id, '');
             return;
         }
         $this->app->redirect('/' . $slug . '/registers', 'Register deleted.');
@@ -198,7 +126,7 @@ final class RegisterController
         if ($this->registers->find($id) === null) {
             $this->app->notFound();
         }
-        $this->hub($slug, 'That register is not open.', '', '', false);
+        $this->hub->show($slug, 'That register is not open.', '', '', '');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/registers/close-cancel', ['POST'])]
@@ -207,34 +135,6 @@ final class RegisterController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $this->app->releaseClose($slug);
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/registers/([0-9a-fA-F-]{36})/drop', ['POST'])]
-    public function drop(string $slug, string $id): void
-    {
-        $this->app->checkCsrf();
-        $this->app->open($slug, true);
-        if ($this->registers->find($id) === null) {
-            $this->app->notFound();
-        }
-        $postingDate = $this->app->request()->field('posting_date');
-        try {
-            if ($postingDate > $this->app->today()) {
-                throw new DatabaseRefusal('A cash drop cannot be dated after today.');
-            }
-            $this->sessions->drop(
-                $id,
-                DenominationCount::money($this->app->request()->field('amount'), false),
-                $postingDate
-            );
-        } catch (DatabaseRefusal $refusal) {
-            $this->hub($slug, $this->app->catchRefusal($refusal), 'drop-' . $id, $id, false);
-            return;
-        } catch (\InvalidArgumentException $error) {
-            $this->hub($slug, $error->getMessage(), 'drop-' . $id, $id, false);
-            return;
-        }
-        $this->app->redirect('/' . $slug . '/registers', 'Cash dropped.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/registers/([0-9a-fA-F-]{36})/shifts', ['GET'])]
@@ -281,33 +181,6 @@ final class RegisterController
             'slug' => $tenant->slug,
             'registerId' => $id ?? '',
             'name' => $name,
-            'error' => $error,
-        ]);
-    }
-
-    /**
-     * @param array<string, mixed> $draft
-     */
-    private function hub(
-        string $slug,
-        ?string $error,
-        string $modal,
-        string $registerId,
-        bool $confirmVariance,
-        array $draft = [],
-    ): void {
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Register/registers', [
-            'title' => 'Registers',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'registers' => $this->registers->cards(),
-            'cashier' => $this->drawers->ownerName(),
-            'denominations' => DenominationCount::LABELS,
-            'modal' => $modal,
-            'registerId' => $registerId,
-            'confirmVariance' => $confirmVariance,
-            'draft' => $draft,
             'error' => $error,
         ]);
     }

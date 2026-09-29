@@ -16,6 +16,7 @@ use PerfectConsign\Shared\Http\View;
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
         <label for="charge_booth">Booth</label>
         <select id="charge_booth" name="booth_id" required>
+            <option value="">Choose a booth</option>
             <?php foreach ($booths as $booth): ?>
                 <option value="<?= View::text($booth['id']) ?>"><?= View::text($booth['code']) ?></option>
             <?php endforeach; ?>
@@ -33,6 +34,7 @@ use PerfectConsign\Shared\Http\View;
         <input id="pay_reference" name="source_reference" required>
         <label for="pay_booth">Booth</label>
         <select id="pay_booth" name="booth_id" required>
+            <option value="">Choose a booth</option>
             <?php foreach ($booths as $booth): ?>
                 <option value="<?= View::text($booth['id']) ?>"><?= View::text($booth['code']) ?></option>
             <?php endforeach; ?>

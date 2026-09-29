@@ -25,6 +25,13 @@ final class PosTenderController
     ) {
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/pos/tender', ['GET'])]
+    public function open(string $slug): void
+    {
+        $this->app->open($slug, true);
+        $this->app->redirect('/' . $slug . '/pos');
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/tender', ['POST'])]
     public function apply(string $slug): void
     {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Register;
 
-use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -34,7 +34,7 @@ final class RegisterActivity
 
     public function __construct(
         private readonly Statements $statements,
-        private readonly MallSettings $mall,
+        private readonly MallClock $clock,
     ) {
     }
 
@@ -142,7 +142,7 @@ final class RegisterActivity
             return '';
         }
 
-        return $this->mall->localTime($value);
+        return $this->clock->localTime($value);
     }
 
     private function expectedCash(string $sessionId): int

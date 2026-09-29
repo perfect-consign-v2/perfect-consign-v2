@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
@@ -14,7 +15,7 @@ use PerfectConsign\Shared\Http\Request;
 final class TenderSplit
 {
     /** @var list<string> */
-    private const ROLES = ['cash', 'card', 'checks', 'gift_certificate', 'gift_card', 'store_credit'];
+    private const ROLES = ['cash', 'card', 'checks', 'gift_certificate', 'gift_card', 'store_credit', 'vendor_draw'];
 
     /** @var array<string, string> */
     private const STORED = [
@@ -26,6 +27,7 @@ final class TenderSplit
     public function __construct(
         private readonly LedgerStore $ledger,
         private readonly RegisterStore $registers,
+        private readonly PayoutStore $payouts,
     ) {
     }
 
@@ -58,14 +60,7 @@ final class TenderSplit
                     throw new DatabaseRefusal('a check sale needs a check number');
                 }
             }
-            $subledger = $this->subledger($request, $role, $role . '_number');
-            $lines[] = PostedLines::entry(
-                $this->ledger->roleAccount($role),
-                $minor,
-                0,
-                $subledger['type'],
-                $subledger['ref']
-            );
+            $lines[] = $this->debit($request, $role, $minor);
             $sum += $minor;
         }
         if ($lines === []) {
@@ -132,6 +127,33 @@ final class TenderSplit
         }
 
         return $number;
+    }
+
+    /**
+     * @return array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}
+     */
+    private function debit(Request $request, string $role, int $amount): array
+    {
+        if ($role === 'vendor_draw') {
+            $vendor = $request->field('vendor_id');
+            if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendor) !== 1) {
+                throw new DatabaseRefusal('Choose a vendor.');
+            }
+            if ($amount > $this->payouts->openPayout($vendor)['payable']) {
+                throw new DatabaseRefusal('a vendor draw is limited to the open payable');
+            }
+
+            return PostedLines::entry($this->ledger->roleAccount('vendor_payable'), $amount, 0, 'vendor', $vendor);
+        }
+        $subledger = $this->subledger($request, $role, $role . '_number');
+
+        return PostedLines::entry(
+            $this->ledger->roleAccount($role),
+            $amount,
+            0,
+            $subledger['type'],
+            $subledger['ref']
+        );
     }
 
     /**

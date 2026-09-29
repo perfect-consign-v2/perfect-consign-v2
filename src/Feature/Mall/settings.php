@@ -37,13 +37,14 @@ use PerfectConsign\Shared\Http\View;
     </div>
 </div>
 
-<form method="post" action="/<?= View::text($slug) ?>/settings" class="grid form-split mt-6" style="grid-template-columns: 2fr 1fr">
+<form method="post" action="/<?= View::text($slug) ?>/settings" class="grid form-split mt-6">
     <div class="card">
         <div class="card-head"><div class="h3">Mall</div></div>
         <div class="card-body grid cols-2">
             <div class="field" style="grid-column:1/-1">
                 <label for="time_zone">Time zone</label>
                 <select class="select" id="time_zone" name="time_zone" required>
+                    <option value="">Choose a time zone</option>
                     <?php foreach ($timeZones as $zone): ?>
                         <option value="<?= View::text($zone) ?>"<?= $zone === $timeZone ? ' selected' : '' ?>><?= View::text($zone) ?></option>
                     <?php endforeach; ?>

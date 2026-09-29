@@ -1,4 +1,4 @@
--- Proof that cash rounds to the nearest nickel only when the mall asks for it.
+-- Proof that cash rounds to the nearest nickel only when the mall asks for it and the sale is paid entirely in cash.
 -- One transaction, then ROLLBACK.
 
 BEGIN;
@@ -203,5 +203,70 @@ EXCEPTION
             RAISE;
         END IF;
 END $$;
+
+DO $$
+BEGIN
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-0000000007c7',
+        '01900000-0000-7000-8000-000000000001',
+        'sale:round-mix', '2094-03-07', '2094-03-07 12:00:00+00',
+        '01900000-0000-7000-8000-0000000007a6',
+        'USD', 'sale', 'round-mix', 'A mix must not round', 1002, 1002
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES
+        ('01900000-0000-7000-8000-0000000007c7', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 500, 0),
+        ('01900000-0000-7000-8000-0000000007c7', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000016', 500, 0),
+        ('01900000-0000-7000-8000-0000000007c7', '01900000-0000-7000-8000-000000000001', 3, '01900000-0000-7000-8000-000000000020', 2, 0);
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES (
+        '01900000-0000-7000-8000-0000000007c7',
+        '01900000-0000-7000-8000-000000000001',
+        4, '01900000-0000-7000-8000-000000000014', 0, 1002, 'vendor', '01900000-0000-7000-8000-000000000101'
+    );
+    INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+    VALUES ('01900000-0000-7000-8000-0000000007c7', 1, '01900000-0000-7000-8000-0000000007a5', 1002, 0, 0);
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d2a', '01900000-0000-7000-8000-0000000007c7');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'a mixed tender was rounded';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a sale debits the sold prices plus tax%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-0000000007c6',
+    '01900000-0000-7000-8000-000000000001',
+    'sale:round-split', '2094-03-06', '2094-03-06 12:00:00+00',
+    '01900000-0000-7000-8000-0000000007a6',
+    'USD', 'sale', 'round-split', 'Cash plus card stays on the cent', 1002, 1002
+);
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES
+    ('01900000-0000-7000-8000-0000000007c6', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 500, 0),
+    ('01900000-0000-7000-8000-0000000007c6', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000016', 502, 0);
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-0000000007c6',
+    '01900000-0000-7000-8000-000000000001',
+    3, '01900000-0000-7000-8000-000000000014', 0, 1002, 'vendor', '01900000-0000-7000-8000-000000000101'
+);
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-0000000007c6', 1, '01900000-0000-7000-8000-0000000007a5', 1002, 0, 0);
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d2a', '01900000-0000-7000-8000-0000000007c6');
+
+SET CONSTRAINTS ALL IMMEDIATE;
 
 ROLLBACK;

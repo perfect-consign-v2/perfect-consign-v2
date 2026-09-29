@@ -57,13 +57,17 @@ $locked = $completed !== null;
 $lines = $cart['lines'];
 $used = [];
 $hasCash = false;
+$cashPaid = 0;
 foreach ($tenders as $tender) {
     $used[$tender['role']] = true;
     if ($tender['role'] === 'cash') {
         $hasCash = true;
+        $cashPaid += RowValue::integer($tender['amount']);
     }
 }
-$cashFill = $cart['rounding'] === '1' ? CashRound::rounded(max(0, $remaining)) : max(0, $remaining);
+$allCash = $cart['rounding'] === '1' && $hasCash && count($used) === 1 && $deposits === 0 && $cashPaid === $cart['due'];
+$roundStep = $cart['rounding'] === '1' && $deposits === 0 ? 5 : 1;
+$cashFill = $roundStep === 5 ? CashRound::rounded(max(0, $remaining)) : max(0, $remaining);
 $ask = [
     'checks' => 'Check',
     'gift_certificate' => 'Gift certificate',
@@ -85,7 +89,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
 <div class="register">
     <section class="card">
         <div class="card-head">
-            <div class="h3">Current sale</div>
+            <h2 class="h3">Current sale</h2>
             <?php if (($notice !== null && $notice !== '') || ($error !== null && $error !== '')): ?>
                 <div class="register-status">
                     <?php if ($notice !== null && $notice !== ''): ?>
@@ -116,6 +120,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 </form>
                 <div class="register-tools">
                     <?php if ($open): ?>
+                        <button class="btn" type="button" data-open-modal="customer">Customer<?php if ($cart['buyer_name'] !== ''): ?>: <?= View::text($cart['buyer_name']) ?><?php endif; ?></button>
                         <button class="btn" type="button" data-open-modal="layaway-modal">Layaway</button>
                         <button class="btn" type="button" data-open-modal="cart-discount">Discount</button>
                         <button class="btn" type="button" data-open-modal="tax-free">Tax-free</button>
@@ -192,27 +197,10 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     </table>
                 </div>
             <?php endif; ?>
-            <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/buyer" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" id="buyer-form">
-                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                <p class="strong">Customer (optional)</p>
-                <div class="combo">
-                    <label for="buyer">Find buyer</label>
-                    <input class="input" id="buyer" value="<?= View::text($cart['buyer_name']) ?>" autocomplete="off" placeholder="Name or vendor number" <?= $open ? '' : 'disabled' ?>>
-                    <input type="hidden" id="buyer_id" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
-                    <div class="suggest" id="buyer-suggest" hidden></div>
-                </div>
-                <p><strong>Selected:</strong> <?= $cart['buyer_name'] !== '' ? View::text($cart['buyer_name']) : '— None —' ?></p>
-            </form>
-            <?php if ($open && $cart['buyer_id'] !== ''): ?>
-                <form method="post" action="/<?= View::text($slug) ?>/pos/buyer">
-                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <button class="btn" type="submit">Clear buyer</button>
-                </form>
-            <?php endif; ?>
         </div>
     </section>
     <section class="card register-pay">
-        <div class="card-head"><div class="h3">Payment summary</div></div>
+        <div class="card-head"><h2 class="h3">Payment summary</h2></div>
         <div class="card-body stack">
             <p>Register: <strong><?= $chooseRegister ? 'Choose a register' : View::text($activeRegister) ?></strong>
                 <a class="text-link" href="/<?= View::text($slug) ?>/registers">Change</a>
@@ -229,7 +217,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php else: ?>
                 <p class="register-summary"><span>Tax</span><span><?= View::text(View::money(RowValue::integer($cart['tax']))) ?></span></p>
             <?php endif; ?>
-            <?php if ($cart['rounding'] === '1' && !$locked): ?>
+            <?php if ($allCash && !$locked): ?>
                 <p class="register-summary">
                     <span>Cash round</span>
                     <span id="cash-round"><?= View::text(View::money(RowValue::integer($cart['cash_round']))) ?></span>
@@ -237,6 +225,8 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php endif; ?>
             <p class="register-summary"><span>Total</span><span class="register-due"><?= View::text(View::money(RowValue::integer($cart['due']))) ?></span></p>
             <p>Still due <strong><?= View::text(View::money(max(0, $remaining))) ?></strong></p>
+            <p class="register-summary"><span>Total tendered</span><strong id="shell-tendered"><?= View::text(View::money(0)) ?></strong></p>
+            <p id="shell-change" class="pay-note" hidden></p>
             <?php if ($deposits > 0): ?>
                 <p>Layaway <?= View::text(View::money($deposits)) ?></p>
             <?php endif; ?>
@@ -256,14 +246,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <button class="btn btn-primary btn-block" type="button" disabled>Enter payment</button>
             <?php endif; ?>
             <?php if ($open): ?>
-                <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/pay">
-                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <?php if ($hasCash): ?>
-                        <label for="cash_received">Cash received</label>
-                        <input class="input" id="cash_received" name="cash_received" inputmode="decimal">
-                    <?php endif; ?>
-                    <button class="btn btn-primary btn-block register-complete" type="submit"<?= $remaining > 0 ? ' disabled' : '' ?>>Process sale</button>
-                </form>
+                <button class="btn btn-primary btn-block register-complete" type="submit" form="pos-pay"<?= $lines === [] || $remaining > 0 ? ' disabled' : '' ?>>Process sale</button>
             <?php elseif ($locked): ?>
                 <button class="btn btn-primary btn-block register-complete" type="button" disabled>Process sale</button>
             <?php endif; ?>
@@ -290,6 +273,32 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
 <?php endif; ?>
 
 <?php if ($open): ?>
+<div id="customer" class="modal" role="dialog" aria-modal="true" aria-labelledby="customer-title" hidden>
+    <div class="modal-panel card register-customer">
+        <div class="card-head">
+            <div class="h3" id="customer-title">Customer</div>
+            <button class="btn" type="button" data-close-modal="customer">Close</button>
+        </div>
+        <div class="card-body stack">
+            <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/buyer" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" id="buyer-form">
+                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                <div class="field combo">
+                    <label for="buyer">Find buyer</label>
+                    <input class="input" id="buyer" value="<?= View::text($cart['buyer_name']) ?>" autocomplete="off" placeholder="Name or vendor number">
+                    <input type="hidden" id="buyer_id" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
+                    <div class="suggest" id="buyer-suggest" hidden></div>
+                </div>
+                <p>Selected: <?= $cart['buyer_name'] !== '' ? View::text($cart['buyer_name']) : 'None' ?></p>
+            </form>
+            <?php if ($cart['buyer_id'] !== ''): ?>
+                <form method="post" action="/<?= View::text($slug) ?>/pos/buyer">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <button class="btn" type="submit">Clear customer</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
 <div id="layaway-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="layaway-title" hidden>
     <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/layaway">
         <div class="card-head"><div class="h3" id="layaway-title">Layaway</div></div>

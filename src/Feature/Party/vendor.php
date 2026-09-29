@@ -203,6 +203,7 @@ $blank = '—';
                         <div class="field">
                             <label for="assign_booth">Booth</label>
                             <select class="select" id="assign_booth" name="booth_id" required>
+                                <option value="">Choose a booth</option>
                                 <?php foreach ($booths as $booth): ?>
                                     <option value="<?= View::text($booth['id']) ?>" data-rent="<?= View::text($booth['rent'] ?? '') ?>"><?= View::text($booth['code']) ?></option>
                                 <?php endforeach; ?>
