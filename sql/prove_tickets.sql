@@ -302,7 +302,7 @@ BEGIN
     RAISE EXCEPTION 'a sold piece was put on a new ticket';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a piece is already sold%' THEN
+        IF SQLERRM NOT LIKE '%there are not enough on hand%' THEN
             RAISE;
         END IF;
 END $$;
@@ -397,7 +397,7 @@ END $$;
 
 DO $$
 BEGIN
-    TRUNCATE tickets, ticket_lines;
+    TRUNCATE tickets, ticket_lines, ticket_tenders;
     RAISE EXCEPTION 'ticket truncate was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
@@ -489,7 +489,7 @@ DO $$
 BEGIN
     SET LOCAL ROLE stall_poster;
     BEGIN
-        TRUNCATE tickets;
+        TRUNCATE tickets, ticket_tenders;
         RAISE EXCEPTION 'poster truncate was accepted';
     EXCEPTION
         WHEN insufficient_privilege THEN

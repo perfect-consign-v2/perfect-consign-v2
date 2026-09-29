@@ -36,19 +36,16 @@ $voided = $receipt['voided'] === true;
     </div>
 </div>
 
-<div class="card mt-6">
-    <div class="card-body">
-        <table>
-            <thead><tr><th>Piece</th><th>Vendor</th><th>Sold</th><th>Store take</th><th>Tax</th><th></th></tr></thead>
-            <tbody>
+<div class="card mt-6 register-ticket">
+    <div class="card-body stack">
             <?php foreach ($lines as $line): ?>
-                <tr>
-                    <td><?= View::text($line['code']) ?> <?= View::text($line['description']) ?></td>
-                    <td><?= View::text($line['vendor']) ?></td>
-                    <td><?= View::text(View::money(RowValue::integer($line['price']))) ?></td>
-                    <td><?= View::text(View::money(RowValue::integer($line['commission']))) ?></td>
-                    <td><?= View::text(View::money(RowValue::integer($line['tax']))) ?></td>
-                    <td>
+                <div class="ticket-line">
+                    <div>
+                        <p><?= View::text($line['code']) ?> <?= View::text($line['description']) ?></p>
+                        <p class="ticket-meta"><?= View::text($line['vendor']) ?></p>
+                    </div>
+                    <div class="ticket-line-end">
+                        <p><?= View::text(View::money(RowValue::integer($line['price']))) ?></p>
                         <?php if ($line['returned'] === true): ?>
                             Returned
                         <?php elseif (!$voided): ?>
@@ -70,11 +67,10 @@ $voided = $receipt['voided'] === true;
                                 <button class="btn" type="submit">Return</button>
                             </form>
                         <?php endif; ?>
-                    </td>
-                </tr>
+                    </div>
+                </div>
             <?php endforeach; ?>
-            </tbody>
-        </table>
+            <div class="ticket-foot">
         <?php if ($receipt['discount'] > 0): ?>
             <p>Discount <span id="discount"><?= View::text(View::money(RowValue::integer($receipt['discount']))) ?></span> <?= View::text($receipt['discount_reason']) ?></p>
         <?php endif; ?>
@@ -91,6 +87,7 @@ $voided = $receipt['voided'] === true;
             <p>Change <span id="change"><?= View::text(View::money($change)) ?></span></p>
         <?php endif; ?>
         <p><a href="/<?= View::text($slug) ?>/journals/<?= View::text($receipt['journal_id']) ?>">Journal</a></p>
+            </div>
     </div>
 </div>
 

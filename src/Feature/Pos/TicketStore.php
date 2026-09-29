@@ -15,26 +15,10 @@ final class TicketStore
     public function __construct(
         private readonly Statements $statements,
         private readonly TicketPricing $pricing,
+        private readonly TicketBuyer $buyers,
     ) {
     }
 
-    /**
-     * @return array{
-     *     ticket_id: string,
-     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int, discount: int}>,
-     *     merchandise: int,
-     *     discount: int,
-     *     discount_reason: string,
-     *     tax: int,
-     *     tax_bps: int,
-     *     waiver: string,
-     *     due: int,
-     *     cash_round: int,
-     *     cash_due: int,
-     *     rounding: string,
-     *     parked: list<array{id: string, pieces: int}>
-     * }
-     */
     /**
      * @return array{id: string, name: string}|null
      */
@@ -60,6 +44,25 @@ final class TicketStore
         ];
     }
 
+    /**
+     * @return array{
+     *     ticket_id: string,
+     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
+     *     merchandise: int,
+     *     discount: int,
+     *     discount_reason: string,
+     *     tax: int,
+     *     tax_bps: int,
+     *     waiver: string,
+     *     due: int,
+     *     cash_round: int,
+     *     cash_due: int,
+     *     rounding: string,
+     *     buyer_id: string,
+     *     buyer_name: string,
+     *     parked: list<array{id: string, pieces: int, sold: int, status: string}>
+     * }
+     */
     public function cart(string $sessionId): array
     {
         $mall = $this->mall();
@@ -70,12 +73,13 @@ final class TicketStore
         $discount = 0;
         $tax = 0;
         foreach ($lines as $line) {
-            $merchandise += $line['price'];
+            $merchandise += $line['price'] * $line['quantity'];
             $discount += $line['discount'];
             $tax += $line['tax'];
         }
         $due = $merchandise - $discount + $tax;
         $round = $mall['round'] === '1' ? CashRound::adjustment($due) : 0;
+        $buyer = $this->buyers->current($ticketId);
 
         return [
             'ticket_id' => $ticketId ?? '',
@@ -90,6 +94,8 @@ final class TicketStore
             'cash_round' => $round,
             'cash_due' => $due + $round,
             'rounding' => $mall['round'],
+            'buyer_id' => $buyer['id'],
+            'buyer_name' => $buyer['name'],
             'parked' => $this->parked(),
         ];
     }
@@ -102,11 +108,7 @@ final class TicketStore
         $piece = $this->piece($code);
         $this->statements->transaction(function () use ($sessionId, $piece): void {
             $ticketId = $this->openTicket($sessionId);
-            $this->guardNewPiece($ticketId, $piece['id']);
-            $this->statements->change(
-                'INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor) VALUES (?::uuid, ?, ?::uuid, ?)',
-                [$ticketId, $this->nextLine($ticketId), $piece['id'], $piece['price']]
-            );
+            $this->add($ticketId, $piece['id'], $piece['price']);
             $this->pricing->recheck($ticketId);
         });
     }
@@ -179,8 +181,8 @@ final class TicketStore
             throw new DatabaseRefusal('this shift already has an open ticket');
         }
         $updated = $this->statements->affected(
-            'UPDATE tickets SET status = ?, session_id = ?::uuid WHERE id = ?::uuid AND status = ?',
-            ['open', $sessionId, $ticketId, 'parked']
+            "UPDATE tickets SET status = 'open', session_id = ?::uuid WHERE id = ?::uuid AND status IN ('parked', 'layaway')",
+            [$sessionId, $ticketId]
         );
         if ($updated !== 1) {
             throw new DatabaseRefusal('that ticket is not parked');
@@ -267,15 +269,27 @@ final class TicketStore
         ];
     }
 
-    private function guardNewPiece(string $ticketId, string $itemId): void
+    private function add(string $ticketId, string $itemId, int $price): void
     {
         $rows = $this->statements->bound(
-            'SELECT 1 FROM ticket_lines WHERE ticket_id = ?::uuid AND item_id = ?::uuid',
+            'SELECT line_no FROM ticket_lines WHERE ticket_id = ?::uuid AND item_id = ?::uuid',
             [$ticketId, $itemId]
         );
         if ($rows !== []) {
-            throw new DatabaseRefusal('a piece is already on the ticket');
+            $updated = $this->statements->affected(
+                'UPDATE ticket_lines SET quantity = quantity + 1 WHERE ticket_id = ?::uuid AND item_id = ?::uuid',
+                [$ticketId, $itemId]
+            );
+            if ($updated !== 1) {
+                throw new DatabaseRefusal('that piece is not on the ticket');
+            }
+
+            return;
         }
+        $this->statements->change(
+            'INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor, quantity) VALUES (?::uuid, ?, ?::uuid, ?, 1)',
+            [$ticketId, $this->nextLine($ticketId), $itemId, $price]
+        );
     }
 
     private function nextLine(string $ticketId): int
@@ -289,16 +303,17 @@ final class TicketStore
     }
 
     /**
-     * @return list<array{id: string, pieces: int}>
+     * @return list<array{id: string, pieces: int, sold: int, status: string}>
      */
     private function parked(): array
     {
         $rows = $this->statements->rows(
-            'SELECT ticket.id, count(line.line_no) AS pieces
+            'SELECT ticket.id, ticket.status, count(line.line_no) AS pieces,
+                    COALESCE(sum(line.price_minor * line.quantity), 0) AS sold
              FROM tickets AS ticket
              LEFT JOIN ticket_lines AS line ON line.ticket_id = ticket.id
-             WHERE ticket.status = \'parked\'
-             GROUP BY ticket.id
+             WHERE ticket.status IN (\'parked\', \'layaway\')
+             GROUP BY ticket.id, ticket.status
              ORDER BY ticket.id'
         );
         $parked = [];
@@ -306,6 +321,8 @@ final class TicketStore
             $parked[] = [
                 'id' => RowValue::string($row['id'] ?? null),
                 'pieces' => RowValue::integer($row['pieces'] ?? null),
+                'sold' => RowValue::integer($row['sold'] ?? null),
+                'status' => RowValue::string($row['status'] ?? null),
             ];
         }
 

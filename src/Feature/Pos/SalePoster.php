@@ -25,7 +25,7 @@ final class SalePoster
     /**
      * @param array{
      *     ticket_id: string,
-     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int, discount: int}>,
+     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}>,
      *     due: int
      * } $cart
      * @param array{
@@ -56,6 +56,7 @@ final class SalePoster
             checkNumber: $tender['check'],
             beforeCommit: function (string $journalId) use ($ticketId, $pieces): void {
                 $this->attach($journalId, $ticketId, $pieces);
+                $this->statements->change('DELETE FROM ticket_tenders WHERE ticket_id = ?::uuid', [$ticketId]);
             },
         ));
     }
@@ -111,9 +112,9 @@ final class SalePoster
             checkNumber: $check,
             beforeCommit: function (string $journalId) use ($saleId, $itemId, $piece): void {
                 $this->statements->change(
-                    'INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor, discount_minor)
-                     VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?)',
-                    [$journalId, $saleId, $itemId, $piece['price'], $piece['commission'], $piece['tax'], $piece['discount']]
+                    'INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, quantity, commission_minor, tax_minor, discount_minor)
+                     VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?)',
+                    [$journalId, $saleId, $itemId, $piece['price'], $piece['quantity'], $piece['commission'], $piece['tax'], $piece['discount']]
                 );
             },
         ));
@@ -142,7 +143,7 @@ final class SalePoster
     }
 
     /**
-     * @param list<array{line_no: int, item_id: string, price: int, commission: int, tax: int, discount: int}> $pieces
+     * @param list<array{line_no: int, item_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $pieces
      */
     private function attach(string $journalId, string $ticketId, array $pieces): void
     {
@@ -153,9 +154,9 @@ final class SalePoster
         $this->samePrices($ticketId, $pieces);
         foreach ($pieces as $piece) {
             $this->statements->change(
-                'INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor, discount_minor)
-                 VALUES (?::uuid, ?, ?::uuid, ?, ?, ?, ?)',
-                [$journalId, $piece['line_no'], $piece['item_id'], $piece['price'], $piece['commission'], $piece['tax'], $piece['discount']]
+                'INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, quantity, commission_minor, tax_minor, discount_minor)
+                 VALUES (?::uuid, ?, ?::uuid, ?, ?, ?, ?, ?)',
+                [$journalId, $piece['line_no'], $piece['item_id'], $piece['price'], $piece['quantity'], $piece['commission'], $piece['tax'], $piece['discount']]
             );
         }
         $updated = $this->statements->affected(
@@ -168,12 +169,12 @@ final class SalePoster
     }
 
     /**
-     * @param list<array{item_id: string, price: int}> $pieces
+     * @param list<array{item_id: string, price: int, quantity: int}> $pieces
      */
     private function samePrices(string $ticketId, array $pieces): void
     {
         $rows = $this->statements->bound(
-            'SELECT item_id, price_minor FROM ticket_lines WHERE ticket_id = ?::uuid ORDER BY line_no',
+            'SELECT item_id, price_minor, quantity FROM ticket_lines WHERE ticket_id = ?::uuid ORDER BY line_no',
             [$ticketId]
         );
         if (count($rows) !== count($pieces)) {
@@ -185,13 +186,14 @@ final class SalePoster
     }
 
     /**
-     * @param array{item_id: string, price: int} $piece
+     * @param array{item_id: string, price: int, quantity: int} $piece
      */
     private function samePiece(mixed $row, array $piece): void
     {
         if (!is_array($row)
             || RowValue::string($row['item_id'] ?? null) !== $piece['item_id']
-            || RowValue::integer($row['price_minor'] ?? null) !== $piece['price']) {
+            || RowValue::integer($row['price_minor'] ?? null) !== $piece['price']
+            || RowValue::integer($row['quantity'] ?? null) !== $piece['quantity']) {
             throw new DatabaseRefusal('the ticket changed before pay');
         }
     }
@@ -221,12 +223,12 @@ final class SalePoster
     }
 
     /**
-     * @return array{price: int, commission: int, tax: int, discount: int, vendor_id: string}
+     * @return array{price: int, quantity: int, commission: int, tax: int, discount: int, vendor_id: string}
      */
     private function piece(string $saleId, string $itemId): array
     {
         $rows = $this->statements->bound(
-            'SELECT sale.price_minor, sale.commission_minor, sale.tax_minor, sale.discount_minor, item.vendor_id
+            'SELECT sale.price_minor, sale.quantity, sale.commission_minor, sale.tax_minor, sale.discount_minor, item.vendor_id
              FROM sale_lines AS sale
              JOIN items AS item ON item.id = sale.item_id
              JOIN journals AS journal ON journal.id = sale.journal_id
@@ -241,8 +243,11 @@ final class SalePoster
             throw new DatabaseRefusal('that piece is not on the ticket');
         }
 
+        $quantity = RowValue::integer($row['quantity'] ?? null);
+
         return [
-            'price' => RowValue::integer($row['price_minor'] ?? null),
+            'price' => RowValue::integer($row['price_minor'] ?? null) * $quantity,
+            'quantity' => $quantity,
             'commission' => RowValue::integer($row['commission_minor'] ?? null),
             'tax' => RowValue::integer($row['tax_minor'] ?? null),
             'discount' => RowValue::integer($row['discount_minor'] ?? null),

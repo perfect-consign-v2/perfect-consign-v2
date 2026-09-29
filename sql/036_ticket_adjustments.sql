@@ -1,4 +1,4 @@
--- A discount is the store giving up take. Tax can be waived for this ticket only.
+-- A discount lowers the sold price. Store take is the percent of that final price. Tax can be waived for this ticket only.
 -- Apply after 035. The provisioner rewrites stall_poster.
 
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS discount_kind text;
@@ -110,7 +110,6 @@ DECLARE
     line_price bigint;
     line_item uuid;
     share bigint;
-    take bigint;
     pieces integer;
 BEGIN
     IF kind IS NULL THEN
@@ -128,14 +127,8 @@ BEGIN
         ORDER BY line.line_no
     LOOP
         share := public.stall_line_discount(ticket, line_item, kind, value);
-        SELECT (line_price * COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) + 5000) / 10000
-        INTO take
-        FROM public.items AS item
-        JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
-        CROSS JOIN public.mall AS mall
-        WHERE item.id = line_item;
-        IF share < 0 OR share > line_price OR share > COALESCE(take, 0) THEN
-            RAISE EXCEPTION 'a discount larger than the store take'
+        IF share < 0 OR share > line_price THEN
+            RAISE EXCEPTION 'the discount is more than the price'
                 USING ERRCODE = '23514';
         END IF;
     END LOOP;
@@ -337,7 +330,6 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
 
-        expected_commission := (NEW.price_minor * commission_bps + 5000) / 10000;
         expected_discount := 0;
         waiver := false;
         SELECT public.stall_line_discount(ticket.id, NEW.item_id, ticket.discount_kind, ticket.discount_value),
@@ -359,10 +351,7 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
 
-        IF NEW.discount_minor > expected_commission THEN
-            RAISE EXCEPTION 'a discount larger than the store take'
-                USING ERRCODE = '23514';
-        END IF;
+        expected_commission := ((NEW.price_minor - NEW.discount_minor) * commission_bps + 5000) / 10000;
 
         IF tax_exempt OR waiver THEN
             expected_tax := 0;
@@ -464,11 +453,7 @@ BEGIN
     FROM public.sale_lines
     WHERE journal_id = NEW.id;
 
-    IF discounts > commissions THEN
-        RAISE EXCEPTION 'a discount larger than the store take'
-            USING ERRCODE = '23514';
-    END IF;
-    net_commission := commissions - discounts;
+    net_commission := commissions;
 
     SELECT COALESCE(sum(line.debit_minor), 0), COALESCE(sum(line.credit_minor), 0), count(*)
     INTO round_debit, round_credit, round_lines
@@ -555,7 +540,7 @@ BEGIN
 
     SELECT count(*) INTO payable_gaps
     FROM (
-        SELECT item.vendor_id, sum(sale.price_minor - sale.commission_minor) AS owed
+        SELECT item.vendor_id, sum(sale.price_minor - sale.discount_minor - sale.commission_minor) AS owed
         FROM public.sale_lines AS sale
         JOIN public.items AS item ON item.id = sale.item_id
         WHERE sale.journal_id = NEW.id
@@ -715,9 +700,9 @@ BEGIN
 
     IF tender_lines <> 1
         OR tender_credit <> sale_price - sale_discount + sale_tax
-        OR commission_debit <> sale_commission - sale_discount
+        OR commission_debit <> sale_commission
         OR tax_debit <> sale_tax
-        OR payable_debit <> sale_price - sale_commission THEN
+        OR payable_debit <> sale_price - sale_discount - sale_commission THEN
         RAISE EXCEPTION 'a return reverses that piece'
             USING ERRCODE = '23514';
     END IF;

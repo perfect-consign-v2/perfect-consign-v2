@@ -23,8 +23,11 @@ final class IntakeController
     public function findVendors(string $slug): void
     {
         $this->app->open($slug, true);
+        $code = trim($this->app->request()->query('code'));
+        $match = $code === '' ? null : $this->catalog->vendorByCode($code);
+        $found = $code === '' ? $this->catalog->searchVendors($this->app->request()->query('q')) : ($match === null ? [] : [$match]);
         $rows = [];
-        foreach ($this->catalog->searchVendors($this->app->request()->query('q')) as $row) {
+        foreach ($found as $row) {
             $code = RowValue::string($row['code'] ?? null);
             $name = RowValue::string($row['name'] ?? null);
             $rows[] = [

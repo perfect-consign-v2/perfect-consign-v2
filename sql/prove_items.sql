@@ -15,6 +15,7 @@ BEGIN
       AND table_name = 'items'
       AND column_name <> 'price_minor'
       AND column_name <> 'commission_bps'
+      AND column_name <> 'quantity'
       AND (
           data_type IN ('numeric', 'money', 'bigint', 'integer', 'smallint')
           OR column_name ~* '(amount|balance|minor|rate|price|total)'
@@ -39,10 +40,23 @@ BEGIN
     FROM information_schema.columns
     WHERE table_schema = current_schema()
       AND table_name = 'items'
-      AND column_name IN ('quantity', 'status', 'booth_id');
+      AND column_name IN ('status', 'booth_id');
 
     IF extra_facts <> 0 THEN
-        RAISE EXCEPTION 'item table carries quantity, status, or a booth';
+        RAISE EXCEPTION 'item table carries a status or a booth';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'items'
+          AND column_name = 'quantity'
+          AND data_type = 'integer'
+          AND is_nullable = 'NO'
+          AND column_default = '1'
+    ) THEN
+        RAISE EXCEPTION 'item quantity is missing';
     END IF;
 
     IF NOT EXISTS (
@@ -269,6 +283,7 @@ BEGIN
           AND commission_bps IS NULL
           AND intake_on = DATE '2026-09-27'
           AND expires_on IS NULL
+          AND quantity = 1
     ) THEN
         RAISE EXCEPTION 'a piece did not keep an empty expire date and the consignor split';
     END IF;
@@ -414,7 +429,8 @@ SET code = 'Cee',
     price_minor = 2500,
     commission_bps = 2500,
     intake_on = DATE '2026-09-01',
-    expires_on = DATE '2026-10-01'
+    expires_on = DATE '2026-10-01',
+    quantity = 4
 WHERE id = '01900000-0000-7000-8000-000000000c02';
 
 DO $$
@@ -432,6 +448,7 @@ BEGIN
           AND commission_bps = 2500
           AND intake_on = DATE '2026-09-01'
           AND expires_on = DATE '2026-10-01'
+          AND quantity = 4
     ) THEN
         RAISE EXCEPTION 'piece fields were not saved';
     END IF;
@@ -512,6 +529,10 @@ EXCEPTION
         END IF;
 END $$;
 
+ALTER TABLE ticket_lines DROP CONSTRAINT ticket_lines_item_id_fkey;
+ALTER TABLE sale_lines DROP CONSTRAINT sale_lines_item_id_fkey;
+ALTER TABLE piece_returns DROP CONSTRAINT piece_returns_item_id_fkey;
+
 DO $$
 BEGIN
     TRUNCATE items;
@@ -560,6 +581,18 @@ BEGIN
             NULL;
     END;
     RESET ROLE;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO items (code, vendor_id, description, price_minor, barcode, intake_on, quantity)
+    VALUES ('Neg', '01900000-0000-7000-8000-000000000c10', 'Bad count', 100, 'BC-NEG', DATE '2026-09-27', -1);
+    RAISE EXCEPTION 'a negative quantity was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%items_quantity_chk%' THEN
+            RAISE;
+        END IF;
 END $$;
 
 ROLLBACK;

@@ -11,7 +11,7 @@ use PerfectConsign\Ledger\PostedLines;
 final class SaleJournal
 {
     /**
-     * @param list<array{vendor_id: string, price: int, commission: int, tax: int, discount: int}> $pieces
+     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $pieces
      * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $tenders
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
@@ -37,14 +37,13 @@ final class SaleJournal
         array $credit,
     ): array {
         $lines = [];
-        $take = $commission - $discount;
-        if ($take > 0) {
-            $lines[] = PostedLines::entry($ledger->roleAccount('commission_revenue'), $take, 0, null, null);
+        if ($commission > 0) {
+            $lines[] = PostedLines::entry($ledger->roleAccount('commission_revenue'), $commission, 0, null, null);
         }
         if ($tax > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('sales_tax_payable'), $tax, 0, null, null);
         }
-        $owed = $price - $commission;
+        $owed = $price - $discount - $commission;
         if ($owed > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('vendor_payable'), $owed, 0, 'vendor', $vendorId);
         }
@@ -78,29 +77,26 @@ final class SaleJournal
     }
 
     /**
-     * @param list<array{vendor_id: string, price: int, commission: int, tax: int, discount: int}> $pieces
+     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $pieces
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
     private static function credits(LedgerStore $ledger, array $pieces): array
     {
         $commission = 0;
-        $discount = 0;
         $tax = 0;
         $payable = [];
         foreach ($pieces as $piece) {
             $commission += $piece['commission'];
-            $discount += $piece['discount'];
             $tax += $piece['tax'];
-            $owed = $piece['price'] - $piece['commission'];
+            $owed = $piece['price'] * $piece['quantity'] - $piece['discount'] - $piece['commission'];
             if ($owed > 0) {
                 $vendor = $piece['vendor_id'];
                 $payable[$vendor] = ($payable[$vendor] ?? 0) + $owed;
             }
         }
         $lines = [];
-        $take = $commission - $discount;
-        if ($take > 0) {
-            $lines[] = PostedLines::entry($ledger->roleAccount('commission_revenue'), 0, $take, null, null);
+        if ($commission > 0) {
+            $lines[] = PostedLines::entry($ledger->roleAccount('commission_revenue'), 0, $commission, null, null);
         }
         if ($tax > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('sales_tax_payable'), 0, $tax, null, null);

@@ -38,6 +38,10 @@ final class TenantProvisioner
         '034_piece_return.sql',
         '035_park_ticket.sql',
         '036_ticket_adjustments.sql',
+        '037_item_quantity.sql',
+        '038_vendor_draw.sql',
+        '039_line_discount.sql',
+        '040_layaway.sql',
     ];
 
     public function __construct(

@@ -48,13 +48,16 @@ final class FloorCoverageTest extends WebTestCase
         }
         $expected = $this->match(
             $registers->body,
-            '/id="register-' . $registerId . '".*?Drawer expected ([0-9]+\.[0-9]{2})/s'
+            '/id="register-' . $registerId . '".*?Drawer expected \$?([0-9]+\.[0-9]{2})/s'
         );
         $blocked = $this->client->post('/' . self::SLUG . '/registers/' . $registerId . '/close', $this->closeFields($expected));
-        self::assertSees('close is refused while a ticket is open', $blocked);
+        self::assertSees('A sale is still open on this register. Finish it or cancel it, then close.', $blocked);
+        $this->client->post('/' . self::SLUG . '/registers/close-cancel', []);
         $parked = $this->client->post('/' . self::SLUG . '/pos/park', []);
-        self::assertSees('name="ticket_id"', $parked);
-        $ticketId = $this->match($parked->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/');
+        self::assertSees('Ticket parked.', $parked);
+        $suspended = $this->client->get('/' . self::SLUG . '/pos/suspended');
+        self::assertSees('name="ticket_id"', $suspended);
+        $ticketId = $this->match($suspended->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/');
         $recalled = $this->client->post('/' . self::SLUG . '/pos/recall', ['ticket_id' => $ticketId]);
         self::assertSees($first['description'], $recalled);
         $second = $this->piece($vendor, '4.00');
@@ -77,6 +80,7 @@ final class FloorCoverageTest extends WebTestCase
             'return_tender' => 'cash',
         ]);
         self::assertSees('Piece returned.', $returned);
+        $this->client->post('/' . self::SLUG . '/pos/new', []);
         $again = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $first['code']]);
         self::assertSees($first['description'], $again);
         $resold = $this->client->post('/' . self::SLUG . '/pos/pay', [
@@ -111,7 +115,8 @@ final class FloorCoverageTest extends WebTestCase
         $second = $this->piece($vendor, '30.00');
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $first['code']]);
         $cart = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $second['code']]);
-        self::assertSees('5.00', $cart);
+        self::assertSees('10.00', $cart);
+        self::assertSees('30.00', $cart);
         $discounted = $this->client->post('/' . self::SLUG . '/pos/discount', [
             'discount_action' => 'apply',
             'discount_kind' => 'percent',
@@ -140,6 +145,7 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Piece returned.', $returned);
         self::assertSees($second['description'], $returned);
         $third = $this->piece($vendor, '8.00');
+        $this->client->post('/' . self::SLUG . '/pos/new', []);
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $third['code']]);
         $waived = $this->client->post('/' . self::SLUG . '/pos/tax-free', [
             'waiver_action' => 'waive',
@@ -291,6 +297,145 @@ final class FloorCoverageTest extends WebTestCase
         $backup = $this->client->post('/' . self::SLUG . '/backup', ['return' => 'settings'], 90);
         self::assertSame(200, $backup->status);
         self::assertNotSame('', $backup->body);
+    }
+
+    public function testTheCartSplitsACertificateAndAVendorDraw(): void
+    {
+        $this->settings(false);
+        $this->openRegister();
+        $this->client->post('/' . self::SLUG . '/pos/discard', []);
+        $code = 'v' . bin2hex(random_bytes(3));
+        $created = $this->client->post('/' . self::SLUG . '/vendors', [
+            'code' => $code,
+            'first_name' => 'Ada',
+            'last_name' => $code,
+            'store_take' => '0',
+        ]);
+        self::assertSees('Vendor created.', $created);
+        $directory = $this->client->get('/' . self::SLUG . '/parties');
+        $vendor = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
+        $missing = $this->client->post('/' . self::SLUG . '/pos/instant', [
+            'vendor_id' => '',
+            'description' => 'Missing',
+            'price' => '4.00',
+        ]);
+        self::assertSees('Choose a vendor.', $missing);
+        $added = $this->client->post('/' . self::SLUG . '/pos/instant', [
+            'vendor_id' => $vendor,
+            'description' => 'Instant ' . $code,
+            'price' => '12.00',
+        ]);
+        self::assertSees('Piece added.', $added);
+        self::assertSees('Instant ' . $code, $added);
+        self::assertSees('Clear cart', $added);
+        $cleared = $this->client->post('/' . self::SLUG . '/pos/discard', []);
+        self::assertSees('Ticket discarded.', $cleared);
+        self::assertStringNotContainsString('Clear cart', $cleared->body);
+        $piece = $this->piece($vendor, '10.00');
+        $suggest = $this->client->get('/' . self::SLUG . '/pos/suggest.json?q=' . $piece['code']);
+        self::assertStringContainsString($piece['code'], $suggest->body);
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $piece['code']]);
+        $this->client->post('/' . self::SLUG . '/pos/tender', [
+            'tender_role' => 'cash',
+            'tender_amount' => '4.00',
+        ]);
+        $split = $this->client->post('/' . self::SLUG . '/pos/tender', [
+            'tender_role' => 'card',
+            'tender_amount' => '6.00',
+        ]);
+        self::assertSees('Tender saved.', $split);
+        self::assertSees('Still due', $split);
+        $paid = $this->client->post('/' . self::SLUG . '/pos/pay', []);
+        self::assertSees('Sale posted.', $paid);
+        $this->client->post('/' . self::SLUG . '/pos/new', []);
+        $overPiece = $this->piece($vendor, '15.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $overPiece['code']]);
+        $over = $this->client->post('/' . self::SLUG . '/pos/tender', [
+            'tender_role' => 'vendor_draw',
+            'tender_amount' => '12.00',
+            'vendor_id' => $vendor,
+        ]);
+        self::assertSees('a vendor draw is limited to the open payable', $over);
+        $this->client->post('/' . self::SLUG . '/pos/discard', []);
+        $number = 'gc' . $code;
+        $sold = $this->client->post('/' . self::SLUG . '/pos/gift', [
+            'gift_number' => $number,
+            'gift_amount' => '20.00',
+            'gift_tender' => 'cash',
+        ]);
+        self::assertSees('Gift certificate sold.', $sold);
+        $balance = $this->client->get('/' . self::SLUG . '/pos?gift=' . $number);
+        self::assertSees('20.00', $balance);
+        $redeemedPiece = $this->piece($vendor, '5.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $redeemedPiece['code']]);
+        $this->client->post('/' . self::SLUG . '/pos/tender', [
+            'tender_role' => 'gift_certificate',
+            'tender_amount' => '5.00',
+            'tender_reference' => $number,
+        ]);
+        $redeemed = $this->client->post('/' . self::SLUG . '/pos/pay', []);
+        self::assertSees('Sale posted.', $redeemed);
+        $left = $this->client->get('/' . self::SLUG . '/pos?gift=' . $number);
+        self::assertSees('15.00', $left);
+        $this->client->post('/' . self::SLUG . '/pos/new', []);
+        $drawPiece = $this->piece($vendor, '4.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $drawPiece['code']]);
+        $drawn = $this->client->post('/' . self::SLUG . '/pos/tender', [
+            'tender_role' => 'vendor_draw',
+            'tender_amount' => '4.00',
+            'vendor_id' => $vendor,
+        ]);
+        self::assertSees('Tender saved.', $drawn);
+        $drawPaid = $this->client->post('/' . self::SLUG . '/pos/pay', []);
+        self::assertSees('Sale posted.', $drawPaid);
+        $this->client->post('/' . self::SLUG . '/pos/new', []);
+        $buyerCode = 'b' . $code;
+        $buyer = $this->client->post('/' . self::SLUG . '/vendors', [
+            'code' => $buyerCode,
+            'first_name' => 'Bea',
+            'last_name' => $buyerCode,
+            'store_take' => '50',
+        ]);
+        self::assertSees('Vendor created.', $buyer);
+        $buyerId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $buyerCode);
+        $heldPiece = $this->piece($buyerId, '10.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
+        $withBuyer = $this->client->post('/' . self::SLUG . '/pos/buyer', ['vendor_id' => $buyerId]);
+        self::assertSees('Buyer saved.', $withBuyer);
+        self::assertSees($buyerCode, $withBuyer);
+        $lined = $this->client->post('/' . self::SLUG . '/pos/line-discount', [
+            'line_no' => '1',
+            'discount_action' => 'apply',
+            'discount_kind' => 'amount',
+            'discount_value' => '1.00',
+            'discount_reason' => 'damaged',
+        ]);
+        self::assertSees('Line discount saved.', $lined);
+        self::assertSees('Line discount', $lined);
+        self::assertSees('9.00', $lined);
+        $deposit = $this->client->post('/' . self::SLUG . '/pos/layaway', [
+            'layaway_amount' => '4.00',
+            'layaway_tender' => 'cash',
+        ]);
+        self::assertSees('Layaway deposit saved.', $deposit);
+        self::assertSees('Layaway', $deposit);
+        $stillThere = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
+        self::assertSees('a piece is already on a ticket', $stillThere);
+        $layaways = $this->client->get('/' . self::SLUG . '/pos/layaways');
+        $recalledLayaway = $this->client->post('/' . self::SLUG . '/pos/recall', ['ticket_id' => $this->match($layaways->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/')]);
+        self::assertSees('Ticket recalled.', $recalledLayaway);
+        self::assertSees('9.00', $recalledLayaway);
+        $this->client->post('/' . self::SLUG . '/pos/tender', [
+            'tender_role' => 'card',
+            'tender_amount' => '5.00',
+        ]);
+        $finished = $this->client->post('/' . self::SLUG . '/pos/pay', []);
+        self::assertSees('Sale posted.', $finished);
+        $locked = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
+        self::assertSees('start a new sale', $locked);
+        $this->client->post('/' . self::SLUG . '/pos/new', []);
+        $after = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => 'not-a-piece']);
+        self::assertSees('that piece is not on the floor', $after);
     }
 
     private function settings(bool $round): void

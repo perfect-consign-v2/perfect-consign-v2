@@ -2,16 +2,18 @@
 
 declare(strict_types=1);
 
-use PerfectConsign\Feature\Pos\TicketAdjustment;
-use PerfectConsign\Feature\Pos\TicketQuote;
+use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 /** @var string $slug */
 /** @var string $csrf */
+/** @var string $templateDirectory */
+/** @var string $activeRegister */
+/** @var bool $chooseRegister */
 /** @var array{
  *     ticket_id: string,
- *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int, discount: int}>,
+ *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
  *     merchandise: int,
  *     discount: int,
  *     discount_reason: string,
@@ -22,257 +24,363 @@ use PerfectConsign\Shared\Scalar\RowValue;
  *     cash_round: int,
  *     cash_due: int,
  *     rounding: string,
- *     parked: list<array{id: string, pieces: int}>
+ *     buyer_id: string,
+ *     buyer_name: string,
+ *     parked: list<array{id: string, pieces: int, sold: int, status: string}>
  * } $cart
  */
+/** @var list<array{role: string, amount: int, reference: string}> $tenders */
+/** @var int $deposits */
+/** @var int $remaining */
+/** @var string $giftNumber */
+/** @var ?int $giftBalance */
+/** @var ?array{
+ *     journal_id: string,
+ *     posting_key: string,
+ *     description: string,
+ *     voided: bool,
+ *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, commission: int, tax: int, discount: int, returned: bool}>,
+ *     tenders: list<array{name: string, amount: int}>,
+ *     round: int,
+ *     cash: int,
+ *     discount: int,
+ *     discount_reason: string,
+ *     waiver: string
+ * } $completed
+ */
+/** @var int|null $change */
+/** @var bool $openInstant */
+$open = $cart['ticket_id'] !== '' && $completed === null;
+$locked = $completed !== null;
 $lines = $cart['lines'];
-$parked = $cart['parked'];
-?>
-<div class="page-head">
-    <div class="titles">
-        <h1 class="h1">POS</h1>
-        <p class="muted">Scan a barcode or a tag. The cart is this shift's open ticket.</p>
-        <?php if (($priorCloseStarted ?? false) === true && ($leftOpen[0]['id'] ?? '') !== ''): ?>
-            <p><a class="text-link" href="/<?= View::text($slug) ?>/registers?close=<?= View::text((string) $leftOpen[0]['id']) ?>">Back to close the register</a></p>
-        <?php endif; ?>
-    </div>
-</div>
-
-<div class="card mt-6">
-    <div class="card-body">
-        <form method="post" action="/<?= View::text($slug) ?>/pos/scan" class="row gap-2">
-            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <div class="field" style="flex:1">
-                <label for="scan">Scan</label>
-                <input class="input" id="scan" name="scan" autofocus autocomplete="off">
-            </div>
-            <button class="btn btn-primary" type="submit">Add</button>
-        </form>
-    </div>
-</div>
-
-<div class="card mt-6">
-    <div class="card-head"><div class="h3">Cart</div></div>
-    <div class="card-body">
-        <table>
-            <thead>
-                <tr><th>Piece</th><th>Vendor</th><th>Sold</th><th>Store take</th><th>Tax</th><th></th></tr>
-            </thead>
-            <tbody>
-            <?php foreach ($lines as $line): ?>
-                <tr>
-                    <td><?= View::text($line['code']) ?> <?= View::text($line['description']) ?></td>
-                    <td><?= View::text($line['vendor']) ?></td>
-                    <td><?= View::text(View::money(RowValue::integer($line['price']))) ?></td>
-                    <td><?= View::text(View::money(RowValue::integer($line['commission']))) ?></td>
-                    <td><?= View::text(View::money(RowValue::integer($line['tax']))) ?></td>
-                    <td>
-                        <form method="post" action="/<?= View::text($slug) ?>/pos/price" class="row gap-2">
-                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                            <input type="hidden" name="line_no" value="<?= View::text($line['line_no']) ?>">
-                            <input class="input" name="price" inputmode="decimal" value="<?= View::text(View::money(RowValue::integer($line['price']))) ?>" aria-label="Sold price">
-                            <button class="btn" type="submit">Price</button>
-                        </form>
-                        <form method="post" action="/<?= View::text($slug) ?>/pos/remove">
-                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                            <input type="hidden" name="line_no" value="<?= View::text($line['line_no']) ?>">
-                            <button class="btn btn-ghost" type="submit">Remove</button>
-                        </form>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <p>Subtotal <span id="merchandise"><?= View::text(View::money(RowValue::integer($cart['merchandise']))) ?></span></p>
-        <?php if ($cart['discount'] > 0): ?>
-            <p>Discount <span id="discount"><?= View::text(View::money(RowValue::integer($cart['discount']))) ?></span> <?= View::text($cart['discount_reason']) ?></p>
-        <?php endif; ?>
-        <p>Tax
-            <?php if ($cart['waiver'] !== ''): ?>
-                <span class="badge" id="tax-waived">Tax waived</span> <?= View::text($cart['waiver']) ?>
-            <?php else: ?>
-                <span id="tax"><?= View::text(View::money(RowValue::integer($cart['tax']))) ?></span>
-                <?= View::text(TicketQuote::percentLabel(RowValue::integer($cart['tax_bps']))) ?>
-            <?php endif; ?>
-        </p>
-        <p>Amount due <span id="amount-due"><?= View::text(View::money(RowValue::integer($cart['due']))) ?></span></p>
-        <?php if ($cart['rounding'] === '1' && $lines !== []): ?>
-            <p>Cash round <span id="cash-round"><?= View::text(View::money(RowValue::integer($cart['cash_round']))) ?></span></p>
-            <p>Cash due <span id="cash-due"><?= View::text(View::money(RowValue::integer($cart['cash_due']))) ?></span></p>
-        <?php endif; ?>
-        <?php if ($cart['ticket_id'] !== ''): ?>
-            <div class="row gap-2 mt-4">
-                <button class="btn" type="button" data-open-modal="discount-modal">Discount</button>
-                <button class="btn" type="button" data-open-modal="tax-free-modal">Tax-free</button>
-                <form method="post" action="/<?= View::text($slug) ?>/pos/park">
-                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <button class="btn" type="submit">Park</button>
-                </form>
-                <form method="post" action="/<?= View::text($slug) ?>/pos/discard">
-                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <button class="btn btn-ghost" type="submit">Discard</button>
-                </form>
-            </div>
-            <?php if ($lines !== []): ?>
-                <button class="btn btn-primary mt-4" type="button" data-open-modal="charge-modal" style="width:100%">Charge <?= View::text(View::money(RowValue::integer($cart['due']))) ?></button>
-            <?php endif; ?>
-        <?php endif; ?>
-    </div>
-</div>
-
-<?php if ($parked !== []): ?>
-<div class="card mt-6">
-    <div class="card-head"><div class="h3">Parked</div></div>
-    <div class="card-body stack">
-        <?php foreach ($parked as $ticket): ?>
-            <form method="post" action="/<?= View::text($slug) ?>/pos/recall" class="row between">
-                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                <input type="hidden" name="ticket_id" value="<?= View::text($ticket['id']) ?>">
-                <p><?= View::text($ticket['pieces']) ?> pieces</p>
-                <button class="btn" type="submit">Recall</button>
-            </form>
-        <?php endforeach; ?>
-    </div>
-</div>
-<?php endif; ?>
-
-<?php if ($cart['ticket_id'] !== ''): ?>
-<div id="discount-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="discount-title" hidden>
-    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/discount">
-        <div class="card-head"><div class="h3" id="discount-title">Discount</div></div>
-        <div class="card-body stack">
-            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <div class="row gap-2">
-                <label><input type="radio" name="discount_kind" value="percent" checked> Percent</label>
-                <label><input type="radio" name="discount_kind" value="amount"> Amount</label>
-            </div>
-            <div class="field">
-                <label for="discount_value">Value</label>
-                <input class="input" id="discount_value" name="discount_value" inputmode="decimal">
-            </div>
-            <div class="field">
-                <label for="discount_reason">Reason</label>
-                <select class="input" id="discount_reason" name="discount_reason">
-                    <?php foreach (TicketAdjustment::DISCOUNT_REASONS as $reason): ?>
-                        <option value="<?= View::text($reason) ?>"><?= View::text($reason) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="row gap-2">
-                <button class="btn btn-ghost" type="submit" name="discount_action" value="remove">Remove discount</button>
-                <button class="btn btn-primary" type="submit" name="discount_action" value="apply">Apply</button>
-            </div>
-            <button class="btn" type="button" data-close-modal="discount-modal">Close</button>
-        </div>
-    </form>
-</div>
-<div id="tax-free-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="tax-free-title" hidden>
-    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/tax-free">
-        <div class="card-head"><div class="h3" id="tax-free-title">Tax-free</div></div>
-        <div class="card-body stack">
-            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <p>This waives tax on this ticket only. A tax-exempt vendor is already zero.</p>
-            <div class="field">
-                <label for="waiver_reason">Reason</label>
-                <select class="input" id="waiver_reason" name="waiver_reason">
-                    <?php foreach (TicketAdjustment::WAIVER_REASONS as $reason): ?>
-                        <option value="<?= View::text($reason) ?>"><?= View::text($reason) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="row gap-2">
-                <button class="btn btn-ghost" type="submit" name="waiver_action" value="restore">Restore tax</button>
-                <button class="btn btn-primary" type="submit" name="waiver_action" value="waive">Waive tax</button>
-            </div>
-            <button class="btn" type="button" data-close-modal="tax-free-modal">Close</button>
-        </div>
-    </form>
-</div>
-<?php endif; ?>
-
-<?php if ($lines !== []): ?>
-<div id="charge-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="charge-title" hidden>
-    <form id="charge-form" class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text(View::money(RowValue::integer($cart['due']))) ?>">
-        <div class="card-head"><div class="h3" id="charge-title">Charge <?= View::text(View::money(RowValue::integer($cart['due']))) ?></div></div>
-        <div class="card-body stack">
-            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <input type="hidden" name="tender_cash" value="">
-            <input type="hidden" name="tender_card" value="">
-            <input type="hidden" name="tender_checks" value="">
-            <input type="hidden" name="tender_gift_certificate" value="">
-            <input type="hidden" name="tender_gift_card" value="">
-            <input type="hidden" name="tender_store_credit" value="">
-            <p>Amount due <?= View::text(View::money(RowValue::integer($cart['due']))) ?></p>
-            <div class="stack">
-                <label><input type="radio" name="charge_tender" value="cash" checked> Cash</label>
-                <label><input type="radio" name="charge_tender" value="card"> Card</label>
-                <label><input type="radio" name="charge_tender" value="checks"> Check</label>
-                <label><input type="radio" name="charge_tender" value="gift_certificate"> Gift certificate</label>
-                <label><input type="radio" name="charge_tender" value="gift_card"> Gift card</label>
-                <label><input type="radio" name="charge_tender" value="store_credit"> Store credit</label>
-            </div>
-            <div class="field">
-                <label for="charge-amount">Amount</label>
-                <input class="input" id="charge-amount" inputmode="decimal">
-            </div>
-            <div class="field" data-tender="checks" hidden>
-                <label for="check_number">Check number</label>
-                <input class="input" id="check_number" name="check_number">
-            </div>
-            <div class="field" data-tender="gift_certificate" hidden>
-                <label for="gift_certificate_number">Gift certificate number</label>
-                <input class="input" id="gift_certificate_number" name="gift_certificate_number">
-            </div>
-            <div class="field" data-tender="gift_card" hidden>
-                <label for="gift_card_number">Gift card number</label>
-                <input class="input" id="gift_card_number" name="gift_card_number">
-            </div>
-            <div class="field" data-tender="store_credit" hidden>
-                <label for="store_credit_number">Store credit number</label>
-                <input class="input" id="store_credit_number" name="store_credit_number">
-            </div>
-            <div class="field" data-tender="cash">
-                <label for="cash_received">Cash received</label>
-                <input class="input" id="cash_received" name="cash_received" inputmode="decimal">
-            </div>
-            <button class="btn btn-primary" type="submit">Complete</button>
-            <button class="btn" type="button" data-close-modal="charge-modal">Close</button>
-        </div>
-    </form>
-</div>
-<?php endif; ?>
-
-<script>
-const scanField = document.getElementById('scan');
-if (scanField) {
-    scanField.focus();
-}
-const chargeForm = document.getElementById('charge-form');
-if (chargeForm) {
-    const amount = document.getElementById('charge-amount');
-    const due = chargeForm.getAttribute('data-due');
-    if (amount && due) {
-        amount.value = due;
+$used = [];
+$hasCash = false;
+foreach ($tenders as $tender) {
+    $used[$tender['role']] = true;
+    if ($tender['role'] === 'cash') {
+        $hasCash = true;
     }
-    chargeForm.querySelectorAll('input[name="charge_tender"]').forEach(function (radio) {
-        radio.addEventListener('change', function () {
-            chargeForm.querySelectorAll('[data-tender]').forEach(function (block) {
-                block.hidden = block.getAttribute('data-tender') !== radio.value;
-            });
-        });
-    });
-    chargeForm.addEventListener('submit', function () {
-        const picked = chargeForm.querySelector('input[name="charge_tender"]:checked');
-        const role = picked ? picked.value : '';
-        ['cash', 'card', 'checks', 'gift_certificate', 'gift_card', 'store_credit'].forEach(function (name) {
-            const field = chargeForm.querySelector('[name="tender_' + name + '"]');
-            if (field) {
-                field.value = name === role && amount ? amount.value : '';
-            }
-        });
-        if (scanField) {
-            scanField.focus();
-        }
-    });
 }
-</script>
+$cashFill = $cart['rounding'] === '1' ? CashRound::rounded(max(0, $remaining)) : max(0, $remaining);
+$ask = [
+    'checks' => 'Check',
+    'gift_certificate' => 'Gift certificate',
+    'gift_card' => 'Gift card',
+    'store_credit' => 'Store credit',
+    'vendor_draw' => 'From their sales',
+];
+$labels = ['cash' => 'Cash', 'card' => 'Card'] + $ask;
+$parkedCount = 0;
+foreach ($cart['parked'] as $held) {
+    if ($held['status'] !== 'layaway') {
+        $parkedCount++;
+    }
+}
+require $templateDirectory . '/Feature/Pos/register-nav.php';
+?>
+<?php require $templateDirectory . '/Feature/Pos/sale-finished.php'; ?>
+
+<div class="register">
+    <section class="card">
+        <div class="card-head"><div class="h3">Current sale</div></div>
+        <div class="card-body stack">
+            <fieldset class="register-lock" <?= $locked ? 'disabled' : '' ?>>
+                <form class="row gap-2 register-scan" method="post" action="/<?= View::text($slug) ?>/pos/scan">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <div class="combo register-scan-field">
+                        <label for="scan">Barcode</label>
+                        <input class="input" id="scan" name="scan" autocomplete="off" <?= $locked ? '' : 'autofocus' ?> placeholder="Scan or type to search">
+                        <div class="suggest" id="scan-suggest" data-url="/<?= View::text($slug) ?>/pos/suggest.json" hidden></div>
+                    </div>
+                    <button class="btn btn-primary" type="submit">Add</button>
+                </form>
+                <div class="register-tools">
+                    <?php if ($open): ?>
+                        <button class="btn" type="button" data-open-modal="layaway-modal">Layaway</button>
+                        <button class="btn" type="button" data-open-modal="cart-discount">Discount</button>
+                        <button class="btn" type="button" data-open-modal="tax-free">Tax-free</button>
+                    <?php endif; ?>
+                    <button class="btn btn-primary" type="button" data-open-modal="gift-sell">Gift Certificate</button>
+                    <button class="btn" type="button" data-open-modal="instant-add"><?= $lines === [] ? 'Instant inventory (quick add)' : 'Quick add' ?></button>
+                    <?php if ($open): ?>
+                        <form method="post" action="/<?= View::text($slug) ?>/pos/park">
+                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                            <button class="btn" type="submit">Suspend Sale (<?= View::text((string) $parkedCount) ?>)</button>
+                        </form>
+                        <button class="btn btn-danger" type="button" data-open-modal="clear-cart">Clear cart</button>
+                    <?php endif; ?>
+                </div>
+            </fieldset>
+            <?php if ($lines === []): ?>
+                <p class="muted"><?php if ($locked): ?>Scan and Instant inventory stay locked until you start a new sale.<?php else: ?>Cart is empty. Scan a barcode, search by code, or use <strong>Instant inventory</strong>.<?php endif; ?></p>
+            <?php else: ?>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th>Line discount</th>
+                                <th>Line</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($lines as $line): ?>
+                                <tr>
+                                    <td>
+                                        <p><?= View::text($line['description']) ?></p>
+                                        <p class="ticket-meta"><?= View::text($line['code']) ?></p>
+                                        <p class="ticket-meta"><?= View::text($line['vendor']) ?></p>
+                                    </td>
+                                    <td>
+                                        <form method="post" action="/<?= View::text($slug) ?>/pos/quantity">
+                                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                            <input type="hidden" name="line_no" value="<?= View::text((string) $line['line_no']) ?>">
+                                            <div class="register-qty">
+                                                <button class="btn btn-sm" type="button" data-qty-delta="-1" <?= $line['quantity'] < 2 ? 'disabled' : '' ?> aria-label="Decrease quantity">−</button>
+                                                <input class="input register-qty-input" name="quantity" value="<?= View::text((string) $line['quantity']) ?>" inputmode="numeric" aria-label="Qty">
+                                                <button class="btn btn-sm" type="button" data-qty-delta="1" aria-label="Increase quantity">+</button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                    <td>
+                                        <form method="post" action="/<?= View::text($slug) ?>/pos/price">
+                                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                            <input type="hidden" name="line_no" value="<?= View::text((string) $line['line_no']) ?>">
+                                            <input class="input register-price" name="price" value="<?= View::text(View::money(RowValue::integer($line['price']))) ?>" inputmode="decimal" aria-label="Sold price">
+                                        </form>
+                                    </td>
+                                    <td>
+                                        <?php if ($line['line_discount'] > 0): ?>
+                                            <p class="ticket-meta">Line discount −<?= View::text(View::money(RowValue::integer($line['line_discount']))) ?></p>
+                                        <?php endif; ?>
+                                        <button class="btn btn-sm" type="button" data-open-modal="line-discount-<?= View::text((string) $line['line_no']) ?>">Discount</button>
+                                    </td>
+                                    <td><?= View::text(View::money(RowValue::integer($line['price'] * $line['quantity'] - $line['line_discount']))) ?></td>
+                                    <td>
+                                        <form method="post" action="/<?= View::text($slug) ?>/pos/remove">
+                                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                            <input type="hidden" name="line_no" value="<?= View::text((string) $line['line_no']) ?>">
+                                            <button class="btn btn-ghost btn-sm" type="submit">Remove</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+            <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/buyer" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" id="buyer-form">
+                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                <p class="strong">Customer (optional)</p>
+                <div class="combo">
+                    <label for="buyer">Find buyer</label>
+                    <input class="input" id="buyer" value="<?= View::text($cart['buyer_name']) ?>" autocomplete="off" placeholder="Name or vendor number" <?= $open ? '' : 'disabled' ?>>
+                    <input type="hidden" id="buyer_id" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
+                    <div class="suggest" id="buyer-suggest" hidden></div>
+                </div>
+                <p><strong>Selected:</strong> <?= $cart['buyer_name'] !== '' ? View::text($cart['buyer_name']) : '— None —' ?></p>
+            </form>
+            <?php if ($open && $cart['buyer_id'] !== ''): ?>
+                <form method="post" action="/<?= View::text($slug) ?>/pos/buyer">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <button class="btn" type="submit">Clear buyer</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </section>
+    <section class="card register-pay">
+        <div class="card-head"><div class="h3">Payment summary</div></div>
+        <div class="card-body stack">
+            <p>Register: <strong><?= $chooseRegister ? 'Choose a register' : View::text($activeRegister) ?></strong>
+                <a class="text-link" href="/<?= View::text($slug) ?>/registers">Change</a>
+            </p>
+            <p class="register-summary"><span>Subtotal</span><span><?= View::text(View::money(RowValue::integer($cart['merchandise']))) ?></span></p>
+            <?php if ($cart['discount'] > 0): ?>
+                <p class="register-summary">
+                    <span>Discount <?= View::text($cart['discount_reason']) ?></span>
+                    <span id="discount"><?= View::text(View::money(RowValue::integer($cart['discount']))) ?></span>
+                </p>
+            <?php endif; ?>
+            <?php if ($cart['waiver'] !== ''): ?>
+                <p><span class="badge" id="tax-waived">Tax waived</span> <?= View::text($cart['waiver']) ?></p>
+            <?php else: ?>
+                <p class="register-summary"><span>Tax</span><span><?= View::text(View::money(RowValue::integer($cart['tax']))) ?></span></p>
+            <?php endif; ?>
+            <?php if ($cart['rounding'] === '1' && !$locked): ?>
+                <p class="register-summary">
+                    <span>Cash round</span>
+                    <span id="cash-round"><?= View::text(View::money(RowValue::integer($cart['cash_round']))) ?></span>
+                </p>
+            <?php endif; ?>
+            <p class="register-summary"><span>Total</span><span class="register-due"><?= View::text(View::money(RowValue::integer($cart['due']))) ?></span></p>
+            <p>Still due <strong><?= View::text(View::money(max(0, $remaining))) ?></strong></p>
+            <?php if ($deposits > 0): ?>
+                <p>Layaway <?= View::text(View::money($deposits)) ?></p>
+            <?php endif; ?>
+            <?php foreach ($tenders as $tender): ?>
+                <form class="tender-row" method="post" action="/<?= View::text($slug) ?>/pos/tender/remove">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <input type="hidden" name="tender_role" value="<?= View::text($tender['role']) ?>">
+                    <span><?= View::text($labels[$tender['role']] ?? $tender['role']) ?> <?= View::text(View::money(RowValue::integer($tender['amount']))) ?></span>
+                    <?php if ($open): ?>
+                        <button class="btn btn-ghost btn-sm" type="submit">Remove</button>
+                    <?php endif; ?>
+                </form>
+            <?php endforeach; ?>
+            <?php if ($open && $remaining > 0): ?>
+                <button class="btn btn-primary btn-block" type="button" data-open-modal="enter-payment">Enter payment</button>
+            <?php elseif ($locked): ?>
+                <button class="btn btn-primary btn-block" type="button" disabled>Enter payment</button>
+            <?php endif; ?>
+            <?php if ($open): ?>
+                <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/pay">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <?php if ($hasCash): ?>
+                        <label for="cash_received">Cash received</label>
+                        <input class="input" id="cash_received" name="cash_received" inputmode="decimal">
+                    <?php endif; ?>
+                    <button class="btn btn-primary btn-block register-complete" type="submit"<?= $remaining > 0 ? ' disabled' : '' ?>>Process sale</button>
+                </form>
+            <?php elseif ($locked): ?>
+                <button class="btn btn-primary btn-block register-complete" type="button" disabled>Process sale</button>
+            <?php endif; ?>
+        </div>
+    </section>
+</div>
+<?php require $templateDirectory . '/Feature/Pos/pay-modal.php'; ?>
+<?php if ($open): ?>
+    <?php require $templateDirectory . '/Feature/Pos/adjust-modals.php'; ?>
+<?php endif; ?>
+
+<?php if ($completed !== null && $completed['voided'] !== true): ?>
+<div id="void-ticket" class="modal" role="dialog" aria-modal="true" aria-labelledby="void-ticket-title" hidden>
+    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($completed['journal_id']) ?>/void">
+        <div class="card-head"><div class="h3" id="void-ticket-title">Void ticket</div></div>
+        <div class="card-body stack">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <p>Voiding reverses this sale and frees every piece.</p>
+            <button class="btn btn-primary" type="submit">Confirm void</button>
+            <button class="btn" type="button" data-close-modal="void-ticket">Cancel</button>
+        </div>
+    </form>
+</div>
+<?php endif; ?>
+
+<?php if ($open): ?>
+<div id="layaway-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="layaway-title" hidden>
+    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/layaway">
+        <div class="card-head"><div class="h3" id="layaway-title">Layaway</div></div>
+        <div class="card-body stack">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <label for="layaway_amount">Deposit</label>
+            <input class="input" id="layaway_amount" name="layaway_amount" inputmode="decimal">
+            <label><input type="radio" name="layaway_tender" value="cash" checked> Cash</label>
+            <label><input type="radio" name="layaway_tender" value="card"> Card</label>
+            <label><input type="radio" name="layaway_tender" value="checks"> Check</label>
+            <label for="layaway_check">Check number</label>
+            <input class="input" id="layaway_check" name="check_number">
+            <button class="btn btn-primary" type="submit">Take deposit</button>
+            <button class="btn" type="button" data-close-modal="layaway-modal">Close</button>
+        </div>
+    </form>
+</div>
+<div id="clear-cart" class="modal" role="dialog" aria-modal="true" aria-labelledby="clear-cart-title" hidden>
+    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/discard">
+        <div class="card-head"><div class="h3" id="clear-cart-title">Clear cart</div></div>
+        <div class="card-body stack">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <p>This removes the open ticket.</p>
+            <button class="btn btn-primary" type="submit">Clear cart</button>
+            <button class="btn" type="button" data-close-modal="clear-cart">Cancel</button>
+        </div>
+    </form>
+</div>
+<?php endif; ?>
+<div id="instant-add" class="modal" role="dialog" aria-modal="true" aria-labelledby="instant-add-title"<?= $openInstant ? '' : ' hidden' ?>>
+    <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" data-brands="/<?= View::text($slug) ?>/inventory/brands.json" data-brand-create="/<?= View::text($slug) ?>/inventory/brands">
+        <div class="card-head">
+            <div class="h3" id="instant-add-title">Instant inventory</div>
+            <button class="btn" type="button" data-close-modal="instant-add">Close</button>
+        </div>
+        <div class="card-body stack">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <div class="field">
+                <label for="instant_vendor">Vendor # *</label>
+                <input class="input" id="instant_vendor" name="vendor_code" autocomplete="off" required placeholder="Vendor #"<?= $openInstant ? ' autofocus' : '' ?>>
+                <input type="hidden" id="instant_vendor_id" name="vendor_id">
+                <p class="muted text-sm" id="instant-vendor-hint" hidden></p>
+                <p class="field-error" id="instant-vendor-error" hidden>No vendor found with that number.</p>
+            </div>
+            <div class="field">
+                <label for="instant_description">Item description *</label>
+                <input class="input" id="instant_description" name="description" required placeholder="Short description for tags and receipt">
+            </div>
+            <div class="grid cols-2">
+                <div class="field">
+                    <label for="instant_price">Price *</label>
+                    <input class="input" id="instant_price" name="price" inputmode="decimal" required>
+                </div>
+                <div class="field">
+                    <label for="instant_quantity">Quantity *</label>
+                    <input class="input" id="instant_quantity" name="quantity" inputmode="numeric" required value="1">
+                </div>
+            </div>
+            <div class="field">
+                <label for="instant_discount_kind">Line discount</label>
+                <div class="register-line">
+                    <select class="input" id="instant_discount_kind" name="discount_kind" aria-label="Line discount type">
+                        <option value="consignor_default" selected>Consignor default</option>
+                        <option value="none">None</option>
+                        <option value="percent">%</option>
+                        <option value="flat">$</option>
+                    </select>
+                    <input class="input" id="instant_discount_value" name="discount_value" inputmode="decimal" placeholder="0" aria-label="Line discount value" hidden disabled>
+                </div>
+                <p class="muted text-sm">Consignor default applies the vendor’s default POS line discount when set. Choose None for no discount, or enter a percent or flat amount.</p>
+            </div>
+            <div class="field combo">
+                <label for="instant_brand">Brand</label>
+                <input class="input" id="instant_brand" name="brand_label" autocomplete="off" placeholder="Search brands or type a new one">
+                <input type="hidden" id="instant_brand_id" name="brand_id">
+                <div class="suggest" id="instant-brand-suggest" hidden></div>
+                <div class="row gap-2" id="instant-brand-create" hidden>
+                    <span class="muted text-sm">Add brand <strong id="instant-brand-create-name"></strong>?</span>
+                    <button class="btn btn-sm" id="instant-brand-create-button" type="button">Add brand</button>
+                </div>
+                <p class="field-error" id="instant-brand-error" hidden></p>
+            </div>
+            <div class="field">
+                <label for="instant_barcode">Barcode</label>
+                <input class="input" id="instant_barcode" name="barcode" maxlength="100">
+                <p class="muted text-sm">Leave blank and a barcode is generated.</p>
+            </div>
+            <div class="row gap-2">
+                <button class="btn btn-primary" type="submit" name="instant_action" value="save_and_new">Save and New</button>
+                <button class="btn" type="submit" name="instant_action" value="save_and_close">Save &amp; Close</button>
+            </div>
+        </div>
+    </form>
+</div>
+<div id="gift-sell" class="modal" role="dialog" aria-modal="true" aria-labelledby="gift-sell-title" hidden>
+    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/gift">
+        <div class="card-head"><div class="h3" id="gift-sell-title">Sell gift certificate</div></div>
+        <div class="card-body stack">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <label for="gift_number">Number</label>
+            <input class="input" id="gift_number" name="gift_number" required>
+            <label for="gift_amount">Amount</label>
+            <input class="input" id="gift_amount" name="gift_amount" inputmode="decimal" required>
+            <label><input type="radio" name="gift_tender" value="cash" checked> Cash</label>
+            <label><input type="radio" name="gift_tender" value="card"> Card</label>
+            <label><input type="radio" name="gift_tender" value="checks"> Check</label>
+            <label for="gift_check">Check number</label>
+            <input class="input" id="gift_check" name="check_number">
+            <button class="btn btn-primary" type="submit">Sell</button>
+            <button class="btn" type="button" data-close-modal="gift-sell">Close</button>
+        </div>
+    </form>
+</div>
+<?php require $templateDirectory . '/Feature/Pos/register-ui.php'; ?>

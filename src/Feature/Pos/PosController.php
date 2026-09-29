@@ -16,6 +16,7 @@ final class PosController
         private readonly PosPage $page,
         private readonly TicketStore $tickets,
         private readonly RegisterGate $gate,
+        private readonly SaleHold $sales,
     ) {
     }
 
@@ -110,6 +111,7 @@ final class PosController
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         try {
+            $this->sales->refuse($slug);
             $work($session);
         } catch (DatabaseRefusal $refusal) {
             $this->page->cart($slug, $this->app->catchRefusal($refusal));

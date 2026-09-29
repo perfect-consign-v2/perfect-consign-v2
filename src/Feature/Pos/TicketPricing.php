@@ -16,13 +16,15 @@ final class TicketPricing
 
     /**
      * @param array{kind: ?string, value: ?int, reason: string, waiver: string} $adjustment
-     * @return list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int, discount: int}>
+     * @return list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}>
      */
     public function lines(string $ticketId, int $taxBps, array $adjustment): array
     {
         $rows = $this->statements->bound(
-            'SELECT line.line_no, line.item_id, line.price_minor, item.code, item.description, item.vendor_id,
+            'SELECT line.line_no, line.item_id, line.price_minor, line.quantity, line.line_discount_minor,
+                    item.code, item.description, item.vendor_id,
                     vendor.name AS vendor_name, vendor.tax_exempt,
+                    line.line_discount_kind, line.line_discount_value, line.line_discount_reason,
                     COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) AS commission_bps
              FROM ticket_lines AS line
              JOIN items AS item ON item.id = line.item_id
@@ -34,7 +36,8 @@ final class TicketPricing
         );
         $prices = [];
         foreach ($rows as $row) {
-            $prices[] = RowValue::integer($row['price_minor'] ?? null);
+            $extended = RowValue::integer($row['price_minor'] ?? null) * RowValue::integer($row['quantity'] ?? null);
+            $prices[] = $extended - RowValue::integer($row['line_discount_minor'] ?? null);
         }
         $shares = TicketQuote::shares($prices, $adjustment['kind'], $adjustment['value']);
         $lines = [];
@@ -113,12 +116,19 @@ final class TicketPricing
 
     /**
      * @param array<string, mixed> $row
-     * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, commission: int, tax: int, discount: int}
+     * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}
      */
     private function quote(array $row, int $taxBps, int $discount, string $waiver): array
     {
         $price = RowValue::integer($row['price_minor'] ?? null);
+        $quantity = RowValue::integer($row['quantity'] ?? null);
+        $extended = $price * $quantity;
+        $lineDiscount = RowValue::integer($row['line_discount_minor'] ?? null);
+        $taken = $lineDiscount + $discount;
         $exempt = self::flag($row['tax_exempt'] ?? null);
+        $kind = RowValue::optionalString($row['line_discount_kind'] ?? null) ?? '';
+        $stored = $row['line_discount_value'] ?? null;
+        $raw = $stored === null ? 0 : RowValue::integer($stored);
 
         return [
             'line_no' => RowValue::integer($row['line_no'] ?? null),
@@ -128,9 +138,13 @@ final class TicketPricing
             'vendor' => RowValue::string($row['vendor_name'] ?? null),
             'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
             'price' => $price,
-            'commission' => TicketQuote::halfUp($price, RowValue::integer($row['commission_bps'] ?? null)),
-            'tax' => $exempt || $waiver !== '' ? 0 : TicketQuote::tax($price, $discount, $taxBps),
-            'discount' => $discount,
+            'quantity' => $quantity,
+            'commission' => TicketQuote::halfUp($extended - $taken, RowValue::integer($row['commission_bps'] ?? null)),
+            'tax' => $exempt || $waiver !== '' ? 0 : TicketQuote::tax($extended, $taken, $taxBps),
+            'discount' => $taken,
+            'line_discount' => $lineDiscount,
+            'line_discount_kind' => $kind,
+            'line_discount_value' => self::shown($kind, $raw),
         ];
     }
 
@@ -145,5 +159,20 @@ final class TicketPricing
     private static function flag(mixed $value): bool
     {
         return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
+    }
+
+    private static function shown(string $kind, int $raw): string
+    {
+        if ($raw < 1) {
+            return '';
+        }
+        if ($kind === 'percent') {
+            $whole = intdiv($raw, 100);
+            $frac = $raw % 100;
+
+            return $frac === 0 ? (string) $whole : $whole . '.' . str_pad((string) $frac, 2, '0', STR_PAD_LEFT);
+        }
+
+        return number_format($raw / 100, 2, '.', '');
     }
 }

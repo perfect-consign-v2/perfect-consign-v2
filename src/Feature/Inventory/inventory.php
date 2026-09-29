@@ -9,7 +9,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $query */
 /** @var int $total */
 /** @var string $confirm */
-/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, vendor_id: string, vendor_label: string, brand_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, deletable: bool}> $items */
+/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, vendor_id: string, vendor_label: string, brand_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, deletable: bool}> $items */
 
 $blank = '—';
 $list = '/' . $slug . '/inventory';
@@ -50,6 +50,7 @@ $list = '/' . $slug . '/inventory';
                         <th>Intake</th>
                         <th>Expires</th>
                         <th>Store take</th>
+                        <th class="num">Qty</th>
                         <th class="num">Price</th>
                         <th></th>
                     </tr>
@@ -90,6 +91,7 @@ $list = '/' . $slug . '/inventory';
                                 <span class="badge badge-warning">Overridden</span>
                             <?php endif; ?>
                         </td>
+                        <td class="num"><?= View::text((string) $item['quantity']) ?></td>
                         <td class="num"><?= View::text(View::money(View::minor($item['price_minor']))) ?></td>
                         <td class="row gap-2">
                             <a class="btn btn-sm btn-ghost" href="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>

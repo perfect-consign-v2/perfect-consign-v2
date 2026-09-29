@@ -22,7 +22,7 @@ A rent charge for the month a vendor moves in counts the days from the start dat
 
 ## Inventory
 
-An item is one piece. It has a tag, a barcode, a vendor, a description, an asking price, and an intake date. The brand may be empty. The expire date may be empty. There is no quantity.
+An item is one piece. It has a tag, a barcode, a vendor, a description, an asking price, a quantity, and an intake date. The brand may be empty. The expire date may be empty. Quantity is how many are on hand. A new piece defaults to 1. An edit may be 0, and then it cannot be sold.
 
 The tag is unique in the mall, ignoring case. A tag is at most 40 characters. The barcode is unique, ignoring case, and at most 100 characters. A blank barcode is filled with BC, the mall date, and a four-digit sequence. A description is at most 200 characters. The asking price is greater than zero.
 
@@ -36,7 +36,7 @@ After a piece is created, the add form stays open with the same vendor and the s
 
 The consignor is chosen by custom id or name. The custom id is shown in front of the name. A brand is chosen by name. A name that is not in the mall can be added before the piece is saved.
 
-The tag, barcode, vendor, brand, description, price, store take, intake date, and expire date can be changed. An item can be deleted only while nothing else points at it.
+The tag, barcode, vendor, brand, description, price, quantity, store take, intake date, and expire date can be changed. An item can be deleted only while nothing else points at it.
 
 A vendor or brand that an item still names cannot be deleted. An inactive vendor can still own a piece. The booth stays on the vendor’s assignment, not on the piece.
 
@@ -68,17 +68,25 @@ Each closed shift has a Z-tape: both counts, the expected-cash lines, the drops,
 
 ## Sales
 
-A sale is one or more pieces on one journal. The customer pays the sold prices, minus any ticket discount, plus sales tax. Store take comes out of the sold price. Tax does not reduce what a vendor is owed.
+A sale is one or more pieces on one journal. The customer pays the final sold prices plus sales tax. Store take is the percent of that final price. Tax does not reduce what a vendor is owed.
 
-The sold price starts at the asking price and can differ. Store take is the piece's percent, otherwise the vendor's, otherwise the mall default, rounded half up to the cent. Sales tax is the mall rate on the sold price after that line's discount, rounded the same way. A tax-exempt vendor's pieces have no tax.
+The sold price starts at the asking price and can differ. A discount lowers it. Store take is the piece's percent of the final price, otherwise the vendor's, otherwise the mall default, rounded half up to the cent. Sales tax is the mall rate on that final price, rounded the same way. A tax-exempt vendor's pieces have no tax.
 
-A discount is the store giving up take on this ticket. It does not change the sold price and it does not change what a vendor is owed. Percent is half up on each sold price. A flat amount is split across the lines by sold price, half up, and the last line takes the remainder. A discount larger than the store take is refused. A zero discount clears it. Tax-free is this ticket only. It stores a reason and every line's tax is zero. Restore tax clears it.
+A discount lowers the sold price. Store take is the piece's percent of that final price, otherwise the vendor's, otherwise the mall default, rounded half up to the cent. The vendor is owed the rest of that final price. Percent is half up on each sold price after that line's discount. A flat amount is split across those prices, half up, and the last line takes the remainder. A line discount is that same rule on one line, stored on the line. The ticket discount applies after the line discounts. A discount cannot be more than the price. A zero discount clears it. Tax-free is this ticket only. It stores a reason and every line's tax is zero. Restore tax clears it.
 
-The journal debits each tender once. Those tenders add up to the sold prices, minus the discount, plus tax, and the cash-round difference when cash is rounded. It credits store take, minus the discount, once when that net is not zero, sales tax once when that total is not zero, and one payable for each vendor who is owed at least one cent. A vendor owed nothing has no payable line. Vendor payable and sales tax are still never the plug.
+A buyer on the ticket is a vendor. From their sales draws that vendor, still capped at the payable that existed before this sale.
 
-A piece is on at most one sale that has not been voided. A void reverses the whole journal and the piece can be sold again. The asking price stays on the piece.
+Pay leaves the finished sale on the register: the lines, the tenders, the total, and the change. Scan, Instant Add, and the pad do nothing until New sale. The receipt is that same ticket for a later lookup, a return, or a void.
 
-A ticket is the open cart on one register shift. It is not a journal. The shift has one open ticket. A piece sits on one open ticket, and not on an open ticket and a sale at the same time. The sold price can change until pay. Pay posts the sale and freezes the ticket. Discard removes a ticket only before pay. Close is refused while that shift still has an open ticket.
+A layaway deposit debits cash, card, or a check and credits layaway deposits for this ticket. The pieces stay on the ticket and stay unsold. The sale journal, vendor payable, tax, and store take post only when the deposits and any later tenders cover the amount due. A deposit above the amount due is refused. Cancel refunds the deposits and frees the ticket.
+
+Each tender is stored on the open ticket and used once. Cash, card, check, gift certificate, gift card, and store credit are those tenders. Complete posts when they add up to the amount due. The journal debits each tender once. Those tenders add up to the sold prices, minus the discount, plus tax, and the cash-round difference when cash is rounded. From their sales debits that vendor's payable, once, and only up to what the store already owed before this sale. The payable this sale is about to credit does not raise that cap. It credits store take once when that amount is not zero, sales tax once when that total is not zero, and one payable for each vendor who is owed at least one cent. A vendor owed nothing has no payable line. Vendor payable and sales tax are still never the plug.
+
+Pay takes the sold quantity off the piece. A void puts back the units that are still sold. A return puts its units back. Zero on hand cannot be sold. The asking price stays on the piece.
+
+A gift certificate is sold for cash, card, or a check. That journal debits the tender and credits the certificate. The balance left on a number is its credits minus its redemptions. A charge cannot take more than that remainder.
+
+A ticket is the open cart on one register shift. It is not a journal. The shift has one open ticket. Scanning a piece that is already on the open ticket adds one. Open, parked, and layaway tickets together cannot hold more than what is on hand. The sold price can change until pay. Pay posts the sale and freezes the ticket. Discard removes a ticket only before pay. Close is refused while that shift still has an open ticket.
 
 When the mall rounds cash to the nearest nickel, the cash portion of a sale rounds to a nickel and the difference posts to cash rounding. That round amount shows on the register for a cash sale and on the receipt. Card, checks, and stored value stay exact. Cash handed over above the rounded cash due is change. It is not a second tender, and the journal debits only the amount due.
 

@@ -26,6 +26,7 @@ final class RegisterGate
         if ($session === '') {
             $this->app->redirect(
                 '/' . $slug . '/registers',
+                null,
                 'Open a register and make it active before the sale screen.'
             );
         }

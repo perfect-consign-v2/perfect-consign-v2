@@ -13,9 +13,9 @@ final class PieceEntry
         public readonly ?string $brandId,
         public readonly string $description,
         public readonly int $priceMinor,
+        public readonly int $quantity,
         public readonly ?int $commissionBps,
-        public readonly string $intakeOn,
-        public readonly ?string $expiresOn,
+        public readonly PieceDates $dates,
     ) {
     }
 }

@@ -20,7 +20,7 @@ final class InventoryStore
     public function items(string $query): array
     {
         $needle = strtolower(trim($query));
-        $sql = 'SELECT item.id, item.code, item.barcode, item.description, item.price_minor,
+        $sql = 'SELECT item.id, item.code, item.barcode, item.description, item.price_minor, item.quantity,
                        item.vendor_id, item.commission_bps, item.intake_on, item.expires_on,
                        vendor.code AS vendor_code, vendor.name AS vendor_name,
                        COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) AS take_bps,
@@ -58,7 +58,7 @@ final class InventoryStore
     public function find(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT item.id, item.code, item.barcode, item.description, item.price_minor,
+            'SELECT item.id, item.code, item.barcode, item.description, item.price_minor, item.quantity,
                     item.vendor_id, item.brand_id, item.commission_bps, item.intake_on, item.expires_on,
                     vendor.code AS vendor_code, vendor.name AS vendor_name,
                     COALESCE(vendor.commission_bps, mall.commission_bps) AS vendor_take_bps,
@@ -169,15 +169,16 @@ final class InventoryStore
             $piece->brandId,
             $piece->description,
             $piece->priceMinor,
+            $piece->quantity,
             $piece->commissionBps,
-            $piece->intakeOn,
-            $piece->expiresOn,
+            $piece->dates->intakeOn,
+            $piece->dates->expiresOn,
         ];
         if ($id === null) {
             $this->statements->change(
                 'INSERT INTO items (
-                    code, barcode, vendor_id, brand_id, description, price_minor, commission_bps, intake_on, expires_on
-                 ) VALUES (?, ?, ?::uuid, ?::uuid, ?, ?, ?, ?::date, ?::date)',
+                    code, barcode, vendor_id, brand_id, description, price_minor, quantity, commission_bps, intake_on, expires_on
+                 ) VALUES (?, ?, ?::uuid, ?::uuid, ?, ?, ?, ?, ?::date, ?::date)',
                 $params
             );
 
@@ -187,7 +188,7 @@ final class InventoryStore
         $count = $this->statements->affected(
             'UPDATE items
              SET code = ?, barcode = ?, vendor_id = ?::uuid, brand_id = ?::uuid, description = ?,
-                 price_minor = ?, commission_bps = ?, intake_on = ?::date, expires_on = ?::date
+                 price_minor = ?, quantity = ?, commission_bps = ?, intake_on = ?::date, expires_on = ?::date
              WHERE id = ?::uuid',
             $params
         );

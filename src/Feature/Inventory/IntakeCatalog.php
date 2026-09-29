@@ -54,6 +54,27 @@ final class IntakeCatalog
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function vendorByCode(string $code): ?array
+    {
+        $needle = strtolower(trim($code));
+        if ($needle === '') {
+            return null;
+        }
+        $rows = $this->statements->bound(
+            'SELECT vendor.id::text AS id, vendor.code, vendor.name,
+                    COALESCE(vendor.commission_bps, mall.commission_bps) AS take_bps
+             FROM vendors AS vendor
+             CROSS JOIN mall
+             WHERE lower(vendor.code) = ?',
+            [$needle]
+        );
+
+        return $rows[0] ?? null;
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function searchBrands(string $query): array

@@ -116,6 +116,10 @@ BEGIN
     IF (SELECT price_minor FROM items WHERE id = '01900000-0000-7000-8000-0000000005b1') <> 12000 THEN
         RAISE EXCEPTION 'the asking price changed when the piece sold';
     END IF;
+    IF (SELECT quantity FROM items WHERE id = '01900000-0000-7000-8000-0000000005b1') <> 0
+        OR (SELECT quantity FROM items WHERE id = '01900000-0000-7000-8000-0000000005b2') <> 0 THEN
+        RAISE EXCEPTION 'a sale did not take the piece off the floor';
+    END IF;
 END $$;
 
 DO $$
@@ -149,13 +153,14 @@ BEGIN
     RAISE EXCEPTION 'a sold piece was accepted again';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a piece is already sold%' THEN
+        IF SQLERRM NOT LIKE '%there are not enough on hand%' THEN
             RAISE;
         END IF;
 END $$;
 
 DO $$
 BEGIN
+    UPDATE items SET quantity = 1 WHERE id = '01900000-0000-7000-8000-0000000005b1';
     INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
     VALUES ('01900000-0000-7000-8000-0000000005c1', 3, '01900000-0000-7000-8000-0000000005b1', 10000, 2500, 800);
     RAISE EXCEPTION 'a second line for the same piece was accepted';

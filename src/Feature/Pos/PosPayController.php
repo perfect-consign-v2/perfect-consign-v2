@@ -17,10 +17,10 @@ final class PosPayController
         private readonly MallApp $app,
         private readonly RegisterGate $gate,
         private readonly PosPage $page,
-        private readonly TicketStore $tickets,
         private readonly TenderSplit $tenders,
         private readonly SalePoster $poster,
         private readonly MallSettings $mall,
+        private readonly SaleCheckout $checkout,
     ) {
     }
 
@@ -31,14 +31,7 @@ final class PosPayController
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         try {
-            $journalId = $this->poster->pay(
-                $session,
-                $this->mall->today(),
-                $this->mall->cashRoundNickel() ? 1 : 0,
-                $this->tickets->cart($session),
-                $this->tenders->read($this->app->request()),
-                $this->handed()
-            );
+            $this->checkout->pay($slug, $session, $this->app->request());
         } catch (DatabaseRefusal $refusal) {
             $this->page->cart($slug, $this->app->catchRefusal($refusal));
             return;
@@ -46,7 +39,7 @@ final class PosPayController
             $this->page->cart($slug, $error->getMessage());
             return;
         }
-        $this->app->redirect($this->receiptPath($slug, $journalId), 'Sale posted.');
+        $this->app->redirect('/' . $slug . '/pos', 'Sale posted.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/receipt/([0-9a-fA-F-]{36})', ['GET'])]
@@ -109,27 +102,6 @@ final class PosPayController
             'change' => $this->change($this->app->request()->query('tendered'), $receipt['cash']),
             'error' => $error,
         ]);
-    }
-
-    private function receiptPath(string $slug, string $journalId): string
-    {
-        $path = '/' . $slug . '/pos/receipt/' . $journalId;
-        $received = $this->app->request()->field('cash_received');
-        if ($received === '') {
-            return $path;
-        }
-
-        return $path . '?tendered=' . rawurlencode($received);
-    }
-
-    private function handed(): ?int
-    {
-        $value = $this->app->request()->field('cash_received');
-        if ($value === '') {
-            return null;
-        }
-
-        return Money::parseMinor($value);
     }
 
     private function change(string $tendered, int $cash): ?int

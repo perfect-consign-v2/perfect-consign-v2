@@ -130,6 +130,7 @@ final class InventoryController
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -148,6 +149,7 @@ final class InventoryController
             'barcode' => $this->app->request()->field('barcode'),
             'description' => $this->app->request()->field('description'),
             'price' => $this->app->request()->field('price'),
+            'quantity' => $this->app->request()->field('quantity'),
             'vendor_id' => $this->app->request()->field('vendor_id'),
             'vendor_label' => $this->app->request()->field('vendor_label'),
             'brand_id' => $this->app->request()->field('brand_id'),
@@ -183,6 +185,7 @@ final class InventoryController
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -228,6 +231,7 @@ final class InventoryController
                 RowValue::string($item['vendor_name'] ?? null),
             );
             $item['barcode'] = RowValue::string($item['barcode'] ?? null);
+            $item['quantity'] = RowValue::integer($item['quantity'] ?? null);
             $item['intake_on'] = RowValue::string($item['intake_on'] ?? null);
             $item['expires_on'] = is_string($expires) ? $expires : '';
             $item['take_label'] = $this->take->format(RowValue::integer($item['take_bps'] ?? null));

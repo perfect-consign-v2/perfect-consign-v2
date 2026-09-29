@@ -64,7 +64,8 @@ final class MallApp
         $data['nav'] = is_string($slug) && $this->sessionSlug() === $slug;
         $data['csrf'] = $this->csrf();
         $data['error'] = $data['error'] ?? null;
-        $data['notice'] = $this->takeNotice();
+        $data['notice'] = $this->takeFlash('notice');
+        $data['warning'] = $this->takeFlash('warning');
         $data['path'] = $this->request->path;
         $data['today'] = $this->roled ? $this->mall->today() : '';
         if (is_string($slug)) {
@@ -105,6 +106,7 @@ final class MallApp
             'csrf' => $home !== '' ? $this->csrf() : '',
             'error' => null,
             'notice' => null,
+            'warning' => null,
             'path' => $this->request->path,
             'body' => 'Shared/Web/not-found',
             'robots' => 'noindex',
@@ -169,26 +171,33 @@ final class MallApp
         $this->redirect('/' . $slug . '/registers');
     }
 
-    public function redirect(string $path, ?string $notice = null): never
+    public function redirect(string $path, ?string $notice = null, ?string $warning = null): never
     {
-        if ($notice !== null && $notice !== '') {
-            $this->session->set('notice', $notice);
-        }
+        $this->keepFlash('notice', $notice);
+        $this->keepFlash('warning', $warning);
         header('Location: ' . $path, true, 303);
         throw new ResponseSent('redirect');
     }
 
-    private function takeNotice(): ?string
+    private function keepFlash(string $key, ?string $value): void
     {
-        $notice = $this->session->get('notice');
-        if ($this->session->has('notice')) {
-            $this->session->delete('notice');
+        if ($value === null || $value === '') {
+            return;
         }
-        if (!is_string($notice) || $notice === '') {
+        $this->session->set($key, $value);
+    }
+
+    private function takeFlash(string $key): ?string
+    {
+        $value = $this->session->get($key);
+        if ($this->session->has($key)) {
+            $this->session->delete($key);
+        }
+        if (!is_string($value) || $value === '') {
             return null;
         }
 
-        return $notice;
+        return $value;
     }
 
     public function open(string $slug, bool $books): TenantRecord

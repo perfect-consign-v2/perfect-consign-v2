@@ -15,6 +15,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var array<string, mixed> $draft */
 /** @var array<int, string> $denominations */
 /** @var list<array<string, mixed>> $registers */
+/** @var list<array{id: string, name: string, opened: string}> $leftOpen */
 
 $labels = [
     'cash' => 'Cash',

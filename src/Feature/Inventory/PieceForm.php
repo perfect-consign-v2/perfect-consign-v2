@@ -24,6 +24,7 @@ final class PieceForm
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -42,6 +43,7 @@ final class PieceForm
             'barcode' => '',
             'description' => '',
             'price' => '',
+            'quantity' => '',
             'vendor_id' => $vendorId,
             'vendor_label' => '',
             'brand_id' => '',
@@ -61,6 +63,7 @@ final class PieceForm
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -84,6 +87,7 @@ final class PieceForm
             'barcode' => RowValue::string($row['barcode'] ?? null),
             'description' => RowValue::string($row['description'] ?? null),
             'price' => View::money(View::minor($row['price_minor'] ?? null)),
+            'quantity' => (string) RowValue::integer($row['quantity'] ?? null),
             'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
             'vendor_label' => $this->catalog->label(
                 RowValue::string($row['vendor_code'] ?? null),
@@ -107,6 +111,7 @@ final class PieceForm
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -122,6 +127,7 @@ final class PieceForm
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -138,6 +144,9 @@ final class PieceForm
         $draft['vendor_id'] = $vendor['id'];
         if ($vendor['label'] !== '') {
             $draft['vendor_label'] = $vendor['label'];
+        }
+        if ($draft['quantity'] === '') {
+            $draft['quantity'] = '1';
         }
         if ($draft['store_take'] === '') {
             $draft['store_take'] = $vendor['take'];
@@ -159,6 +168,7 @@ final class PieceForm
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -174,6 +184,7 @@ final class PieceForm
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -198,6 +209,7 @@ final class PieceForm
             'barcode' => $piece['barcode'],
             'description' => $piece['description'],
             'price' => $piece['price'],
+            'quantity' => $piece['quantity'],
             'vendor_id' => $piece['vendor_id'],
             'vendor_label' => $piece['vendor_label'],
             'brand_id' => $piece['brand_id'],

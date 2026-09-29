@@ -11,6 +11,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $csrf */
 /** @var string|null $error */
 /** @var string|null $notice */
+/** @var string|null $warning */
 /** @var string $body */
 /** @var string $templateDirectory */
 /** @var string $path */
@@ -20,34 +21,36 @@ use PerfectConsign\Shared\Http\View;
 $path = $path ?? '';
 $robots = $robots ?? '';
 $showSearch = ($showSearch ?? true) === true;
+$posShell = ($posShell ?? false) === true;
 $activeRegister = $activeRegister ?? '';
 $chooseRegister = $chooseRegister ?? false;
 $leftOpen = is_array($leftOpen ?? null) ? $leftOpen : [];
 $priorCloseStarted = ($priorCloseStarted ?? false) === true;
 $priorPrompt = ($priorPrompt ?? false) === true;
 $notice = $notice ?? null;
+$warning = $warning ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $groups = [
     'Overview' => [
         ['/dashboard', 'Dashboard', 'i-dashboard'],
-        ['/book', 'Book', 'i-report'],
-        ['/journals', 'Journals', 'i-receipt'],
     ],
     'Operations' => [
-        ['/registers', 'Registers', 'i-pos'],
         ['/pos', 'POS', 'i-cart'],
+        ['/parties', 'Vendors', 'i-vendor'],
+        ['/inventory', 'Inventory', 'i-inventory'],
+        ['/booths', 'Booths', 'i-booth'],
+        ['/registers', 'Registers', 'i-pos'],
         ['/rent', 'Rent', 'i-booth'],
         ['/payout', 'Payout', 'i-wallet'],
-        ['/parties', 'Vendors', 'i-vendor'],
-        ['/booths', 'Booths', 'i-booth'],
         ['/wait-list', 'Wait list', 'i-clock'],
         ['/map', 'Booths Map', 'i-map'],
         ['/brands', 'Brands', 'i-tag'],
-        ['/inventory', 'Inventory', 'i-inventory'],
     ],
     'Business' => [
         ['/adjustment', 'Adjustment', 'i-edit'],
         ['/tax', 'Tax', 'i-percent'],
+        ['/book', 'Book', 'i-report'],
+        ['/journals', 'Journals', 'i-receipt'],
         ['/opening', 'Opening', 'i-plus'],
         ['/close', 'Close', 'i-lock'],
         ['/export', 'Export', 'i-arrow-down'],
@@ -82,10 +85,13 @@ $groups = [
         })();
     </script>
 </head>
-<body>
+<body<?= $posShell ? ' class="pos-register"' : '' ?>>
 <a class="skip" href="#main">Skip to main</a>
 <?php require $templateDirectory . '/Shared/Web/icons.php'; ?>
-<?php if ($nav): ?>
+<?php if ($posShell && $nav): ?>
+<div class="pos-app">
+    <main class="pos-main" id="main">
+<?php elseif ($nav): ?>
 <div class="app" id="app" data-collapsed="false" data-mobile-open="false">
     <aside class="sidebar" id="sidebar" aria-label="Primary"<?= $priorCloseStarted ? ' inert' : '' ?>>
         <div class="sidebar-brand">
@@ -209,6 +215,12 @@ $groups = [
             <p class="notice"><?= View::text($notice) ?></p>
         </div>
     <?php endif; ?>
+    <?php if ($warning !== null && $warning !== ''): ?>
+        <div class="alert alert-warning" role="status">
+            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
+            <p class="warning"><?= View::text($warning) ?></p>
+        </div>
+    <?php endif; ?>
     <?php if (($error !== null && $error !== '') && ($modal ?? '') === ''): ?>
         <div class="alert alert-danger" role="alert">
             <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
@@ -217,7 +229,9 @@ $groups = [
     <?php endif; ?>
     <?php require $templateDirectory . DIRECTORY_SEPARATOR . $body . '.php'; ?>
 </main>
-<?php if ($nav): ?>
+<?php if ($posShell && $nav): ?>
+</div>
+<?php elseif ($nav): ?>
     </div>
     <div class="sidebar-scrim" data-mobile-toggle></div>
 </div>

@@ -92,6 +92,13 @@ VALUES (
 INSERT INTO register_session_posts (session_id, journal_id)
 VALUES ('01900000-0000-7000-8000-000000000d2b', '01900000-0000-7000-8000-0000000008c2');
 
+DO $$
+BEGIN
+    IF (SELECT quantity FROM items WHERE id = '01900000-0000-7000-8000-0000000008a1') <> 1 THEN
+        RAISE EXCEPTION 'a return did not put the piece back';
+    END IF;
+END $$;
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
@@ -140,7 +147,7 @@ BEGIN
     RAISE EXCEPTION 'the rest of the ticket was sold again';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a piece is already sold%' THEN
+        IF SQLERRM NOT LIKE '%there are not enough on hand%' THEN
             RAISE;
         END IF;
 END $$;
@@ -158,6 +165,10 @@ BEGIN
 EXCEPTION
     WHEN unique_violation THEN
         NULL;
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a return is more than what was sold%' THEN
+            RAISE;
+        END IF;
 END $$;
 
 DO $$

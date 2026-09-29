@@ -10,7 +10,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $vendorsUrl */
 /** @var string $brandsUrl */
 /** @var string $brandCreateUrl */
-/** @var array{id: string, code: string, barcode: string, description: string, price: string, vendor_id: string, vendor_label: string, brand_id: string, brand_label: string, store_take: string, default_take: string, overridden: bool, intake_on: string, expires_on: string, expire_dirty: bool} $piece */
+/** @var array{id: string, code: string, barcode: string, description: string, price: string, quantity: string, vendor_id: string, vendor_label: string, brand_id: string, brand_label: string, store_take: string, default_take: string, overridden: bool, intake_on: string, expires_on: string, expire_dirty: bool} $piece */
 
 $editing = $piece['id'] !== '';
 $action = $editing ? '/' . $slug . '/inventory/' . $piece['id'] : '/' . $slug . '/inventory';
@@ -80,6 +80,10 @@ $expireHint = $floorDays === ''
             <div class="field">
                 <label for="price">Asking price</label>
                 <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($piece['price']) ?>" required>
+            </div>
+            <div class="field">
+                <label for="quantity">Qty</label>
+                <input class="input" id="quantity" name="quantity" inputmode="numeric" value="<?= View::text($piece['quantity']) ?>" required>
             </div>
             <div class="field">
                 <label for="store_take">Store take <span class="badge badge-warning" id="store_take_badge"<?= $piece['overridden'] ? '' : ' hidden' ?>>Overridden</span></label>

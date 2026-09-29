@@ -24,6 +24,7 @@ final class PieceWriter
      *     barcode: string,
      *     description: string,
      *     price: string,
+     *     quantity: string,
      *     vendor_id: string,
      *     vendor_label: string,
      *     brand_id: string,
@@ -48,10 +49,24 @@ final class PieceWriter
             $this->brandOf($draft['brand_id'], $draft['brand_label']),
             $draft['description'],
             Money::parseMinor($draft['price']),
+            $this->quantity($draft['quantity'], $draft['id'] === ''),
             $this->takeOf($draft['vendor_id'], $draft['store_take']),
-            $intake,
-            $this->expires($draft['expires_on'], $intake),
+            new PieceDates($intake, $this->expires($draft['expires_on'], $intake)),
         );
+    }
+
+    private function quantity(string $value, bool $creating): int
+    {
+        $text = $value === '' ? '1' : $value;
+        if (preg_match('/^(?:0|[1-9][0-9]{0,8})$/', $text) !== 1) {
+            throw new \InvalidArgumentException('Enter a whole quantity.');
+        }
+        $count = (int) $text;
+        if ($creating && $count < 1) {
+            throw new \InvalidArgumentException('Enter a quantity of at least 1.');
+        }
+
+        return $count;
     }
 
     private function brandOf(string $brandId, string $label): ?string

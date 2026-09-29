@@ -196,12 +196,14 @@ final class OwnerJourneyTest extends WebTestCase
             'vendor_id' => $vendorId,
             'brand_id' => $brandId,
             'price' => '12.50',
+            'quantity' => '4',
             'barcode' => $barcode,
             'store_take' => '15',
             'intake_on' => '2026-09-01',
             'expires_on' => '2026-12-01',
         ]);
         self::assertSees('Piece created.', $page);
+        self::assertSees('id="quantity" name="quantity" inputmode="numeric" value="1"', $page);
         self::assertSees('Adding pieces for ' . $label, $page);
         self::assertSees('value="2026-09-01"', $page);
         self::assertSees('value="2026-10-01"', $page);
@@ -215,6 +217,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('2026-12-01', $list);
         self::assertSees('Overridden', $list);
         self::assertSees($label, $list);
+        self::assertSees('>4<', $list);
         $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $tag);
         $update = '/' . ProbeMall::SLUG . '/inventory/' . $itemId;
         $edited = $this->client->post($update, [
@@ -223,6 +226,7 @@ final class OwnerJourneyTest extends WebTestCase
             'vendor_id' => $vendorId,
             'brand_id' => $otherId,
             'price' => '15.00',
+            'quantity' => '4',
             'barcode' => $barcode,
             'store_take' => '15',
             'intake_on' => '2026-09-01',
