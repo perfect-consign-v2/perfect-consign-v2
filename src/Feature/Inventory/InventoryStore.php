@@ -147,7 +147,9 @@ final class InventoryStore
             $attempt++;
             $barcode = $piece->barcode !== '' ? $piece->barcode : $this->allocate($today);
             try {
-                $this->store($id, $piece, $barcode);
+                $this->statements->isolated(function () use ($id, $piece, $barcode): void {
+                    $this->store($id, $piece, $barcode);
+                });
 
                 return;
             } catch (DatabaseRefusal $error) {

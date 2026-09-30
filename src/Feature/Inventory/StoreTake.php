@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
+use PerfectConsign\Ledger\BasisPoints;
+
 final class StoreTake
 {
     public function fromPercent(string $percent): ?int
@@ -11,16 +13,8 @@ final class StoreTake
         if ($percent === '') {
             return null;
         }
-        if (preg_match('/^(\d{1,3})(?:\.(\d{1,2}))?$/', $percent, $parts) !== 1) {
-            return null;
-        }
-        $fraction = str_pad($parts[2] ?? '', 2, '0');
-        $basis = ((int) $parts[1] * 100) + (int) $fraction;
-        if ($basis > 10000) {
-            return null;
-        }
 
-        return $basis;
+        return BasisPoints::percent($percent);
     }
 
     public function format(int $basis): string

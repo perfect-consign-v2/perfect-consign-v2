@@ -51,6 +51,7 @@ final class RegisterActivity
              ORDER BY opened_at DESC',
             [$registerId]
         );
+        $takenBySession = $this->shiftTenders($registerId);
         $shifts = [];
         foreach ($rows as $row) {
             $closed = is_string($row['closed_at'] ?? null) && $row['closed_at'] !== '';
@@ -58,19 +59,17 @@ final class RegisterActivity
             $row['closed_at'] = $this->local($row['closed_at'] ?? null);
             if ($closed) {
                 $sessionId = RowValue::string($row['id'] ?? null);
-                $drawer = $this->drawer($sessionId);
-                $row['cash_difference'] = DenominationCount::difference(
-                    RowValue::integer($row['counted_cash_minor'] ?? 0),
-                    $drawer['expected']
-                );
-                $row['card_difference'] = DenominationCount::difference(
-                    RowValue::integer($row['counted_card_minor'] ?? 0),
-                    $drawer['tenders']['card'] ?? 0
-                );
-                $row['checks_difference'] = DenominationCount::difference(
-                    RowValue::integer($row['counted_checks_minor'] ?? 0),
-                    $drawer['tenders']['checks'] ?? 0
-                );
+                $taken = $takenBySession[$sessionId] ?? ['cash' => 0, 'card' => 0, 'checks' => 0];
+                $countedCash = RowValue::integer($row['counted_cash_minor'] ?? 0);
+                $expectedCash = RowValue::integer($row['opening_cash_minor'] ?? 0) + $taken['cash'];
+                $countedCard = RowValue::integer($row['counted_card_minor'] ?? 0);
+                $countedChecks = RowValue::integer($row['counted_checks_minor'] ?? 0);
+                $row['cash_difference'] = DenominationCount::difference($countedCash, $expectedCash);
+                $row['card_difference'] = DenominationCount::difference($countedCard, $taken['card']);
+                $row['checks_difference'] = DenominationCount::difference($countedChecks, $taken['checks']);
+                $row['cash_mark'] = DenominationCount::mark($countedCash, $expectedCash);
+                $row['card_mark'] = DenominationCount::mark($countedCard, $taken['card']);
+                $row['checks_mark'] = DenominationCount::mark($countedChecks, $taken['checks']);
             }
             $shifts[] = $row;
         }
@@ -145,22 +144,46 @@ final class RegisterActivity
         return $this->clock->localTime($value);
     }
 
+    /**
+     * @return array<string, array{cash: int, card: int, checks: int}>
+     */
+    private function shiftTenders(string $registerId): array
+    {
+        $rows = $this->statements->bound(
+            'SELECT post.session_id, role.role, COALESCE(sum(line.debit_minor - line.credit_minor), 0) AS net
+             FROM register_sessions AS session
+             JOIN register_session_posts AS post ON post.session_id = session.id
+             JOIN journal_lines AS line ON line.journal_id = post.journal_id
+             JOIN journals AS journal ON journal.id = post.journal_id
+             JOIN chart_roles AS role ON role.account_id = line.account_id
+             WHERE session.register_id = ?::uuid
+               AND journal.source_type <> ?
+               AND role.role IN (?, ?, ?)
+             GROUP BY post.session_id, role.role',
+            [$registerId, 'register_variance', 'cash', 'card', 'checks']
+        );
+        $taken = [];
+        foreach ($rows as $row) {
+            $sessionId = RowValue::string($row['session_id'] ?? null);
+            $role = RowValue::string($row['role'] ?? null);
+            if (!isset($taken[$sessionId])) {
+                $taken[$sessionId] = ['cash' => 0, 'card' => 0, 'checks' => 0];
+            }
+            if ($role === 'cash' || $role === 'card' || $role === 'checks') {
+                $taken[$sessionId][$role] = RowValue::integer($row['net'] ?? 0);
+            }
+        }
+
+        return $taken;
+    }
+
     private function expectedCash(string $sessionId): int
     {
         $rows = $this->statements->bound(
-            'SELECT session.opening_cash_minor + COALESCE((
-                SELECT sum(line.debit_minor - line.credit_minor)
-                FROM journal_lines AS line
-                JOIN chart_roles AS role ON role.account_id = line.account_id
-                JOIN register_session_posts AS post ON post.journal_id = line.journal_id
-                JOIN journals AS journal ON journal.id = line.journal_id
-                WHERE post.session_id = session.id
-                  AND role.role = ?
-                  AND journal.source_type <> ?
-             ), 0) AS expected
+            'SELECT stall_register_expected_cash(session.id) AS expected
              FROM register_sessions AS session
              WHERE session.id = ?::uuid',
-            ['cash', 'register_variance', $sessionId]
+            [$sessionId]
         );
         if ($rows === []) {
             throw new DatabaseRefusal('that register session is not in this mall');

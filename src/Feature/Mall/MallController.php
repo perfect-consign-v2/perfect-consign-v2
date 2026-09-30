@@ -10,6 +10,7 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Backup\BackupHeadline;
 use PerfectConsign\Feature\Backup\BackupStore;
+use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class MallController
@@ -199,16 +200,8 @@ final class MallController
         if ($percent === '') {
             return 0;
         }
-        if (preg_match('/^(\d{1,3})(?:\.(\d{1,2}))?$/', $percent, $parts) !== 1) {
-            return null;
-        }
-        $fraction = str_pad($parts[2] ?? '', 2, '0');
-        $basis = ((int) $parts[1] * 100) + (int) $fraction;
-        if ($basis > 10000) {
-            return null;
-        }
 
-        return $basis;
+        return BasisPoints::percent($percent);
     }
 
     private function taxMillis(string $percent): ?int
@@ -216,16 +209,7 @@ final class MallController
         if ($percent === '') {
             return 0;
         }
-        if (preg_match('/^(\d{1,3})(?:\.(\d{1,3}))?$/', $percent, $parts) !== 1) {
-            return null;
-        }
-        $fraction = str_pad($parts[2] ?? '', 3, '0');
-        $millis = ((int) $parts[1] * 1000) + (int) $fraction;
-        if ($millis > 100000) {
-            return null;
-        }
-
-        return $millis;
+        return BasisPoints::taxRate($percent);
     }
 
     private function taxPercent(int $millis): string

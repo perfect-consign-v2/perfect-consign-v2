@@ -104,16 +104,18 @@ final class LayawayBook
         if ($ticketId === '' || $parts === [] || $tender['sum'] < 1 || $tender['sum'] >= $remaining) {
             throw new DatabaseRefusal($ticketId === '' ? 'there is no open ticket' : 'a layaway deposit cannot pass the amount due');
         }
-        foreach ($parts as $part) {
-            $this->postDeposit($session, $date, $ticketId, $due, $part['tender'], $part['amount'], $part['check']);
-        }
-        $updated = $this->statements->affected(
-            "UPDATE tickets SET status = 'layaway' WHERE id = ?::uuid AND status = 'open'",
-            [$ticketId]
-        );
-        if ($updated !== 1) {
-            throw new DatabaseRefusal('there is no open ticket');
-        }
+        $this->statements->transaction(function () use ($session, $date, $ticketId, $due, $parts): void {
+            foreach ($parts as $part) {
+                $this->postDeposit($session, $date, $ticketId, $due, $part['tender'], $part['amount'], $part['check']);
+            }
+            $updated = $this->statements->affected(
+                "UPDATE tickets SET status = 'layaway' WHERE id = ?::uuid AND status = 'open'",
+                [$ticketId]
+            );
+            if ($updated !== 1) {
+                throw new DatabaseRefusal('there is no open ticket');
+            }
+        });
     }
 
     public function cancel(string $session, string $date, string $ticketId): void
@@ -121,26 +123,36 @@ final class LayawayBook
         if ($ticketId === '') {
             throw new DatabaseRefusal('that ticket is not parked');
         }
-        foreach ($this->openDeposits($ticketId) as $deposit) {
-            $this->ledger->post(new JournalDraft(
-                'layaway-refund:' . $deposit['id'],
-                $date,
-                new JournalSource('layaway_refund', $deposit['id'], 'Layaway refund'),
-                [
-                    PostedLines::entry($this->ledger->roleAccount('layaway_deposit'), $deposit['amount'], 0, 'ticket', $ticketId),
-                    PostedLines::entry($this->ledger->roleAccount($deposit['tender']), 0, $deposit['amount'], null, null),
-                ],
-                sessionId: $session,
-                checkNumber: $deposit['check'],
-            ));
-        }
-        $deleted = $this->statements->affected(
-            "DELETE FROM tickets WHERE id = ?::uuid AND status = 'layaway'",
-            [$ticketId]
-        );
-        if ($deleted !== 1) {
-            throw new DatabaseRefusal('that ticket is not parked');
-        }
+        $this->statements->transaction(function () use ($session, $date, $ticketId): void {
+            foreach ($this->openDeposits($ticketId) as $deposit) {
+                $this->postRefund($session, $date, $ticketId, $deposit);
+            }
+            $deleted = $this->statements->affected(
+                "DELETE FROM tickets WHERE id = ?::uuid AND status = 'layaway'",
+                [$ticketId]
+            );
+            if ($deleted !== 1) {
+                throw new DatabaseRefusal('that ticket is not parked');
+            }
+        });
+    }
+
+    /**
+     * @param array{id: string, amount: int, tender: string, check: ?string} $deposit
+     */
+    private function postRefund(string $session, string $date, string $ticketId, array $deposit): void
+    {
+        $this->ledger->post(new JournalDraft(
+            'layaway-refund:' . $deposit['id'],
+            $date,
+            new JournalSource('layaway_refund', $deposit['id'], 'Layaway refund'),
+            [
+                PostedLines::entry($this->ledger->roleAccount('layaway_deposit'), $deposit['amount'], 0, 'ticket', $ticketId),
+                PostedLines::entry($this->ledger->roleAccount($deposit['tender']), 0, $deposit['amount'], null, null),
+            ],
+            sessionId: $session,
+            checkNumber: $deposit['check'],
+        ));
     }
 
     /**

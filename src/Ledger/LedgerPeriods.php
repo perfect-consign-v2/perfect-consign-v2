@@ -48,6 +48,30 @@ final class LedgerPeriods
 
     private function openYear(string $bookId, string $postingDate): void
     {
+        $attempt = 0;
+        while ($attempt < 3) {
+            $attempt++;
+            if ($this->covering($bookId, $postingDate, 'open') !== null) {
+                return;
+            }
+            [$start, $end] = $this->bounds($bookId, $postingDate);
+            try {
+                $this->insertPeriod($bookId, $start, $end);
+
+                return;
+            } catch (\PDOException $error) {
+                if (!$this->retryable($error) || $attempt === 3) {
+                    throw new DatabaseRefusal('That day could not be opened.');
+                }
+            }
+        }
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function bounds(string $bookId, string $postingDate): array
+    {
         $year = substr($postingDate, 0, 4);
         $start = $year . '-01-01';
         $end = $year . '-12-31';
@@ -80,10 +104,37 @@ final class LedgerPeriods
         if ($start > $postingDate || $end < $postingDate) {
             throw new DatabaseRefusal('That day could not be opened.');
         }
-        $insert = $this->pdo->prepare(
-            'INSERT INTO accounting_periods (book_id, starts_on, ends_on, status) VALUES (?::uuid, ?::date, ?::date, ?)'
-        );
-        $insert->execute([$bookId, $start, $end, 'open']);
+
+        return [$start, $end];
+    }
+
+    private function insertPeriod(string $bookId, string $start, string $end): void
+    {
+        $joined = $this->pdo->inTransaction();
+        if ($joined) {
+            $this->pdo->exec('SAVEPOINT stall_period');
+        }
+        try {
+            $insert = $this->pdo->prepare(
+                'INSERT INTO accounting_periods (book_id, starts_on, ends_on, status) VALUES (?::uuid, ?::date, ?::date, ?)'
+            );
+            $insert->execute([$bookId, $start, $end, 'open']);
+            if ($joined) {
+                $this->pdo->exec('RELEASE SAVEPOINT stall_period');
+            }
+        } catch (\PDOException $error) {
+            if ($joined && $this->pdo->inTransaction()) {
+                $this->pdo->exec('ROLLBACK TO SAVEPOINT stall_period');
+            }
+            throw $error;
+        }
+    }
+
+    private function retryable(\PDOException $error): bool
+    {
+        $state = $error->getCode();
+
+        return $state === '23P01' || $state === '23505';
     }
 
     private function nearestDate(string $sql, string $bookId, string $postingDate): ?string

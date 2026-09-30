@@ -28,6 +28,7 @@ final class Statements
         $this->pdo->beginTransaction();
         try {
             $work();
+            $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
             $this->pdo->commit();
         } catch (\Throwable $error) {
             if ($this->pdo->inTransaction()) {
@@ -35,6 +36,31 @@ final class Statements
             }
             throw $error;
         }
+    }
+
+    public function isolated(callable $work): void
+    {
+        if (!$this->pdo->inTransaction()) {
+            $work();
+
+            return;
+        }
+        $this->pdo->exec('SAVEPOINT stall_retry');
+        try {
+            $work();
+            $this->pdo->exec('RELEASE SAVEPOINT stall_retry');
+        } catch (\Throwable $error) {
+            $this->rollbackRetry();
+            throw $error;
+        }
+    }
+
+    private function rollbackRetry(): void
+    {
+        if (!$this->pdo->inTransaction()) {
+            return;
+        }
+        $this->pdo->exec('ROLLBACK TO SAVEPOINT stall_retry');
     }
 
     /**

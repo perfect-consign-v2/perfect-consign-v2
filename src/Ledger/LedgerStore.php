@@ -157,8 +157,11 @@ final class LedgerStore
 
     private function commitJournal(JournalDraft $draft): string
     {
+        $joined = $this->pdo->inTransaction();
         try {
-            $this->pdo->beginTransaction();
+            if (!$joined) {
+                $this->pdo->beginTransaction();
+            }
             $journalId = $this->insertJournal(
                 $draft->postingKey,
                 $draft->postingDate,
@@ -175,14 +178,20 @@ final class LedgerStore
                 $finished($journalId);
             }
             $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
-            $this->pdo->commit();
+            if (!$joined) {
+                $this->pdo->commit();
+            }
 
             return $journalId;
         } catch (PDOException $error) {
-            $this->rollBackOpen();
+            if (!$joined) {
+                $this->rollBackOpen();
+            }
             throw DatabaseRefusal::fromPdo($error);
         } catch (DatabaseRefusal $error) {
-            $this->rollBackOpen();
+            if (!$joined) {
+                $this->rollBackOpen();
+            }
             throw $error;
         }
     }

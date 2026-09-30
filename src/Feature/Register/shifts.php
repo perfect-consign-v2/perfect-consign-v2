@@ -45,19 +45,9 @@ use PerfectConsign\Shared\Scalar\RowValue;
                 $cashDiff = $closed && is_string($shift['cash_difference'] ?? null) ? $shift['cash_difference'] : '';
                 $cardDiff = $closed && is_string($shift['card_difference'] ?? null) ? $shift['card_difference'] : '';
                 $checksDiff = $closed && is_string($shift['checks_difference'] ?? null) ? $shift['checks_difference'] : '';
-                $shade = static function (string $text): string {
-                    if (str_ends_with($text, 'over')) {
-                        return 'diff-over';
-                    }
-                    if (str_ends_with($text, 'short')) {
-                        return 'diff-short';
-                    }
-                    if ($text === 'Even') {
-                        return 'diff-even';
-                    }
-
-                    return '';
-                };
+                $cashMark = $closed && is_string($shift['cash_mark'] ?? null) ? $shift['cash_mark'] : '';
+                $cardMark = $closed && is_string($shift['card_mark'] ?? null) ? $shift['card_mark'] : '';
+                $checksMark = $closed && is_string($shift['checks_mark'] ?? null) ? $shift['checks_mark'] : '';
                 ?>
                 <tr>
                     <td><?= View::text(RowValue::string($shift['cashier'] ?? null)) ?></td>
@@ -65,9 +55,9 @@ use PerfectConsign\Shared\Scalar\RowValue;
                     <td><?= $closed ? View::text($shift['closed_at']) : 'Open' ?></td>
                     <td><?= View::text(DenominationCount::dollars(RowValue::integer($shift['opening_cash_minor'] ?? 0))) ?></td>
                     <td><?= $closed ? View::text(DenominationCount::dollars(RowValue::integer($shift['counted_cash_minor'] ?? 0))) : '' ?></td>
-                    <td class="<?= View::text($shade($cashDiff)) ?>"><?= View::text($cashDiff) ?></td>
-                    <td class="<?= View::text($shade($cardDiff)) ?>"><?= View::text($cardDiff) ?></td>
-                    <td class="<?= View::text($shade($checksDiff)) ?>"><?= View::text($checksDiff) ?></td>
+                    <td class="<?= View::text($cashMark) ?>"><?= View::text($cashDiff) ?></td>
+                    <td class="<?= View::text($cardMark) ?>"><?= View::text($cardDiff) ?></td>
+                    <td class="<?= View::text($checksMark) ?>"><?= View::text($checksDiff) ?></td>
                     <td><?php if ($closed): ?><a href="/<?= View::text($slug) ?>/registers/sessions/<?= View::text($id) ?>">Z-tape</a><?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>

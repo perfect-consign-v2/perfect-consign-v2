@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Party;
 
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Ledger\BasisPoints;
 
 final class VendorForm
 {
@@ -32,12 +33,8 @@ final class VendorForm
         if ($entered === '') {
             return null;
         }
-        if (preg_match('/^(\d{1,3})(?:\.(\d{1,2}))?$/', $entered, $parts) !== 1) {
-            throw new \InvalidArgumentException('store take is a percent from 0 to 100');
-        }
-        $fraction = str_pad($parts[2] ?? '', 2, '0');
-        $basis = ((int) $parts[1] * 100) + (int) $fraction;
-        if ($basis > 10000) {
+        $basis = BasisPoints::percent($entered);
+        if ($basis === null) {
             throw new \InvalidArgumentException('store take is a percent from 0 to 100');
         }
         if ($basis === $this->mall->storeTake()) {

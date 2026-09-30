@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Mall;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -120,14 +121,14 @@ final class MallSettings
 
     private function requireTake(int $storeTake): void
     {
-        if ($storeTake < 0 || $storeTake > 10000) {
+        if ($storeTake < 0 || $storeTake > BasisPoints::PERCENT) {
             throw new \InvalidArgumentException('store take is a percent from 0 to 100');
         }
     }
 
     private function requireTax(int $taxRate): void
     {
-        if ($taxRate < 0 || $taxRate > 100000) {
+        if ($taxRate < 0 || $taxRate > BasisPoints::TAX) {
             throw new \InvalidArgumentException('tax rate is a percent from 0 to 100');
         }
     }

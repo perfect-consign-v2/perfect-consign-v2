@@ -56,7 +56,7 @@ BEGIN
         RETURN 0;
     END IF;
     IF kind = 'percent' THEN
-        SELECT ((line.price_minor * line.quantity - line.line_discount_minor) * value + 5000) / 10000
+        SELECT public.stall_half_up(line.price_minor * line.quantity - line.line_discount_minor, value)
         INTO share
         FROM public.ticket_lines AS line
         WHERE line.ticket_id = ticket
@@ -146,7 +146,7 @@ BEGIN
     END IF;
     extended := NEW.price_minor * NEW.quantity;
     IF NEW.line_discount_kind = 'percent' THEN
-        minor := (extended * NEW.line_discount_value + 5000) / 10000;
+        minor := public.stall_half_up(extended, NEW.line_discount_value);
     ELSE
         minor := NEW.line_discount_value;
     END IF;

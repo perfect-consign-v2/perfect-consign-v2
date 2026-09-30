@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Ledger\BasisPoints;
+
 final class TicketQuote
 {
     public static function halfUp(int $price, int $bps): int
     {
-        return intdiv($price * $bps + 5000, 10000);
+        return BasisPoints::halfUp($price, $bps);
     }
 
     public static function tax(int $price, int $discount, int $taxBps): int
     {
-        return intdiv(($price - $discount) * $taxBps + 50000, 100000);
+        return BasisPoints::tax($price - $discount, $taxBps);
     }
 
     public static function percentLabel(int $bps): string

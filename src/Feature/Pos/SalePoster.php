@@ -151,10 +151,13 @@ final class SalePoster
      */
     private function attach(string $journalId, string $ticketId, array $pieces): void
     {
-        $this->statements->bound(
+        $locked = $this->statements->bound(
             'SELECT id FROM tickets WHERE id = ?::uuid AND status = ? FOR UPDATE',
             [$ticketId, 'open']
         );
+        if ($locked === []) {
+            throw new DatabaseRefusal('a posted ticket cannot change');
+        }
         $this->samePrices($ticketId, $pieces);
         foreach ($pieces as $piece) {
             $this->statements->change(

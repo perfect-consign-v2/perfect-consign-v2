@@ -3,6 +3,24 @@
 -- The posting key is the sale. A second insert of that key is refused. A void is a reversal.
 -- sql/031_sale_lines.sql replaces this function again for a mall that already ran this file.
 
+CREATE OR REPLACE FUNCTION stall_half_up(amount bigint, bps bigint)
+RETURNS bigint
+LANGUAGE sql
+IMMUTABLE
+SET search_path = pg_catalog
+AS $$
+    SELECT (amount * bps + 5000) / 10000;
+$$;
+
+CREATE OR REPLACE FUNCTION stall_tax_minor(net bigint, tax_bps bigint)
+RETURNS bigint
+LANGUAGE sql
+IMMUTABLE
+SET search_path = pg_catalog
+AS $$
+    SELECT (net * tax_bps + 50000) / 100000;
+$$;
+
 INSERT INTO accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type)
 VALUES (
     '01900000-0000-7000-8000-000000000016',
@@ -100,11 +118,11 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
 
-        expected_commission := (NEW.price_minor * commission_bps + 5000) / 10000;
+        expected_commission := public.stall_half_up(NEW.price_minor, commission_bps);
         IF tax_exempt THEN
             expected_tax := 0;
         ELSE
-            expected_tax := (NEW.price_minor * tax_bps + 5000) / 10000;
+            expected_tax := public.stall_tax_minor(NEW.price_minor, tax_bps);
         END IF;
 
         IF NEW.commission_minor IS DISTINCT FROM expected_commission THEN

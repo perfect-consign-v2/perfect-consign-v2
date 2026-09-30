@@ -100,7 +100,7 @@ BEGIN
         RETURN 0;
     END IF;
     IF kind = 'percent' THEN
-        SELECT (line.price_minor * line.quantity * value + 5000) / 10000
+        SELECT public.stall_half_up(line.price_minor * line.quantity, value)
         INTO share
         FROM public.ticket_lines AS line
         WHERE line.ticket_id = ticket
@@ -416,12 +416,12 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
 
-        expected_commission := ((NEW.price_minor * NEW.quantity - NEW.discount_minor) * commission_bps + 5000) / 10000;
+        expected_commission := public.stall_half_up(NEW.price_minor * NEW.quantity - NEW.discount_minor, commission_bps);
 
         IF tax_exempt OR waiver THEN
             expected_tax := 0;
         ELSE
-            expected_tax := ((NEW.price_minor * NEW.quantity - NEW.discount_minor) * tax_bps + 5000) / 10000;
+            expected_tax := public.stall_tax_minor(NEW.price_minor * NEW.quantity - NEW.discount_minor, tax_bps);
         END IF;
 
         IF NEW.commission_minor IS DISTINCT FROM expected_commission THEN

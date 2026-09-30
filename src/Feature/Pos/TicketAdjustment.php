@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Ledger\Money;
 
 final class TicketAdjustment
@@ -58,9 +59,8 @@ final class TicketAdjustment
         if (preg_match('/^(\d{1,3})(?:\.(\d{1,2}))?$/', $value, $matches) !== 1) {
             throw new \InvalidArgumentException('enter a percent from 0 to 100');
         }
-        $fraction = str_pad($matches[2] ?? '', 2, '0');
-        $points = ((int) $matches[1] * 100) + (int) $fraction;
-        if ($points > 10000) {
+        $points = BasisPoints::percent($matches[1] . '.' . str_pad($matches[2] ?? '', 2, '0'));
+        if ($points === null) {
             throw new \InvalidArgumentException('enter a percent from 0 to 100');
         }
 

@@ -32,6 +32,8 @@ final class RegisterSession
         if ($total === 0) {
             $counts = DenominationCount::forAmount($typedFloat);
             $total = $typedFloat;
+        } elseif ($total !== $typedFloat) {
+            throw new DatabaseRefusal('the bills and coins must add up to the opening float');
         }
         $rows = $this->statements->bound(
             'INSERT INTO register_sessions (register_id, cashier, opening_counts, opening_cash_minor)
@@ -53,8 +55,10 @@ final class RegisterSession
     {
         $sessionId = $this->openSessionId($registerId);
         $fromBills = DenominationCount::total($counts);
-        if ($fromBills !== $typedCash) {
+        if ($fromBills === 0) {
             $counts = DenominationCount::forAmount($typedCash);
+        } elseif ($fromBills !== $typedCash) {
+            throw new DatabaseRefusal('the bills and coins must add up to the counted cash');
         }
         $counted = $typedCash;
         $expected = $this->activity->drawer($sessionId)['expected'];

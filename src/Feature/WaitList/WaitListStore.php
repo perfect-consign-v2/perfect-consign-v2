@@ -6,12 +6,14 @@ namespace PerfectConsign\Feature\WaitList;
 
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
+use Psr\Log\LoggerInterface;
 
 final class WaitListStore
 {
     public function __construct(
         private readonly Statements $statements,
         private readonly WaitListFields $fields,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -248,8 +250,18 @@ final class WaitListStore
             'contacted' => ['label' => 'Contacted', 'badge' => 'badge-accent'],
             'placed' => ['label' => 'Placed', 'badge' => 'badge-success'],
             'declined' => ['label' => 'Declined', 'badge' => ''],
-            default => throw new \InvalidArgumentException('a wait list status is missing'),
+            default => $this->unknown($status),
         };
+    }
+
+    /**
+     * @return array{label: string, badge: string}
+     */
+    private function unknown(string $status): array
+    {
+        $this->logger->warning('wait list status is not one of the four', ['status' => $status]);
+
+        return ['label' => $status, 'badge' => ''];
     }
 
     private function sizeLabel(mixed $width, mixed $depth): string
