@@ -23,6 +23,7 @@ declare(strict_types=1);
     const checkNumber = document.getElementById('pay-check-number');
     const checkError = document.getElementById('pay-check-error');
     const done = document.getElementById('pay-done');
+    const hold = document.getElementById('pay-hold');
     const fields = form.querySelectorAll('[name^="tender_"]');
     function money(cents) {
         const n = Math.max(0, cents);
@@ -132,9 +133,19 @@ declare(strict_types=1);
         if (done) {
             done.disabled = checkMissing;
         }
+        const covers = residual === 0 ? sum >= due : cashCents >= cashDue;
         if (process) {
-            const covers = residual === 0 ? sum >= due : cashCents >= cashDue;
             process.disabled = Number(form.getAttribute('data-lines')) < 1 || !covers || checkMissing;
+        }
+        if (hold) {
+            let other = 0;
+            fields.forEach(function (input) {
+                if (input.name !== 'tender_cash' && input.name !== 'tender_card' && input.name !== 'tender_checks') {
+                    other += cents(input.value);
+                }
+            });
+            const buyer = form.getAttribute('data-buyer') || '';
+            hold.disabled = buyer === '' || other > 0 || checkMissing || sum < 1 || covers || Number(form.getAttribute('data-lines')) < 1;
         }
     }
     function fill(role) {

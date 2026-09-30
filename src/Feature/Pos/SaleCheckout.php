@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\CashRound;
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Http\Request;
 
@@ -22,17 +23,29 @@ final class SaleCheckout
     ) {
     }
 
-    public function pay(string $slug, string $session, Request $request): string
+    /**
+     * @return array{path: string, notice: string}
+     */
+    public function pay(string $slug, string $session, Request $request): array
     {
         $this->sales->refuse($slug);
         $cart = $this->tickets->cart($session);
         $deposits = $this->layaways->balance($cart['ticket_id']);
-        $tender = $this->layaways->include(
-            $cart['ticket_id'],
-            $deposits,
-            $this->held->split($cart['ticket_id'], $cart['due'], $deposits)
-                ?? $this->tenders->read($request),
-        );
+        $holding = $request->field('hold') === '1';
+        $entered = $holding ? $this->tenders->read($request) : ($this->held->split($cart['ticket_id'], $cart['due'], $deposits) ?? $this->tenders->read($request));
+        if ($holding && $entered['sum'] < $cart['due'] - $deposits) {
+            if ($cart['buyer_id'] === '') {
+                throw new DatabaseRefusal('Choose a customer to hold a layaway.');
+            }
+            $this->layaways->hold($session, $this->mall->today(), $cart['ticket_id'], $cart['due'], $entered);
+            $name = $cart['buyer_name'] !== '' ? $cart['buyer_name'] : 'the customer';
+
+            return [
+                'path' => '/' . $slug . '/pos/layaway/' . $cart['ticket_id'],
+                'notice' => 'Layaway held for ' . $name . '.',
+            ];
+        }
+        $tender = $this->layaways->include($cart['ticket_id'], $deposits, $entered);
         $nonCash = $tender['sum'] - $tender['cash'];
         $residual = $cart['due'] - $nonCash;
         $allCash = $tender['cash'] > 0 && $nonCash === 0 && $deposits === 0;
@@ -55,7 +68,10 @@ final class SaleCheckout
         );
         $this->sales->keep($slug, $journalId, $shown);
 
-        return $journalId;
+        return [
+            'path' => '/' . $slug . '/pos',
+            'notice' => 'Sale posted.',
+        ];
     }
 
     /**

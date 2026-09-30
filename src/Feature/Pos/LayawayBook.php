@@ -17,6 +17,9 @@ final class LayawayBook
     /** @var list<string> */
     private const TENDERS = ['cash', 'card', 'checks'];
 
+    /** @var array<string, string> */
+    private const TENDER_NAMES = ['cash' => 'Cash', 'card' => 'Card', 'checks' => 'Check'];
+
     public function __construct(
         private readonly Statements $statements,
         private readonly LedgerStore $ledger,
@@ -41,36 +44,76 @@ final class LayawayBook
         return RowValue::integer($rows[0]['balance'] ?? null);
     }
 
-    public function deposit(
-        string $session,
-        string $date,
-        string $ticketId,
-        int $amount,
-        int $due,
-        string $tender,
-        ?string $check,
-    ): void {
-        $this->guard($ticketId, $amount, $due, $tender, $check);
-        $this->ledger->post(new JournalDraft(
-            'layaway:' . $ticketId . ':' . $this->nextKey($ticketId),
-            $date,
-            new JournalSource('layaway_deposit', $ticketId, 'Layaway deposit'),
-            [
-                PostedLines::entry($this->ledger->roleAccount($tender), $amount, 0, null, null),
-                PostedLines::entry($this->ledger->roleAccount('layaway_deposit'), 0, $amount, 'ticket', $ticketId),
-            ],
-            sessionId: $session,
-            checkNumber: $tender === 'checks' ? $check : null,
-            beforeCommit: function () use ($ticketId): void {
-                $updated = $this->statements->affected(
-                    "UPDATE tickets SET status = 'layaway' WHERE id = ?::uuid AND status = 'open'",
-                    [$ticketId]
-                );
-                if ($updated !== 1) {
-                    throw new DatabaseRefusal('there is no open ticket');
-                }
-            },
-        ));
+    /**
+     * @return list<array{posted_on: string, tender: string, amount: int, kind: string}>
+     */
+    public function payments(string $ticketId): array
+    {
+        if ($ticketId === '') {
+            return [];
+        }
+        $rows = $this->statements->bound(
+            "SELECT to_char(journal.posting_date, 'YYYY-MM-DD') AS posted_on,
+                    journal.source_type,
+                    role.role AS tender,
+                    CASE
+                        WHEN journal.source_type = 'layaway_refund' THEN tender.credit_minor
+                        ELSE tender.debit_minor
+                    END AS amount
+             FROM journals AS journal
+             JOIN journal_lines AS tender ON tender.journal_id = journal.id
+             JOIN chart_roles AS role ON role.account_id = tender.account_id
+             WHERE role.role IN ('cash', 'card', 'checks')
+               AND (
+                    (journal.source_type = 'layaway_deposit' AND journal.source_reference = ? AND tender.debit_minor > 0)
+                    OR (
+                        journal.source_type = 'layaway_refund'
+                        AND tender.credit_minor > 0
+                        AND journal.source_reference IN (
+                            SELECT deposit.id::text
+                            FROM journals AS deposit
+                            WHERE deposit.source_type = 'layaway_deposit'
+                              AND deposit.source_reference = ?
+                        )
+                    )
+               )
+             ORDER BY journal.posted_at, journal.id",
+            [$ticketId, $ticketId]
+        );
+        $payments = [];
+        foreach ($rows as $row) {
+            $role = RowValue::string($row['tender'] ?? null);
+            $payments[] = [
+                'posted_on' => RowValue::string($row['posted_on'] ?? null),
+                'tender' => self::TENDER_NAMES[$role] ?? $role,
+                'amount' => RowValue::integer($row['amount'] ?? null),
+                'kind' => RowValue::string($row['source_type'] ?? null) === 'layaway_refund' ? 'Refund' : 'Deposit',
+            ];
+        }
+
+        return $payments;
+    }
+
+    /**
+     * @param array{lines: list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>, sum: int, check: ?string, cash: int} $tender
+     */
+    public function hold(string $session, string $date, string $ticketId, int $due, array $tender): void
+    {
+        $parts = $this->parts($tender);
+        $remaining = $due - $this->balance($ticketId);
+        if ($ticketId === '' || $parts === [] || $tender['sum'] < 1 || $tender['sum'] >= $remaining) {
+            throw new DatabaseRefusal($ticketId === '' ? 'there is no open ticket' : 'a layaway deposit cannot pass the amount due');
+        }
+        foreach ($parts as $part) {
+            $this->postDeposit($session, $date, $ticketId, $due, $part['tender'], $part['amount'], $part['check']);
+        }
+        $updated = $this->statements->affected(
+            "UPDATE tickets SET status = 'layaway' WHERE id = ?::uuid AND status = 'open'",
+            [$ticketId]
+        );
+        if ($updated !== 1) {
+            throw new DatabaseRefusal('there is no open ticket');
+        }
     }
 
     public function cancel(string $session, string $date, string $ticketId): void
@@ -119,6 +162,69 @@ final class LayawayBook
         $tender['sum'] += $deposits;
 
         return $tender;
+    }
+
+    /**
+     * @param array{lines: list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>, sum: int, check: ?string, cash: int} $tender
+     * @return list<array{tender: string, amount: int, check: ?string}>
+     */
+    private function parts(array $tender): array
+    {
+        $parts = [];
+        foreach ($tender['lines'] as $line) {
+            if ($line['debit'] < 1) {
+                continue;
+            }
+            $role = $this->role($line['account_id']);
+            if (!in_array($role, self::TENDERS, true)) {
+                throw new DatabaseRefusal('a layaway takes cash, card, or a check');
+            }
+            $parts[] = [
+                'tender' => $role,
+                'amount' => $line['debit'],
+                'check' => $role === 'checks' ? $tender['check'] : null,
+            ];
+        }
+
+        return $parts;
+    }
+
+    private function role(string $accountId): string
+    {
+        $rows = $this->statements->bound(
+            'SELECT role FROM chart_roles WHERE account_id = ?::uuid',
+            [$accountId]
+        );
+
+        $role = $rows[0]['role'] ?? null;
+        if (!is_string($role)) {
+            throw new DatabaseRefusal('a layaway takes cash, card, or a check');
+        }
+
+        return $role;
+    }
+
+    private function postDeposit(
+        string $session,
+        string $date,
+        string $ticketId,
+        int $due,
+        string $tender,
+        int $amount,
+        ?string $check,
+    ): void {
+        $this->guard($ticketId, $amount, $due, $tender, $check);
+        $this->ledger->post(new JournalDraft(
+            'layaway:' . $ticketId . ':' . $this->nextKey($ticketId),
+            $date,
+            new JournalSource('layaway_deposit', $ticketId, 'Layaway deposit'),
+            [
+                PostedLines::entry($this->ledger->roleAccount($tender), $amount, 0, null, null),
+                PostedLines::entry($this->ledger->roleAccount('layaway_deposit'), 0, $amount, 'ticket', $ticketId),
+            ],
+            sessionId: $session,
+            checkNumber: $tender === 'checks' ? $check : null,
+        ));
     }
 
     private function guard(string $ticketId, int $amount, int $due, string $tender, ?string $check): void

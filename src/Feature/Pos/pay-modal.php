@@ -29,7 +29,7 @@ $amount = static function (int $minor): string {
             <div class="h3" id="enter-payment-title">Payment</div>
             <button class="btn btn-sm" type="button" data-close-modal="enter-payment">Close</button>
         </div>
-        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>">
+        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>">
             <div class="card-body stack">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                 <input type="hidden" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
@@ -94,6 +94,7 @@ $amount = static function (int $minor): string {
                     <p class="register-summary"><span>Total tendered</span><strong id="pay-tendered"><?= View::text(View::money(0)) ?></strong></p>
                     <p id="pay-change" class="pay-note" hidden></p>
                 </div>
+                <button class="btn" id="pay-hold" type="submit" name="hold" value="1" disabled>Hold layaway</button>
                 <button class="btn" id="pay-done" type="button" data-close-modal="enter-payment">Done</button>
             </div>
         </form>

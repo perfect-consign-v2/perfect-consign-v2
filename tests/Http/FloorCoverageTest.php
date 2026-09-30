@@ -400,6 +400,11 @@ final class FloorCoverageTest extends WebTestCase
         $buyerId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $buyerCode);
         $heldPiece = $this->piece($buyerId, '10.00');
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
+        $noCustomer = $this->client->post('/' . self::SLUG . '/pos/pay', [
+            'hold' => '1',
+            'tender_cash' => '4.00',
+        ]);
+        self::assertSees('Choose a customer to hold a layaway.', $noCustomer);
         $withBuyer = $this->client->post('/' . self::SLUG . '/pos/buyer', ['vendor_id' => $buyerId]);
         self::assertSees('Buyer saved.', $withBuyer);
         self::assertSees($buyerCode, $withBuyer);
@@ -413,24 +418,30 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Line discount saved.', $lined);
         self::assertSees('Line discount', $lined);
         self::assertSees('9.00', $lined);
-        $deposit = $this->client->post('/' . self::SLUG . '/pos/layaway', [
-            'layaway_amount' => '4.00',
-            'layaway_tender' => 'cash',
+        $deposit = $this->client->post('/' . self::SLUG . '/pos/pay', [
+            'hold' => '1',
+            'tender_cash' => '4.00',
         ]);
-        self::assertSees('Layaway deposit saved.', $deposit);
-        self::assertSees('Layaway', $deposit);
+        self::assertSees('Layaway held for', $deposit);
+        self::assertSees($buyerCode, $deposit);
+        self::assertSees('Deposit', $deposit);
+        self::assertSees('Cash', $deposit);
+        self::assertSees('$4.00', $deposit);
+        self::assertSees('Balance', $deposit);
         $stillThere = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
         self::assertSees('a piece is already on a ticket', $stillThere);
         $layaways = $this->client->get('/' . self::SLUG . '/pos/layaways');
         $recalledLayaway = $this->client->post('/' . self::SLUG . '/pos/recall', ['ticket_id' => $this->match($layaways->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/')]);
         self::assertSees('Ticket recalled.', $recalledLayaway);
         self::assertSees('9.00', $recalledLayaway);
-        $this->client->post('/' . self::SLUG . '/pos/tender', [
-            'tender_role' => 'card',
-            'tender_amount' => '5.00',
+        self::assertSees('Deposit', $recalledLayaway);
+        self::assertSees('Cash', $recalledLayaway);
+        $finished = $this->client->post('/' . self::SLUG . '/pos/pay', [
+            'tender_card' => '5.00',
         ]);
-        $finished = $this->client->post('/' . self::SLUG . '/pos/pay', []);
         self::assertSees('Sale posted.', $finished);
+        $cleared = $this->client->get('/' . self::SLUG . '/pos/layaways');
+        self::assertSees('No layaways.', $cleared);
         $locked = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
         self::assertSees('start a new sale', $locked);
         $this->client->post('/' . self::SLUG . '/pos/new', []);

@@ -8,7 +8,6 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\Money;
 
 final class PosLayawayController
 {
@@ -17,49 +16,37 @@ final class PosLayawayController
         private readonly MallSettings $mall,
         private readonly RegisterGate $gate,
         private readonly PosPage $page,
-        private readonly TicketStore $tickets,
         private readonly LayawayBook $layaways,
+        private readonly LayawaySlip $slips,
         private readonly SaleHold $sales,
     ) {
     }
 
-    #[Route('/([a-z][a-z0-9-]{0,62})/pos/layaway', ['POST'])]
-    public function deposit(string $slug): void
+    #[Route('/([a-z][a-z0-9-]{0,62})/pos/layaway/([0-9a-fA-F-]{36})', ['GET'])]
+    public function slip(string $slug, string $ticketId): void
     {
-        $this->act($slug, function (string $session): void {
-            $cart = $this->tickets->cart($session);
-            $request = $this->app->request();
-            $check = trim($request->field('check_number'));
-            $this->layaways->deposit(
-                $session,
-                $this->mall->today(),
-                $cart['ticket_id'],
-                Money::parseMinor($request->field('layaway_amount')),
-                $cart['due'],
-                $request->field('layaway_tender'),
-                $check === '' ? null : $check,
-            );
-        }, 'Layaway deposit saved.');
+        $this->app->open($slug, true);
+        try {
+            $slip = $this->slips->read($ticketId);
+        } catch (DatabaseRefusal $refusal) {
+            $this->page->cart($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        }
+        $this->show($slug, $slip);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/layaway/cancel', ['POST'])]
     public function cancel(string $slug): void
     {
-        $this->act($slug, function (string $session): void {
-            $this->layaways->cancel($session, $this->mall->today(), $this->ticketId());
-        }, 'Layaway cancelled.');
-    }
-
-    /**
-     * @param callable(string): void $work
-     */
-    private function act(string $slug, callable $work, string $notice): void
-    {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         try {
             $this->sales->refuse($slug);
-            $work($this->gate->session($slug));
+            $ticketId = $this->ticketId();
+            $slip = $this->slips->read($ticketId);
+            $this->layaways->cancel($this->gate->session($slug), $this->mall->today(), $ticketId);
+            $slip = $this->slips->cancelled($slip);
         } catch (DatabaseRefusal $refusal) {
             $this->page->cart($slug, $this->app->catchRefusal($refusal));
 
@@ -69,7 +56,31 @@ final class PosLayawayController
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/pos', $notice);
+        $this->show($slug, $slip);
+    }
+
+    /**
+     * @param array{
+     *     ticket_id: string,
+     *     customer: string,
+     *     cancelled: bool,
+     *     lines: list<array{description: string, code: string, quantity: int, amount: int}>,
+     *     due: int,
+     *     deposits: int,
+     *     balance: int,
+     *     payments: list<array{posted_on: string, tender: string, amount: int, kind: string}>
+     * } $slip
+     */
+    private function show(string $slug, array $slip): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $this->app->show('Feature/Pos/layaway-slip', [
+            'title' => 'Layaway receipt',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'showSearch' => false,
+            'slip' => $slip,
+        ]);
     }
 
     private function ticketId(): string

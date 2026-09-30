@@ -52,6 +52,7 @@ final class PosPage
             'cart' => $cart,
             'tenders' => $tenders,
             'deposits' => $this->layaways->balance($cart['ticket_id']),
+            'payments' => $this->layaways->payments($cart['ticket_id']),
             'salesAvailable' => $cart['buyer_id'] === '' ? 0 : max(0, $this->payouts->openPayout($cart['buyer_id'])['payable']),
             'remaining' => $cart['due'] - $applied,
             'giftNumber' => $giftNumber,
@@ -91,6 +92,7 @@ final class PosPage
             'showSearch' => false,
             'cart' => $this->tickets->cart($this->gate->session($slug)),
             'heldStatus' => $status,
+            'layaways' => $status === 'layaway' ? $this->tickets->layaways() : [],
         ]);
     }
 }

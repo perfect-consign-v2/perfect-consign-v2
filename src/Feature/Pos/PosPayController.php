@@ -31,7 +31,7 @@ final class PosPayController
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         try {
-            $this->checkout->pay($slug, $session, $this->app->request());
+            $next = $this->checkout->pay($slug, $session, $this->app->request());
         } catch (DatabaseRefusal $refusal) {
             $this->page->cart($slug, $this->app->catchRefusal($refusal));
             return;
@@ -39,7 +39,7 @@ final class PosPayController
             $this->page->cart($slug, $error->getMessage());
             return;
         }
-        $this->app->redirect('/' . $slug . '/pos', 'Sale posted.');
+        $this->app->redirect($next['path'], $next['notice']);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/receipt/([0-9a-fA-F-]{36})', ['GET'])]

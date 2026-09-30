@@ -31,6 +31,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
  */
 /** @var list<array{role: string, amount: int, reference: string}> $tenders */
 /** @var int $deposits */
+/** @var list<array{posted_on: string, tender: string, amount: int, kind: string}> $payments */
 /** @var int $remaining */
 /** @var string $giftNumber */
 /** @var ?int $giftBalance */
@@ -121,7 +122,6 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <div class="register-tools">
                     <?php if ($open): ?>
                         <button class="btn" type="button" data-open-modal="customer">Customer<?php if ($cart['buyer_name'] !== ''): ?>: <?= View::text($cart['buyer_name']) ?><?php endif; ?></button>
-                        <button class="btn" type="button" data-open-modal="layaway-modal">Layaway</button>
                         <button class="btn" type="button" data-open-modal="cart-discount">Discount</button>
                         <button class="btn" type="button" data-open-modal="tax-free">Tax-free</button>
                     <?php endif; ?>
@@ -232,6 +232,27 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <p id="shell-change" class="pay-note" hidden></p>
             <?php if ($deposits > 0): ?>
                 <p>Layaway <?= View::text(View::money($deposits)) ?></p>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Payment</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($payments as $payment): ?>
+                                <tr>
+                                    <td><?= View::text($payment['posted_on']) ?></td>
+                                    <td><?= View::text($payment['kind']) ?> <?= View::text($payment['tender']) ?></td>
+                                    <td><?= View::text(View::money($payment['amount'])) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <a class="btn" href="/<?= View::text($slug) ?>/pos/layaway/<?= View::text($cart['ticket_id']) ?>">Layaway receipt</a>
             <?php endif; ?>
             <?php foreach ($tenders as $tender): ?>
                 <form class="tender-row" method="post" action="/<?= View::text($slug) ?>/pos/tender/remove">
@@ -301,23 +322,6 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php endif; ?>
         </div>
     </div>
-</div>
-<div id="layaway-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="layaway-title" hidden>
-    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/layaway">
-        <div class="card-head"><div class="h3" id="layaway-title">Layaway</div></div>
-        <div class="card-body stack">
-            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <label for="layaway_amount">Deposit</label>
-            <input class="input" id="layaway_amount" name="layaway_amount" inputmode="decimal">
-            <label><input type="radio" name="layaway_tender" value="cash" checked> Cash</label>
-            <label><input type="radio" name="layaway_tender" value="card"> Card</label>
-            <label><input type="radio" name="layaway_tender" value="checks"> Check</label>
-            <label for="layaway_check">Check number</label>
-            <input class="input" id="layaway_check" name="check_number">
-            <button class="btn btn-primary" type="submit">Take deposit</button>
-            <button class="btn" type="button" data-close-modal="layaway-modal">Close</button>
-        </div>
-    </form>
 </div>
 <div id="clear-cart" class="modal" role="dialog" aria-modal="true" aria-labelledby="clear-cart-title" hidden>
     <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/discard">
