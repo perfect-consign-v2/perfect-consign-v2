@@ -31,6 +31,7 @@
         "probe:phpmd": "php bin/phpmd-probe-rule.php",
         "phpstan": "php vendor/bin/phpstan analyse --memory-limit=512M",
         "test": "php vendor/bin/phpunit --testsuite unit",
+        "prove": "php bin/prove-suite.php",
         "test:smoke": "php vendor/bin/phpunit --testsuite http --group smoke",
         "test:http": "php vendor/bin/phpunit --testsuite http",
         "test:browser": "php vendor/bin/phpunit --testsuite browser",
@@ -40,7 +41,8 @@
             "@check:max-lines",
             "@check:phpmd",
             "@phpstan",
-            "@test"
+            "@test",
+            "@prove"
         ]
     },
     "config": {

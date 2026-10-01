@@ -308,6 +308,9 @@ END $$;
 DO $$
 BEGIN
     SET LOCAL session_replication_role = replica;
+    ALTER TABLE sale_lines DROP CONSTRAINT sale_lines_item_id_fkey;
+    ALTER TABLE ticket_lines DROP CONSTRAINT ticket_lines_item_id_fkey;
+    ALTER TABLE piece_returns DROP CONSTRAINT piece_returns_item_id_fkey;
     TRUNCATE items;
     RAISE EXCEPTION 'replica item truncate was accepted';
 EXCEPTION
@@ -366,6 +369,9 @@ END $$;
 
 DO $$
 BEGIN
+    ALTER TABLE sale_lines DROP CONSTRAINT sale_lines_item_id_fkey;
+    ALTER TABLE ticket_lines DROP CONSTRAINT ticket_lines_item_id_fkey;
+    ALTER TABLE piece_returns DROP CONSTRAINT piece_returns_item_id_fkey;
     TRUNCATE items;
     RAISE EXCEPTION 'item truncate was accepted after the guard held';
 EXCEPTION

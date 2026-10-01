@@ -2,10 +2,13 @@
 
 BEGIN;
 
+INSERT INTO registers (id, name)
+VALUES ('01900000-0000-7000-8000-000000000d23', 'Export proof');
+
 INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
 VALUES (
     '01900000-0000-7000-8000-000000000d22',
-    '01900000-0000-7000-8000-000000000d10',
+    '01900000-0000-7000-8000-000000000d23',
     'Ada',
     '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
     0
@@ -206,6 +209,102 @@ WHERE journal.source_type IN (
       SELECT 1 FROM register_session_posts AS post WHERE post.journal_id = journal.id
   );
 SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+UPDATE mall SET tax_bps = 0, cash_round_nickel = true;
+
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+VALUES (
+    '01900000-0000-7000-8000-000000000da2',
+    'Round',
+    '01900000-0000-7000-8000-000000000101',
+    'Rounds down',
+    1002,
+    'BC-EXPORT-ROUND',
+    DATE '2026-03-05',
+    0
+);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000d07',
+    '01900000-0000-7000-8000-000000000001',
+    'sale:export-round',
+    '2026-03-05',
+    '2026-03-05 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD', 'sale', 'export-round', 'Cash rounds down', 1002, 1002
+);
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES
+    ('01900000-0000-7000-8000-000000000d07', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 1000, 0),
+    ('01900000-0000-7000-8000-000000000d07', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000020', 2, 0);
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000d07',
+    '01900000-0000-7000-8000-000000000001',
+    3, '01900000-0000-7000-8000-000000000014', 0, 1002, 'vendor', '01900000-0000-7000-8000-000000000101'
+);
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000d07', 1, '01900000-0000-7000-8000-000000000da2', 1002, 0, 0);
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000d07');
+
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity)
+VALUES (
+    '01900000-0000-7000-8000-000000000da3',
+    'Lay',
+    '01900000-0000-7000-8000-000000000101',
+    'Held coat',
+    1000,
+    'BC-EXPORT-LAY',
+    DATE '2026-03-06',
+    1
+);
+
+INSERT INTO tickets (id, session_id)
+VALUES ('01900000-0000-7000-8000-000000000d72', '01900000-0000-7000-8000-000000000d22');
+
+INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d72',
+    1,
+    '01900000-0000-7000-8000-000000000da3',
+    1000
+);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000d08',
+    '01900000-0000-7000-8000-000000000001',
+    'layaway:export-deposit',
+    '2026-03-06',
+    '2026-03-06 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD', 'layaway_deposit', '01900000-0000-7000-8000-000000000d72', 'Export deposit', 400, 400
+);
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d08',
+    '01900000-0000-7000-8000-000000000001',
+    1, '01900000-0000-7000-8000-000000000010', 400, 0
+);
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000d08',
+    '01900000-0000-7000-8000-000000000001',
+    2, '01900000-0000-7000-8000-000000000021', 0, 400, 'ticket', '01900000-0000-7000-8000-000000000d72'
+);
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000d08');
+UPDATE tickets SET status = 'layaway' WHERE id = '01900000-0000-7000-8000-000000000d72';
+SET CONSTRAINTS ALL IMMEDIATE;
 
 DO $$
 DECLARE
@@ -229,6 +328,11 @@ BEGIN
         'tax-payment:t1',
         'adjustment:bank-fee',
         'adjustment:bank-fee',
+        'sale:export-round',
+        'sale:export-round',
+        'sale:export-round',
+        'layaway:export-deposit',
+        'layaway:export-deposit',
         'payout:01900000-0000-7000-8000-000000000101:2026-03',
         'payout:01900000-0000-7000-8000-000000000101:2026-03',
         'payout:01900000-0000-7000-8000-000000000101:2026-03'
@@ -246,6 +350,22 @@ BEGIN
     SELECT count(*) INTO map_count FROM export_accounts;
     IF map_count <> (SELECT count(*) FROM chart_roles) * 2 THEN
         RAISE EXCEPTION 'export account map does not cover both systems';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM stall_export_journal_csv('quickbooks', DATE '2026-03-01', DATE '2026-03-31') AS line
+        WHERE line LIKE '%6160%'
+    ) THEN
+        RAISE EXCEPTION 'a cash-rounded sale did not export';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM stall_export_journal_csv('xero', DATE '2026-03-01', DATE '2026-03-31') AS line
+        WHERE line LIKE '%2230%'
+    ) THEN
+        RAISE EXCEPTION 'a layaway deposit did not export';
     END IF;
 END $$;
 

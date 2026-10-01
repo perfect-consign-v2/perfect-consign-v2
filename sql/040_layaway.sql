@@ -34,6 +34,18 @@ WHERE NOT EXISTS (
       AND existing.source_type = seed.source_type
 );
 
+INSERT INTO export_accounts (system, role, external_code)
+SELECT systems.system, role.role, account.code
+FROM chart_roles AS role
+JOIN accounts AS account ON account.id = role.account_id
+CROSS JOIN (VALUES ('quickbooks'), ('xero')) AS systems (system)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM export_accounts AS existing
+    WHERE existing.system = systems.system
+      AND existing.role = role.role
+);
+
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_chk;
 ALTER TABLE tickets ADD CONSTRAINT tickets_status_chk CHECK (status IN ('open', 'posted', 'parked', 'layaway'));
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_posted_chk;

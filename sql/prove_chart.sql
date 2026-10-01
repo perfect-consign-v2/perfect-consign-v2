@@ -34,7 +34,15 @@ BEGIN
             ('card', '1020', 'asset', 'debit', true, false, NULL),
             ('rent_revenue', '4100', 'revenue', 'credit', true, false, NULL),
             ('operating_expense', '6000', 'expense', 'debit', true, false, NULL),
-            ('retained_earnings', '3000', 'equity', 'credit', true, false, NULL)
+            ('retained_earnings', '3000', 'equity', 'credit', true, false, NULL),
+            ('cash_in_safe', '1015', 'asset', 'debit', true, false, NULL),
+            ('checks', '1100', 'asset', 'debit', true, false, NULL),
+            ('gift_certificate', '2200', 'liability', 'credit', true, true, 'gift_certificate'),
+            ('gift_card', '2210', 'liability', 'credit', true, true, 'gift_card'),
+            ('store_credit', '2220', 'liability', 'credit', true, true, 'store_credit'),
+            ('cash_over_short', '6150', 'expense', 'debit', true, false, NULL),
+            ('cash_rounding', '6160', 'expense', 'debit', true, false, NULL),
+            ('layaway_deposit', '2230', 'liability', 'credit', true, true, 'ticket')
     ) AS expected (role, code, account_type, normal_balance, is_postable, is_control, subledger_type)
         ON expected.role = roles.role
         AND expected.code = account.code
@@ -44,7 +52,7 @@ BEGIN
         AND expected.is_control = account.is_control
         AND expected.subledger_type IS NOT DISTINCT FROM account.subledger_type;
 
-    IF role_count <> 10 THEN
+    IF role_count <> 18 OR (SELECT count(*) FROM chart_roles) <> 18 THEN
         RAISE EXCEPTION 'chart roles do not match the mall chart';
     END IF;
 END $$;
@@ -126,7 +134,7 @@ DECLARE
     role_count integer;
 BEGIN
     SELECT count(*) INTO role_count FROM chart_roles;
-    IF role_count <> 10 THEN
+    IF role_count <> 18 THEN
         RAISE EXCEPTION 'chart roles changed after rollback';
     END IF;
 END $$;

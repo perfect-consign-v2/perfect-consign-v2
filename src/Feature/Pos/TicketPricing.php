@@ -34,15 +34,14 @@ final class TicketPricing
              ORDER BY line.line_no',
             [$ticketId]
         );
-        $prices = [];
-        foreach ($rows as $row) {
-            $extended = RowValue::integer($row['price_minor'] ?? null) * RowValue::integer($row['quantity'] ?? null);
-            $prices[] = $extended - RowValue::integer($row['line_discount_minor'] ?? null);
-        }
-        $shares = TicketQuote::shares($prices, $adjustment['kind'], $adjustment['value']);
         $lines = [];
-        foreach ($rows as $index => $row) {
-            $lines[] = $this->quote($row, $taxBps, $shares[$index] ?? 0, $adjustment['waiver']);
+        foreach ($rows as $row) {
+            $lines[] = $this->quote(
+                $row,
+                $taxBps,
+                $this->share($ticketId, RowValue::string($row['item_id'] ?? null), $adjustment),
+                $adjustment['waiver']
+            );
         }
 
         return $lines;
@@ -104,6 +103,19 @@ final class TicketPricing
         if ($updated !== 1) {
             throw new DatabaseRefusal('there is no open ticket');
         }
+    }
+
+    /**
+     * @param array{kind: ?string, value: ?int, reason: string, waiver: string} $adjustment
+     */
+    private function share(string $ticketId, string $itemId, array $adjustment): int
+    {
+        $rows = $this->statements->bound(
+            'SELECT stall_line_discount(?::uuid, ?::uuid, ?, ?) AS share',
+            [$ticketId, $itemId, $adjustment['kind'], $adjustment['value']]
+        );
+
+        return RowValue::integer($rows[0]['share'] ?? null);
     }
 
     public function recheck(string $ticketId): void
