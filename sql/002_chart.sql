@@ -122,3 +122,70 @@ CREATE TRIGGER chart_roles_no_truncate
 ALTER TABLE accounts ENABLE ALWAYS TRIGGER accounts_chart_no_delete;
 
 ALTER TABLE chart_roles ENABLE ALWAYS TRIGGER chart_roles_no_truncate;
+
+CREATE OR REPLACE FUNCTION ledger_assert_journal_balance()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+DECLARE
+    checked_journal_id uuid;
+    header_debit bigint;
+    header_credit bigint;
+    line_count integer;
+    debit_sum bigint;
+    credit_sum bigint;
+    both_sides integer;
+BEGIN
+    IF TG_TABLE_NAME = 'journals' THEN
+        checked_journal_id := NEW.id;
+    ELSE
+        checked_journal_id := NEW.journal_id;
+    END IF;
+
+    SELECT debit_total_minor, credit_total_minor
+    INTO header_debit, header_credit
+    FROM public.journals
+    WHERE id = checked_journal_id;
+
+    SELECT count(*), COALESCE(sum(debit_minor), 0), COALESCE(sum(credit_minor), 0)
+    INTO line_count, debit_sum, credit_sum
+    FROM public.journal_lines
+    WHERE journal_id = checked_journal_id;
+
+    IF line_count < 2 THEN
+        RAISE EXCEPTION 'a journal must have at least two lines'
+            USING ERRCODE = '23514';
+    END IF;
+    IF debit_sum <> credit_sum OR debit_sum <> header_debit OR credit_sum <> header_credit THEN
+        RAISE EXCEPTION 'journal line totals must equal the header totals'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT count(*) INTO both_sides
+    FROM (
+        SELECT line.account_id
+        FROM public.journal_lines AS line
+        WHERE line.journal_id = checked_journal_id
+        GROUP BY line.account_id
+        HAVING sum(line.debit_minor) > 0
+           AND sum(line.credit_minor) > 0
+           AND line.account_id NOT IN (
+               SELECT role.account_id
+               FROM public.chart_roles AS role
+               WHERE role.role = 'vendor_payable'
+           )
+    ) AS sided;
+    IF both_sides > 0 THEN
+        RAISE EXCEPTION 'an account may appear on only one side of a journal'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER journals_balanced
+    AFTER INSERT ON journals
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION ledger_assert_journal_balance();

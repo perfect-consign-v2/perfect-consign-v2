@@ -2,60 +2,9 @@
 -- Apply after 033. The provisioner rewrites stall_poster.
 -- sql/029_register_posts.sql accepts piece_return on the session post. This file replaces that function for a mall that already ran 029.
 
-SET event_triggers = false;
 
-CREATE OR REPLACE FUNCTION stall_reject_session_post()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = pg_catalog
-AS $$
-DECLARE
-    source text;
-    open_session uuid;
-BEGIN
-    IF TG_OP = 'DELETE' THEN
-        RAISE EXCEPTION 'a register session post cannot be deleted'
-            USING ERRCODE = '23514';
-    END IF;
-    IF TG_OP = 'UPDATE' THEN
-        RAISE EXCEPTION 'a register session post cannot be changed'
-            USING ERRCODE = '23514';
-    END IF;
 
-    SELECT source_type INTO source
-    FROM public.journals
-    WHERE id = NEW.journal_id;
 
-    IF source IS NULL OR source NOT IN (
-        'sale',
-        'piece_return',
-        'rent_payment',
-        'payout',
-        'gift_certificate_issue',
-        'gift_card_issue',
-        'store_credit_issue',
-        'cash_drop',
-        'register_variance'
-    ) THEN
-        RAISE EXCEPTION 'a drawer journal needs an open register'
-            USING ERRCODE = '23514';
-    END IF;
-
-    SELECT id INTO open_session
-    FROM public.register_sessions
-    WHERE id = NEW.session_id
-      AND closed_at IS NULL;
-
-    IF open_session IS NULL THEN
-        RAISE EXCEPTION 'a drawer journal needs an open register'
-            USING ERRCODE = '23514';
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-SET event_triggers = true;
 
 CREATE TABLE IF NOT EXISTS piece_returns (
     journal_id uuid PRIMARY KEY REFERENCES journals (id),
@@ -64,10 +13,17 @@ CREATE TABLE IF NOT EXISTS piece_returns (
     price_minor bigint NOT NULL,
     commission_minor bigint NOT NULL,
     tax_minor bigint NOT NULL,
-    CONSTRAINT piece_returns_sale_item_key UNIQUE (sale_journal_id, item_id),
+    discount_minor bigint NOT NULL DEFAULT 0,
+    quantity integer NOT NULL DEFAULT 1,
     CONSTRAINT piece_returns_price_chk CHECK (price_minor > 0),
-    CONSTRAINT piece_returns_commission_chk CHECK (commission_minor >= 0 AND commission_minor <= price_minor),
-    CONSTRAINT piece_returns_tax_chk CHECK (tax_minor >= 0)
+    CONSTRAINT piece_returns_commission_chk CHECK (
+        commission_minor >= 0 AND commission_minor <= price_minor
+    ),
+    CONSTRAINT piece_returns_tax_chk CHECK (tax_minor >= 0),
+    CONSTRAINT piece_returns_discount_chk CHECK (
+        discount_minor >= 0 AND discount_minor <= price_minor
+    ),
+    CONSTRAINT piece_returns_quantity_chk CHECK (quantity > 0)
 );
 
 GRANT SELECT, INSERT ON piece_returns TO stall_poster;
@@ -104,6 +60,17 @@ DECLARE
     sale_price bigint;
     sale_commission bigint;
     sale_tax bigint;
+    sale_discount bigint;
+    sale_quantity integer;
+    prior_quantity integer;
+    prior_price bigint;
+    prior_commission bigint;
+    prior_tax bigint;
+    prior_discount bigint;
+    expected_price bigint;
+    expected_commission bigint;
+    expected_tax bigint;
+    expected_discount bigint;
     tender_credit bigint;
     tender_lines integer;
     commission_debit bigint;
@@ -125,8 +92,8 @@ BEGIN
             RAISE EXCEPTION 'a return belongs on a return'
                 USING ERRCODE = '23514';
         END IF;
-        SELECT sale.price_minor, sale.commission_minor, sale.tax_minor
-        INTO sale_price, sale_commission, sale_tax
+        SELECT sale.price_minor, sale.commission_minor, sale.tax_minor, sale.discount_minor, sale.quantity
+        INTO sale_price, sale_commission, sale_tax, sale_discount, sale_quantity
         FROM public.sale_lines AS sale
         JOIN public.journals AS journal ON journal.id = sale.journal_id
         WHERE sale.journal_id = NEW.sale_journal_id
@@ -139,13 +106,53 @@ BEGIN
               WHERE reversal.reverses_journal_id = journal.id
                 AND reversal.is_reversal = true
           );
+        SELECT COALESCE(sum(returned.quantity), 0),
+               COALESCE(sum(returned.price_minor), 0),
+               COALESCE(sum(returned.commission_minor), 0),
+               COALESCE(sum(returned.tax_minor), 0),
+               COALESCE(sum(returned.discount_minor), 0)
+        INTO prior_quantity, prior_price, prior_commission, prior_tax, prior_discount
+        FROM public.piece_returns AS returned
+        JOIN public.journals AS return_journal ON return_journal.id = returned.journal_id
+        WHERE returned.sale_journal_id = NEW.sale_journal_id
+          AND returned.item_id = NEW.item_id
+          AND return_journal.is_reversal = false
+          AND NOT EXISTS (
+              SELECT 1
+              FROM public.journals AS reversal
+              WHERE reversal.reverses_journal_id = return_journal.id
+                AND reversal.is_reversal = true
+          );
         IF sale_price IS NULL
-            OR NEW.price_minor <> sale_price
-            OR NEW.commission_minor <> sale_commission
-            OR NEW.tax_minor <> sale_tax THEN
+            OR sale_quantity IS NULL
+            OR NEW.quantity < 1
+            OR prior_quantity + NEW.quantity > sale_quantity THEN
+            RAISE EXCEPTION 'a return is more than what was sold'
+                USING ERRCODE = '23514';
+        END IF;
+        IF prior_quantity + NEW.quantity = sale_quantity THEN
+            expected_price := sale_price * sale_quantity - prior_price;
+            expected_commission := sale_commission - prior_commission;
+            expected_tax := sale_tax - prior_tax;
+            expected_discount := sale_discount - prior_discount;
+        ELSE
+            expected_price := (sale_price * sale_quantity * NEW.quantity) / sale_quantity;
+            expected_commission := (sale_commission * NEW.quantity) / sale_quantity;
+            expected_tax := (sale_tax * NEW.quantity) / sale_quantity;
+            expected_discount := (sale_discount * NEW.quantity) / sale_quantity;
+        END IF;
+        IF NEW.price_minor <> expected_price
+            OR NEW.commission_minor <> expected_commission
+            OR NEW.tax_minor <> expected_tax
+            OR NEW.discount_minor <> expected_discount THEN
             RAISE EXCEPTION 'a return reverses that piece'
                 USING ERRCODE = '23514';
         END IF;
+
+        UPDATE public.items
+        SET quantity = quantity + NEW.quantity
+        WHERE id = NEW.item_id;
+
         RETURN NEW;
     END IF;
 
@@ -160,8 +167,8 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT price_minor, commission_minor, tax_minor
-    INTO sale_price, sale_commission, sale_tax
+    SELECT price_minor, commission_minor, tax_minor, discount_minor
+    INTO sale_price, sale_commission, sale_tax, sale_discount
     FROM public.piece_returns
     WHERE journal_id = NEW.id;
 
@@ -198,10 +205,11 @@ BEGIN
       AND line.debit_minor > 0
       AND line.subledger_type = 'vendor';
 
-    IF tender_lines <> 1 OR tender_credit <> sale_price + sale_tax
+    IF tender_lines <> 1
+        OR tender_credit <> sale_price - sale_discount + sale_tax
         OR commission_debit <> sale_commission
         OR tax_debit <> sale_tax
-        OR payable_debit <> sale_price - sale_commission THEN
+        OR payable_debit <> sale_price - sale_discount - sale_commission THEN
         RAISE EXCEPTION 'a return reverses that piece'
             USING ERRCODE = '23514';
     END IF;
@@ -256,55 +264,4 @@ ALTER TABLE piece_returns
 
 ALTER TABLE journals ENABLE ALWAYS TRIGGER journals_piece_return;
 
-CREATE OR REPLACE FUNCTION stall_assert_register_session()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = pg_catalog
-AS $$
-DECLARE
-    checks_count integer;
-    check_row integer;
-BEGIN
-    IF NEW.source_type IN (
-        'sale',
-        'piece_return',
-        'rent_payment',
-        'payout',
-        'gift_certificate_issue',
-        'gift_card_issue',
-        'store_credit_issue',
-        'cash_drop',
-        'register_variance'
-    ) AND NOT EXISTS (
-        SELECT 1
-        FROM public.register_session_posts
-        WHERE journal_id = NEW.id
-    ) THEN
-        RAISE EXCEPTION 'a drawer journal needs an open register'
-            USING ERRCODE = '23514';
-    END IF;
 
-    IF NEW.source_type IN ('sale', 'piece_return') AND NOT NEW.is_reversal THEN
-        SELECT count(*) INTO checks_count
-        FROM public.journal_lines AS line
-        JOIN public.chart_roles AS role ON role.account_id = line.account_id
-        WHERE line.journal_id = NEW.id
-          AND role.role = 'checks'
-          AND (
-              (NEW.source_type = 'sale' AND line.debit_minor > 0)
-              OR (NEW.source_type = 'piece_return' AND line.credit_minor > 0)
-          );
-
-        SELECT count(*) INTO check_row
-        FROM public.register_checks
-        WHERE journal_id = NEW.id;
-
-        IF checks_count <> check_row THEN
-            RAISE EXCEPTION 'a check sale needs a check number'
-                USING ERRCODE = '23514';
-        END IF;
-    END IF;
-
-    RETURN NULL;
-END;
-$$;

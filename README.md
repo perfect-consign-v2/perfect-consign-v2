@@ -10,17 +10,20 @@ Postgres `18.6`. Host port **5436**. Database `consign`. User `stall`. Volume `p
 
 ## Load
 
-Apply `sql/000_platform.sql` to database `consign`. That creates schema `extensions` and installs `btree_gist` there. Then provision a mall. That applies `sql/001_kernel.sql` through `sql/014_export_files.sql`, then `sql/017_poster_grants.sql`, `sql/019_brands.sql`, `sql/020_mall.sql`, `sql/021_map_floors.sql`, `sql/022_assignment_rent.sql`, `sql/023_items.sql`, `sql/024_wait_list.sql`, `sql/025_item_intake.sql`, `sql/026_registers.sql`, `sql/027_register_sessions.sql`, `sql/028_tenders.sql`, `sql/029_register_posts.sql`, `sql/030_register_close.sql`, `sql/031_sale_lines.sql`, `sql/032_tickets.sql`, `sql/033_cash_round.sql`, `sql/034_piece_return.sql`, `sql/035_park_ticket.sql`, `sql/036_ticket_adjustments.sql`, `sql/037_item_quantity.sql`, `sql/038_vendor_draw.sql`, `sql/039_line_discount.sql`, and `sql/040_layaway.sql`, into that mall's schema. A tenant session path is `tenant_x, pg_catalog, extensions`. `public` is not a mall.
+Apply `sql/000_platform.sql` to database `consign`. That creates schema `extensions` and installs `btree_gist` there. Then provision a mall. `TenantProvisioner::ledgerFiles()` is the list, from `sql/001_kernel.sql` through `sql/040_layaway.sql`. Each table and each function is created once. A schema change is an edit to the file that owns that object. Drop the mall and run `php bin/provision-tenant.php` again. A tenant session path is `tenant_x, pg_catalog, extensions`. `public` is not a mall.
 
 `STALL_DB_HOST`, `STALL_DB_PORT`, `STALL_DB_NAME`, `STALL_DB_USER`, and `STALL_DB_PASSWORD` are required.
 
 ```text
 php bin/provision-tenant.php mall Mall
+php bin/seed-dev-tenant.php
 ```
+
+`php bin/seed-dev-tenant.php` wipes slug `dev` and no other mall, provisions it, and loads `sql/dev_tenant.sql`: one vendor, one booth on Main Floor, one open assignment, and three items. It does not post a journal. The owner is still `php bin/set-owner.php dev owner`.
 
 ## Application
 
-`sql/015_stall_app.sql` creates the `stall_app` login role. `sql/016_owners.sql` stores one owner per mall. `sql/017_poster_grants.sql` is applied inside each mall schema by the provisioner. `sql/018_owner_backup.sql` stores owner download times and creates the `stall_backup` login. Apply `018` once to database `consign`, after `016`. `sql/019_brands.sql` is applied inside each mall schema by the provisioner, after `017`. `sql/023_items.sql` is applied inside each mall schema by the provisioner, after `022`. `sql/024_wait_list.sql` is applied inside each mall schema by the provisioner, after `023`. `sql/025_item_intake.sql` is applied inside each mall schema by the provisioner, after `024`. An existing mall needs `025` through `037` applied in place. A schema change is an edit to that file. Drop the mall and run `php bin/provision-tenant.php` again. Do not add an alter file for a mall that already exists.
+`sql/015_stall_app.sql` creates the `stall_app` login role. `sql/016_owners.sql` stores one owner per mall. `sql/017_poster_grants.sql` is applied inside each mall schema by the provisioner. `sql/018_owner_backup.sql` stores owner download times and creates the `stall_backup` login. Apply `018` once to database `consign`, after `016`.
 
 The web app connects as `stall_app`. Set `STALL_APP_PASSWORD` and `STALL_BACKUP_PASSWORD` in the environment or in `.env`. That file stays out of git. `STALL_PG_DUMP` is `pg_dump` on `PATH`, a path to the Postgres 18 client, or `docker:perfect-consign-postgres` to use the client in that container. The host client must be 18. A Postgres 17 client cannot dump this server.
 
@@ -43,6 +46,6 @@ Those three commands use mall `webprobe` on the local database. The suite create
 
 ## Proofs
 
-Each fact `sql/prove_*.sql` rolls back. Run those proofs with `search_path` set to the mall schema from `platform.tenants`, then `pg_catalog`, then `extensions`. `sql/prove_race.ps1` is the two-session check, including the tenant slug. The `sql/prove_race_*.sql` files are not proofs on their own. `php bin/prove-tenant.php` rolls back the cross-tenant proof. `php bin/prove-backup.php` dumps a fixture mall and restores it into a second schema, then drops both.
+Each fact `sql/prove_*.sql` rolls back. Run those proofs with `search_path` set to the mall schema from `platform.tenants`, then `pg_catalog`, then `extensions`. `sql/prove_race.ps1` provisions slug `race`, then runs the two-session check, including the tenant slug. The `sql/prove_race_*.sql` files are not proofs on their own. `php bin/prove-tenant.php` rolls back the cross-tenant proof. `php bin/prove-backup.php` dumps a fixture mall and restores it into a second schema, then drops both.
 
 An owner download is streamed and not kept. `php bin/backup-tenant.php <slug>` writes one zip per UTC day under `STALL_BACKUP_DIR`, which must be outside the `perfect_consign_pg` volume, and removes files in that directory older than 30 days. `php bin/pull-tenant.php <slug>` copies one mall from `STALL_SOURCE_DB_*` onto local port 5436 database `consign` and refuses any other destination.

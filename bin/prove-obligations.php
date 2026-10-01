@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php';
+
 $root = dirname(__DIR__);
 $sqlDirectory = $root . DIRECTORY_SEPARATOR . 'sql';
 $failures = [];
@@ -38,6 +40,41 @@ foreach ($ledgerFiles as $path) {
         if (!droppedBeforeTruncate($vendorProof, $constraint, 'vendors')) {
             $failures[] = $file . ' references vendors by ' . $constraint . ' and prove_vendors_booths.sql does not drop it before TRUNCATE vendors';
         }
+    }
+}
+
+$defined = [];
+foreach (TenantProvisioner::ledgerFiles() as $file) {
+    $sql = readSql($sqlDirectory . DIRECTORY_SEPARATOR . $file);
+    if (str_contains($sql, 'SET event_triggers')) {
+        $failures[] = $file . ' sets event_triggers';
+    }
+    if (str_contains($sql, 'ADD COLUMN IF NOT EXISTS')) {
+        $failures[] = $file . ' adds a column with IF NOT EXISTS';
+    }
+    if (str_contains($sql, 'DROP CONSTRAINT IF EXISTS')) {
+        $failures[] = $file . ' drops a constraint with IF EXISTS';
+    }
+    $names = [];
+    if (preg_match_all('/CREATE (?:OR REPLACE )?FUNCTION\s+([a-z_][a-z0-9_]*)/i', $sql, $matches) !== false) {
+        foreach ($matches[1] as $name) {
+            if (!is_string($name)) {
+                continue;
+            }
+            $names[] = $name;
+        }
+    }
+    $seen = [];
+    foreach ($names as $name) {
+        if (isset($seen[$name])) {
+            $failures[] = $file . ' creates ' . $name . ' twice';
+        }
+        $seen[$name] = true;
+        if (isset($defined[$name])) {
+            $failures[] = $file . ' creates ' . $name . ' and ' . $defined[$name] . ' already creates it';
+            continue;
+        }
+        $defined[$name] = $file;
     }
 }
 

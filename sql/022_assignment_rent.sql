@@ -153,3 +153,9 @@ $$;
 
 GRANT SELECT, INSERT, UPDATE ON assignment_rent TO stall_poster;
 REVOKE DELETE, TRUNCATE, TRIGGER ON assignment_rent FROM stall_poster;
+
+CREATE CONSTRAINT TRIGGER journals_rent_charge
+    AFTER INSERT ON journals
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_assert_rent_charge();

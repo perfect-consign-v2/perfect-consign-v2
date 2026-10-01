@@ -46,45 +46,7 @@ final class TenantProof
 
     private function ledger(string $schema, string $role): string
     {
-        $files = [
-            '001_kernel.sql',
-            '002_chart.sql',
-            '003_vendors_booths.sql',
-            '004_sale.sql',
-            '005_rent_charge.sql',
-            '006_rent_payment.sql',
-            '007_payout.sql',
-            '008_statement.sql',
-            '009_adjustment.sql',
-            '010_tax_payment.sql',
-            '011_opening.sql',
-            '012_export.sql',
-            '013_period_close.sql',
-            '014_export_files.sql',
-            '017_poster_grants.sql',
-            '019_brands.sql',
-            '020_mall.sql',
-            '021_map_floors.sql',
-            '022_assignment_rent.sql',
-            '023_items.sql',
-            '024_wait_list.sql',
-            '025_item_intake.sql',
-            '026_registers.sql',
-            '027_register_sessions.sql',
-            '028_tenders.sql',
-            '029_register_posts.sql',
-            '030_register_close.sql',
-            '031_sale_lines.sql',
-            '032_tickets.sql',
-            '033_cash_round.sql',
-            '034_piece_return.sql',
-            '035_park_ticket.sql',
-            '036_ticket_adjustments.sql',
-            '037_item_quantity.sql',
-            '038_vendor_draw.sql',
-            '039_line_discount.sql',
-            '040_layaway.sql',
-        ];
+        $files = TenantProvisioner::ledgerFiles();
         $sql = 'SET search_path TO ' . $schema . ', pg_catalog, extensions;';
         foreach ($files as $file) {
             $path = $this->sqlDirectory . DIRECTORY_SEPARATOR . $file;

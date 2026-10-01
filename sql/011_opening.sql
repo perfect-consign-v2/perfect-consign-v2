@@ -49,9 +49,7 @@ CREATE CONSTRAINT TRIGGER journals_opening
     FOR EACH ROW
     EXECUTE FUNCTION stall_assert_opening();
 
-ALTER TABLE journals DROP CONSTRAINT IF EXISTS journals_book_key;
-
-CREATE UNIQUE INDEX IF NOT EXISTS journals_book_key
+CREATE UNIQUE INDEX journals_book_key
     ON journals (book_id, posting_key)
     WHERE posting_key <> 'opening';
 

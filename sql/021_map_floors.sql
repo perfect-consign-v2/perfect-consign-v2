@@ -17,16 +17,8 @@ INSERT INTO map_floors (name, sort_order) VALUES ('Main Floor', 0);
 ALTER TABLE booths
     ADD COLUMN floor_id uuid REFERENCES map_floors (id);
 
-UPDATE booths
-SET floor_id = (SELECT id FROM map_floors ORDER BY sort_order, lower(name) LIMIT 1)
-WHERE x_ft IS NOT NULL;
-
 ALTER TABLE booths
     ADD CONSTRAINT booths_floor_chk CHECK ((floor_id IS NULL) = (x_ft IS NULL));
-
-DROP FUNCTION stall_assert_booth_on_floor(
-    uuid, integer, integer, integer, integer, integer, integer, integer, integer
-);
 
 CREATE FUNCTION stall_assert_booth_on_floor(
     booth uuid,
@@ -190,3 +182,16 @@ ALTER TABLE map_floors
     ENABLE ALWAYS TRIGGER map_floors_no_delete;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON map_floors TO stall_poster;
+
+CREATE TRIGGER booths_on_floor
+    BEFORE INSERT OR UPDATE OF x_ft, z_ft, width_ft, depth_ft ON public.booths
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_reject_booth_place();
+
+CREATE TRIGGER mall_floor
+    BEFORE UPDATE OF booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft ON mall
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_reject_floor_change();
+
+ALTER TABLE booths ENABLE ALWAYS TRIGGER booths_on_floor;
+ALTER TABLE mall ENABLE ALWAYS TRIGGER mall_floor;

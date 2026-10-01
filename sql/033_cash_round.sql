@@ -1,8 +1,5 @@
 -- Cash sales can round to the nearest nickel. The difference posts to cash rounding.
--- Apply after 032. The sale shape in 031 reads mall.cash_round_nickel.
--- The provisioner rewrites stall_poster.
-
-ALTER TABLE mall ADD COLUMN IF NOT EXISTS cash_round_nickel boolean NOT NULL DEFAULT false;
+-- Apply after 032. The provisioner rewrites stall_poster.
 
 INSERT INTO accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type)
 SELECT

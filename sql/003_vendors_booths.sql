@@ -155,41 +155,6 @@ CREATE TRIGGER booth_assignments_append_only
     FOR EACH ROW
     EXECUTE FUNCTION stall_reject_assignment_rewrite();
 
-CREATE OR REPLACE FUNCTION stall_reject_unknown_subledger()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $$
-BEGIN
-    IF NEW.subledger_type = 'vendor' THEN
-        PERFORM 1
-        FROM public.vendors
-        WHERE id = NEW.subledger_ref::uuid
-        FOR UPDATE;
-        IF NOT FOUND THEN
-            RAISE EXCEPTION 'vendor payable subledger ref must be a vendor id'
-                USING ERRCODE = '23514';
-        END IF;
-    ELSIF NEW.subledger_type = 'booth' THEN
-        PERFORM 1
-        FROM public.booths
-        WHERE id = NEW.subledger_ref::uuid
-        FOR UPDATE;
-        IF NOT FOUND THEN
-            RAISE EXCEPTION 'booth rent subledger ref must be a booth id'
-                USING ERRCODE = '23514';
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER journal_lines_subledger_identity
-    BEFORE INSERT ON journal_lines
-    FOR EACH ROW
-    EXECUTE FUNCTION stall_reject_unknown_subledger();
-
 CREATE OR REPLACE FUNCTION stall_reject_referenced_party_delete()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -342,88 +307,6 @@ CREATE TRIGGER chart_source_rules_no_truncate
     BEFORE TRUNCATE ON chart_source_rules
     FOR EACH STATEMENT
     EXECUTE FUNCTION ledger_reject_truncate();
-
-CREATE TRIGGER journal_lines_control_source
-    BEFORE INSERT ON journal_lines
-    FOR EACH ROW
-    EXECUTE FUNCTION stall_reject_control_source();
-
-CREATE OR REPLACE FUNCTION stall_assert_subledger_non_negative()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = pg_catalog
-AS $$
-DECLARE
-    negative_payable integer;
-    negative_rent integer;
-    tax_balance bigint;
-BEGIN
-    SELECT count(*) INTO negative_payable
-    FROM (
-        SELECT line.subledger_ref
-        FROM public.journal_lines AS line
-        JOIN public.chart_roles AS role ON role.account_id = line.account_id
-        WHERE role.role = 'vendor_payable'
-          AND line.subledger_type = 'vendor'
-          AND line.subledger_ref IN (
-              SELECT touched.subledger_ref
-              FROM public.journal_lines AS touched
-              JOIN public.chart_roles AS touched_role ON touched_role.account_id = touched.account_id
-              WHERE touched.journal_id = NEW.id
-                AND touched_role.role = 'vendor_payable'
-          )
-        GROUP BY line.subledger_ref
-        HAVING sum(line.credit_minor - line.debit_minor) < 0
-    ) AS below;
-
-    SELECT count(*) INTO negative_rent
-    FROM (
-        SELECT line.subledger_ref
-        FROM public.journal_lines AS line
-        JOIN public.chart_roles AS role ON role.account_id = line.account_id
-        WHERE role.role = 'booth_rent_receivable'
-          AND line.subledger_type = 'booth'
-          AND line.subledger_ref IN (
-              SELECT touched.subledger_ref
-              FROM public.journal_lines AS touched
-              JOIN public.chart_roles AS touched_role ON touched_role.account_id = touched.account_id
-              WHERE touched.journal_id = NEW.id
-                AND touched_role.role = 'booth_rent_receivable'
-          )
-        GROUP BY line.subledger_ref
-        HAVING sum(line.debit_minor - line.credit_minor) < 0
-    ) AS below;
-
-    IF negative_payable > 0 OR negative_rent > 0 THEN
-        RAISE EXCEPTION 'a vendor payable and a booth rent receivable cannot go below zero'
-            USING ERRCODE = '23514';
-    END IF;
-
-    IF EXISTS (
-        SELECT 1
-        FROM public.journal_lines AS touched
-        JOIN public.chart_roles AS touched_role ON touched_role.account_id = touched.account_id
-        WHERE touched.journal_id = NEW.id
-          AND touched_role.role = 'sales_tax_payable'
-    ) THEN
-        SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0) INTO tax_balance
-        FROM public.journal_lines AS line
-        JOIN public.chart_roles AS role ON role.account_id = line.account_id
-        WHERE role.role = 'sales_tax_payable';
-        IF tax_balance < 0 THEN
-            RAISE EXCEPTION 'sales tax payable cannot go below zero'
-                USING ERRCODE = '23514';
-        END IF;
-    END IF;
-    RETURN NULL;
-END;
-$$;
-
-CREATE CONSTRAINT TRIGGER journals_subledger_non_negative
-    AFTER INSERT ON journals
-    DEFERRABLE INITIALLY DEFERRED
-    FOR EACH ROW
-    EXECUTE FUNCTION stall_assert_subledger_non_negative();
 
 CREATE OR REPLACE FUNCTION stall_reject_inactive_with_open_rent()
 RETURNS trigger

@@ -1,31 +1,6 @@
 -- Expected drawer cash, a cash drop, and the confirmed over/short.
 -- Apply after 029. The provisioner rewrites stall_poster.
 
-ALTER TABLE register_sessions
-    ADD COLUMN counted_card_minor bigint,
-    ADD COLUMN counted_checks_minor bigint;
-
-ALTER TABLE register_sessions DROP CONSTRAINT register_sessions_close_shape_chk;
-
-ALTER TABLE register_sessions ADD CONSTRAINT register_sessions_close_shape_chk CHECK (
-    (
-        closed_at IS NULL
-        AND closing_counts IS NULL
-        AND counted_cash_minor IS NULL
-        AND counted_card_minor IS NULL
-        AND counted_checks_minor IS NULL
-    )
-    OR (
-        closed_at IS NOT NULL
-        AND closing_counts IS NOT NULL
-        AND counted_cash_minor IS NOT NULL
-        AND counted_card_minor IS NOT NULL
-        AND counted_card_minor >= 0
-        AND counted_checks_minor IS NOT NULL
-        AND counted_checks_minor >= 0
-    )
-);
-
 CREATE OR REPLACE FUNCTION stall_register_expected_cash(target_session uuid)
 RETURNS bigint
 LANGUAGE sql

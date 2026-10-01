@@ -11,6 +11,8 @@ CREATE TABLE register_sessions (
     opening_cash_minor bigint NOT NULL,
     closing_counts jsonb,
     counted_cash_minor bigint,
+    counted_card_minor bigint,
+    counted_checks_minor bigint,
     CONSTRAINT register_sessions_cashier_chk CHECK (
         cashier = btrim(cashier) AND cashier <> '' AND char_length(cashier) <= 80
     ),
@@ -23,11 +25,17 @@ CREATE TABLE register_sessions (
             closed_at IS NULL
             AND closing_counts IS NULL
             AND counted_cash_minor IS NULL
+            AND counted_card_minor IS NULL
+            AND counted_checks_minor IS NULL
         )
         OR (
             closed_at IS NOT NULL
             AND closing_counts IS NOT NULL
             AND counted_cash_minor IS NOT NULL
+            AND counted_card_minor IS NOT NULL
+            AND counted_card_minor >= 0
+            AND counted_checks_minor IS NOT NULL
+            AND counted_checks_minor >= 0
         )
     )
 );

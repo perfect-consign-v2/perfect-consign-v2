@@ -1,4 +1,4 @@
--- Registers. One named till. The mall starts with one. Apply after 025.
+-- Registers. One named till. The mall starts with one. Apply after 024.
 -- The provisioner rewrites stall_poster.
 
 CREATE TABLE registers (

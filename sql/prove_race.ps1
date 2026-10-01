@@ -1,8 +1,13 @@
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$script:TenantSchema = (docker exec perfect-consign-postgres psql -U stall -d consign -t -A -c "SELECT schema_name FROM platform.tenants WHERE slug = 'mall';").Trim()
+$prepare = Join-Path (Split-Path $root -Parent) 'bin\prepare-race-tenant.php'
+$prepared = & php $prepare
+if ($LASTEXITCODE -ne 0) {
+    throw "race tenant was not provisioned`n$prepared"
+}
+$script:TenantSchema = ("$prepared" | Select-Object -Last 1).ToString().Trim()
 if ($script:TenantSchema -notmatch '^tenant_[0-9a-f]{32}$') {
-    throw "mall tenant schema is missing ($script:TenantSchema)"
+    throw "race tenant schema is missing ($script:TenantSchema)"
 }
 
 function Invoke-Psql {

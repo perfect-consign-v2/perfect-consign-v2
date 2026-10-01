@@ -329,3 +329,19 @@ ALTER TABLE stored_values
     ENABLE ALWAYS TRIGGER stored_values_no_truncate;
 
 SELECT stall_seed_export_accounts();
+
+CREATE TRIGGER journal_lines_subledger_identity
+    BEFORE INSERT ON journal_lines
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_reject_unknown_subledger();
+
+CREATE TRIGGER journal_lines_control_source
+    BEFORE INSERT ON journal_lines
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_reject_control_source();
+
+CREATE CONSTRAINT TRIGGER journals_subledger_non_negative
+    AFTER INSERT ON journals
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_assert_subledger_non_negative();
