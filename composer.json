@@ -32,6 +32,9 @@
         "phpstan": "php vendor/bin/phpstan analyse --memory-limit=512M",
         "test": "php vendor/bin/phpunit --testsuite unit",
         "prove": "php bin/prove-suite.php",
+        "prove:obligations": "php bin/prove-obligations.php",
+        "prove:race": "powershell -NoProfile -File sql/prove_race.ps1 && powershell -NoProfile -File sql/prove_race_on_hand.ps1",
+        "prove:tenant": "php bin/prove-tenant.php",
         "test:smoke": "php vendor/bin/phpunit --testsuite http --group smoke",
         "test:http": "php vendor/bin/phpunit --testsuite http",
         "test:browser": "php vendor/bin/phpunit --testsuite browser",
@@ -42,6 +45,7 @@
             "@check:phpmd",
             "@phpstan",
             "@test",
+            "@prove:obligations",
             "@prove"
         ]
     },

@@ -204,6 +204,18 @@ SET CONSTRAINTS ALL IMMEDIATE;
 
 DO $$
 BEGIN
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.register_session_posts
+        DROP CONSTRAINT register_session_posts_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.register_checks
+        DROP CONSTRAINT register_checks_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.sale_lines
+        DROP CONSTRAINT sale_lines_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.piece_returns
+        DROP CONSTRAINT piece_returns_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.piece_returns
+        DROP CONSTRAINT piece_returns_sale_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tickets
+        DROP CONSTRAINT tickets_posted_journal_id_fkey;
     TRUNCATE
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_lines,
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journals;

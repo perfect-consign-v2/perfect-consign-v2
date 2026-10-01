@@ -22,17 +22,7 @@ WHERE NOT EXISTS (
     SELECT 1 FROM chart_roles WHERE role = 'retained_earnings'
 );
 
-INSERT INTO export_accounts (system, role, external_code)
-SELECT systems.system, role.role, account.code
-FROM chart_roles AS role
-JOIN accounts AS account ON account.id = role.account_id
-CROSS JOIN (VALUES ('quickbooks'), ('xero')) AS systems (system)
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM export_accounts AS existing
-    WHERE existing.system = systems.system
-      AND existing.role = role.role
-);
+SELECT stall_seed_export_accounts();
 
 INSERT INTO chart_source_rules (role, source_type)
 SELECT seed.role, seed.source_type

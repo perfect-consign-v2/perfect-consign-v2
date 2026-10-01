@@ -1,0 +1,40 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, zip
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: docker compose up -d postgres
+      - name: Wait for Postgres
+        run: |
+          for _ in $(seq 1 30); do
+            docker exec perfect-consign-postgres pg_isready -U stall -d consign && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Apply the platform schema
+        run: |
+          for file in sql/000_platform.sql sql/015_stall_app.sql sql/016_owners.sql sql/018_owner_backup.sql; do
+            docker exec -i perfect-consign-postgres psql -U stall -d consign -v ON_ERROR_STOP=1 < "$file"
+          done
+      - run: composer check
+        env:
+          STALL_DB_HOST: 127.0.0.1
+          STALL_DB_PORT: '5436'
+          STALL_DB_NAME: consign
+          STALL_DB_USER: stall
+          STALL_DB_PASSWORD: stall
+          STALL_APP_PASSWORD: ci-app-password
+          STALL_OWNER_PASSWORD: ci-owner-password
+          STALL_BACKUP_PASSWORD: ci-backup-password

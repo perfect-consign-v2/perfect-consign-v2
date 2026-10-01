@@ -23,6 +23,7 @@ final class TenantProof
 
     public function run(): void
     {
+        $this->runFile('prove_app.sql');
         $this->dropRoles();
         $this->createRoles();
         try {
@@ -97,6 +98,16 @@ final class TenantProof
         return $sql;
     }
 
+    private function runFile(string $file): void
+    {
+        $path = $this->sqlDirectory . DIRECTORY_SEPARATOR . $file;
+        $sql = file_get_contents($path);
+        if ($sql === false) {
+            throw new RuntimeException('could not read ' . $file);
+        }
+        $this->pdo->exec($sql);
+    }
+
     private function proofSql(): string
     {
         $path = $this->sqlDirectory . DIRECTORY_SEPARATOR . 'prove_tenant.sql';
@@ -144,20 +155,27 @@ final class TenantProof
 }
 
 if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === realpath(__FILE__)) {
+    require_once __DIR__ . '/load-env.php';
+    loadStallEnv(dirname(__DIR__) . '/.env');
     $host = getenv('STALL_DB_HOST');
     $port = getenv('STALL_DB_PORT');
     $name = getenv('STALL_DB_NAME');
     $user = getenv('STALL_DB_USER');
     $password = getenv('STALL_DB_PASSWORD');
-    if (
-        !is_string($host) || $host === ''
-        || !is_string($port) || $port === ''
-        || !is_string($name) || $name === ''
-        || !is_string($user) || $user === ''
-        || !is_string($password) || $password === ''
-    ) {
-        fwrite(STDERR, "STALL_DB_HOST, STALL_DB_PORT, STALL_DB_NAME, STALL_DB_USER, and STALL_DB_PASSWORD are required\n");
-        exit(1);
+    if (!is_string($host) || $host === '') {
+        $host = '127.0.0.1';
+    }
+    if (!is_string($port) || $port === '') {
+        $port = '5436';
+    }
+    if (!is_string($name) || $name === '') {
+        $name = 'consign';
+    }
+    if (!is_string($user) || $user === '') {
+        $user = 'stall';
+    }
+    if (!is_string($password) || $password === '') {
+        $password = 'stall';
     }
 
     $pdo = new PDO(

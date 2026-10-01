@@ -1,19 +1,21 @@
 ---
-description: Stall is not done unless the proofs still pass at the level already reached. Re-run every proof a change can affect.
+description: Stall is not done unless composer check exits 0 after the latest edit.
 alwaysApply: true
 ---
 
 # Keep the proven level
 
-Done means the proofs still pass after the latest edit, not that they passed once.
+Done means `composer check` exits 0 after the latest edit, not that a feature proof passed once.
 
-- After any change under `sql/`, run every `sql/prove_*.sql` the change can affect, including earlier facts this change sits on. A kernel change re-runs `sql/prove.sql` and every later proof.
+- After any edit under `sql/` or `src/`, this turn is not finished until `composer check` exits 0 in this turn. That command is max lines, PHPMD, PHPStan, the unit suite, the obligation scan, and `php bin/prove-suite.php`.
+- A single `sql/prove_*.sql` run does not count, including the proof named in the plan.
 - A vector found later is added to the permanent proof and re-run. A one-off script does not count, and it does not excuse moving on.
 - Do not delete, comment out, or narrow an assertion to make a script pass. Restore the guarantee and re-run.
 - Do not add a fact or behavior that leaves an older proof unexecutable or leaves a known hole in place.
 - A skipped run, a happy-path-only script, or a green run from before the latest edit is not the current level.
+- When the diff touches a lock, a unique key, or a tenant boundary, `composer prove:race` and `composer prove:tenant` must also exit 0. They write the local mall and stay off `composer check`.
 
 ```text
-BAD: edit the payout trigger, re-run prove_payout.sql only, leave prove_statement.sql stale
-GOOD: edit the payout trigger, re-run prove_payout.sql and prove_statement.sql, both exit 0, then stop
+BAD: edit sql/033_cash_round.sql, re-run prove_cash_round.sql only, leave prove_export.sql red
+GOOD: edit sql/033_cash_round.sql, run composer check, exit 0, then stop
 ```

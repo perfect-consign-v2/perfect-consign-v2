@@ -30,17 +30,27 @@ CREATE TABLE IF NOT EXISTS export_accounts (
     CONSTRAINT export_accounts_code_chk CHECK (external_code = btrim(external_code) AND external_code <> '')
 );
 
-INSERT INTO export_accounts (system, role, external_code)
-SELECT systems.system, role.role, account.code
-FROM chart_roles AS role
-JOIN accounts AS account ON account.id = role.account_id
-CROSS JOIN (VALUES ('quickbooks'), ('xero')) AS systems (system)
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM export_accounts AS existing
-    WHERE existing.system = systems.system
-      AND existing.role = role.role
-);
+CREATE OR REPLACE FUNCTION stall_seed_export_accounts()
+RETURNS void
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+BEGIN
+    INSERT INTO public.export_accounts (system, role, external_code)
+    SELECT systems.system, role.role, account.code
+    FROM public.chart_roles AS role
+    JOIN public.accounts AS account ON account.id = role.account_id
+    CROSS JOIN (VALUES ('quickbooks'), ('xero')) AS systems (system)
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.export_accounts AS existing
+        WHERE existing.system = systems.system
+          AND existing.role = role.role
+    );
+END;
+$$;
+
+SELECT stall_seed_export_accounts();
 
 GRANT SELECT ON export_lines, export_accounts TO stall_poster;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, TRIGGER ON export_accounts FROM stall_poster;

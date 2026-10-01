@@ -34,6 +34,20 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
 );
 $directory = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql';
+$tenantHarness = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'prove-tenant.php';
+$files = glob($directory . DIRECTORY_SEPARATOR . 'prove_*.sql');
+if ($files === false) {
+    fwrite(STDERR, "could not list proofs\n");
+    exit(1);
+}
+sort($files);
+foreach ($files as $path) {
+    $file = basename($path);
+    if (harnessed($file, $directory, $tenantHarness) === false) {
+        fwrite(STDERR, "unlisted $file\n");
+        exit(1);
+    }
+}
 $provisioner = new TenantProvisioner($pdo, $directory);
 $slug = 'proofsuite';
 removeProofTenant($pdo, $slug);
@@ -41,21 +55,10 @@ $schema = $provisioner->provision($slug, 'Proof suite');
 $role = $provisioner->roleName($slug, $schema);
 $failed = 0;
 try {
-    $skip = [
-        'prove_app.sql' => true,
-        'prove_tenant.sql' => true,
-        'prove_tenant_race_hold.sql' => true,
-        'prove_tenant_race_wait.sql' => true,
-    ];
-    $files = glob($directory . DIRECTORY_SEPARATOR . 'prove_*.sql');
-    if ($files === false) {
-        fwrite(STDERR, "could not list proofs\n");
-        exit(1);
-    }
     sort($files);
     foreach ($files as $path) {
         $file = basename($path);
-        if (isset($skip[$file]) || str_starts_with($file, 'prove_race_')) {
+        if (harnessed($file, $directory, $tenantHarness) === true) {
             continue;
         }
         $sql = file_get_contents($path);
@@ -88,6 +91,28 @@ try {
 if ($failed > 0) {
     fwrite(STDERR, $failed . " proofs failed\n");
     exit(1);
+}
+
+function harnessed(string $file, string $sqlDirectory, string $tenantHarness): ?bool
+{
+    if (str_starts_with($file, 'prove_race_') || str_starts_with($file, 'prove_tenant_race_')) {
+        $race = $sqlDirectory . DIRECTORY_SEPARATOR . 'prove_race.ps1';
+        $onHand = $sqlDirectory . DIRECTORY_SEPARATOR . 'prove_race_on_hand.ps1';
+
+        return namedIn($race, $file) || namedIn($onHand, $file);
+    }
+    if ($file === 'prove_app.sql' || $file === 'prove_tenant.sql') {
+        return namedIn($tenantHarness, $file);
+    }
+
+    return null;
+}
+
+function namedIn(string $path, string $file): bool
+{
+    $text = file_get_contents($path);
+
+    return is_string($text) && str_contains($text, $file);
 }
 
 function removeProofTenant(PDO $pdo, string $slug): void
