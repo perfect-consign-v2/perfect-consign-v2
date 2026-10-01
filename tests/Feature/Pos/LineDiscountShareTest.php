@@ -27,7 +27,7 @@ final class LineDiscountShareTest extends TestCase
         $vendorId = $this->id($pdo);
         $firstId = $this->id($pdo);
         $secondId = $this->id($pdo);
-        $code = 'share' . substr(str_replace('-', '', $ticketId), 0, 8);
+        $code = 'share' . substr(str_replace('-', '', $ticketId), -12);
         $open = false;
         try {
             $statements->change(
