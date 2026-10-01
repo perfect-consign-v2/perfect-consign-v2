@@ -12,7 +12,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 $root = dirname(__DIR__);
 $directory = $root . DIRECTORY_SEPARATOR . 'var' . DIRECTORY_SEPARATOR . 'coverage';
-$minimum = 80.0;
+$minimum = 90.0;
 $filter = new Filter();
 $source = $root . DIRECTORY_SEPARATOR . 'src';
 $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source));

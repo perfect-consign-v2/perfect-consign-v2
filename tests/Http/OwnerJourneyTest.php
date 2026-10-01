@@ -69,23 +69,23 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertStringNotContainsString('id="cash-round"', $cart->body);
         self::assertSame(1, preg_match('/name="line_no" value="(\d+)"/', $cart->body, $line));
         $again = $this->client->post('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => 'BC-' . $tag]);
-        self::assertSees('a piece is already on the ticket', $again);
+        self::assertSees('there are not enough on hand', $again);
         $priced = $this->client->post('/' . ProbeMall::SLUG . '/pos/price', [
             'line_no' => $line[1],
             'price' => '10.03',
         ]);
-        self::assertSees('id="amount-due">10.03', $priced);
+        self::assertSees('register-due">$10.03', $priced);
         self::assertStringNotContainsString('id="cash-round"', $priced->body);
         $paid = $this->client->post('/' . ProbeMall::SLUG . '/pos/pay', [
             'tender_cash' => '10.03',
             'cash_received' => '20.00',
         ]);
         self::assertSees($description, $paid);
-        self::assertSees('id="cash-round">0.02', $paid);
-        self::assertSees('id="change">9.95', $paid);
+        self::assertSees('id="cash-round">+$0.02', $paid);
+        self::assertSees('id="change">$9.95', $paid);
         self::assertSame(1, preg_match('/sale:[0-9a-f-]{36}/', $paid->body, $key));
         self::assertSees($key[0], $this->client->get('/' . ProbeMall::SLUG . '/journals'));
-        self::assertSame(1, preg_match('#/journals/([0-9a-f-]{36})#', $paid->body, $journalId));
+        self::assertSame(1, preg_match('#/pos/receipt/([0-9a-f-]{36})#', $paid->body, $journalId));
         $journal = $this->client->get('/' . ProbeMall::SLUG . '/journals/' . $journalId[1]);
         self::assertSees('<p>Sale</p>', $journal);
         $this->roundCash(false);
@@ -125,7 +125,7 @@ final class OwnerJourneyTest extends WebTestCase
         $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $code);
         $form = $this->client->get('/' . ProbeMall::SLUG . '/payout?vendor=' . $vendorId);
-        self::assertSees('Open payable 0.00', $form);
+        self::assertSees('Open payable $0.00', $form);
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/payout', [
             'vendor_id' => $vendorId,
             'month' => ProbeMall::MONTH,
@@ -557,6 +557,12 @@ final class OwnerJourneyTest extends WebTestCase
     private function openRegister(): void
     {
         $page = $this->client->get('/' . ProbeMall::SLUG . '/registers');
+        if (preg_match('#(/' . ProbeMall::SLUG . '/registers/[0-9a-fA-F-]{36}/use)#', $page->body, $use) === 1) {
+            $active = $this->client->post($use[1], []);
+            self::assertSees('is the active register.', $active);
+
+            return;
+        }
         if (str_contains($page->body, 'Close register')) {
             return;
         }

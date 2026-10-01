@@ -91,7 +91,7 @@ final class FloorCoverageTest extends WebTestCase
         $journalId = $this->match($resold->body, '#/pos/receipt/([0-9a-fA-F-]{36})/void#');
         $voided = $this->client->post('/' . self::SLUG . '/pos/receipt/' . $journalId . '/void', []);
         self::assertSees('Ticket voided.', $voided);
-        self::assertSees('This ticket was voided.', $voided);
+        self::assertSees('slip-void">Voided', $voided);
         $secondVoid = $this->client->post('/' . self::SLUG . '/pos/receipt/' . $journalId . '/void', []);
         self::assertSees('a second void is refused', $secondVoid);
     }
@@ -470,6 +470,12 @@ final class FloorCoverageTest extends WebTestCase
     private function openRegister(): void
     {
         $page = $this->client->get('/' . self::SLUG . '/registers');
+        if (preg_match('#(/' . self::SLUG . '/registers/[0-9a-fA-F-]{36}/use)#', $page->body, $use) === 1) {
+            $active = $this->client->post($use[1], []);
+            self::assertSees('is the active register.', $active);
+
+            return;
+        }
         if (str_contains($page->body, 'Close register')) {
             return;
         }
