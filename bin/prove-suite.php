@@ -96,10 +96,9 @@ if ($failed > 0) {
 function harnessed(string $file, string $sqlDirectory, string $tenantHarness): ?bool
 {
     if (str_starts_with($file, 'prove_race_') || str_starts_with($file, 'prove_tenant_race_')) {
-        $race = $sqlDirectory . DIRECTORY_SEPARATOR . 'prove_race.ps1';
-        $onHand = $sqlDirectory . DIRECTORY_SEPARATOR . 'prove_race_on_hand.ps1';
+        $race = dirname($sqlDirectory) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'prove-race.php';
 
-        return namedIn($race, $file) || namedIn($onHand, $file);
+        return namedIn($race, $file);
     }
     if ($file === 'prove_app.sql' || $file === 'prove_tenant.sql') {
         return namedIn($tenantHarness, $file);

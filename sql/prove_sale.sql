@@ -111,6 +111,193 @@ VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-0000000
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+VALUES (
+    '01900000-0000-7000-8000-0000000005a6',
+    'Draw',
+    '01900000-0000-7000-8000-000000000101',
+    'Draw piece',
+    1000,
+    'BC-DRAW',
+    DATE '2096-03-01',
+    0
+);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-00000000050c',
+    '01900000-0000-7000-8000-000000000001',
+    'sale:draw',
+    '2096-03-01',
+    '2096-03-01 12:30:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'sale',
+    'draw',
+    'Sale that also draws vendor payable',
+    1000,
+    1000
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-00000000050c',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000010',
+    500,
+    0
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    (
+        '01900000-0000-7000-8000-00000000050c',
+        '01900000-0000-7000-8000-000000000001',
+        2,
+        '01900000-0000-7000-8000-000000000014',
+        500,
+        0,
+        'vendor',
+        '01900000-0000-7000-8000-000000000101'
+    ),
+    (
+        '01900000-0000-7000-8000-00000000050c',
+        '01900000-0000-7000-8000-000000000001',
+        3,
+        '01900000-0000-7000-8000-000000000014',
+        0,
+        1000,
+        'vendor',
+        '01900000-0000-7000-8000-000000000101'
+    );
+
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES (
+    '01900000-0000-7000-8000-00000000050c',
+    1,
+    '01900000-0000-7000-8000-0000000005a6',
+    1000,
+    0,
+    0
+);
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-00000000050c');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+DO $$
+BEGIN
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-00000000050d',
+        '01900000-0000-7000-8000-000000000001',
+        'adjustment:both-cash',
+        '2096-03-01',
+        '2096-03-01 12:40:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'adjustment',
+        'both-cash',
+        'Cash on both sides',
+        100,
+        100
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES
+        ('01900000-0000-7000-8000-00000000050d', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 100, 0),
+        ('01900000-0000-7000-8000-00000000050d', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000010', 0, 100);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'cash on both sides was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM <> 'an account may appear on only one side of a journal' THEN
+            RAISE;
+        END IF;
+END $$;
+SET CONSTRAINTS ALL DEFERRED;
+
+DO $$
+BEGIN
+    INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+    VALUES (
+        '01900000-0000-7000-8000-0000000005a5',
+        'Over',
+        '01900000-0000-7000-8000-000000000101',
+        'Over draw',
+        8501,
+        'BC-OVER',
+        DATE '2096-03-01',
+        0
+    );
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-00000000050e',
+        '01900000-0000-7000-8000-000000000001',
+        'sale:overdraw',
+        '2096-03-01',
+        '2096-03-01 12:45:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'sale',
+        'overdraw',
+        'Draw larger than the open payable',
+        8501,
+        8501
+    );
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES
+        (
+            '01900000-0000-7000-8000-00000000050e',
+            '01900000-0000-7000-8000-000000000001',
+            1,
+            '01900000-0000-7000-8000-000000000014',
+            8501,
+            0,
+            'vendor',
+            '01900000-0000-7000-8000-000000000101'
+        ),
+        (
+            '01900000-0000-7000-8000-00000000050e',
+            '01900000-0000-7000-8000-000000000001',
+            2,
+            '01900000-0000-7000-8000-000000000014',
+            0,
+            8501,
+            'vendor',
+            '01900000-0000-7000-8000-000000000101'
+        );
+    INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+    VALUES (
+        '01900000-0000-7000-8000-00000000050e',
+        1,
+        '01900000-0000-7000-8000-0000000005a5',
+        8501,
+        0,
+        0
+    );
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-00000000050e');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'a draw larger than the open payable was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM <> 'a vendor draw is limited to the open payable' THEN
+            RAISE;
+        END IF;
+END $$;
+SET CONSTRAINTS ALL DEFERRED;
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor

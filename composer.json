@@ -31,9 +31,10 @@
         "probe:phpmd": "php bin/phpmd-probe-rule.php",
         "phpstan": "php vendor/bin/phpstan analyse --memory-limit=512M",
         "test": "php vendor/bin/phpunit --testsuite unit",
+        "test:integration": "php vendor/bin/phpunit --testsuite integration",
         "prove": "php bin/prove-suite.php",
         "prove:obligations": "php bin/prove-obligations.php",
-        "prove:race": "powershell -NoProfile -File sql/prove_race.ps1 && powershell -NoProfile -File sql/prove_race_on_hand.ps1",
+        "prove:race": "php bin/prove-race.php",
         "prove:tenant": "php bin/prove-tenant.php",
         "test:smoke": "php vendor/bin/phpunit --testsuite http --group smoke",
         "test:http": "php vendor/bin/phpunit --testsuite http",
@@ -45,7 +46,9 @@
             "@check:phpmd",
             "@phpstan",
             "@test",
+            "@test:integration",
             "@prove:obligations",
+            "@prove:race",
             "@prove"
         ]
     },

@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php';
-
-$root = dirname(__DIR__);
+function runObligations(string $root): void
+{
 $sqlDirectory = $root . DIRECTORY_SEPARATOR . 'sql';
 $failures = [];
 
@@ -41,11 +40,6 @@ foreach ($ledgerFiles as $path) {
             $failures[] = $file . ' references vendors by ' . $constraint . ' and prove_vendors_booths.sql does not drop it before TRUNCATE vendors';
         }
     }
-}
-
-$defined = [];
-foreach (TenantProvisioner::ledgerFiles() as $file) {
-    $sql = readSql($sqlDirectory . DIRECTORY_SEPARATOR . $file);
     if (str_contains($sql, 'SET event_triggers')) {
         $failures[] = $file . ' sets event_triggers';
     }
@@ -55,27 +49,10 @@ foreach (TenantProvisioner::ledgerFiles() as $file) {
     if (str_contains($sql, 'DROP CONSTRAINT IF EXISTS')) {
         $failures[] = $file . ' drops a constraint with IF EXISTS';
     }
-    $names = [];
-    if (preg_match_all('/CREATE (?:OR REPLACE )?FUNCTION\s+([a-z_][a-z0-9_]*)/i', $sql, $matches) !== false) {
-        foreach ($matches[1] as $name) {
-            if (!is_string($name)) {
-                continue;
-            }
-            $names[] = $name;
-        }
-    }
-    $seen = [];
-    foreach ($names as $name) {
-        if (isset($seen[$name])) {
-            $failures[] = $file . ' creates ' . $name . ' twice';
-        }
-        $seen[$name] = true;
-        if (isset($defined[$name])) {
-            $failures[] = $file . ' creates ' . $name . ' and ' . $defined[$name] . ' already creates it';
-            continue;
-        }
-        $defined[$name] = $file;
-    }
+}
+
+foreach (duplicateFunctions($sqlDirectory) as $duplicate) {
+    $failures[] = $duplicate;
 }
 
 foreach (prorationCopies($root . DIRECTORY_SEPARATOR . 'src') as $copy) {
@@ -92,6 +69,83 @@ if ($failures !== []) {
 }
 
 fwrite(STDOUT, "ok obligations\n");
+}
+
+if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath((string) $argv[0]) === realpath(__FILE__)) {
+    runObligations(dirname(__DIR__));
+}
+
+function symbolIsCovered(string $name, string $covered): bool
+{
+    return preg_match('/\\b' . preg_quote($name, '/') . '\\s*\\(/', $covered) === 1;
+}
+
+function identifierIsCovered(string $name, string $covered): bool
+{
+    return preg_match('/\\b' . preg_quote($name, '/') . '\\b/', $covered) === 1;
+}
+
+function obligationBase(string $root): string
+{
+    $given = getenv('OBLIGATION_BASE');
+    if (is_string($given) && $given !== '') {
+        return $given;
+    }
+    $merged = gitResult($root, ['merge-base', 'HEAD', 'origin/master']);
+    $base = trim($merged['stdout']);
+    if ($merged['code'] === 0 && $base !== '') {
+        return $base;
+    }
+    fwrite(STDERR, "obligation base is missing\n");
+    exit(1);
+}
+
+/**
+ * @return list<string>
+ */
+function duplicateFunctions(string $sqlDirectory): array
+{
+    $files = glob($sqlDirectory . DIRECTORY_SEPARATOR . '*.sql');
+    if ($files === false) {
+        fwrite(STDERR, "could not list sql files\n");
+        exit(1);
+    }
+    sort($files);
+    $defined = [];
+    $failures = [];
+    foreach ($files as $path) {
+        $file = basename($path);
+        if (str_starts_with($file, 'prove_')) {
+            continue;
+        }
+        $sql = readSql($path);
+        $seen = [];
+        if (preg_match_all(
+            '/CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+((?:[a-z_][a-z0-9_]*\\.)?[a-z_][a-z0-9_]*)\\s*\\(/i',
+            $sql,
+            $matches
+        ) === false) {
+            continue;
+        }
+        foreach ($matches[1] as $name) {
+            if (!is_string($name)) {
+                continue;
+            }
+            $key = strtolower($name);
+            if (isset($seen[$key])) {
+                $failures[] = $file . ' creates ' . $name . ' twice';
+            }
+            $seen[$key] = true;
+            if (isset($defined[$key])) {
+                $failures[] = $file . ' creates ' . $name . ' and ' . $defined[$key] . ' already creates it';
+                continue;
+            }
+            $defined[$key] = $file;
+        }
+    }
+
+    return $failures;
+}
 
 function readSql(string $path): string
 {
@@ -318,7 +372,7 @@ function unprovenSymbols(string $root): array
         if (str_starts_with($file, 'src/') || str_starts_with($file, 'src\\')) {
             if (preg_match_all('/public\\s+(?:static\\s+)?function\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(/', $text, $methods) !== false) {
                 foreach ($methods[1] as $method) {
-                    if (!str_contains($covered, $method)) {
+                    if (!symbolIsCovered($method, $covered)) {
                         $failures[] = $file . ' adds ' . $method . ' and no proof or test names it';
                     }
                 }
@@ -329,7 +383,7 @@ function unprovenSymbols(string $root): array
         }
         if (preg_match_all("/'([a-z][a-z0-9_]*)',\\s*'01900000-[0-9a-f-]{36}'/", $text, $roles) !== false) {
             foreach ($roles[1] as $role) {
-                if (!str_contains($covered, $role)) {
+                if (!identifierIsCovered($role, $covered)) {
                     $failures[] = $file . ' adds chart role ' . $role . ' and no proof or test names it';
                 }
             }
@@ -339,7 +393,7 @@ function unprovenSymbols(string $root): array
         }
         if (preg_match_all("/\\('([a-z][a-z0-9_]*)',\\s*'([a-z][a-z0-9_]*)'\\)/", $text, $sources) !== false) {
             foreach ($sources[2] as $source) {
-                if (!str_contains($covered, $source)) {
+                if (!identifierIsCovered($source, $covered)) {
                     $failures[] = $file . ' adds source type ' . $source . ' and no proof or test names it';
                 }
             }
@@ -354,7 +408,7 @@ function unprovenSymbols(string $root): array
  */
 function addedLines(string $root): array
 {
-    $diff = git($root, ['diff', '-U0', 'HEAD', '--', 'src', 'sql']);
+    $diff = git($root, ['diff', '-U0', obligationBase($root), '--', 'src', 'sql']);
     $lines = [];
     $file = '';
     foreach (preg_split("/\\r\\n|\\n|\\r/", $diff) ?: [] as $line) {
@@ -392,21 +446,31 @@ function fileText(string $root, string $relative): string
  */
 function git(string $root, array $arguments): string
 {
+    $result = gitResult($root, $arguments);
+    if ($result['code'] !== 0) {
+        fwrite(STDERR, "could not run git\n");
+        exit(1);
+    }
+
+    return $result['stdout'];
+}
+
+/**
+ * @param list<string> $arguments
+ * @return array{code: int, stdout: string}
+ */
+function gitResult(string $root, array $arguments): array
+{
     $command = array_merge(['git', '-C', $root], $arguments);
     $spec = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $process = proc_open($command, $spec, $pipes);
     if (!is_resource($process)) {
-        fwrite(STDERR, "could not run git\n");
-        exit(1);
+        return ['code' => 1, 'stdout' => ''];
     }
     $stdout = stream_get_contents($pipes[1]);
     fclose($pipes[1]);
     fclose($pipes[2]);
     $code = proc_close($process);
-    if ($code !== 0 || !is_string($stdout)) {
-        fwrite(STDERR, "could not run git\n");
-        exit(1);
-    }
 
-    return $stdout;
+    return ['code' => $code, 'stdout' => is_string($stdout) ? $stdout : ''];
 }

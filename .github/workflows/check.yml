@@ -9,6 +9,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Obligation base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin "${{ github.base_ref }}"
+            echo "OBLIGATION_BASE=$(git merge-base HEAD FETCH_HEAD)" >> "$GITHUB_ENV"
+          else
+            before="${{ github.event.before }}"
+            if [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              echo "OBLIGATION_BASE=$(git rev-parse HEAD^)" >> "$GITHUB_ENV"
+            else
+              echo "OBLIGATION_BASE=$before" >> "$GITHUB_ENV"
+            fi
+          fi
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -24,10 +39,7 @@ jobs:
           done
           exit 1
       - name: Apply the platform schema
-        run: |
-          for file in sql/000_platform.sql sql/015_stall_app.sql sql/016_owners.sql sql/018_owner_backup.sql; do
-            docker exec -i perfect-consign-postgres psql -U stall -d consign -v ON_ERROR_STOP=1 < "$file"
-          done
+        run: php bin/provision-platform.php
       - run: composer check
         env:
           STALL_DB_HOST: 127.0.0.1
