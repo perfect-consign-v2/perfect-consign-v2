@@ -18,6 +18,14 @@ final class TicketAdjustmentTest extends TestCase
         );
         self::assertSame(
             ['kind' => null, 'value' => null, 'reason' => null],
+            TicketAdjustment::discount('apply', 'amount', '0', 'damaged')
+        );
+        self::assertSame(
+            ['kind' => null, 'value' => null, 'reason' => null],
+            TicketAdjustment::discount('apply', 'amount', '0.0', 'damaged')
+        );
+        self::assertSame(
+            ['kind' => null, 'value' => null, 'reason' => null],
             TicketAdjustment::discount('apply', 'amount', '0.00', 'damaged')
         );
         self::assertSame(

@@ -356,6 +356,9 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Party\\BoothMap.php' && $line === 58 && $from === '<=' && $to === '<') {
         return 'a stay that starts today is covering, so the incoming comparison is not used';
     }
+    if ($file === 'src\\Feature\\Party\\MoveInRent.php' && $line === 18 && $from === '<=' && $to === '<') {
+        return 'a move-in on the first still charges every day of that month, so the comparison and the proration agree';
+    }
 
     return null;
 }
