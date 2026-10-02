@@ -50,6 +50,7 @@ $groups = [
         ['/adjustment', 'Adjustment', 'i-edit'],
         ['/tax', 'Tax', 'i-percent'],
         ['/book', 'Book', 'i-report'],
+        ['/gift-certificates', 'Gift certificates', 'i-receipt'],
         ['/journals', 'Journals', 'i-receipt'],
         ['/opening', 'Opening', 'i-plus'],
         ['/close', 'Close', 'i-lock'],

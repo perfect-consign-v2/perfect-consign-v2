@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -51,6 +52,24 @@ use PerfectConsign\Shared\Scalar\RowValue;
  */
 /** @var int|null $change */
 /** @var bool $openInstant */
+/** @var bool $openGift */
+/** @var string $giftError */
+/** @var string $giftFormNumber */
+/** @var string $giftFormAmount */
+/** @var string $giftFormTender */
+/** @var string $giftFormCheck */
+/** @var bool $giftCustom */
+/** @var bool $openPayment */
+/** @var string $payError */
+/** @var string $payCash */
+/** @var string $payCard */
+/** @var string $payCheck */
+/** @var string $payCheckNumber */
+/** @var string $payVendor */
+/** @var string $payGift */
+/** @var string $payGiftNumber */
+/** @var string $payCredit */
+/** @var string $payCreditNumber */
 /** @var string|null $notice */
 /** @var string|null $error */
 $open = $cart['ticket_id'] !== '' && $completed === null;
@@ -114,7 +133,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <div class="combo register-scan-field">
                         <label for="scan">Barcode</label>
-                        <input class="input" id="scan" name="scan" autocomplete="off" <?= $locked ? '' : 'autofocus' ?> placeholder="Scan or type to search">
+                        <input class="input" id="scan" name="scan" autocomplete="off" <?= ($locked || $openGift || $openPayment) ? '' : 'autofocus' ?> placeholder="Scan or type to search">
                         <div class="suggest" id="scan-suggest" data-url="/<?= View::text($slug) ?>/pos/suggest.json" hidden></div>
                     </div>
                     <button class="btn btn-primary" type="submit">Add</button>
@@ -400,7 +419,13 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         </div>
     </form>
 </div>
-<div id="gift-sell" class="modal" role="dialog" aria-modal="true" aria-labelledby="gift-sell-title" hidden>
+<?php
+$giftCheckError = $giftError === GiftIssue::CHECK_REQUIRED;
+$giftNumberError = $giftError === GiftIssue::NUMBER_REQUIRED;
+$giftNumberOpen = $giftCustom || $giftFormNumber !== '';
+$giftFormError = ($giftError !== '' && !$giftCheckError && !$giftNumberError) ? $giftError : '';
+?>
+<div id="gift-sell" class="modal" role="dialog" aria-modal="true" aria-labelledby="gift-sell-title"<?= $openGift ? '' : ' hidden' ?>>
     <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/gift">
         <div class="card-head">
             <div class="h3" id="gift-sell-title">Sell gift certificate</div>
@@ -408,25 +433,34 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <div class="field">
-                <label for="gift_number">Number</label>
-                <input class="input" id="gift_number" name="gift_number" required>
-            </div>
+            <p class="field-error" id="gift-sell-error"<?= $giftFormError === '' ? ' hidden' : '' ?>><?= View::text($giftFormError) ?></p>
             <div class="field">
                 <label for="gift_amount">Amount</label>
-                <input class="input" id="gift_amount" name="gift_amount" inputmode="decimal" required placeholder="0.00">
+                <input class="input" id="gift_amount" name="gift_amount" inputmode="decimal" required placeholder="0.00" value="<?= View::text($giftFormAmount) ?>"<?= ($openGift && !$giftCheckError && !$giftNumberOpen) ? ' autofocus' : '' ?>>
             </div>
             <div class="field">
                 <span class="strong">Paid with</span>
                 <div class="segmented" role="radiogroup" aria-label="Paid with">
-                    <label class="seg-btn"><input class="sr-only" type="radio" name="gift_tender" value="cash" checked> Cash</label>
-                    <label class="seg-btn"><input class="sr-only" type="radio" name="gift_tender" value="card"> Card</label>
-                    <label class="seg-btn"><input class="sr-only" type="radio" name="gift_tender" value="checks"> Check</label>
+                    <?php foreach (['cash' => 'Cash', 'card' => 'Card', 'checks' => 'Check'] as $tender => $tenderLabel): ?>
+                        <label class="seg-btn"><input class="sr-only" type="radio" name="gift_tender" value="<?= View::text($tender) ?>"<?= $giftFormTender === $tender ? ' checked' : '' ?>> <?= View::text($tenderLabel) ?></label>
+                    <?php endforeach; ?>
                 </div>
             </div>
-            <div class="field" id="gift-check-field" hidden>
+            <div class="field" id="gift-check-field"<?= $giftFormTender === 'checks' ? '' : ' hidden' ?>>
                 <label for="gift_check">Check number</label>
-                <input class="input" id="gift_check" name="check_number">
+                <input class="input" id="gift_check" name="check_number" value="<?= View::text($giftFormCheck) ?>"<?= $giftCheckError ? ' aria-invalid="true" aria-describedby="gift-check-error" autofocus' : '' ?>>
+                <p class="field-error" id="gift-check-error"<?= $giftCheckError ? '' : ' hidden' ?>><?= View::text(GiftIssue::CHECK_REQUIRED) ?></p>
+            </div>
+            <div class="field">
+                <label for="gift_custom">
+                    <input id="gift_custom" name="gift_custom" type="checkbox" value="1"<?= $giftNumberOpen ? ' checked' : '' ?>>
+                    This certificate already has a number
+                </label>
+            </div>
+            <div class="field" id="gift-number-field"<?= $giftNumberOpen ? '' : ' hidden' ?>>
+                <label for="gift_number">Certificate number</label>
+                <input class="input" id="gift_number" name="gift_number" value="<?= View::text($giftFormNumber) ?>" maxlength="40"<?= $giftNumberError ? ' aria-invalid="true" aria-describedby="gift-number-error"' : '' ?><?= ($openGift && !$giftCheckError && $giftNumberOpen) ? ' autofocus' : '' ?>>
+                <p class="field-error" id="gift-number-error"<?= $giftNumberError ? '' : ' hidden' ?>><?= View::text(GiftIssue::NUMBER_REQUIRED) ?></p>
             </div>
             <div class="row">
                 <button class="btn btn-primary" type="submit">Sell</button>

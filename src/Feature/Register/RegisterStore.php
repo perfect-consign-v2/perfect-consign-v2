@@ -159,6 +159,8 @@ final class RegisterStore
         return $open;
     }
 
+    public const GIFT_CERTIFICATE_MISSING = 'that gift certificate number is not on file';
+
     public function storedValueId(string $kind, string $number): string
     {
         $number = trim($number);
@@ -170,7 +172,8 @@ final class RegisterStore
             [$kind, $number]
         );
         if ($rows === []) {
-            throw new DatabaseRefusal('that ' . str_replace('_', ' ', $kind) . ' number is not on file');
+            $label = str_replace('_', ' ', $kind);
+            throw new DatabaseRefusal($kind === 'gift_certificate' ? self::GIFT_CERTIFICATE_MISSING : 'that ' . $label . ' number is not on file');
         }
 
         return RowValue::string($rows[0]['id'] ?? null);

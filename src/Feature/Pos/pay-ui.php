@@ -22,6 +22,10 @@ declare(strict_types=1);
     const check = document.getElementById('pay-check');
     const checkNumber = document.getElementById('pay-check-number');
     const checkError = document.getElementById('pay-check-error');
+    const giftNumber = document.getElementById('pay-gift-number');
+    const giftError = document.getElementById('pay-gift-error');
+    const giftBalance = document.getElementById('pay-gift-balance');
+    const giftLookup = document.getElementById('pay-gift-lookup');
     const done = document.getElementById('pay-done');
     const hold = document.getElementById('pay-hold');
     const fields = form.querySelectorAll('[name^="tender_"]');
@@ -130,12 +134,13 @@ declare(strict_types=1);
                 checkNumber.removeAttribute('aria-invalid');
             }
         }
+        const giftBlocked = giftError ? !giftError.hidden : false;
         if (done) {
             done.disabled = checkMissing;
         }
         const covers = residual === 0 ? sum >= due : cashCents >= cashDue;
         if (process) {
-            process.disabled = Number(form.getAttribute('data-lines')) < 1 || !covers || checkMissing;
+            process.disabled = Number(form.getAttribute('data-lines')) < 1 || !covers || checkMissing || giftBlocked;
         }
         if (hold) {
             let other = 0;
@@ -176,6 +181,71 @@ declare(strict_types=1);
     });
     if (checkNumber) {
         checkNumber.addEventListener('input', settle);
+    }
+    let giftToken = 0;
+    function showGift(error, balance) {
+        if (giftError) {
+            giftError.hidden = error === '';
+            giftError.textContent = error;
+        }
+        if (giftBalance) {
+            giftBalance.hidden = balance === '';
+            giftBalance.textContent = balance;
+        }
+        if (giftNumber) {
+            if (error === '') {
+                giftNumber.removeAttribute('aria-invalid');
+            } else {
+                giftNumber.setAttribute('aria-invalid', 'true');
+            }
+        }
+        settle();
+    }
+    function lookupGift() {
+        const number = String(giftNumber && giftNumber.value || '').trim();
+        if (number === '') {
+            showGift('', '');
+            return;
+        }
+        const token = ++giftToken;
+        const url = (form.getAttribute('data-gift-lookup') || '') + '?number=' + encodeURIComponent(number);
+        fetch(url, { headers: { Accept: 'application/json' } })
+            .then(function (response) {
+                return response.json();
+            })
+            .then(function (data) {
+                if (token !== giftToken) {
+                    return;
+                }
+                if (!data || data.ok !== true) {
+                    showGift(data && data.error ? String(data.error) : 'that gift certificate number is not on file', '');
+                    return;
+                }
+                showGift('', 'Balance left ' + String(data.balance || ''));
+            })
+            .catch(function () {
+                if (token !== giftToken) {
+                    return;
+                }
+                showGift('that gift certificate number is not on file', '');
+            });
+    }
+    if (giftNumber) {
+        giftNumber.addEventListener('input', function () {
+            giftToken += 1;
+            showGift('', '');
+        });
+        giftNumber.addEventListener('change', lookupGift);
+        giftNumber.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter') {
+                return;
+            }
+            event.preventDefault();
+            lookupGift();
+        });
+    }
+    if (giftLookup) {
+        giftLookup.addEventListener('click', lookupGift);
     }
     if (salesMax) {
         salesMax.addEventListener('click', function () {

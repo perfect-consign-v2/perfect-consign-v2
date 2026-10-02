@@ -780,6 +780,13 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .slip-meta { margin: 0; color: #5c6775; font-size: 0.75rem; }
 .slip-rule { border: 0; border-top: 1px dashed #1a2230; margin: var(--space-3) 0; }
 .slip-total { font-weight: 700; font-size: 1rem; margin-top: var(--space-2); }
+.slip-number {
+    margin: var(--space-3) 0;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
 .slip-thanks { margin: var(--space-5) 0 0; text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
 .print-only { display: none; }
 .z-tape { max-width: 28rem; }

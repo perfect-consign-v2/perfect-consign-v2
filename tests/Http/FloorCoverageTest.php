@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
+use PerfectConsign\Tests\Support\PageResponse;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 
@@ -303,7 +304,16 @@ final class FloorCoverageTest extends WebTestCase
     {
         $this->settings(false);
         $this->openRegister();
-        $this->client->post('/' . self::SLUG . '/pos/discard', []);
+        $guard = 0;
+        do {
+            $pos = $this->client->get('/' . self::SLUG . '/pos');
+            if (!str_contains($pos->body, 'data-open-modal="clear-cart"')) {
+                break;
+            }
+            $discarded = $this->client->post('/' . self::SLUG . '/pos/discard', []);
+            self::assertSees('Ticket discarded.', $discarded);
+            $guard++;
+        } while ($guard < 20);
         $code = 'v' . bin2hex(random_bytes(3));
         $created = $this->client->post('/' . self::SLUG . '/vendors', [
             'code' => $code,
@@ -358,16 +368,35 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('a vendor draw is limited to the open payable', $over);
         $this->client->post('/' . self::SLUG . '/pos/discard', []);
         $number = 'gc' . $code;
-        $sold = $this->client->post('/' . self::SLUG . '/pos/gift', [
-            'gift_number' => $number,
-            'gift_amount' => '20.00',
-            'gift_tender' => 'cash',
-        ]);
-        self::assertSees('Gift certificate sold.', $sold);
+        $sold = $this->gift('20.00', 'cash', $number);
+        $this->certificate($sold, $number, '20.00');
+        $generated = $this->gift('10.00', 'cash');
+        $this->slip($generated);
+        $missingCheck = $this->gift('12.00', 'checks');
+        self::assertStringContainsString('id="gift-sell" class="modal" role="dialog" aria-modal="true" aria-labelledby="gift-sell-title">', $missingCheck->body);
+        self::assertStringContainsString('id="gift-check-error">a check sale needs a check number', $missingCheck->body);
+        self::assertStringNotContainsString('alert alert-danger', $missingCheck->body);
+        $again = $this->gift('8.00', 'cash', $number);
+        self::assertStringContainsString('id="gift-sell" class="modal" role="dialog" aria-modal="true" aria-labelledby="gift-sell-title">', $again->body);
+        self::assertStringContainsString('id="gift-sell-error">That certificate number is already used.', $again->body);
+        self::assertStringNotContainsString('alert alert-danger', $again->body);
         $balance = $this->client->get('/' . self::SLUG . '/pos?gift=' . $number);
         self::assertSees('20.00', $balance);
+        $found = $this->giftCertificate($number);
+        self::assertStringContainsString('"ok":true', $found->body);
+        self::assertStringContainsString('$20.00', $found->body);
+        $unknown = $this->giftCertificate('missing-' . $number);
+        self::assertStringContainsString('that gift certificate number is not on file', $unknown->body);
         $redeemedPiece = $this->piece($vendor, '5.00');
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $redeemedPiece['code']]);
+        $missing = $this->payment([
+            'tender_gift_certificate' => '5.00',
+            'gift_certificate_number' => 'missing-' . $number,
+        ]);
+        self::assertStringContainsString('id="enter-payment" class="modal" role="dialog" aria-modal="true" aria-labelledby="enter-payment-title">', $missing->body);
+        self::assertStringContainsString('id="pay-gift-error">that gift certificate number is not on file', $missing->body);
+        self::assertStringContainsString('value="missing-' . $number . '"', $missing->body);
+        self::assertStringNotContainsString('alert alert-danger', $missing->body);
         $this->client->post('/' . self::SLUG . '/pos/tender', [
             'tender_role' => 'gift_certificate',
             'tender_amount' => '5.00',
@@ -377,6 +406,7 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Sale posted.', $redeemed);
         $left = $this->client->get('/' . self::SLUG . '/pos?gift=' . $number);
         self::assertSees('15.00', $left);
+        $this->outstanding($this->certificates(), $number);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
         $drawPiece = $this->piece($vendor, '4.00');
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $drawPiece['code']]);
@@ -431,7 +461,9 @@ final class FloorCoverageTest extends WebTestCase
         $stillThere = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
         self::assertSees('a piece is already on a ticket', $stillThere);
         $layaways = $this->client->get('/' . self::SLUG . '/pos/layaways');
-        $recalledLayaway = $this->client->post('/' . self::SLUG . '/pos/recall', ['ticket_id' => $this->match($layaways->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/')]);
+        $recalledLayaway = $this->client->post('/' . self::SLUG . '/pos/recall', [
+            'ticket_id' => $this->match($layaways->body, '/' . preg_quote($buyerCode, '/') . '[\\s\\S]*?name="ticket_id" value="([0-9a-fA-F-]{36})"/'),
+        ]);
         self::assertSees('Ticket recalled.', $recalledLayaway);
         self::assertSees('9.00', $recalledLayaway);
         self::assertSees('Deposit', $recalledLayaway);
@@ -441,7 +473,7 @@ final class FloorCoverageTest extends WebTestCase
         ]);
         self::assertSees('Sale posted.', $finished);
         $cleared = $this->client->get('/' . self::SLUG . '/pos/layaways');
-        self::assertSees('No layaways.', $cleared);
+        self::assertStringNotContainsString($buyerCode, $cleared->body);
         $locked = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
         self::assertSees('start a new sale', $locked);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
@@ -500,6 +532,67 @@ final class FloorCoverageTest extends WebTestCase
         $directory = $this->client->get('/' . self::SLUG . '/parties');
 
         return HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
+    }
+
+    private function gift(string $amount, string $tender, string $number = '', string $check = ''): PageResponse
+    {
+        $fields = [
+            'gift_amount' => $amount,
+            'gift_tender' => $tender,
+        ];
+        if ($number !== '') {
+            $fields['gift_number'] = $number;
+        }
+        if ($check !== '') {
+            $fields['check_number'] = $check;
+        }
+
+        return $this->client->post('/' . self::SLUG . '/pos/gift', $fields);
+    }
+
+    private function certificates(): PageResponse
+    {
+        return $this->client->get('/' . self::SLUG . '/gift-certificates');
+    }
+
+    private function outstanding(PageResponse $page, string $number): void
+    {
+        self::assertSees('Open gift certificates', $page);
+        self::assertMatchesRegularExpression(
+            '/<tr>[\s\S]*?' . preg_quote($number, '/') . '[\s\S]*?\$20\.00[\s\S]*?\$15\.00[\s\S]*?Print certificate[\s\S]*?<\/tr>/',
+            $page->body
+        );
+    }
+
+    private function giftCertificate(string $number): PageResponse
+    {
+        return $this->client->get('/' . self::SLUG . '/pos/gift-certificate.json?number=' . rawurlencode($number));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private function payment(array $fields): PageResponse
+    {
+        return $this->client->post('/' . self::SLUG . '/pos/pay', $fields);
+    }
+
+    private function certificate(PageResponse $slip, string $number, string $amount): void
+    {
+        self::assertSees('Gift certificate', $slip);
+        self::assertSees('Print receipt', $slip);
+        self::assertSees('Give this number at the register to redeem.', $slip);
+        self::assertSees($amount, $slip);
+        if ($number !== '') {
+            self::assertSees($number, $slip);
+        }
+        self::assertStringNotContainsString('id="gift-sell"', $slip->body);
+    }
+
+    private function slip(PageResponse $page): void
+    {
+        $this->certificate($page, '', '10.00');
+        self::assertMatchesRegularExpression('/GC-\d+/', $page->body);
     }
 
     /**

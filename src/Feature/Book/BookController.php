@@ -14,6 +14,7 @@ final class BookController
     public function __construct(
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
+        private readonly OpenGiftCertificates $openCertificates,
     ) {
     }
 
@@ -41,6 +42,21 @@ final class BookController
             $this->app->redirect('/' . $slug . '/book', 'Journal posted.');
         }
         $this->showBook($slug, $error);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/gift-certificates', ['GET'])]
+    public function certificates(string $slug): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $open = $this->openCertificates->outstanding();
+        $this->app->show('Feature/Book/gift-certificates', [
+            'title' => 'Open gift certificates',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'count' => $open['count'],
+            'total' => $open['total'],
+            'rows' => $open['rows'],
+        ]);
     }
 
     private function showBook(string $slug, ?string $error): void

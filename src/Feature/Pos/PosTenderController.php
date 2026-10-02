@@ -65,18 +65,55 @@ final class PosTenderController
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/gift', ['POST'])]
     public function gift(string $slug): void
     {
-        $this->act($slug, function (string $session): void {
-            $request = $this->app->request();
-            $check = trim($request->field('check_number'));
-            $this->gifts->issue(
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $session = $this->gate->session($slug);
+        $request = $this->app->request();
+        try {
+            $this->sales->refuse($slug);
+            $number = $request->field('gift_number');
+            if ($request->field('gift_custom') === '1' && $number === '') {
+                throw new DatabaseRefusal(GiftIssue::NUMBER_REQUIRED);
+            }
+            $check = $request->field('check_number');
+            $journalId = $this->gifts->issue(
                 $session,
                 $this->mall->today(),
-                $request->field('gift_number'),
+                $number,
                 Money::parseMinor($request->field('gift_amount')),
                 $request->field('gift_tender'),
                 $check === '' ? null : $check,
             );
-        }, 'Gift certificate sold.');
+        } catch (DatabaseRefusal $refusal) {
+            $this->page->gift($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        } catch (\InvalidArgumentException $error) {
+            $this->page->gift($slug, $error->getMessage());
+
+            return;
+        }
+        $this->app->redirect('/' . $slug . '/pos/gift/' . $journalId);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/pos/gift/([0-9a-fA-F-]{36})', ['GET'])]
+    public function certificate(string $slug, string $journalId): void
+    {
+        $tenant = $this->app->open($slug, true);
+        try {
+            $slip = $this->gifts->slip($journalId);
+        } catch (DatabaseRefusal $refusal) {
+            $this->page->cart($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        }
+        $this->app->show('Feature/Pos/gift-slip', [
+            'title' => 'Gift certificate',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'showSearch' => false,
+            'slip' => $slip,
+        ]);
     }
 
     /**
