@@ -26,7 +26,7 @@ final class GiftCertificateNumberTest extends TestCase
         $gifts = new GiftIssue($statements, $ledger);
         $registerId = $ledger->newId();
         $sessionId = $ledger->newId();
-        [$lower, $upper, $expected] = $this->pair($statements);
+        [$lower, $expected] = $this->wedge($statements);
         $pdo->beginTransaction();
         try {
             $statements->change(
@@ -39,8 +39,8 @@ final class GiftCertificateNumberTest extends TestCase
                 [$sessionId, $registerId, 'Ada', '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}']
             );
             $statements->change(
-                "INSERT INTO stored_values (kind, number) VALUES ('gift_certificate', ?), ('gift_certificate', ?)",
-                [$lower, $upper]
+                "INSERT INTO stored_values (kind, number) VALUES ('gift_certificate', ?)",
+                [$lower]
             );
             $journalId = $gifts->issue($sessionId, $this->openDate($statements), '', 100, 'cash', null);
             $journal = $ledger->journal($journalId);
@@ -54,9 +54,9 @@ final class GiftCertificateNumberTest extends TestCase
     }
 
     /**
-     * @return array{0: string, 1: string, 2: string}
+     * @return array{0: string, 1: string}
      */
-    private function pair(Statements $statements): array
+    private function wedge(Statements $statements): array
     {
         $rows = $statements->rows(
             "SELECT upper(number) AS number
@@ -71,15 +71,18 @@ final class GiftCertificateNumberTest extends TestCase
         }
         for ($attempt = 0; $attempt < 5; $attempt++) {
             $digits = '9';
-            for ($place = 0; $place < 11; $place++) {
+            for ($place = 0; $place < 10; $place++) {
                 $digits .= (string) random_int(0, 9);
             }
-            $stem = substr($digits, 0, 11);
-            $lower = 'gc-' . $stem . '1';
-            $upper = 'GC-' . $stem . '5';
-            $expected = 'GC-' . $stem . '6';
-            if ($top === '' || strlen($upper) > strlen($top) || strcasecmp($upper, $top) > 0) {
-                return [$lower, $upper, $expected];
+            $digits .= (string) random_int(0, 8);
+            $seed = 'gc-' . $digits;
+            $above = 'GC-' . $digits;
+            $expected = 'GC-' . (string) ((int) $digits + 1);
+            if (strlen($expected) > 15) {
+                continue;
+            }
+            if ($top === '' || strlen($above) > strlen($top) || strcasecmp($above, $top) > 0) {
+                return [$seed, $expected];
             }
         }
         self::fail('could not choose a certificate number past the current sequence');

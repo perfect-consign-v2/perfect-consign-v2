@@ -7,6 +7,15 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      STALL_DB_HOST: 127.0.0.1
+      STALL_DB_PORT: '5436'
+      STALL_DB_NAME: consign
+      STALL_DB_USER: stall
+      STALL_DB_PASSWORD: stall
+      STALL_APP_PASSWORD: ci-app-password
+      STALL_OWNER_PASSWORD: ci-owner-password
+      STALL_BACKUP_PASSWORD: ci-backup-password
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,12 +51,3 @@ jobs:
         run: php bin/provision-platform.php
       - run: composer check
       - run: composer test:coverage
-        env:
-          STALL_DB_HOST: 127.0.0.1
-          STALL_DB_PORT: '5436'
-          STALL_DB_NAME: consign
-          STALL_DB_USER: stall
-          STALL_DB_PASSWORD: stall
-          STALL_APP_PASSWORD: ci-app-password
-          STALL_OWNER_PASSWORD: ci-owner-password
-          STALL_BACKUP_PASSWORD: ci-backup-password
