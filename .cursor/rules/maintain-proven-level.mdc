@@ -7,7 +7,7 @@ alwaysApply: true
 
 Done means `composer check` exits 0 after the latest edit, not that a feature proof passed once.
 
-- After any edit under `sql/` or `src/`, this turn is not finished until `composer check` exits 0 in this turn. That command is max lines, PHPMD, PHPStan, the unit suite, the integration suite, the obligation scan, the race proofs, and `php bin/prove-suite.php`.
+- After any edit under `sql/` or `src/`, this turn is not finished until `composer check` exits 0 in this turn. That command is max lines, PHPMD, PHPStan, the unit suite, the integration suite, the HTTP suite, the obligation scan, the race proofs, and `php bin/prove-suite.php`.
 - A single `sql/prove_*.sql` run does not count, including the proof named in the plan.
 - A vector found later is added to the permanent proof and re-run. A one-off script does not count, and it does not excuse moving on.
 - Do not delete, comment out, or narrow an assertion to make a script pass. Restore the guarantee and re-run.

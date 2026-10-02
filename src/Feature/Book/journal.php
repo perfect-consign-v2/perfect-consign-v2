@@ -17,9 +17,10 @@ use PerfectConsign\Shared\Http\View;
 <p><?= View::text($journal['description']) ?></p>
 <?php
 $sourceType = is_string($journal['source_type'] ?? null) ? $journal['source_type'] : '';
-$sourceReference = is_string($journal['source_reference'] ?? null) ? $journal['source_reference'] : '';
+$issued = $sourceType === 'gift_certificate_issue'
+    && !in_array($journal['is_reversal'] ?? null, [true, 1, '1', 't', 'true'], true);
 ?>
-<?php if ($sourceType === 'gift_certificate_issue' && !str_ends_with($sourceReference, ':void')): ?>
+<?php if ($issued): ?>
     <p><a class="btn" href="/<?= View::text($slug) ?>/pos/gift/<?= View::text($journal['id']) ?>">Print certificate</a></p>
 <?php endif; ?>
 <table>

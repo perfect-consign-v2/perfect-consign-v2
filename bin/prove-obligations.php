@@ -72,12 +72,22 @@ fwrite(STDOUT, "ok obligations\n");
 }
 
 if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath((string) $argv[0]) === realpath(__FILE__)) {
-    runObligations(dirname(__DIR__));
+    try {
+        runObligations(dirname(__DIR__));
+    } catch (RuntimeException $error) {
+        fwrite(STDERR, $error->getMessage() . "\n");
+        exit(1);
+    }
 }
 
 function symbolIsCovered(string $name, string $covered): bool
 {
-    return preg_match('/\\b' . preg_quote($name, '/') . '\\s*\\(/', $covered) === 1;
+    $calls = preg_replace('/\\bfunction\\s+' . preg_quote($name, '/') . '\\s*\\(/', '', $covered);
+    if (!is_string($calls)) {
+        return false;
+    }
+
+    return preg_match('/\\b' . preg_quote($name, '/') . '\\s*\\(/', $calls) === 1;
 }
 
 function identifierIsCovered(string $name, string $covered): bool
@@ -96,8 +106,7 @@ function obligationBase(string $root): string
     if ($merged['code'] === 0 && $base !== '') {
         return $base;
     }
-    fwrite(STDERR, "obligation base is missing\n");
-    exit(1);
+    throw new RuntimeException('obligation base is missing');
 }
 
 /**
@@ -370,7 +379,7 @@ function unprovenSymbols(string $root): array
     foreach ($added as $file => $lines) {
         $text = implode("\n", $lines);
         if (str_starts_with($file, 'src/') || str_starts_with($file, 'src\\')) {
-            if (preg_match_all('/public\\s+(?:static\\s+)?function\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(/', $text, $methods) !== false) {
+            if (preg_match_all('/(?:public|protected|private)\\s+(?:static\\s+)?function\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(/', $text, $methods) !== false) {
                 foreach ($methods[1] as $method) {
                     if (!symbolIsCovered($method, $covered)) {
                         $failures[] = $file . ' adds ' . $method . ' and no proof or test names it';
@@ -448,8 +457,7 @@ function git(string $root, array $arguments): string
 {
     $result = gitResult($root, $arguments);
     if ($result['code'] !== 0) {
-        fwrite(STDERR, "could not run git\n");
-        exit(1);
+        throw new RuntimeException('could not run git');
     }
 
     return $result['stdout'];

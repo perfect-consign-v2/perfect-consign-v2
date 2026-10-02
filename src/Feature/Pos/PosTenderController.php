@@ -71,7 +71,7 @@ final class PosTenderController
         $request = $this->app->request();
         try {
             $this->sales->refuse($slug);
-            $number = $request->field('gift_number');
+            $number = trim($request->field('gift_number'));
             if ($request->field('gift_custom') === '1' && $number === '') {
                 throw new DatabaseRefusal(GiftIssue::NUMBER_REQUIRED);
             }

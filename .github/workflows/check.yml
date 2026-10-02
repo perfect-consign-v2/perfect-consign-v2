@@ -27,8 +27,8 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: pdo_pgsql, zip
-          coverage: none
+          extensions: pdo_pgsql, zip, curl
+          coverage: xdebug
       - run: composer install --no-interaction --prefer-dist
       - run: docker compose up -d postgres
       - name: Wait for Postgres
@@ -41,6 +41,7 @@ jobs:
       - name: Apply the platform schema
         run: php bin/provision-platform.php
       - run: composer check
+      - run: composer test:coverage
         env:
           STALL_DB_HOST: 127.0.0.1
           STALL_DB_PORT: '5436'

@@ -47,12 +47,14 @@
             "@phpstan",
             "@test",
             "@test:integration",
+            "@test:http",
             "@prove:obligations",
             "@prove:race",
             "@prove"
         ]
     },
     "config": {
+        "process-timeout": 0,
         "sort-packages": true
     }
 }

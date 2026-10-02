@@ -372,6 +372,13 @@ final class FloorCoverageTest extends WebTestCase
         $this->certificate($sold, $number, '20.00');
         $generated = $this->gift('10.00', 'cash');
         $this->slip($generated);
+        $blankNumber = $this->client->post('/' . self::SLUG . '/pos/gift', [
+            'gift_custom' => '1',
+            'gift_number' => ' ',
+            'gift_amount' => '3.00',
+            'gift_tender' => 'cash',
+        ]);
+        self::assertStringContainsString('Enter the certificate number.', $blankNumber->body);
         $missingCheck = $this->gift('12.00', 'checks');
         self::assertStringContainsString('id="gift-sell" class="modal" role="dialog" aria-modal="true" aria-labelledby="gift-sell-title">', $missingCheck->body);
         self::assertStringContainsString('id="gift-check-error">a check sale needs a check number', $missingCheck->body);

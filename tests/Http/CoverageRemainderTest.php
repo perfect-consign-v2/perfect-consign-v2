@@ -232,23 +232,24 @@ final class CoverageRemainderTest extends WebTestCase
         ]);
         self::assertSees('Vendor created.', $vendor);
         $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $code);
+        $rent = $this->client->get('/' . self::SLUG . '/rent');
+        self::assertSees('Charge the stored rate', $rent);
+        self::assertSees('Rent payment', $rent);
+        $today = $this->match($rent->body, '/id="charge_date"[^>]*value="(\d{4}-\d{2}-\d{2})"/');
+        $month = substr($today, 0, 8) . '01';
         $boothCode = 'r' . $tag;
         $booth = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => $boothCode,
             'name' => 'Rent ' . $tag,
-            'month_start' => '2026-09-01',
+            'month_start' => $month,
             'amount' => '40.00',
         ]);
         $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', $boothCode);
         $this->client->post('/' . self::SLUG . '/assignments', [
             'vendor_id' => $vendorId,
             'booth_id' => $boothId,
-            'starts_on' => '2026-09-01',
+            'starts_on' => $month,
         ]);
-        $rent = $this->client->get('/' . self::SLUG . '/rent');
-        self::assertSees('Charge the stored rate', $rent);
-        self::assertSees('Rent payment', $rent);
-        $today = $this->match($rent->body, '/id="charge_date"[^>]*value="(\d{4}-\d{2}-\d{2})"/');
         $noRate = $this->client->post('/' . self::SLUG . '/rent/charge', [
             'booth_id' => $boothId,
             'posting_date' => '2020-01-15',

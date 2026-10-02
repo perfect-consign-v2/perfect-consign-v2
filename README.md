@@ -44,7 +44,7 @@ php -S 127.0.0.1:8096 -t public public/index.php
 
 ## Tests
 
-`composer test` runs the unit suite. `composer test:integration` runs the two tests that open Postgres. `composer check` runs both. `composer test:smoke` and `composer test:http` boot the site on `127.0.0.1:8097` and drive it over HTTP. `composer test:browser` drives the same site in Chrome. The browser suite needs the PHP `sockets` extension.
+`composer test` runs the unit suite. `composer test:integration` runs the tests that open Postgres. `composer test:http` runs the HTTP suite. `composer check` runs all three. `composer test:coverage` enforces the 90 percent line floor. `composer test:smoke` and `composer test:http` boot the site on `127.0.0.1:8097` and drive it over HTTP. `composer test:browser` drives the same site in Chrome. The browser suite needs the PHP `sockets` extension.
 
 Those three commands use mall `webprobe` on the local database. The suite creates that mall when it is missing and sets its owner password. It posts journals into that mall. It does not change any other mall. If `STALL_DB_USER` and `STALL_DB_PASSWORD` are unset, the suite uses the local `docker-compose.yml` login.
 

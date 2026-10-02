@@ -177,21 +177,18 @@ function readRace(string $directory, string $file): string
 }
 
 /**
- * @return array{process: resource, pipes: array<int, resource>}
- */
-/**
  * @return array{process: resource}
  */
 function startSql(string $sql): array
 {
     $sink = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
     $process = proc_open(
-        psqlCommand(),
+        sessionCommand(),
         [0 => ['pipe', 'r'], 1 => ['file', $sink, 'w'], 2 => ['file', $sink, 'w']],
         $pipes
     );
     if (!is_resource($process)) {
-        fail('could not start psql');
+        fail('could not start a race session');
     }
     fwrite($pipes[0], $sql);
     fclose($pipes[0]);
@@ -212,9 +209,9 @@ function finishSql(array $started): void
  */
 function runSql(string $sql, bool $allowFail): array
 {
-    $process = proc_open(psqlCommand(), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $process = proc_open(sessionCommand(), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
     if (!is_resource($process)) {
-        fail('could not start psql');
+        fail('could not start a race session');
     }
     fwrite($pipes[0], $sql);
     fclose($pipes[0]);
@@ -234,9 +231,9 @@ function runSql(string $sql, bool $allowFail): array
 /**
  * @return list<string>
  */
-function psqlCommand(): array
+function sessionCommand(): array
 {
-    return ['docker', 'exec', '-i', 'perfect-consign-postgres', 'psql', '-U', 'stall', '-d', 'consign', '-v', 'ON_ERROR_STOP=1', '-t', '-A'];
+    return [PHP_BINARY, __DIR__ . DIRECTORY_SEPARATOR . 'prove-race-session.php'];
 }
 
 /**

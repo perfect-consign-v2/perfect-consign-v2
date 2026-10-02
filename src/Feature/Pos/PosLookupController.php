@@ -14,6 +14,7 @@ final class PosLookupController
 {
     public function __construct(
         private readonly MallApp $app,
+        private readonly RegisterGate $gate,
         private readonly ScanSearch $search,
         private readonly GiftIssue $gifts,
     ) {
@@ -30,6 +31,7 @@ final class PosLookupController
     public function giftCertificate(string $slug): void
     {
         $this->app->open($slug, true);
+        $this->gate->session($slug);
         $number = trim($this->app->request()->query('number'));
         $balance = $this->gifts->balance($number);
         if ($balance === null) {

@@ -13,7 +13,9 @@ final class ObligationSymbolTest extends TestCase
     public function testAShareAliasDoesNotCoverTheMethod(): void
     {
         self::assertFalse(\symbolIsCovered('share', "AS share\n"));
+        self::assertFalse(\symbolIsCovered('share', "function share(\n"));
         self::assertTrue(\symbolIsCovered('share', "share(\n"));
+        self::assertTrue(\symbolIsCovered('share', "\$this->share(\n"));
     }
 
     public function testTheObligationBaseIsNotHead(): void

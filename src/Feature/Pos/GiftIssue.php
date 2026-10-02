@@ -96,7 +96,7 @@ final class GiftIssue
             !is_string($reference)
             || !is_string($source)
             || $source !== 'gift_certificate_issue'
-            || str_ends_with($reference, ':void')
+            || in_array($journal['is_reversal'] ?? null, [true, 1, '1', 't', 'true'], true)
         ) {
             throw new DatabaseRefusal('that journal is not a gift certificate');
         }
@@ -146,15 +146,15 @@ final class GiftIssue
     private function allocate(): string
     {
         $rows = $this->statements->bound(
-            "SELECT number FROM stored_values
-             WHERE kind = 'gift_certificate' AND number ~ ?
-             ORDER BY char_length(number) DESC, number DESC
+            "SELECT upper(number) AS number FROM stored_values
+             WHERE kind = 'gift_certificate' AND number ~* ?
+             ORDER BY char_length(number) DESC, upper(number) DESC
              LIMIT 1",
             ['^GC-[0-9]+$']
         );
         $last = $rows[0]['number'] ?? null;
         $sequence = 1001;
-        if (is_string($last) && preg_match('/^GC-(\d+)$/', $last, $parts) === 1) {
+        if (is_string($last) && preg_match('/^GC-(\d+)$/i', $last, $parts) === 1) {
             if (strlen($parts[1]) > 12) {
                 throw new DatabaseRefusal('a stored value number is required');
             }

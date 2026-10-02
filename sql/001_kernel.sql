@@ -539,6 +539,9 @@ CREATE INDEX journals_period_idx
 CREATE INDEX journals_posting_date_idx
     ON journals (book_id, posting_date);
 
+CREATE INDEX journals_source_idx
+    ON journals (source_type, source_reference);
+
 CREATE CONSTRAINT TRIGGER journals_reversal_shape
     AFTER INSERT ON journals
     DEFERRABLE INITIALLY DEFERRED
