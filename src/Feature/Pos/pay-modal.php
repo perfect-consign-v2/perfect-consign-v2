@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
@@ -40,7 +41,7 @@ $amount = static function (int $minor): string {
             <div class="h3" id="enter-payment-title">Payment</div>
             <button class="btn btn-sm" type="button" data-close-modal="enter-payment">Close</button>
         </div>
-        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json">
+        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json" data-gift-over="<?= View::text(RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) ?>">
             <div class="card-body stack">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                 <input type="hidden" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">

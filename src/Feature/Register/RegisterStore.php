@@ -161,6 +161,8 @@ final class RegisterStore
 
     public const GIFT_CERTIFICATE_MISSING = 'that gift certificate number is not on file';
 
+    public const GIFT_CERTIFICATE_BELOW_ZERO = 'a gift certificate cannot go below zero';
+
     public function storedValueId(string $kind, string $number): string
     {
         $number = trim($number);

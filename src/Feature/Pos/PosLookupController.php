@@ -37,7 +37,7 @@ final class PosLookupController
         if ($balance === null) {
             $this->send(['ok' => false, 'error' => RegisterStore::GIFT_CERTIFICATE_MISSING]);
         }
-        $this->send(['ok' => true, 'balance' => View::money($balance)]);
+        $this->send(['ok' => true, 'balance' => View::money($balance), 'cents' => $balance]);
     }
 
     /**

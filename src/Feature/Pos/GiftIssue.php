@@ -82,7 +82,7 @@ final class GiftIssue
     }
 
     /**
-     * @return array{number: string, posted_on: string, amount: int, voided: bool}
+     * @return array{number: string, posted_on: string, amount: int, balance: int, voided: bool}
      */
     public function slip(string $journalId): array
     {
@@ -101,7 +101,8 @@ final class GiftIssue
             throw new DatabaseRefusal('that journal is not a gift certificate');
         }
         $amount = $this->issuedAmount($journalId);
-        if ($amount < 1) {
+        $left = $this->balance($reference);
+        if ($amount < 1 || $left === null) {
             throw new DatabaseRefusal('that journal is not a gift certificate');
         }
         $posted = $journal['posting_date'] ?? null;
@@ -110,6 +111,7 @@ final class GiftIssue
             'number' => $reference,
             'posted_on' => $posted instanceof \DateTimeInterface ? $posted->format('Y-m-d') : RowValue::string($posted),
             'amount' => $amount,
+            'balance' => $left,
             'voided' => $this->ledger->reversed($journalId),
         ];
     }

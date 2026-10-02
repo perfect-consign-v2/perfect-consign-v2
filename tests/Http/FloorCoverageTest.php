@@ -413,7 +413,27 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Sale posted.', $redeemed);
         $left = $this->client->get('/' . self::SLUG . '/pos?gift=' . $number);
         self::assertSees('15.00', $left);
-        $this->outstanding($this->certificates(), $number);
+        $open = $this->certificates();
+        $this->outstanding($open, $number);
+        self::assertSame(1, preg_match(
+            '/' . preg_quote($number, '/') . '[\s\S]*?href="(\/' . self::SLUG . '\/pos\/gift\/[0-9a-fA-F-]{36})"/',
+            $open->body,
+            $slipLink
+        ));
+        $slip = $this->client->get($slipLink[1]);
+        self::assertSees('Balance left', $slip);
+        self::assertSees('$15.00', $slip);
+        $this->client->post('/' . self::SLUG . '/pos/new', []);
+        $overPiece = $this->piece($vendor, '20.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $overPiece['code']]);
+        $overGift = $this->payment([
+            'tender_gift_certificate' => '20.00',
+            'gift_certificate_number' => $number,
+        ]);
+        self::assertStringContainsString('id="enter-payment" class="modal" role="dialog" aria-modal="true" aria-labelledby="enter-payment-title">', $overGift->body);
+        self::assertStringContainsString('id="pay-gift-error">a gift certificate cannot go below zero', $overGift->body);
+        self::assertStringNotContainsString('alert alert-danger', $overGift->body);
+        $this->client->post('/' . self::SLUG . '/pos/discard', []);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
         $drawPiece = $this->piece($vendor, '4.00');
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $drawPiece['code']]);

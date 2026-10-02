@@ -6,7 +6,7 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var string $displayName */
-/** @var array{number: string, posted_on: string, amount: int, voided: bool} $slip */
+/** @var array{number: string, posted_on: string, amount: int, balance: int, voided: bool} $slip */
 $soldOn = DateTimeImmutable::createFromFormat('!Y-m-d', $slip['posted_on']);
 $when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('M j, Y') : $slip['posted_on'];
 ?>
@@ -25,6 +25,7 @@ $when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('M j, Y') : $slip
         <?php endif; ?>
         <p class="slip-row"><span>Date</span><span><?= View::text($when) ?></span></p>
         <p class="slip-row slip-total"><span>Amount</span><span><?= View::text(View::money($slip['amount'])) ?></span></p>
+        <p class="slip-row"><span>Balance left</span><span><?= View::text(View::money($slip['balance'])) ?></span></p>
         <hr class="slip-rule">
         <p class="slip-kicker slip-center">Redemption number</p>
         <p class="slip-number"><?= View::text($slip['number']) ?></p>

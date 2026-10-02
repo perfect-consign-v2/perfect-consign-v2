@@ -35,7 +35,7 @@ final class PosPayController
             $next = $this->checkout->pay($slug, $session, $this->app->request());
         } catch (DatabaseRefusal $refusal) {
             $message = $this->app->catchRefusal($refusal);
-            if ($message === RegisterStore::GIFT_CERTIFICATE_MISSING) {
+            if ($message === RegisterStore::GIFT_CERTIFICATE_MISSING || $message === RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) {
                 $this->page->payment($slug, $message);
 
                 return;

@@ -22,10 +22,13 @@ declare(strict_types=1);
     const check = document.getElementById('pay-check');
     const checkNumber = document.getElementById('pay-check-number');
     const checkError = document.getElementById('pay-check-error');
+    const giftAmount = document.getElementById('pay-gift');
     const giftNumber = document.getElementById('pay-gift-number');
     const giftError = document.getElementById('pay-gift-error');
     const giftBalance = document.getElementById('pay-gift-balance');
     const giftLookup = document.getElementById('pay-gift-lookup');
+    const giftOver = form.getAttribute('data-gift-over') || '';
+    let giftCap = null;
     const done = document.getElementById('pay-done');
     const hold = document.getElementById('pay-hold');
     const fields = form.querySelectorAll('[name^="tender_"]');
@@ -134,6 +137,16 @@ declare(strict_types=1);
                 checkNumber.removeAttribute('aria-invalid');
             }
         }
+        const giftTooMuch = giftCap !== null && cents(giftAmount && giftAmount.value) > giftCap;
+        if (giftError && giftCap !== null) {
+            if (giftTooMuch) {
+                giftError.hidden = false;
+                giftError.textContent = giftOver;
+            } else if (giftError.textContent === giftOver) {
+                giftError.hidden = true;
+                giftError.textContent = '';
+            }
+        }
         const giftBlocked = giftError ? !giftError.hidden : false;
         if (done) {
             done.disabled = checkMissing;
@@ -177,7 +190,13 @@ declare(strict_types=1);
         });
     });
     fields.forEach(function (input) {
-        input.addEventListener('input', settle);
+        input.addEventListener('input', function () {
+            if (input === giftAmount && giftCap === null && giftError && giftError.textContent === giftOver) {
+                giftError.hidden = true;
+                giftError.textContent = '';
+            }
+            settle();
+        });
     });
     if (checkNumber) {
         checkNumber.addEventListener('input', settle);
@@ -204,6 +223,7 @@ declare(strict_types=1);
     function lookupGift() {
         const number = String(giftNumber && giftNumber.value || '').trim();
         if (number === '') {
+            giftCap = null;
             showGift('', '');
             return;
         }
@@ -218,21 +238,25 @@ declare(strict_types=1);
                     return;
                 }
                 if (!data || data.ok !== true) {
+                    giftCap = null;
                     showGift(data && data.error ? String(data.error) : 'that gift certificate number is not on file', '');
                     return;
                 }
+                giftCap = Number.isFinite(Number(data.cents)) ? Number(data.cents) : null;
                 showGift('', 'Balance left ' + String(data.balance || ''));
             })
             .catch(function () {
                 if (token !== giftToken) {
                     return;
                 }
+                giftCap = null;
                 showGift('that gift certificate number is not on file', '');
             });
     }
     if (giftNumber) {
         giftNumber.addEventListener('input', function () {
             giftToken += 1;
+            giftCap = null;
             showGift('', '');
         });
         giftNumber.addEventListener('change', lookupGift);
