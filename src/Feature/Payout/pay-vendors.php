@@ -7,6 +7,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $displayName */
+/** @var string $monthName */
 /** @var list<array{vendor_id: string, code: string, name: string, booth: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int}> $pack */
 /** @var list<array{code: string, name: string, mode: string}> $excluded */
 /** @var list<array<string, mixed>> $runs */
@@ -28,13 +29,14 @@ foreach ($pack as $row) {
 }
 $latest = $runs[0]['id'] ?? '';
 $runId = is_string($latest) ? $latest : '';
+$words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
 ?>
 <div class="page-head">
     <div class="titles">
-        <h1 class="h1">Pay vendors</h1>
+        <h1 class="h1"><?= View::text($monthName) ?> payout</h1>
         <p class="muted"><?= View::text($displayName) ?></p>
     </div>
-    <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/payouts/past">Past payouts</a>
+    <a class="btn btn-ghost no-print" href="/<?= View::text($slug) ?>/payouts/past">Past payouts</a>
 </div>
 <?php if (is_string($error) && $error !== ''): ?>
     <p class="alert"><?= View::text($error) ?></p>
@@ -56,7 +58,7 @@ $runId = is_string($latest) ? $latest : '';
             </thead>
             <tbody>
             <?php foreach ($pack as $row): ?>
-                <tr class="envelope">
+                <tr>
                     <td><?= View::text($row['name']) ?> <span class="muted"><?= View::text($row['code']) ?></span></td>
                     <td><?= View::text($row['booth'] === '' ? '—' : $row['booth']) ?></td>
                     <td><?= View::text(View::money($row['payable'])) ?></td>
@@ -64,22 +66,37 @@ $runId = is_string($latest) ? $latest : '';
                     <td><?= View::text(View::money($row['charged'])) ?></td>
                     <td><?= View::text(View::money($row['paid'])) ?></td>
                     <td><?= $row['check'] > 0 ? View::text(View::money($row['check'])) : '' ?></td>
-                    <td><?php if ($row['owes'] > 0): ?><span class="text-danger">Amount owed to store: <?= View::text(View::money($row['owes'])) ?></span><?php endif; ?></td>
+                    <td><?php if ($row['owes'] > 0): ?><span class="text-danger"><?= View::text(View::money($row['owes'])) ?></span><?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
-        <p class="muted"><?= View::text((string) count($pack)) ?> envelopes. <?= View::text((string) $checks) ?> checks, <?= View::text(View::money($checkTotal)) ?>. <?= View::text((string) $owesCount) ?> owe the store, <?= View::text(View::money($owesTotal)) ?>.</p>
+        <p class="muted"><?= View::text((string) $checks) ?> checks, <?= View::text(View::money($checkTotal)) ?>. <?= View::text((string) $owesCount) ?> owe the store, <?= View::text(View::money($owesTotal)) ?>.</p>
     </div>
 </div>
+<?php foreach ($pack as $row): ?>
+    <section class="vendor-sheet">
+        <h2><?= View::text($row['name']) ?></h2>
+        <p><?= View::text($row['booth'] === '' ? 'No booth' : $row['booth']) ?></p>
+        <p>Their share <?= View::text(View::money($row['payable'])) ?></p>
+        <p>Owed before <?= View::text(View::money($row['prior'])) ?></p>
+        <p>This month <?= View::text(View::money($row['charged'])) ?></p>
+        <?php if ($row['check'] > 0): ?>
+            <p>Check <?= View::text(View::money($row['check'])) ?></p>
+        <?php endif; ?>
+        <?php if ($row['owes'] > 0): ?>
+            <p>Owes the store <?= View::text(View::money($row['owes'])) ?></p>
+        <?php endif; ?>
+    </section>
+<?php endforeach; ?>
 <?php if ($excluded !== []): ?>
-    <p class="muted">Vendors excluded: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['code']) ?> (<?= View::text($vendor['mode']) ?>) <?php endforeach; ?></p>
+    <p class="muted">Left off this payout: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['name']) ?> (<?= View::text($words[$vendor['mode']] ?? $vendor['mode']) ?>) <?php endforeach; ?></p>
 <?php endif; ?>
-<div class="stack mt-6">
+<div class="stack mt-6 no-print">
     <button class="btn" type="button" onclick="window.print()">Print the pack</button>
     <form method="post" action="/<?= View::text($slug) ?>/payouts/close">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <button class="btn" type="submit">Close</button>
+        <button class="btn btn-primary" type="submit">Close <?= View::text($monthName) ?></button>
     </form>
     <form method="post" action="/<?= View::text($slug) ?>/payouts/checks">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -90,8 +107,9 @@ $runId = is_string($latest) ? $latest : '';
     </form>
 </div>
 <style>
+.vendor-sheet { display: none; }
 @media print {
-    .envelope { break-after: page; }
-    .btn, form, .page-head a { display: none; }
+    .vendor-sheet { display: block; break-before: page; }
+    .no-print { display: none; }
 }
 </style>

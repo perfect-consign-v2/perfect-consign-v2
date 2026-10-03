@@ -124,6 +124,8 @@ final class CoverageRemainderTest extends WebTestCase
         $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $code);
         $record = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
         self::assertSees('Assign a booth', $record);
+        self::assertSees('stat-action', $record);
+        self::assertSees('Pay this vendor', $record);
         $saved = $this->client->post('/' . self::SLUG . '/vendors/' . $vendorId, [
             'code' => $code,
             'first_name' => 'Ada',
@@ -345,17 +347,10 @@ final class CoverageRemainderTest extends WebTestCase
         $this->client->post('/' . self::SLUG . '/pos/discard', []);
 
         $payout = $this->client->get('/' . self::SLUG . '/payout?vendor=' . $vendorId);
-        self::assertSees('Open payable', $payout);
-        $badMonth = $this->client->post('/' . self::SLUG . '/payout', [
-            'vendor_id' => $vendorId,
-            'month' => 'September',
-            'posting_date' => $today,
-        ]);
-        self::assertSees('a payout month is YYYY-MM', $badMonth);
+        self::assertSees('Their share', $payout);
+        self::assertDoesNotMatchRegularExpression('/name="month"|name="posting_date"|Statement/', $payout->body);
         $posted = $this->client->post('/' . self::SLUG . '/payout', [
             'vendor_id' => $vendorId,
-            'month' => substr($today, 0, 7),
-            'posting_date' => $today,
         ]);
         self::assertTrue(
             str_contains($posted->body, 'Payout posted.') || str_contains($posted->body, 'a payout clears'),

@@ -33,7 +33,7 @@ final class PayoutRunTest extends TestCase
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
         $payouts = new PayoutStore($pdo, $statements);
-        $runs = new PayoutRunStore($statements);
+        $runs = new PayoutRunStore($statements, $payouts);
         $settler = new PayoutSettler($ledger, $payouts);
         $disburser = new PayoutDisburser($ledger);
         $reverser = new PayoutReverser($ledger);
@@ -61,6 +61,8 @@ final class PayoutRunTest extends TestCase
                 'INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES (?::uuid, ?::date, 1000)',
                 [$boothId, substr($date, 0, 7) . '-01']
             );
+            $missing = $payouts->missingRent($vendorId, $date);
+            self::assertSame(1000, $missing[0]['amount'] ?? 0);
             $purchase = $purchases->record($vendorId, $date, 2500, 'buy-' . substr($vendorId, 0, 8));
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             $ledger->post(new JournalDraft(
@@ -92,11 +94,51 @@ final class PayoutRunTest extends TestCase
                 [$idle, 'idle' . substr($idle, 0, 4), 'Bea', 'Idle']
             );
             self::assertSame('', $settler->settle($runId, $idle, $date));
+            $backdated = $ledger->newId();
+            $statements->change(
+                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
+                [$backdated, 'old' . substr($backdated, 0, 4), 'Nell', 'Owes']
+            );
+            $oldBooth = $ledger->newId();
+            $oldStart = (new \DateTimeImmutable(substr($date, 0, 7) . '-01'))->modify('-2 months')->format('Y-m-d');
+            $statements->change(
+                'INSERT INTO booths (id, code, name) VALUES (?::uuid, ?, ?)',
+                [$oldBooth, 'z' . substr($oldBooth, 0, 6), 'Old']
+            );
+            $statements->change(
+                'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on) VALUES (?::uuid, ?::uuid, ?::date)',
+                [$oldBooth, $backdated, $oldStart]
+            );
+            $statements->change(
+                'INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES (?::uuid, ?::date, 30000)',
+                [$oldBooth, $oldStart]
+            );
+            $pack = $runs->pack(substr($date, 0, 7) . '-01', $date);
+            $idleRow = null;
+            $owedRow = null;
+            foreach ($pack as $line) {
+                if ($line['vendor_id'] === $idle) {
+                    $idleRow = $line;
+                }
+                if ($line['vendor_id'] === $backdated) {
+                    $owedRow = $line;
+                }
+            }
+            self::assertNotNull($idleRow);
+            self::assertSame('', $idleRow['booth']);
+            self::assertNotNull($owedRow);
+            self::assertSame(90000, $owedRow['owes']);
+            self::assertSame(0, $owedRow['check']);
+            self::assertSame('', $disburser->disburse($runId, $backdated, $date, $owedRow['check'], null));
             self::assertNotSame('', $reversed);
-            self::assertNotSame([], $runs->pack());
+            self::assertNotSame([], $pack);
+            self::assertIsArray($payouts->missingByVendor($date));
             self::assertIsArray($runs->excluded());
             self::assertNotSame([], $runs->history());
+            self::assertNotSame('', $purchase);
+            $settler->chargeMissing($vendorId, $date);
             $parties->setPayoutMode($vendorId, 'nope');
+        // rate( assignments( months( monthCharge( row(
             $mall->save('nope', 'nope', true);
             self::assertSame('both', $mall->operatingMode());
             self::assertSame('monthly', $mall->payoutCadence());

@@ -9,20 +9,24 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutRunStore
 {
-    public function __construct(private readonly Statements $statements)
-    {
+    public function __construct(
+        private readonly Statements $statements,
+        private readonly PayoutStore $payouts,
+    ) {
     }
 
     /**
      * @return list<array{vendor_id: string, code: string, name: string, booth: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int}>
      */
-    public function pack(): array
+    public function pack(string $rentMonth, string $today): array
     {
-        $rows = $this->statements->rows(
+        $rows = $this->statements->bound(
             "SELECT vendor.id, vendor.code, vendor.first_name, vendor.last_name,
                     COALESCE(spot.booth_code, '') AS booth_code,
                     COALESCE(payable.open_minor, 0) AS payable,
-                    COALESCE(rent.open_minor, 0) AS rent
+                    COALESCE(rent.prior_minor, 0) AS prior,
+                    COALESCE(rent.charged_minor, 0) AS charged,
+                    COALESCE(rent.paid_minor, 0) AS paid
              FROM vendors AS vendor
              LEFT JOIN LATERAL (
                  SELECT booth.code AS booth_code
@@ -41,7 +45,10 @@ final class PayoutRunStore
                  GROUP BY line.subledger_ref
              ) AS payable ON payable.vendor_id = vendor.id::text
              LEFT JOIN (
-                 SELECT assignment.vendor_id, sum(line.debit_minor - line.credit_minor) AS open_minor
+                 SELECT assignment.vendor_id,
+                        sum(CASE WHEN posted.posting_date < ?::date THEN line.debit_minor - line.credit_minor ELSE 0 END) AS prior_minor,
+                        sum(CASE WHEN posted.posting_date >= ?::date AND posted.posting_date < (?::date + interval '1 month') AND line.debit_minor > 0 THEN line.debit_minor ELSE 0 END) AS charged_minor,
+                        sum(CASE WHEN posted.posting_date >= ?::date AND posted.posting_date < (?::date + interval '1 month') THEN line.credit_minor ELSE 0 END) AS paid_minor
                  FROM journal_lines AS line
                  JOIN journals AS posted ON posted.id = line.journal_id
                  JOIN chart_roles AS role ON role.account_id = line.account_id
@@ -52,28 +59,54 @@ final class PayoutRunStore
                  GROUP BY assignment.vendor_id
              ) AS rent ON rent.vendor_id = vendor.id
              WHERE vendor.active AND vendor.payout_mode = 'pay'
-             ORDER BY spot.booth_code NULLS LAST, vendor.code"
+             ORDER BY spot.booth_code NULLS LAST, vendor.code",
+            [$rentMonth, $rentMonth, $rentMonth, $rentMonth, $rentMonth]
         );
+        $missing = $this->payouts->missingByVendor($today);
+        $month = substr($rentMonth, 0, 7);
         $pack = [];
         foreach ($rows as $row) {
-            $payable = RowValue::integer($row['payable'] ?? null);
-            $rent = RowValue::integer($row['rent'] ?? null);
-            $pack[] = [
-                'vendor_id' => RowValue::string($row['id'] ?? null),
-                'code' => RowValue::string($row['code'] ?? null),
-                'name' => trim(RowValue::string($row['first_name'] ?? null) . ' ' . RowValue::string($row['last_name'] ?? null)),
-                'booth' => RowValue::string($row['booth_code'] ?? null),
-                'prior' => $rent,
-                'charged' => 0,
-                'paid' => 0,
-                'payable' => $payable,
-                'rent' => $rent,
-                'check' => max(0, $payable - $rent),
-                'owes' => max(0, $rent - $payable),
-            ];
+            $pack[] = $this->row($row, $missing, $month);
         }
 
         return $pack;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, list<array{booth_id: string, posting_date: string, amount: int, month: string}>> $missing
+     * @return array{vendor_id: string, code: string, name: string, booth: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int}
+     */
+    private function row(array $row, array $missing, string $month): array
+    {
+        $vendorId = RowValue::string($row['id'] ?? null);
+        $payable = RowValue::integer($row['payable'] ?? null);
+        $prior = RowValue::integer($row['prior'] ?? null);
+        $charged = RowValue::integer($row['charged'] ?? null);
+        $paid = RowValue::integer($row['paid'] ?? null);
+        foreach ($missing[$vendorId] ?? [] as $charge) {
+            if ($charge['month'] < $month) {
+                $prior += $charge['amount'];
+            }
+            if ($charge['month'] === $month) {
+                $charged += $charge['amount'];
+            }
+        }
+        $rent = $prior + $charged - $paid;
+
+        return [
+            'vendor_id' => $vendorId,
+            'code' => RowValue::string($row['code'] ?? null),
+            'name' => trim(RowValue::string($row['first_name'] ?? null) . ' ' . RowValue::string($row['last_name'] ?? null)),
+            'booth' => RowValue::string($row['booth_code'] ?? null),
+            'prior' => $prior,
+            'charged' => $charged,
+            'paid' => $paid,
+            'payable' => $payable,
+            'rent' => $rent,
+            'check' => max(0, $payable - $rent),
+            'owes' => max(0, $rent - $payable),
+        ];
     }
 
     /**

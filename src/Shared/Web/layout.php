@@ -41,7 +41,7 @@ $groups = [
         ['/booths', 'Booths', 'i-booth'],
         ['/registers', 'Registers', 'i-pos'],
         ['/rent', 'Rent', 'i-booth'],
-        ['/payout', 'Payout', 'i-wallet'],
+        ['/payouts', 'Pay vendors', 'i-wallet'],
         ['/wait-list', 'Wait list', 'i-clock'],
         ['/map', 'Booths Map', 'i-map'],
         ['/brands', 'Brands', 'i-tag'],

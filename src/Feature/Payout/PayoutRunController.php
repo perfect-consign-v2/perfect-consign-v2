@@ -48,7 +48,10 @@ final class PayoutRunController
         $window = $this->window($today);
         try {
             $runId = $this->runs->begin($window['from'], $window['to'], $window['rent'], $today);
-            foreach ($this->runs->pack() as $row) {
+            foreach ($this->runs->pack($window['rent'], $today) as $row) {
+                $this->settler->chargeMissing($row['vendor_id'], $today);
+            }
+            foreach ($this->runs->pack($window['rent'], $today) as $row) {
                 $settlementId = $this->settler->settle($runId, $row['vendor_id'], $today);
                 $this->runs->remember(
                     $runId,
@@ -82,7 +85,8 @@ final class PayoutRunController
         }
         try {
             $runId = $this->app->request()->field('run_id');
-            foreach ($this->runs->pack() as $row) {
+            $window = $this->window($today);
+            foreach ($this->runs->pack($window['rent'], $today) as $row) {
                 if ($row['check'] <= 0 || $row['owes'] > 0) {
                     continue;
                 }
@@ -118,12 +122,15 @@ final class PayoutRunController
     private function render(string $slug, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
-        $pack = $this->runs->pack();
+        $today = $this->mall->today();
+        $window = $this->window($today);
+        $monthName = (new \DateTimeImmutable($window['rent']))->format('F');
         $this->app->show('Feature/Payout/pay-vendors', [
-            'title' => 'Pay vendors',
+            'title' => $monthName . ' payout',
+            'monthName' => $monthName,
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'pack' => $pack,
+            'pack' => $this->runs->pack($window['rent'], $today),
             'excluded' => $this->runs->excluded(),
             'runs' => $this->runs->history(),
             'error' => $error,

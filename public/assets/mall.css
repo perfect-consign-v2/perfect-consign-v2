@@ -311,6 +311,11 @@ a.stat-link {
     display: block;
     color: inherit;
 }
+a.stat-action .stat-label {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
 a.stat-link[aria-current="page"] {
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);

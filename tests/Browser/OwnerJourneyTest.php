@@ -123,11 +123,9 @@ final class OwnerJourneyTest extends WebTestCase
         $code = $this->vendor();
         $vendorId = HtmlPage::taggedId($this->session->html(), 'article', 'vendor', $code);
         $form = $this->session->open('/' . ProbeMall::SLUG . '/payout?vendor=' . rawurlencode($vendorId));
-        self::assertSees('Open payable 0.00', $form);
+        self::assertSees('Their share 0.00', $form);
         $refused = $this->session->submit('/' . ProbeMall::SLUG . '/payout', [
             'vendor_id' => $vendorId,
-            'month' => ProbeMall::MONTH,
-            'posting_date' => ProbeMall::POSTING_DATE,
         ]);
 
         self::assertSees('a payout clears a positive open payable or open rent receivable', $refused);

@@ -125,11 +125,9 @@ final class OwnerJourneyTest extends WebTestCase
         $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $code);
         $form = $this->client->get('/' . ProbeMall::SLUG . '/payout?vendor=' . $vendorId);
-        self::assertSees('Open payable $0.00', $form);
+        self::assertSees('Their share $0.00', $form);
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/payout', [
             'vendor_id' => $vendorId,
-            'month' => ProbeMall::MONTH,
-            'posting_date' => ProbeMall::POSTING_DATE,
         ]);
 
         self::assertSame(200, $refused->status);

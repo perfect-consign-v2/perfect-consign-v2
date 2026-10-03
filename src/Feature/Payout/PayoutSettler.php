@@ -17,6 +17,21 @@ final class PayoutSettler
     ) {
     }
 
+    public function chargeMissing(string $vendorId, string $today): void
+    {
+        foreach ($this->payouts->missingRent($vendorId, $today) as $charge) {
+            $this->ledger->post(new JournalDraft(
+                postingKey: 'rent-charge:' . $charge['booth_id'] . ':' . $charge['month'],
+                postingDate: $charge['posting_date'],
+                source: new JournalSource('rent_charge', $charge['booth_id'] . ':' . $charge['month'], 'Rent charge'),
+                lines: [
+                    PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), $charge['amount'], 0, 'booth', $charge['booth_id']),
+                    PostedLines::entry($this->ledger->roleAccount('rent_revenue'), 0, $charge['amount'], null, null),
+                ],
+            ));
+        }
+    }
+
     public function settle(string $runId, string $vendorId, string $postingDate): string
     {
         $open = $this->payouts->openPayout($vendorId);

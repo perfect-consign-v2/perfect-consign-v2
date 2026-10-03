@@ -44,9 +44,10 @@ $blank = '—';
     </div>
 
     <div class="grid cols-2 mt-4">
-        <a class="stat stat-link" href="/<?= View::text($slug) ?>/payout?vendor=<?= View::text($vendor['id']) ?>">
+        <a class="stat stat-link stat-action" href="/<?= View::text($slug) ?>/payout?vendor=<?= View::text($vendor['id']) ?>">
             <div class="stat-label">We owe them</div>
             <div class="stat-value"><?= View::text(View::money($weOwe)) ?></div>
+            <div class="stat-delta">Pay this vendor</div>
         </a>
         <div class="stat">
             <div class="stat-label">Open rent</div>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Payout;
 
 use PDO;
+use PerfectConsign\Feature\Party\MoveInRent;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -76,5 +77,172 @@ final class PayoutStore
         $statement->execute([$vendorId]);
 
         return $this->statements->all($statement);
+    }
+
+    /**
+     * Rent the assignment owes through today that has not been charged yet.
+     *
+     * @return list<array{booth_id: string, posting_date: string, amount: int, month: string}>
+     */
+    public function missingRent(string $vendorId, string $today): array
+    {
+        $this->rates = null;
+        $charged = [];
+        foreach ($this->statements->rows("SELECT posting_key FROM journals WHERE source_type = 'rent_charge'") as $row) {
+            $charged[RowValue::string($row['posting_key'] ?? null)] = true;
+        }
+        $missing = [];
+        foreach ($this->assignments($vendorId, $today) as $assignment) {
+            foreach ($this->months($assignment, $charged) as $charge) {
+                $missing[] = $charge;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * @return array<string, list<array{booth_id: string, posting_date: string, amount: int, month: string}>>
+     */
+    public function missingByVendor(string $today): array
+    {
+        $this->rates = null;
+        $charged = [];
+        foreach ($this->statements->rows("SELECT posting_key FROM journals WHERE source_type = 'rent_charge'") as $row) {
+            $charged[RowValue::string($row['posting_key'] ?? null)] = true;
+        }
+        $missing = [];
+        foreach ($this->statements->rows(
+            "SELECT vendor_id::text AS vendor_id, booth_id::text AS booth_id,
+                    to_char(starts_on, 'YYYY-MM-DD') AS starts_on, to_char(ends_on, 'YYYY-MM-DD') AS ends_on
+             FROM booth_assignments"
+        ) as $row) {
+            $starts = RowValue::string($row['starts_on'] ?? null);
+            $ends = $row['ends_on'] ?? null;
+            $through = is_string($ends) && $ends !== '' && $ends < $today ? $ends : $today;
+            if ($starts === '' || $starts > $through) {
+                continue;
+            }
+            $vendorId = RowValue::string($row['vendor_id'] ?? null);
+            foreach ($this->months([
+                'booth_id' => RowValue::string($row['booth_id'] ?? null),
+                'starts' => $starts,
+                'through' => $through,
+            ], $charged) as $charge) {
+                $missing[$vendorId][] = $charge;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * @return list<array{booth_id: string, starts: string, through: string}>
+     */
+    private function assignments(string $vendorId, string $today): array
+    {
+        $rows = $this->statements->bound(
+            "SELECT booth_id::text AS booth_id, to_char(starts_on, 'YYYY-MM-DD') AS starts_on, to_char(ends_on, 'YYYY-MM-DD') AS ends_on
+             FROM booth_assignments WHERE vendor_id = ?::uuid",
+            [$vendorId]
+        );
+        $assignments = [];
+        foreach ($rows as $row) {
+            $starts = RowValue::string($row['starts_on'] ?? null);
+            $ends = $row['ends_on'] ?? null;
+            $through = is_string($ends) && $ends !== '' && $ends < $today ? $ends : $today;
+            if ($starts === '' || $starts > $through) {
+                continue;
+            }
+            $assignments[] = [
+                'booth_id' => RowValue::string($row['booth_id'] ?? null),
+                'starts' => $starts,
+                'through' => $through,
+            ];
+        }
+
+        return $assignments;
+    }
+
+    /**
+     * @param array{booth_id: string, starts: string, through: string} $assignment
+     * @param array<string, true> $charged
+     * @return list<array{booth_id: string, posting_date: string, amount: int, month: string}>
+     */
+    private function months(array $assignment, array $charged): array
+    {
+        $missing = [];
+        $cursor = new \DateTimeImmutable(substr($assignment['starts'], 0, 7) . '-01');
+        $last = new \DateTimeImmutable(substr($assignment['through'], 0, 7) . '-01');
+        while ($cursor <= $last) {
+            $charge = $this->monthCharge($assignment, $cursor, $charged);
+            $cursor = $cursor->modify('+1 month');
+            if ($charge !== null) {
+                $missing[] = $charge;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * @param array{booth_id: string, starts: string, through: string} $assignment
+     * @param array<string, true> $charged
+     * @return array{booth_id: string, posting_date: string, amount: int, month: string}|null
+     */
+    private function monthCharge(array $assignment, \DateTimeImmutable $cursor, array $charged): ?array
+    {
+        $month = $cursor->format('Y-m');
+        $boothId = $assignment['booth_id'];
+        if (isset($charged['rent-charge:' . $boothId . ':' . $month])) {
+            return null;
+        }
+        $postingDate = $cursor->format('Y-m-d');
+        if ($postingDate < $assignment['starts']) {
+            $postingDate = $assignment['starts'];
+        }
+        $monthly = $this->rate($boothId, $postingDate);
+        if ($monthly === null) {
+            return null;
+        }
+        $amount = substr($assignment['starts'], 0, 7) === $month ? MoveInRent::due($monthly, $assignment['starts']) : $monthly;
+        if ($amount <= 0) {
+            return null;
+        }
+
+        return [
+            'booth_id' => $boothId,
+            'posting_date' => $postingDate,
+            'amount' => $amount,
+            'month' => $month,
+        ];
+    }
+
+    /** @var array<string, list<array{start: string, amount: int}>>|null */
+    private ?array $rates = null;
+
+    private function rate(string $boothId, string $day): ?int
+    {
+        if ($this->rates === null) {
+            $this->rates = [];
+            foreach ($this->statements->rows(
+                "SELECT booth_id::text AS booth_id, to_char(month_start, 'YYYY-MM-DD') AS month_start, amount_minor
+                 FROM booth_rent_rates
+                 ORDER BY month_start"
+            ) as $row) {
+                $this->rates[RowValue::string($row['booth_id'] ?? null)][] = [
+                    'start' => RowValue::string($row['month_start'] ?? null),
+                    'amount' => RowValue::integer($row['amount_minor'] ?? null),
+                ];
+            }
+        }
+        $amount = null;
+        foreach ($this->rates[$boothId] ?? [] as $rate) {
+            if ($rate['start'] <= $day) {
+                $amount = $rate['amount'];
+            }
+        }
+
+        return $amount;
     }
 }

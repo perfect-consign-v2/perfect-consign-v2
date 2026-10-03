@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Payout;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
@@ -20,6 +21,7 @@ final class PayoutController
         private readonly PartyStore $parties,
         private readonly PayoutSettler $settler,
         private readonly PayoutDisburser $disburser,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -35,12 +37,9 @@ final class PayoutController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $vendorId = $this->app->request()->field('vendor_id');
-        $month = $this->app->request()->field('month');
-        $postingDate = $this->app->request()->field('posting_date');
+        $postingDate = $this->mall->today();
         try {
-            if (preg_match('/^\d{4}-\d{2}$/', $month) !== 1) {
-                throw new DatabaseRefusal('a payout month is YYYY-MM');
-            }
+            $this->settler->chargeMissing($vendorId, $postingDate);
             $open = $this->payouts->openPayout($vendorId);
             $this->assertStatementAgrees($this->payouts->statement($vendorId), $open['payable'], $open['rent']);
             $applied = min($open['payable'], $open['rent']);
@@ -86,21 +85,32 @@ final class PayoutController
     private function render(string $slug, mixed $vendorId, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
+        $vendors = $this->parties->vendors();
         $selected = is_string($vendorId) ? $vendorId : '';
+        if ($selected === '' && count($vendors) === 1) {
+            $only = $vendors[0]['id'] ?? '';
+            $selected = is_string($only) ? $only : '';
+        }
         $open = null;
-        $statement = [];
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $selected) === 1) {
-            $open = $this->payouts->openPayout($selected);
-            $statement = $this->payouts->statement($selected);
+            $loaded = $this->payouts->openPayout($selected);
+            foreach ($this->payouts->missingRent($selected, $this->mall->today()) as $charge) {
+                $loaded['rent'] += $charge['amount'];
+            }
+            $open = [
+                'payable' => $loaded['payable'],
+                'rent' => $loaded['rent'],
+                'check' => max(0, $loaded['payable'] - $loaded['rent']),
+                'owes' => max(0, $loaded['rent'] - $loaded['payable']),
+            ];
         }
         $this->app->show('Feature/Payout/payout', [
-            'title' => 'Payout',
+            'title' => 'Pay this vendor',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'vendors' => $this->parties->vendors(),
+            'vendors' => $vendors,
             'vendorId' => $selected,
             'open' => $open,
-            'statement' => $statement,
             'error' => $error,
         ]);
     }

@@ -16,10 +16,15 @@ final class PayoutRunScreenTest extends WebTestCase
         $page = $client->get('/' . ProbeMall::SLUG . '/payouts');
 
         self::assertSame(200, $page->status);
-        self::assertSees('Pay vendors', $page);
+        self::assertMatchesRegularExpression('/[A-Z][a-z]+ payout/', $page->body);
         self::assertSees('Print the pack', $page);
         self::assertSees('window.print()', $page);
-        self::assertSees('class="envelope"', $page);
+        self::assertSees('Close ', $page);
+        self::assertSees('Write checks', $page);
+        self::assertSees('class="vendor-sheet"', $page);
+        self::assertDoesNotMatchRegularExpression('/envelope/i', $page->body);
+        self::assertSees('Owes the store', $page);
+        self::assertSees('—', $page);
         self::assertDoesNotMatchRegularExpression('/name="from"|name="to"|name="scope"|name="minimum"/', $page->body);
         $past = $client->get('/' . ProbeMall::SLUG . '/payouts/past');
         self::assertSame(200, $past->status);

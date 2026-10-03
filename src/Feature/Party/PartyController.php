@@ -354,6 +354,9 @@ final class PartyController
         $open = $this->payouts->openPayout($id);
         $vendor['payable_minor'] = $open['payable'];
         $vendor['rent_minor'] = $open['rent'];
+        foreach ($this->payouts->missingRent($id, $this->mall->today()) as $charge) {
+            $vendor['rent_minor'] += $charge['amount'];
+        }
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Party/vendor', [
             'title' => $vendor['name'],
