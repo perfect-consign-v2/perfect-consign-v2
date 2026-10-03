@@ -8,12 +8,25 @@ use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
+use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutReverser
 {
-    public function __construct(private readonly LedgerStore $ledger)
+    public function __construct(
+        private readonly LedgerStore $ledger,
+        private readonly Statements $statements,
+    ) {
+    }
+
+    public function undo(string $runId, string $postingDate, string $actor, string $reason): string
     {
+        $rows = $this->statements->bound(
+            'SELECT stall_reverse_payout_run(?::uuid, ?::date, ?, ?) AS id',
+            [$runId, $postingDate, $actor, $reason]
+        );
+
+        return RowValue::string($rows[0]['id'] ?? null);
     }
 
     public function reverse(string $journalId, string $postingDate): string

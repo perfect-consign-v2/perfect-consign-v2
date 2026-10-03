@@ -1,0 +1,33 @@
+@page {
+    size: letter;
+    margin: 0.6in;
+}
+
+.envelope {
+    break-after: page;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #000;
+    background: transparent;
+}
+
+.envelope h1,
+.envelope h2,
+.envelope p {
+    margin: 0 0 0.4rem;
+}
+
+.envelope table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.envelope td,
+.envelope th {
+    text-align: left;
+    padding: 0.15rem 0;
+    background: transparent;
+}
+
+.envelope .owed {
+    color: #9b1c1c;
+}

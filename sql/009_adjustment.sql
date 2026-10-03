@@ -30,7 +30,6 @@ FROM (
         ('operating_expense', 'sale'),
         ('operating_expense', 'rent_charge'),
         ('operating_expense', 'rent_payment'),
-        ('operating_expense', 'payout'),
         ('operating_expense', 'adjustment')
 ) AS seed(role, source_type)
 WHERE NOT EXISTS (

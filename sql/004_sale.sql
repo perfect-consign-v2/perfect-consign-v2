@@ -43,7 +43,6 @@ FROM (
         ('card', 'sale'),
         ('card', 'rent_charge'),
         ('card', 'rent_payment'),
-        ('card', 'payout'),
         ('card', 'adjustment')
 ) AS seed(role, source_type)
 WHERE NOT EXISTS (

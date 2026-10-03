@@ -9,104 +9,48 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutRunStore
 {
-    public function __construct(
-        private readonly Statements $statements,
-        private readonly PayoutStore $payouts,
-    ) {
+    public function __construct(private readonly Statements $statements)
+    {
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
-    public function pack(string $rentMonth, string $today): array
+    public function pack(string $runId): array
     {
-        $rows = $this->statements->bound(
-            "SELECT vendor.id, vendor.code, vendor.first_name, vendor.last_name,
-                    COALESCE(spot.booth_code, '') AS booth_code,
-                    COALESCE(payable.open_minor, 0) AS payable,
-                    COALESCE(rent.prior_minor, 0) AS prior,
-                    COALESCE(rent.charged_minor, 0) AS charged,
-                    COALESCE(rent.paid_minor, 0) AS paid
-             FROM vendors AS vendor
-             LEFT JOIN LATERAL (
-                 SELECT booth.code AS booth_code
-                 FROM booth_assignments AS assignment
-                 JOIN booths AS booth ON booth.id = assignment.booth_id
-                 WHERE assignment.vendor_id = vendor.id
-                   AND assignment.assignment_range @> CURRENT_DATE
-                 ORDER BY booth.code
-                 LIMIT 1
-             ) AS spot ON true
-             LEFT JOIN (
-                 SELECT line.subledger_ref AS vendor_id, sum(line.credit_minor - line.debit_minor) AS open_minor
-                 FROM journal_lines AS line
-                 JOIN chart_roles AS role ON role.account_id = line.account_id
-                 WHERE role.role = 'vendor_payable' AND line.subledger_type = 'vendor'
-                 GROUP BY line.subledger_ref
-             ) AS payable ON payable.vendor_id = vendor.id::text
-             LEFT JOIN (
-                 SELECT assignment.vendor_id,
-                        sum(CASE WHEN posted.posting_date < ?::date THEN line.debit_minor - line.credit_minor ELSE 0 END) AS prior_minor,
-                        sum(CASE WHEN posted.posting_date >= ?::date AND posted.posting_date < (?::date + interval '1 month') AND line.debit_minor > 0 THEN line.debit_minor ELSE 0 END) AS charged_minor,
-                        sum(CASE WHEN posted.posting_date >= ?::date AND posted.posting_date < (?::date + interval '1 month') THEN line.credit_minor ELSE 0 END) AS paid_minor
-                 FROM journal_lines AS line
-                 JOIN journals AS posted ON posted.id = line.journal_id
-                 JOIN chart_roles AS role ON role.account_id = line.account_id
-                 JOIN booth_assignments AS assignment
-                   ON assignment.booth_id = line.subledger_ref::uuid
-                  AND assignment.assignment_range @> posted.posting_date
-                 WHERE role.role = 'booth_rent_receivable' AND line.subledger_type = 'booth'
-                 GROUP BY assignment.vendor_id
-             ) AS rent ON rent.vendor_id = vendor.id
-             WHERE vendor.active AND vendor.payout_mode = 'pay'
-             ORDER BY spot.booth_code NULLS LAST, vendor.code",
-            [$rentMonth, $rentMonth, $rentMonth, $rentMonth, $rentMonth]
+        return $this->lines(
+            'SELECT vendor_id, code, name, booth, mode, prior, charged, paid, payable, rent,
+                    "check" AS check_amount, owes AS owe_amount, settled_minor, adjustment_minor
+             FROM payout_pack WHERE run_id = ?::uuid AND mode = ?
+             ORDER BY booth, code',
+            [$runId, 'pay']
         );
-        $missing = $this->payouts->missingByVendor($today);
-        $month = substr($rentMonth, 0, 7);
-        $pack = [];
-        foreach ($rows as $row) {
-            $pack[] = $this->row($row, $missing, $month);
-        }
-
-        return $pack;
     }
 
     /**
-     * @param array<string, mixed> $row
-     * @param array<string, list<array{booth_id: string, posting_date: string, amount: int, month: string}>> $missing
-     * @return array{vendor_id: string, code: string, name: string, booth: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int}
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
-    private function row(array $row, array $missing, string $month): array
+    public function stored(string $runId): array
     {
-        $vendorId = RowValue::string($row['id'] ?? null);
-        $payable = RowValue::integer($row['payable'] ?? null);
-        $prior = RowValue::integer($row['prior'] ?? null);
-        $charged = RowValue::integer($row['charged'] ?? null);
-        $paid = RowValue::integer($row['paid'] ?? null);
-        foreach ($missing[$vendorId] ?? [] as $charge) {
-            if ($charge['month'] < $month) {
-                $prior += $charge['amount'];
-            }
-            if ($charge['month'] === $month) {
-                $charged += $charge['amount'];
-            }
-        }
-        $rent = $prior + $charged - $paid;
-
-        return [
-            'vendor_id' => $vendorId,
-            'code' => RowValue::string($row['code'] ?? null),
-            'name' => trim(RowValue::string($row['first_name'] ?? null) . ' ' . RowValue::string($row['last_name'] ?? null)),
-            'booth' => RowValue::string($row['booth_code'] ?? null),
-            'prior' => $prior,
-            'charged' => $charged,
-            'paid' => $paid,
-            'payable' => $payable,
-            'rent' => $rent,
-            'check' => max(0, $payable - $rent),
-            'owes' => max(0, $rent - $payable),
-        ];
+        return $this->lines(
+            "SELECT line.vendor_id, vendor.code,
+                    btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
+                    '' AS booth, line.mode,
+                    line.rent_brought_forward_minor AS prior,
+                    line.rent_charged_minor + line.rent_minor AS charged,
+                    line.rent_paid_since_minor + line.settlement_applied_minor AS paid,
+                    line.carried_payable_minor AS payable,
+                    line.carried_rent_minor AS rent,
+                    line.check_minor AS check_amount,
+                    line.owes_minor AS owe_amount,
+                    line.settled_minor,
+                    line.adjustment_minor
+             FROM payout_run_lines AS line
+             JOIN vendors AS vendor ON vendor.id = line.vendor_id
+             WHERE line.run_id = ?::uuid
+             ORDER BY vendor.code",
+            [$runId]
+        );
     }
 
     /**
@@ -138,10 +82,99 @@ final class PayoutRunStore
     public function history(): array
     {
         return $this->statements->rows(
-            'SELECT id, run_no, sales_from, sales_to, rent_month, tender, status
-             FROM payout_runs
-             ORDER BY run_no DESC'
+            'SELECT run.id, run.run_no, run.sales_from, run.sales_to, run.rent_month, run.tender, run.status,
+                    run.reversed_at, reversal.reversed_by AS undone_by, reversal.reversal_reason AS undone_reason
+             FROM payout_runs AS run
+             LEFT JOIN LATERAL (
+                 SELECT reversed_by, reversal_reason
+                 FROM payout_runs
+                 WHERE reverses_run_id = run.id
+                 ORDER BY run_no DESC
+                 LIMIT 1
+             ) AS reversal ON true
+             WHERE run.reverses_run_id IS NULL
+             ORDER BY run.run_no DESC'
         );
+    }
+
+    public function ensureDraft(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string
+    {
+        $rows = $this->statements->bound(
+            "SELECT id FROM payout_runs
+             WHERE status = 'draft' AND sales_from = ?::date AND sales_to = ?::date AND rent_month = ?::date
+             ORDER BY created_at DESC LIMIT 1",
+            [$salesFrom, $salesTo, $rentMonth]
+        );
+        if ($rows !== []) {
+            return RowValue::string($rows[0]['id'] ?? null);
+        }
+
+        return $this->begin($salesFrom, $salesTo, $rentMonth, $postingDate);
+    }
+
+    public function review(string $runId): void
+    {
+        $this->statements->change(
+            "UPDATE payout_runs
+             SET reviewed_checksum = stall_pack_checksum(id), reviewed_at = clock_timestamp()
+             WHERE id = ?::uuid AND status = 'draft'",
+            [$runId]
+        );
+    }
+
+    /**
+     * @return array{tender: string, status: string}
+     */
+    public function run(string $runId): array
+    {
+        $rows = $this->statements->bound(
+            'SELECT tender, status FROM payout_runs WHERE id = ?::uuid',
+            [$runId]
+        );
+
+        return [
+            'tender' => RowValue::string($rows[0]['tender'] ?? null),
+            'status' => RowValue::string($rows[0]['status'] ?? null),
+        ];
+    }
+
+    /**
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, commission: int, tax: int, check: int, owes: int, check_number: string}>
+     */
+    public function envelopes(string $runId): array
+    {
+        $rows = $this->statements->bound(
+            "SELECT line.vendor_id, vendor.code, btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
+                    sale.sold_on, sale.item_code, sale.description, sale.price_minor, sale.commission_minor, sale.tax_minor,
+                    line.check_minor, line.owes_minor, line.check_number
+             FROM payout_run_lines AS line
+             JOIN vendors AS vendor ON vendor.id = line.vendor_id
+             LEFT JOIN payout_run_sales AS sale ON sale.run_id = line.run_id AND sale.vendor_id = line.vendor_id
+             WHERE line.run_id = ?::uuid AND line.mode = 'pay'
+             ORDER BY vendor.code, sale.sold_on, sale.line_no",
+            [$runId]
+        );
+        $envelopes = [];
+        foreach ($rows as $row) {
+            $number = $row['check_number'] ?? null;
+            $envelopes[] = [
+                'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
+                'code' => RowValue::string($row['code'] ?? null),
+                'name' => RowValue::string($row['name'] ?? null),
+                'booth' => '',
+                'sold_on' => is_string($row['sold_on'] ?? null) ? $row['sold_on'] : '',
+                'item_code' => is_string($row['item_code'] ?? null) ? $row['item_code'] : '',
+                'description' => is_string($row['description'] ?? null) ? $row['description'] : '',
+                'price' => RowValue::integer($row['price_minor'] ?? 0),
+                'commission' => RowValue::integer($row['commission_minor'] ?? 0),
+                'tax' => RowValue::integer($row['tax_minor'] ?? 0),
+                'check' => RowValue::integer($row['check_minor'] ?? null),
+                'owes' => RowValue::integer($row['owes_minor'] ?? null),
+                'check_number' => is_string($number) ? $number : '',
+            ];
+        }
+
+        return $envelopes;
     }
 
     public function begin(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string
@@ -160,31 +193,45 @@ final class PayoutRunStore
         return RowValue::string($rows[0]['id'] ?? null);
     }
 
-    public function remember(string $runId, string $vendorId, int $check, int $owes, ?string $settlementId): void
+    /**
+     * @param list<mixed> $params
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     */
+    private function lines(string $sql, array $params): array
     {
-        $this->statements->change(
-            'INSERT INTO payout_run_lines (
-                run_id, vendor_id, mode, check_minor, owes_minor, settlement_journal_id
-             ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid)',
-            [$runId, $vendorId, 'pay', $check, $owes, $settlementId]
-        );
+        $pack = [];
+        foreach ($this->statements->bound($sql, $params) as $row) {
+            $pack[] = [
+                'vendor_id' => $this->text($row, 'vendor_id'),
+                'code' => $this->text($row, 'code'),
+                'name' => $this->text($row, 'name'),
+                'booth' => $this->text($row, 'booth'),
+                'mode' => $this->text($row, 'mode'),
+                'prior' => RowValue::integer($row['prior'] ?? null),
+                'charged' => RowValue::integer($row['charged'] ?? null),
+                'paid' => RowValue::integer($row['paid'] ?? null),
+                'payable' => RowValue::integer($row['payable'] ?? null),
+                'rent' => RowValue::integer($row['rent'] ?? null),
+                'check' => RowValue::integer($row['check_amount'] ?? null),
+                'owes' => RowValue::integer($row['owe_amount'] ?? null),
+                'settled' => RowValue::integer($row['settled_minor'] ?? null),
+                'adjustment' => RowValue::integer($row['adjustment_minor'] ?? null),
+            ];
+        }
+
+        return $pack;
     }
 
-    public function markSettled(string $runId): void
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function text(array $row, string $key): string
     {
-        $this->statements->change(
-            "UPDATE payout_runs SET status = 'settled', settled_at = clock_timestamp()
-             WHERE id = ?::uuid AND status = 'draft'",
-            [$runId]
-        );
-    }
+        $value = $row[$key] ?? null;
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException($key . ' ' . get_debug_type($value));
+        }
 
-    public function markPaid(string $runId): void
-    {
-        $this->statements->change(
-            "UPDATE payout_runs SET status = 'paid', paid_at = clock_timestamp()
-             WHERE id = ?::uuid AND status = 'settled'",
-            [$runId]
-        );
+        return $value;
     }
 }

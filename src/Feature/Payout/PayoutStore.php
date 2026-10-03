@@ -88,7 +88,13 @@ final class PayoutStore
     {
         $this->rates = null;
         $charged = [];
-        foreach ($this->statements->rows("SELECT posting_key FROM journals WHERE source_type = 'rent_charge'") as $row) {
+        foreach ($this->statements->rows(
+            "SELECT posting_key FROM journals AS posted
+             WHERE posted.source_type = 'rent_charge'
+               AND NOT EXISTS (
+                   SELECT 1 FROM journals AS reversal WHERE reversal.reverses_journal_id = posted.id
+               )"
+        ) as $row) {
             $charged[RowValue::string($row['posting_key'] ?? null)] = true;
         }
         $missing = [];
@@ -108,7 +114,13 @@ final class PayoutStore
     {
         $this->rates = null;
         $charged = [];
-        foreach ($this->statements->rows("SELECT posting_key FROM journals WHERE source_type = 'rent_charge'") as $row) {
+        foreach ($this->statements->rows(
+            "SELECT posting_key FROM journals AS posted
+             WHERE posted.source_type = 'rent_charge'
+               AND NOT EXISTS (
+                   SELECT 1 FROM journals AS reversal WHERE reversal.reverses_journal_id = posted.id
+               )"
+        ) as $row) {
             $charged[RowValue::string($row['posting_key'] ?? null)] = true;
         }
         $missing = [];

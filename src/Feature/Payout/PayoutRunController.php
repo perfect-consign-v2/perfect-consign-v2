@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Payout;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
@@ -17,6 +19,9 @@ final class PayoutRunController
         private readonly PayoutRunStore $runs,
         private readonly PayoutSettler $settler,
         private readonly PayoutDisburser $disburser,
+        private readonly PayoutReverser $reverser,
+        private readonly ActiveRegister $register,
+        private readonly MallClock $clock,
     ) {
     }
 
@@ -24,6 +29,19 @@ final class PayoutRunController
     public function show(string $slug): void
     {
         $this->render($slug, null);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/payouts/report', ['GET'])]
+    public function report(string $slug): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $runId = $this->app->request()->query('run');
+        $this->app->show('Feature/Payout/envelope', [
+            'title' => 'Payout report',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'rows' => preg_match('/^[0-9a-fA-F-]{36}$/', $runId) === 1 ? $this->runs->envelopes($runId) : [],
+        ]);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/payouts/past', ['GET'])]
@@ -34,8 +52,61 @@ final class PayoutRunController
             'title' => 'Past payouts',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'runs' => $this->runs->history(),
+            'runs' => $this->shown($this->runs->history()),
             'excluded' => $this->runs->excluded(),
+            'error' => null,
+        ]);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/payouts/undo', ['POST'])]
+    public function undo(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $runId = $this->app->request()->field('run_id');
+        $reason = trim($this->app->request()->field('reason'));
+        $actor = $this->register->ownerName();
+        if ($actor === '' || $reason === '') {
+            $this->pastWith($slug, 'a payout reversal needs the operator and a reason');
+
+            return;
+        }
+        try {
+            $this->reverser->undo($runId, $this->mall->today(), $actor, $reason);
+        } catch (DatabaseRefusal $refusal) {
+            $this->pastWith($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        }
+        $this->app->redirect('/' . $slug . '/payouts/past', 'Payout undone.');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $runs
+     * @return list<array<string, mixed>>
+     */
+    private function shown(array $runs): array
+    {
+        $shown = [];
+        foreach ($runs as $run) {
+            $at = $run['reversed_at'] ?? null;
+            $run['undone_at'] = is_string($at) && $at !== '' ? $this->clock->localTime($at) : '';
+            $shown[] = $run;
+        }
+
+        return $shown;
+    }
+
+    private function pastWith(string $slug, string $error): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $this->app->show('Feature/Payout/history', [
+            'title' => 'Past payouts',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'runs' => $this->shown($this->runs->history()),
+            'excluded' => $this->runs->excluded(),
+            'error' => $error,
         ]);
     }
 
@@ -47,21 +118,9 @@ final class PayoutRunController
         $today = $this->mall->today();
         $window = $this->window($today);
         try {
-            $runId = $this->runs->begin($window['from'], $window['to'], $window['rent'], $today);
-            foreach ($this->runs->pack($window['rent'], $today) as $row) {
-                $this->settler->chargeMissing($row['vendor_id'], $today);
-            }
-            foreach ($this->runs->pack($window['rent'], $today) as $row) {
-                $settlementId = $this->settler->settle($runId, $row['vendor_id'], $today);
-                $this->runs->remember(
-                    $runId,
-                    $row['vendor_id'],
-                    $row['check'],
-                    $row['owes'],
-                    $settlementId === '' ? null : $settlementId
-                );
-            }
-            $this->runs->markSettled($runId);
+            $runId = $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
+            $this->runs->review($runId);
+            $this->settler->close($runId, $today);
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -85,17 +144,7 @@ final class PayoutRunController
         }
         try {
             $runId = $this->app->request()->field('run_id');
-            $window = $this->window($today);
-            foreach ($this->runs->pack($window['rent'], $today) as $row) {
-                if ($row['check'] <= 0 || $row['owes'] > 0) {
-                    continue;
-                }
-                $this->disburser->disburse($runId, $row['vendor_id'], $today, $row['check'], (string) $number);
-                $number++;
-            }
-            if (preg_match('/^[0-9a-fA-F-]{36}$/', $runId) === 1) {
-                $this->runs->markPaid($runId);
-            }
+            $this->disburser->pay($runId, $today, $number);
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -130,7 +179,7 @@ final class PayoutRunController
             'monthName' => $monthName,
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'pack' => $this->runs->pack($window['rent'], $today),
+            'pack' => $this->runs->pack($this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today)),
             'excluded' => $this->runs->excluded(),
             'runs' => $this->runs->history(),
             'error' => $error,

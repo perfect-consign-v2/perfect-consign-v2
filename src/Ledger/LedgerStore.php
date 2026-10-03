@@ -162,6 +162,7 @@ final class LedgerStore
             if (!$joined) {
                 $this->pdo->beginTransaction();
             }
+            $this->pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             $journalId = $this->insertJournal(
                 $draft->postingKey,
                 $draft->postingDate,

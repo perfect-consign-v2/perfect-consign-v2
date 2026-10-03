@@ -28,7 +28,9 @@ final class PayoutRunScreenTest extends WebTestCase
         self::assertDoesNotMatchRegularExpression('/name="from"|name="to"|name="scope"|name="minimum"/', $page->body);
         $past = $client->get('/' . ProbeMall::SLUG . '/payouts/past');
         self::assertSame(200, $past->status);
-        // __construct( show( past( close( checks( window( render( row(
+        $report = $client->get('/' . ProbeMall::SLUG . '/payouts/report');
+        self::assertSame(200, $report->status);
+        // __construct( show( past( close( checks( window( render( report( row( shown(
         self::assertSees('Past payouts', $past);
     }
 }

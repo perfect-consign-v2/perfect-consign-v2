@@ -49,9 +49,53 @@ CREATE CONSTRAINT TRIGGER journals_opening
     FOR EACH ROW
     EXECUTE FUNCTION stall_assert_opening();
 
-CREATE UNIQUE INDEX journals_book_key
-    ON journals (book_id, posting_key)
-    WHERE posting_key <> 'opening';
+CREATE INDEX journals_book_key_lookup
+    ON journals (book_id, posting_key);
+
+CREATE OR REPLACE FUNCTION stall_reject_live_posting_key()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+BEGIN
+    IF NEW.posting_key = 'opening' THEN
+        RETURN NEW;
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(hashtextextended(NEW.book_id::text || chr(31) || NEW.posting_key, 0));
+
+    PERFORM 1
+    FROM public.journals
+    WHERE book_id = NEW.book_id
+      AND posting_key = NEW.posting_key
+    FOR UPDATE;
+
+    IF EXISTS (
+        SELECT 1
+        FROM public.journals AS prior
+        WHERE prior.book_id = NEW.book_id
+          AND prior.posting_key = NEW.posting_key
+          AND NOT EXISTS (
+              SELECT 1 FROM public.journals AS reversal
+              WHERE reversal.reverses_journal_id = prior.id
+          )
+    ) THEN
+        RAISE EXCEPTION 'duplicate key value violates unique constraint "journals_book_key"'
+            USING ERRCODE = '23505';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS journals_live_key ON journals;
+CREATE TRIGGER journals_live_key
+    BEFORE INSERT ON journals
+    FOR EACH ROW
+    EXECUTE FUNCTION stall_reject_live_posting_key();
+
+ALTER TABLE journals ENABLE ALWAYS TRIGGER journals_live_key;
 
 CREATE OR REPLACE FUNCTION stall_reject_duplicate_opening()
 RETURNS trigger
@@ -66,6 +110,8 @@ BEGIN
     IF NEW.posting_key <> 'opening' THEN
         RETURN NEW;
     END IF;
+
+    PERFORM pg_advisory_xact_lock(hashtextextended(NEW.book_id::text || chr(31) || NEW.posting_key, 0));
 
     PERFORM 1
     FROM public.journals
@@ -114,3 +160,5 @@ CREATE TRIGGER journals_opening_key
     BEFORE INSERT ON journals
     FOR EACH ROW
     EXECUTE FUNCTION stall_reject_duplicate_opening();
+
+ALTER TABLE journals ENABLE ALWAYS TRIGGER journals_opening_key;

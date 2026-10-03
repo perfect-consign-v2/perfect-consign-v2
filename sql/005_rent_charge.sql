@@ -24,7 +24,6 @@ FROM (
         ('rent_revenue', 'sale'),
         ('rent_revenue', 'rent_charge'),
         ('rent_revenue', 'rent_payment'),
-        ('rent_revenue', 'payout'),
         ('rent_revenue', 'adjustment')
 ) AS seed(role, source_type)
 WHERE NOT EXISTS (

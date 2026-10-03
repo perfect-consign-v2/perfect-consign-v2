@@ -124,6 +124,9 @@ VALUES (
 );
 INSERT INTO register_checks (journal_id, check_number) VALUES ('01900000-0000-7000-8000-00000000f814', '1402');
 
+INSERT INTO vendors (id, code, first_name, last_name, payout_mode)
+VALUES ('01900000-0000-7000-8000-00000000f202', 'idle', 'Bea', 'Idle', 'pay');
+
 INSERT INTO payout_runs (
     id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date, reviewed_checksum
 ) VALUES (
@@ -131,6 +134,75 @@ INSERT INTO payout_runs (
     '01900000-0000-7000-8000-000000000001',
     'batch', 'monthly', '2032-03-01', '2032-03-31', '2032-03-01', 'check', 'draft', '2032-04-01', 'lock'
 );
+
+UPDATE payout_runs
+SET reviewed_checksum = stall_pack_checksum(id), reviewed_at = clock_timestamp()
+WHERE id = '01900000-0000-7000-8000-00000000f901';
+
+INSERT INTO payout_run_lines (
+    run_id, vendor_id, mode, sales_minor, commission_minor, tax_minor, discount_minor,
+    return_minor, void_minor, draw_minor, check_paid_minor, settlement_applied_minor,
+    rent_minor, rent_charged_minor, rent_brought_forward_minor, rent_paid_since_minor,
+    adjustment_minor, brought_forward_minor, carried_payable_minor, carried_rent_minor,
+    settled_minor, check_minor, owes_minor, net_minor
+)
+SELECT run_id, vendor_id, mode, sales_minor, commission_minor, tax_minor, discount_minor,
+       return_minor, void_minor, draw_minor, check_paid_minor, settlement_applied_minor,
+       rent_minor, rent_charged_minor, rent_brought_forward_minor, rent_paid_since_minor,
+       adjustment_minor, brought_forward_minor, carried_payable_minor, carried_rent_minor,
+       settled_minor, check_minor, owes_minor, net_minor
+FROM payout_pack
+WHERE run_id = '01900000-0000-7000-8000-00000000f901';
+
+DO $$
+DECLARE
+    payable bigint;
+    rent bigint;
+    adjustment bigint;
+    idle_lines integer;
+BEGIN
+    SELECT carried_payable_minor, carried_rent_minor, adjustment_minor
+    INTO payable, rent, adjustment
+    FROM payout_pack
+    WHERE run_id = '01900000-0000-7000-8000-00000000f901'
+      AND vendor_id = '01900000-0000-7000-8000-00000000f201';
+    IF payable <> 4000 OR rent <> 2000 OR adjustment <> 4000 THEN
+        RAISE EXCEPTION 'the pack is not the ledger % % %', payable, rent, adjustment;
+    END IF;
+    IF (
+        SELECT carried_payable_minor
+        FROM payout_run_lines
+        WHERE run_id = '01900000-0000-7000-8000-00000000f901'
+          AND vendor_id = '01900000-0000-7000-8000-00000000f201'
+    ) <> payable THEN
+        RAISE EXCEPTION 'the stored report does not match the pack';
+    END IF;
+    IF stall_pack_checksum('01900000-0000-7000-8000-00000000f901')
+       IS DISTINCT FROM stall_pack_checksum_frozen('01900000-0000-7000-8000-00000000f901') THEN
+        RAISE EXCEPTION 'the live hash does not match the frozen hash';
+    END IF;
+    SELECT count(*) INTO idle_lines
+    FROM payout_pack
+    WHERE run_id = '01900000-0000-7000-8000-00000000f901'
+      AND vendor_id = '01900000-0000-7000-8000-00000000f202'
+      AND carried_payable_minor = 0
+      AND carried_rent_minor = 0
+      AND check_minor = 0;
+    IF idle_lines <> 1 THEN
+        RAISE EXCEPTION 'a zero-activity vendor is missing from the pack';
+    END IF;
+    PERFORM stall_assert_pack_checksum('01900000-0000-7000-8000-00000000f901');
+    PERFORM stall_assert_frozen_checksum('01900000-0000-7000-8000-00000000f901');
+END $$;
+
+DO $$
+BEGIN
+    UPDATE payout_runs SET status = 'paid' WHERE id = '01900000-0000-7000-8000-00000000f901';
+    RAISE EXCEPTION 'a skipped status was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
 
 SET CONSTRAINTS ALL IMMEDIATE;
 UPDATE payout_runs SET status = 'settled', settled_at = clock_timestamp() WHERE id = '01900000-0000-7000-8000-00000000f901';
@@ -176,6 +248,39 @@ BEGIN
     );
     INSERT INTO register_checks (journal_id, check_number) VALUES ('01900000-0000-7000-8000-00000000f816', '1402');
     RAISE EXCEPTION 'a duplicate disbursement check number was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE payout_run_lines
+    SET settlement_journal_id = '01900000-0000-7000-8000-00000000f813'
+    WHERE run_id = '01900000-0000-7000-8000-00000000f901'
+      AND vendor_id = '01900000-0000-7000-8000-00000000f201';
+    RAISE EXCEPTION 'a settled money line was rewritten';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    DELETE FROM payout_runs WHERE id = '01900000-0000-7000-8000-00000000f901';
+    RAISE EXCEPTION 'a settled run was deleted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+UPDATE payout_runs SET status = 'reversed', reversed_at = clock_timestamp()
+WHERE id = '01900000-0000-7000-8000-00000000f901';
+
+DO $$
+BEGIN
+    UPDATE payout_runs SET note = 'nope' WHERE id = '01900000-0000-7000-8000-00000000f901';
+    RAISE EXCEPTION 'a reversed run was changed';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         NULL;

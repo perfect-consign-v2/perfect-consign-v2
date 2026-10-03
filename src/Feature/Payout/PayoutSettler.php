@@ -14,13 +14,19 @@ final class PayoutSettler
     public function __construct(
         private readonly LedgerStore $ledger,
         private readonly PayoutStore $payouts,
+        private readonly PayoutRunStore $runs,
+        private readonly PayoutRunLines $lines,
     ) {
     }
 
-    public function chargeMissing(string $vendorId, string $today): void
+    /**
+     * @return list<string>
+     */
+    public function chargeMissing(string $vendorId, string $today): array
     {
+        $posted = [];
         foreach ($this->payouts->missingRent($vendorId, $today) as $charge) {
-            $this->ledger->post(new JournalDraft(
+            $posted[] = $this->ledger->post(new JournalDraft(
                 postingKey: 'rent-charge:' . $charge['booth_id'] . ':' . $charge['month'],
                 postingDate: $charge['posting_date'],
                 source: new JournalSource('rent_charge', $charge['booth_id'] . ':' . $charge['month'], 'Rent charge'),
@@ -30,6 +36,31 @@ final class PayoutSettler
                 ],
             ));
         }
+
+        return $posted;
+    }
+
+    public function close(string $runId, string $today): void
+    {
+        $this->lines->guard($runId, false);
+        foreach ($this->runs->pack($runId) as $row) {
+            foreach ($this->chargeMissing($row['vendor_id'], $today) as $journalId) {
+                $this->lines->link($runId, $journalId, 'rent_charge');
+            }
+        }
+        $this->lines->materialize($runId);
+        foreach ($this->runs->stored($runId) as $row) {
+            if ($row['mode'] !== 'pay' || $row['settled'] <= 0) {
+                continue;
+            }
+            $journalId = $this->settle($runId, $row['vendor_id'], $today);
+            if ($journalId === '') {
+                continue;
+            }
+            $this->lines->link($runId, $journalId, 'settlement');
+            $this->lines->attachSettlement($runId, $row['vendor_id'], $journalId);
+        }
+        $this->lines->mark($runId, 'settled');
     }
 
     public function settle(string $runId, string $vendorId, string $postingDate): string

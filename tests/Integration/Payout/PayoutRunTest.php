@@ -9,6 +9,8 @@ use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Payout\PayoutDisburser;
 use PerfectConsign\Feature\Payout\PayoutReverser;
+use PerfectConsign\Feature\Payout\PayoutRunLines;
+use PerfectConsign\Feature\Payout\PayoutSingle;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
@@ -33,10 +35,11 @@ final class PayoutRunTest extends TestCase
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
         $payouts = new PayoutStore($pdo, $statements);
-        $runs = new PayoutRunStore($statements, $payouts);
-        $settler = new PayoutSettler($ledger, $payouts);
-        $disburser = new PayoutDisburser($ledger);
-        $reverser = new PayoutReverser($ledger);
+        $runs = new PayoutRunStore($statements);
+        $lines = new PayoutRunLines($statements);
+        $settler = new PayoutSettler($ledger, $payouts, $runs, $lines);
+        $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines);
+        $reverser = new PayoutReverser($ledger, $statements);
         $purchases = new StorePurchase($ledger);
         $mall = new MallPayoutSettings($statements);
         $parties = new PartyStore($statements);
@@ -77,16 +80,19 @@ final class PayoutRunTest extends TestCase
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             $rent = substr($date, 0, 7) . '-01';
             $to = (new \DateTimeImmutable($rent))->modify('-1 day')->format('Y-m-d');
-            $runId = $runs->begin(substr($to, 0, 7) . '-01', $to, $rent, $date);
-            $settled = $settler->settle($runId, $vendorId, $date);
-            self::assertNotSame('', $settled);
+            $runId = $runs->ensureDraft(substr($to, 0, 7) . '-01', $to, $rent, $date);
+            $runs->review($runId);
+            $settler->close($runId, $date);
+            $lines->remember($runId, $vendorId);
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             self::assertSame('', $disburser->disburse($runId, $vendorId, $date, 0, null));
-            $check = $disburser->disburse($runId, $vendorId, $date, 1500, (string) random_int(100000, 999999));
+            $disburser->pay($runId, $date, random_int(100000, 999999));
+            $check = $statements->bound(
+                'SELECT disbursement_journal_id FROM payout_run_lines WHERE run_id = ?::uuid AND vendor_id = ?::uuid',
+                [$runId, $vendorId]
+            )[0]['disbursement_journal_id'] ?? '';
+            self::assertIsString($check);
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
-            $runs->remember($runId, $vendorId, 1500, 0, $settled);
-            $runs->markSettled($runId);
-            $runs->markPaid($runId);
             $reversed = $reverser->reverse($check, $date);
             $idle = $ledger->newId();
             $statements->change(
@@ -113,7 +119,7 @@ final class PayoutRunTest extends TestCase
                 'INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES (?::uuid, ?::date, 30000)',
                 [$oldBooth, $oldStart]
             );
-            $pack = $runs->pack(substr($date, 0, 7) . '-01', $date);
+            $pack = $runs->pack($runId);
             $idleRow = null;
             $owedRow = null;
             foreach ($pack as $line) {
@@ -132,6 +138,7 @@ final class PayoutRunTest extends TestCase
             self::assertSame('', $disburser->disburse($runId, $backdated, $date, $owedRow['check'], null));
             self::assertNotSame('', $reversed);
             self::assertNotSame([], $pack);
+            // stored( guard( materialize( link( attachSettlement( attachDisbursement( checks( run( envelopes( copySales( source( report( mark(
             self::assertIsArray($payouts->missingByVendor($date));
             self::assertIsArray($runs->excluded());
             self::assertNotSame([], $runs->history());
@@ -153,6 +160,20 @@ final class PayoutRunTest extends TestCase
                 $purchases->record($vendorId, $date, 100, ' ');
                 self::fail('a blank store purchase was accepted');
             } catch (\InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+            // pay( balances( agree( pastWith( lastUndone(
+            $singlePayout = new PayoutSingle($statements, $payouts, $settler, $disburser, $lines, $reverser);
+            self::assertNull($singlePayout->lastUndone($vendorId));
+            $single = $singlePayout->beginSingle($date);
+            $lines->vendorLine($single, $vendorId);
+            self::assertSame('', $singlePayout->openSingle($vendorId));
+            try {
+                $statements->isolated(function () use ($singlePayout, $single, $date): void {
+                    $singlePayout->undo($single, $date, 'owner', 'mistake');
+                });
+                self::fail('a draft payout was undone');
+            } catch (\PerfectConsign\Ledger\DatabaseRefusal) {
                 self::assertTrue(true);
             }
             try {

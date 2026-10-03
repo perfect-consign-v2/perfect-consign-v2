@@ -5,23 +5,23 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Payout;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\LedgerStore;
-use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutController
 {
     public function __construct(
         private readonly MallApp $app,
-        private readonly LedgerStore $ledger,
         private readonly PayoutStore $payouts,
         private readonly PartyStore $parties,
-        private readonly PayoutSettler $settler,
-        private readonly PayoutDisburser $disburser,
+        private readonly PayoutSingle $single,
         private readonly MallSettings $mall,
+        private readonly ActiveRegister $register,
+        private readonly MallClock $clock,
     ) {
     }
 
@@ -29,6 +29,24 @@ final class PayoutController
     public function form(string $slug): void
     {
         $this->render($slug, $this->app->request()->query['vendor'] ?? '', null);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/payout/undo', ['POST'])]
+    public function undo(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $vendorId = $this->app->request()->field('vendor_id');
+        $runId = $this->app->request()->field('run_id');
+        $reason = trim($this->app->request()->field('reason'));
+        try {
+            $this->single->undo($runId, $this->mall->today(), $this->register->ownerName(), $reason);
+        } catch (DatabaseRefusal $refusal) {
+            $this->render($slug, $vendorId, $this->app->catchRefusal($refusal));
+
+            return;
+        }
+        $this->app->redirect('/' . $slug . '/payout?vendor=' . rawurlencode($vendorId), 'Payout undone.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/payout', ['POST'])]
@@ -39,47 +57,12 @@ final class PayoutController
         $vendorId = $this->app->request()->field('vendor_id');
         $postingDate = $this->mall->today();
         try {
-            $this->settler->chargeMissing($vendorId, $postingDate);
-            $open = $this->payouts->openPayout($vendorId);
-            $this->assertStatementAgrees($this->payouts->statement($vendorId), $open['payable'], $open['rent']);
-            $applied = min($open['payable'], $open['rent']);
-            $check = $open['payable'] - $open['rent'];
-            if ($applied <= 0 && $check <= 0) {
-                throw new DatabaseRefusal('a payout clears a positive open payable or open rent receivable');
-            }
-            $runId = $this->ledger->newId();
-            $journalId = $this->settler->settle($runId, $vendorId, $postingDate);
-            $paid = $this->disburser->disburse($runId, $vendorId, $postingDate, max(0, $check), null);
-            if ($paid !== '') {
-                $journalId = $paid;
-            }
+            $journalId = $this->single->pay($vendorId, $postingDate);
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $vendorId, $this->app->catchRefusal($refusal));
             return;
         }
         $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Payout posted.');
-    }
-
-    /**
-     * @param list<array<string, mixed>> $statement
-     */
-    private function assertStatementAgrees(array $statement, int $payable, int $rent): void
-    {
-        $statementPayable = 0;
-        $statementRent = 0;
-        foreach ($statement as $row) {
-            $debit = RowValue::integer($row['debit_minor'] ?? null);
-            $credit = RowValue::integer($row['credit_minor'] ?? null);
-            if ($row['role'] === 'vendor_payable') {
-                $statementPayable += $credit - $debit;
-            }
-            if ($row['role'] === 'booth_rent_receivable') {
-                $statementRent += $debit - $credit;
-            }
-        }
-        if ($statementPayable !== $payable || $statementRent !== $rent) {
-            throw new DatabaseRefusal('the statement and the open balances disagree');
-        }
     }
 
     private function render(string $slug, mixed $vendorId, ?string $error): void
@@ -92,7 +75,16 @@ final class PayoutController
             $selected = is_string($only) ? $only : '';
         }
         $open = null;
+        $undone = null;
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $selected) === 1) {
+            $latest = $this->single->lastUndone($selected);
+            if ($latest !== null) {
+                $undone = [
+                    'by' => $latest['by'],
+                    'reason' => $latest['reason'],
+                    'at' => $this->clock->localTime($latest['at']),
+                ];
+            }
             $loaded = $this->payouts->openPayout($selected);
             foreach ($this->payouts->missingRent($selected, $this->mall->today()) as $charge) {
                 $loaded['rent'] += $charge['amount'];
@@ -111,6 +103,8 @@ final class PayoutController
             'vendors' => $vendors,
             'vendorId' => $selected,
             'open' => $open,
+            'runId' => preg_match('/^[0-9a-fA-F-]{36}$/', $selected) === 1 ? $this->single->openSingle($selected) : '',
+            'undone' => $undone,
             'error' => $error,
         ]);
     }

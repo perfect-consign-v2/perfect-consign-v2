@@ -8,7 +8,7 @@
 
 These three are part of the build. Each is tagged **\[lock\]** at the point of change.
 
-1.  **A settled window stays closed.** Once a run is `settled` or `paid`, a new journal whose `posting_date` falls inside that run's `[sales_from, sales_to]` is refused. The run's own rent charge and settlement are posted while the run is still `draft`, so they are allowed. A reversal is dated the day it is entered, and that day is after `sales_to`, so it lands in the next window. A March sale posted in April cannot change the March books under the stored envelope.
+1.  **A settled window stays closed.** Once a **batch** run is `settled` or `paid`, and that run is not itself a reversal, a new journal whose `posting_date` falls inside that run's `[sales_from, sales_to]` is refused. A single-vendor payout does not close a window. A reversal run does not close the window it voids. The run's own rent charge and settlement are posted while the run is still `draft`, so they are allowed. A reversal is dated the day it is entered. A March sale posted in April cannot change the March books under the stored batch envelope.
 2.  **The breakdown columns are nets, reversals included.** `settlement_applied_minor`, `rent_charged_minor`, `check_paid_minor`, and `rent_paid_since_minor` are the net of those journals in the window, not the original debit alone. The payable identity stays opening balance plus every payable movement in the window. The rent identity is the same for rent. Reverse last month's run, then close this month: both breakdowns still match the ledger.
 3.  **A disbursement check number is unique.** Two `check_disbursement` journals cannot record the same check number. Customer payment checks are unchanged.
 
@@ -722,7 +722,7 @@ Amend `sql/029_register_posts.sql`: in `stall_reject_session_post()` **remove `p
 `reverse(run_id)`:
 
 1.  Lock the run; assert `status IN ('settled','paid')`.
-2.  Create a new `payout_runs` row: `kind` mirrors the original, `reverses_run_id = run_id`, `status = 'settled'`, same window/tender, `note = 'Reversal of run <run_no>'`.
+2.  Create a new `payout_runs` row: `kind` mirrors the original, `reverses_run_id = run_id`, `status = 'settled'`, same window/tender. `reversed_by` is the signed-in owner and `reversal_reason` is the reason they typed; both are required. `note` is `Reversal of run <run_no> — <reason>`.
 3.  For each journal in `payout_run_journals` for the original (disbursements first, then settlements, then any `rent_charge` the run created), post a reversal journal (`is_reversal = true`, `reverses_journal_id = <original>`), swapping debit/credit sides exactly — `ledger_assert_reversal()` already enforces the swap. Record each in the reversal run's `payout_run_journals` with `role='reversal'`.
 4.  Set the original run `status='reversed'`, `reversed_at=now()`.
 5.  `SET CONSTRAINTS ALL IMMEDIATE`.

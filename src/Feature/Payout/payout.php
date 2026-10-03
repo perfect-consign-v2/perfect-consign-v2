@@ -9,6 +9,8 @@ use PerfectConsign\Shared\Http\View;
 /** @var list<array<string, mixed>> $vendors */
 /** @var string $vendorId */
 /** @var array{payable: int, rent: int, check: int, owes: int}|null $open */
+/** @var string $runId */
+/** @var array{by: string, reason: string, at: string}|null $undone */
 /** @var string|null $error */
 ?>
 <h1>Pay this vendor</h1>
@@ -39,4 +41,17 @@ use PerfectConsign\Shared\Http\View;
         <input type="hidden" name="vendor_id" value="<?= View::text($vendorId) ?>">
         <p><button type="submit">Pay this vendor</button></p>
     </form>
+    <?php if (is_array($undone)): ?>
+        <p>Undone by <?= View::text($undone['by']) ?> on <?= View::text($undone['at']) ?> — <?= View::text($undone['reason']) ?></p>
+    <?php endif; ?>
+    <?php if ($runId !== ''): ?>
+        <form method="post" action="/<?= View::text($slug) ?>/payout/undo">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <input type="hidden" name="vendor_id" value="<?= View::text($vendorId) ?>">
+            <input type="hidden" name="run_id" value="<?= View::text($runId) ?>">
+            <label for="reason">Reason</label>
+            <input id="reason" name="reason" required>
+            <p><button type="submit">Undo this payout</button></p>
+        </form>
+    <?php endif; ?>
 <?php endif; ?>
