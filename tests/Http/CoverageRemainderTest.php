@@ -190,6 +190,7 @@ final class CoverageRemainderTest extends WebTestCase
         self::assertSees('Booth deleted.', $deletedBooth);
 
         $floorName = 'Wing ' . $tag;
+        self::makeRoomForAFloor($this->client, self::SLUG);
         $floor = $this->client->post('/' . self::SLUG . '/map/floors', ['name' => $floorName]);
         self::assertSees('Floor added.', $floor);
         $floorId = $this->match($floor->body, '/data-floor="([0-9a-fA-F-]{36})" data-floor-name="' . preg_quote($floorName, '/') . '"/');

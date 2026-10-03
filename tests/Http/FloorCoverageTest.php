@@ -203,6 +203,7 @@ final class FloorCoverageTest extends WebTestCase
         $editor = $this->client->get('/' . self::SLUG . '/map/edit');
         self::assertSees('Edit floor map', $editor);
         $floorName = 'Loft ' . bin2hex(random_bytes(2));
+        self::makeRoomForAFloor($this->client, self::SLUG);
         $added = $this->client->post('/' . self::SLUG . '/map/floors', ['name' => $floorName]);
         self::assertSees('Floor added.', $added);
         $floorId = $this->match(
@@ -227,6 +228,13 @@ final class FloorCoverageTest extends WebTestCase
             'layout' => $layout,
         ]);
         self::assertSees('Map saved.', $saved);
+        $cleared = $this->client->post('/' . self::SLUG . '/map/edit', [
+            'floor' => $floorId,
+            'layout' => '[]',
+        ]);
+        self::assertSees('Map saved.', $cleared);
+        $removed = $this->client->post('/' . self::SLUG . '/map/floors/' . $floorId . '/delete', []);
+        self::assertSees('Floor removed.', $removed);
 
         $export = $this->client->post('/' . self::SLUG . '/export', [
             'from' => '2020-01-01',

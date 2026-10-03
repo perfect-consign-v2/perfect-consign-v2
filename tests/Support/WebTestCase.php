@@ -42,6 +42,27 @@ abstract class WebTestCase extends TestCase
         return new FormClient(self::$baseUrl);
     }
 
+    protected static function makeRoomForAFloor(FormClient $client, string $slug): void
+    {
+        $editor = $client->get('/' . $slug . '/map/edit');
+        $found = preg_match_all(
+            '/data-floor="([0-9a-fA-F-]{36})" data-floor-name="([^"]+)"/',
+            $editor->body,
+            $floors,
+            PREG_SET_ORDER
+        );
+        if ($found === false || count($floors) < 20) {
+            return;
+        }
+        foreach ($floors as $floor) {
+            if (str_starts_with($floor[2], 'Loft ') || str_starts_with($floor[2], 'Wing ')) {
+                $client->post('/' . $slug . '/map/floors/' . $floor[1] . '/delete', []);
+
+                return;
+            }
+        }
+    }
+
     protected static function assertSees(string $text, PageResponse|string $page): void
     {
         $body = $page instanceof PageResponse ? $page->body : $page;
