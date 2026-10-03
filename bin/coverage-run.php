@@ -18,7 +18,7 @@ $env['PC_COVERAGE'] = $directory;
 $phpunit = [PHP_BINARY, $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'phpunit'];
 $extra = array_slice($argv, 1);
 if ($extra === []) {
-    $extra = ['--testsuite', 'unit,http'];
+    $extra = ['--testsuite', 'unit,integration,http'];
 }
 foreach ($extra as $argument) {
     if (is_string($argument)) {
