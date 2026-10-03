@@ -58,7 +58,7 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Ticket parked.', $parked);
         $suspended = $this->client->get('/' . self::SLUG . '/pos/suspended');
         self::assertSees('name="ticket_id"', $suspended);
-        $ticketId = $this->match($suspended->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/');
+        $ticketId = $this->lastMatch($suspended->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/');
         $recalled = $this->client->post('/' . self::SLUG . '/pos/recall', ['ticket_id' => $ticketId]);
         self::assertSees($first['description'], $recalled);
         $second = $this->piece($vendor, '4.00');
@@ -692,5 +692,14 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSame(1, preg_match($pattern, $html, $match), $pattern);
 
         return $match[1];
+    }
+
+    private function lastMatch(string $html, string $pattern): string
+    {
+        self::assertGreaterThan(0, preg_match_all($pattern, $html, $match));
+        $last = $match[1][array_key_last($match[1])];
+        self::assertIsString($last);
+
+        return $last;
     }
 }
