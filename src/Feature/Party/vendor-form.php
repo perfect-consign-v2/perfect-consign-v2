@@ -107,6 +107,17 @@ $active = !is_array($vendor) || ($vendor['active'] ?? true) === true || ($vendor
             <label for="notes">Notes</label>
             <textarea class="textarea" id="notes" name="notes" maxlength="2000"><?= View::text($notes) ?></textarea>
         </div>
+        <div class="field">
+            <label for="payout_mode">How they get paid</label>
+            <?php
+            $payoutMode = is_array($vendor) && is_string($vendor['payout_mode'] ?? null) ? $vendor['payout_mode'] : 'pay';
+            ?>
+            <select class="input" id="payout_mode" name="payout_mode">
+                <option value="pay"<?= $payoutMode === 'pay' ? ' selected' : '' ?>>Check</option>
+                <option value="credit_only"<?= $payoutMode === 'credit_only' ? ' selected' : '' ?>>Store credit only</option>
+                <option value="hold"<?= $payoutMode === 'hold' ? ' selected' : '' ?>>Hold</option>
+            </select>
+        </div>
         <div>
             <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create vendor' ?></button>
         </div>

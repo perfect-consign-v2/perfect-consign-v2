@@ -42,7 +42,8 @@ BEGIN
             ('store_credit', '2220', 'liability', 'credit', true, true, 'store_credit'),
             ('cash_over_short', '6150', 'expense', 'debit', true, false, NULL),
             ('cash_rounding', '6160', 'expense', 'debit', true, false, NULL),
-            ('layaway_deposit', '2230', 'liability', 'credit', true, true, 'ticket')
+            ('layaway_deposit', '2230', 'liability', 'credit', true, true, 'ticket'),
+            ('store_purchases', '6100', 'expense', 'debit', true, false, NULL)
     ) AS expected (role, code, account_type, normal_balance, is_postable, is_control, subledger_type)
         ON expected.role = roles.role
         AND expected.code = account.code
@@ -52,7 +53,7 @@ BEGIN
         AND expected.is_control = account.is_control
         AND expected.subledger_type IS NOT DISTINCT FROM account.subledger_type;
 
-    IF role_count <> 18 OR (SELECT count(*) FROM chart_roles) <> 18 THEN
+    IF role_count <> 19 OR (SELECT count(*) FROM chart_roles) <> 19 THEN
         RAISE EXCEPTION 'chart roles do not match the mall chart';
     END IF;
 END $$;
@@ -134,7 +135,7 @@ DECLARE
     role_count integer;
 BEGIN
     SELECT count(*) INTO role_count FROM chart_roles;
-    IF role_count <> 18 THEN
+    IF role_count <> 19 THEN
         RAISE EXCEPTION 'chart roles changed after rollback';
     END IF;
 END $$;

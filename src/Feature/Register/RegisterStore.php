@@ -16,7 +16,7 @@ final class RegisterStore
         'sale',
         'piece_return',
         'rent_payment',
-        'payout',
+        'cash_disbursement',
         'gift_certificate_issue',
         'gift_card_issue',
         'store_credit_issue',

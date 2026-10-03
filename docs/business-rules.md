@@ -20,6 +20,14 @@ A vendor with open rent cannot be made Inactive. Open rent is a positive rent re
 
 A rent charge for the month a vendor moves in counts the days from the start date through the end of that month, and the amount truncates toward zero. A rent charge for a month the vendor leaves is the full month.
 
+## Payouts
+
+A payout no longer clears payable and rent against cash. Close posts a settlement: the smaller of the open payable and the open rent, with no cash. A check, a drawer payment, or a payment from the safe is a later disbursement. A vendor with nothing open gets a report and no journal.
+
+A settled or paid run refuses a new journal dated inside its sales window. A reversal is dated after that window. Settlement, rent charged, checks already written, and rent paid in a later window are the net of those journals, reversals included. Two check disbursements cannot share a check number.
+
+A vendor is pay, credit only, or hold. Credit only and hold are left out of a run. Rent for a credit-only vendor is paid at the desk.
+
 ## Inventory
 
 An item is one piece. It has a tag, a barcode, a vendor, a description, an asking price, a quantity, and an intake date. The brand may be empty. The expire date may be empty. Quantity is how many are on hand. A new piece defaults to 1. An edit may be 0, and then it cannot be sold.

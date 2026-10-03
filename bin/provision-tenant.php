@@ -43,6 +43,7 @@ final class TenantProvisioner
             '037_item_quantity.sql',
             '038_vendor_draw.sql',
             '040_layaway.sql',
+            '041_payout_run.sql',
         ];
     }
 

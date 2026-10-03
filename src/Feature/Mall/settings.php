@@ -77,6 +77,28 @@ use PerfectConsign\Shared\Http\View;
                 <p class="muted text-sm">Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A vendor marked tax exempt is charged no tax.</p>
             </div>
             <div class="field" style="grid-column:1/-1">
+                <label for="operating_mode">How this mall pays</label>
+                <select class="input" id="operating_mode" name="operating_mode">
+                    <?php foreach (['both' => 'Consignment and booths', 'consignor' => 'Consignment', 'booth_mall' => 'Booth mall'] as $value => $label): ?>
+                        <option value="<?= View::text($value) ?>"<?= ($operatingMode ?? '') === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="field" style="grid-column:1/-1">
+                <label for="payout_cadence">Payout cadence</label>
+                <select class="input" id="payout_cadence" name="payout_cadence">
+                    <?php foreach (['monthly' => 'Monthly', 'weekly' => 'Weekly', 'biweekly' => 'Every two weeks', 'ad_hoc' => 'When asked'] as $value => $label): ?>
+                        <option value="<?= View::text($value) ?>"<?= ($payoutCadence ?? '') === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="field" style="grid-column:1/-1">
+                <label for="rent_prepaid_from_prior_sales">
+                    <input id="rent_prepaid_from_prior_sales" name="rent_prepaid_from_prior_sales" type="checkbox" value="1"<?= !empty($rentPrepaid) ? ' checked' : '' ?>>
+                    Last month's sales pay this month's rent
+                </label>
+            </div>
+            <div class="field" style="grid-column:1/-1">
                 <label for="cash_round_nickel">
                     <input id="cash_round_nickel" name="cash_round_nickel" type="checkbox" value="1"<?= ($cashRound ?? '') === '1' ? ' checked' : '' ?>>
                     Round cash sales to the nearest nickel

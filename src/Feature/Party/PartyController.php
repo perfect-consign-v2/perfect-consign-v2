@@ -70,6 +70,7 @@ final class PartyController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
+            $this->parties->setPayoutMode($id, $this->app->request()->field('payout_mode'));
             $this->app->redirect($this->vendorPath($slug, $id), 'Vendor created.');
         }
         $this->forms->form($slug, [
@@ -141,6 +142,7 @@ final class PartyController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
+            $this->parties->setPayoutMode($id, $this->app->request()->field('payout_mode'));
             $this->app->redirect($this->vendorPath($slug, $id), 'Vendor saved.');
         }
         $this->forms->form($slug, [

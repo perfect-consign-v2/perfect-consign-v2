@@ -311,6 +311,7 @@ BEGIN
     ALTER TABLE sale_lines DROP CONSTRAINT sale_lines_item_id_fkey;
     ALTER TABLE ticket_lines DROP CONSTRAINT ticket_lines_item_id_fkey;
     ALTER TABLE piece_returns DROP CONSTRAINT piece_returns_item_id_fkey;
+    ALTER TABLE payout_run_sales DROP CONSTRAINT payout_run_sales_item_id_fkey;
     TRUNCATE items;
     RAISE EXCEPTION 'replica item truncate was accepted';
 EXCEPTION
@@ -372,6 +373,7 @@ BEGIN
     ALTER TABLE sale_lines DROP CONSTRAINT sale_lines_item_id_fkey;
     ALTER TABLE ticket_lines DROP CONSTRAINT ticket_lines_item_id_fkey;
     ALTER TABLE piece_returns DROP CONSTRAINT piece_returns_item_id_fkey;
+    ALTER TABLE payout_run_sales DROP CONSTRAINT payout_run_sales_item_id_fkey;
     TRUNCATE items;
     RAISE EXCEPTION 'item truncate was accepted after the guard held';
 EXCEPTION

@@ -141,16 +141,16 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-000000000903',
     '01900000-0000-7000-8000-000000000001',
-    'payout:01900000-0000-7000-8000-000000000101:2026-03',
+    'settlement:01900000-0000-7000-8000-0000000009a0:01900000-0000-7000-8000-000000000101',
     '2026-03-31',
     '2026-03-31 18:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
-    'payout',
-    'ada:2026-03',
-    'March payout for Ada',
-    7200,
-    7200
+    'settlement',
+    '01900000-0000-7000-8000-000000000101',
+    'March settlement for Ada',
+    1500,
+    1500
 );
 
 INSERT INTO journal_lines (
@@ -161,7 +161,7 @@ INSERT INTO journal_lines (
         '01900000-0000-7000-8000-000000000001',
         1,
         '01900000-0000-7000-8000-000000000014',
-        7200,
+        1500,
         0,
         'vendor',
         '01900000-0000-7000-8000-000000000101'
@@ -177,12 +177,43 @@ INSERT INTO journal_lines (
         '01900000-0000-7000-8000-000000000201'
     );
 
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000904',
+    '01900000-0000-7000-8000-000000000001',
+    'disbursement:01900000-0000-7000-8000-0000000009a0:01900000-0000-7000-8000-000000000101',
+    '2026-03-31',
+    '2026-03-31 18:01:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'check_disbursement',
+    '01900000-0000-7000-8000-000000000101',
+    'March check for Ada',
+    5700,
+    5700
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000904',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000014',
+    5700,
+    0,
+    'vendor',
+    '01900000-0000-7000-8000-000000000101'
+);
+
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES (
-    '01900000-0000-7000-8000-000000000903',
+    '01900000-0000-7000-8000-000000000904',
     '01900000-0000-7000-8000-000000000001',
-    3,
-    '01900000-0000-7000-8000-000000000010',
+    2,
+    '01900000-0000-7000-8000-000000000011',
     0,
     5700
 );
@@ -191,7 +222,7 @@ INSERT INTO register_session_posts (session_id, journal_id)
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (
@@ -213,7 +244,7 @@ BEGIN
     FROM vendor_statement
     WHERE vendor_id = '01900000-0000-7000-8000-000000000101';
 
-    IF statement_rows <> 4 THEN
+    IF statement_rows <> 5 THEN
         RAISE EXCEPTION 'statement row count was %', statement_rows;
     END IF;
 
@@ -224,15 +255,16 @@ BEGIN
     ) <> ARRAY[
         'rent-charge:01900000-0000-7000-8000-000000000201:2026-03',
         'sale:1001',
-        'payout:01900000-0000-7000-8000-000000000101:2026-03',
-        'payout:01900000-0000-7000-8000-000000000101:2026-03'
+        'settlement:01900000-0000-7000-8000-0000000009a0:01900000-0000-7000-8000-000000000101',
+        'settlement:01900000-0000-7000-8000-0000000009a0:01900000-0000-7000-8000-000000000101',
+        'disbursement:01900000-0000-7000-8000-0000000009a0:01900000-0000-7000-8000-000000000101'
     ] THEN
         RAISE EXCEPTION 'statement lines are out of order';
     END IF;
 
     SELECT
-        COALESCE(sum(credit_minor - debit_minor) FILTER (WHERE role = 'vendor_payable' AND source_type <> 'payout'), 0),
-        COALESCE(sum(debit_minor - credit_minor) FILTER (WHERE role = 'booth_rent_receivable' AND source_type <> 'payout'), 0),
+        COALESCE(sum(credit_minor - debit_minor) FILTER (WHERE role = 'vendor_payable' AND source_type NOT IN ('settlement', 'check_disbursement', 'cash_disbursement', 'safe_disbursement')), 0),
+        COALESCE(sum(debit_minor - credit_minor) FILTER (WHERE role = 'booth_rent_receivable' AND source_type NOT IN ('settlement', 'check_disbursement', 'cash_disbursement', 'safe_disbursement')), 0),
         COALESCE(sum(credit_minor - debit_minor) FILTER (WHERE role = 'vendor_payable'), 0),
         COALESCE(sum(debit_minor - credit_minor) FILTER (WHERE role = 'booth_rent_receivable'), 0)
     INTO statement_payable, statement_rent, open_payable, open_rent
@@ -249,7 +281,7 @@ BEGIN
     WHERE journal_id = '01900000-0000-7000-8000-000000000903'
       AND role = 'booth_rent_receivable';
 
-    IF statement_payable <> payout_payable OR statement_rent <> payout_rent THEN
+    IF payout_payable <> 1500 OR payout_rent <> 1500 OR statement_payable <> 7200 OR statement_rent <> 1500 THEN
         RAISE EXCEPTION 'statement disagrees with the payout journal';
     END IF;
 

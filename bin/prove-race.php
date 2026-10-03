@@ -21,6 +21,7 @@ race($schema, $sql, 'prove_race_delete.sql', 'prove_race_line.sql', true, 'vendo
 
 execSql($schema, "INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d022', '01900000-0000-7000-8000-000000000001', '2028-01-01', '2028-12-31', 'open')");
 race($schema, $sql, 'prove_race_key_a.sql', 'prove_race_key_b.sql', false, null, true);
+race($schema, $sql, 'prove_race_payout_a.sql', 'prove_race_payout_b.sql', false, null, true);
 
 execSql($schema, "INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d201', 'race-rate', 'Race', 'rate'); INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d301', 'R1', 'Race booth'); INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on) VALUES ('01900000-0000-7000-8000-00000000d401', '01900000-0000-7000-8000-00000000d301', '01900000-0000-7000-8000-00000000d201', '2029-01-01'); INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d301', '2029-03-01', 15000); INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d023', '01900000-0000-7000-8000-000000000001', '2029-01-01', '2029-12-31', 'open')");
 race($schema, $sql, 'prove_race_rate_hold.sql', 'prove_race_rate_charge.sql', true, 'stored rate', false);

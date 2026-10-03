@@ -109,7 +109,7 @@ BEGIN
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (
@@ -187,7 +187,7 @@ INSERT INTO register_session_posts (session_id, journal_id)
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (
@@ -392,7 +392,7 @@ INSERT INTO register_session_posts (session_id, journal_id)
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (
@@ -509,7 +509,7 @@ BEGIN
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (
@@ -547,7 +547,7 @@ BEGIN
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (
@@ -619,7 +619,7 @@ INSERT INTO register_session_posts (session_id, journal_id)
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (
@@ -720,7 +720,7 @@ BEGIN
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (
@@ -767,7 +767,7 @@ BEGIN
 SELECT '01900000-0000-7000-8000-000000000d22', journal.id
 FROM journals AS journal
 WHERE journal.source_type IN (
-    'sale', 'rent_payment', 'payout', 'gift_certificate_issue', 'gift_card_issue',
+    'sale', 'rent_payment', 'cash_disbursement', 'gift_certificate_issue', 'gift_card_issue',
     'store_credit_issue', 'cash_drop', 'register_variance'
 )
   AND NOT EXISTS (

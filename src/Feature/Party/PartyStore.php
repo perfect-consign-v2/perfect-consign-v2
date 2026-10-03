@@ -104,7 +104,7 @@ final class PartyStore
         $rows = $this->statements->bound(
             'SELECT id, code, first_name, last_name, name, phone, email, address, active,
                     commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
-                    tax_exempt, tax_exempt_number
+                    tax_exempt, tax_exempt_number, payout_mode
              FROM vendors WHERE id = ?::uuid',
             [$id]
         );
@@ -121,6 +121,18 @@ final class PartyStore
                  tax_id = ?, notes = ?, tax_exempt = ?::boolean, tax_exempt_number = ?
              WHERE id = ?::uuid',
             [...$vendor->values(), $id]
+        );
+        if ($count === 0) {
+            throw new \InvalidArgumentException('that vendor is not in this mall');
+        }
+    }
+
+    public function setPayoutMode(string $id, string $mode): void
+    {
+        $stored = in_array($mode, ['pay', 'credit_only', 'hold'], true) ? $mode : 'pay';
+        $count = $this->statements->affected(
+            'UPDATE vendors SET payout_mode = ? WHERE id = ?::uuid',
+            [$stored, $id]
         );
         if ($count === 0) {
             throw new \InvalidArgumentException('that vendor is not in this mall');

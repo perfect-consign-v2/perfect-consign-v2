@@ -5,15 +5,10 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Payout;
 
 use PerfectApp\Routing\Route;
-use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Party\PartyStore;
-use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\JournalDraft;
-use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
-use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutController
@@ -23,8 +18,8 @@ final class PayoutController
         private readonly LedgerStore $ledger,
         private readonly PayoutStore $payouts,
         private readonly PartyStore $parties,
-        private readonly RegisterStore $registers,
-        private readonly ActiveRegister $drawers,
+        private readonly PayoutSettler $settler,
+        private readonly PayoutDisburser $disburser,
     ) {
     }
 
@@ -48,35 +43,17 @@ final class PayoutController
             }
             $open = $this->payouts->openPayout($vendorId);
             $this->assertStatementAgrees($this->payouts->statement($vendorId), $open['payable'], $open['rent']);
-            $lines = [];
-            if ($open['payable'] > 0) {
-                $lines[] = PostedLines::entry($this->ledger->roleAccount('vendor_payable'), $open['payable'], 0, 'vendor', $vendorId);
-            }
-            foreach ($open['booths'] as $booth) {
-                $lines[] = PostedLines::entry(
-                    $this->ledger->roleAccount('booth_rent_receivable'),
-                    0,
-                    $booth['open_minor'],
-                    'booth',
-                    $booth['booth_id']
-                );
-            }
-            $cash = $open['payable'] - $open['rent'];
-            if ($cash > 0) {
-                $lines[] = PostedLines::entry($this->ledger->roleAccount('cash'), 0, $cash, null, null);
-            } elseif ($cash < 0) {
-                $lines[] = PostedLines::entry($this->ledger->roleAccount('cash'), -$cash, 0, null, null);
-            }
-            if ($lines === []) {
+            $applied = min($open['payable'], $open['rent']);
+            $check = $open['payable'] - $open['rent'];
+            if ($applied <= 0 && $check <= 0) {
                 throw new DatabaseRefusal('a payout clears a positive open payable or open rent receivable');
             }
-            $journalId = $this->ledger->post(new JournalDraft(
-                postingKey: 'payout:' . $vendorId . ':' . $month,
-                postingDate: $postingDate,
-                source: new JournalSource('payout', $vendorId . ':' . $month, 'Payout'),
-                lines: $lines,
-                sessionId: $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true)),
-            ));
+            $runId = $this->ledger->newId();
+            $journalId = $this->settler->settle($runId, $vendorId, $postingDate);
+            $paid = $this->disburser->disburse($runId, $vendorId, $postingDate, max(0, $check), null);
+            if ($paid !== '') {
+                $journalId = $paid;
+            }
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $vendorId, $this->app->catchRefusal($refusal));
             return;

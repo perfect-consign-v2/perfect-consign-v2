@@ -22,6 +22,7 @@ final class MallController
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
+        private readonly MallPayoutSettings $payouts,
         private readonly BackupStore $backups,
     ) {
     }
@@ -138,6 +139,11 @@ final class MallController
                 $floorDays,
                 $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
                 $taxRate
+            );
+            $this->payouts->save(
+                $this->app->request()->field('operating_mode'),
+                $this->app->request()->field('payout_cadence'),
+                $this->app->request()->field('rent_prepaid_from_prior_sales') === '1'
             );
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
@@ -267,6 +273,9 @@ final class MallController
                 $this->backups->latest($tenant->id),
                 new DateTimeImmutable('now', new DateTimeZone('UTC'))
             ),
+            'operatingMode' => $this->payouts->operatingMode(),
+            'payoutCadence' => $this->payouts->payoutCadence(),
+            'rentPrepaid' => $this->payouts->rentPrepaid(),
             'error' => $error,
         ]);
     }
