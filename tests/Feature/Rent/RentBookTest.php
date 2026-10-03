@@ -44,6 +44,7 @@ final class RentBookTest extends TestCase
         self::assertSame(1, $book['stats']['due_count'], 'present( names the holder and the rate');
         self::assertSame(0, $book['stats']['charged_count']);
         self::assertSame(0, $book['stats']['owed_minor']);
+        self::assertSame(0, $book['stats']['owed_count']);
         self::assertFalse($book['rows'][0]['charged']);
         self::assertSame(4000, $book['rows'][0]['rate_minor']);
         self::assertSame('2026-10-03', $book['rows'][0]['charge_date']);
@@ -210,6 +211,7 @@ final class RentBookTest extends TestCase
         );
         $ada = $this->book()->narrow($book['rows'], 'ADA', '');
         self::assertSame(['A10'], array_column($ada['rows'], 'code'), 'matches( finds the vendor');
+        self::assertSame(0, $ada['counts']['charged'], 'counts( leaves an uncharged booth out of the charged tally');
         self::assertSame(1, $ada['matched']);
         $due = $this->book()->narrow($book['rows'], '', 'due');
         self::assertSame(['A10'], array_column($due['rows'], 'code'), 'picked( keeps the booth still to charge');
@@ -258,6 +260,22 @@ final class RentBookTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertSame('a rent date is YYYY-MM-DD', $error->getMessage());
         }
+        try {
+            $lines->build(
+                $this->facts(
+                    [$this->booth(self::NORTH, 'A1', 'North')],
+                    [$this->stay(self::NORTH, self::ADA, 'Ada', 'not-a-date', null)],
+                    [$this->rate(self::NORTH, 1000)],
+                    [],
+                    []
+                ),
+                '2026-10',
+                '2026-10-03'
+            );
+            self::fail('day( rejects a date that is not YYYY-MM-DD');
+        } catch (InvalidArgumentException $error) {
+            self::assertSame('a rent date is YYYY-MM-DD', $error->getMessage());
+        }
     }
 
     public function testVacantBoothsAndOutsideAssignmentsStayOffTheBook(): void
@@ -284,6 +302,87 @@ final class RentBookTest extends TestCase
         self::assertSame(['A2'], array_column($book['rows'], 'code'), 'blank( leaves a vacant booth off the book');
         self::assertNull($book['rows'][0]['vendor_id']);
         self::assertSame(5000, $book['rows'][0]['rate_minor'], 'rates( uses the amount stored for that month');
+    }
+
+    public function testAOneCentBalanceAndANegativeBalanceStayDistinct(): void
+    {
+        $book = $this->book()->assemble(
+            $this->facts(
+                [
+                    $this->booth(self::NORTH, 'A1', 'North'),
+                    $this->booth(self::SOUTH, 'A2', 'South'),
+                ],
+                [],
+                [$this->rate(self::SOUTH, 5000)],
+                [],
+                [
+                    ['booth_id' => self::NORTH, 'open_minor' => 1],
+                    ['booth_id' => self::SOUTH, 'open_minor' => 2500],
+                    ['booth_id' => self::SOUTH, 'open_minor' => 0],
+                    ['booth_id' => self::SOUTH, 'open_minor' => -50],
+                ]
+            ),
+            '2026-06',
+            '2026-10-03'
+        );
+        $byCode = [];
+        foreach ($book['rows'] as $row) {
+            $byCode[$row['code']] = $row;
+        }
+
+        self::assertSame(['A1', 'A2'], array_column($book['rows'], 'code'));
+        self::assertSame(1, $byCode['A1']['open_minor'], 'blank( keeps a one-cent balance on the book');
+        self::assertSame(2500, $byCode['A2']['open_minor'], 'openBalances( keeps an open balance when a later row is not positive');
+        self::assertSame(2, $book['stats']['owed_count']);
+        self::assertSame(2501, $book['stats']['owed_minor']);
+    }
+
+    public function testTheSameStartDateKeepsTheLaterAssignment(): void
+    {
+        $book = $this->book()->assemble(
+            $this->facts(
+                [$this->booth(self::NORTH, 'A1', 'North')],
+                [
+                    $this->stay(self::NORTH, self::ADA, 'Ada', '2026-06-01', null),
+                    $this->stay(self::NORTH, self::BEA, 'Bea', '2026-06-01', null),
+                ],
+                [$this->rate(self::NORTH, 1000)],
+                [],
+                []
+            ),
+            '2026-06',
+            '2026-10-03'
+        );
+
+        self::assertSame(self::BEA, $book['rows'][0]['vendor_id'], 'holder( replaces an assignment with the same start');
+    }
+
+    public function testAStayOnTheMonthBoundaryStillHoldsTheBooth(): void
+    {
+        $book = $this->book()->assemble(
+            $this->facts(
+                [
+                    $this->booth(self::NORTH, 'A1', 'North'),
+                    $this->booth(self::SOUTH, 'A2', 'South'),
+                ],
+                [
+                    $this->stay(self::NORTH, self::ADA, 'Ada', '2026-06-30', null),
+                    $this->stay(self::SOUTH, self::BEA, 'Bea', '2026-01-01', '2026-06-01'),
+                ],
+                [],
+                [],
+                []
+            ),
+            '2026-06',
+            '2026-10-03'
+        );
+        $byCode = [];
+        foreach ($book['rows'] as $row) {
+            $byCode[$row['code']] = $row;
+        }
+
+        self::assertSame(self::ADA, $byCode['A1']['vendor_id'], 'covers( keeps a stay that starts on the last day');
+        self::assertSame(self::BEA, $byCode['A2']['vendor_id'], 'covers( keeps a stay that ends on the first day');
     }
 
     private function book(): RentBook
