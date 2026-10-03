@@ -109,12 +109,18 @@ final class OwnerJourneyTest extends WebTestCase
             'amount' => '100.00',
         ]);
         $this->session->open('/' . ProbeMall::SLUG . '/rent');
-        $journal = $this->session->submit('/' . ProbeMall::SLUG . '/rent/charge', [
+        $book = $this->session->submit('/' . ProbeMall::SLUG . '/rent/charge', [
             'booth_id' => $boothId,
             'posting_date' => ProbeMall::POSTING_DATE,
         ]);
 
-        self::assertSees('Rent charge', $journal);
+        self::assertSees('Charged', $book);
+        self::assertSame(1, preg_match(
+            '#id="booth-' . preg_quote($boothId, '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
+            $book,
+            $journalId
+        ));
+        self::assertSees('Rent charge', $this->session->open('/' . ProbeMall::SLUG . '/journals/' . $journalId[1]));
     }
 
     public function testTheOwnerSeesARefusedPayout(): void

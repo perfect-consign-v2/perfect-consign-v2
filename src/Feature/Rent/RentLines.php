@@ -1,0 +1,351 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PerfectConsign\Feature\Rent;
+
+use DateTimeImmutable;
+use InvalidArgumentException;
+use PerfectConsign\Shared\Scalar\RowValue;
+
+/**
+ * Booth rows for one rent month.
+ */
+final class RentLines
+{
+    /**
+     * @param array{
+     *   booths: list<array<string, mixed>>,
+     *   assignments: list<array<string, mixed>>,
+     *   rates: list<array<string, mixed>>,
+     *   charges: list<array<string, mixed>>,
+     *   open_rent: list<array<string, mixed>>
+     * } $facts
+     * @return list<array{
+     *   id: string,
+     *   code: string,
+     *   name: string,
+     *   vendor_id: ?string,
+     *   vendor_name: ?string,
+     *   rate_minor: ?int,
+     *   charged: bool,
+     *   charge_minor: ?int,
+     *   journal_id: ?string,
+     *   open_minor: int,
+     *   charge_date: string,
+     *   collect_amount: string
+     * }>
+     */
+    public function build(array $facts, string $month, string $today): array
+    {
+        $start = $month . '-01';
+        $end = (new DateTimeImmutable($start))->modify('last day of this month')->format('Y-m-d');
+        $stays = $this->stays($facts['assignments']);
+        $rates = $this->rates($facts['rates']);
+        $charges = $this->charges($facts['charges'], $month);
+        $open = $this->openBalances($facts['open_rent']);
+        $rows = [];
+        foreach ($facts['booths'] as $booth) {
+            $row = $this->row($booth, $stays, $rates, $charges, $open, $month, $today, $start, $end);
+            if ($row !== null) {
+                $rows[] = $row;
+            }
+        }
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => strnatcasecmp($left['code'], $right['code'])
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $booth
+     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
+     * @param array<string, int> $rates
+     * @param array<string, array{journalId: string, amount: int}> $charges
+     * @param array<string, int> $open
+     * @return array{
+     *   id: string,
+     *   code: string,
+     *   name: string,
+     *   vendor_id: ?string,
+     *   vendor_name: ?string,
+     *   rate_minor: ?int,
+     *   charged: bool,
+     *   charge_minor: ?int,
+     *   journal_id: ?string,
+     *   open_minor: int,
+     *   charge_date: string,
+     *   collect_amount: string
+     * }|null
+     */
+    private function row(
+        array $booth,
+        array $stays,
+        array $rates,
+        array $charges,
+        array $open,
+        string $month,
+        string $today,
+        string $start,
+        string $end,
+    ): ?array {
+        $id = $this->text($booth['id'] ?? null);
+        $holder = $this->holder($stays, $id, $start, $end);
+        $rate = $rates[$id] ?? null;
+        $charge = $charges[$id] ?? null;
+        $balance = $open[$id] ?? 0;
+        if ($this->blank($rate, $holder, $balance, $charge)) {
+            return null;
+        }
+
+        return $this->present(
+            $id,
+            $this->text($booth['code'] ?? null),
+            $this->text($booth['name'] ?? null),
+            $holder,
+            $rate,
+            $charge,
+            $balance,
+            $month,
+            $today,
+        );
+    }
+
+    /**
+     * @param array{vendorId: string, vendorName: string, startsOn: string}|null $holder
+     * @param array{journalId: string, amount: int}|null $charge
+     */
+    private function blank(?int $rate, ?array $holder, int $balance, ?array $charge): bool
+    {
+        return $rate === null && $holder === null && $balance < 1 && $charge === null;
+    }
+
+    /**
+     * @param array{vendorId: string, vendorName: string, startsOn: string}|null $holder
+     * @param array{journalId: string, amount: int}|null $charge
+     * @return array{
+     *   id: string,
+     *   code: string,
+     *   name: string,
+     *   vendor_id: ?string,
+     *   vendor_name: ?string,
+     *   rate_minor: ?int,
+     *   charged: bool,
+     *   charge_minor: ?int,
+     *   journal_id: ?string,
+     *   open_minor: int,
+     *   charge_date: string,
+     *   collect_amount: string
+     * }
+     */
+    private function present(
+        string $id,
+        string $code,
+        string $name,
+        ?array $holder,
+        ?int $rate,
+        ?array $charge,
+        int $balance,
+        string $month,
+        string $today,
+    ): array {
+        $vendorId = null;
+        $vendorName = null;
+        $startsOn = null;
+        if ($holder !== null) {
+            $vendorId = $holder['vendorId'];
+            $vendorName = $holder['vendorName'];
+            $startsOn = $holder['startsOn'];
+        }
+        $chargeMinor = null;
+        $journalId = null;
+        if ($charge !== null) {
+            $chargeMinor = $charge['amount'];
+            $journalId = $charge['journalId'];
+        }
+        $collect = '';
+        if ($balance > 0) {
+            $collect = intdiv($balance, 100) . '.' . str_pad((string) ($balance % 100), 2, '0', STR_PAD_LEFT);
+        }
+
+        return [
+            'id' => $id,
+            'code' => $code,
+            'name' => $name,
+            'vendor_id' => $vendorId,
+            'vendor_name' => $vendorName,
+            'rate_minor' => $rate,
+            'charged' => $charge !== null,
+            'charge_minor' => $chargeMinor,
+            'journal_id' => $journalId,
+            'open_minor' => $balance,
+            'charge_date' => $this->chargeDate($month, $today, $startsOn),
+            'collect_amount' => $collect,
+        ];
+    }
+
+    /**
+     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
+     * @return array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}|null
+     */
+    private function holder(array $stays, string $boothId, string $start, string $end): ?array
+    {
+        $chosen = null;
+        foreach ($stays as $stay) {
+            if (!$this->covers($stay, $boothId, $start, $end)) {
+                continue;
+            }
+            if ($chosen === null || $stay['startsOn'] >= $chosen['startsOn']) {
+                $chosen = $stay;
+            }
+        }
+
+        return $chosen;
+    }
+
+    /**
+     * @param array{boothId: string, startsOn: string, endsOn: ?string} $stay
+     */
+    private function covers(array $stay, string $boothId, string $start, string $end): bool
+    {
+        if ($stay['boothId'] !== $boothId || $stay['startsOn'] > $end) {
+            return false;
+        }
+
+        return $stay['endsOn'] === null || $stay['endsOn'] >= $start;
+    }
+
+    private function chargeDate(string $month, string $today, ?string $startsOn): string
+    {
+        if (substr($today, 0, 7) === $month) {
+            return $today;
+        }
+        $first = $month . '-01';
+        if ($startsOn !== null && substr($startsOn, 0, 7) === $month && $startsOn > $first) {
+            return $startsOn;
+        }
+
+        return $first;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}>
+     */
+    private function stays(array $rows): array
+    {
+        $stays = [];
+        foreach ($rows as $row) {
+            $ends = $row['ends_on'] ?? null;
+            $stays[] = [
+                'boothId' => $this->text($row['booth_id'] ?? null),
+                'vendorId' => $this->text($row['vendor_id'] ?? null),
+                'vendorName' => $this->text($row['vendor_name'] ?? null),
+                'startsOn' => $this->day($row['starts_on'] ?? null),
+                'endsOn' => $this->endDate($ends),
+            ];
+        }
+
+        return $stays;
+    }
+
+    private function endDate(mixed $ends): ?string
+    {
+        if ($ends === null || $ends === '') {
+            return null;
+        }
+
+        return $this->day($ends);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, int>
+     */
+    private function rates(array $rows): array
+    {
+        $amounts = [];
+        foreach ($rows as $row) {
+            $amounts[$this->text($row['booth_id'] ?? null)] = RowValue::integer($row['amount_minor'] ?? null);
+        }
+
+        return $amounts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, array{journalId: string, amount: int}>
+     */
+    private function charges(array $rows, string $month): array
+    {
+        $live = [];
+        $suffix = ':' . $month;
+        foreach ($rows as $row) {
+            $boothId = $this->chargeBooth($row, $suffix);
+            if ($boothId === null) {
+                continue;
+            }
+            $live[$boothId] = [
+                'journalId' => $this->text($row['journal_id'] ?? null),
+                'amount' => RowValue::integer($row['debit_total_minor'] ?? null),
+            ];
+        }
+
+        return $live;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function chargeBooth(array $row, string $suffix): ?string
+    {
+        if (in_array($row['reversed'] ?? false, [true, 1, '1', 't', 'true'], true)) {
+            return null;
+        }
+        $key = $this->text($row['posting_key'] ?? null);
+        $prefix = 'rent-charge:';
+        if (!str_starts_with($key, $prefix) || !str_ends_with($key, $suffix)) {
+            return null;
+        }
+        return substr($key, strlen($prefix), -strlen($suffix));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, int>
+     */
+    private function openBalances(array $rows): array
+    {
+        $balances = [];
+        foreach ($rows as $row) {
+            $amount = RowValue::integer($row['open_minor'] ?? null);
+            if ($amount <= 0) {
+                continue;
+            }
+            $balances[$this->text($row['booth_id'] ?? null)] = $amount;
+        }
+
+        return $balances;
+    }
+
+    private function day(mixed $value): string
+    {
+        if (!is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}/', $value) !== 1) {
+            throw new InvalidArgumentException('a rent date is YYYY-MM-DD');
+        }
+
+        return substr($value, 0, 10);
+    }
+
+    private function text(mixed $value): string
+    {
+        $text = RowValue::string($value);
+        if ($text === '') {
+            throw new InvalidArgumentException('a rent field is missing');
+        }
+
+        return $text;
+    }
+}

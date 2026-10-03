@@ -110,12 +110,20 @@ final class OwnerJourneyTest extends WebTestCase
             'month_start' => ProbeMall::POSTING_DATE,
             'amount' => '100.00',
         ]);
-        $journal = $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
+        $book = $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
             'booth_id' => $boothId,
             'posting_date' => ProbeMall::POSTING_DATE,
         ]);
 
-        self::assertSame(200, $journal->status);
+        self::assertSame(200, $book->status);
+        self::assertSees('Charged', $book);
+        // saved( returns to the charge month. chosen( reads the posting month when the form omits it.
+        self::assertSame(1, preg_match(
+            '#id="booth-' . preg_quote($boothId, '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
+            $book->body,
+            $journalId
+        ));
+        $journal = $this->client->get('/' . ProbeMall::SLUG . '/journals/' . $journalId[1]);
         self::assertSees('Rent charge', $journal);
     }
 
