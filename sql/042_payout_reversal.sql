@@ -97,6 +97,7 @@ BEGIN
     WHERE id = original.id;
 
     SET CONSTRAINTS ALL IMMEDIATE;
+    SET CONSTRAINTS ALL DEFERRED;
     RETURN reversal_id;
 END;
 $$;

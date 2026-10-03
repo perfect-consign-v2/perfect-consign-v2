@@ -841,6 +841,10 @@ missing_month AS (
         FROM journals AS journal
         WHERE journal.source_type = 'rent_charge'
           AND journal.posting_key = 'rent-charge:' || assignment.booth_id::text || ':' || to_char(series.month_start::date, 'YYYY-MM')
+          AND NOT EXISTS (
+              SELECT 1 FROM journals AS reversal
+              WHERE reversal.reverses_journal_id = journal.id
+          )
     )
 ),
 missing AS (

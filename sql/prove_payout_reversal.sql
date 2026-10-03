@@ -233,6 +233,31 @@ BEGIN
     END IF;
 END $$;
 
+INSERT INTO payout_runs (
+    id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
+)
+SELECT
+    '01900000-0000-7000-8000-00000000f903',
+    id, 'batch', 'monthly', '2034-03-01', '2034-03-31', '2034-03-01', 'check', 'draft', '2034-03-31'
+FROM ledger_books WHERE is_default;
+
+DO $$
+DECLARE
+    owed bigint;
+BEGIN
+    SELECT carried_rent_minor INTO owed
+    FROM payout_pack
+    WHERE run_id = '01900000-0000-7000-8000-00000000f903'
+      AND vendor_id = '01900000-0000-7000-8000-00000000f401';
+    IF owed IS DISTINCT FROM 1000 THEN
+        RAISE EXCEPTION 'a reversed rent charge is not missing on the pack (owed %)', owed;
+    END IF;
+END $$;
+
+CREATE TEMP TABLE reversal_pack_check (checksum text) ON COMMIT DROP;
+INSERT INTO reversal_pack_check
+SELECT stall_pack_checksum('01900000-0000-7000-8000-00000000f903');
+
 SET CONSTRAINTS ALL DEFERRED;
 
 INSERT INTO journals (
@@ -262,7 +287,82 @@ SELECT
     '01900000-0000-7000-8000-000000000017', 0, 1000, NULL, NULL
 FROM ledger_books WHERE is_default;
 
+INSERT INTO payout_run_journals (run_id, journal_id, role)
+VALUES (
+    '01900000-0000-7000-8000-00000000f903',
+    '01900000-0000-7000-8000-00000000f824',
+    'rent_charge'
+);
+
+DO $$
+DECLARE
+    before text;
+    after text;
+    owed bigint;
+BEGIN
+    SELECT checksum INTO before FROM reversal_pack_check;
+    after := stall_pack_checksum('01900000-0000-7000-8000-00000000f903');
+    IF before IS NULL OR before IS DISTINCT FROM after THEN
+        RAISE EXCEPTION 'recharging a reversed rent month moved the pack checksum';
+    END IF;
+    SELECT carried_rent_minor INTO owed
+    FROM payout_pack
+    WHERE run_id = '01900000-0000-7000-8000-00000000f903'
+      AND vendor_id = '01900000-0000-7000-8000-00000000f401';
+    IF owed IS DISTINCT FROM 1000 THEN
+        RAISE EXCEPTION 'the recharged month is not on the pack';
+    END IF;
+END $$;
+
+UPDATE payout_runs
+SET reviewed_checksum = (SELECT checksum FROM reversal_pack_check),
+    reviewed_at = clock_timestamp()
+WHERE id = '01900000-0000-7000-8000-00000000f903';
+
+INSERT INTO payout_run_lines (
+    run_id, vendor_id, mode, sales_minor, commission_minor, tax_minor, discount_minor,
+    return_minor, void_minor, draw_minor, check_paid_minor, settlement_applied_minor,
+    rent_minor, rent_charged_minor, rent_brought_forward_minor, rent_paid_since_minor,
+    adjustment_minor, brought_forward_minor, carried_payable_minor, carried_rent_minor,
+    settled_minor, check_minor, owes_minor, net_minor
+)
+SELECT run_id, vendor_id, mode, sales_minor, commission_minor, tax_minor, discount_minor,
+       return_minor, void_minor, draw_minor, check_paid_minor, settlement_applied_minor,
+       rent_minor, rent_charged_minor, rent_brought_forward_minor, rent_paid_since_minor,
+       adjustment_minor, brought_forward_minor, carried_payable_minor, carried_rent_minor,
+       settled_minor, check_minor, owes_minor, net_minor
+FROM payout_pack
+WHERE run_id = '01900000-0000-7000-8000-00000000f903';
+
+INSERT INTO payout_run_sales (
+    run_id, vendor_id, journal_id, line_no, item_id, sold_on, item_code, description,
+    price_minor, commission_minor, tax_minor, discount_minor, quantity
+)
+SELECT run_id, vendor_id, journal_id, line_no, item_id, sold_on, item_code, description,
+       price_minor, commission_minor, tax_minor, discount_minor, quantity
+FROM payout_pack_sales
+WHERE run_id = '01900000-0000-7000-8000-00000000f903';
+
+SELECT stall_assert_frozen_checksum('01900000-0000-7000-8000-00000000f903');
+
 SET CONSTRAINTS ALL IMMEDIATE;
+
+UPDATE payout_runs
+SET status = 'settled', settled_at = clock_timestamp()
+WHERE id = '01900000-0000-7000-8000-00000000f903';
+
+SELECT stall_assert_frozen_checksum('01900000-0000-7000-8000-00000000f903');
+
+UPDATE payout_runs
+SET status = 'paid', paid_at = clock_timestamp()
+WHERE id = '01900000-0000-7000-8000-00000000f903';
+
+DO $$
+BEGIN
+    IF (SELECT status FROM payout_runs WHERE id = '01900000-0000-7000-8000-00000000f903') <> 'paid' THEN
+        RAISE EXCEPTION 'the replacement run could not be paid';
+    END IF;
+END $$;
 
 DO $$
 BEGIN

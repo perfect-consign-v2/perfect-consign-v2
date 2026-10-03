@@ -738,7 +738,7 @@ Reversing a run restores the payable and rent to their exact pre-run values. The
 When `mall.rent_prepaid_from_prior_sales = true`:
 
 -   A **monthly** run on the 1st of month _M_ has `sales_from = first day of M−1`, `sales_to = last day of M−1`, `rent_month = M`.
--   The run **ensures the `M` rent charges exist** (idempotent `rent-charge:<booth>:<YYYY-MM>`). This is the _only_ job `rent_month` does.
+-   The run **ensures the `M` rent charges exist** (idempotent `rent-charge:<booth>:<YYYY-MM>`). This is the _only_ job `rent_month` does. A charge that already has a reversal counts as absent in `payout_pack` and in the re-charge, so reviewing the pack and then posting that month again does not move the checksum.
 -   The run then applies the payable to the vendor's **entire** open rent — the new `M` charge **plus any older shortfall** (`R` = all open rent, §5). A prior month's shortfall is swept in here, never stranded.
 -   Example: the Oct 1 run uses September sales (`sales_from = 2026-09-01`, `sales_to = 2026-09-30`) to pay October rent (`rent_month = 2026-10-01`). If September sales cover October rent **and any earlier shortfall**, the leftover is a check and all rent is marked paid; if not, the difference stays open as "owes store" and is picked up by the next run.
 
@@ -784,7 +784,7 @@ One primary screen plus a history route, both under `/<slug>/payouts`.
     1.  **Print the pack** — store summary first, then one page per vendor, page break between them. Same `window.print()` path as `src/Feature/Pos/receipt.php`. No PDF library and no second formula in the template.
     2.  **Close March** — one transaction; `settle()` for the whole run, or none of it. **\[v2.2\] It posts any missing rent charge itself (§6.1), so it is never disabled for missing rent.**
     3.  **Write checks** — starting number, then `disburse()` (one bank journal per check row), then the check pages.
--   **Pay this vendor** uses the same row and the same functions: a one-vendor `single` run through `settle()`/`disburse()`. `settle()` always ensures the rent charge for `rent_month` itself (§6.1), so there is no "rent not charged" branch on this screen. A vendor who wants cash **before** the month closes draws at the POS — the existing `vendor_draw` tender (`sql/038_vendor_draw.sql`, capped at the open payable in `src/Feature/Pos/TicketTenders.php`) — which is a sale tender, not a payout journal. The payout screen only ever settles and disburses. **\[v2.3\]**
+-   **Pay this vendor** uses the same row and the same functions: a one-vendor `single` run through `settle()`/`disburse()`. `settle()` always ensures the rent charge for `rent_month` itself (§6.1), so there is no "rent not charged" branch on this screen. A vendor who wants cash **before** the month closes draws at the POS — the existing `vendor_draw` tender (`sql/038_vendor_draw.sql`, capped at the open payable in `src/Feature/Pos/TicketTenders.php`) — which is a sale tender, not a payout journal. The payout screen only ever settles and disburses. **\[v2.3\]** A single payout settles and disburses in that one action. It does not store `reviewed_checksum` and it does not call the pack guard. The batch path is the one with a review, a frozen pack, and a later check run.
 -   Any refusal from `settle()` (checksum drift) is shown inline with a **Re-review** action.
 
 ### 9.2 "Past payouts" (history route)

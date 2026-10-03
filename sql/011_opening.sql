@@ -65,12 +65,6 @@ BEGIN
 
     PERFORM pg_advisory_xact_lock(hashtextextended(NEW.book_id::text || chr(31) || NEW.posting_key, 0));
 
-    PERFORM 1
-    FROM public.journals
-    WHERE book_id = NEW.book_id
-      AND posting_key = NEW.posting_key
-    FOR UPDATE;
-
     IF EXISTS (
         SELECT 1
         FROM public.journals AS prior
@@ -112,12 +106,6 @@ BEGIN
     END IF;
 
     PERFORM pg_advisory_xact_lock(hashtextextended(NEW.book_id::text || chr(31) || NEW.posting_key, 0));
-
-    PERFORM 1
-    FROM public.journals
-    WHERE book_id = NEW.book_id
-      AND posting_key = 'opening'
-    FOR UPDATE;
 
     SELECT count(*) INTO live_opening
     FROM public.journals AS prior
