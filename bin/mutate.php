@@ -7,6 +7,10 @@ declare(strict_types=1);
  * A mutant is killed when that suite exits non-zero. Survivors exit 1.
  */
 
+if (getenv('PC_MUTATE_FUNCTIONS') === '1') {
+    return;
+}
+
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
 
@@ -371,6 +375,11 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
 
 function relative(string $root, string $file): string
 {
-    $prefix = $root . DIRECTORY_SEPARATOR;
-    return str_starts_with($file, $prefix) ? substr($file, strlen($prefix)) : $file;
+    $prefix = rtrim(str_replace('\\', '/', $root), '/') . '/';
+    $normalized = str_replace('\\', '/', $file);
+    if (str_starts_with($normalized, $prefix)) {
+        $normalized = substr($normalized, strlen($prefix));
+    }
+
+    return str_replace('/', '\\', $normalized);
 }

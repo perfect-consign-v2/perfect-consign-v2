@@ -294,11 +294,19 @@ final class FloorCoverageTest extends WebTestCase
         ]);
         $close = $this->client->get('/' . self::SLUG . '/close');
         self::assertSees('Year-end close', $close);
-        $openYear = '/<tr>\s*<td>2019-01-01<\/td>\s*<td>2019-12-31<\/td>\s*<td>open<\/td>.*?name="period_id" value="([0-9a-fA-F-]{36})"/s';
-        if (preg_match($openYear, $close->body, $period) === 1) {
+        $openPeriod = '/<tr>\s*<td>(\d{4}-\d{2}-\d{2})<\/td>\s*<td>(\d{4}-\d{2}-\d{2})<\/td>\s*<td>open<\/td>.*?name="period_id" value="([0-9a-fA-F-]{36})"/s';
+        $open = [];
+        if (preg_match_all($openPeriod, $close->body, $found, PREG_SET_ORDER) > 0) {
+            $open = $found;
+        }
+        usort($open, static fn (array $left, array $right): int => $left[1] <=> $right[1]);
+        foreach ($open as $period) {
+            if ($period[1] > '2019-01-01') {
+                continue;
+            }
             $closed = $this->client->post('/' . self::SLUG . '/close', [
-                'period_id' => $period[1],
-                'ends_on' => '2019-12-31',
+                'period_id' => $period[3],
+                'ends_on' => $period[2],
             ]);
             self::assertSees('Period closed.', $closed);
         }

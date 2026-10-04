@@ -50,7 +50,8 @@
             "@test:http",
             "@prove:obligations",
             "@prove:race",
-            "@prove"
+            "@prove",
+            "@test:mutate"
         ]
     },
     "config": {
