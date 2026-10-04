@@ -196,6 +196,74 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Cash drops', $tape);
     }
 
+    public function testACardAndCheckCountStaysOffTheLedger(): void
+    {
+        $even = $this->openNamedRegister('Card');
+        $closed = $this->client->post('/' . self::SLUG . '/registers/' . $even . '/close', [
+            'counted_cash' => '20.00',
+            'counted_card' => '1.00',
+            'counted_checks' => '2.00',
+            ...$this->zeroCounts(),
+        ], 60);
+        $this->requireText('Register closed.', $closed, 'even close');
+        $shifts = $this->client->get('/' . self::SLUG . '/registers/' . $even . '/shifts');
+        $this->requireText('Counted $1.00, posted $0.00', $shifts, 'card count');
+        $this->requireText('Counted $2.00, posted $0.00', $shifts, 'checks count');
+        self::assertStringNotContainsString(' over', $shifts->body);
+        self::assertStringNotContainsString(' short', $shifts->body);
+        self::assertStringNotContainsString('diff-over', $shifts->body);
+        self::assertStringNotContainsString('diff-short', $shifts->body);
+        self::assertMatchesRegularExpression(
+            '/Counted \$1\.00, posted \$0\.00<\/td>\s*<td>Counted \$2\.00, posted \$0\.00<\/td>/',
+            $shifts->body
+        );
+        $sessionId = $this->match($shifts->body, '#/registers/sessions/([0-9a-fA-F-]{36})#');
+        $tape = $this->client->get('/' . self::SLUG . '/registers/sessions/' . $sessionId);
+        $this->requireText('Card posted $0.00, counted $1.00', $tape, 'card tape');
+        $this->requireText('Checks posted $0.00, counted $2.00', $tape, 'checks tape');
+
+        $short = $this->openNamedRegister('Short');
+        $ask = $this->client->post('/' . self::SLUG . '/registers/' . $short . '/close', $this->closeFields('19.00'), 60);
+        $this->requireText('Counted cash does not match the drawer.', $ask, 'cash short');
+        $confirmed = $this->client->post('/' . self::SLUG . '/registers/' . $short . '/close', [
+            ...$this->closeFields('19.00'),
+            'confirm_variance' => 'yes',
+        ], 60);
+        $this->requireText('Register closed.', $confirmed, 'cash close');
+        $this->client->post('/' . self::SLUG . '/registers/close-cancel', []);
+        $again = $this->client->get('/' . self::SLUG . '/registers/' . $short . '/shifts');
+        $this->requireText('$1.00 short', $again, 'cash cell');
+        $this->requireText('Counted $0.00, posted $0.00', $again, 'zero card');
+        self::assertMatchesRegularExpression(
+            '/\$1\.00 short<\/td>\s*<td>Counted \$0\.00, posted \$0\.00<\/td>\s*<td>Counted \$0\.00, posted \$0\.00<\/td>/',
+            $again->body
+        );
+    }
+
+    private function requireText(string $text, PageResponse $page, string $step): void
+    {
+        self::assertStringContainsString($text, $page->body, $step . ' ' . $page->status . ' ' . HtmlPage::error($page->body));
+    }
+
+    private function openNamedRegister(string $label): string
+    {
+        $name = $label . ' ' . bin2hex(random_bytes(3));
+        $created = $this->client->post('/' . self::SLUG . '/registers', ['name' => $name], 60);
+        $this->requireText($name, $created, 'create ' . $label);
+        $registerId = $this->match(
+            $created->body,
+            '/id="register-([0-9a-fA-F-]{36})">\s*<div class="card-head">\s*<div class="h3">' . preg_quote($name, '/') . '/'
+        );
+        $opened = $this->client->post('/' . self::SLUG . '/registers/' . $registerId . '/open', [
+            'cashier' => ProbeMall::USERNAME,
+            'opening_float' => '20.00',
+            ...$this->zeroCounts(),
+        ], 60);
+        $this->requireText('Register opened.', $opened, 'open ' . $label);
+
+        return $registerId;
+    }
+
     public function testTheBooksPagesPost(): void
     {
         $map = $this->client->get('/' . self::SLUG . '/map');

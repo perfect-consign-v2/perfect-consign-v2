@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Feature\Register\DenominationCount;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $registerId */
@@ -17,24 +18,24 @@ use PerfectConsign\Shared\Scalar\RowValue;
     </div>
     <a class="btn" href="/<?= View::text($slug) ?>/registers">Registers</a>
 </div>
-<div class="card table-wrap mt-6">
+<div class="card table-wrap list-dt-wrap mt-6">
     <?php if ($shifts === []): ?>
         <div class="empty"><p>No shifts yet.</p></div>
     <?php else: ?>
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Cashier</th>
-                    <th>Opened</th>
-                    <th>Closed</th>
-                    <th>Opening float</th>
-                    <th>Counted cash</th>
-                    <th>Cash</th>
-                    <th>Card</th>
-                    <th>Checks</th>
-                    <th></th>
-                </tr>
-            </thead>
+        <?php
+        ListTable::open(['id' => 'shifts', 'export' => 'shifts']);
+        ListTable::head([
+            ['label' => 'Cashier'],
+            ['label' => 'Opened'],
+            ['label' => 'Closed'],
+            ['label' => 'Opening float', 'sort' => 'num'],
+            ['label' => 'Counted cash', 'sort' => 'num'],
+            ['label' => 'Cash'],
+            ['label' => 'Card'],
+            ['label' => 'Checks'],
+            ['label' => '', 'actions' => true],
+        ]);
+        ?>
             <tbody>
             <?php foreach ($shifts as $shift): ?>
                 <?php
@@ -43,11 +44,15 @@ use PerfectConsign\Shared\Scalar\RowValue;
                 ?>
                 <?php
                 $cashDiff = $closed && is_string($shift['cash_difference'] ?? null) ? $shift['cash_difference'] : '';
-                $cardDiff = $closed && is_string($shift['card_difference'] ?? null) ? $shift['card_difference'] : '';
-                $checksDiff = $closed && is_string($shift['checks_difference'] ?? null) ? $shift['checks_difference'] : '';
                 $cashMark = $closed && is_string($shift['cash_mark'] ?? null) ? $shift['cash_mark'] : '';
-                $cardMark = $closed && is_string($shift['card_mark'] ?? null) ? $shift['card_mark'] : '';
-                $checksMark = $closed && is_string($shift['checks_mark'] ?? null) ? $shift['checks_mark'] : '';
+                $cardCount = $closed
+                    ? 'Counted ' . DenominationCount::dollars(RowValue::integer($shift['counted_card_minor'] ?? 0))
+                        . ', posted ' . DenominationCount::dollars(RowValue::integer($shift['posted_card_minor'] ?? 0))
+                    : '';
+                $checksCount = $closed
+                    ? 'Counted ' . DenominationCount::dollars(RowValue::integer($shift['counted_checks_minor'] ?? 0))
+                        . ', posted ' . DenominationCount::dollars(RowValue::integer($shift['posted_checks_minor'] ?? 0))
+                    : '';
                 ?>
                 <tr>
                     <td><?= View::text(RowValue::string($shift['cashier'] ?? null)) ?></td>
@@ -56,8 +61,8 @@ use PerfectConsign\Shared\Scalar\RowValue;
                     <td><?= View::text(DenominationCount::dollars(RowValue::integer($shift['opening_cash_minor'] ?? 0))) ?></td>
                     <td><?= $closed ? View::text(DenominationCount::dollars(RowValue::integer($shift['counted_cash_minor'] ?? 0))) : '' ?></td>
                     <td class="<?= View::text($cashMark) ?>"><?= View::text($cashDiff) ?></td>
-                    <td class="<?= View::text($cardMark) ?>"><?= View::text($cardDiff) ?></td>
-                    <td class="<?= View::text($checksMark) ?>"><?= View::text($checksDiff) ?></td>
+                    <td><?= View::text($cardCount) ?></td>
+                    <td><?= View::text($checksCount) ?></td>
                     <td><?php if ($closed): ?><a href="/<?= View::text($slug) ?>/registers/sessions/<?= View::text($id) ?>">Z-tape</a><?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>
@@ -65,3 +70,4 @@ use PerfectConsign\Shared\Scalar\RowValue;
         </table>
     <?php endif; ?>
 </div>
+<?php ListTable::assets(); ?>

@@ -213,6 +213,134 @@ SET closing_counts = '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25"
     closed_at = clock_timestamp()
 WHERE id = '01900000-0000-7000-8000-000000000d27';
 
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d28',
+    '01900000-0000-7000-8000-000000000d93',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    0
+);
+
+DO $$
+BEGIN
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000d86',
+        '01900000-0000-7000-8000-000000000001',
+        'variance:d86',
+        '2033-02-02',
+        '2033-02-02 18:30:00+00',
+        '01900000-0000-7000-8000-000000000d42',
+        'USD', 'register_variance', 'd86', 'Card over/short', 100, 100
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES
+        ('01900000-0000-7000-8000-000000000d86', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 100, 0),
+        ('01900000-0000-7000-8000-000000000d86', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-00000000001f', 0, 40),
+        ('01900000-0000-7000-8000-000000000d86', '01900000-0000-7000-8000-000000000001', 3, '01900000-0000-7000-8000-00000000001f', 0, 60);
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d28', '01900000-0000-7000-8000-000000000d86');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'a variance that is not cash and over/short was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%register variance moves the difference between cash and over/short%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+SET CONSTRAINTS ALL DEFERRED;
+
+UPDATE register_sessions
+SET closing_counts = '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    counted_cash_minor = 0,
+    counted_card_minor = 100,
+    counted_checks_minor = 200,
+    closed_at = clock_timestamp()
+WHERE id = '01900000-0000-7000-8000-000000000d28';
+
+DO $$
+BEGIN
+    IF (
+        SELECT counted_card_minor FROM register_sessions
+        WHERE id = '01900000-0000-7000-8000-000000000d28'
+    ) <> 100 OR (
+        SELECT counted_checks_minor FROM register_sessions
+        WHERE id = '01900000-0000-7000-8000-000000000d28'
+    ) <> 200 THEN
+        RAISE EXCEPTION 'the card and check counts were not stored';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM register_session_posts AS post
+        JOIN journals AS journal ON journal.id = post.journal_id
+        WHERE post.session_id = '01900000-0000-7000-8000-000000000d28'
+          AND journal.source_type = 'register_variance'
+    ) THEN
+        RAISE EXCEPTION 'a card count posted a variance';
+    END IF;
+END $$;
+
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d29',
+    '01900000-0000-7000-8000-000000000d93',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":1,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    1000
+);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000d87',
+    '01900000-0000-7000-8000-000000000001',
+    'variance:d87',
+    '2033-02-02',
+    '2033-02-02 18:40:00+00',
+    '01900000-0000-7000-8000-000000000d42',
+    'USD', 'register_variance', 'd87', 'Cash short only', 100, 100
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES
+    ('01900000-0000-7000-8000-000000000d87', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-00000000001f', 100, 0),
+    ('01900000-0000-7000-8000-000000000d87', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000010', 0, 100);
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d29', '01900000-0000-7000-8000-000000000d87');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+UPDATE register_sessions
+SET closing_counts = '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":9,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    counted_cash_minor = 900,
+    counted_card_minor = 500,
+    counted_checks_minor = 700,
+    closed_at = clock_timestamp()
+WHERE id = '01900000-0000-7000-8000-000000000d29';
+
+DO $$
+DECLARE
+    variance_total bigint;
+    variance_rows integer;
+BEGIN
+    SELECT count(*), COALESCE(sum(journal.debit_total_minor), 0)
+    INTO variance_rows, variance_total
+    FROM register_session_posts AS post
+    JOIN journals AS journal ON journal.id = post.journal_id
+    WHERE post.session_id = '01900000-0000-7000-8000-000000000d29'
+      AND journal.source_type = 'register_variance';
+    IF variance_rows <> 1 OR variance_total <> 100 THEN
+        RAISE EXCEPTION 'the cash variance included the card count';
+    END IF;
+END $$;
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor

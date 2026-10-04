@@ -62,14 +62,10 @@ final class RegisterActivity
                 $taken = $takenBySession[$sessionId] ?? ['cash' => 0, 'card' => 0, 'checks' => 0];
                 $countedCash = RowValue::integer($row['counted_cash_minor'] ?? 0);
                 $expectedCash = RowValue::integer($row['opening_cash_minor'] ?? 0) + $taken['cash'];
-                $countedCard = RowValue::integer($row['counted_card_minor'] ?? 0);
-                $countedChecks = RowValue::integer($row['counted_checks_minor'] ?? 0);
                 $row['cash_difference'] = DenominationCount::difference($countedCash, $expectedCash);
-                $row['card_difference'] = DenominationCount::difference($countedCard, $taken['card']);
-                $row['checks_difference'] = DenominationCount::difference($countedChecks, $taken['checks']);
                 $row['cash_mark'] = DenominationCount::mark($countedCash, $expectedCash);
-                $row['card_mark'] = DenominationCount::mark($countedCard, $taken['card']);
-                $row['checks_mark'] = DenominationCount::mark($countedChecks, $taken['checks']);
+                $row['posted_card_minor'] = $taken['card'];
+                $row['posted_checks_minor'] = $taken['checks'];
             }
             $shifts[] = $row;
         }

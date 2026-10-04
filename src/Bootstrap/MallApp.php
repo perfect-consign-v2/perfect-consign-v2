@@ -54,8 +54,8 @@ final class MallApp
         $data['nav'] = is_string($slug) && $this->sessionSlug() === $slug;
         $data['csrf'] = $this->door->token();
         $data['error'] = $data['error'] ?? null;
-        $data['notice'] = $this->takeFlash('notice');
-        $data['warning'] = $this->takeFlash('warning');
+        $notice = $this->takeFlash('notice');
+        $warning = $this->takeFlash('warning');
         $data['path'] = $this->request->path;
         $data['today'] = $this->roled ? $this->mall->today() : '';
         if (is_string($slug)) {
@@ -67,12 +67,14 @@ final class MallApp
             $data['leftOpen'] = $leftOpen;
             $away = $this->door->priorShift($slug, $leftOpen);
             if ($away !== null) {
-                $this->redirect($away);
+                $this->redirect($away, $notice, $warning);
             }
             $data['priorCloseStarted'] = $this->session->get('close_prior:' . $slug) === 'yes';
             $onHub = preg_match('#/registers$#', $this->request->path) === 1;
             $data['priorPrompt'] = $leftOpen !== [] && $data['priorCloseStarted'] !== true && !$onHub;
         }
+        $data['notice'] = $notice;
+        $data['warning'] = $warning;
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
 

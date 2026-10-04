@@ -40,18 +40,18 @@ final class FormClient
 
     public function get(string $path): PageResponse
     {
-        return $this->send('GET', $path, null, true, 20);
+        return $this->send('GET', $path, null, true, 60);
     }
 
     public function getWithoutRedirect(string $path): PageResponse
     {
-        return $this->send('GET', $path, null, false, 20);
+        return $this->send('GET', $path, null, false, 60);
     }
 
     /**
      * @param array<string, string> $fields
      */
-    public function post(string $path, array $fields, int $timeoutSeconds = 20): PageResponse
+    public function post(string $path, array $fields, int $timeoutSeconds = 60): PageResponse
     {
         $fields['csrf'] = $this->csrf;
         $response = $this->send('POST', $path, $fields, false, $timeoutSeconds);
