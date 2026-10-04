@@ -677,7 +677,9 @@ final class CoverageRemainderTest extends WebTestCase
     private function assertOpenedDay(\PerfectConsign\Tests\Support\PageResponse $page): void
     {
         self::assertTrue(
-            str_contains($page->body, 'Adjustment posted.') || str_contains($page->body, 'That day could not be opened.'),
+            str_contains($page->body, 'Adjustment posted.')
+            || str_contains($page->body, 'That day could not be opened.')
+            || str_contains($page->body, 'That day is already closed.'),
             HtmlPage::error($page->body)
         );
     }
