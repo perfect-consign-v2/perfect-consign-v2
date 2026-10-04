@@ -8,6 +8,11 @@ declare(strict_types=1);
  */
 
 if (getenv('PC_MUTATE_FUNCTIONS') === '1') {
+    if (harnessWasInvoked()) {
+        fwrite(STDERR, "PC_MUTATE_FUNCTIONS is set, so the mutation harness did not run\n");
+        exit(1);
+    }
+
     return;
 }
 
@@ -163,6 +168,12 @@ foreach ($hits as $file => $lines) {
         }
         $offset += $length;
     }
+}
+
+$short = tooFewMutants(count($mutants));
+if ($short !== null) {
+    fwrite(STDERR, $short . "\n");
+    exit(1);
 }
 
 $originals = [];
@@ -371,6 +382,33 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     }
 
     return null;
+}
+
+function harnessWasInvoked(): bool
+{
+    $script = $_SERVER['SCRIPT_FILENAME'] ?? '';
+    if (!is_string($script) || $script === '') {
+        return false;
+    }
+    $main = realpath($script);
+    $here = realpath(__FILE__);
+
+    return $main !== false && $here !== false && $main === $here;
+}
+
+/** The last complete run found this many mutants. A smaller run did not see the suite. */
+function mutantMinimum(): int
+{
+    return 300;
+}
+
+function tooFewMutants(int $count): ?string
+{
+    if ($count >= mutantMinimum()) {
+        return null;
+    }
+
+    return 'only ' . $count . ' mutants were found; the coverage driver is missing or the filter changed';
 }
 
 function relative(string $root, string $file): string

@@ -26,4 +26,43 @@ final class MutationAllowListTest extends TestCase
         self::assertSame('src\\Feature\\Rent\\RentFigure.php', $windows);
         self::assertNotNull(equivalentReason($windows, 35, '&&', '||'));
     }
+
+    public function testARunThatMutatesNothingIsRefused(): void
+    {
+        $this->loadHarness();
+        self::assertFalse(harnessWasInvoked());
+        self::assertSame(300, mutantMinimum());
+        self::assertNotNull(tooFewMutants(0));
+        self::assertNotNull(tooFewMutants(299));
+        self::assertNull(tooFewMutants(300));
+
+        $root = dirname(__DIR__, 2);
+        $env = getenv();
+        if (!is_array($env)) {
+            $env = [];
+        }
+        $env['PC_MUTATE_FUNCTIONS'] = '1';
+        $process = proc_open(
+            [PHP_BINARY, $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'mutate.php'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            $root,
+            $env
+        );
+        self::assertIsResource($process);
+        fclose($pipes[1]);
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $code = proc_close($process);
+        self::assertSame(1, $code);
+        self::assertIsString($error);
+        self::assertStringContainsString('PC_MUTATE_FUNCTIONS', $error);
+    }
+
+    private function loadHarness(): void
+    {
+        putenv('PC_MUTATE_FUNCTIONS=1');
+        require_once dirname(__DIR__, 2) . '/bin/mutate.php';
+        putenv('PC_MUTATE_FUNCTIONS');
+    }
 }
