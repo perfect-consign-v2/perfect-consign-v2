@@ -359,10 +359,10 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Party\\MoveInRent.php' && $line === 18 && $from === '<=' && $to === '<') {
         return 'a move-in on the first still charges every day of that month, so the comparison and the proration agree';
     }
-    if ($file === 'src\\Feature\\Rent\\RentLines.php' && $line === 226 && $from === '&&' && $to === '||') {
+    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 35 && $from === '&&' && $to === '||') {
         return 'a start outside this month cannot hold the booth, and a start on the first returns that same day';
     }
-    if ($file === 'src\\Feature\\Rent\\RentLines.php' && $line === 226 && $from === '>' && $to === '>=') {
+    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 35 && $from === '>' && $to === '>=') {
         return 'a start on the first of the month returns that same day either way';
     }
 

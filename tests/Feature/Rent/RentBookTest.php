@@ -414,7 +414,7 @@ final class RentBookTest extends TestCase
                     $this->stay(self::NORTH, self::ADA, 'Ada', '2026-06-30', null),
                     $this->stay(self::SOUTH, self::BEA, 'Bea', '2026-01-01', '2026-06-01'),
                 ],
-                [],
+                [$this->rate(self::SOUTH, 8000)],
                 [],
                 []
             ),
@@ -428,6 +428,9 @@ final class RentBookTest extends TestCase
 
         self::assertSame(self::ADA, $byCode['A1']['vendor_id'], 'covers( keeps a stay that starts on the last day');
         self::assertSame(self::BEA, $byCode['A2']['vendor_id'], 'covers( keeps a stay that ends on the first day');
+        self::assertSame('2026-06-01', $byCode['A2']['charge_date'], 'coversStay( still charges the day a stay ends');
+        self::assertTrue($byCode['A2']['chargeable']);
+        self::assertSame(8000, $byCode['A2']['rate_minor']);
     }
 
     private function book(): RentBook
