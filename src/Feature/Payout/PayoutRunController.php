@@ -174,12 +174,17 @@ final class PayoutRunController
         $today = $this->mall->today();
         $window = $this->window($today);
         $monthName = (new \DateTimeImmutable($window['rent']))->format('F');
+        $pack = $this->runs->pack($this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today));
+        usort(
+            $pack,
+            static fn (array $left, array $right): int => strnatcasecmp($left['code'], $right['code'])
+        );
         $this->app->show('Feature/Payout/pay-vendors', [
             'title' => $monthName . ' payout',
             'monthName' => $monthName,
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'pack' => $this->runs->pack($this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today)),
+            'pack' => $pack,
             'excluded' => $this->runs->excluded(),
             'runs' => $this->runs->history(),
             'error' => $error,

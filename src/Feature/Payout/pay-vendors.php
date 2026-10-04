@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -41,25 +42,25 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
 <?php if (is_string($error) && $error !== ''): ?>
     <p class="alert"><?= View::text($error) ?></p>
 <?php endif; ?>
-<div class="card">
+<div class="card list-dt-wrap">
     <div class="card-body">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Vendor</th>
-                    <th>Booth</th>
-                    <th>Their share</th>
-                    <th>Owed before</th>
-                    <th>This month</th>
-                    <th>Paid since</th>
-                    <th>Check</th>
-                    <th>Owes the store</th>
-                </tr>
-            </thead>
+        <?php
+        ListTable::open(['id' => 'pay-vendors', 'export' => 'pay-vendors', 'order' => [[0, 'asc']]]);
+        ListTable::head([
+            ['label' => 'Vendor', 'token' => 'id'],
+            ['label' => 'Booth'],
+            ['label' => 'Their share', 'sort' => 'num'],
+            ['label' => 'Owed before', 'sort' => 'num'],
+            ['label' => 'This month', 'sort' => 'num'],
+            ['label' => 'Paid since', 'sort' => 'num'],
+            ['label' => 'Check', 'sort' => 'num'],
+            ['label' => 'Owes the store', 'sort' => 'num'],
+        ]);
+        ?>
             <tbody>
             <?php foreach ($pack as $row): ?>
                 <tr>
-                    <td><?= View::text($row['name']) ?> <span class="muted"><?= View::text($row['code']) ?></span></td>
+                    <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($row['vendor_id']) ?>">(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></a></td>
                     <td><?= View::text($row['booth'] === '' ? '—' : $row['booth']) ?></td>
                     <td><?= View::text(View::money($row['payable'])) ?></td>
                     <td><?= View::text(View::money($row['prior'])) ?></td>
@@ -76,7 +77,7 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
 </div>
 <?php foreach ($pack as $row): ?>
     <section class="vendor-sheet">
-        <h2><?= View::text($row['name']) ?></h2>
+        <h2>(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></h2>
         <p><?= View::text($row['booth'] === '' ? 'No booth' : $row['booth']) ?></p>
         <p>Their share <?= View::text(View::money($row['payable'])) ?></p>
         <p>Owed before <?= View::text(View::money($row['prior'])) ?></p>
@@ -113,3 +114,4 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
     .no-print { display: none; }
 }
 </style>
+<?php ListTable::assets(); ?>

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -68,24 +69,24 @@ $legend = [
         <?php endforeach; ?>
     </p>
 
-    <div class="card table-wrap mt-4">
+    <div class="card table-wrap list-dt-wrap mt-4">
         <?php if ($booths === []): ?>
             <div class="empty"><p>No booths match.</p></div>
         <?php else: ?>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Code</th>
-                        <th>Name</th>
-                        <th>Size</th>
-                        <th>Standing</th>
-                        <th>Vendor</th>
-                        <th class="num">Monthly rent</th>
-                        <th class="num">Open rent</th>
-                        <th>Map</th>
-                        <th></th>
-                    </tr>
-                </thead>
+            <?php
+            ListTable::open(['id' => 'booths', 'export' => 'booths']);
+            ListTable::head([
+                ['label' => 'Code'],
+                ['label' => 'Name'],
+                ['label' => 'Size'],
+                ['label' => 'Standing'],
+                ['label' => 'Vendor'],
+                ['label' => 'Monthly rent', 'sort' => 'num'],
+                ['label' => 'Open rent', 'sort' => 'num'],
+                ['label' => 'Map'],
+                ['label' => '', 'actions' => true],
+            ]);
+            ?>
                 <tbody>
                 <?php foreach ($booths as $booth): ?>
                     <?php
@@ -144,4 +145,5 @@ $legend = [
             </table>
         <?php endif; ?>
     </div>
+    <?php ListTable::assets(); ?>
 <?php endif; ?>

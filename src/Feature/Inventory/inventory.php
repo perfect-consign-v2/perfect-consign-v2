@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -35,26 +36,26 @@ $list = '/' . $slug . '/inventory';
         <button class="btn" type="submit">Search</button>
     </form>
 
-    <div class="card table-wrap mt-4">
+    <div class="card table-wrap list-dt-wrap mt-4">
         <?php if ($items === []): ?>
             <div class="empty"><p>No pieces match.</p></div>
         <?php else: ?>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Tag</th>
-                        <th>Barcode</th>
-                        <th>Description</th>
-                        <th>Consignor</th>
-                        <th>Brand</th>
-                        <th>Intake</th>
-                        <th>Expires</th>
-                        <th>Store take</th>
-                        <th class="num">Qty</th>
-                        <th class="num">Price</th>
-                        <th></th>
-                    </tr>
-                </thead>
+            <?php
+            ListTable::open(['id' => 'inventory', 'export' => 'inventory']);
+            ListTable::head([
+                ['label' => 'Tag'],
+                ['label' => 'Barcode'],
+                ['label' => 'Description'],
+                ['label' => 'Consignor'],
+                ['label' => 'Brand'],
+                ['label' => 'Intake'],
+                ['label' => 'Expires'],
+                ['label' => 'Store take', 'sort' => 'num'],
+                ['label' => 'Qty', 'sort' => 'num'],
+                ['label' => 'Price', 'sort' => 'num'],
+                ['label' => '', 'actions' => true],
+            ]);
+            ?>
                 <tbody>
                 <?php foreach ($items as $item): ?>
                     <?php
@@ -114,4 +115,5 @@ $list = '/' . $slug . '/inventory';
             </table>
         <?php endif; ?>
     </div>
+    <?php ListTable::assets(); ?>
 <?php endif; ?>

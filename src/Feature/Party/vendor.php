@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Feature\Party\MoveInRent;
 use PerfectConsign\Feature\Party\PartyRecord;
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -132,17 +133,22 @@ $blank = '—';
                     <?php if ($assignments === []) {
                         continue;
                     } ?>
-                    <div class="card table-wrap">
+                    <div class="card table-wrap list-dt-wrap">
                         <div class="card-head"><div class="h3"><?= View::text($heading) ?></div></div>
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Booth</th>
-                                    <th>Start</th>
-                                    <th>End</th>
-                                    <th class="num">Rent</th>
-                                </tr>
-                            </thead>
+                        <?php
+                        $sectionKey = match ($heading) {
+                            'Current Booths' => 'current',
+                            'Upcoming Booths' => 'upcoming',
+                            default => 'past',
+                        };
+                        ListTable::open(['id' => 'vendor-' . $sectionKey, 'export' => 'vendor-' . $sectionKey]);
+                        ListTable::head([
+                            ['label' => 'Booth'],
+                            ['label' => 'Start'],
+                            ['label' => 'End'],
+                            ['label' => 'Rent', 'sort' => 'num'],
+                        ]);
+                        ?>
                             <tbody>
                             <?php foreach ($assignments as $assignment): ?>
                                 <tr>
@@ -246,3 +252,4 @@ $blank = '—';
         </div>
     </div>
 </article>
+<?php ListTable::assets(); ?>

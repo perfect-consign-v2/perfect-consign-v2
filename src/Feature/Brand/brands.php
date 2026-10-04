@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -39,17 +40,17 @@ $renameAction = $renaming ? '/' . $slug . '/brands/' . $modal : $list;
         <button class="btn" type="submit">Search</button>
     </form>
 
-    <div class="card table-wrap mt-4">
+    <div class="card table-wrap list-dt-wrap mt-4">
         <?php if ($brands === []): ?>
             <div class="empty"><p>No brands match.</p></div>
         <?php else: ?>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th></th>
-                    </tr>
-                </thead>
+            <?php
+            ListTable::open(['id' => 'brands', 'export' => 'brands']);
+            ListTable::head([
+                ['label' => 'Name'],
+                ['label' => '', 'actions' => true],
+            ]);
+            ?>
                 <tbody>
                 <?php foreach ($brands as $brand): ?>
                     <?php
@@ -86,6 +87,7 @@ $renameAction = $renaming ? '/' . $slug . '/brands/' . $modal : $list;
             </table>
         <?php endif; ?>
     </div>
+    <?php ListTable::assets(); ?>
 <?php endif; ?>
 
 <div id="brand-new" class="modal" role="dialog" aria-modal="true" aria-labelledby="brand-new-title"<?= $modal === 'new' ? '' : ' hidden' ?>>

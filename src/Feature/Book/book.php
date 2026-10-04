@@ -3,14 +3,22 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var list<array<string, mixed>> $accounts */
 /** @var list<array<string, mixed>> $periods */
 ?>
 <h1>Book</h1>
 <h2>Periods</h2>
-<table>
-    <thead><tr><th>From</th><th>To</th><th>Status</th></tr></thead>
+<div class="list-dt-wrap">
+<?php
+ListTable::open(['id' => 'book-periods', 'export' => 'book-periods']);
+ListTable::head([
+    ['label' => 'From'],
+    ['label' => 'To'],
+    ['label' => 'Status'],
+]);
+?>
     <tbody>
     <?php foreach ($periods as $period): ?>
         <tr>
@@ -21,9 +29,19 @@ use PerfectConsign\Shared\Http\View;
     <?php endforeach; ?>
     </tbody>
 </table>
+</div>
 <h2>Accounts</h2>
-<table>
-    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Debits</th><th>Credits</th></tr></thead>
+<div class="list-dt-wrap">
+<?php
+ListTable::open(['id' => 'book-accounts', 'export' => 'book-accounts']);
+ListTable::head([
+    ['label' => 'Code'],
+    ['label' => 'Name'],
+    ['label' => 'Type'],
+    ['label' => 'Debits', 'sort' => 'num'],
+    ['label' => 'Credits', 'sort' => 'num'],
+]);
+?>
     <tbody>
     <?php foreach ($accounts as $account): ?>
         <tr>
@@ -36,3 +54,5 @@ use PerfectConsign\Shared\Http\View;
     <?php endforeach; ?>
     </tbody>
 </table>
+</div>
+<?php ListTable::assets(); ?>

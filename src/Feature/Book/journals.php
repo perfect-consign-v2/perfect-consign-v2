@@ -3,13 +3,23 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var list<array<string, mixed>> $journals */
 ?>
 <h1>Journals</h1>
-<table>
-    <thead><tr><th>No</th><th>Date</th><th>Key</th><th>Source</th><th></th></tr></thead>
+<div class="list-dt-wrap">
+<?php
+ListTable::open(['id' => 'journals', 'export' => 'journals']);
+ListTable::head([
+    ['label' => 'No'],
+    ['label' => 'Date'],
+    ['label' => 'Key'],
+    ['label' => 'Source'],
+    ['label' => '', 'actions' => true],
+]);
+?>
     <tbody>
     <?php foreach ($journals as $journal): ?>
         <tr>
@@ -22,3 +32,5 @@ use PerfectConsign\Shared\Http\View;
     <?php endforeach; ?>
     </tbody>
 </table>
+</div>
+<?php ListTable::assets(); ?>

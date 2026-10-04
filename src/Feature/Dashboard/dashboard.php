@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $displayName */
@@ -96,9 +97,16 @@ use PerfectConsign\Shared\Http\View;
             <div class="h3">Recent sales</div>
             <a class="text-sm" style="color:var(--accent)" href="/<?= View::text($slug) ?>/journals">View all</a>
         </div>
-        <div class="table-wrap">
-            <table class="table">
-                <thead><tr><th>Receipt</th><th>Time</th><th>Tender</th><th class="num">Total</th></tr></thead>
+        <div class="table-wrap list-dt-wrap">
+            <?php
+            ListTable::open(['id' => 'recent-sales', 'export' => 'recent-sales']);
+            ListTable::head([
+                ['label' => 'Receipt'],
+                ['label' => 'Time'],
+                ['label' => 'Tender'],
+                ['label' => 'Total', 'sort' => 'num'],
+            ]);
+            ?>
                 <tbody>
                 <?php foreach ($picture['sales_list'] as $sale): ?>
                     <tr>
@@ -122,3 +130,4 @@ use PerfectConsign\Shared\Http\View;
         </div>
     </div>
 </div>
+<?php ListTable::assets(); ?>

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -67,22 +68,22 @@ $empty = $status === '' && $query === '' ? 'No one is waiting.' : 'No one matche
         <?php endforeach; ?>
     </div>
 
-    <div class="card table-wrap mt-4">
+    <div class="card table-wrap list-dt-wrap mt-4">
         <?php if ($entries === []): ?>
             <div class="empty"><p><?= View::text($empty) ?></p></div>
         <?php else: ?>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Size</th>
-                        <th>Status</th>
-                        <th>Waiting since</th>
-                        <th></th>
-                    </tr>
-                </thead>
+            <?php
+            ListTable::open(['id' => 'wait-list', 'export' => 'wait-list']);
+            ListTable::head([
+                ['label' => 'Name'],
+                ['label' => 'Email'],
+                ['label' => 'Phone'],
+                ['label' => 'Size'],
+                ['label' => 'Status'],
+                ['label' => 'Waiting since'],
+                ['label' => '', 'actions' => true],
+            ]);
+            ?>
                 <tbody>
                 <?php foreach ($entries as $entry): ?>
                     <?php
@@ -125,4 +126,5 @@ $empty = $status === '' && $query === '' ? 'No one is waiting.' : 'No one matche
             </table>
         <?php endif; ?>
     </div>
+    <?php ListTable::assets(); ?>
 <?php endif; ?>

@@ -3,14 +3,23 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
 /** @var list<array<string, mixed>> $periods */
 ?>
 <h1>Year-end close</h1>
-<table>
-    <thead><tr><th>From</th><th>To</th><th>Status</th><th></th></tr></thead>
+<div class="list-dt-wrap">
+<?php
+ListTable::open(['id' => 'close-periods', 'export' => 'close-periods']);
+ListTable::head([
+    ['label' => 'From'],
+    ['label' => 'To'],
+    ['label' => 'Status'],
+    ['label' => '', 'actions' => true],
+]);
+?>
     <tbody>
     <?php foreach ($periods as $period): ?>
         <tr>
@@ -31,3 +40,5 @@ use PerfectConsign\Shared\Http\View;
     <?php endforeach; ?>
     </tbody>
 </table>
+</div>
+<?php ListTable::assets(); ?>

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -83,8 +84,14 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
             <?php if ($rates === []): ?>
                 <p class="muted">No rate yet.</p>
             <?php else: ?>
-                <table class="table">
-                    <thead><tr><th>Month</th><th>Amount</th></tr></thead>
+                <div class="list-dt-wrap">
+                <?php
+                ListTable::open(['id' => 'booth-rates', 'export' => 'booth-rates']);
+                ListTable::head([
+                    ['label' => 'Month'],
+                    ['label' => 'Amount', 'sort' => 'num'],
+                ]);
+                ?>
                     <tbody>
                     <?php foreach ($rates as $rate): ?>
                         <tr>
@@ -94,6 +101,7 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
                     <?php endforeach; ?>
                     </tbody>
                 </table>
+                </div>
             <?php endif; ?>
         </div>
         <form method="post" action="/<?= View::text($slug) ?>/rates">
@@ -115,3 +123,4 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
         </form>
     </div>
 <?php endif; ?>
+<?php ListTable::assets(); ?>

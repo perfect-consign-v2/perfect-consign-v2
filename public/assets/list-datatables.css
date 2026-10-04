@@ -1,0 +1,167 @@
+/* List tables — same DataTables shape as Perfect Consign storefront lists. */
+
+.list-dt-wrap.table-wrap,
+.card.list-dt-wrap {
+    overflow: visible;
+}
+
+.list-dt-wrap .dt-scroll-body {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.list-dt-wrap .dt-container {
+    font-size: inherit;
+    color: var(--text);
+}
+
+.list-dt-wrap .dt-layout-row {
+    margin-bottom: var(--space-3);
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    align-items: center;
+    padding: var(--space-3) var(--space-4) 0;
+    box-sizing: border-box;
+}
+
+.list-dt-wrap .dt-buttons .dt-button {
+    font-size: var(--text-sm);
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.list-dt-wrap .dt-buttons .dt-button:hover {
+    background: var(--surface-2);
+}
+
+.list-dt-wrap .dt-search .dt-input,
+.list-dt-wrap .dt-length select {
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+}
+
+.list-dt-wrap .dt-search .dt-input {
+    min-width: 12rem;
+}
+
+.list-dt-wrap table.list-dt thead th,
+.list-dt-wrap .dt-scroll-head table thead th {
+    position: static;
+    top: auto;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+    vertical-align: bottom;
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.list-dt-wrap .list-dt-th {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: stretch;
+}
+
+.list-dt-wrap .dt-column-header {
+    align-items: flex-end;
+}
+
+.list-dt-wrap .list-dt-th .dt-column-title {
+    flex-grow: 0;
+}
+
+.list-dt-wrap span.dt-column-order {
+    flex: 0 0 auto;
+    align-self: flex-end;
+    margin-bottom: 0.2rem;
+}
+
+.list-dt-wrap .list-dt-filter,
+.list-dt-wrap .list-dt-filter-spacer {
+    width: 100%;
+    min-width: 4.5rem;
+    height: 32px;
+    box-sizing: border-box;
+}
+
+.list-dt-wrap .list-dt-filter-spacer {
+    display: block;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.list-dt-wrap .dt-column-title {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-subtle);
+    line-height: 1.25;
+}
+
+.list-dt-wrap table.dataTable thead > tr > th.dt-orderable-asc span.dt-column-order:before,
+.list-dt-wrap table.dataTable thead > tr > th.dt-orderable-desc span.dt-column-order:after,
+.list-dt-wrap .dt-scroll-head table.dataTable thead > tr > th.dt-orderable-asc span.dt-column-order:before,
+.list-dt-wrap .dt-scroll-head table.dataTable thead > tr > th.dt-orderable-desc span.dt-column-order:after {
+    opacity: 0.55;
+    color: var(--text-muted);
+}
+
+.list-dt-wrap table.dataTable thead > tr > th.dt-ordering-asc span.dt-column-order:before,
+.list-dt-wrap table.dataTable thead > tr > th.dt-ordering-desc span.dt-column-order:after,
+.list-dt-wrap .dt-scroll-head table.dataTable thead > tr > th.dt-ordering-asc span.dt-column-order:before,
+.list-dt-wrap .dt-scroll-head table.dataTable thead > tr > th.dt-ordering-desc span.dt-column-order:after {
+    opacity: 1;
+    color: var(--accent);
+}
+
+.list-dt-wrap table.dataTable.stripe tbody tr.odd {
+    background: var(--surface);
+}
+
+.list-dt-wrap table.dataTable.stripe tbody tr.even {
+    background: var(--surface-2);
+}
+
+.list-dt-wrap table.dataTable tbody tr:hover {
+    background: var(--surface-3);
+}
+
+.list-dt-wrap .dt-scroll,
+.list-dt-wrap .dt-scroll-head table,
+.list-dt-wrap .dt-scroll-body table {
+    width: 100% !important;
+}
+
+.list-dt-wrap .dt-info,
+.list-dt-wrap .dt-paging {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+
+.list-dt-wrap .dt-paging .dt-paging-button {
+    color: var(--text) !important;
+}
+
+@media (max-width: 640px) {
+    .list-dt-wrap .dt-layout-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .list-dt-wrap .dt-search .dt-input {
+        width: 100%;
+        min-width: 0;
+    }
+}

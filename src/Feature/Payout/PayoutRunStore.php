@@ -22,7 +22,7 @@ final class PayoutRunStore
             'SELECT vendor_id, code, name, booth, mode, prior, charged, paid, payable, rent,
                     "check" AS check_amount, owes AS owe_amount, settled_minor, adjustment_minor
              FROM payout_pack WHERE run_id = ?::uuid AND mode = ?
-             ORDER BY booth, code',
+             ORDER BY code',
             [$runId, 'pay']
         );
     }

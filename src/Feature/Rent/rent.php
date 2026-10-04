@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -118,21 +119,21 @@ $booths = static function (int $count): string {
         <?php endforeach; ?>
     </p>
 
-    <div class="card table-wrap mt-4">
+    <div class="card table-wrap list-dt-wrap mt-4">
         <?php if ($rows === []): ?>
             <div class="empty"><p>No booths match.</p></div>
         <?php else: ?>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Booth</th>
-                        <th>Vendor</th>
-                        <th class="num">Rate</th>
-                        <th>This month</th>
-                        <th class="num">Still owed</th>
-                        <th></th>
-                    </tr>
-                </thead>
+            <?php
+            ListTable::open(['id' => 'rent', 'export' => 'rent']);
+            ListTable::head([
+                ['label' => 'Booth'],
+                ['label' => 'Vendor'],
+                ['label' => 'Rate', 'sort' => 'num'],
+                ['label' => 'This month'],
+                ['label' => 'Still owed', 'sort' => 'num'],
+                ['label' => '', 'actions' => true],
+            ]);
+            ?>
                 <tbody>
                 <?php foreach ($rows as $row): ?>
                     <tr id="booth-<?= View::text($row['id']) ?>">
@@ -200,4 +201,5 @@ $booths = static function (int $count): string {
             </table>
         <?php endif; ?>
     </div>
+    <?php ListTable::assets(); ?>
 <?php endif; ?>

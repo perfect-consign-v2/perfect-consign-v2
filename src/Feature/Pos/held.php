@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -34,18 +35,18 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         <?php elseif (!$layaway && $rows === []): ?>
             <p class="muted">No suspended sales.</p>
         <?php elseif ($layaway): ?>
-            <div class="table-wrap">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Customer</th>
-                            <th>Pieces</th>
-                            <th>Deposits</th>
-                            <th>Balance</th>
-                            <th>Last deposit</th>
-                            <th></th>
-                        </tr>
-                    </thead>
+            <div class="table-wrap list-dt-wrap">
+                <?php
+                ListTable::open(['id' => 'layaways', 'export' => 'layaways']);
+                ListTable::head([
+                    ['label' => 'Customer'],
+                    ['label' => 'Pieces', 'sort' => 'num'],
+                    ['label' => 'Deposits', 'sort' => 'num'],
+                    ['label' => 'Balance', 'sort' => 'num'],
+                    ['label' => 'Last deposit'],
+                    ['label' => '', 'actions' => true],
+                ]);
+                ?>
                     <tbody>
                         <?php foreach ($layaways as $held): ?>
                             <tr>
@@ -75,15 +76,15 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 </table>
             </div>
         <?php else: ?>
-            <div class="table-wrap">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Pieces</th>
-                            <th>Sold</th>
-                            <th></th>
-                        </tr>
-                    </thead>
+            <div class="table-wrap list-dt-wrap">
+                <?php
+                ListTable::open(['id' => 'suspended', 'export' => 'suspended']);
+                ListTable::head([
+                    ['label' => 'Pieces', 'sort' => 'num'],
+                    ['label' => 'Sold', 'sort' => 'num'],
+                    ['label' => '', 'actions' => true],
+                ]);
+                ?>
                     <tbody>
                         <?php foreach ($rows as $held): ?>
                             <tr>
@@ -104,4 +105,5 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         <?php endif; ?>
     </div>
 </div>
+<?php ListTable::assets(); ?>
 <?php require $templateDirectory . '/Feature/Pos/register-ui.php'; ?>

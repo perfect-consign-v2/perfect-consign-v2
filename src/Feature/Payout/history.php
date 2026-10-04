@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -20,10 +21,18 @@ use PerfectConsign\Shared\Scalar\RowValue;
 <?php if (is_string($error) && $error !== ''): ?>
     <p class="alert"><?= View::text($error) ?></p>
 <?php endif; ?>
-<table class="table">
-    <thead>
-        <tr><th>Run</th><th>Period</th><th>Rent month</th><th>Tender</th><th>Status</th></tr>
-    </thead>
+<div class="list-dt-wrap">
+<?php
+ListTable::open(['id' => 'payout-history', 'export' => 'payout-history']);
+ListTable::head([
+    ['label' => 'Run', 'sort' => 'num'],
+    ['label' => 'Period'],
+    ['label' => 'Rent month'],
+    ['label' => 'Tender'],
+    ['label' => 'Status'],
+    ['label' => '', 'actions' => true],
+]);
+?>
     <tbody>
     <?php foreach ($runs as $run): ?>
         <tr>
@@ -51,6 +60,8 @@ use PerfectConsign\Shared\Scalar\RowValue;
     <?php endforeach; ?>
     </tbody>
 </table>
+</div>
+<?php ListTable::assets(); ?>
 <?php if ($excluded !== []): ?>
     <p>Vendors excluded: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['name']) ?> <?php endforeach; ?></p>
 <?php endif; ?>

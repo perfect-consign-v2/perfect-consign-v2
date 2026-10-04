@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var array{vendors: int, active: int, ending: int, open_booths: int} $stats */
@@ -97,13 +98,18 @@ $filters = [
         </ul>
     <?php endif; ?>
 
-    <div class="card table-wrap mt-4">
+    <div class="card table-wrap list-dt-wrap mt-4">
         <?php if ($status === 'open'): ?>
             <?php if ($openBooths === []): ?>
                 <div class="empty"><p>No open booths.</p></div>
             <?php else: ?>
-                <table class="table">
-                    <thead><tr><th>Booth</th><th>Name</th></tr></thead>
+                <?php
+                ListTable::open(['id' => 'open-booths', 'export' => 'open-booths']);
+                ListTable::head([
+                    ['label' => 'Booth'],
+                    ['label' => 'Name'],
+                ]);
+                ?>
                     <tbody>
                     <?php foreach ($openBooths as $booth): ?>
                         <tr>
@@ -117,17 +123,21 @@ $filters = [
         <?php elseif ($vendors === []): ?>
             <div class="empty"><p>No vendors match.</p></div>
         <?php else: ?>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Custom ID</th>
-                        <th>Vendor</th>
-                        <th>Booth</th>
-                        <th>Since</th>
-                        <th>Status</th>
-                        <th></th>
-                    </tr>
-                </thead>
+            <?php
+            ListTable::open([
+                'id' => 'vendors',
+                'export' => 'vendors',
+                'order' => [[0, 'asc']],
+            ]);
+            ListTable::head([
+                ['label' => 'Custom ID'],
+                ['label' => 'Vendor'],
+                ['label' => 'Booth'],
+                ['label' => 'Since'],
+                ['label' => 'Status'],
+                ['label' => '', 'actions' => true],
+            ]);
+            ?>
                 <tbody>
                 <?php foreach ($vendors as $vendor): ?>
                     <tr id="vendor-<?= View::text($vendor['id']) ?>">
@@ -151,4 +161,5 @@ $filters = [
             </table>
         <?php endif; ?>
     </div>
+    <?php ListTable::assets(); ?>
 <?php endif; ?>

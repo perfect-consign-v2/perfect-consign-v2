@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
 /** @var int $count */
@@ -14,8 +15,17 @@ use PerfectConsign\Shared\Http\View;
 <?php if ($rows === []): ?>
     <p>No open gift certificates.</p>
 <?php else: ?>
-    <table>
-        <thead><tr><th>Number</th><th>Sold</th><th>Issued</th><th>Balance left</th><th></th></tr></thead>
+    <div class="list-dt-wrap">
+    <?php
+    ListTable::open(['id' => 'gift-certificates', 'export' => 'gift-certificates']);
+    ListTable::head([
+        ['label' => 'Number'],
+        ['label' => 'Sold'],
+        ['label' => 'Issued', 'sort' => 'num'],
+        ['label' => 'Balance left', 'sort' => 'num'],
+        ['label' => '', 'actions' => true],
+    ]);
+    ?>
         <tbody>
         <?php foreach ($rows as $row): ?>
             <tr>
@@ -28,4 +38,6 @@ use PerfectConsign\Shared\Http\View;
         <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
 <?php endif; ?>
+<?php ListTable::assets(); ?>
