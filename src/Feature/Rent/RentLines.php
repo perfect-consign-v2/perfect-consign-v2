@@ -29,6 +29,7 @@ final class RentLines
      *   vendor_name: ?string,
      *   rate_minor: ?int,
      *   charged: bool,
+     *   chargeable: bool,
      *   charge_minor: ?int,
      *   journal_id: ?string,
      *   open_minor: int,
@@ -61,7 +62,7 @@ final class RentLines
 
     /**
      * @param array<string, mixed> $booth
-     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
+     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}> $stays
      * @param array<string, int> $rates
      * @param array<string, array{journalId: string, amount: int}> $charges
      * @param array<string, int> $open
@@ -73,6 +74,7 @@ final class RentLines
      *   vendor_name: ?string,
      *   rate_minor: ?int,
      *   charged: bool,
+     *   chargeable: bool,
      *   charge_minor: ?int,
      *   journal_id: ?string,
      *   open_minor: int,
@@ -114,7 +116,7 @@ final class RentLines
     }
 
     /**
-     * @param array{vendorId: string, vendorName: string, startsOn: string}|null $holder
+     * @param array{vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}|null $holder
      * @param array{journalId: string, amount: int}|null $charge
      */
     private function blank(?int $rate, ?array $holder, int $balance, ?array $charge): bool
@@ -123,7 +125,7 @@ final class RentLines
     }
 
     /**
-     * @param array{vendorId: string, vendorName: string, startsOn: string}|null $holder
+     * @param array{vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}|null $holder
      * @param array{journalId: string, amount: int}|null $charge
      * @return array{
      *   id: string,
@@ -133,6 +135,7 @@ final class RentLines
      *   vendor_name: ?string,
      *   rate_minor: ?int,
      *   charged: bool,
+     *   chargeable: bool,
      *   charge_minor: ?int,
      *   journal_id: ?string,
      *   open_minor: int,
@@ -154,11 +157,19 @@ final class RentLines
         $vendorId = null;
         $vendorName = null;
         $startsOn = null;
+        $override = null;
+        $endsOn = null;
         if ($holder !== null) {
             $vendorId = $holder['vendorId'];
             $vendorName = $holder['vendorName'];
             $startsOn = $holder['startsOn'];
+            $override = $holder['override'];
+            $endsOn = $holder['endsOn'];
         }
+        $figure = RentFigure::posted($rate, $startsOn, $endsOn, $override, $month, $today);
+        $chargeDate = $figure['date'];
+        $chargeable = $figure['chargeable'];
+        $posted = $figure['amount'];
         $chargeMinor = null;
         $journalId = null;
         if ($charge !== null) {
@@ -176,19 +187,20 @@ final class RentLines
             'name' => $name,
             'vendor_id' => $vendorId,
             'vendor_name' => $vendorName,
-            'rate_minor' => $rate,
+            'rate_minor' => $posted,
             'charged' => $charge !== null,
+            'chargeable' => $chargeable,
             'charge_minor' => $chargeMinor,
             'journal_id' => $journalId,
             'open_minor' => $balance,
-            'charge_date' => $this->chargeDate($month, $today, $startsOn),
+            'charge_date' => $chargeDate,
             'collect_amount' => $collect,
         ];
     }
 
     /**
-     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
-     * @return array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}|null
+     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}> $stays
+     * @return array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}|null
      */
     private function holder(array $stays, string $boothId, string $start, string $end): ?array
     {
@@ -217,22 +229,9 @@ final class RentLines
         return $stay['endsOn'] === null || $stay['endsOn'] >= $start;
     }
 
-    private function chargeDate(string $month, string $today, ?string $startsOn): string
-    {
-        if (substr($today, 0, 7) === $month) {
-            return $today;
-        }
-        $first = $month . '-01';
-        if ($startsOn !== null && substr($startsOn, 0, 7) === $month && $startsOn > $first) {
-            return $startsOn;
-        }
-
-        return $first;
-    }
-
     /**
      * @param list<array<string, mixed>> $rows
-     * @return list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}>
+     * @return list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}>
      */
     private function stays(array $rows): array
     {
@@ -245,10 +244,20 @@ final class RentLines
                 'vendorName' => $this->text($row['vendor_name'] ?? null),
                 'startsOn' => $this->day($row['starts_on'] ?? null),
                 'endsOn' => $this->endDate($ends),
+                'override' => $this->override($row['override_minor'] ?? null),
             ];
         }
 
         return $stays;
+    }
+
+    private function override(mixed $amount): ?int
+    {
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        return RowValue::integer($amount);
     }
 
     private function endDate(mixed $ends): ?string

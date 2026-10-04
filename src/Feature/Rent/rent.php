@@ -17,7 +17,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var int $matched */
 /** @var array{due: int, charged: int, owed: int} $counts */
 /** @var array{due_minor: int, due_count: int, charged_minor: int, charged_count: int, owed_minor: int, owed_count: int} $stats */
-/** @var list<array{id: string, code: string, name: string, vendor_id: ?string, vendor_name: ?string, rate_minor: ?int, charged: bool, charge_minor: ?int, journal_id: ?string, open_minor: int, charge_date: string, collect_amount: string}> $rows */
+/** @var list<array{id: string, code: string, name: string, vendor_id: ?string, vendor_name: ?string, rate_minor: ?int, charged: bool, chargeable: bool, charge_minor: ?int, journal_id: ?string, open_minor: int, charge_date: string, collect_amount: string}> $rows */
 /** @var string $activeSessionId */
 
 $activeSessionId = $activeSessionId ?? '';
@@ -150,6 +150,8 @@ $booths = static function (int $count): string {
                                 <a class="badge badge-success" href="/<?= View::text($slug) ?>/journals/<?= View::text($row['journal_id']) ?>">Charged</a>
                             <?php elseif ($row['rate_minor'] === null): ?>
                                 <a class="badge" href="/<?= View::text($slug) ?>/booths/<?= View::text($row['id']) ?>/edit">No rate</a>
+                            <?php elseif (!$row['chargeable']): ?>
+                                <span class="muted"><?= $blank ?></span>
                             <?php else: ?>
                                 <form method="post" action="/<?= View::text($slug) ?>/rent/charge">
                                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

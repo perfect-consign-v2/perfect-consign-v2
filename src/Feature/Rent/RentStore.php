@@ -7,6 +7,8 @@ namespace PerfectConsign\Feature\Rent;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Party\MoveInRent;
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -37,6 +39,20 @@ final class RentStore
         return RowValue::integer($rows[0]['amount_minor'] ?? null);
     }
 
+    public function chargeAmount(string $boothId, string $date): int
+    {
+        $rate = $this->rate($boothId, $date);
+        if ($rate === null) {
+            throw new DatabaseRefusal('a rent charge requires the rate stored for that month');
+        }
+        $stay = $this->covering($boothId, $date);
+        if ($stay === null) {
+            throw new DatabaseRefusal('a rent charge requires an assignment that covers the charge date');
+        }
+
+        return MoveInRent::charge($rate, $stay['override'], $stay['starts'], substr($date, 0, 7));
+    }
+
     /**
      * @return array{
      *   booths: list<array<string, mixed>>,
@@ -61,9 +77,11 @@ final class RentStore
                         assignment.vendor_id::text AS vendor_id,
                         vendor.name AS vendor_name,
                         to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
-                        to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on
+                        to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on,
+                        override.amount_minor AS override_minor
                  FROM booth_assignments AS assignment
                  JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
+                 LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
                  WHERE assignment.starts_on <= ?::date
                    AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)",
                 [$end, $start]
@@ -97,6 +115,34 @@ final class RentStore
                  GROUP BY line.subledger_ref
                  HAVING sum(line.debit_minor - line.credit_minor) > 0"
             ),
+        ];
+    }
+
+    /**
+     * @return array{starts: string, override: ?int}|null
+     */
+    private function covering(string $boothId, string $date): ?array
+    {
+        $rows = $this->statements->bound(
+            "SELECT to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
+                    override.amount_minor AS override_minor
+             FROM booth_assignments AS assignment
+             LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
+             WHERE assignment.booth_id = ?::uuid
+               AND assignment.starts_on <= ?::date
+               AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
+             ORDER BY assignment.starts_on DESC
+             LIMIT 1",
+            [$boothId, $date, $date]
+        );
+        if ($rows === []) {
+            return null;
+        }
+        $override = $rows[0]['override_minor'] ?? null;
+
+        return [
+            'starts' => RowValue::string($rows[0]['starts_on'] ?? null),
+            'override' => $override === null || $override === '' ? null : RowValue::integer($override),
         ];
     }
 }

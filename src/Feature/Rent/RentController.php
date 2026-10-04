@@ -41,10 +41,7 @@ final class RentController
         $boothId = $this->app->request()->field('booth_id');
         $postingDate = $this->app->request()->field('posting_date');
         try {
-            $amount = $this->rent->rate($boothId, $postingDate);
-            if ($amount === null) {
-                throw new DatabaseRefusal('a rent charge requires the rate stored for that month');
-            }
+            $amount = $this->rent->chargeAmount($boothId, $postingDate);
             $month = substr($postingDate, 0, 7);
             $this->ledger->post(new JournalDraft(
                 postingKey: 'rent-charge:' . $boothId . ':' . $month,

@@ -39,6 +39,7 @@ final class RentBook
      *     vendor_name: ?string,
      *     rate_minor: ?int,
      *     charged: bool,
+     *     chargeable: bool,
      *     charge_minor: ?int,
      *     journal_id: ?string,
      *     open_minor: int,
@@ -84,6 +85,7 @@ final class RentBook
      *   vendor_name: ?string,
      *   rate_minor: ?int,
      *   charged: bool,
+     *   chargeable: bool,
      *   charge_minor: ?int,
      *   journal_id: ?string,
      *   open_minor: int,
@@ -99,6 +101,7 @@ final class RentBook
      *     vendor_name: ?string,
      *     rate_minor: ?int,
      *     charged: bool,
+     *     chargeable: bool,
      *     charge_minor: ?int,
      *     journal_id: ?string,
      *     open_minor: int,
@@ -131,7 +134,7 @@ final class RentBook
     }
 
     /**
-     * @param list<array{rate_minor: ?int, charged: bool, charge_minor: ?int, open_minor: int}> $rows
+     * @param list<array{rate_minor: ?int, charged: bool, chargeable: bool, charge_minor: ?int, open_minor: int}> $rows
      * @return array{due_minor: int, due_count: int, charged_minor: int, charged_count: int, owed_minor: int, owed_count: int}
      */
     private function stats(array $rows): array
@@ -163,7 +166,7 @@ final class RentBook
     }
 
     /**
-     * @param list<array{rate_minor: ?int, charged: bool, open_minor: int}> $rows
+     * @param list<array{rate_minor: ?int, charged: bool, chargeable: bool, open_minor: int}> $rows
      * @return array{due: int, charged: int, owed: int}
      */
     private function counts(array $rows): array
@@ -185,11 +188,11 @@ final class RentBook
     }
 
     /**
-     * @param array{rate_minor: ?int, charged: bool} $row
+     * @param array{rate_minor: ?int, charged: bool, chargeable: bool} $row
      */
     private function due(array $row): bool
     {
-        return $row['rate_minor'] !== null && $row['charged'] !== true;
+        return $row['chargeable'] && $row['charged'] !== true;
     }
 
     /**
@@ -216,6 +219,7 @@ final class RentBook
      *   vendor_name: ?string,
      *   rate_minor: ?int,
      *   charged: bool,
+     *   chargeable: bool,
      *   charge_minor: ?int,
      *   journal_id: ?string,
      *   open_minor: int,
@@ -230,6 +234,7 @@ final class RentBook
      *   vendor_name: ?string,
      *   rate_minor: ?int,
      *   charged: bool,
+     *   chargeable: bool,
      *   charge_minor: ?int,
      *   journal_id: ?string,
      *   open_minor: int,
@@ -253,7 +258,7 @@ final class RentBook
     }
 
     /**
-     * @param array{rate_minor: ?int, charged: bool, open_minor: int} $row
+     * @param array{rate_minor: ?int, charged: bool, chargeable: bool, open_minor: int} $row
      */
     private function kept(array $row, string $standing): bool
     {

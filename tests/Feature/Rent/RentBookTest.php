@@ -28,7 +28,7 @@ final class RentBookTest extends TestCase
         $book = $this->book()->assemble(
             $this->facts(
                 [$this->booth(self::NORTH, 'A10', 'North')],
-                [$this->stay(self::NORTH, self::ADA, 'Ada', '2026-10-20', null)],
+                [$this->stay(self::NORTH, self::ADA, 'Ada', '2026-10-01', null)],
                 [$this->rate(self::NORTH, 4000)],
                 [],
                 []
@@ -41,6 +41,7 @@ final class RentBookTest extends TestCase
         self::assertSame('2026-09', $book['previous']);
         self::assertSame('2026-11', $book['next']);
         self::assertSame(4000, $book['stats']['due_minor'], 'stats( sums an uncharged rate');
+        self::assertTrue($book['rows'][0]['chargeable'], 'posted( keeps a stay that covers the charge date');
         self::assertSame(1, $book['stats']['due_count'], 'present( names the holder and the rate');
         self::assertSame(0, $book['stats']['charged_count']);
         self::assertSame(0, $book['stats']['owed_minor']);
@@ -84,7 +85,7 @@ final class RentBookTest extends TestCase
         $book = $this->book()->assemble(
             $this->facts(
                 [$this->booth(self::NORTH, 'A1', 'North')],
-                [],
+                [$this->stay(self::NORTH, self::ADA, 'Ada', '2026-10-01', null)],
                 [$this->rate(self::NORTH, 4000)],
                 [
                     $this->charge(self::NORTH, '2026-10', 4000, true),
@@ -160,9 +161,51 @@ final class RentBookTest extends TestCase
             $byCode[$row['code']] = $row;
         }
         self::assertSame(['A2', 'A10'], array_column($book['rows'], 'code'));
-        self::assertSame('2026-06-15', $byCode['A10']['charge_date'], 'chargeDate( uses the assignment start');
+        self::assertSame('2026-06-15', $byCode['A10']['charge_date'], 'posted( chargeDate( uses the assignment start');
+        self::assertSame(4800, $byCode['A10']['rate_minor'], 'charge( prorates the move-in month');
+        self::assertTrue($byCode['A10']['chargeable']);
         self::assertSame('2026-06-01', $byCode['A2']['charge_date'], 'day( reads YYYY-MM-DD');
-        self::assertSame(17000, $book['stats']['due_minor']);
+        self::assertSame(8000, $byCode['A2']['rate_minor']);
+        self::assertSame(12800, $book['stats']['due_minor']);
+    }
+
+    public function testAnOverrideIsWhatGetsCharged(): void
+    {
+        $book = $this->book()->assemble(
+            $this->facts(
+                [$this->booth(self::NORTH, 'A1', 'North')],
+                [$this->stay(self::NORTH, self::ADA, 'Ada', '2026-03-15', null, 6200)],
+                [$this->rate(self::NORTH, 3100)],
+                [],
+                []
+            ),
+            '2026-03',
+            '2026-10-03'
+        );
+
+        self::assertSame(3400, $book['rows'][0]['rate_minor'], 'override( replaces the booth rate before the move-in days');
+        self::assertSame(3400, $book['stats']['due_minor']);
+        self::assertTrue($book['rows'][0]['chargeable']);
+    }
+
+    public function testAStayThatStartsLaterIsNotChargedYet(): void
+    {
+        $book = $this->book()->assemble(
+            $this->facts(
+                [$this->booth(self::NORTH, 'A1', 'North')],
+                [$this->stay(self::NORTH, self::ADA, 'Ada', '2026-10-20', null)],
+                [$this->rate(self::NORTH, 4000)],
+                [],
+                []
+            ),
+            '2026-10',
+            '2026-10-03'
+        );
+
+        self::assertSame('Ada', $book['rows'][0]['vendor_name']);
+        self::assertFalse($book['rows'][0]['chargeable'], 'posted( waits until the stay covers the charge date');
+        self::assertSame(0, $book['stats']['due_count']);
+        self::assertSame(4000, $book['rows'][0]['rate_minor']);
     }
 
     public function testTheLaterAssignmentHoldsTheBooth(): void
@@ -301,6 +344,8 @@ final class RentBookTest extends TestCase
 
         self::assertSame(['A2'], array_column($book['rows'], 'code'), 'blank( leaves a vacant booth off the book');
         self::assertNull($book['rows'][0]['vendor_id']);
+        self::assertFalse($book['rows'][0]['chargeable'], 'posted( coversStay( skips a rated booth with no holder');
+        self::assertSame(0, $book['stats']['due_count']);
         self::assertSame(5000, $book['rows'][0]['rate_minor'], 'rates( uses the amount stored for that month');
     }
 
@@ -424,9 +469,9 @@ final class RentBookTest extends TestCase
     }
 
     /**
-     * @return array{booth_id: string, vendor_id: string, vendor_name: string, starts_on: string, ends_on: ?string}
+     * @return array{booth_id: string, vendor_id: string, vendor_name: string, starts_on: string, ends_on: ?string, override_minor: ?int}
      */
-    private function stay(string $boothId, string $vendorId, string $name, string $starts, ?string $ends): array
+    private function stay(string $boothId, string $vendorId, string $name, string $starts, ?string $ends, ?int $override = null): array
     {
         return [
             'booth_id' => $boothId,
@@ -434,6 +479,7 @@ final class RentBookTest extends TestCase
             'vendor_name' => $name,
             'starts_on' => $starts,
             'ends_on' => $ends,
+            'override_minor' => $override,
         ];
     }
 

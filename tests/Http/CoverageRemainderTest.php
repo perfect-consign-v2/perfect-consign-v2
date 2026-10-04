@@ -200,6 +200,76 @@ final class CoverageRemainderTest extends WebTestCase
         self::assertSees('Floor removed.', $removedFloor);
     }
 
+    public function testAMidMonthMoveInAndAnOverrideCharge(): void
+    {
+        $tag = bin2hex(random_bytes(3));
+        $vendor = $this->client->post('/' . self::SLUG . '/vendors', [
+            'code' => 'n' . $tag,
+            'first_name' => 'Nia',
+            'last_name' => $tag,
+            'store_take' => '0',
+        ]);
+        self::assertSees('Vendor created.', $vendor);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', 'n' . $tag);
+
+        $moveIn = $this->client->post('/' . self::SLUG . '/booths', [
+            'code' => 'm' . $tag,
+            'name' => 'Move ' . $tag,
+            'month_start' => '2026-06-01',
+            'amount' => '90.00',
+        ]);
+        self::assertSees('Booth created.', $moveIn);
+        $moveInId = HtmlPage::taggedId($moveIn->body, 'tr', 'booth', 'm' . $tag);
+        $this->client->post('/' . self::SLUG . '/assignments', [
+            'vendor_id' => $vendorId,
+            'booth_id' => $moveInId,
+            'starts_on' => '2026-06-15',
+        ]);
+        $june = $this->client->get('/' . self::SLUG . '/rent?month=2026-06');
+        self::assertSees('Charge $48.00', $june);
+        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', [
+            'booth_id' => $moveInId,
+            'posting_date' => '2026-06-15',
+            'month' => '2026-06',
+        ]);
+        self::assertSees('Rent charged.', $charged);
+
+        $special = $this->client->post('/' . self::SLUG . '/booths', [
+            'code' => 'o' . $tag,
+            'name' => 'Override ' . $tag,
+            'month_start' => '2026-03-01',
+            'amount' => '31.00',
+        ]);
+        self::assertSees('Booth created.', $special);
+        $specialId = HtmlPage::taggedId($special->body, 'tr', 'booth', 'o' . $tag);
+        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
+            'vendor_id' => $vendorId,
+            'booth_id' => $specialId,
+            'starts_on' => '2026-03-15',
+            'rent' => '62.00',
+        ]);
+        self::assertSees('Booth assigned.', $assigned);
+        $march = $this->client->get('/' . self::SLUG . '/rent?month=2026-03');
+        self::assertSees('Charge $34.00', $march);
+        $overridden = $this->client->post('/' . self::SLUG . '/rent/charge', [
+            'booth_id' => $specialId,
+            'posting_date' => '2026-03-15',
+            'month' => '2026-03',
+        ]);
+        self::assertSees('Rent charged.', $overridden);
+
+        $vacant = $this->client->post('/' . self::SLUG . '/booths', [
+            'code' => 'v' . $tag,
+            'name' => 'Vacant ' . $tag,
+            'month_start' => '2026-06-01',
+            'amount' => '77.00',
+        ]);
+        self::assertSees('Booth created.', $vacant);
+        $empty = $this->client->get('/' . self::SLUG . '/rent?month=2026-06');
+        self::assertSees('v' . $tag, $empty);
+        self::assertStringNotContainsString('Charge $77.00', $empty->body);
+    }
+
     public function testRegistersRentPayoutAndTheOpenCart(): void
     {
         $this->activateRegister();

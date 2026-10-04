@@ -829,12 +829,16 @@ missing_month AS (
         interval '1 month'
     ) AS series(month_start) ON assignment.starts_on <= LEAST(COALESCE(assignment.ends_on, params.posting_date), params.posting_date)
     JOIN LATERAL (
-        SELECT amount_minor
-        FROM booth_rent_rates
-        WHERE booth_id = assignment.booth_id
-          AND month_start <= GREATEST(series.month_start::date, assignment.starts_on)
-        ORDER BY month_start DESC
-        LIMIT 1
+        SELECT COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
+        FROM (
+            SELECT amount_minor
+            FROM booth_rent_rates
+            WHERE booth_id = assignment.booth_id
+              AND month_start <= GREATEST(series.month_start::date, assignment.starts_on)
+            ORDER BY month_start DESC
+            LIMIT 1
+        ) AS listed
+        LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
     ) AS rate ON true
     WHERE NOT EXISTS (
         SELECT 1

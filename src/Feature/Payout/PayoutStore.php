@@ -125,9 +125,12 @@ final class PayoutStore
         }
         $missing = [];
         foreach ($this->statements->rows(
-            "SELECT vendor_id::text AS vendor_id, booth_id::text AS booth_id,
-                    to_char(starts_on, 'YYYY-MM-DD') AS starts_on, to_char(ends_on, 'YYYY-MM-DD') AS ends_on
-             FROM booth_assignments"
+            "SELECT assignment.vendor_id::text AS vendor_id, assignment.booth_id::text AS booth_id,
+                    to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
+                    to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on,
+                    override.amount_minor AS override_minor
+             FROM booth_assignments AS assignment
+             LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id"
         ) as $row) {
             $starts = RowValue::string($row['starts_on'] ?? null);
             $ends = $row['ends_on'] ?? null;
@@ -140,6 +143,7 @@ final class PayoutStore
                 'booth_id' => RowValue::string($row['booth_id'] ?? null),
                 'starts' => $starts,
                 'through' => $through,
+                'override' => $this->override($row['override_minor'] ?? null),
             ], $charged) as $charge) {
                 $missing[$vendorId][] = $charge;
             }
@@ -149,13 +153,18 @@ final class PayoutStore
     }
 
     /**
-     * @return list<array{booth_id: string, starts: string, through: string}>
+     * @return list<array{booth_id: string, starts: string, through: string, override: ?int}>
      */
     private function assignments(string $vendorId, string $today): array
     {
         $rows = $this->statements->bound(
-            "SELECT booth_id::text AS booth_id, to_char(starts_on, 'YYYY-MM-DD') AS starts_on, to_char(ends_on, 'YYYY-MM-DD') AS ends_on
-             FROM booth_assignments WHERE vendor_id = ?::uuid",
+            "SELECT assignment.booth_id::text AS booth_id,
+                    to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
+                    to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on,
+                    override.amount_minor AS override_minor
+             FROM booth_assignments AS assignment
+             LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
+             WHERE assignment.vendor_id = ?::uuid",
             [$vendorId]
         );
         $assignments = [];
@@ -170,6 +179,7 @@ final class PayoutStore
                 'booth_id' => RowValue::string($row['booth_id'] ?? null),
                 'starts' => $starts,
                 'through' => $through,
+                'override' => $this->override($row['override_minor'] ?? null),
             ];
         }
 
@@ -177,7 +187,7 @@ final class PayoutStore
     }
 
     /**
-     * @param array{booth_id: string, starts: string, through: string} $assignment
+     * @param array{booth_id: string, starts: string, through: string, override: ?int} $assignment
      * @param array<string, true> $charged
      * @return list<array{booth_id: string, posting_date: string, amount: int, month: string}>
      */
@@ -198,7 +208,7 @@ final class PayoutStore
     }
 
     /**
-     * @param array{booth_id: string, starts: string, through: string} $assignment
+     * @param array{booth_id: string, starts: string, through: string, override: ?int} $assignment
      * @param array<string, true> $charged
      * @return array{booth_id: string, posting_date: string, amount: int, month: string}|null
      */
@@ -217,7 +227,7 @@ final class PayoutStore
         if ($monthly === null) {
             return null;
         }
-        $amount = substr($assignment['starts'], 0, 7) === $month ? MoveInRent::due($monthly, $assignment['starts']) : $monthly;
+        $amount = MoveInRent::charge($monthly, $assignment['override'], $assignment['starts'], $month);
         if ($amount <= 0) {
             return null;
         }
@@ -256,5 +266,14 @@ final class PayoutStore
         }
 
         return $amount;
+    }
+
+    private function override(mixed $amount): ?int
+    {
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        return RowValue::integer($amount);
     }
 }
