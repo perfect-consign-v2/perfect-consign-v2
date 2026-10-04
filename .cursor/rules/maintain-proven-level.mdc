@@ -1,13 +1,15 @@
 ---
-description: Stall is not done unless composer check exits 0 after the latest edit.
+description: When the user asks for a check, Stall is not done unless composer check exits 0. Do not start that run otherwise.
 alwaysApply: true
 ---
 
 # Keep the proven level
 
-Done means `composer check` exits 0 after the latest edit, not that a feature proof passed once.
+Do not start this run unless the user asked for tests or proofs in this message. See `do-not-run-tests`.
 
-- After any edit under `sql/` or `src/`, this turn is not finished until `composer check` exits 0 in this turn. That command is max lines, PHPMD, PHPStan, the unit suite, the integration suite, the HTTP suite, the obligation scan, the race proofs, and `php bin/prove-suite.php`.
+When they do ask, done means `composer check` exits 0 after the latest edit, not that a feature proof passed once.
+
+- `composer check` is max lines, PHPMD, PHPStan, the unit suite, the integration suite, the HTTP suite, the obligation scan, the race proofs, and `php bin/prove-suite.php`.
 - A single `sql/prove_*.sql` run does not count, including the proof named in the plan.
 - A vector found later is added to the permanent proof and re-run. A one-off script does not count, and it does not excuse moving on.
 - Do not delete, comment out, or narrow an assertion to make a script pass. Restore the guarantee and re-run.
@@ -17,5 +19,5 @@ Done means `composer check` exits 0 after the latest edit, not that a feature pr
 
 ```text
 BAD: edit sql/033_cash_round.sql, re-run prove_cash_round.sql only, leave prove_export.sql red
-GOOD: edit sql/033_cash_round.sql, run composer check, exit 0, then stop
+GOOD: the user asked to run the checks; edit sql/033_cash_round.sql, run composer check, exit 0, then stop
 ```

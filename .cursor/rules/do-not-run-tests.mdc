@@ -1,0 +1,20 @@
+---
+description: Do not run tests, proofs, or composer check unless the user asks in this message.
+alwaysApply: true
+---
+
+# Do not run tests unless asked
+
+Do not run tests, proofs, or check commands unless this message asks for that run.
+
+This overrides `maintain-proven-level` and `prove-before-advance`. Those files say what a run must cover. They do not authorize starting one.
+
+- Do not run `composer check`, `composer test`, PHPUnit, `php bin/prove-suite.php`, `prove:race`, `prove:obligations`, `prove:tenant`, `test:mutate`, or `sql/prove_*.sql`.
+- Do not start a watcher that stops other test processes.
+- A plan, a red suite, an edit under `sql/` or `src/`, or a rule that says the turn is unfinished without a green check is not a request to run tests.
+- When the user asks for tests or proofs, run the command they named. If they say "run the checks" without a name, run `composer check`.
+
+```text
+BAD: edit src/Feature/Party/parties.php, then composer check
+GOOD: edit the list, stop, and wait until the user says to run tests
+```
