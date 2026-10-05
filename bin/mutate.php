@@ -399,7 +399,7 @@ function harnessWasInvoked(): bool
 /** The last complete run found this many mutants. A smaller run did not see the suite. */
 function mutantMinimum(): int
 {
-    return 300;
+    return 313;
 }
 
 function tooFewMutants(int $count): ?string
