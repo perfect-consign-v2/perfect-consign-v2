@@ -54,7 +54,7 @@ final class InventoryController
         if ($item === null) {
             $this->app->notFound();
         }
-        $this->form($slug, $this->forms->stored($item), null, $this->items->sold($id));
+        $this->form($slug, $this->forms->stored($item), null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/inventory/([0-9a-fA-F-]{36})', ['POST'])]
@@ -96,7 +96,7 @@ final class InventoryController
             $error = $errorValue->getMessage();
         }
         if ($error !== null) {
-            $this->form($slug, $this->forms->posted($draft), $error, $id !== null && $this->items->sold($id));
+            $this->form($slug, $this->forms->posted($draft), $error);
 
             return;
         }
@@ -196,10 +196,11 @@ final class InventoryController
      *     fill_expire: string
      * } $piece
      */
-    private function form(string $slug, array $piece, ?string $error, bool $sold = false): void
+    private function form(string $slug, array $piece, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
         $days = $this->mall->floorDays();
+        $sold = $piece['id'] !== '' && $this->items->sold($piece['id']);
         $this->app->show('Feature/Inventory/inventory-form', [
             'title' => $piece['id'] !== '' ? 'Edit piece' : 'New piece',
             'displayName' => $tenant->displayName,

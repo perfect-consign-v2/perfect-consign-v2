@@ -322,6 +322,8 @@ EXCEPTION
         NULL;
 END $$;
 
+SET CONSTRAINTS ALL DEFERRED;
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor

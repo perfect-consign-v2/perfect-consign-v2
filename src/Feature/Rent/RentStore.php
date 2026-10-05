@@ -9,6 +9,10 @@ use InvalidArgumentException;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Party\MoveInRent;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
+use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -18,6 +22,7 @@ final class RentStore
         private readonly Statements $statements,
         private readonly MallSettings $mall,
         private readonly RentLines $lines,
+        private readonly LedgerStore $ledger,
     ) {
     }
 
@@ -67,6 +72,21 @@ final class RentStore
         }
 
         return MoveInRent::charge($rate, $stay['override'], $stay['starts'], substr($date, 0, 7));
+    }
+
+    public function postCharge(string $boothId, string $postingDate): void
+    {
+        $amount = $this->chargeAmount($boothId, $postingDate);
+        $month = substr($postingDate, 0, 7);
+        $this->ledger->post(new JournalDraft(
+            postingKey: 'rent-charge:' . $boothId . ':' . $month,
+            postingDate: $postingDate,
+            source: new JournalSource('rent_charge', $boothId . ':' . $month, 'Rent charge'),
+            lines: [
+                PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), $amount, 0, 'booth', $boothId),
+                PostedLines::entry($this->ledger->roleAccount('rent_revenue'), 0, $amount, null, null),
+            ],
+        ));
     }
 
     /**
@@ -158,26 +178,7 @@ final class RentStore
                    AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)",
                 [$end, $start]
             ),
-            'rates' => $this->statements->bound(
-                "SELECT DISTINCT ON (assignment.booth_id)
-                        assignment.booth_id::text AS booth_id,
-                        COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
-                 FROM booth_assignments AS assignment
-                 LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
-                 LEFT JOIN LATERAL (
-                     SELECT amount_minor
-                     FROM booth_rent_rates
-                     WHERE booth_id = assignment.booth_id
-                       AND month_start <= assignment.starts_on
-                     ORDER BY month_start DESC
-                     LIMIT 1
-                 ) AS listed ON true
-                 WHERE assignment.starts_on <= ?::date
-                   AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
-                   AND COALESCE(override.amount_minor, listed.amount_minor) IS NOT NULL
-                 ORDER BY assignment.booth_id, assignment.starts_on DESC",
-                [$end, $start]
-            ),
+            'rates' => $this->rates($start, $end),
             'charges' => $this->statements->bound(
                 "SELECT posted.id::text AS journal_id,
                         posted.posting_key,
@@ -202,6 +203,51 @@ final class RentStore
                  HAVING sum(line.debit_minor - line.credit_minor) > 0"
             ),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function rates(string $start, string $end): array
+    {
+        return array_merge(
+            $this->statements->bound(
+                "SELECT DISTINCT ON (assignment.booth_id)
+                        assignment.booth_id::text AS booth_id,
+                        COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
+                 FROM booth_assignments AS assignment
+                 LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
+                 LEFT JOIN LATERAL (
+                     SELECT amount_minor
+                     FROM booth_rent_rates
+                     WHERE booth_id = assignment.booth_id
+                       AND month_start <= assignment.starts_on
+                     ORDER BY month_start DESC
+                     LIMIT 1
+                 ) AS listed ON true
+                 WHERE assignment.starts_on <= ?::date
+                   AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
+                   AND COALESCE(override.amount_minor, listed.amount_minor) IS NOT NULL
+                 ORDER BY assignment.booth_id, assignment.starts_on DESC",
+                [$end, $start]
+            ),
+            $this->statements->bound(
+                "SELECT DISTINCT ON (rate.booth_id)
+                        rate.booth_id::text AS booth_id,
+                        rate.amount_minor
+                 FROM booth_rent_rates AS rate
+                 WHERE rate.month_start <= ?::date
+                   AND NOT EXISTS (
+                       SELECT 1
+                       FROM booth_assignments AS assignment
+                       WHERE assignment.booth_id = rate.booth_id
+                         AND assignment.starts_on <= ?::date
+                         AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
+                   )
+                 ORDER BY rate.booth_id, rate.month_start DESC",
+                [$end, $end, $start]
+            )
+        );
     }
 
     /**

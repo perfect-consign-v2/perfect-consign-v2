@@ -14,7 +14,7 @@ INSERT INTO booth_assignments (booth_id, vendor_id, starts_on)
 VALUES (
     '01900000-0000-7000-8000-00000000f301',
     '01900000-0000-7000-8000-00000000f201',
-    '2032-01-01'
+    '2032-03-01'
 );
 
 INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
@@ -2098,7 +2098,7 @@ INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-00000000f220', 'apart', 'Ada', 'Separate');
 
 INSERT INTO booths (id, code, name)
-VALUES ('01900000-0000-7000-8000-00000000f320', 'S1', 'Separate booth');
+VALUES ('01900000-0000-7000-8000-00000000f320', 'Z9', 'Separate booth');
 
 INSERT INTO booth_assignments (booth_id, vendor_id, starts_on)
 VALUES (
@@ -2114,7 +2114,7 @@ INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
 ) VALUES (
-    '01900000-0000-7000-8000-00000000fa90',
+    '01900000-0000-7000-8000-00000000fae1',
     '01900000-0000-7000-8000-000000000001',
     'store-purchase:separate',
     '2034-06-04', '2034-06-04 12:00:00+00',
@@ -2123,14 +2123,14 @@ INSERT INTO journals (
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES (
-    '01900000-0000-7000-8000-00000000fa90',
+    '01900000-0000-7000-8000-00000000fae1',
     '01900000-0000-7000-8000-000000000001',
     1, '01900000-0000-7000-8000-000000000022', 3000, 0
 );
 INSERT INTO journal_lines (
     journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
 ) VALUES (
-    '01900000-0000-7000-8000-00000000fa90',
+    '01900000-0000-7000-8000-00000000fae1',
     '01900000-0000-7000-8000-000000000001',
     2, '01900000-0000-7000-8000-000000000014', 0, 3000, 'vendor', '01900000-0000-7000-8000-00000000f220'
 );
@@ -2146,15 +2146,16 @@ INSERT INTO payout_runs (
 DO $$
 DECLARE
     check_amount bigint;
-    settled bigint;
-    owes bigint;
+    settled_amount bigint;
+    owed bigint;
 BEGIN
-    SELECT "check", settled_minor, owes INTO check_amount, settled, owes
-    FROM payout_pack
-    WHERE run_id = '01900000-0000-7000-8000-00000000f920'
-      AND vendor_id = '01900000-0000-7000-8000-00000000f220';
-    IF check_amount <> 3000 OR settled <> 0 OR owes <> 1000 THEN
-        RAISE EXCEPTION 'rent paid separately was still taken from the share (% % %)', check_amount, settled, owes;
+    SELECT pack."check", pack.settled_minor, pack.owes
+    INTO check_amount, settled_amount, owed
+    FROM payout_pack AS pack
+    WHERE pack.run_id = '01900000-0000-7000-8000-00000000f920'
+      AND pack.vendor_id = '01900000-0000-7000-8000-00000000f220';
+    IF check_amount <> 3000 OR settled_amount <> 0 OR owed <> 1000 THEN
+        RAISE EXCEPTION 'rent paid separately was still taken from the share (% % %)', check_amount, settled_amount, owed;
     END IF;
 END $$;
 

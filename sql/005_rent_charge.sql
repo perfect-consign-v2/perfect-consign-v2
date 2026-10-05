@@ -51,9 +51,26 @@ AS $$
 BEGIN
     IF EXISTS (
         SELECT 1
-        FROM public.journals
-        WHERE source_type = 'rent_charge'
-          AND posting_key = 'rent-charge:' || OLD.booth_id::text || ':' || to_char(OLD.month_start, 'YYYY-MM')
+        FROM public.journals AS posted
+        WHERE posted.source_type = 'rent_charge'
+          AND posted.posting_key LIKE 'rent-charge:' || OLD.booth_id::text || ':%'
+          AND (
+              posted.posting_key = 'rent-charge:' || OLD.booth_id::text || ':' || to_char(OLD.month_start, 'YYYY-MM')
+              OR EXISTS (
+                  SELECT 1
+                  FROM public.booth_assignments AS assignment
+                  WHERE assignment.booth_id = OLD.booth_id
+                    AND assignment.assignment_range @> posted.posting_date
+                    AND OLD.month_start = (
+                        SELECT rate.month_start
+                        FROM public.booth_rent_rates AS rate
+                        WHERE rate.booth_id = OLD.booth_id
+                          AND rate.month_start <= assignment.starts_on
+                        ORDER BY rate.month_start DESC
+                        LIMIT 1
+                    )
+              )
+          )
     ) THEN
         RAISE EXCEPTION 'a rent rate cannot change after that month is charged'
             USING ERRCODE = '23514';

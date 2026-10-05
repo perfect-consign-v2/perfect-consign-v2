@@ -132,7 +132,7 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
         $this->client->post('/' . ProbeMall::SLUG . '/rates', [
             'booth_id' => $boothId,
-            'month_start' => ProbeMall::POSTING_DATE,
+            'month_start' => ProbeMall::PERIOD_START,
             'amount' => '100.00',
         ]);
         $book = $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
@@ -551,7 +551,7 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
         $this->client->post('/' . ProbeMall::SLUG . '/rates', [
             'booth_id' => $boothId,
-            'month_start' => ProbeMall::POSTING_DATE,
+            'month_start' => ProbeMall::PERIOD_START,
             'amount' => '100.00',
         ]);
         $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [

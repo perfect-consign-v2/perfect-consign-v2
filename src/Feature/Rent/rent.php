@@ -295,7 +295,6 @@ $booths = static function (int $count): string {
             </table>
         <?php endif; ?>
     </div>
-    <?php if (!$fromSales): ?>
     <?php foreach ($rows as $row): ?>
         <?php if ($row['charged'] || $row['rate_minor'] === null || !$row['chargeable']) {
             continue;
@@ -328,6 +327,5 @@ $booths = static function (int $count): string {
             </form>
         </div>
     <?php endforeach; ?>
-    <?php endif; ?>
     <?php ListTable::assets(); ?>
 <?php endif; ?>

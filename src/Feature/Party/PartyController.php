@@ -353,12 +353,7 @@ final class PartyController
         $vendor['last_name'] = $this->forms->plain($stored['last_name'] ?? null);
         $vendor['default_store_take'] = $this->forms->percent($mallBasis);
         $quoted = $this->payouts->quote($id, $this->mall->today());
-        $vendor['payable_minor'] = $quoted === null ? 0 : $quoted['payable'];
-        $vendor['rent_minor'] = $quoted === null ? 0 : $quoted['rent'];
-        $vendor['check_minor'] = $quoted === null ? 0 : $quoted['check'];
-        $vendor['owes_minor'] = $quoted === null ? 0 : $quoted['owes'];
-        $vendor['settled_minor'] = $quoted === null ? 0 : $quoted['settled'];
-        $vendor['rent_from_sales'] = $quoted !== null && $quoted['rent_from_sales'];
+        $vendor = $this->forms->figures($vendor, $quoted);
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Party/vendor', [
             'title' => $vendor['name'],

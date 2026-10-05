@@ -255,7 +255,14 @@ final class InventoryStore
 
     private function requireVendor(string $vendorId): void
     {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1 || $this->missing('vendors', $vendorId)) {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
+            throw new \InvalidArgumentException('That vendor is not in this mall.');
+        }
+        $rows = $this->statements->bound(
+            'SELECT id FROM vendors WHERE id = ?::uuid',
+            [$vendorId]
+        );
+        if ($rows === []) {
             throw new \InvalidArgumentException('That vendor is not in this mall.');
         }
     }
@@ -265,22 +272,16 @@ final class InventoryStore
         if ($brandId === null || $brandId === '') {
             return;
         }
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $brandId) !== 1 || $this->missing('brands', $brandId)) {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $brandId) !== 1) {
             throw new \InvalidArgumentException('That brand is not in this mall.');
         }
-    }
-
-    private function missing(string $table, string $id): bool
-    {
-        if ($table !== 'vendors' && $table !== 'brands') {
-            return true;
-        }
         $rows = $this->statements->bound(
-            'SELECT id FROM ' . $table . ' WHERE id = ?::uuid',
-            [$id]
+            'SELECT id FROM brands WHERE id = ?::uuid',
+            [$brandId]
         );
-
-        return $rows === [];
+        if ($rows === []) {
+            throw new \InvalidArgumentException('That brand is not in this mall.');
+        }
     }
 
     private function quoted(string $relation, string $column): bool

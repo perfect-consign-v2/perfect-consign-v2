@@ -27,7 +27,7 @@ VALUES (
 );
 
 INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-000000000201', '2026-03-01', 1500);
+VALUES ('01900000-0000-7000-8000-000000000201', '2026-01-01', 1500);
 
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (
