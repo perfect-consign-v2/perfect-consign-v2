@@ -34,7 +34,7 @@ An item is one piece. It has a tag, a barcode, a vendor, a description, an askin
 
 The tag is unique in the mall, ignoring case. A tag is at most 40 characters. The barcode is unique, ignoring case, and at most 100 characters. A blank barcode is filled with BC, the mall date, and a four-digit sequence. A description is at most 200 characters. The asking price is greater than zero.
 
-The asking price is the price on the piece. It is not a journal. A sale still posts the amount entered on the sale.
+The asking price is the price on the piece. It is not a journal. A sale still posts the amount entered on the sale. After a sale, that asking price and that consignor stay. A return pays the consignor on the piece.
 
 The store take on a piece follows the vendor. Saving the vendor's percent, or leaving the field empty, stores no override. A different percent is stored on the piece and marked overridden.
 
@@ -44,7 +44,7 @@ After a piece is created, the add form stays open with the same vendor and the s
 
 The consignor is chosen by custom id or name. The custom id is shown in front of the name. A brand is chosen by name. A name that is not in the mall can be added before the piece is saved.
 
-The tag, barcode, vendor, brand, description, price, quantity, store take, intake date, and expire date can be changed. An item can be deleted only while nothing else points at it.
+The tag, barcode, brand, description, quantity, store take, intake date, and expire date can be changed. The price and the consignor can be changed until a sale is posted. An item can be deleted only while nothing else points at it. The list says In use, and there is no delete step.
 
 A vendor or brand that an item still names cannot be deleted. An inactive vendor can still own a piece. The booth stays on the vendor’s assignment, not on the piece.
 

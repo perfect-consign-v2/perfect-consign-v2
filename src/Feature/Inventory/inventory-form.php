@@ -10,7 +10,10 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $vendorsUrl */
 /** @var string $brandsUrl */
 /** @var string $brandCreateUrl */
+/** @var bool $sold */
 /** @var array{id: string, code: string, barcode: string, description: string, price: string, quantity: string, vendor_id: string, vendor_label: string, brand_id: string, brand_label: string, store_take: string, default_take: string, overridden: bool, intake_on: string, expires_on: string, expire_dirty: bool} $piece */
+
+$sold = ($sold ?? false) === true;
 
 $editing = $piece['id'] !== '';
 $action = $editing ? '/' . $slug . '/inventory/' . $piece['id'] : '/' . $slug . '/inventory';
@@ -42,16 +45,18 @@ $expireHint = $floorDays === ''
     data-floor-days="<?= View::text($floorDays) ?>"
     data-default-take="<?= View::text($piece['default_take']) ?>"
     data-take-dirty="<?= $piece['overridden'] ? '1' : '0' ?>"
-    data-expire-dirty="<?= $piece['expire_dirty'] ? '1' : '0' ?>">
+    data-expire-dirty="<?= $piece['expire_dirty'] ? '1' : '0' ?>"
+    data-sold="<?= $sold ? '1' : '0' ?>">
     <div class="card">
         <div class="card-head"><div class="h3">Piece</div></div>
         <div class="card-body grid cols-2">
             <div class="field combo" style="grid-column: 1 / -1">
                 <label for="vendor_label">Consignor</label>
-                <input class="input" id="vendor_label" name="vendor_label" value="<?= View::text($piece['vendor_label']) ?>" autocomplete="off" required>
+                <input class="input" id="vendor_label" name="vendor_label" value="<?= View::text($piece['vendor_label']) ?>" autocomplete="off" required<?= $sold ? ' readonly' : '' ?>>
                 <input type="hidden" id="vendor_id" name="vendor_id" value="<?= View::text($piece['vendor_id']) ?>">
                 <div class="suggest" id="vendor_suggest" hidden></div>
                 <p class="field-error" id="vendor_client_error" hidden>Choose a consignor from the list.</p>
+                <?php if ($sold): ?><p class="muted text-sm">This consignor is on a sale and cannot be changed.</p><?php endif; ?>
             </div>
             <div class="field">
                 <label for="code">Tag</label>
@@ -79,7 +84,8 @@ $expireHint = $floorDays === ''
             </div>
             <div class="field">
                 <label for="price">Asking price</label>
-                <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($piece['price']) ?>" required>
+                <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($piece['price']) ?>" required<?= $sold ? ' readonly' : '' ?>>
+                <?php if ($sold): ?><p class="muted text-sm">This price is on a sale and cannot be changed.</p><?php endif; ?>
             </div>
             <div class="field">
                 <label for="quantity">Qty</label>
@@ -104,7 +110,7 @@ $expireHint = $floorDays === ''
     <div class="card">
         <div class="card-head"><div class="h3">Notes</div></div>
         <div class="card-body">
-            <p class="muted text-sm">One piece. After you save, this form stays open for the same consignor. The asking price is not a sale. Delete the piece only while nothing else uses it.</p>
+            <p class="muted text-sm"><?php if ($sold): ?>This piece has been sold. The price and the consignor stay as they were posted.<?php else: ?>One piece. After you save, this form stays open for the same consignor. The asking price is not a sale. Delete the piece only while nothing else uses it.<?php endif; ?></p>
         </div>
         <div class="card-foot row between">
             <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/inventory">Cancel</a>

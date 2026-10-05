@@ -54,7 +54,7 @@ final class InventoryController
         if ($item === null) {
             $this->app->notFound();
         }
-        $this->form($slug, $this->forms->stored($item), null);
+        $this->form($slug, $this->forms->stored($item), null, $this->items->sold($id));
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/inventory/([0-9a-fA-F-]{36})', ['POST'])]
@@ -96,7 +96,7 @@ final class InventoryController
             $error = $errorValue->getMessage();
         }
         if ($error !== null) {
-            $this->form($slug, $this->forms->posted($draft), $error);
+            $this->form($slug, $this->forms->posted($draft), $error, $id !== null && $this->items->sold($id));
 
             return;
         }
@@ -196,7 +196,7 @@ final class InventoryController
      *     fill_expire: string
      * } $piece
      */
-    private function form(string $slug, array $piece, ?string $error): void
+    private function form(string $slug, array $piece, ?string $error, bool $sold = false): void
     {
         $tenant = $this->app->open($slug, true);
         $days = $this->mall->floorDays();
@@ -209,6 +209,7 @@ final class InventoryController
             'vendorsUrl' => '/' . $tenant->slug . '/inventory/vendors.json',
             'brandsUrl' => '/' . $tenant->slug . '/inventory/brands.json',
             'brandCreateUrl' => '/' . $tenant->slug . '/inventory/brands',
+            'sold' => $sold,
             'error' => $error,
         ]);
     }

@@ -88,6 +88,31 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSame(1, preg_match('#/pos/receipt/([0-9a-f-]{36})#', $paid->body, $journalId));
         $journal = $this->client->get('/' . ProbeMall::SLUG . '/journals/' . $journalId[1]);
         self::assertSees('<p>Sale</p>', $journal);
+        $list = $this->client->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
+        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $description);
+        self::assertSame(1, preg_match('/<tr id="item-' . preg_quote($itemId, '/') . '">.*?<\/tr>/s', $list->body, $row));
+        self::assertStringContainsString('In use', $row[0]);
+        self::assertStringNotContainsString('Delete', $row[0]);
+        self::assertStringNotContainsString('Delete this piece?', $this->client->get('/' . ProbeMall::SLUG . '/inventory?confirm=' . $itemId)->body);
+        $edit = $this->client->get('/' . ProbeMall::SLUG . '/inventory/' . $itemId . '/edit');
+        self::assertSame(1, preg_match('/id="price"[^>]*readonly/', $edit->body));
+        self::assertSees('This price is on a sale and cannot be changed.', $edit);
+        $refused = $this->client->post('/' . ProbeMall::SLUG . '/inventory/' . $itemId, [
+            'code' => $tag,
+            'description' => $description,
+            'vendor_id' => $vendorId,
+            'brand_id' => '',
+            'price' => '99.00',
+            'quantity' => '0',
+            'barcode' => 'BC-' . $tag,
+            'intake_on' => '2026-09-01',
+            'store_take' => '',
+        ]);
+        self::assertSees('That price is already on a sale.', $refused);
+        self::assertStringContainsString('$10.02', $this->client->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag))->body);
+        $blocked = $this->client->post('/' . ProbeMall::SLUG . '/inventory/' . $itemId . '/delete', []);
+        self::assertSees('That piece is in use.', $blocked);
+        self::assertStringNotContainsString('Delete this piece?', $blocked->body);
         $this->roundCash(false);
     }
 
@@ -133,7 +158,7 @@ final class OwnerJourneyTest extends WebTestCase
         $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $code);
         $form = $this->client->get('/' . ProbeMall::SLUG . '/payout?vendor=' . $vendorId);
-        self::assertSees('Their share $0.00', $form);
+        self::assertSees('Their share of sales $0.00', $form);
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/payout', [
             'vendor_id' => $vendorId,
         ]);

@@ -120,7 +120,9 @@ final class BrandStore
 
     private function quoted(string $relation, string $column): bool
     {
-        return preg_match('/^"[a-z_][a-z0-9_]*"\."[a-z_][a-z0-9_]*"$/', $relation) === 1
-            && preg_match('/^"[a-z_][a-z0-9_]*"$/', $column) === 1;
+        $part = '(?:"[a-z_][a-z0-9_]*"|[a-z_][a-z0-9_]*)';
+
+        return preg_match('/^' . $part . '\.' . $part . '$/', $relation) === 1
+            && preg_match('/^' . $part . '$/', $column) === 1;
     }
 }

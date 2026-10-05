@@ -180,21 +180,23 @@
             .catch(function () { hide(brandSuggest); });
     }
 
-    vendorLabel.addEventListener('input', function () {
-        vendorId.value = '';
-        if (vendorError) {
-            vendorError.hidden = true;
-        }
-        if (vendorTimer) {
-            clearTimeout(vendorTimer);
-        }
-        let query = vendorLabel.value.trim();
-        if (query === '') {
-            hide(vendorSuggest);
-            return;
-        }
-        vendorTimer = setTimeout(function () { searchVendors(query); }, 200);
-    });
+    if (form.getAttribute('data-sold') !== '1') {
+        vendorLabel.addEventListener('input', function () {
+            vendorId.value = '';
+            if (vendorError) {
+                vendorError.hidden = true;
+            }
+            if (vendorTimer) {
+                clearTimeout(vendorTimer);
+            }
+            let query = vendorLabel.value.trim();
+            if (query === '') {
+                hide(vendorSuggest);
+                return;
+            }
+            vendorTimer = setTimeout(function () { searchVendors(query); }, 200);
+        });
+    }
 
     brandLabel.addEventListener('input', function () {
         brandId.value = '';

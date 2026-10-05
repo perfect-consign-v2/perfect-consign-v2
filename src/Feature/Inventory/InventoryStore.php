@@ -187,16 +187,47 @@ final class InventoryStore
             return;
         }
         $params[] = $id;
+        $params[] = $piece->priceMinor;
+        $params[] = $piece->vendorId;
         $count = $this->statements->affected(
             'UPDATE items
              SET code = ?, barcode = ?, vendor_id = ?::uuid, brand_id = ?::uuid, description = ?,
                  price_minor = ?, quantity = ?, commission_bps = ?, intake_on = ?::date, expires_on = ?::date
-             WHERE id = ?::uuid',
+             WHERE id = ?::uuid
+               AND (
+                   NOT EXISTS (SELECT 1 FROM sale_lines AS sale WHERE sale.item_id = items.id)
+                   OR (price_minor = ? AND vendor_id = ?::uuid)
+               )',
             $params
         );
         if ($count === 0) {
+            $this->refuseSoldChange($id, $piece);
+        }
+    }
+
+    public function sold(string $id): bool
+    {
+        $rows = $this->statements->bound(
+            'SELECT 1 FROM sale_lines WHERE item_id = ?::uuid LIMIT 1',
+            [$id]
+        );
+
+        return $rows !== [];
+    }
+
+    private function refuseSoldChange(string $id, PieceEntry $piece): void
+    {
+        $row = $this->find($id);
+        if ($row === null) {
             throw new \InvalidArgumentException('That piece is not in this mall.');
         }
+        if ($piece->priceMinor !== RowValue::integer($row['price_minor'] ?? null)) {
+            throw new \InvalidArgumentException('That price is already on a sale.');
+        }
+        if ($piece->vendorId !== RowValue::string($row['vendor_id'] ?? null)) {
+            throw new \InvalidArgumentException('That consignor is already on a sale.');
+        }
+        throw new \InvalidArgumentException('That piece is not in this mall.');
     }
 
     private function allocate(string $today): string
@@ -254,7 +285,9 @@ final class InventoryStore
 
     private function quoted(string $relation, string $column): bool
     {
-        return preg_match('/^"[a-z_][a-z0-9_]*"\."[a-z_][a-z0-9_]*"$/', $relation) === 1
-            && preg_match('/^"[a-z_][a-z0-9_]*"$/', $column) === 1;
+        $part = '(?:"[a-z_][a-z0-9_]*"|[a-z_][a-z0-9_]*)';
+
+        return preg_match('/^' . $part . '\.' . $part . '$/', $relation) === 1
+            && preg_match('/^' . $part . '$/', $column) === 1;
     }
 }
