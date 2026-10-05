@@ -344,27 +344,30 @@ final class CoverageRemainderTest extends WebTestCase
         $owing = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
         self::assertSees('Owes the store', $owing);
         self::assertStringNotContainsString('Pay this vendor', $owing->body);
-        $noReference = $this->client->post('/' . self::SLUG . '/rent/payment', [
-            'source_reference' => '',
+        // collectForm( slip( showCollect( kept( payment(
+        $collect = $this->client->get('/' . self::SLUG . '/rent/collect?booth=' . $boothId);
+        self::assertSees('Amount received', $collect);
+        self::assertSees('Amount owed', $collect);
+        $noTender = $this->client->post('/' . self::SLUG . '/rent/payment', [
             'booth_id' => $boothId,
             'amount' => '1.00',
-            'posting_date' => $today,
         ]);
-        self::assertSees('a source reference is required', $noReference);
+        self::assertSees('a rent receipt needs a tender', $noTender);
         $badAmount = $this->client->post('/' . self::SLUG . '/rent/payment', [
-            'source_reference' => 'rent' . $tag,
             'booth_id' => $boothId,
             'amount' => '0',
-            'posting_date' => $today,
+            'tender_cash' => '0',
         ]);
         self::assertLessThan(500, $badAmount->status);
         $paidRent = $this->client->post('/' . self::SLUG . '/rent/payment', [
-            'source_reference' => 'rent' . $tag . 'b',
             'booth_id' => $boothId,
             'amount' => '10.00',
-            'posting_date' => $today,
+            'tender_cash' => '10.00',
+            'cash_tendered' => '20.00',
         ]);
-        self::assertSees('Rent payment posted.', $paidRent);
+        self::assertSees('Rent receipt', $paidRent);
+        self::assertSees('Print receipt', $paidRent);
+        self::assertSees('Change', $paidRent);
 
         $this->client->post('/' . self::SLUG . '/pos/discard', []);
         $piece = $this->piece($vendorId, '10.00', '6');

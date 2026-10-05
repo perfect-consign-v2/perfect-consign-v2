@@ -91,8 +91,8 @@ INSERT INTO journals (
     'rent_payment',
     '7001',
     'Booth A1 rent paid at the counter',
-    15000,
-    15000
+    5000,
+    5000
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
@@ -101,7 +101,7 @@ VALUES (
     '01900000-0000-7000-8000-000000000001',
     1,
     '01900000-0000-7000-8000-000000000010',
-    15000,
+    5000,
     0
 );
 
@@ -113,7 +113,7 @@ INSERT INTO journal_lines (
     2,
     '01900000-0000-7000-8000-000000000015',
     0,
-    15000,
+    5000,
     'booth',
     '01900000-0000-7000-8000-000000000201'
 );
@@ -122,6 +122,14 @@ INSERT INTO register_session_posts (session_id, journal_id)
 VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000701');
 
 SET CONSTRAINTS ALL IMMEDIATE;
+
+DO $$
+BEGIN
+    IF stall_register_expected_cash('01900000-0000-7000-8000-000000000d22') IS DISTINCT FROM 5000 THEN
+        RAISE EXCEPTION 'rent cash did not raise expected drawer cash';
+    END IF;
+END $$;
+
 SET CONSTRAINTS ALL DEFERRED;
 
 DO $$
@@ -190,11 +198,224 @@ BEGIN
         'booth',
         '01900000-0000-7000-8000-000000000201'
     );
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000703');
     SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'rent payment against the bank was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         NULL;
+END $$;
+
+DO $$
+BEGIN
+    SET CONSTRAINTS ALL DEFERRED;
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000707',
+        '01900000-0000-7000-8000-000000000001',
+        'rent-payment:7007',
+        '2026-03-17',
+        '2026-03-17 12:00:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'rent_payment',
+        '7007',
+        'Rent check with no number',
+        100,
+        100
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES (
+        '01900000-0000-7000-8000-000000000707',
+        '01900000-0000-7000-8000-000000000001',
+        1,
+        '01900000-0000-7000-8000-00000000001b',
+        100,
+        0
+    );
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000707',
+        '01900000-0000-7000-8000-000000000001',
+        2,
+        '01900000-0000-7000-8000-000000000015',
+        0,
+        100,
+        'booth',
+        '01900000-0000-7000-8000-000000000201'
+    );
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000707');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'a rent check without a number was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    SET CONSTRAINTS ALL DEFERRED;
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000708',
+        '01900000-0000-7000-8000-000000000001',
+        'rent-payment:7008',
+        '2026-03-17',
+        '2026-03-17 12:00:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'rent_payment',
+        '7008',
+        'Cash rent receipt with a check number',
+        100,
+        100
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES (
+        '01900000-0000-7000-8000-000000000708',
+        '01900000-0000-7000-8000-000000000001',
+        1,
+        '01900000-0000-7000-8000-000000000010',
+        100,
+        0
+    );
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000708',
+        '01900000-0000-7000-8000-000000000001',
+        2,
+        '01900000-0000-7000-8000-000000000015',
+        0,
+        100,
+        'booth',
+        '01900000-0000-7000-8000-000000000201'
+    );
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000708');
+    INSERT INTO register_checks (journal_id, check_number)
+    VALUES ('01900000-0000-7000-8000-000000000708', '1008');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'a cash rent receipt with a check number was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000705',
+    '01900000-0000-7000-8000-000000000001',
+    'rent-payment:7005',
+    '2026-03-18',
+    '2026-03-18 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'rent_payment',
+    '7005',
+    'Booth A1 rent paid by check',
+    4000,
+    4000
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000705',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-00000000001b',
+    4000,
+    0
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000705',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000015',
+    0,
+    4000,
+    'booth',
+    '01900000-0000-7000-8000-000000000201'
+);
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000705');
+
+INSERT INTO register_checks (journal_id, check_number)
+VALUES ('01900000-0000-7000-8000-000000000705', '1001');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+
+DO $$
+BEGIN
+    IF stall_register_expected_cash('01900000-0000-7000-8000-000000000d22') IS DISTINCT FROM 5000 THEN
+        RAISE EXCEPTION 'a rent check changed expected drawer cash';
+    END IF;
+END $$;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000706',
+    '01900000-0000-7000-8000-000000000001',
+    'rent-payment:7006',
+    '2026-03-19',
+    '2026-03-19 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'rent_payment',
+    '7006',
+    'Booth A1 rent paid by card',
+    6000,
+    6000
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000706',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000016',
+    6000,
+    0
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000706',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000015',
+    0,
+    6000,
+    'booth',
+    '01900000-0000-7000-8000-000000000201'
+);
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000706');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+
+DO $$
+BEGIN
+    IF stall_register_expected_cash('01900000-0000-7000-8000-000000000d22') IS DISTINCT FROM 5000 THEN
+        RAISE EXCEPTION 'a rent card changed expected drawer cash';
+    END IF;
 END $$;
 
 DO $$
@@ -238,6 +459,8 @@ BEGIN
         'booth',
         '01900000-0000-7000-8000-000000000201'
     );
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000704');
     SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'rent overpayment was accepted';
 EXCEPTION

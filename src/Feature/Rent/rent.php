@@ -161,20 +161,7 @@ $booths = static function (int $count): string {
                             <?php elseif ($activeSessionId === ''): ?>
                                 <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>
                             <?php else: ?>
-                                <form method="post" action="/<?= View::text($slug) ?>/rent/payment">
-                                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                                    <input type="hidden" name="booth_id" value="<?= View::text($row['booth_id']) ?>">
-                                    <input type="hidden" name="posting_date" value="<?= View::text($today) ?>">
-                                    <input type="hidden" name="month" value="<?= View::text($month) ?>">
-                                    <?php if ($query !== ''): ?>
-                                        <input type="hidden" name="q" value="<?= View::text($query) ?>">
-                                    <?php endif; ?>
-                                    <label for="receipt-<?= View::text($row['vendor_id']) ?>">Receipt or check number</label>
-                                    <input class="input" id="receipt-<?= View::text($row['vendor_id']) ?>" name="source_reference" required autocomplete="off">
-                                    <label for="amount-<?= View::text($row['vendor_id']) ?>">Amount</label>
-                                    <input class="input" id="amount-<?= View::text($row['vendor_id']) ?>" name="amount" inputmode="decimal" required value="<?= View::text($row['collect']) ?>">
-                                    <p><button class="btn btn-sm btn-primary" type="submit">Collect</button></p>
-                                </form>
+                                <a class="btn btn-sm btn-primary" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>&amp;booth=<?= View::text($row['booth_id']) ?>">Collect</a>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -297,23 +284,7 @@ $booths = static function (int $count): string {
                             <?php if ($row['open_minor'] > 0 && $activeSessionId === ''): ?>
                                 <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>
                             <?php elseif ($row['open_minor'] > 0): ?>
-                                <form method="post" action="/<?= View::text($slug) ?>/rent/payment">
-                                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                                    <input type="hidden" name="booth_id" value="<?= View::text($row['id']) ?>">
-                                    <input type="hidden" name="posting_date" value="<?= View::text($today) ?>">
-                                    <input type="hidden" name="month" value="<?= View::text($month) ?>">
-                                    <?php if ($query !== ''): ?>
-                                        <input type="hidden" name="q" value="<?= View::text($query) ?>">
-                                    <?php endif; ?>
-                                    <?php if ($standing !== ''): ?>
-                                        <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
-                                    <?php endif; ?>
-                                    <label for="receipt-<?= View::text($row['id']) ?>">Receipt or check number</label>
-                                    <input class="input" id="receipt-<?= View::text($row['id']) ?>" name="source_reference" required autocomplete="off">
-                                    <label for="amount-<?= View::text($row['id']) ?>">Amount</label>
-                                    <input class="input" id="amount-<?= View::text($row['id']) ?>" name="amount" inputmode="decimal" required value="<?= View::text($row['collect_amount']) ?>">
-                                    <p><button class="btn btn-sm" type="submit">Collect</button></p>
-                                </form>
+                                <a class="btn btn-sm" href="/<?= View::text($slug) ?>/rent/collect?booth=<?= View::text($row['id']) ?>">Collect</a>
                             <?php else: ?>
                                 <span class="muted"><?= $blank ?></span>
                             <?php endif; ?>

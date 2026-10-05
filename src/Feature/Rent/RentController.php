@@ -14,7 +14,6 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
-use PerfectConsign\Ledger\Money;
 use PerfectConsign\Ledger\PostedLines;
 
 final class RentController
@@ -28,6 +27,7 @@ final class RentController
         private readonly ActiveRegister $drawers,
         private readonly MallPayoutSettings $settings,
         private readonly PayoutStore $payouts,
+        private readonly RentReceipt $receipts,
     ) {
     }
 
@@ -68,37 +68,111 @@ final class RentController
         $this->saved($slug, $postingDate, 'Rent charged.');
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/rent/collect', ['GET'])]
+    public function collectForm(string $slug): void
+    {
+        $this->showCollect($slug, null);
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/rent/payment', ['POST'])]
     public function payment(string $slug): void
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $reference = $this->app->request()->field('source_reference');
+        $vendorId = $this->app->request()->field('vendor_id');
         $boothId = $this->app->request()->field('booth_id');
-        $postingDate = $this->app->request()->field('posting_date');
+        $today = $this->rent->today();
         try {
-            if ($reference === '') {
-                throw new DatabaseRefusal('a source reference is required');
-            }
-            $amount = Money::parseMinor($this->app->request()->field('amount'));
-            $this->ledger->post(new JournalDraft(
-                postingKey: 'rent-payment:' . $reference,
-                postingDate: $postingDate,
-                source: new JournalSource('rent_payment', $reference, 'Rent payment'),
-                lines: [
-                    PostedLines::entry($this->ledger->roleAccount('cash'), $amount, 0, null, null),
-                    PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), 0, $amount, 'booth', $boothId),
+            $journalId = $this->receipts->collect(
+                $vendorId,
+                $boothId,
+                $today,
+                $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true)),
+                $this->app->request()->field('amount'),
+                [
+                    'cash' => $this->app->request()->field('tender_cash'),
+                    'card' => $this->app->request()->field('tender_card'),
+                    'checks' => $this->app->request()->field('tender_checks'),
+                    'tendered' => $this->app->request()->field('cash_tendered'),
+                    'check' => $this->app->request()->field('check_number'),
                 ],
-                sessionId: $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true)),
-            ));
+            );
         } catch (DatabaseRefusal $refusal) {
-            $this->render($slug, $this->app->catchRefusal($refusal));
+            $this->showCollect($slug, $this->app->catchRefusal($refusal));
             return;
         } catch (\InvalidArgumentException $error) {
-            $this->render($slug, $error->getMessage());
+            $this->showCollect($slug, $error->getMessage());
             return;
         }
-        $this->saved($slug, $postingDate, 'Rent payment posted.');
+        $path = '/' . $slug . '/rent/receipt/' . $journalId;
+        $tendered = trim($this->app->request()->field('cash_tendered'));
+        if ($tendered === '') {
+            $tendered = trim($this->app->request()->field('tender_cash'));
+        }
+        if (trim($this->app->request()->field('tender_cash')) !== '') {
+            $path .= '?tendered=' . rawurlencode($tendered);
+        }
+        $this->app->redirect($path);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/rent/receipt/([0-9a-fA-F-]{36})', ['GET'])]
+    public function slip(string $slug, string $journalId): void
+    {
+        $slip = $this->receipts->read($journalId);
+        if ($slip === null) {
+            $this->render($slug, 'that rent receipt is missing');
+            return;
+        }
+        $tenant = $this->app->open($slug, true);
+        $this->app->show('Feature/Rent/rent-slip', [
+            'title' => 'Rent receipt',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'slip' => $slip,
+            'change' => $this->receipts->change($this->app->request()->query('tendered'), $slip['cash']),
+        ]);
+    }
+
+    private function showCollect(string $slug, ?string $error): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $vendorId = $this->chosen('vendor');
+        if ($vendorId === '') {
+            $vendorId = $this->chosen('vendor_id');
+        }
+        $boothId = $this->chosen('booth');
+        if ($boothId === '') {
+            $boothId = $this->chosen('booth_id');
+        }
+        $figure = $this->receipts->figure($vendorId, $boothId, $this->rent->today());
+        if ($figure === null) {
+            $this->render($slug, $error ?? 'a rent receipt cannot exceed the open rent');
+            return;
+        }
+        $this->app->show('Feature/Rent/collect', [
+            'title' => 'Collect rent',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'figure' => $figure,
+            'amount' => $this->kept('amount', $figure['collect']),
+            'tenderCash' => $this->kept('tender_cash', $figure['collect']),
+            'tenderCard' => $this->kept('tender_card', ''),
+            'tenderChecks' => $this->kept('tender_checks', ''),
+            'cashTendered' => $this->kept('cash_tendered', $figure['collect']),
+            'checkNumber' => $this->kept('check_number', ''),
+            'error' => $error,
+            'openRegister' => $this->registers->openSessions() !== [],
+        ]);
+    }
+
+    private function kept(string $name, string $fallback): string
+    {
+        $posted = $this->app->request()->field($name);
+        if ($posted !== '') {
+            return $posted;
+        }
+
+        return $fallback;
     }
 
     private function render(string $slug, ?string $error): void

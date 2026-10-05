@@ -45,6 +45,7 @@ final class TenantProvisioner
             '040_layaway.sql',
             '041_payout_run.sql',
             '042_payout_reversal.sql',
+            '043_rent_receipt.sql',
         ];
     }
 

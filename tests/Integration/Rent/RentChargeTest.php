@@ -5,9 +5,16 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Integration\Rent;
 
 use PDO;
+use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Payout\PayoutRunLines;
+use PerfectConsign\Feature\Payout\PayoutRunStore;
+use PerfectConsign\Feature\Payout\PayoutSettler;
+use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Rent\RentLines;
+use PerfectConsign\Feature\Rent\RentReceipt;
 use PerfectConsign\Feature\Rent\RentStore;
+use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -60,6 +67,106 @@ final class RentChargeTest extends TestCase
             }
         } finally {
             $pdo->rollBack();
+        }
+    }
+
+    public function testARentReceiptDebitsTheTenderOnTheOpenDrawer(): void
+    {
+        $root = dirname(__DIR__, 3);
+        ProbeMall::ensure($root);
+        $pdo = $this->connection();
+        $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
+        $statements = new Statements($pdo);
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
+        $runs = new PayoutRunStore($statements);
+        $payouts = new PayoutStore($pdo, $statements, $runs);
+        $receipts = new RentReceipt(
+            $pdo,
+            $statements,
+            $ledger,
+            $payouts,
+            new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements)),
+            new MallPayoutSettings($statements),
+        );
+        $rent = new RentStore($statements, new MallSettings($statements), new RentLines());
+        $pdo->beginTransaction();
+        try {
+            $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = false', []);
+            $vendorId = $ledger->newId();
+            $tag = substr(str_replace('-', '', $vendorId), 0, 6);
+            $statements->change(
+                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
+                [$vendorId, 'c' . $tag, 'Sam', 'Sun']
+            );
+            $boothId = $this->booth($statements, $ledger, 'q' . $tag, '2026-06-01', 9000);
+            $this->assign($statements, $boothId, $vendorId, '2026-06-15', null);
+            $charged = $rent->chargeAmount($boothId, '2026-06-15');
+            self::assertSame(4800, $charged);
+            $this->post($ledger, $boothId, '2026-06-15', $charged);
+            $sessionId = $this->session($statements, $ledger);
+            $before = $this->expected($statements, $sessionId);
+            // packFigure( openFigure( postReceipt( credits( tenders( requireCheck( handed( debitLines( minor( dollars( rollbackOwned( party( tenderLines( tenderName( checkOn(
+            $figure = $receipts->figure('', $boothId, '2026-06-15');
+            self::assertNotNull($figure);
+            self::assertSame(4800, $figure['owed']);
+            self::assertSame('48.00', $figure['collect']);
+            $journalId = $receipts->collect($vendorId, $boothId, '2026-06-15', $sessionId, '10.00', [
+                'cash' => '10.00',
+                'card' => '',
+                'checks' => '',
+                'tendered' => '20.00',
+                'check' => '',
+            ]);
+            $slip = $receipts->read($journalId);
+            self::assertNotNull($slip);
+            self::assertSame(1000, $slip['amount']);
+            self::assertSame(1000, $slip['cash']);
+            self::assertSame('', $slip['check_number']);
+            self::assertGreaterThan(0, $slip['number']);
+            self::assertSame(1000, $receipts->change('20.00', $slip['cash']));
+            self::assertNull($receipts->change('', $slip['cash']));
+            self::assertSame($before + 1000, $this->expected($statements, $sessionId));
+            $checkId = $receipts->collect($vendorId, $boothId, '2026-06-15', $sessionId, '4.00', [
+                'cash' => '',
+                'card' => '',
+                'checks' => '4.00',
+                'tendered' => '',
+                'check' => '1001',
+            ]);
+            $check = $receipts->read($checkId);
+            self::assertNotNull($check);
+            self::assertSame(400, $check['amount']);
+            self::assertSame(0, $check['cash']);
+            self::assertSame('1001', $check['check_number']);
+            self::assertSame($before + 1000, $this->expected($statements, $sessionId));
+            try {
+                $receipts->collect($vendorId, $boothId, '2026-06-15', $sessionId, '50.00', [
+                    'cash' => '50.00',
+                    'card' => '',
+                    'checks' => '',
+                    'tendered' => '50.00',
+                    'check' => '',
+                ]);
+                self::fail('a rent receipt above the open rent was accepted');
+            } catch (DatabaseRefusal $refusal) {
+                self::assertSame('a rent receipt cannot exceed the open rent', $refusal->getMessage());
+            }
+            try {
+                $receipts->collect($vendorId, $boothId, '2026-06-15', $sessionId, '1.00', [
+                    'cash' => '',
+                    'card' => '',
+                    'checks' => '1.00',
+                    'tendered' => '',
+                    'check' => '',
+                ]);
+                self::fail('a rent check without a number was accepted');
+            } catch (DatabaseRefusal $refusal) {
+                self::assertSame('a rent check needs a check number', $refusal->getMessage());
+            }
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
         }
     }
 
@@ -121,6 +228,31 @@ final class RentChargeTest extends TestCase
                 PostedLines::entry($ledger->roleAccount('rent_revenue'), 0, $amount, null, null),
             ],
         ));
+    }
+
+    private function session(Statements $statements, LedgerStore $ledger): string
+    {
+        $open = $statements->rows(
+            'SELECT id::text AS id FROM register_sessions WHERE closed_at IS NULL ORDER BY opened_at LIMIT 1'
+        );
+        if ($open !== []) {
+            return RowValue::string($open[0]['id'] ?? null);
+        }
+        $id = $ledger->newId();
+        $statements->change(
+            "INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+             VALUES (?::uuid, '01900000-0000-7000-8000-000000000d10'::uuid, ?, ?::jsonb, 0)",
+            [$id, 'Ada', '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}']
+        );
+
+        return $id;
+    }
+
+    private function expected(Statements $statements, string $sessionId): int
+    {
+        $rows = $statements->bound('SELECT stall_register_expected_cash(?::uuid) AS cash', [$sessionId]);
+
+        return RowValue::integer($rows[0]['cash'] ?? null);
     }
 
     private function schema(PDO $pdo): string
