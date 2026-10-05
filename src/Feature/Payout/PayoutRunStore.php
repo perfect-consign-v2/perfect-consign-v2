@@ -106,7 +106,15 @@ final class PayoutRunStore
             [$salesFrom, $salesTo, $rentMonth]
         );
         if ($rows !== []) {
-            return RowValue::string($rows[0]['id'] ?? null);
+            $id = RowValue::string($rows[0]['id'] ?? null);
+            $this->statements->change(
+                "UPDATE payout_runs
+                 SET posting_date = ?::date
+                 WHERE id = ?::uuid AND status = 'draft' AND posting_date IS DISTINCT FROM ?::date",
+                [$postingDate, $id, $postingDate]
+            );
+
+            return $id;
         }
 
         return $this->begin($salesFrom, $salesTo, $rentMonth, $postingDate);
@@ -175,6 +183,21 @@ final class PayoutRunStore
         }
 
         return $envelopes;
+    }
+
+    /**
+     * @return array{from: string, to: string, rent: string}
+     */
+    public function window(string $today): array
+    {
+        $rent = substr($today, 0, 7) . '-01';
+        $to = (new \DateTimeImmutable($rent))->modify('-1 day')->format('Y-m-d');
+
+        return [
+            'from' => substr($to, 0, 7) . '-01',
+            'to' => $to,
+            'rent' => $rent,
+        ];
     }
 
     public function begin(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string

@@ -1,4 +1,5 @@
--- Payout runs. Settlement nets payable against rent. A disbursement moves the check.
+-- Payout runs. When last month's sales pay this month's rent, settlement nets payable against rent.
+-- When that setting is off, the check is the share and the rent stays a separate bill.
 -- Apply after 040. The provisioner rewrites public. and stall_poster.
 
 ALTER TABLE vendors ADD COLUMN payout_mode text NOT NULL DEFAULT 'pay';
@@ -686,6 +687,56 @@ WHERE NOT EXISTS (
 AND journal.posting_key NOT LIKE 'settlement:' || run.id::text || ':%'
 AND journal.posting_key NOT LIKE 'disbursement:' || run.id::text || ':%';
 
+CREATE OR REPLACE VIEW payout_missing_rent AS
+SELECT
+    run.id AS run_id,
+    vendor.id AS vendor_id,
+    assignment.booth_id,
+    series.month_start::date AS month_start,
+    GREATEST(series.month_start::date, assignment.starts_on) AS posting_date,
+    CASE
+        WHEN date_trunc('month', assignment.starts_on)::date = series.month_start::date
+         AND EXTRACT(DAY FROM assignment.starts_on) > 1
+        THEN (
+            (
+                EXTRACT(DAY FROM (series.month_start::date + interval '1 month - 1 day'))::integer
+                - EXTRACT(DAY FROM assignment.starts_on)::integer
+                + 1
+            ) * rate.amount_minor
+        ) / EXTRACT(DAY FROM (series.month_start::date + interval '1 month - 1 day'))::integer
+        ELSE rate.amount_minor
+    END AS amount
+FROM payout_runs AS run
+JOIN vendors AS vendor ON vendor.active
+JOIN booth_assignments AS assignment ON assignment.vendor_id = vendor.id
+JOIN LATERAL generate_series(
+    date_trunc('month', assignment.starts_on)::timestamp,
+    date_trunc('month', LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date))::timestamp,
+    interval '1 month'
+) AS series(month_start) ON assignment.starts_on <= LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date)
+JOIN LATERAL (
+    SELECT COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
+    FROM (
+        SELECT amount_minor
+        FROM booth_rent_rates
+        WHERE booth_id = assignment.booth_id
+          AND month_start <= assignment.starts_on
+        ORDER BY month_start DESC
+        LIMIT 1
+    ) AS listed
+    LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
+) AS rate ON true
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM journals AS journal
+    WHERE journal.source_type = 'rent_charge'
+      AND journal.posting_key = 'rent-charge:' || assignment.booth_id::text || ':' || to_char(series.month_start::date, 'YYYY-MM')
+      AND NOT EXISTS (
+          SELECT 1 FROM journals AS reversal
+          WHERE reversal.reverses_journal_id = journal.id
+      )
+);
+
 CREATE OR REPLACE VIEW payout_pack AS
 WITH params AS (
     SELECT
@@ -804,52 +855,8 @@ rent_posted AS (
     GROUP BY params.run_id, params.vendor_id
 ),
 missing_month AS (
-    SELECT
-        params.run_id,
-        params.vendor_id,
-        series.month_start::date AS month_start,
-        GREATEST(series.month_start::date, assignment.starts_on) AS posting_date,
-        CASE
-            WHEN date_trunc('month', assignment.starts_on)::date = series.month_start::date
-             AND EXTRACT(DAY FROM assignment.starts_on) > 1
-            THEN (
-                (
-                    EXTRACT(DAY FROM (series.month_start::date + interval '1 month - 1 day'))::integer
-                    - EXTRACT(DAY FROM assignment.starts_on)::integer
-                    + 1
-                ) * rate.amount_minor
-            ) / EXTRACT(DAY FROM (series.month_start::date + interval '1 month - 1 day'))::integer
-            ELSE rate.amount_minor
-        END AS amount
-    FROM params
-    JOIN booth_assignments AS assignment ON assignment.vendor_id = params.vendor_id
-    JOIN LATERAL generate_series(
-        date_trunc('month', assignment.starts_on)::timestamp,
-        date_trunc('month', LEAST(COALESCE(assignment.ends_on, params.posting_date), params.posting_date))::timestamp,
-        interval '1 month'
-    ) AS series(month_start) ON assignment.starts_on <= LEAST(COALESCE(assignment.ends_on, params.posting_date), params.posting_date)
-    JOIN LATERAL (
-        SELECT COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
-        FROM (
-            SELECT amount_minor
-            FROM booth_rent_rates
-            WHERE booth_id = assignment.booth_id
-              AND month_start <= GREATEST(series.month_start::date, assignment.starts_on)
-            ORDER BY month_start DESC
-            LIMIT 1
-        ) AS listed
-        LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
-    ) AS rate ON true
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM journals AS journal
-        WHERE journal.source_type = 'rent_charge'
-          AND journal.posting_key = 'rent-charge:' || assignment.booth_id::text || ':' || to_char(series.month_start::date, 'YYYY-MM')
-          AND NOT EXISTS (
-              SELECT 1 FROM journals AS reversal
-              WHERE reversal.reverses_journal_id = journal.id
-          )
-    )
+    SELECT run_id, vendor_id, month_start, posting_date, amount
+    FROM payout_missing_rent
 ),
 missing AS (
     SELECT
@@ -957,18 +964,38 @@ SELECT
     figures.brought_forward_minor,
     figures.carried_payable_minor,
     figures.rent_total_minor AS carried_rent_minor,
-    LEAST(GREATEST(figures.carried_payable_minor, 0), GREATEST(figures.rent_total_minor, 0)) AS settled_minor,
-    GREATEST(figures.carried_payable_minor - figures.rent_total_minor, 0) AS check_minor,
-    GREATEST(figures.rent_total_minor - figures.carried_payable_minor, 0) AS owes_minor,
-    figures.carried_payable_minor - figures.rent_total_minor AS net_minor,
+    CASE WHEN mall_settings.rent_prepaid_from_prior_sales
+        THEN LEAST(GREATEST(figures.carried_payable_minor, 0), GREATEST(figures.rent_total_minor, 0))
+        ELSE 0
+    END AS settled_minor,
+    CASE WHEN mall_settings.rent_prepaid_from_prior_sales
+        THEN GREATEST(figures.carried_payable_minor - figures.rent_total_minor, 0)
+        ELSE GREATEST(figures.carried_payable_minor, 0)
+    END AS check_minor,
+    CASE WHEN mall_settings.rent_prepaid_from_prior_sales
+        THEN GREATEST(figures.rent_total_minor - figures.carried_payable_minor, 0)
+        ELSE GREATEST(figures.rent_total_minor, 0)
+    END AS owes_minor,
+    CASE WHEN mall_settings.rent_prepaid_from_prior_sales
+        THEN figures.carried_payable_minor - figures.rent_total_minor
+        ELSE figures.carried_payable_minor
+    END AS net_minor,
     figures.rent_brought_forward_minor AS prior,
     (figures.rent_total_minor - figures.rent_brought_forward_minor + figures.rent_paid_since_minor + figures.rent_settlement_minor) AS charged,
     figures.rent_paid_since_minor + figures.rent_settlement_minor AS paid,
     figures.carried_payable_minor AS payable,
     figures.rent_total_minor AS rent,
-    GREATEST(figures.carried_payable_minor - figures.rent_total_minor, 0) AS "check",
-    GREATEST(figures.rent_total_minor - figures.carried_payable_minor, 0) AS owes
+    CASE WHEN mall_settings.rent_prepaid_from_prior_sales
+        THEN GREATEST(figures.carried_payable_minor - figures.rent_total_minor, 0)
+        ELSE GREATEST(figures.carried_payable_minor, 0)
+    END AS "check",
+    CASE WHEN mall_settings.rent_prepaid_from_prior_sales
+        THEN GREATEST(figures.rent_total_minor - figures.carried_payable_minor, 0)
+        ELSE GREATEST(figures.rent_total_minor, 0)
+    END AS owes,
+    mall_settings.rent_prepaid_from_prior_sales AS rent_from_sales
 FROM figures
+CROSS JOIN mall AS mall_settings
 LEFT JOIN LATERAL (
     SELECT booth.code AS booth_code
     FROM booth_assignments AS assignment
@@ -1129,7 +1156,7 @@ CREATE TRIGGER payout_runs_status
 
 ALTER TABLE payout_runs ENABLE ALWAYS TRIGGER payout_runs_status;
 
-GRANT SELECT ON payout_pack, payout_pack_sales TO stall_poster, stall_backup;
+GRANT SELECT ON payout_pack, payout_pack_sales, payout_missing_rent TO stall_poster, stall_backup;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON payout_runs, payout_run_lines, payout_run_sales, payout_run_journals TO stall_poster;
 REVOKE TRUNCATE, TRIGGER ON payout_runs, payout_run_lines, payout_run_sales, payout_run_journals FROM stall_poster;

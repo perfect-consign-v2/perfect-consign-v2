@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Payout;
 
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
@@ -22,10 +23,10 @@ final class PayoutSettler
     /**
      * @return list<string>
      */
-    public function chargeMissing(string $vendorId, string $today): array
+    public function chargeMissing(string $runId, string $vendorId): array
     {
         $posted = [];
-        foreach ($this->payouts->missingRent($vendorId, $today) as $charge) {
+        foreach ($this->payouts->missingCharges($runId, $vendorId) as $charge) {
             $posted[] = $this->ledger->post(new JournalDraft(
                 postingKey: 'rent-charge:' . $charge['booth_id'] . ':' . $charge['month'],
                 postingDate: $charge['posting_date'],
@@ -44,7 +45,7 @@ final class PayoutSettler
     {
         $this->lines->guard($runId, false);
         foreach ($this->runs->pack($runId) as $row) {
-            foreach ($this->chargeMissing($row['vendor_id'], $today) as $journalId) {
+            foreach ($this->chargeMissing($runId, $row['vendor_id']) as $journalId) {
                 $this->lines->link($runId, $journalId, 'rent_charge');
             }
         }
@@ -53,7 +54,7 @@ final class PayoutSettler
             if ($row['mode'] !== 'pay' || $row['settled'] <= 0) {
                 continue;
             }
-            $journalId = $this->settle($runId, $row['vendor_id'], $today);
+            $journalId = $this->settle($runId, $row['vendor_id'], $today, $row['settled']);
             if ($journalId === '') {
                 continue;
             }
@@ -63,10 +64,8 @@ final class PayoutSettler
         $this->lines->mark($runId, 'settled');
     }
 
-    public function settle(string $runId, string $vendorId, string $postingDate): string
+    public function settle(string $runId, string $vendorId, string $postingDate, int $applied): string
     {
-        $open = $this->payouts->openPayout($vendorId);
-        $applied = min($open['payable'], $open['rent']);
         if ($applied <= 0) {
             return '';
         }
@@ -74,7 +73,7 @@ final class PayoutSettler
             PostedLines::entry($this->ledger->roleAccount('vendor_payable'), $applied, 0, 'vendor', $vendorId),
         ];
         $left = $applied;
-        foreach ($open['booths'] as $booth) {
+        foreach ($this->payouts->boothRent($vendorId) as $booth) {
             $take = min($left, $booth['open_minor']);
             if ($take <= 0) {
                 continue;
@@ -87,6 +86,9 @@ final class PayoutSettler
                 $booth['booth_id']
             );
             $left -= $take;
+        }
+        if ($left !== 0) {
+            throw new DatabaseRefusal('the settlement does not match the open booth rent');
         }
 
         return $this->ledger->post(new JournalDraft(

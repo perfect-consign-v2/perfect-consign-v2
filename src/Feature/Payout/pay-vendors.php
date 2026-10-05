@@ -37,7 +37,7 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
         <h1 class="h1"><?= View::text($monthName) ?> payout</h1>
         <p class="muted"><?= View::text($displayName) ?></p>
     </div>
-    <a class="btn btn-ghost no-print" href="/<?= View::text($slug) ?>/payouts/past">Past payouts</a>
+    <a class="btn no-print" href="/<?= View::text($slug) ?>/payouts/past">Past payouts</a>
 </div>
 <?php if (is_string($error) && $error !== ''): ?>
     <p class="alert"><?= View::text($error) ?></p>

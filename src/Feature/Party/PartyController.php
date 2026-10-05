@@ -169,7 +169,8 @@ final class PartyController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $inactive = $this->app->request()->field('standing') === 'inactive';
-        if ($inactive && $this->payouts->openPayout($id)['rent'] > 0) {
+        $quoted = $this->payouts->quote($id, $this->mall->today());
+        if ($inactive && $quoted !== null && $quoted['rent'] > 0) {
             $this->refuseInactive($slug, $id);
 
             return;
@@ -351,12 +352,13 @@ final class PartyController
         $vendor['first_name'] = $this->forms->plain($stored['first_name'] ?? null);
         $vendor['last_name'] = $this->forms->plain($stored['last_name'] ?? null);
         $vendor['default_store_take'] = $this->forms->percent($mallBasis);
-        $open = $this->payouts->openPayout($id);
-        $vendor['payable_minor'] = $open['payable'];
-        $vendor['rent_minor'] = $open['rent'];
-        foreach ($this->payouts->missingRent($id, $this->mall->today()) as $charge) {
-            $vendor['rent_minor'] += $charge['amount'];
-        }
+        $quoted = $this->payouts->quote($id, $this->mall->today());
+        $vendor['payable_minor'] = $quoted === null ? 0 : $quoted['payable'];
+        $vendor['rent_minor'] = $quoted === null ? 0 : $quoted['rent'];
+        $vendor['check_minor'] = $quoted === null ? 0 : $quoted['check'];
+        $vendor['owes_minor'] = $quoted === null ? 0 : $quoted['owes'];
+        $vendor['settled_minor'] = $quoted === null ? 0 : $quoted['settled'];
+        $vendor['rent_from_sales'] = $quoted !== null && $quoted['rent_from_sales'];
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Party/vendor', [
             'title' => $vendor['name'],

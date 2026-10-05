@@ -19,9 +19,14 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var array{due: int, charged: int, owed: int} $counts */
 /** @var array{due_minor: int, due_count: int, charged_minor: int, charged_count: int, owed_minor: int, owed_count: int} $stats */
 /** @var list<array{id: string, code: string, name: string, vendor_id: ?string, vendor_name: ?string, rate_minor: ?int, charged: bool, chargeable: bool, charge_minor: ?int, journal_id: ?string, open_minor: int, charge_date: string, collect_amount: string}> $rows */
+/** @var bool $fromSales */
+/** @var list<array{vendor_id: string, code: string, name: string, booth_id: string, booth: string, owes: int, collect: string}> $debtors */
+/** @var list<array{booth_id: string, code: string, vendor_name: ?string, month: string, label: string, amount_minor: int, charge_date: string}> $backlog */
 /** @var string $activeSessionId */
 
 $activeSessionId = $activeSessionId ?? '';
+$fromSales = $fromSales ?? false;
+$debtors = $debtors ?? [];
 $blank = '—';
 $list = '/' . $slug . '/rent';
 $monthQuery = ['month' => $month];
@@ -41,15 +46,145 @@ $booths = static function (int $count): string {
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Rent</h1>
-        <p class="muted"><time datetime="<?= View::text($today) ?>"><?= View::text($label) ?></time></p>
+        <?php if ($fromSales): ?>
+            <p class="muted">Who owes the store</p>
+        <?php else: ?>
+            <p class="muted"><time datetime="<?= View::text($today) ?>"><?= View::text($label) ?></time></p>
+        <?php endif; ?>
     </div>
+    <?php if (!$fromSales): ?>
     <div class="row gap-2">
         <a class="btn" href="<?= View::text($list . '?month=' . $previous) ?>">Previous</a>
         <a class="btn" href="<?= View::text($list . '?month=' . $next) ?>">Next</a>
     </div>
+    <?php endif; ?>
 </div>
 
-<?php if ($total === 0): ?>
+<?php if ($backlog !== []): ?>
+    <section class="card mt-6" aria-labelledby="rent-backlog">
+        <div class="card-head"><div class="h3" id="rent-backlog">Not charged</div></div>
+        <div class="card-body">
+            <?php foreach ($backlog as $due): ?>
+                <div class="row gap-2">
+                    <span class="strong"><?= View::text($due['code']) ?></span>
+                    <?php if ($due['vendor_name'] !== null): ?>
+                        <span><?= View::text($due['vendor_name']) ?></span>
+                    <?php endif; ?>
+                    <span class="muted"><?= View::text($due['label']) ?></span>
+                    <button class="btn btn-sm btn-primary" type="button" data-open-modal="charge-<?= View::text($due['booth_id'] . '-' . $due['month']) ?>">Charge <?= View::text(View::money($due['amount_minor'])) ?></button>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php foreach ($backlog as $due): ?>
+        <div id="charge-<?= View::text($due['booth_id'] . '-' . $due['month']) ?>" class="modal" role="dialog" aria-modal="true" aria-labelledby="charge-title-<?= View::text($due['booth_id'] . '-' . $due['month']) ?>" hidden>
+            <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/rent/charge">
+                <div class="card-head"><div class="h3" id="charge-title-<?= View::text($due['booth_id'] . '-' . $due['month']) ?>">Charge this rent</div></div>
+                <div class="card-body stack">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <input type="hidden" name="booth_id" value="<?= View::text($due['booth_id']) ?>">
+                    <input type="hidden" name="posting_date" value="<?= View::text($due['charge_date']) ?>">
+                    <input type="hidden" name="month" value="<?= View::text($month) ?>">
+                    <?php if ($query !== ''): ?>
+                        <input type="hidden" name="q" value="<?= View::text($query) ?>">
+                    <?php endif; ?>
+                    <?php if ($standing !== ''): ?>
+                        <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
+                    <?php endif; ?>
+                    <p>Booth <?= View::text($due['code']) ?></p>
+                    <?php if ($due['vendor_name'] !== null): ?>
+                        <p><?= View::text($due['vendor_name']) ?></p>
+                    <?php endif; ?>
+                    <p><?= View::text($due['label']) ?></p>
+                    <p class="h3">Charge <?= View::text(View::money($due['amount_minor'])) ?></p>
+                    <div class="row gap-2">
+                        <button class="btn btn-primary" type="submit">Charge <?= View::text(View::money($due['amount_minor'])) ?></button>
+                        <button class="btn" type="button" data-close-modal="charge-<?= View::text($due['booth_id'] . '-' . $due['month']) ?>">Cancel</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+<?php if ($fromSales): ?>
+    <?php
+    $needle = strtolower($query);
+    $owing = [];
+    $owedTotal = 0;
+    foreach ($debtors as $row) {
+        $haystack = strtolower($row['code'] . ' ' . $row['name'] . ' ' . $row['booth']);
+        if ($needle !== '' && !str_contains($haystack, $needle)) {
+            continue;
+        }
+        $owing[] = $row;
+        $owedTotal += $row['owes'];
+    }
+    ?>
+    <div class="stat mt-6">
+        <div class="stat-label">Owes the store</div>
+        <div class="stat-value"><?= View::text(View::money($owedTotal)) ?></div>
+        <div class="stat-delta muted"><?= View::text($booths(count($owing))) ?></div>
+    </div>
+    <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
+        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search booth or vendor" aria-label="Search booth or vendor">
+        <button class="btn" type="submit">Search</button>
+    </form>
+    <div class="card table-wrap list-dt-wrap mt-4">
+        <?php if ($owing === []): ?>
+            <div class="empty"><p>Nobody owes rent.</p></div>
+        <?php else: ?>
+            <?php
+            ListTable::open(['id' => 'rent', 'export' => 'rent']);
+            ListTable::head([
+                ['label' => 'Booth'],
+                ['label' => 'Vendor'],
+                ['label' => 'Owes the store', 'sort' => 'num'],
+                ['label' => '', 'actions' => true],
+            ]);
+            ?>
+                <tbody>
+                <?php foreach ($owing as $row): ?>
+                    <tr id="vendor-<?= View::text($row['vendor_id']) ?>">
+                        <td>
+                            <?php if ($row['booth_id'] === ''): ?>
+                                <?= View::text($row['booth'] === '' ? $blank : $row['booth']) ?>
+                            <?php else: ?>
+                                <a class="strong" href="/<?= View::text($slug) ?>/booths/<?= View::text($row['booth_id']) ?>/edit"><?= View::text($row['booth']) ?></a>
+                            <?php endif; ?>
+                        </td>
+                        <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($row['vendor_id']) ?>">(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></a></td>
+                        <td class="num"><?= View::text(View::money($row['owes'])) ?></td>
+                        <td>
+                            <?php if ($row['booth_id'] === ''): ?>
+                                <span class="muted"><?= $blank ?></span>
+                            <?php elseif ($activeSessionId === ''): ?>
+                                <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>
+                            <?php else: ?>
+                                <form method="post" action="/<?= View::text($slug) ?>/rent/payment">
+                                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                    <input type="hidden" name="booth_id" value="<?= View::text($row['booth_id']) ?>">
+                                    <input type="hidden" name="posting_date" value="<?= View::text($today) ?>">
+                                    <input type="hidden" name="month" value="<?= View::text($month) ?>">
+                                    <?php if ($query !== ''): ?>
+                                        <input type="hidden" name="q" value="<?= View::text($query) ?>">
+                                    <?php endif; ?>
+                                    <label for="receipt-<?= View::text($row['vendor_id']) ?>">Receipt or check number</label>
+                                    <input class="input" id="receipt-<?= View::text($row['vendor_id']) ?>" name="source_reference" required autocomplete="off">
+                                    <label for="amount-<?= View::text($row['vendor_id']) ?>">Amount</label>
+                                    <input class="input" id="amount-<?= View::text($row['vendor_id']) ?>" name="amount" inputmode="decimal" required value="<?= View::text($row['collect']) ?>">
+                                    <p><button class="btn btn-sm btn-primary" type="submit">Collect</button></p>
+                                </form>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+    <?php ListTable::assets(); ?>
+<?php elseif ($total === 0): ?>
     <div class="card">
         <div class="empty">
             <svg aria-hidden="true"><use href="#i-booth"></use></svg>
@@ -154,19 +289,7 @@ $booths = static function (int $count): string {
                             <?php elseif (!$row['chargeable']): ?>
                                 <span class="muted"><?= $blank ?></span>
                             <?php else: ?>
-                                <form method="post" action="/<?= View::text($slug) ?>/rent/charge">
-                                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                                    <input type="hidden" name="booth_id" value="<?= View::text($row['id']) ?>">
-                                    <input type="hidden" name="posting_date" value="<?= View::text($row['charge_date']) ?>">
-                                    <input type="hidden" name="month" value="<?= View::text($month) ?>">
-                                    <?php if ($query !== ''): ?>
-                                        <input type="hidden" name="q" value="<?= View::text($query) ?>">
-                                    <?php endif; ?>
-                                    <?php if ($standing !== ''): ?>
-                                        <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
-                                    <?php endif; ?>
-                                    <button class="btn btn-sm btn-primary" type="submit">Charge <?= View::text(View::money($row['rate_minor'])) ?></button>
-                                </form>
+                                <button class="btn btn-sm btn-primary" type="button" data-open-modal="charge-<?= View::text($row['id']) ?>">Charge <?= View::text(View::money($row['rate_minor'])) ?></button>
                             <?php endif; ?>
                         </td>
                         <td class="num"><?= View::text(View::money($row['open_minor'])) ?></td>
@@ -201,5 +324,39 @@ $booths = static function (int $count): string {
             </table>
         <?php endif; ?>
     </div>
+    <?php if (!$fromSales): ?>
+    <?php foreach ($rows as $row): ?>
+        <?php if ($row['charged'] || $row['rate_minor'] === null || !$row['chargeable']) {
+            continue;
+        } ?>
+        <div id="charge-<?= View::text($row['id']) ?>" class="modal" role="dialog" aria-modal="true" aria-labelledby="charge-title-<?= View::text($row['id']) ?>" hidden>
+            <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/rent/charge">
+                <div class="card-head"><div class="h3" id="charge-title-<?= View::text($row['id']) ?>">Charge this rent</div></div>
+                <div class="card-body stack">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <input type="hidden" name="booth_id" value="<?= View::text($row['id']) ?>">
+                    <input type="hidden" name="posting_date" value="<?= View::text($row['charge_date']) ?>">
+                    <input type="hidden" name="month" value="<?= View::text($month) ?>">
+                    <?php if ($query !== ''): ?>
+                        <input type="hidden" name="q" value="<?= View::text($query) ?>">
+                    <?php endif; ?>
+                    <?php if ($standing !== ''): ?>
+                        <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
+                    <?php endif; ?>
+                    <p>Booth <?= View::text($row['code']) ?></p>
+                    <?php if ($row['vendor_name'] !== null): ?>
+                        <p><?= View::text($row['vendor_name']) ?></p>
+                    <?php endif; ?>
+                    <p><?= View::text($label) ?></p>
+                    <p class="h3">Charge <?= View::text(View::money($row['rate_minor'])) ?></p>
+                    <div class="row gap-2">
+                        <button class="btn btn-primary" type="submit">Charge <?= View::text(View::money($row['rate_minor'])) ?></button>
+                        <button class="btn" type="button" data-close-modal="charge-<?= View::text($row['id']) ?>">Cancel</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    <?php endforeach; ?>
+    <?php endif; ?>
     <?php ListTable::assets(); ?>
 <?php endif; ?>

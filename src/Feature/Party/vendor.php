@@ -10,7 +10,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $today */
-/** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>} $vendor */
+/** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, check_minor: int, owes_minor: int, settled_minor: int, rent_from_sales: bool, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>} $vendor */
 /** @var list<array<string, mixed>> $booths */
 /** @var list<array<string, mixed>> $rates */
 
@@ -20,7 +20,6 @@ $sections = [
     'Past' => $vendor['past'],
 ];
 $currentBooth = $vendor['current'][0]['booth_code'] ?? '';
-$weOwe = max(0, $vendor['payable_minor']);
 $blank = '—';
 
 ?>
@@ -44,16 +43,47 @@ $blank = '—';
         <a class="btn" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
     </div>
 
-    <div class="grid cols-2 mt-4">
-        <a class="stat stat-link stat-action" href="/<?= View::text($slug) ?>/payout?vendor=<?= View::text($vendor['id']) ?>">
-            <div class="stat-label">We owe them</div>
-            <div class="stat-value"><?= View::text(View::money($weOwe)) ?></div>
-            <div class="stat-delta">Pay this vendor</div>
-        </a>
-        <div class="stat">
-            <div class="stat-label">Open rent</div>
-            <div class="stat-value"><?= View::text(View::money($vendor['rent_minor'])) ?></div>
+    <div class="vendor-layout">
+    <div class="vendor-figures">
+        <div class="stat vendor-fig-share">
+            <div class="stat-label">Their share of sales</div>
+            <div class="stat-value"><?= View::text(View::money($vendor['payable_minor'])) ?></div>
         </div>
+        <?php if ($vendor['rent_from_sales']): ?>
+            <div class="stat vendor-fig-rent">
+                <div class="stat-label">Rent from their share</div>
+                <div class="stat-value"><?= View::text(View::money($vendor['settled_minor'])) ?></div>
+            </div>
+        <?php elseif ($vendor['owes_minor'] > 0): ?>
+            <a class="stat stat-link stat-action vendor-fig-rent" href="/<?= View::text($slug) ?>/rent?<?= View::text(http_build_query(['q' => $vendor['name'], 'standing' => 'owed'])) ?>">
+                <div class="stat-label">Owes the store</div>
+                <div class="stat-value"><?= View::text(View::money($vendor['owes_minor'])) ?></div>
+                <div class="stat-delta">Collect rent</div>
+            </a>
+        <?php else: ?>
+            <div class="stat vendor-fig-rent">
+                <div class="stat-label">Open rent</div>
+                <div class="stat-value"><?= View::text(View::money($vendor['rent_minor'])) ?></div>
+            </div>
+        <?php endif; ?>
+        <?php if ($vendor['check_minor'] > 0): ?>
+            <a class="stat stat-link stat-action vendor-fig-pay" href="/<?= View::text($slug) ?>/payout?vendor=<?= View::text($vendor['id']) ?>">
+                <div class="stat-label">We pay them</div>
+                <div class="stat-value"><?= View::text(View::money($vendor['check_minor'])) ?></div>
+                <div class="stat-delta">Pay this vendor</div>
+            </a>
+        <?php elseif ($vendor['rent_from_sales'] && $vendor['owes_minor'] > 0): ?>
+            <a class="stat stat-link stat-action vendor-fig-pay" href="/<?= View::text($slug) ?>/rent?<?= View::text(http_build_query(['q' => $vendor['name'], 'standing' => 'owed'])) ?>">
+                <div class="stat-label">Owes the store</div>
+                <div class="stat-value"><?= View::text(View::money($vendor['owes_minor'])) ?></div>
+                <div class="stat-delta">Collect rent</div>
+            </a>
+        <?php else: ?>
+            <div class="stat vendor-fig-pay">
+                <div class="stat-label">We pay them</div>
+                <div class="stat-value"><?= View::text(View::money(0)) ?></div>
+            </div>
+        <?php endif; ?>
     </div>
 
     <div class="vendor-bench">
@@ -250,6 +280,7 @@ $blank = '—';
                 </script>
             </div>
         </div>
+    </div>
     </div>
 </article>
 <?php ListTable::assets(); ?>

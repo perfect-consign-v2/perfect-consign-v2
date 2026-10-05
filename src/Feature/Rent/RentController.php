@@ -7,6 +7,8 @@ namespace PerfectConsign\Feature\Rent;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallPayoutSettings;
+use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
@@ -24,6 +26,8 @@ final class RentController
         private readonly RentBook $book,
         private readonly RegisterStore $registers,
         private readonly ActiveRegister $drawers,
+        private readonly MallPayoutSettings $settings,
+        private readonly PayoutStore $payouts,
     ) {
     }
 
@@ -38,6 +42,11 @@ final class RentController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
+        if ($this->settings->rentPrepaid()) {
+            $this->render($slug, 'this rent comes out of sales');
+
+            return;
+        }
         $boothId = $this->app->request()->field('booth_id');
         $postingDate = $this->app->request()->field('posting_date');
         try {
@@ -97,8 +106,9 @@ final class RentController
         $tenant = $this->app->open($slug, true);
         $today = $this->rent->today();
         $month = $this->book->month($this->chosen('month'), $today);
+        $fromSales = $this->settings->rentPrepaid();
         $book = $this->book->assemble($this->rent->facts($month), $month, $today);
-        $visible = $this->book->narrow($book['rows'], $this->chosen('q'), $this->chosen('standing'));
+        $visible = $this->book->narrow($book['rows'], $this->chosen('q'), $fromSales ? '' : $this->chosen('standing'));
         $this->app->show('Feature/Rent/rent', [
             'title' => 'Rent',
             'displayName' => $tenant->displayName,
@@ -115,6 +125,9 @@ final class RentController
             'matched' => $visible['matched'],
             'query' => $this->chosen('q'),
             'standing' => $visible['standing'],
+            'fromSales' => $fromSales,
+            'debtors' => $fromSales ? $this->payouts->debtors($today) : [],
+            'backlog' => $fromSales ? [] : $this->rent->uncharged($today, $month),
             'error' => $error,
         ]);
     }

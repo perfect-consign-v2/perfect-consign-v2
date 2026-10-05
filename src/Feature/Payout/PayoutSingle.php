@@ -24,25 +24,21 @@ final class PayoutSingle
     {
         $journalId = '';
         $this->statements->transaction(function () use ($vendorId, $postingDate, &$journalId): void {
-            $open = $this->balances($vendorId, $postingDate);
-            $applied = min($open['payable'], $open['rent']);
-            $check = $open['payable'] - $open['rent'];
-            if ($applied <= 0 && $check <= 0) {
+            $quoted = $this->payouts->quote($vendorId, $postingDate);
+            if ($quoted === null || ($quoted['settled'] <= 0 && $quoted['check'] <= 0)) {
                 throw new DatabaseRefusal('a payout clears a positive open payable or open rent receivable');
             }
             $runId = $this->beginSingle($postingDate);
-            foreach ($this->settler->chargeMissing($vendorId, $postingDate) as $rentId) {
+            foreach ($this->settler->chargeMissing($quoted['run_id'], $vendorId) as $rentId) {
                 $this->lines->link($runId, $rentId, 'rent_charge');
             }
             $this->lines->vendorLine($runId, $vendorId);
-            $charged = $this->payouts->openPayout($vendorId);
-            $this->agree($this->payouts->statement($vendorId), $charged['payable'], $charged['rent']);
-            $journalId = $this->settler->settle($runId, $vendorId, $postingDate);
+            $journalId = $this->settler->settle($runId, $vendorId, $postingDate, $quoted['settled']);
             if ($journalId !== '') {
                 $this->lines->link($runId, $journalId, 'settlement');
             }
             $this->lines->mark($runId, 'settled');
-            $paid = $this->disburser->disburse($runId, $vendorId, $postingDate, max(0, $check), null);
+            $paid = $this->disburser->disburse($runId, $vendorId, $postingDate, $quoted['check'], null);
             if ($paid !== '') {
                 $this->lines->link($runId, $paid, 'disbursement');
                 $this->lines->mark($runId, 'paid');
@@ -133,40 +129,5 @@ final class PayoutSingle
         );
 
         return RowValue::string($rows[0]['id'] ?? null);
-    }
-
-    /**
-     * @return array{payable: int, rent: int}
-     */
-    private function balances(string $vendorId, string $today): array
-    {
-        $open = $this->payouts->openPayout($vendorId);
-        foreach ($this->payouts->missingRent($vendorId, $today) as $charge) {
-            $open['rent'] += $charge['amount'];
-        }
-
-        return ['payable' => $open['payable'], 'rent' => $open['rent']];
-    }
-
-    /**
-     * @param list<array<string, mixed>> $statement
-     */
-    private function agree(array $statement, int $payable, int $rent): void
-    {
-        $statementPayable = 0;
-        $statementRent = 0;
-        foreach ($statement as $row) {
-            $debit = RowValue::integer($row['debit_minor'] ?? null);
-            $credit = RowValue::integer($row['credit_minor'] ?? null);
-            if ($row['role'] === 'vendor_payable') {
-                $statementPayable += $credit - $debit;
-            }
-            if ($row['role'] === 'booth_rent_receivable') {
-                $statementRent += $debit - $credit;
-            }
-        }
-        if ($statementPayable !== $payable || $statementRent !== $rent) {
-            throw new DatabaseRefusal('the statement and the open balances disagree');
-        }
     }
 }

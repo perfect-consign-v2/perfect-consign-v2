@@ -124,8 +124,11 @@ final class CoverageRemainderTest extends WebTestCase
         $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $code);
         $record = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
         self::assertSees('Assign a booth', $record);
-        self::assertSees('stat-action', $record);
-        self::assertSees('Pay this vendor', $record);
+        self::assertSees('Their share of sales', $record);
+        self::assertSees('Open rent', $record);
+        self::assertSees('stat-label">We pay them', $record);
+        self::assertStringNotContainsString('Pay this vendor', $record->body);
+        self::assertStringNotContainsString('We owe them', $record->body);
         $saved = $this->client->post('/' . self::SLUG . '/vendors/' . $vendorId, [
             'code' => $code,
             'first_name' => 'Ada',
@@ -332,12 +335,15 @@ final class CoverageRemainderTest extends WebTestCase
             'booth_id' => $boothId,
             'posting_date' => '2020-01-15',
         ]);
-        self::assertSees('a rent charge requires the rate stored for that month', $noRate);
+        self::assertSees('a rent charge requires an assignment that covers the charge date', $noRate);
         $charged = $this->client->post('/' . self::SLUG . '/rent/charge', [
             'booth_id' => $boothId,
             'posting_date' => $today,
         ]);
         self::assertSees('Rent charged.', $charged);
+        $owing = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
+        self::assertSees('Owes the store', $owing);
+        self::assertStringNotContainsString('Pay this vendor', $owing->body);
         $noReference = $this->client->post('/' . self::SLUG . '/rent/payment', [
             'source_reference' => '',
             'booth_id' => $boothId,

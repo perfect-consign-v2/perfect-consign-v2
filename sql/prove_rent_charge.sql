@@ -16,7 +16,7 @@ VALUES (
 );
 
 INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-000000000201', '2026-03-01', 15000);
+VALUES ('01900000-0000-7000-8000-000000000201', '2026-01-01', 15000);
 
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (
@@ -96,54 +96,6 @@ EXCEPTION
         NULL;
 END $$;
 
-DO $$
-BEGIN
-    SET CONSTRAINTS ALL DEFERRED;
-    INSERT INTO journals (
-        id, book_id, posting_key, posting_date, occurred_at, period_id,
-        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
-    ) VALUES (
-        '01900000-0000-7000-8000-000000000603',
-        '01900000-0000-7000-8000-000000000001',
-        'rent-charge:01900000-0000-7000-8000-000000000201:2026-04',
-        '2026-04-01',
-        '2026-04-01 12:00:00+00',
-        '01900000-0000-7000-8000-000000000021',
-        'USD',
-        'rent_charge',
-        'A1:2026-04',
-        'April rent with no stored rate',
-        15000,
-        15000
-    );
-    INSERT INTO journal_lines (
-        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
-    ) VALUES (
-        '01900000-0000-7000-8000-000000000603',
-        '01900000-0000-7000-8000-000000000001',
-        1,
-        '01900000-0000-7000-8000-000000000015',
-        15000,
-        0,
-        'booth',
-        '01900000-0000-7000-8000-000000000201'
-    );
-    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
-    VALUES (
-        '01900000-0000-7000-8000-000000000603',
-        '01900000-0000-7000-8000-000000000001',
-        2,
-        '01900000-0000-7000-8000-000000000017',
-        0,
-        15000
-    );
-    SET CONSTRAINTS ALL IMMEDIATE;
-    RAISE EXCEPTION 'rent charge without a stored rate was accepted';
-EXCEPTION
-    WHEN SQLSTATE '23514' THEN
-        NULL;
-END $$;
-
 INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
 VALUES ('01900000-0000-7000-8000-000000000201', '2026-04-01', 16000);
 
@@ -163,9 +115,9 @@ BEGIN
         'USD',
         'rent_charge',
         'A1:2026-04-wrong',
-        'April rent at the wrong amount',
-        15000,
-        15000
+        'April rent at a later booth rate',
+        16000,
+        16000
     );
     INSERT INTO journal_lines (
         journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
@@ -174,7 +126,7 @@ BEGIN
         '01900000-0000-7000-8000-000000000001',
         1,
         '01900000-0000-7000-8000-000000000015',
-        15000,
+        16000,
         0,
         'booth',
         '01900000-0000-7000-8000-000000000201'
@@ -186,10 +138,10 @@ BEGIN
         2,
         '01900000-0000-7000-8000-000000000017',
         0,
-        15000
+        16000
     );
     SET CONSTRAINTS ALL IMMEDIATE;
-    RAISE EXCEPTION 'rent charge that ignores the stored rate was accepted';
+    RAISE EXCEPTION 'rent charge that ignores the assignment rate was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         NULL;
@@ -197,10 +149,54 @@ END $$;
 
 DO $$
 BEGIN
+    SET CONSTRAINTS ALL DEFERRED;
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000603',
+        '01900000-0000-7000-8000-000000000001',
+        'rent-charge:01900000-0000-7000-8000-000000000201:2026-04',
+        '2026-04-01',
+        '2026-04-01 12:00:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'rent_charge',
+        'A1:2026-04',
+        'April rent at the assignment rate',
+        15000,
+        15000
+    );
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000603',
+        '01900000-0000-7000-8000-000000000001',
+        1,
+        '01900000-0000-7000-8000-000000000015',
+        15000,
+        0,
+        'booth',
+        '01900000-0000-7000-8000-000000000201'
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES (
+        '01900000-0000-7000-8000-000000000603',
+        '01900000-0000-7000-8000-000000000001',
+        2,
+        '01900000-0000-7000-8000-000000000017',
+        0,
+        15000
+    );
+    SET CONSTRAINTS ALL IMMEDIATE;
+END $$;
+
+DO $$
+BEGIN
     UPDATE booth_rent_rates
     SET amount_minor = 1
     WHERE booth_id = '01900000-0000-7000-8000-000000000201'
-      AND month_start = '2026-03-01';
+      AND month_start = '2026-01-01';
     RAISE EXCEPTION 'rent rate change after the charge was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN

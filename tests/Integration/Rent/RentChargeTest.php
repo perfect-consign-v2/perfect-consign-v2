@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Integration\Rent;
 
 use PDO;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Rent\RentLines;
 use PerfectConsign\Feature\Rent\RentStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
@@ -27,7 +28,7 @@ final class RentChargeTest extends TestCase
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
-        $rent = new RentStore($statements, new MallSettings($statements));
+        $rent = new RentStore($statements, new MallSettings($statements), new RentLines());
         $pdo->beginTransaction();
         try {
             $vendorId = $ledger->newId();
@@ -40,7 +41,9 @@ final class RentChargeTest extends TestCase
             $this->assign($statements, $moveIn, $vendorId, '2026-06-15', null);
             $prorated = $rent->chargeAmount($moveIn, '2026-06-15');
             self::assertSame(4800, $prorated);
+            self::assertTrue($this->listed($rent->uncharged('2026-10-04', '2026-10'), $moveIn, '2026-06', 4800));
             $this->post($ledger, $moveIn, '2026-06-15', $prorated);
+            self::assertFalse($this->listed($rent->uncharged('2026-10-04', '2026-10'), $moveIn, '2026-06', 4800));
 
             $overridden = $this->booth($statements, $ledger, 'o' . $tag, '2026-03-01', 3100);
             $this->assign($statements, $overridden, $vendorId, '2026-03-15', 6200);
@@ -58,6 +61,20 @@ final class RentChargeTest extends TestCase
         } finally {
             $pdo->rollBack();
         }
+    }
+
+    /**
+     * @param list<array{booth_id: string, code: string, vendor_name: ?string, month: string, label: string, amount_minor: int, charge_date: string}> $rows
+     */
+    private function listed(array $rows, string $boothId, string $month, int $amount): bool
+    {
+        foreach ($rows as $row) {
+            if ($row['booth_id'] === $boothId && $row['month'] === $month && $row['amount_minor'] === $amount) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function booth(Statements $statements, LedgerStore $ledger, string $code, string $month, int $rate): string

@@ -116,7 +116,7 @@ final class PayoutRunController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $today = $this->mall->today();
-        $window = $this->window($today);
+        $window = $this->runs->window($today);
         try {
             $runId = $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
             $this->runs->review($runId);
@@ -153,26 +153,11 @@ final class PayoutRunController
         $this->app->redirect('/' . $slug . '/payouts', 'Checks written.');
     }
 
-    /**
-     * @return array{from: string, to: string, rent: string}
-     */
-    private function window(string $today): array
-    {
-        $rent = substr($today, 0, 7) . '-01';
-        $to = (new \DateTimeImmutable($rent))->modify('-1 day')->format('Y-m-d');
-
-        return [
-            'from' => substr($to, 0, 7) . '-01',
-            'to' => $to,
-            'rent' => $rent,
-        ];
-    }
-
     private function render(string $slug, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
         $today = $this->mall->today();
-        $window = $this->window($today);
+        $window = $this->runs->window($today);
         $monthName = (new \DateTimeImmutable($window['rent']))->format('F');
         $pack = $this->runs->pack($this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today));
         usort(

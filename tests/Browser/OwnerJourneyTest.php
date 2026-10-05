@@ -129,7 +129,7 @@ final class OwnerJourneyTest extends WebTestCase
         $code = $this->vendor();
         $vendorId = HtmlPage::taggedId($this->session->html(), 'article', 'vendor', $code);
         $form = $this->session->open('/' . ProbeMall::SLUG . '/payout?vendor=' . rawurlencode($vendorId));
-        self::assertSees('Their share 0.00', $form);
+        self::assertSees('Their share of sales $0.00', $form);
         $refused = $this->session->submit('/' . ProbeMall::SLUG . '/payout', [
             'vendor_id' => $vendorId,
         ]);

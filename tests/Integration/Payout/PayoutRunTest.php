@@ -34,8 +34,8 @@ final class PayoutRunTest extends TestCase
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
-        $payouts = new PayoutStore($pdo, $statements);
         $runs = new PayoutRunStore($statements);
+        $payouts = new PayoutStore($pdo, $statements, $runs);
         $lines = new PayoutRunLines($statements);
         $settler = new PayoutSettler($ledger, $payouts, $runs, $lines);
         $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines);
@@ -64,8 +64,28 @@ final class PayoutRunTest extends TestCase
                 'INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES (?::uuid, ?::date, 1000)',
                 [$boothId, substr($date, 0, 7) . '-01']
             );
-            $missing = $payouts->missingRent($vendorId, $date);
+            $window = $runs->window($date);
+            $runId = $runs->ensureDraft($window['from'], $window['to'], $window['rent'], $date);
+            $missing = $payouts->missingCharges($runId, $vendorId);
             self::assertSame(1000, $missing[0]['amount'] ?? 0);
+            $taken = false;
+            foreach ($payouts->salesRent($date) as $rentRow) {
+                if ($rentRow['booth_id'] === $boothId && $rentRow['amount_minor'] === 1000) {
+                    $taken = true;
+                }
+            }
+            self::assertTrue($taken);
+            $listed = false;
+            foreach ($payouts->debtors($date) as $debtor) {
+                if ($debtor['vendor_id'] === $vendorId && $debtor['owes'] === 1000 && $debtor['booth_id'] === $boothId) {
+                    $listed = true;
+                }
+            }
+            self::assertTrue($listed);
+            $quoted = $payouts->quote($vendorId, $date);
+            self::assertNotNull($quoted);
+            self::assertSame($runId, $quoted['run_id']);
+            self::assertSame(1000, $quoted['rent']);
             $purchase = $purchases->record($vendorId, $date, 2500, 'buy-' . substr($vendorId, 0, 8));
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             $ledger->post(new JournalDraft(
@@ -78,9 +98,7 @@ final class PayoutRunTest extends TestCase
                 ],
             ));
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
-            $rent = substr($date, 0, 7) . '-01';
-            $to = (new \DateTimeImmutable($rent))->modify('-1 day')->format('Y-m-d');
-            $runId = $runs->ensureDraft(substr($to, 0, 7) . '-01', $to, $rent, $date);
+            self::assertSame(1000, $payouts->boothRent($vendorId)[0]['open_minor'] ?? 0);
             $runs->review($runId);
             $settler->close($runId, $date);
             $lines->remember($runId, $vendorId);
@@ -99,7 +117,7 @@ final class PayoutRunTest extends TestCase
                 'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
                 [$idle, 'idle' . substr($idle, 0, 4), 'Bea', 'Idle']
             );
-            self::assertSame('', $settler->settle($runId, $idle, $date));
+            self::assertSame('', $settler->settle($runId, $idle, $date, 0));
             $backdated = $ledger->newId();
             $statements->change(
                 'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
@@ -139,13 +157,13 @@ final class PayoutRunTest extends TestCase
             self::assertNotSame('', $reversed);
             self::assertNotSame([], $pack);
             // stored( guard( materialize( link( attachSettlement( attachDisbursement( checks( run( envelopes( copySales( source( report( mark(
-            self::assertIsArray($payouts->missingByVendor($date));
+            self::assertSame([], $payouts->missingCharges($runId, $vendorId));
             self::assertIsArray($runs->excluded());
             self::assertNotSame([], $runs->history());
             self::assertNotSame('', $purchase);
-            $settler->chargeMissing($vendorId, $date);
+            $settler->chargeMissing($runId, $vendorId);
             $parties->setPayoutMode($vendorId, 'nope');
-        // rate( assignments( months( monthCharge( row(
+        // assignments( row(
             $mall->save('nope', 'nope', true);
             self::assertSame('both', $mall->operatingMode());
             self::assertSame('monthly', $mall->payoutCadence());
@@ -162,7 +180,7 @@ final class PayoutRunTest extends TestCase
             } catch (\InvalidArgumentException) {
                 self::assertTrue(true);
             }
-            // pay( balances( agree( pastWith( lastUndone(
+            // pay( pastWith( lastUndone(
             $singlePayout = new PayoutSingle($statements, $payouts, $settler, $disburser, $lines, $reverser);
             self::assertNull($singlePayout->lastUndone($vendorId));
             $single = $singlePayout->beginSingle($date);

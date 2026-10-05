@@ -398,6 +398,40 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 }
 .vendor-work,
 .vendor-identity { min-width: 0; }
+.vendor-figures {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    align-items: stretch;
+    margin-top: var(--space-4);
+}
+.vendor-figures .stat {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+}
+.vendor-figures .stat-label { min-height: 2.5em; }
+.vendor-figures .stat-value {
+    font-size: var(--text-2xl);
+    overflow-wrap: anywhere;
+}
+.vendor-figures .stat-delta { margin-top: auto; }
+.payout-figures {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    align-items: stretch;
+    margin-top: var(--space-4);
+}
+.payout-figures .stat {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+}
+.payout-figures .stat-label { min-height: 2.5em; }
+.payout-figures .payout-check .stat-value { color: var(--accent); }
 .vendor-work,
 .vendor-stays { display: flex; flex-direction: column; gap: var(--space-4); }
 .vendor-stays { margin-top: var(--space-4); }
@@ -452,19 +486,23 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .field-error[hidden] { display: none; }
 .record-span { grid-column: 1 / -1; }
 @media (min-width: 56rem) {
-    .vendor-bench {
+    .vendor-layout {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
-        grid-template-areas: "identity work";
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(20rem, 24rem);
+        column-gap: var(--space-3);
+        row-gap: var(--space-4);
         align-items: start;
+        margin-top: var(--space-4);
     }
-    .vendor-identity { grid-area: identity; }
-    .vendor-work {
-        grid-area: work;
-        position: sticky;
-        top: var(--space-4);
-    }
+    .vendor-figures,
+    .vendor-bench { display: contents; }
+    .vendor-fig-share { grid-column: 1; grid-row: 1; align-self: stretch; }
+    .vendor-fig-rent { grid-column: 2; grid-row: 1; align-self: stretch; }
+    .vendor-fig-pay { grid-column: 3; grid-row: 1; align-self: stretch; }
+    .vendor-identity { grid-column: 1 / 3; grid-row: 2; }
+    .vendor-work { grid-column: 3; grid-row: 2; }
     .record-cards { grid-template-columns: 1fr 1fr; }
+    .payout-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (min-width: 48rem) {

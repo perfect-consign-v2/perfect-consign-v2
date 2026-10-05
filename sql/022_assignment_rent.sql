@@ -82,35 +82,35 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT amount_minor INTO rate_minor
-    FROM public.booth_rent_rates
-    WHERE booth_id = booth_ref::uuid
-      AND month_start = date_trunc('month', NEW.posting_date)::date
-    FOR UPDATE;
+    SELECT assignment.starts_on, override.amount_minor
+    INTO assign_start, override_minor
+    FROM public.booth_assignments AS assignment
+    LEFT JOIN public.assignment_rent AS override ON override.assignment_id = assignment.id
+    WHERE assignment.booth_id = booth_ref::uuid
+      AND assignment.assignment_range @> NEW.posting_date
+    ORDER BY assignment.starts_on DESC
+    LIMIT 1
+    FOR UPDATE OF assignment;
 
-    IF rate_minor IS NULL THEN
-        RAISE EXCEPTION 'a rent charge requires the rate stored for that month'
+    IF assign_start IS NULL THEN
+        RAISE EXCEPTION 'a rent charge requires an assignment that covers the charge date'
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT override.amount_minor INTO override_minor
-    FROM public.booth_assignments AS assignment
-    JOIN public.assignment_rent AS override ON override.assignment_id = assignment.id
-    WHERE assignment.booth_id = booth_ref::uuid
-      AND assignment.assignment_range @> NEW.posting_date
-    FOR UPDATE;
-
     IF override_minor IS NOT NULL THEN
         rate_minor := override_minor;
+    ELSE
+        SELECT amount_minor INTO rate_minor
+        FROM public.booth_rent_rates
+        WHERE booth_id = booth_ref::uuid
+          AND month_start <= assign_start
+        ORDER BY month_start DESC
+        LIMIT 1
+        FOR UPDATE;
     END IF;
 
-    SELECT assignment.starts_on INTO assign_start
-    FROM public.booth_assignments AS assignment
-    WHERE assignment.booth_id = booth_ref::uuid
-      AND assignment.assignment_range @> NEW.posting_date
-    FOR UPDATE;
-    IF assign_start IS NULL THEN
-        RAISE EXCEPTION 'a rent charge requires an assignment that covers the charge date'
+    IF rate_minor IS NULL THEN
+        RAISE EXCEPTION 'a rent charge requires the booth rate from the assignment'
             USING ERRCODE = '23514';
     END IF;
 

@@ -2,6 +2,8 @@
 
 This is the product copy of the Stall baseline at `27e5e88a740e676024268fdf2ebf2e09ba3bad87`. Stall stays the baseline. Do not change `C:\laragon\www\stall` from here.
 
+No hacks, no shortcuts, no workarounds, and no patches. Fix the design that is wrong. Do not leave a second calculation in application code, or nudge a date or flag so that calculation happens to match the database. Money and balances come from the view or function that owns them.
+
 ## Database
 
 Postgres `18.6`. Host port **5436**. Database `consign`. User `stall`. Volume `perfect_consign_pg`. Container `perfect-consign-postgres`. Do not use ports 5432, 5433, 5434, or 5435, and do not use volume `stall_pg`.

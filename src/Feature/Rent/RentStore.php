@@ -17,6 +17,7 @@ final class RentStore
     public function __construct(
         private readonly Statements $statements,
         private readonly MallSettings $mall,
+        private readonly RentLines $lines,
     ) {
     }
 
@@ -28,29 +29,100 @@ final class RentStore
     public function rate(string $boothId, string $date): ?int
     {
         $rows = $this->statements->bound(
-            "SELECT amount_minor FROM booth_rent_rates
-             WHERE booth_id = ?::uuid AND month_start = date_trunc('month', ?::date)::date",
-            [$boothId, $date]
+            "SELECT COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
+             FROM booth_assignments AS assignment
+             LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
+             LEFT JOIN LATERAL (
+                 SELECT amount_minor
+                 FROM booth_rent_rates
+                 WHERE booth_id = assignment.booth_id
+                   AND month_start <= assignment.starts_on
+                 ORDER BY month_start DESC
+                 LIMIT 1
+             ) AS listed ON true
+             WHERE assignment.booth_id = ?::uuid
+               AND assignment.starts_on <= ?::date
+               AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
+             ORDER BY assignment.starts_on DESC
+             LIMIT 1",
+            [$boothId, $date, $date]
         );
-        if ($rows === []) {
+        $amount = $rows[0]['amount_minor'] ?? null;
+        if ($amount === null || $amount === '') {
             return null;
         }
 
-        return RowValue::integer($rows[0]['amount_minor'] ?? null);
+        return RowValue::integer($amount);
     }
 
     public function chargeAmount(string $boothId, string $date): int
     {
-        $rate = $this->rate($boothId, $date);
-        if ($rate === null) {
-            throw new DatabaseRefusal('a rent charge requires the rate stored for that month');
-        }
         $stay = $this->covering($boothId, $date);
         if ($stay === null) {
             throw new DatabaseRefusal('a rent charge requires an assignment that covers the charge date');
         }
+        $rate = $this->rate($boothId, $date);
+        if ($rate === null) {
+            throw new DatabaseRefusal('a rent charge requires the booth rate from the assignment');
+        }
 
         return MoveInRent::charge($rate, $stay['override'], $stay['starts'], substr($date, 0, 7));
+    }
+
+    /**
+     * Months other than the one on screen that still have the charge button the rent book would show.
+     *
+     * @return list<array{booth_id: string, code: string, vendor_name: ?string, month: string, label: string, amount_minor: int, charge_date: string}>
+     */
+    public function uncharged(string $today, string $exceptMonth): array
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
+            throw new InvalidArgumentException('a rent day is YYYY-MM-DD');
+        }
+        if (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $exceptMonth) !== 1) {
+            throw new InvalidArgumentException('a rent month is YYYY-MM');
+        }
+        $due = [];
+        foreach ($this->statements->bound(
+            "SELECT DISTINCT to_char(rate.month_start, 'YYYY-MM') AS month
+             FROM booth_rent_rates AS rate
+             JOIN booth_assignments AS assignment ON assignment.booth_id = rate.booth_id
+               AND assignment.starts_on <= (rate.month_start + interval '1 month' - interval '1 day')::date
+               AND (assignment.ends_on IS NULL OR assignment.ends_on >= rate.month_start)
+             WHERE rate.month_start <= date_trunc('month', ?::date)::date
+               AND to_char(rate.month_start, 'YYYY-MM') <> ?
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM journals AS posted
+                   WHERE posted.source_type = 'rent_charge'
+                     AND posted.posting_key = 'rent-charge:' || rate.booth_id::text || ':' || to_char(rate.month_start, 'YYYY-MM')
+                     AND NOT EXISTS (
+                         SELECT 1 FROM journals AS reversal
+                         WHERE reversal.reverses_journal_id = posted.id
+                     )
+               )
+             ORDER BY month",
+            [$today, $exceptMonth]
+        ) as $row) {
+            $month = RowValue::string($row['month'] ?? null);
+            $label = (new DateTimeImmutable($month . '-01'))->format('F Y');
+            foreach ($this->lines->build($this->facts($month), $month, $today) as $line) {
+                if ($line['charged'] || $line['rate_minor'] === null || !$line['chargeable']) {
+                    continue;
+                }
+                $due[] = [
+                    'booth_id' => $line['id'],
+                    'code' => $line['code'],
+                    'vendor_name' => $line['vendor_name'],
+                    'month' => $month,
+                    'label' => $label,
+                    'amount_minor' => $line['rate_minor'],
+                    'charge_date' => $line['charge_date'],
+                ];
+            }
+        }
+
+        return $due;
     }
 
     /**
@@ -87,10 +159,24 @@ final class RentStore
                 [$end, $start]
             ),
             'rates' => $this->statements->bound(
-                'SELECT booth_id::text AS booth_id, amount_minor
-                 FROM booth_rent_rates
-                 WHERE month_start = ?::date',
-                [$start]
+                "SELECT DISTINCT ON (assignment.booth_id)
+                        assignment.booth_id::text AS booth_id,
+                        COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
+                 FROM booth_assignments AS assignment
+                 LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
+                 LEFT JOIN LATERAL (
+                     SELECT amount_minor
+                     FROM booth_rent_rates
+                     WHERE booth_id = assignment.booth_id
+                       AND month_start <= assignment.starts_on
+                     ORDER BY month_start DESC
+                     LIMIT 1
+                 ) AS listed ON true
+                 WHERE assignment.starts_on <= ?::date
+                   AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
+                   AND COALESCE(override.amount_minor, listed.amount_minor) IS NOT NULL
+                 ORDER BY assignment.booth_id, assignment.starts_on DESC",
+                [$end, $start]
             ),
             'charges' => $this->statements->bound(
                 "SELECT posted.id::text AS journal_id,

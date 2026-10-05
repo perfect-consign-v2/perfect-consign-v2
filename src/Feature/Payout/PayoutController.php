@@ -85,16 +85,17 @@ final class PayoutController
                     'at' => $this->clock->localTime($latest['at']),
                 ];
             }
-            $loaded = $this->payouts->openPayout($selected);
-            foreach ($this->payouts->missingRent($selected, $this->mall->today()) as $charge) {
-                $loaded['rent'] += $charge['amount'];
+            $quoted = $this->payouts->quote($selected, $this->mall->today());
+            if ($quoted !== null) {
+                $open = [
+                    'payable' => $quoted['payable'],
+                    'rent' => $quoted['rent'],
+                    'check' => $quoted['check'],
+                    'owes' => $quoted['owes'],
+                    'settled' => $quoted['settled'],
+                    'rent_from_sales' => $quoted['rent_from_sales'],
+                ];
             }
-            $open = [
-                'payable' => $loaded['payable'],
-                'rent' => $loaded['rent'],
-                'check' => max(0, $loaded['payable'] - $loaded['rent']),
-                'owes' => max(0, $loaded['rent'] - $loaded['payable']),
-            ];
         }
         $this->app->show('Feature/Payout/payout', [
             'title' => 'Pay this vendor',
