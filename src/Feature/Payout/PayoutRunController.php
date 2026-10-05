@@ -159,7 +159,10 @@ final class PayoutRunController
         $today = $this->mall->today();
         $window = $this->runs->window($today);
         $monthName = (new \DateTimeImmutable($window['rent']))->format('F');
-        $pack = $this->runs->pack($this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today));
+        $draft = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
+        $pack = $draft === null
+            ? $this->runs->preview($window['from'], $window['to'], $window['rent'], $today)
+            : $this->runs->pack($draft);
         usort(
             $pack,
             static fn (array $left, array $right): int => strnatcasecmp($left['code'], $right['code'])

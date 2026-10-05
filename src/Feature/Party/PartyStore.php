@@ -71,10 +71,10 @@ final class PartyStore
     public function rates(): array
     {
         return $this->statements->rows(
-            'SELECT booth.id AS booth_id, booth.code, rate.month_start, rate.amount_minor
+            'SELECT booth.id AS booth_id, booth.code, rate.amount_minor
              FROM booth_rent_rates AS rate
              JOIN booths AS booth ON booth.id = rate.booth_id
-             ORDER BY rate.month_start, booth.code'
+             ORDER BY booth.code'
         );
     }
 
@@ -176,10 +176,9 @@ final class PartyStore
         string $name,
         ?int $width,
         ?int $depth,
-        ?string $month = null,
         ?int $amount = null,
     ): void {
-        $insert = function () use ($code, $name, $width, $depth, $month, $amount): void {
+        $insert = function () use ($code, $name, $width, $depth, $amount): void {
             $rows = $this->statements->bound(
                 'INSERT INTO booths (code, name, width_ft, depth_ft) VALUES (?, ?, ?, ?) RETURNING id',
                 [$code, $name, $width, $depth]
@@ -188,12 +187,13 @@ final class PartyStore
             if (!is_string($id) || $id === '') {
                 throw new \InvalidArgumentException('that booth was not created');
             }
-            if ($month !== null && $amount !== null) {
-                $this->addRate($id, $month, $amount);
+            if ($amount !== null) {
+                $this->setAskingRent($id, $amount);
             }
         };
-        if ($month === null && $amount === null) {
+        if ($amount === null) {
             $insert();
+
             return;
         }
         $this->statements->transaction($insert);
@@ -238,7 +238,7 @@ final class PartyStore
                 throw new \InvalidArgumentException('that assignment was not created');
             }
             if ($rentMinor === null) {
-                return;
+                throw new \InvalidArgumentException('that booth has no asking rent');
             }
             $this->statements->change(
                 'INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES (?::uuid, ?)',
@@ -247,14 +247,11 @@ final class PartyStore
         });
     }
 
-    public function getBoothRateMinor(string $boothId, string $day): ?int
+    public function askingRent(string $boothId): ?int
     {
         $rows = $this->statements->bound(
-            'SELECT amount_minor FROM booth_rent_rates
-             WHERE booth_id = ?::uuid AND month_start <= ?::date
-             ORDER BY month_start DESC
-             LIMIT 1',
-            [$boothId, $day]
+            'SELECT amount_minor FROM booth_rent_rates WHERE booth_id = ?::uuid',
+            [$boothId]
         );
         $amount = $rows[0]['amount_minor'] ?? null;
         if ($amount === null || $amount === '') {
@@ -272,14 +269,12 @@ final class PartyStore
         );
     }
 
-    public function addRate(string $boothId, string $monthStart, int $amount): void
+    public function setAskingRent(string $boothId, int $amount): void
     {
-        if (preg_match('/^(\d{4}-\d{2})-\d{2}$/', $monthStart, $matches) === 1) {
-            $monthStart = $matches[1] . '-01';
-        }
         $this->statements->change(
-            'INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES (?::uuid, ?::date, ?)',
-            [$boothId, $monthStart, $amount]
+            'INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES (?::uuid, ?)
+             ON CONFLICT (booth_id) DO UPDATE SET amount_minor = EXCLUDED.amount_minor',
+            [$boothId, $amount]
         );
     }
 }

@@ -38,24 +38,12 @@ final class BoothMeasures
      */
     public function rent(array $rows, string $today): array
     {
-        $chosen = [];
-        foreach ($rows as $row) {
-            $month = $this->day($row['month_start'] ?? null);
-            if ($month > $today) {
-                continue;
-            }
-            $boothId = $this->text($row['booth_id'] ?? null);
-            if (isset($chosen[$boothId]) && $chosen[$boothId]['month'] >= $month) {
-                continue;
-            }
-            $chosen[$boothId] = [
-                'month' => $month,
-                'amount' => RowValue::integer($row['amount_minor'] ?? null),
-            ];
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
+            throw new InvalidArgumentException('a rent day is YYYY-MM-DD');
         }
         $amounts = [];
-        foreach ($chosen as $boothId => $rate) {
-            $amounts[$boothId] = $rate['amount'];
+        foreach ($rows as $row) {
+            $amounts[$this->text($row['booth_id'] ?? null)] = RowValue::integer($row['amount_minor'] ?? null);
         }
 
         return $amounts;

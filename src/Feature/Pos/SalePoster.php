@@ -60,6 +60,7 @@ final class SalePoster
                 $this->attach($journalId, $ticketId, $pieces);
                 $this->statements->change('DELETE FROM ticket_tenders WHERE ticket_id = ?::uuid', [$ticketId]);
             },
+            tenderedMinor: $handed,
         ));
     }
 

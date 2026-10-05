@@ -18,6 +18,7 @@ final class JournalDraft
         public readonly ?string $sessionId = null,
         public readonly ?string $checkNumber = null,
         public readonly ?\Closure $beforeCommit = null,
+        public readonly ?int $tenderedMinor = null,
     ) {
     }
 }

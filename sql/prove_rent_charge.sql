@@ -15,8 +15,14 @@ VALUES (
     '2026-01-01'
 );
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-000000000201', '2026-01-01', 15000);
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000201', 15000);
+
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+SELECT assignment.id, rate.amount_minor
+FROM booth_assignments AS assignment
+JOIN booth_rent_rates AS rate ON rate.booth_id = assignment.booth_id
+WHERE assignment.booth_id = '01900000-0000-7000-8000-000000000201';
 
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (
@@ -96,8 +102,9 @@ EXCEPTION
         NULL;
 END $$;
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-000000000201', '2026-04-01', 16000);
+UPDATE booth_rent_rates
+SET amount_minor = 16000
+WHERE booth_id = '01900000-0000-7000-8000-000000000201';
 
 DO $$
 BEGIN
@@ -191,13 +198,53 @@ BEGIN
     SET CONSTRAINTS ALL IMMEDIATE;
 END $$;
 
+UPDATE booth_rent_rates
+SET amount_minor = 1
+WHERE booth_id = '01900000-0000-7000-8000-000000000201';
+
 DO $$
 BEGIN
-    UPDATE booth_rent_rates
-    SET amount_minor = 1
-    WHERE booth_id = '01900000-0000-7000-8000-000000000201'
-      AND month_start = '2026-01-01';
-    RAISE EXCEPTION 'rent rate change after the charge was accepted';
+    SET CONSTRAINTS ALL DEFERRED;
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000608',
+        '01900000-0000-7000-8000-000000000001',
+        'rent-charge:01900000-0000-7000-8000-000000000201:2026-05',
+        '2026-05-01',
+        '2026-05-01 12:00:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'rent_charge',
+        'A1:2026-05-asking',
+        'May rent followed the new asking price',
+        1,
+        1
+    );
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES (
+        '01900000-0000-7000-8000-000000000608',
+        '01900000-0000-7000-8000-000000000001',
+        1,
+        '01900000-0000-7000-8000-000000000015',
+        1,
+        0,
+        'booth',
+        '01900000-0000-7000-8000-000000000201'
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES (
+        '01900000-0000-7000-8000-000000000608',
+        '01900000-0000-7000-8000-000000000001',
+        2,
+        '01900000-0000-7000-8000-000000000017',
+        0,
+        1
+    );
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'a later asking rate changed the open stay';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         NULL;
@@ -206,8 +253,8 @@ END $$;
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000202', 'B2', 'Booth B2');
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-000000000202', '2026-05-01', 15000);
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000202', 15000);
 
 DO $$
 BEGIN
@@ -257,6 +304,66 @@ EXCEPTION
         NULL;
 END $$;
 
+UPDATE booth_rent_rates
+SET amount_minor = 18000
+WHERE booth_id = '01900000-0000-7000-8000-000000000202';
+
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
+VALUES (
+    '01900000-0000-7000-8000-000000000302',
+    '01900000-0000-7000-8000-000000000202',
+    '01900000-0000-7000-8000-000000000101',
+    '2026-06-01'
+);
+
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000302', 18000);
+
+SET CONSTRAINTS ALL DEFERRED;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000609',
+    '01900000-0000-7000-8000-000000000001',
+    'rent-charge:01900000-0000-7000-8000-000000000202:2026-06',
+    '2026-06-01',
+    '2026-06-01 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'rent_charge',
+    'B2:2026-06',
+    'June rent on the new stay',
+    18000,
+    18000
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-000000000609',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000015',
+    18000,
+    0,
+    'booth',
+    '01900000-0000-7000-8000-000000000202'
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000609',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000017',
+    0,
+    18000
+);
+
+SET CONSTRAINTS ALL IMMEDIATE;
+
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000221', 'B3', 'Booth B3');
 
@@ -268,8 +375,8 @@ VALUES (
     '2026-03-15'
 );
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-000000000221', '2026-03-01', 3100);
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000221', 3100);
 
 INSERT INTO assignment_rent (assignment_id, amount_minor)
 VALUES ('01900000-0000-7000-8000-000000000321', 6200);

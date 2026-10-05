@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Feature\Backup\BackupHeadline;
 use PerfectConsign\Feature\Backup\BackupStore;
 
@@ -38,13 +39,26 @@ final class SessionController
         $tenant = $this->app->open($slug, false);
         $username = $this->app->request()->field('username');
         $password = $this->app->request()->raw('password');
-        if (!$this->app->signIn($slug, $username, $password)) {
+        try {
+            $signedIn = $this->app->signIn($slug, $username, $password);
+        } catch (SignInLocked) {
+            $this->app->show('Shared/Web/login', [
+                'title' => 'Sign in',
+                'displayName' => $tenant->displayName,
+                'slug' => $tenant->slug,
+                'error' => 'Too many sign-in attempts. Try again in a few minutes.',
+            ]);
+
+            return;
+        }
+        if (!$signedIn) {
             $this->app->show('Shared/Web/login', [
                 'title' => 'Sign in',
                 'displayName' => $tenant->displayName,
                 'slug' => $tenant->slug,
                 'error' => 'That username or password is wrong.',
             ]);
+
             return;
         }
         $this->app->redirect('/' . $slug . '/dashboard', 'Signed in.');

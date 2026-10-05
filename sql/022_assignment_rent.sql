@@ -1,5 +1,5 @@
--- A vendor's rent when it differs from the booth's monthly rate.
--- Apply inside each tenant schema, after 005. The charge function below replaces the one in 005.
+-- The contract rent for one stay, copied from the booth asking price at assignment.
+-- Apply inside each tenant schema, after 005.
 
 CREATE TABLE assignment_rent (
     assignment_id uuid PRIMARY KEY REFERENCES booth_assignments (id),
@@ -55,7 +55,6 @@ AS $$
 DECLARE
     booth_ref text;
     rate_minor bigint;
-    override_minor bigint;
     assign_start date;
     charge_month date;
     charge_end date;
@@ -82,35 +81,27 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT assignment.starts_on, override.amount_minor
-    INTO assign_start, override_minor
+    SELECT assignment.starts_on, contract.amount_minor
+    INTO assign_start, rate_minor
     FROM public.booth_assignments AS assignment
-    LEFT JOIN public.assignment_rent AS override ON override.assignment_id = assignment.id
+    JOIN public.assignment_rent AS contract ON contract.assignment_id = assignment.id
     WHERE assignment.booth_id = booth_ref::uuid
       AND assignment.assignment_range @> NEW.posting_date
     ORDER BY assignment.starts_on DESC
     LIMIT 1
-    FOR UPDATE OF assignment;
+    FOR UPDATE OF assignment, contract;
 
     IF assign_start IS NULL THEN
+        IF EXISTS (
+            SELECT 1
+            FROM public.booth_assignments AS assignment
+            WHERE assignment.booth_id = booth_ref::uuid
+              AND assignment.assignment_range @> NEW.posting_date
+        ) THEN
+            RAISE EXCEPTION 'a rent charge requires the booth rate from the assignment'
+                USING ERRCODE = '23514';
+        END IF;
         RAISE EXCEPTION 'a rent charge requires an assignment that covers the charge date'
-            USING ERRCODE = '23514';
-    END IF;
-
-    IF override_minor IS NOT NULL THEN
-        rate_minor := override_minor;
-    ELSE
-        SELECT amount_minor INTO rate_minor
-        FROM public.booth_rent_rates
-        WHERE booth_id = booth_ref::uuid
-          AND month_start <= assign_start
-        ORDER BY month_start DESC
-        LIMIT 1
-        FOR UPDATE;
-    END IF;
-
-    IF rate_minor IS NULL THEN
-        RAISE EXCEPTION 'a rent charge requires the booth rate from the assignment'
             USING ERRCODE = '23514';
     END IF;
 

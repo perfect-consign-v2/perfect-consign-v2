@@ -17,8 +17,13 @@ VALUES (
     '2032-03-01'
 );
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-00000000f301', '2032-03-01', 1000);
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-00000000f301', 1000);
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+SELECT assignment.id, rate.amount_minor
+FROM booth_assignments AS assignment
+JOIN booth_rent_rates AS rate ON rate.booth_id = assignment.booth_id
+ON CONFLICT (assignment_id) DO NOTHING;
 
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (
@@ -352,21 +357,24 @@ VALUES
     ('01900000-0000-7000-8000-00000000f31a', '01900000-0000-7000-8000-00000000f21a', '2034-02-01', '2034-02-28'),
     ('01900000-0000-7000-8000-00000000f31c', '01900000-0000-7000-8000-00000000f21c', '2034-05-01', '2034-07-31');
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
 VALUES
-    ('01900000-0000-7000-8000-00000000f310', '2034-06-01', 800),
-    ('01900000-0000-7000-8000-00000000f311', '2034-06-01', 1000),
-    ('01900000-0000-7000-8000-00000000f312', '2034-06-01', 1000),
-    ('01900000-0000-7000-8000-00000000f313', '2034-06-01', 1000),
-    ('01900000-0000-7000-8000-00000000f314', '2034-05-01', 1000),
-    ('01900000-0000-7000-8000-00000000f314', '2034-06-01', 1000),
-    ('01900000-0000-7000-8000-00000000f315', '2034-06-01', 300),
-    ('01900000-0000-7000-8000-00000000f317', '2034-06-01', 1000),
-    ('01900000-0000-7000-8000-00000000f318', '2034-09-01', 800),
-    ('01900000-0000-7000-8000-00000000f31a', '2034-02-01', 1000),
-    ('01900000-0000-7000-8000-00000000f31c', '2034-05-01', 1000),
-    ('01900000-0000-7000-8000-00000000f31c', '2034-06-01', 1000),
-    ('01900000-0000-7000-8000-00000000f31c', '2034-07-01', 1000);
+    ('01900000-0000-7000-8000-00000000f310', 800),
+    ('01900000-0000-7000-8000-00000000f311', 1000),
+    ('01900000-0000-7000-8000-00000000f312', 1000),
+    ('01900000-0000-7000-8000-00000000f313', 1000),
+    ('01900000-0000-7000-8000-00000000f314', 1000),
+    ('01900000-0000-7000-8000-00000000f315', 300),
+    ('01900000-0000-7000-8000-00000000f317', 1000),
+    ('01900000-0000-7000-8000-00000000f318', 800),
+    ('01900000-0000-7000-8000-00000000f31a', 1000),
+    ('01900000-0000-7000-8000-00000000f31c', 1000);
+
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+SELECT assignment.id, rate.amount_minor
+FROM booth_assignments AS assignment
+JOIN booth_rent_rates AS rate ON rate.booth_id = assignment.booth_id
+ON CONFLICT (assignment_id) DO NOTHING;
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
 VALUES
@@ -709,6 +717,14 @@ VALUES (
     2, '01900000-0000-7000-8000-000000000017', 0, 1000
 );
 
+UPDATE payout_runs
+SET status = 'settled', settled_at = clock_timestamp()
+WHERE status = 'draft'
+  AND kind = 'batch'
+  AND sales_from = DATE '2034-06-01'
+  AND sales_to = DATE '2034-06-30'
+  AND rent_month = DATE '2034-06-01';
+
 INSERT INTO payout_runs (
     id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
 ) VALUES (
@@ -1027,6 +1043,14 @@ INSERT INTO journal_lines (
     ('01900000-0000-7000-8000-00000000fa43', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000015', 1000, 0, 'booth', '01900000-0000-7000-8000-00000000f314'),
     ('01900000-0000-7000-8000-00000000fa44', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 0, 3000, 'vendor', '01900000-0000-7000-8000-00000000f214');
 
+UPDATE payout_runs
+SET status = 'settled', settled_at = clock_timestamp()
+WHERE status = 'draft'
+  AND kind = 'batch'
+  AND sales_from = DATE '2034-06-01'
+  AND sales_to = DATE '2034-06-30'
+  AND rent_month = DATE '2034-06-01';
+
 INSERT INTO payout_runs (
     id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
 ) VALUES (
@@ -1161,6 +1185,14 @@ VALUES
 UPDATE tickets
 SET status = 'posted', posted_journal_id = '01900000-0000-7000-8000-00000000fa50'
 WHERE id = '01900000-0000-7000-8000-00000000f710';
+
+UPDATE payout_runs
+SET status = 'settled', settled_at = clock_timestamp()
+WHERE status = 'draft'
+  AND kind = 'batch'
+  AND sales_from = DATE '2034-06-01'
+  AND sales_to = DATE '2034-06-30'
+  AND rent_month = DATE '2034-06-01';
 
 INSERT INTO payout_runs (
     id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
@@ -2107,8 +2139,13 @@ VALUES (
     '2034-06-01'
 );
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-00000000f320', '2034-06-01', 1000);
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-00000000f320', 1000);
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+SELECT assignment.id, rate.amount_minor
+FROM booth_assignments AS assignment
+JOIN booth_rent_rates AS rate ON rate.booth_id = assignment.booth_id
+ON CONFLICT (assignment_id) DO NOTHING;
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
@@ -2135,6 +2172,14 @@ INSERT INTO journal_lines (
     2, '01900000-0000-7000-8000-000000000014', 0, 3000, 'vendor', '01900000-0000-7000-8000-00000000f220'
 );
 
+UPDATE payout_runs
+SET status = 'settled', settled_at = clock_timestamp()
+WHERE status = 'draft'
+  AND kind = 'batch'
+  AND sales_from = DATE '2034-06-01'
+  AND sales_to = DATE '2034-06-30'
+  AND rent_month = DATE '2034-06-01';
+
 INSERT INTO payout_runs (
     id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
 ) VALUES (
@@ -2157,6 +2202,31 @@ BEGIN
     IF check_amount <> 3000 OR settled_amount <> 0 OR owed <> 1000 THEN
         RAISE EXCEPTION 'rent paid separately was still taken from the share (% % %)', check_amount, settled_amount, owed;
     END IF;
+END $$;
+
+INSERT INTO payout_runs (
+    id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
+) VALUES (
+    '01900000-0000-7000-8000-00000000f930',
+    '01900000-0000-7000-8000-000000000001',
+    'batch', 'monthly', '2035-01-01', '2035-01-31', '2035-01-01', 'check', 'draft', '2035-01-31'
+);
+
+DO $$
+BEGIN
+    INSERT INTO payout_runs (
+        id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
+    ) VALUES (
+        '01900000-0000-7000-8000-00000000f931',
+        '01900000-0000-7000-8000-000000000001',
+        'batch', 'monthly', '2035-01-01', '2035-01-31', '2035-01-01', 'check', 'draft', '2035-01-31'
+    );
+    RAISE EXCEPTION 'a second draft for the same window was accepted';
+EXCEPTION
+    WHEN unique_violation THEN
+        IF SQLERRM NOT LIKE '%payout_runs_one_draft_window%' THEN
+            RAISE;
+        END IF;
 END $$;
 
 ROLLBACK;

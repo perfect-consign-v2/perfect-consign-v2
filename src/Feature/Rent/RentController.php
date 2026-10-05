@@ -10,6 +10,7 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\LedgerStore;
 
 final class RentController
 {
@@ -21,6 +22,7 @@ final class RentController
         private readonly ActiveRegister $drawers,
         private readonly MallPayoutSettings $settings,
         private readonly RentReceipt $receipts,
+        private readonly LedgerStore $ledger,
     ) {
     }
 
@@ -87,15 +89,7 @@ final class RentController
             $this->showCollect($slug, $error->getMessage());
             return;
         }
-        $path = '/' . $slug . '/rent/receipt/' . $journalId;
-        $tendered = trim($this->app->request()->field('cash_tendered'));
-        if ($tendered === '') {
-            $tendered = trim($this->app->request()->field('tender_cash'));
-        }
-        if (trim($this->app->request()->field('tender_cash')) !== '') {
-            $path .= '?tendered=' . rawurlencode($tendered);
-        }
-        $this->app->redirect($path);
+        $this->app->redirect('/' . $slug . '/rent/receipt/' . $journalId);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/rent/receipt/([0-9a-fA-F-]{36})', ['GET'])]
@@ -113,7 +107,7 @@ final class RentController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'slip' => $slip,
-            'change' => $this->receipts->change($this->app->request()->query('tendered'), $slip['cash']),
+            'change' => $this->receipts->change($this->ledger->cashTendered($journalId), $slip['cash']),
         ]);
     }
 

@@ -9,6 +9,7 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -22,6 +23,7 @@ final class PosPayController
         private readonly SalePoster $poster,
         private readonly MallSettings $mall,
         private readonly SaleCheckout $checkout,
+        private readonly LedgerStore $ledger,
     ) {
     }
 
@@ -107,7 +109,7 @@ final class PosPayController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'receipt' => $receipt,
-            'change' => $this->change($this->app->request()->query('tendered'), $receipt['cash']),
+            'change' => $this->change($this->ledger->cashTendered($id), $receipt['cash']),
             'error' => $error,
         ]);
     }

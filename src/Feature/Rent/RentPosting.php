@@ -56,7 +56,7 @@ final class RentPosting
         array $debits,
     ): string {
         if ($this->settings->rentPrepaid()) {
-            $quote = $this->payouts->quote($vendorId, $today);
+            $quote = $this->payouts->quotedRun($vendorId, $today);
             if ($quote === null) {
                 throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
             }
@@ -76,6 +76,7 @@ final class RentPosting
             lines: $lines,
             sessionId: $sessionId,
             checkNumber: $check,
+            tenderedMinor: $this->tenderedMinor($tender),
         ));
     }
 
@@ -119,6 +120,19 @@ final class RentPosting
         if ($checks < 1 && $number !== '') {
             throw new DatabaseRefusal('a cash or card rent receipt has no check number');
         }
+    }
+
+    /**
+     * @param array{cash: string, card: string, checks: string, tendered: string, check: string} $tender
+     */
+    private function tenderedMinor(array $tender): ?int
+    {
+        if ($this->minor($tender['cash']) < 1) {
+            return null;
+        }
+        $raw = trim($tender['tendered']);
+
+        return $raw === '' ? $this->minor($tender['cash']) : $this->minor($raw);
     }
 
     private function handed(int $cash, string $raw): void

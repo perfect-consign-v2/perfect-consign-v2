@@ -150,6 +150,21 @@ final class LedgerStore
         );
     }
 
+    public function cashTendered(string $journalId): string
+    {
+        $rows = $this->pdo->prepare(
+            'SELECT tendered_minor FROM journal_cash_tendered WHERE journal_id = ?::uuid'
+        );
+        $rows->execute([$journalId]);
+        $minor = $rows->fetchColumn();
+        if (!is_int($minor) && !is_string($minor)) {
+            return '';
+        }
+        $cents = (int) $minor;
+
+        return intdiv($cents, 100) . '.' . str_pad((string) ($cents % 100), 2, '0', STR_PAD_LEFT);
+    }
+
     public function post(JournalDraft $draft): string
     {
         return $this->commitJournal($draft);
@@ -174,6 +189,12 @@ final class LedgerStore
                 $draft->reversesJournalId,
             );
             $this->linkSession($journalId, $draft->sessionId, $draft->checkNumber);
+            if ($draft->tenderedMinor !== null && $draft->tenderedMinor > 0) {
+                $tendered = $this->pdo->prepare(
+                    'INSERT INTO journal_cash_tendered (journal_id, tendered_minor) VALUES (?::uuid, ?)'
+                );
+                $tendered->execute([$journalId, $draft->tenderedMinor]);
+            }
             if ($draft->beforeCommit !== null) {
                 $finished = $draft->beforeCommit;
                 $finished($journalId);

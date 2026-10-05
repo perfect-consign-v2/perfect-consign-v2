@@ -144,7 +144,6 @@ final class CoverageRemainderTest extends WebTestCase
             'name' => 'Booth ' . $tag,
             'width_ft' => '12',
             'depth_ft' => '8',
-            'month_start' => '2026-09-01',
             'amount' => '100.00',
         ]);
         self::assertSees('Booth created.', $booth);
@@ -218,7 +217,6 @@ final class CoverageRemainderTest extends WebTestCase
         $moveIn = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => 'm' . $tag,
             'name' => 'Move ' . $tag,
-            'month_start' => '2026-06-01',
             'amount' => '90.00',
         ]);
         self::assertSees('Booth created.', $moveIn);
@@ -240,7 +238,6 @@ final class CoverageRemainderTest extends WebTestCase
         $special = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => 'o' . $tag,
             'name' => 'Override ' . $tag,
-            'month_start' => '2026-03-01',
             'amount' => '31.00',
         ]);
         self::assertSees('Booth created.', $special);
@@ -264,7 +261,6 @@ final class CoverageRemainderTest extends WebTestCase
         $vacant = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => 'v' . $tag,
             'name' => 'Vacant ' . $tag,
-            'month_start' => '2026-06-01',
             'amount' => '77.00',
         ]);
         self::assertSees('Booth created.', $vacant);
@@ -317,7 +313,6 @@ final class CoverageRemainderTest extends WebTestCase
         $booth = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => $boothCode,
             'name' => 'Rent ' . $tag,
-            'month_start' => $month,
             'amount' => '40.00',
         ]);
         $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', $boothCode);

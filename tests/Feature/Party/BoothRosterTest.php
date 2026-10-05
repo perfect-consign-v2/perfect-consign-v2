@@ -32,9 +32,7 @@ final class BoothRosterTest extends TestCase
                 $this->stay(self::SOUTH, self::ADA, 'Bea', '2026-10-01', null),
             ],
             [
-                ['booth_id' => self::NORTH, 'month_start' => '2026-08-01', 'amount_minor' => 8000],
-                ['booth_id' => self::NORTH, 'month_start' => '2026-09-01', 'amount_minor' => 9000],
-                ['booth_id' => self::NORTH, 'month_start' => '2026-10-01', 'amount_minor' => 10000],
+                ['booth_id' => self::NORTH, 'amount_minor' => 9000],
             ],
             [
                 ['booth_id' => self::NORTH, 'open_minor' => 9000],
@@ -179,9 +177,7 @@ final class BoothRosterTest extends TestCase
                 $this->stay(self::NORTH, self::EAST, 'Ada', '2026-10-03', null),
             ],
             [
-                ['booth_id' => self::NORTH, 'month_start' => '2026-09-27', 'amount_minor' => 1000],
-                ['booth_id' => self::NORTH, 'month_start' => '2026-09-27', 'amount_minor' => 2000],
-                ['booth_id' => self::NORTH, 'month_start' => '2026-09-28', 'amount_minor' => 3000],
+                ['booth_id' => self::NORTH, 'amount_minor' => 1000],
             ],
             [],
             [],

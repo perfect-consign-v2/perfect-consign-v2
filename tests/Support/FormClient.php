@@ -51,6 +51,11 @@ final class FormClient
     /**
      * @param array<string, string> $fields
      */
+    public function postUnsigned(string $path, array $fields): PageResponse
+    {
+        return $this->send('POST', $path, $fields, false, 60);
+    }
+
     public function post(string $path, array $fields, int $timeoutSeconds = 60): PageResponse
     {
         $fields['csrf'] = $this->csrf;

@@ -34,17 +34,9 @@ final class RentStore
     public function rate(string $boothId, string $date): ?int
     {
         $rows = $this->statements->bound(
-            "SELECT COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
+            "SELECT contract.amount_minor
              FROM booth_assignments AS assignment
-             LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
-             LEFT JOIN LATERAL (
-                 SELECT amount_minor
-                 FROM booth_rent_rates
-                 WHERE booth_id = assignment.booth_id
-                   AND month_start <= assignment.starts_on
-                 ORDER BY month_start DESC
-                 LIMIT 1
-             ) AS listed ON true
+             JOIN assignment_rent AS contract ON contract.assignment_id = assignment.id
              WHERE assignment.booth_id = ?::uuid
                AND assignment.starts_on <= ?::date
                AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
@@ -104,18 +96,21 @@ final class RentStore
         }
         $due = [];
         foreach ($this->statements->bound(
-            "SELECT DISTINCT to_char(rate.month_start, 'YYYY-MM') AS month
-             FROM booth_rent_rates AS rate
-             JOIN booth_assignments AS assignment ON assignment.booth_id = rate.booth_id
-               AND assignment.starts_on <= (rate.month_start + interval '1 month' - interval '1 day')::date
-               AND (assignment.ends_on IS NULL OR assignment.ends_on >= rate.month_start)
-             WHERE rate.month_start <= date_trunc('month', ?::date)::date
-               AND to_char(rate.month_start, 'YYYY-MM') <> ?
+            "SELECT DISTINCT to_char(series.month_start, 'YYYY-MM') AS month
+             FROM booth_assignments AS assignment
+             JOIN generate_series(
+                 date_trunc('month', assignment.starts_on),
+                 date_trunc('month', ?::date),
+                 interval '1 month'
+             ) AS series(month_start) ON true
+             WHERE assignment.starts_on <= (series.month_start + interval '1 month' - interval '1 day')::date
+               AND (assignment.ends_on IS NULL OR assignment.ends_on >= series.month_start::date)
+               AND to_char(series.month_start, 'YYYY-MM') <> ?
                AND NOT EXISTS (
                    SELECT 1
                    FROM journals AS posted
                    WHERE posted.source_type = 'rent_charge'
-                     AND posted.posting_key = 'rent-charge:' || rate.booth_id::text || ':' || to_char(rate.month_start, 'YYYY-MM')
+                     AND posted.posting_key = 'rent-charge:' || assignment.booth_id::text || ':' || to_char(series.month_start, 'YYYY-MM')
                      AND NOT EXISTS (
                          SELECT 1 FROM journals AS reversal
                          WHERE reversal.reverses_journal_id = posted.id
@@ -214,38 +209,26 @@ final class RentStore
             $this->statements->bound(
                 "SELECT DISTINCT ON (assignment.booth_id)
                         assignment.booth_id::text AS booth_id,
-                        COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
+                        contract.amount_minor
                  FROM booth_assignments AS assignment
-                 LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
-                 LEFT JOIN LATERAL (
-                     SELECT amount_minor
-                     FROM booth_rent_rates
-                     WHERE booth_id = assignment.booth_id
-                       AND month_start <= assignment.starts_on
-                     ORDER BY month_start DESC
-                     LIMIT 1
-                 ) AS listed ON true
+                 JOIN assignment_rent AS contract ON contract.assignment_id = assignment.id
                  WHERE assignment.starts_on <= ?::date
                    AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
-                   AND COALESCE(override.amount_minor, listed.amount_minor) IS NOT NULL
                  ORDER BY assignment.booth_id, assignment.starts_on DESC",
                 [$end, $start]
             ),
             $this->statements->bound(
-                "SELECT DISTINCT ON (rate.booth_id)
-                        rate.booth_id::text AS booth_id,
-                        rate.amount_minor
+                "SELECT rate.booth_id::text AS booth_id, rate.amount_minor
                  FROM booth_rent_rates AS rate
-                 WHERE rate.month_start <= ?::date
-                   AND NOT EXISTS (
-                       SELECT 1
-                       FROM booth_assignments AS assignment
-                       WHERE assignment.booth_id = rate.booth_id
-                         AND assignment.starts_on <= ?::date
-                         AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
-                   )
-                 ORDER BY rate.booth_id, rate.month_start DESC",
-                [$end, $end, $start]
+                 WHERE NOT EXISTS (
+                     SELECT 1
+                     FROM booth_assignments AS assignment
+                     WHERE assignment.booth_id = rate.booth_id
+                       AND assignment.starts_on <= ?::date
+                       AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
+                 )
+                 ORDER BY rate.booth_id",
+                [$end, $start]
             )
         );
     }

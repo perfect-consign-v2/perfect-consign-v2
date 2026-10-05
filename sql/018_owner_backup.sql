@@ -15,7 +15,7 @@ END $$;
 
 CREATE TABLE IF NOT EXISTS platform.owner_backups (
     id uuid PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES platform.tenants (id),
+    tenant_id uuid NOT NULL,
     completed_at timestamptz NOT NULL,
     byte_size bigint NOT NULL,
     sha256 text NOT NULL,

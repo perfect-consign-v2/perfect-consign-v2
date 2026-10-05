@@ -92,8 +92,13 @@ VALUES (
     '2034-03-01'
 );
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-00000000f501', '2034-03-01', 1000);
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-00000000f501', 1000);
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+SELECT assignment.id, rate.amount_minor
+FROM booth_assignments AS assignment
+JOIN booth_rent_rates AS rate ON rate.booth_id = assignment.booth_id
+ON CONFLICT (assignment_id) DO NOTHING;
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,

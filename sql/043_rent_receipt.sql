@@ -127,3 +127,14 @@ BEGIN
             EXECUTE FUNCTION stall_assert_rent_payment();
     END IF;
 END $$;
+
+CREATE TABLE IF NOT EXISTS journal_cash_tendered (
+    journal_id uuid PRIMARY KEY REFERENCES journals (id),
+    tendered_minor bigint NOT NULL,
+    CONSTRAINT journal_cash_tendered_amount_chk CHECK (tendered_minor > 0)
+);
+
+REVOKE ALL ON TABLE journal_cash_tendered FROM PUBLIC;
+GRANT SELECT, INSERT ON journal_cash_tendered TO stall_poster;
+REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER ON journal_cash_tendered FROM stall_poster;
+GRANT SELECT ON journal_cash_tendered TO stall_backup;

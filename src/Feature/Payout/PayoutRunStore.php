@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Payout;
 
+use PDOException;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -97,27 +98,69 @@ final class PayoutRunStore
         );
     }
 
-    public function ensureDraft(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string
+    public function openDraft(string $salesFrom, string $salesTo, string $rentMonth): ?string
     {
         $rows = $this->statements->bound(
             "SELECT id FROM payout_runs
-             WHERE status = 'draft' AND sales_from = ?::date AND sales_to = ?::date AND rent_month = ?::date
+             WHERE status = 'draft' AND kind = 'batch' AND reverses_run_id IS NULL
+               AND sales_from = ?::date AND sales_to = ?::date AND rent_month = ?::date
              ORDER BY created_at DESC LIMIT 1",
             [$salesFrom, $salesTo, $rentMonth]
         );
-        if ($rows !== []) {
-            $id = RowValue::string($rows[0]['id'] ?? null);
+        if ($rows === []) {
+            return null;
+        }
+
+        return RowValue::string($rows[0]['id'] ?? null);
+    }
+
+    /**
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     */
+    public function preview(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): array
+    {
+        return $this->lines(
+            'SELECT vendor_id, code, name, booth, mode, prior, charged, paid, payable, rent,
+                    "check" AS check_amount, owes AS owe_amount, settled_minor, adjustment_minor
+             FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date)
+             WHERE mode = ?
+             ORDER BY code',
+            [$salesFrom, $salesTo, $rentMonth, $postingDate, 'pay']
+        );
+    }
+
+    public function ensureDraft(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string
+    {
+        $existing = $this->openDraft($salesFrom, $salesTo, $rentMonth);
+        if ($existing !== null) {
             $this->statements->change(
                 "UPDATE payout_runs
                  SET posting_date = ?::date
                  WHERE id = ?::uuid AND status = 'draft' AND posting_date IS DISTINCT FROM ?::date",
-                [$postingDate, $id, $postingDate]
+                [$postingDate, $existing, $postingDate]
             );
 
-            return $id;
+            return $existing;
         }
+        try {
+            return $this->begin($salesFrom, $salesTo, $rentMonth, $postingDate);
+        } catch (PDOException $error) {
+            if ($error->getCode() !== '23505') {
+                throw $error;
+            }
+            $winner = $this->openDraft($salesFrom, $salesTo, $rentMonth);
+            if ($winner === null) {
+                throw $error;
+            }
+            $this->statements->change(
+                "UPDATE payout_runs
+                 SET posting_date = ?::date
+                 WHERE id = ?::uuid AND status = 'draft' AND posting_date IS DISTINCT FROM ?::date",
+                [$postingDate, $winner, $postingDate]
+            );
 
-        return $this->begin($salesFrom, $salesTo, $rentMonth, $postingDate);
+            return $winner;
+        }
     }
 
     public function review(string $runId): void

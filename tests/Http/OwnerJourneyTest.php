@@ -124,16 +124,15 @@ final class OwnerJourneyTest extends WebTestCase
         $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
         $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
+        $this->client->post('/' . ProbeMall::SLUG . '/rates', [
+            'booth_id' => $boothId,
+            'amount' => '100.00',
+        ]);
         $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
             'booth_id' => $boothId,
             'vendor_id' => $vendorId,
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
-        ]);
-        $this->client->post('/' . ProbeMall::SLUG . '/rates', [
-            'booth_id' => $boothId,
-            'month_start' => ProbeMall::PERIOD_START,
-            'amount' => '100.00',
         ]);
         $book = $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
             'booth_id' => $boothId,
@@ -543,16 +542,15 @@ final class OwnerJourneyTest extends WebTestCase
         $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
         $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
+        $this->client->post('/' . ProbeMall::SLUG . '/rates', [
+            'booth_id' => $boothId,
+            'amount' => '100.00',
+        ]);
         $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
             'booth_id' => $boothId,
             'vendor_id' => $vendorId,
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
-        ]);
-        $this->client->post('/' . ProbeMall::SLUG . '/rates', [
-            'booth_id' => $boothId,
-            'month_start' => ProbeMall::PERIOD_START,
-            'amount' => '100.00',
         ]);
         $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
             'booth_id' => $boothId,

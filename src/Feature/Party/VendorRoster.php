@@ -275,8 +275,11 @@ final class VendorRoster
         if ($filter === 'incoming') {
             return $vendor['upcoming'] !== [];
         }
+        if ($filter === 'inactive') {
+            return $vendor['status'] === 'inactive';
+        }
 
-        return true;
+        return $filter === '';
     }
 
     private function named(string $code, string $name, string $needle): bool

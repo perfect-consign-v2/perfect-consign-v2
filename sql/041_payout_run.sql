@@ -90,6 +90,14 @@ CREATE TABLE IF NOT EXISTS payout_runs (
     CONSTRAINT payout_runs_book_id_key UNIQUE (book_id, id)
 );
 
+CREATE UNIQUE INDEX payout_runs_one_draft_window ON payout_runs (
+    book_id,
+    sales_from,
+    sales_to,
+    (COALESCE(rent_month, DATE '0001-01-01'))
+)
+WHERE status = 'draft' AND reverses_run_id IS NULL AND kind = 'batch';
+
 CREATE TABLE IF NOT EXISTS book_payout_run_counters (
     book_id uuid PRIMARY KEY REFERENCES ledger_books (id),
     last_no bigint NOT NULL,
@@ -222,28 +230,73 @@ RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog
 AS $$
+DECLARE
+    source text;
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM public.journals
-        WHERE id = NEW.journal_id
-          AND source_type = 'check_disbursement'
-    ) THEN
+    SELECT journal.source_type INTO source
+    FROM public.journals AS journal
+    WHERE journal.id = NEW.journal_id;
+
+    IF source = 'check_disbursement' THEN
+        IF EXISTS (
+            SELECT 1
+            FROM public.register_checks AS existing
+            JOIN public.journals AS journal ON journal.id = existing.journal_id
+            WHERE existing.check_number = NEW.check_number
+              AND existing.journal_id <> NEW.journal_id
+              AND journal.source_type = 'check_disbursement'
+              AND NOT EXISTS (
+                  SELECT 1 FROM public.journals AS reversal
+                  WHERE reversal.reverses_journal_id = journal.id
+              )
+        ) THEN
+            RAISE EXCEPTION 'a disbursement check number is unique'
+                USING ERRCODE = '23514';
+        END IF;
         RETURN NEW;
     END IF;
+
+    IF source IS DISTINCT FROM 'rent_payment' THEN
+        RETURN NEW;
+    END IF;
+
     IF EXISTS (
         SELECT 1
         FROM public.register_checks AS existing
         JOIN public.journals AS journal ON journal.id = existing.journal_id
+        JOIN public.journal_lines AS line
+          ON line.journal_id = journal.id
+         AND line.subledger_type = 'booth'
+        JOIN public.chart_roles AS role
+          ON role.account_id = line.account_id
+         AND role.role = 'booth_rent_receivable'
+        JOIN public.booth_assignments AS assignment
+          ON assignment.booth_id = line.subledger_ref::uuid
+         AND assignment.assignment_range @> journal.posting_date
         WHERE existing.check_number = NEW.check_number
           AND existing.journal_id <> NEW.journal_id
-          AND journal.source_type = 'check_disbursement'
+          AND journal.source_type = 'rent_payment'
           AND NOT EXISTS (
               SELECT 1 FROM public.journals AS reversal
               WHERE reversal.reverses_journal_id = journal.id
           )
+          AND assignment.vendor_id = (
+              SELECT covering.vendor_id
+              FROM public.journals AS receipt
+              JOIN public.journal_lines AS credit
+                ON credit.journal_id = receipt.id
+               AND credit.subledger_type = 'booth'
+              JOIN public.chart_roles AS credit_role
+                ON credit_role.account_id = credit.account_id
+               AND credit_role.role = 'booth_rent_receivable'
+              JOIN public.booth_assignments AS covering
+                ON covering.booth_id = credit.subledger_ref::uuid
+               AND covering.assignment_range @> receipt.posting_date
+              WHERE receipt.id = NEW.journal_id
+              LIMIT 1
+          )
     ) THEN
-        RAISE EXCEPTION 'a disbursement check number is unique'
+        RAISE EXCEPTION 'a received check number is unique for that vendor'
             USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
@@ -655,6 +708,44 @@ ALTER TABLE journals ENABLE ALWAYS TRIGGER journals_store_purchase;
 ALTER TABLE register_checks ENABLE ALWAYS TRIGGER register_checks_disbursement_number;
 
 -- One projection. Review hashes it live. Post stores the same rows and hashes those.
+-- A preview sets the stall.pack_* settings and reads the nil run. A saved run does not.
+
+CREATE OR REPLACE FUNCTION stall_pack_runs()
+RETURNS TABLE (
+    id uuid,
+    sales_from date,
+    sales_to date,
+    rent_month date,
+    posting_date date
+)
+LANGUAGE sql
+VOLATILE
+AS $$
+    SELECT run.id, run.sales_from, run.sales_to, run.rent_month, run.posting_date
+    FROM public.payout_runs AS run
+    UNION ALL
+    SELECT
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        CASE
+            WHEN current_setting('stall.pack_from', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            THEN current_setting('stall.pack_from', true)::date
+        END,
+        CASE
+            WHEN current_setting('stall.pack_to', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            THEN current_setting('stall.pack_to', true)::date
+        END,
+        CASE
+            WHEN current_setting('stall.pack_rent', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            THEN current_setting('stall.pack_rent', true)::date
+        END,
+        CASE
+            WHEN current_setting('stall.pack_posting', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            THEN current_setting('stall.pack_posting', true)::date
+        END
+    WHERE current_setting('stall.pack_from', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      AND current_setting('stall.pack_to', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      AND current_setting('stall.pack_posting', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$';
+$$;
 
 CREATE OR REPLACE VIEW payout_pack_sales AS
 SELECT
@@ -671,7 +762,7 @@ SELECT
     sale.tax_minor,
     sale.discount_minor,
     sale.quantity
-FROM payout_runs AS run
+FROM stall_pack_runs() AS run
 JOIN journals AS journal
     ON journal.posting_date BETWEEN run.sales_from AND run.sales_to
    AND journal.source_type = 'sale'
@@ -706,7 +797,7 @@ SELECT
         ) / EXTRACT(DAY FROM (series.month_start::date + interval '1 month - 1 day'))::integer
         ELSE rate.amount_minor
     END AS amount
-FROM payout_runs AS run
+FROM stall_pack_runs() AS run
 JOIN vendors AS vendor ON vendor.active
 JOIN booth_assignments AS assignment ON assignment.vendor_id = vendor.id
 JOIN LATERAL generate_series(
@@ -714,18 +805,7 @@ JOIN LATERAL generate_series(
     date_trunc('month', LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date))::timestamp,
     interval '1 month'
 ) AS series(month_start) ON assignment.starts_on <= LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date)
-JOIN LATERAL (
-    SELECT COALESCE(override.amount_minor, listed.amount_minor) AS amount_minor
-    FROM (
-        SELECT amount_minor
-        FROM booth_rent_rates
-        WHERE booth_id = assignment.booth_id
-          AND month_start <= assignment.starts_on
-        ORDER BY month_start DESC
-        LIMIT 1
-    ) AS listed
-    LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
-) AS rate ON true
+JOIN assignment_rent AS rate ON rate.assignment_id = assignment.id
 WHERE NOT EXISTS (
     SELECT 1
     FROM journals AS journal
@@ -749,12 +829,12 @@ WITH params AS (
         vendor.code,
         btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
         vendor.payout_mode AS mode
-    FROM payout_runs AS run
+    FROM stall_pack_runs() AS run
     JOIN vendors AS vendor ON vendor.active
 ),
 own AS (
     SELECT run.id AS run_id, journal.id AS journal_id
-    FROM payout_runs AS run
+    FROM stall_pack_runs() AS run
     JOIN journals AS journal
         ON journal.posting_key LIKE 'settlement:' || run.id::text || ':%'
         OR journal.posting_key LIKE 'disbursement:' || run.id::text || ':%'
@@ -910,6 +990,7 @@ figures AS (
         params.code,
         params.name,
         params.mode,
+        params.posting_date,
         COALESCE(sale.sales_minor, 0) AS sales_minor,
         COALESCE(sale.commission_minor, 0) AS commission_minor,
         COALESCE(sale.tax_minor, 0) AS tax_minor,
@@ -993,19 +1074,45 @@ SELECT
         THEN GREATEST(figures.rent_total_minor - figures.carried_payable_minor, 0)
         ELSE GREATEST(figures.rent_total_minor, 0)
     END AS owes,
-    mall_settings.rent_prepaid_from_prior_sales AS rent_from_sales
+    mall_settings.rent_prepaid_from_prior_sales AS rent_from_sales,
+    spot.booth_id
 FROM figures
 CROSS JOIN mall AS mall_settings
 LEFT JOIN LATERAL (
-    SELECT booth.code AS booth_code
+    SELECT booth.id AS booth_id, booth.code AS booth_code
     FROM booth_assignments AS assignment
     JOIN booths AS booth ON booth.id = assignment.booth_id
-    JOIN payout_runs AS run ON run.id = figures.run_id
     WHERE assignment.vendor_id = figures.vendor_id
-      AND assignment.assignment_range @> run.posting_date
+      AND assignment.assignment_range @> figures.posting_date
     ORDER BY booth.code
     LIMIT 1
 ) AS spot ON true;
+
+CREATE OR REPLACE FUNCTION stall_payout_pack(
+    target_run uuid,
+    window_from date,
+    window_to date,
+    window_rent date,
+    window_posting date
+)
+RETURNS SETOF payout_pack
+LANGUAGE plpgsql
+VOLATILE
+AS $$
+DECLARE
+    preview_id uuid := '00000000-0000-0000-0000-000000000000';
+BEGIN
+    PERFORM set_config('stall.pack_from', window_from::text, true);
+    PERFORM set_config('stall.pack_to', window_to::text, true);
+    PERFORM set_config('stall.pack_rent', COALESCE(window_rent::text, ''), true);
+    PERFORM set_config('stall.pack_posting', window_posting::text, true);
+    RETURN QUERY
+        SELECT *
+        FROM payout_pack
+        WHERE run_id = COALESCE(target_run, preview_id);
+    PERFORM set_config('stall.pack_from', '', true);
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION stall_pack_checksum(run uuid)
 RETURNS text
@@ -1157,6 +1264,8 @@ CREATE TRIGGER payout_runs_status
 ALTER TABLE payout_runs ENABLE ALWAYS TRIGGER payout_runs_status;
 
 GRANT SELECT ON payout_pack, payout_pack_sales, payout_missing_rent TO stall_poster, stall_backup;
+GRANT EXECUTE ON FUNCTION stall_pack_runs() TO stall_poster, stall_backup;
+GRANT EXECUTE ON FUNCTION stall_payout_pack(uuid, date, date, date, date) TO stall_poster, stall_backup;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON payout_runs, payout_run_lines, payout_run_sales, payout_run_journals TO stall_poster;
 REVOKE TRUNCATE, TRIGGER ON payout_runs, payout_run_lines, payout_run_sales, payout_run_journals FROM stall_poster;

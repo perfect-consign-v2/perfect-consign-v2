@@ -200,6 +200,22 @@ final class MallApp
         if (!is_string($slug) || $slug === '') {
             return null;
         }
+        $now = time();
+        $started = $this->session->get('signed_in_at');
+        $seen = $this->session->get('last_seen_at');
+        $startedAt = is_string($started) && ctype_digit($started) ? (int) $started : null;
+        $seenAt = is_string($seen) && ctype_digit($seen) ? (int) $seen : null;
+        if (
+            $startedAt === null
+            || $seenAt === null
+            || ($now - $startedAt) >= 86400
+            || ($now - $seenAt) >= 43200
+        ) {
+            $this->session->destroy();
+
+            return null;
+        }
+        $this->session->set('last_seen_at', (string) $now);
 
         return $slug;
     }

@@ -170,7 +170,8 @@ final class PartyController
         $this->app->open($slug, true);
         $inactive = $this->app->request()->field('standing') === 'inactive';
         $quoted = $this->payouts->quote($id, $this->mall->today());
-        if ($inactive && $quoted !== null && $quoted['rent'] > 0) {
+        $payable = $this->payouts->openPayout($id)['payable'];
+        if ($inactive && (($quoted !== null && $quoted['rent'] > 0) || $payable > 0)) {
             $this->refuseInactive($slug, $id);
 
             return;
@@ -225,7 +226,7 @@ final class PartyController
                 $this->app->request()->field('vendor_id'),
                 $startsOn,
                 $this->app->request()->field('ends_on'),
-                $this->offers->override($boothId, $startsOn, $this->app->request()->field('rent'))
+                $this->offers->contract($boothId, $this->app->request()->field('rent'))
             );
         });
     }
@@ -315,7 +316,7 @@ final class PartyController
         if ($vendor === null) {
             $this->app->notFound();
         }
-        $this->forms->form($slug, $vendor, 'A vendor with open rent cannot be made inactive.');
+        $this->forms->form($slug, $vendor, 'A vendor who is still owed, or who still owes rent, cannot be made inactive.');
     }
 
     private function showRecord(string $slug, string $id, ?string $error): void
@@ -361,7 +362,6 @@ final class PartyController
             'slug' => $tenant->slug,
             'vendor' => $vendor,
             'booths' => $this->offers->booths(),
-            'rates' => $this->parties->rates(),
             'error' => $error,
         ]);
     }

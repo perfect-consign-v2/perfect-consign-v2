@@ -15,8 +15,13 @@ VALUES (
     '2026-01-01'
 );
 
-INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor)
-VALUES ('01900000-0000-7000-8000-000000000201', '2026-01-01', 15000);
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000201', 15000);
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+SELECT assignment.id, rate.amount_minor
+FROM booth_assignments AS assignment
+JOIN booth_rent_rates AS rate ON rate.booth_id = assignment.booth_id
+ON CONFLICT (assignment_id) DO NOTHING;
 
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (
@@ -468,6 +473,166 @@ BEGIN
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         NULL;
+END $$;
+
+INSERT INTO booths (id, code, name)
+VALUES ('01900000-0000-7000-8000-000000000202', 'B2', 'Booth B2');
+
+INSERT INTO vendors (id, code, first_name, last_name)
+VALUES ('01900000-0000-7000-8000-000000000102', 'bea', 'Bea', 'Lane');
+
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
+VALUES (
+    '01900000-0000-7000-8000-000000000302',
+    '01900000-0000-7000-8000-000000000202',
+    '01900000-0000-7000-8000-000000000102',
+    '2026-01-01'
+);
+
+INSERT INTO booth_rent_rates (booth_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000202', 1000);
+
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000302', 1000);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-00000000070c',
+    '01900000-0000-7000-8000-000000000001',
+    'rent-charge:01900000-0000-7000-8000-000000000202:2026-03',
+    '2026-03-01',
+    '2026-03-01 08:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'rent_charge',
+    'B2:2026-03',
+    'March rent for booth B2',
+    1000,
+    1000
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-00000000070c',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000015',
+    1000,
+    0,
+    'booth',
+    '01900000-0000-7000-8000-000000000202'
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-00000000070c',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000017',
+    0,
+    1000
+);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-00000000070d',
+    '01900000-0000-7000-8000-000000000001',
+    'rent-payment:700d',
+    '2026-03-18',
+    '2026-03-18 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'rent_payment',
+    '700d',
+    'Booth B2 rent paid by the same check number',
+    1000,
+    1000
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-00000000070d',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-00000000001b',
+    1000,
+    0
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-00000000070d',
+    '01900000-0000-7000-8000-000000000001',
+    2,
+    '01900000-0000-7000-8000-000000000015',
+    0,
+    1000,
+    'booth',
+    '01900000-0000-7000-8000-000000000202'
+);
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-00000000070d');
+
+INSERT INTO register_checks (journal_id, check_number)
+VALUES ('01900000-0000-7000-8000-00000000070d', '1001');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+
+DO $$
+BEGIN
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-00000000070e',
+        '01900000-0000-7000-8000-000000000001',
+        'rent-payment:700e',
+        '2026-03-19',
+        '2026-03-19 12:00:00+00',
+        '01900000-0000-7000-8000-000000000021',
+        'USD',
+        'rent_payment',
+        '700e',
+        'Same vendor repeats check 1001',
+        1000,
+        1000
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES (
+        '01900000-0000-7000-8000-00000000070e',
+        '01900000-0000-7000-8000-000000000001',
+        1,
+        '01900000-0000-7000-8000-00000000001b',
+        1000,
+        0
+    );
+    INSERT INTO journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    ) VALUES (
+        '01900000-0000-7000-8000-00000000070e',
+        '01900000-0000-7000-8000-000000000001',
+        2,
+        '01900000-0000-7000-8000-000000000015',
+        0,
+        1000,
+        'booth',
+        '01900000-0000-7000-8000-000000000201'
+    );
+    INSERT INTO register_checks (journal_id, check_number)
+    VALUES ('01900000-0000-7000-8000-00000000070e', '1001');
+    RAISE EXCEPTION 'the same vendor reused a received check number';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a received check number is unique for that vendor%' THEN
+            RAISE;
+        END IF;
 END $$;
 
 ROLLBACK;

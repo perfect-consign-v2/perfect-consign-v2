@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use PerfectConsign\Feature\Party\MoveInRent;
 use PerfectConsign\Feature\Party\PartyRecord;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
@@ -12,7 +11,6 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $today */
 /** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, check_minor: int, owes_minor: int, settled_minor: int, rent_from_sales: bool, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>} $vendor */
 /** @var list<array<string, mixed>> $booths */
-/** @var list<array<string, mixed>> $rates */
 
 $sections = [
     'Current Booths' => $vendor['current'],
@@ -197,28 +195,10 @@ $blank = '—';
                                         <?php endif; ?>
                                     </td>
                                     <td class="num">
-                                        <?php
-                                        $thisRate = null;
-                                        $thisMonth = '';
-                                        foreach ($rates as $rate) {
-                                            if (($rate['booth_id'] ?? null) !== $assignment['booth_id']) {
-                                                continue;
-                                            }
-                                            $month = is_string($rate['month_start'] ?? null) ? substr($rate['month_start'], 0, 10) : '';
-                                            if ($month !== '' && $month <= $assignment['starts_on'] && $month >= $thisMonth) {
-                                                $thisMonth = $month;
-                                                $thisRate = View::minor($rate['amount_minor']);
-                                            }
-                                        }
-                                        $monthly = $assignment['rent_minor'] ?? $thisRate;
-                                        ?>
-                                        <?php if ($monthly === null): ?>
+                                        <?php if ($assignment['rent_minor'] === null): ?>
                                             <?= $blank ?>
                                         <?php else: ?>
-                                            <?= View::text(View::money(MoveInRent::due($monthly, $assignment['starts_on']))) ?>
-                                            <?php if ($assignment['rent_minor'] !== null): ?>
-                                                <span class="badge badge-warning">Overridden</span>
-                                            <?php endif; ?>
+                                            <?= View::text(View::money($assignment['rent_minor'])) ?>
                                         <?php endif; ?>
                                     </td>
                                 </tr>

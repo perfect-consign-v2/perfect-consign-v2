@@ -40,14 +40,12 @@ final class BoothController
         $this->app->checkCsrf();
         $this->change($slug, null, function (): void {
             $size = $this->fields->size();
-            $rate = $this->openingRate();
             $this->booths->addBooth(
                 $this->app->request()->field('code'),
                 $this->app->request()->field('name'),
                 $size['width'],
                 $size['depth'],
-                $rate['month'],
-                $rate['amount']
+                $this->askingAmount()
             );
         });
     }
@@ -76,6 +74,10 @@ final class BoothController
                 $size['width'],
                 $size['depth']
             );
+            $amount = $this->askingAmount();
+            if ($amount !== null) {
+                $this->booths->setAskingRent($id, $amount);
+            }
         });
     }
 
@@ -106,18 +108,18 @@ final class BoothController
         $this->app->open($slug, true);
         $error = null;
         try {
-            $this->booths->addRate(
-                $id,
-                $this->app->request()->field('month_start'),
-                Money::parseMinor($this->app->request()->field('amount'))
-            );
+            $amount = $this->askingAmount();
+            if ($amount === null) {
+                throw new \InvalidArgumentException('enter an asking rent');
+            }
+            $this->booths->setAskingRent($id, $amount);
         } catch (DatabaseRefusal $refusal) {
             $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null && preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1) {
-            $this->app->redirect('/' . $slug . '/booths/' . $id . '/edit', 'Monthly rent saved.');
+            $this->app->redirect('/' . $slug . '/booths/' . $id . '/edit', 'Asking rent saved.');
         }
         $booth = preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1 ? $this->booths->findBooth($id) : null;
         if ($booth === null) {
@@ -146,7 +148,6 @@ final class BoothController
             'name' => $this->app->request()->field('name'),
             'width_ft' => $this->app->request()->field('width_ft'),
             'depth_ft' => $this->app->request()->field('depth_ft'),
-            'month_start' => $this->app->request()->field('month_start'),
             'amount' => $this->app->request()->field('amount'),
         ];
         if ($id !== null) {
@@ -166,8 +167,7 @@ final class BoothController
             'title' => is_string($id) && $id !== '' ? 'Edit booth' : 'New booth',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'booth' => $booth,
-            'rates' => is_string($id) && $id !== '' ? $this->ratesFor($id) : [],
+            'booth' => $this->withAskingRent($booth),
             'defaultWidth' => $this->mall->boothSize()['width'],
             'defaultDepth' => $this->mall->boothSize()['depth'],
             'error' => $error,
@@ -224,35 +224,37 @@ final class BoothController
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @param array<string, mixed>|null $booth
+     * @return array<string, mixed>|null
      */
-    private function ratesFor(string $boothId): array
+    private function withAskingRent(?array $booth): ?array
     {
-        $matched = [];
-        foreach ($this->booths->rates() as $rate) {
-            if (($rate['booth_id'] ?? null) === $boothId) {
-                $matched[] = $rate;
-            }
+        if ($booth === null) {
+            return null;
+        }
+        if (($booth['amount'] ?? '') !== '') {
+            return $booth;
+        }
+        $id = $booth['id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            return $booth;
+        }
+        $minor = $this->booths->askingRent($id);
+        if ($minor !== null) {
+            $booth['amount'] = \PerfectConsign\Shared\Http\View::money($minor);
         }
 
-        return $matched;
+        return $booth;
     }
 
-    /**
-     * @return array{month: ?string, amount: ?int}
-     */
-    private function openingRate(): array
+    private function askingAmount(): ?int
     {
-        $month = $this->app->request()->field('month_start');
         $amount = $this->app->request()->field('amount');
-        if ($month === '' && $amount === '') {
-            return ['month' => null, 'amount' => null];
-        }
-        if ($month === '' || $amount === '') {
-            throw new \InvalidArgumentException('set both the rent month and the amount, or leave both empty');
+        if ($amount === '') {
+            return null;
         }
 
-        return ['month' => $month, 'amount' => Money::parseMinor($amount)];
+        return Money::parseMinor($amount);
     }
 
     private function standing(string $value): string

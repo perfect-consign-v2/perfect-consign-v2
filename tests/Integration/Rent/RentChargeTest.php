@@ -20,6 +20,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerPeriods;
 use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Shared\Database\CatalogLinks;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
@@ -37,13 +38,15 @@ final class RentChargeTest extends TestCase
         $rent = new RentStore($statements, new MallSettings($statements), new RentLines(), $ledger);
         $pdo->beginTransaction();
         try {
+            self::assertSame('', $ledger->cashTendered($ledger->newId()));
+            self::assertIsArray((new CatalogLinks($statements))->referenced('items'));
             $vendorId = $ledger->newId();
             $tag = substr(str_replace('-', '', $vendorId), 0, 6);
             $statements->change(
                 'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
                 [$vendorId, 'r' . $tag, 'Ada', 'Lane']
             );
-            $moveIn = $this->booth($statements, $ledger, 'm' . $tag, '2026-06-01', 9000);
+            $moveIn = $this->booth($statements, $ledger, 'm' . $tag, 9000);
             $this->assign($statements, $moveIn, $vendorId, '2026-06-15', null);
             $prorated = $rent->chargeAmount($moveIn, '2026-06-15');
             self::assertSame(4800, $prorated);
@@ -51,13 +54,13 @@ final class RentChargeTest extends TestCase
             $rent->postCharge($moveIn, '2026-06-15');
             self::assertFalse($this->listed($rent->uncharged('2026-10-04', '2026-10'), $moveIn, '2026-06', 4800));
 
-            $overridden = $this->booth($statements, $ledger, 'o' . $tag, '2026-03-01', 3100);
+            $overridden = $this->booth($statements, $ledger, 'o' . $tag, 3100);
             $this->assign($statements, $overridden, $vendorId, '2026-03-15', 6200);
             $override = $rent->chargeAmount($overridden, '2026-03-15');
             self::assertSame(3400, $override);
             $rent->postCharge($overridden, '2026-03-15');
 
-            $vacant = $this->booth($statements, $ledger, 'v' . $tag, '2026-06-01', 7700);
+            $vacant = $this->booth($statements, $ledger, 'v' . $tag, 7700);
             try {
                 $rent->chargeAmount($vacant, '2026-06-01');
                 self::fail('covering( a vacant booth was charged');
@@ -102,7 +105,7 @@ final class RentChargeTest extends TestCase
                 'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
                 [$vendorId, 'c' . $tag, 'Sam', 'Sun']
             );
-            $boothId = $this->booth($statements, $ledger, 'q' . $tag, '2026-06-01', 9000);
+            $boothId = $this->booth($statements, $ledger, 'q' . $tag, 9000);
             $this->assign($statements, $boothId, $vendorId, '2026-06-15', null);
             $charged = $rent->chargeAmount($boothId, '2026-06-15');
             self::assertSame(4800, $charged);
@@ -188,7 +191,7 @@ final class RentChargeTest extends TestCase
         return false;
     }
 
-    private function booth(Statements $statements, LedgerStore $ledger, string $code, string $month, int $rate): string
+    private function booth(Statements $statements, LedgerStore $ledger, string $code, int $rate): string
     {
         $id = $ledger->newId();
         $statements->change(
@@ -196,8 +199,8 @@ final class RentChargeTest extends TestCase
             [$id, $code, 'Booth ' . $code]
         );
         $statements->change(
-            'INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES (?::uuid, ?::date, ?)',
-            [$id, $month, $rate]
+            'INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES (?::uuid, ?)',
+            [$id, $rate]
         );
 
         return $id;
@@ -211,12 +214,17 @@ final class RentChargeTest extends TestCase
         );
         $id = $rows[0]['id'] ?? null;
         self::assertIsString($id);
-        if ($override === null) {
-            return;
+        $amount = $override;
+        if ($amount === null) {
+            $rate = $statements->bound(
+                'SELECT amount_minor FROM booth_rent_rates WHERE booth_id = ?::uuid',
+                [$boothId]
+            );
+            $amount = RowValue::integer($rate[0]['amount_minor'] ?? null);
         }
         $statements->change(
             'INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES (?::uuid, ?)',
-            [$id, $override]
+            [$id, $amount]
         );
     }
 

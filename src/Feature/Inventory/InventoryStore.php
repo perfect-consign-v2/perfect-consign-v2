@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Inventory;
 
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Shared\Database\CatalogLinks;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class InventoryStore
 {
-    public function __construct(private readonly Statements $statements)
-    {
+    public function __construct(
+        private readonly Statements $statements,
+        private readonly CatalogLinks $links,
+    ) {
     }
 
     /**
@@ -102,39 +105,7 @@ final class InventoryStore
      */
     public function referenced(): array
     {
-        $links = $this->statements->rows(
-            "SELECT quote_ident(namespace.nspname) || '.' || quote_ident(child.relname) AS relation,
-                    quote_ident(attribute.attname) AS column_name
-             FROM pg_constraint AS link
-             JOIN pg_class AS child ON child.oid = link.conrelid
-             JOIN pg_namespace AS namespace ON namespace.oid = child.relnamespace
-             JOIN pg_attribute AS attribute
-               ON attribute.attrelid = link.conrelid
-              AND attribute.attnum = link.conkey[1]
-              AND attribute.attisdropped = false
-             WHERE link.confrelid = 'items'::regclass
-               AND link.contype = 'f'
-               AND cardinality(link.conkey) = 1"
-        );
-        $held = [];
-        foreach ($links as $link) {
-            $relation = $link['relation'] ?? null;
-            $column = $link['column_name'] ?? null;
-            if (!is_string($relation) || !is_string($column) || !$this->quoted($relation, $column)) {
-                continue;
-            }
-            $rows = $this->statements->rows(
-                'SELECT DISTINCT ' . $column . '::text AS id FROM ' . $relation . ' WHERE ' . $column . ' IS NOT NULL'
-            );
-            foreach ($rows as $row) {
-                $id = $row['id'] ?? null;
-                if (is_string($id) && $id !== '') {
-                    $held[$id] = true;
-                }
-            }
-        }
-
-        return $held;
+        return $this->links->referenced('items');
     }
 
     private function place(?string $id, PieceEntry $piece, string $today): void
@@ -282,13 +253,5 @@ final class InventoryStore
         if ($rows === []) {
             throw new \InvalidArgumentException('That brand is not in this mall.');
         }
-    }
-
-    private function quoted(string $relation, string $column): bool
-    {
-        $part = '(?:"[a-z_][a-z0-9_]*"|[a-z_][a-z0-9_]*)';
-
-        return preg_match('/^' . $part . '\.' . $part . '$/', $relation) === 1
-            && preg_match('/^' . $part . '$/', $column) === 1;
     }
 }

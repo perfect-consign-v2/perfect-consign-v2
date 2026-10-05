@@ -95,18 +95,17 @@ final class OwnerJourneyTest extends WebTestCase
         $vendorId = HtmlPage::taggedId($this->session->html(), 'article', 'vendor', $vendor);
         $booth = $this->booth();
         $boothId = HtmlPage::taggedId($this->session->html(), 'tr', 'booth', $booth);
+        $this->session->open('/' . ProbeMall::SLUG . '/booths/' . $boothId . '/edit');
+        $this->session->submit('/' . ProbeMall::SLUG . '/rates', [
+            'booth_id' => $boothId,
+            'amount' => '100.00',
+        ]);
         $this->session->open('/' . ProbeMall::SLUG . '/vendors/' . $vendorId);
         $this->session->submit('/' . ProbeMall::SLUG . '/assignments', [
             'booth_id' => $boothId,
             'vendor_id' => $vendorId,
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
-        ]);
-        $this->session->open('/' . ProbeMall::SLUG . '/booths/' . $boothId . '/edit');
-        $this->session->submit('/' . ProbeMall::SLUG . '/rates', [
-            'booth_id' => $boothId,
-            'month_start' => ProbeMall::POSTING_DATE,
-            'amount' => '100.00',
         ]);
         $this->session->open('/' . ProbeMall::SLUG . '/rent');
         $book = $this->session->submit('/' . ProbeMall::SLUG . '/rent/charge', [

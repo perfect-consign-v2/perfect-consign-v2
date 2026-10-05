@@ -57,10 +57,12 @@ $logFile = $logDirectory . DIRECTORY_SEPARATOR . 'app.log';
 $logger = new FileLogger($logFile);
 ErrorHandling::register($logger);
 
+ini_set('session.use_strict_mode', '1');
 session_set_cookie_params([
     'httponly' => true,
     'samesite' => 'Lax',
     'path' => '/',
+    'secure' => requestIsHttps(),
 ]);
 
 $container = null;
@@ -197,6 +199,17 @@ function loadEnv(string $path): void
         }
         putenv($key . '=' . $value);
     }
+}
+
+function requestIsHttps(): bool
+{
+    $https = $_SERVER['HTTPS'] ?? '';
+    if (is_string($https) && $https !== '' && strtolower($https) !== 'off') {
+        return true;
+    }
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+
+    return is_string($forwarded) && strtolower($forwarded) === 'https';
 }
 
 function requestFromGlobals(): Request

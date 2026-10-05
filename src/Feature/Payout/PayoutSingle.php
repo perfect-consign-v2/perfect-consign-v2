@@ -24,7 +24,7 @@ final class PayoutSingle
     {
         $journalId = '';
         $this->statements->transaction(function () use ($vendorId, $postingDate, &$journalId): void {
-            $quoted = $this->payouts->quote($vendorId, $postingDate);
+            $quoted = $this->payouts->quotedRun($vendorId, $postingDate);
             if ($quoted === null || ($quoted['settled'] <= 0 && $quoted['check'] <= 0)) {
                 throw new DatabaseRefusal('a payout clears a positive open payable or open rent receivable');
             }

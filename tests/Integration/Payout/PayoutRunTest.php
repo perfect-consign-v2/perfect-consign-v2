@@ -61,11 +61,26 @@ final class PayoutRunTest extends TestCase
                 [$boothId, $vendorId, $date]
             );
             $statements->change(
-                'INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES (?::uuid, ?::date, 1000)',
-                [$boothId, substr($date, 0, 7) . '-01']
+                'INSERT INTO assignment_rent (assignment_id, amount_minor)
+                 SELECT id, 1000 FROM booth_assignments WHERE booth_id = ?::uuid',
+                [$boothId]
+            );
+            $statements->change(
+                'INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES (?::uuid, 1000)',
+                [$boothId]
             );
             $window = $runs->window($date);
+            self::assertNull($runs->openDraft($window['from'], $window['to'], $window['rent']));
+            $previewed = $payouts->quote($vendorId, $date);
+            self::assertNotNull($previewed);
+            self::assertSame('', $previewed['run_id']);
+            self::assertNull($runs->openDraft($window['from'], $window['to'], $window['rent']));
+            self::assertIsArray($runs->preview($window['from'], $window['to'], $window['rent'], $date));
             $runId = $runs->ensureDraft($window['from'], $window['to'], $window['rent'], $date);
+            self::assertSame($runId, $runs->ensureDraft($window['from'], $window['to'], $window['rent'], $date));
+            $savedQuote = $payouts->quotedRun($vendorId, $date);
+            self::assertNotNull($savedQuote);
+            self::assertSame($runId, $savedQuote['run_id']);
             $missing = $payouts->missingCharges($runId, $vendorId);
             self::assertSame(1000, $missing[0]['amount'] ?? 0);
             $taken = false;
@@ -134,8 +149,13 @@ final class PayoutRunTest extends TestCase
                 [$oldBooth, $backdated, $oldStart]
             );
             $statements->change(
-                'INSERT INTO booth_rent_rates (booth_id, month_start, amount_minor) VALUES (?::uuid, ?::date, 30000)',
-                [$oldBooth, $oldStart]
+                'INSERT INTO assignment_rent (assignment_id, amount_minor)
+                 SELECT id, 30000 FROM booth_assignments WHERE booth_id = ?::uuid',
+                [$oldBooth]
+            );
+            $statements->change(
+                'INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES (?::uuid, 30000)',
+                [$oldBooth]
             );
             $pack = $runs->pack($runId);
             $idleRow = null;

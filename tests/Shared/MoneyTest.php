@@ -24,6 +24,13 @@ final class MoneyTest extends TestCase
         Money::parseMinor('0');
     }
 
+    public function testAnAmountThatDoesNotFitInAnIntegerIsRefused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('the amount is too large');
+        Money::parseMinor('1000000000.00');
+    }
+
     public function testANonAmountIsRefused(): void
     {
         $this->expectException(InvalidArgumentException::class);

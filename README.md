@@ -21,9 +21,11 @@ The boundary is `stall_poster` and `stall_app`. A superuser can `DROP EVENT TRIG
 `STALL_DB_HOST`, `STALL_DB_PORT`, `STALL_DB_NAME`, `STALL_DB_USER`, and `STALL_DB_PASSWORD` are required.
 
 ```text
-php bin/provision-tenant.php mall Mall
+php bin/seed-mall.php
 php bin/seed-dev-tenant.php
 ```
+
+`php bin/seed-mall.php` removes slug `mall`, provisions it again, and posts six months of booths, sales, rent, and payouts through the same posting paths the register uses. Sign in as `owner`. The password is `STALL_OWNER_PASSWORD`, or `mall-demo` when that variable is unset. The test suite still builds an empty `webprobe` when that slug is missing.
 
 `php bin/seed-dev-tenant.php` wipes slug `dev` and no other mall, provisions it, and loads `sql/dev_tenant.sql`: one vendor, one booth on Main Floor, one open assignment, and three items. It does not post a journal. The owner is still `php bin/set-owner.php dev owner`.
 

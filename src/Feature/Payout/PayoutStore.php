@@ -46,13 +46,22 @@ final class PayoutStore
     public function quote(string $vendorId, string $today): ?array
     {
         $window = $this->runs->window($today);
-        $runId = $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
-        $rows = $this->statements->bound(
-            'SELECT payable, rent, "check" AS check_amount, owes AS owe_amount, settled_minor, rent_from_sales
-             FROM payout_pack
-             WHERE run_id = ?::uuid AND vendor_id = ?::uuid',
-            [$runId, $vendorId]
-        );
+        $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
+        if ($runId === null) {
+            $rows = $this->statements->bound(
+                'SELECT payable, rent, "check" AS check_amount, owes AS owe_amount, settled_minor, rent_from_sales
+                 FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date)
+                 WHERE vendor_id = ?::uuid',
+                [$window['from'], $window['to'], $window['rent'], $today, $vendorId]
+            );
+        } else {
+            $rows = $this->statements->bound(
+                'SELECT payable, rent, "check" AS check_amount, owes AS owe_amount, settled_minor, rent_from_sales
+                 FROM payout_pack
+                 WHERE run_id = ?::uuid AND vendor_id = ?::uuid',
+                [$runId, $vendorId]
+            );
+        }
         $row = $rows[0] ?? null;
         if (!is_array($row)) {
             return null;
@@ -60,7 +69,7 @@ final class PayoutStore
         $fromSales = $row['rent_from_sales'] ?? null;
 
         return [
-            'run_id' => $runId,
+            'run_id' => $runId ?? '',
             'payable' => RowValue::integer($row['payable'] ?? null),
             'rent' => RowValue::integer($row['rent'] ?? null),
             'check' => RowValue::integer($row['check_amount'] ?? null),
@@ -68,6 +77,19 @@ final class PayoutStore
             'settled' => RowValue::integer($row['settled_minor'] ?? null),
             'rent_from_sales' => $fromSales === true || $fromSales === 1 || $fromSales === '1' || $fromSales === 't' || $fromSales === 'true',
         ];
+    }
+
+    /**
+     * The posting command opens the draft, then reads that saved pack.
+     *
+     * @return array{run_id: string, payable: int, rent: int, check: int, owes: int, settled: int, rent_from_sales: bool}|null
+     */
+    public function quotedRun(string $vendorId, string $today): ?array
+    {
+        $window = $this->runs->window($today);
+        $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
+
+        return $this->quote($vendorId, $today);
     }
 
     /**
@@ -107,16 +129,10 @@ final class PayoutStore
     public function salesRent(string $today): array
     {
         $window = $this->runs->window($today);
-        $drafts = $this->statements->bound(
-            "SELECT id FROM payout_runs
-             WHERE status = 'draft' AND sales_from = ?::date AND sales_to = ?::date AND rent_month = ?::date
-             ORDER BY created_at DESC LIMIT 1",
-            [$window['from'], $window['to'], $window['rent']]
-        );
-        if ($drafts === []) {
+        $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
+        if ($runId === null) {
             return [];
         }
-        $runId = RowValue::string($drafts[0]['id'] ?? null);
         $taken = [];
         foreach ($this->statements->bound(
             "SELECT missing.booth_id::text AS booth_id, booth.code,
@@ -153,18 +169,24 @@ final class PayoutStore
     public function debtors(string $today): array
     {
         $window = $this->runs->window($today);
-        $runId = $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
+        $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
+        $sql = $runId === null
+            ? "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth, pack.owes,
+                      pack.booth_id::text AS booth_id
+               FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date) AS pack
+               WHERE pack.owes > 0
+               ORDER BY pack.code"
+            : "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth, pack.owes,
+                      pack.booth_id::text AS booth_id
+               FROM payout_pack AS pack
+               WHERE pack.run_id = ?::uuid AND pack.owes > 0
+               ORDER BY pack.code";
+        $params = $runId === null
+            ? [$window['from'], $window['to'], $window['rent'], $today]
+            : [$runId];
         /** @var list<array{vendor_id: string, code: string, name: string, booth_id: string, booth: string, owes: int, collect: string}> $owed */
         $owed = [];
-        foreach ($this->statements->bound(
-            "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth, pack.owes,
-                    booth.id::text AS booth_id
-             FROM payout_pack AS pack
-             LEFT JOIN booths AS booth ON booth.code = pack.booth
-             WHERE pack.run_id = ?::uuid AND pack.owes > 0
-             ORDER BY pack.code",
-            [$runId]
-        ) as $row) {
+        foreach ($this->statements->bound($sql, $params) as $row) {
             $boothId = $row['booth_id'] ?? null;
             $amount = RowValue::integer($row['owes'] ?? null);
             $owed[] = [
@@ -220,4 +242,5 @@ final class PayoutStore
 
         return $booths;
     }
+
 }

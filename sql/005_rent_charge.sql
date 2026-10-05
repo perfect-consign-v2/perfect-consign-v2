@@ -33,60 +33,15 @@ WHERE NOT EXISTS (
       AND existing.source_type = seed.source_type
 );
 
+-- The asking price for the next assignment. One row per booth.
+-- A change here does not change a stay that already copied its contract.
+
 CREATE TABLE booth_rent_rates (
-    booth_id uuid NOT NULL REFERENCES booths (id),
-    month_start date NOT NULL,
+    booth_id uuid PRIMARY KEY REFERENCES booths (id),
     amount_minor bigint NOT NULL,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    PRIMARY KEY (booth_id, month_start),
-    CONSTRAINT booth_rent_rates_amount_chk CHECK (amount_minor > 0),
-    CONSTRAINT booth_rent_rates_month_chk CHECK (month_start = date_trunc('month', month_start)::date)
+    CONSTRAINT booth_rent_rates_amount_chk CHECK (amount_minor > 0)
 );
-
-CREATE OR REPLACE FUNCTION stall_reject_rent_rate_rewrite()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = pg_catalog
-AS $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM public.journals AS posted
-        WHERE posted.source_type = 'rent_charge'
-          AND posted.posting_key LIKE 'rent-charge:' || OLD.booth_id::text || ':%'
-          AND (
-              posted.posting_key = 'rent-charge:' || OLD.booth_id::text || ':' || to_char(OLD.month_start, 'YYYY-MM')
-              OR EXISTS (
-                  SELECT 1
-                  FROM public.booth_assignments AS assignment
-                  WHERE assignment.booth_id = OLD.booth_id
-                    AND assignment.assignment_range @> posted.posting_date
-                    AND OLD.month_start = (
-                        SELECT rate.month_start
-                        FROM public.booth_rent_rates AS rate
-                        WHERE rate.booth_id = OLD.booth_id
-                          AND rate.month_start <= assignment.starts_on
-                        ORDER BY rate.month_start DESC
-                        LIMIT 1
-                    )
-              )
-          )
-    ) THEN
-        RAISE EXCEPTION 'a rent rate cannot change after that month is charged'
-            USING ERRCODE = '23514';
-    END IF;
-
-    IF TG_OP = 'DELETE' THEN
-        RETURN OLD;
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER booth_rent_rates_frozen_after_charge
-    BEFORE UPDATE OR DELETE ON booth_rent_rates
-    FOR EACH ROW
-    EXECUTE FUNCTION stall_reject_rent_rate_rewrite();
 
 CREATE TRIGGER booth_rent_rates_no_truncate
     BEFORE TRUNCATE ON booth_rent_rates
