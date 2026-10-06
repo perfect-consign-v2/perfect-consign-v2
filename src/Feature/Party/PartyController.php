@@ -316,7 +316,7 @@ final class PartyController
         if ($vendor === null) {
             $this->app->notFound();
         }
-        $this->forms->form($slug, $vendor, 'A vendor who is still owed, or who still owes rent, cannot be made inactive.');
+        $this->forms->form($slug, $vendor, 'A vendor with open rent cannot be made inactive.');
     }
 
     private function showRecord(string $slug, string $id, ?string $error): void
@@ -340,19 +340,7 @@ final class PartyController
         if ($stored === null) {
             $this->app->notFound();
         }
-        $mallBasis = $this->mall->storeTake();
-        $savedBasis = $stored['commission_bps'] ?? null;
-        $vendor['store_take'] = $this->forms->percent($savedBasis === null ? $mallBasis : $savedBasis);
-        $vendor['store_take_overridden'] = $savedBasis !== null && $this->forms->points($savedBasis) !== $mallBasis;
-        $vendor['agreement_starts_on'] = $this->forms->plain($stored['agreement_starts_on'] ?? null);
-        $vendor['agreement_ends_on'] = $this->forms->plain($stored['agreement_ends_on'] ?? null);
-        $vendor['tax_id'] = $this->forms->plain($stored['tax_id'] ?? null);
-        $vendor['notes'] = $this->forms->plain($stored['notes'] ?? null);
-        $vendor['tax_exempt'] = $this->forms->enabled($stored['tax_exempt'] ?? false);
-        $vendor['tax_exempt_number'] = $this->forms->plain($stored['tax_exempt_number'] ?? null);
-        $vendor['first_name'] = $this->forms->plain($stored['first_name'] ?? null);
-        $vendor['last_name'] = $this->forms->plain($stored['last_name'] ?? null);
-        $vendor['default_store_take'] = $this->forms->percent($mallBasis);
+        $vendor = $this->forms->filled($vendor, $stored, $this->mall->storeTake());
         $quoted = $this->payouts->quote($id, $this->mall->today());
         $vendor = $this->forms->figures($vendor, $quoted);
         $tenant = $this->app->open($slug, true);

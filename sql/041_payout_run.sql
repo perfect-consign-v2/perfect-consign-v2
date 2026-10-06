@@ -203,6 +203,10 @@ LANGUAGE plpgsql
 SET search_path = pg_catalog
 AS $$
 BEGIN
+    IF NEW.is_reversal THEN
+        RETURN NULL;
+    END IF;
+
     IF EXISTS (
         SELECT 1
         FROM public.payout_runs AS run
@@ -210,6 +214,13 @@ BEGIN
           AND run.reverses_run_id IS NULL
           AND run.status IN ('settled', 'paid')
           AND NEW.posting_date BETWEEN run.sales_from AND run.sales_to
+    ) AND NOT EXISTS (
+        SELECT 1
+        FROM public.payout_runs AS open_run
+        WHERE open_run.kind = 'batch'
+          AND open_run.reverses_run_id IS NULL
+          AND open_run.status = 'draft'
+          AND NEW.posting_date BETWEEN open_run.sales_from AND open_run.sales_to
     ) THEN
         RAISE EXCEPTION 'a settled payout window refuses a journal'
             USING ERRCODE = '23514';
@@ -219,9 +230,8 @@ END;
 $$;
 
 DROP TRIGGER IF EXISTS journals_closed_payout_window ON journals;
-CREATE CONSTRAINT TRIGGER journals_closed_payout_window
+CREATE TRIGGER journals_closed_payout_window
     AFTER INSERT ON journals
-    DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW
     EXECUTE FUNCTION stall_reject_closed_payout_window();
 

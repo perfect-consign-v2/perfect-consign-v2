@@ -16,6 +16,7 @@ final class MoneyTest extends TestCase
         self::assertSame(1050, Money::parseMinor('10.50'));
         self::assertSame(1000, Money::parseMinor('10'));
         self::assertSame(1, Money::parseMinor('0.01'));
+        self::assertSame(99999999900, Money::parseMinor('999999999'));
     }
 
     public function testAZeroAmountIsRefused(): void

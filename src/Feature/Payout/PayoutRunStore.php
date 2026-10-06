@@ -228,22 +228,7 @@ final class PayoutRunStore
         return $envelopes;
     }
 
-    /**
-     * @return array{from: string, to: string, rent: string}
-     */
-    public function window(string $today): array
-    {
-        $rent = substr($today, 0, 7) . '-01';
-        $to = (new \DateTimeImmutable($rent))->modify('-1 day')->format('Y-m-d');
-
-        return [
-            'from' => substr($to, 0, 7) . '-01',
-            'to' => $to,
-            'rent' => $rent,
-        ];
-    }
-
-    public function begin(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string
+    private function begin(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string
     {
         $rows = $this->statements->bound(
             "INSERT INTO payout_runs (

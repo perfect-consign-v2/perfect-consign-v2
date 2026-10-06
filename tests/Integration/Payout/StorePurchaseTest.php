@@ -8,6 +8,7 @@ use PDO;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\StorePurchase;
 use PerfectConsign\Ledger\LedgerPeriods;
+use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Support\ProbeMall;
@@ -22,7 +23,7 @@ final class StorePurchaseTest extends TestCase
         $pdo = $this->connection();
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
-        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $runs = new PayoutRunStore($statements);
         $purchases = new StorePurchase($ledger);
         $date = '2096-03-15';
@@ -34,7 +35,7 @@ final class StorePurchaseTest extends TestCase
                 [$vendorId, 'buy' . substr($vendorId, 0, 6), 'Cara', 'Lot']
             );
             $purchase = $purchases->record($vendorId, $date, 2500, 'lot-' . substr($vendorId, 0, 8));
-            $runId = $runs->begin($date, $date, '2096-03-01', $date);
+            $runId = $runs->ensureDraft($date, $date, '2096-03-01', $date);
             $row = null;
             foreach ($runs->pack($runId) as $line) {
                 if ($line['vendor_id'] === $vendorId) {

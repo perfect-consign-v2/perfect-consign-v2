@@ -15,6 +15,7 @@ final class PayoutStore
         private readonly PDO $pdo,
         private readonly Statements $statements,
         private readonly PayoutRunStore $runs,
+        private readonly PayoutWindow $window,
     ) {
     }
 
@@ -45,7 +46,7 @@ final class PayoutStore
      */
     public function quote(string $vendorId, string $today): ?array
     {
-        $window = $this->runs->window($today);
+        $window = $this->window->window($today);
         $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
         if ($runId === null) {
             $rows = $this->statements->bound(
@@ -86,7 +87,7 @@ final class PayoutStore
      */
     public function quotedRun(string $vendorId, string $today): ?array
     {
-        $window = $this->runs->window($today);
+        $window = $this->window->window($today);
         $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
 
         return $this->quote($vendorId, $today);
@@ -128,7 +129,7 @@ final class PayoutStore
      */
     public function salesRent(string $today): array
     {
-        $window = $this->runs->window($today);
+        $window = $this->window->window($today);
         $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
         if ($runId === null) {
             return [];
@@ -168,7 +169,7 @@ final class PayoutStore
      */
     public function debtors(string $today): array
     {
-        $window = $this->runs->window($today);
+        $window = $this->window->window($today);
         $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
         $sql = $runId === null
             ? "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth, pack.owes,

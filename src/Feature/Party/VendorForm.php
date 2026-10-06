@@ -148,6 +148,29 @@ final class VendorForm
 
     /**
      * @param array<string, mixed> $vendor
+     * @param array<string, mixed> $stored
+     * @return array<string, mixed>
+     */
+    public function filled(array $vendor, array $stored, int $mallBasis): array
+    {
+        $savedBasis = $stored['commission_bps'] ?? null;
+        $vendor['store_take'] = $this->percent($savedBasis === null ? $mallBasis : $savedBasis);
+        $vendor['store_take_overridden'] = $savedBasis !== null && $this->points($savedBasis) !== $mallBasis;
+        $vendor['agreement_starts_on'] = $this->plain($stored['agreement_starts_on'] ?? null);
+        $vendor['agreement_ends_on'] = $this->plain($stored['agreement_ends_on'] ?? null);
+        $vendor['tax_id'] = $this->plain($stored['tax_id'] ?? null);
+        $vendor['notes'] = $this->plain($stored['notes'] ?? null);
+        $vendor['tax_exempt'] = $this->enabled($stored['tax_exempt'] ?? false);
+        $vendor['tax_exempt_number'] = $this->plain($stored['tax_exempt_number'] ?? null);
+        $vendor['first_name'] = $this->plain($stored['first_name'] ?? null);
+        $vendor['last_name'] = $this->plain($stored['last_name'] ?? null);
+        $vendor['default_store_take'] = $this->percent($mallBasis);
+
+        return $vendor;
+    }
+
+    /**
+     * @param array<string, mixed> $vendor
      * @param array{run_id: string, payable: int, rent: int, check: int, owes: int, settled: int, rent_from_sales: bool}|null $quoted
      * @return array<string, mixed>
      */

@@ -14,10 +14,12 @@ use PerfectConsign\Feature\Payout\PayoutSingle;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
+use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Payout\StorePurchase;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerPeriods;
+use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
@@ -33,9 +35,9 @@ final class PayoutRunTest extends TestCase
         $pdo = $this->connection();
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
-        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $runs = new PayoutRunStore($statements);
-        $payouts = new PayoutStore($pdo, $statements, $runs);
+        $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $lines = new PayoutRunLines($statements);
         $settler = new PayoutSettler($ledger, $payouts, $runs, $lines);
         $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines);
@@ -69,7 +71,7 @@ final class PayoutRunTest extends TestCase
                 'INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES (?::uuid, 1000)',
                 [$boothId]
             );
-            $window = $runs->window($date);
+            $window = (new PayoutWindow())->window($date);
             self::assertNull($runs->openDraft($window['from'], $window['to'], $window['rent']));
             $previewed = $payouts->quote($vendorId, $date);
             self::assertNotNull($previewed);

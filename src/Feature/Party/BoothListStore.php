@@ -16,6 +16,19 @@ final class BoothListStore
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function rates(): array
+    {
+        return $this->statements->rows(
+            'SELECT booth.id AS booth_id, booth.code, rate.amount_minor
+             FROM booth_rent_rates AS rate
+             JOIN booths AS booth ON booth.id = rate.booth_id
+             ORDER BY booth.code'
+        );
+    }
+
+    /**
      * @return array{
      *   stays: list<array<string, mixed>>,
      *   open_rent: list<array<string, mixed>>,

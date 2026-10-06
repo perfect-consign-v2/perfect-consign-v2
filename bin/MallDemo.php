@@ -10,6 +10,7 @@ use PerfectConsign\Feature\Payout\PayoutRunLines;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
+use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Feature\Pos\LayawayBook;
 use PerfectConsign\Feature\Pos\SalePoster;
@@ -25,6 +26,7 @@ use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerPeriods;
+use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
@@ -119,14 +121,14 @@ final class MallDemo
             throw new InvalidArgumentException('refusing an unexpected schema');
         }
         $this->statements = new Statements($pdo);
-        $this->ledger = new LedgerStore($pdo, $this->statements, new LedgerPeriods($pdo));
+        $this->ledger = new LedgerStore($pdo, $this->statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $this->parties = new PartyStore($this->statements);
         $pricing = new TicketPricing($this->statements);
         $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing));
         $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements));
         $this->rent = new RentStore($this->statements, new MallSettings($this->statements), new RentLines(), $this->ledger);
         $this->runs = new PayoutRunStore($this->statements);
-        $payouts = new PayoutStore($pdo, $this->statements, $this->runs);
+        $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
         $lines = new PayoutRunLines($this->statements);
         $this->settler = new PayoutSettler($this->ledger, $payouts, $this->runs, $lines);
         $this->disburser = new PayoutDisburser($this->ledger, $payouts, $this->runs, $lines);
@@ -552,7 +554,7 @@ final class MallDemo
     private function payout(string $postingDate): void
     {
         $this->useMall();
-        $window = $this->runs->window($postingDate);
+        $window = (new PayoutWindow())->window($postingDate);
         $runId = $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $postingDate);
         $this->runs->review($runId);
         $this->settler->close($runId, $postingDate);

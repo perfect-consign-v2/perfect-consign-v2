@@ -14,6 +14,7 @@ final class LedgerStore
         private readonly PDO $pdo,
         private readonly Statements $statements,
         private readonly LedgerPeriods $periods,
+        private readonly JournalCash $cash,
     ) {
     }
 
@@ -150,21 +151,6 @@ final class LedgerStore
         );
     }
 
-    public function cashTendered(string $journalId): string
-    {
-        $rows = $this->pdo->prepare(
-            'SELECT tendered_minor FROM journal_cash_tendered WHERE journal_id = ?::uuid'
-        );
-        $rows->execute([$journalId]);
-        $minor = $rows->fetchColumn();
-        if (!is_int($minor) && !is_string($minor)) {
-            return '';
-        }
-        $cents = (int) $minor;
-
-        return intdiv($cents, 100) . '.' . str_pad((string) ($cents % 100), 2, '0', STR_PAD_LEFT);
-    }
-
     public function post(JournalDraft $draft): string
     {
         return $this->commitJournal($draft);
@@ -172,49 +158,54 @@ final class LedgerStore
 
     private function commitJournal(JournalDraft $draft): string
     {
-        $joined = $this->pdo->inTransaction();
+        $own = !$this->pdo->inTransaction();
         try {
-            if (!$joined) {
-                $this->pdo->beginTransaction();
-            }
-            $this->pdo->exec('SET CONSTRAINTS ALL DEFERRED');
-            $journalId = $this->insertJournal(
-                $draft->postingKey,
-                $draft->postingDate,
-                $draft->source->type,
-                $draft->source->reference,
-                $draft->source->description,
-                $draft->lines,
-                $draft->reversesJournalId === null ? 'false' : 'true',
-                $draft->reversesJournalId,
-            );
-            $this->linkSession($journalId, $draft->sessionId, $draft->checkNumber);
-            if ($draft->tenderedMinor !== null && $draft->tenderedMinor > 0) {
-                $tendered = $this->pdo->prepare(
-                    'INSERT INTO journal_cash_tendered (journal_id, tendered_minor) VALUES (?::uuid, ?)'
-                );
-                $tendered->execute([$journalId, $draft->tenderedMinor]);
-            }
-            if ($draft->beforeCommit !== null) {
-                $finished = $draft->beforeCommit;
-                $finished($journalId);
-            }
-            $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
-            if (!$joined) {
-                $this->pdo->commit();
-            }
-
-            return $journalId;
+            return $this->writeJournal($draft, $own);
         } catch (PDOException $error) {
-            if (!$joined) {
-                $this->rollBackOpen();
-            }
+            $this->abortJournal($own);
+
             throw DatabaseRefusal::fromPdo($error);
         } catch (DatabaseRefusal $error) {
-            if (!$joined) {
-                $this->rollBackOpen();
-            }
+            $this->abortJournal($own);
+
             throw $error;
+        }
+    }
+
+    private function writeJournal(JournalDraft $draft, bool $own): string
+    {
+        if ($own) {
+            $this->pdo->beginTransaction();
+        }
+        $this->pdo->exec('SET CONSTRAINTS ALL DEFERRED');
+        $journalId = $this->insertJournal(
+            $draft->postingKey,
+            $draft->postingDate,
+            $draft->source->type,
+            $draft->source->reference,
+            $draft->source->description,
+            $draft->lines,
+            $draft->reversesJournalId === null ? 'false' : 'true',
+            $draft->reversesJournalId,
+        );
+        $this->linkSession($journalId, $draft->sessionId, $draft->checkNumber);
+        $this->cash->storeTendered($journalId, $draft->tenderedMinor);
+        if ($draft->beforeCommit !== null) {
+            $finished = $draft->beforeCommit;
+            $finished($journalId);
+        }
+        $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
+        if ($own) {
+            $this->pdo->commit();
+        }
+
+        return $journalId;
+    }
+
+    private function abortJournal(bool $own): void
+    {
+        if ($own) {
+            $this->rollBackOpen();
         }
     }
 

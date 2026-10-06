@@ -11,6 +11,7 @@ use PerfectConsign\Feature\Payout\PayoutRunLines;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
+use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Rent\RentLines;
 use PerfectConsign\Feature\Rent\RentPosting;
 use PerfectConsign\Feature\Rent\RentReceipt;
@@ -18,6 +19,7 @@ use PerfectConsign\Feature\Rent\RentSlip;
 use PerfectConsign\Feature\Rent\RentStore;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerPeriods;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\CatalogLinks;
@@ -34,11 +36,11 @@ final class RentChargeTest extends TestCase
         $pdo = $this->connection();
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
-        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $rent = new RentStore($statements, new MallSettings($statements), new RentLines(), $ledger);
         $pdo->beginTransaction();
         try {
-            self::assertSame('', $ledger->cashTendered($ledger->newId()));
+            self::assertSame('', (new JournalCash($pdo))->tendered($ledger->newId()));
             self::assertIsArray((new CatalogLinks($statements))->referenced('items'));
             $vendorId = $ledger->newId();
             $tag = substr(str_replace('-', '', $vendorId), 0, 6);
@@ -79,9 +81,9 @@ final class RentChargeTest extends TestCase
         $pdo = $this->connection();
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
-        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $runs = new PayoutRunStore($statements);
-        $payouts = new PayoutStore($pdo, $statements, $runs);
+        $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $receipts = new RentReceipt(
             $pdo,
             $statements,
@@ -112,7 +114,7 @@ final class RentChargeTest extends TestCase
             $rent->postCharge($boothId, '2026-06-15');
             $sessionId = $this->session($statements, $ledger);
             $before = $this->expected($statements, $sessionId);
-            // packFigure( openFigure( postReceipt( credits( tenders( requireCheck( handed( debitLines( minor( dollars( rollbackOwned( party( tenderLines( tenderName( checkOn( boothOf( figures( form( rates(
+            // packFigure( openFigure( postReceipt( credits( tenders( requireCheck( handed( debitLines( minor( dollars( rollbackOwned( party( tenderLines( tenderName( checkOn( boothOf( figures( form( rates( filled( sessionStale( older( links( ids( writeJournal( storeTendered( abortJournal( due( owed( amount( begin(
             $figure = $receipts->figure('', $boothId, '2026-06-15');
             self::assertNotNull($figure);
             self::assertSame(4800, $figure['owed']);

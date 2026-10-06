@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/bin/load-env.php';
+
+loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
 
 $coverage = getenv('PC_COVERAGE');
 if (!is_string($coverage) || $coverage === '') {

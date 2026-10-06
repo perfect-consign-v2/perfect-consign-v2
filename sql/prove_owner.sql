@@ -12,6 +12,8 @@ BEGIN
         RAISE EXCEPTION 'mall tenant is missing';
     END IF;
 
+    DELETE FROM platform.owners WHERE tenant_id = mall_id;
+
     INSERT INTO platform.owners (id, tenant_id, username, password_hash)
     VALUES ('01900000-0000-7000-8000-00000000c001', mall_id, 'owner', 'hash');
 

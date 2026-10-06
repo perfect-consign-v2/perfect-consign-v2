@@ -236,7 +236,7 @@ final class DashboardStore
         $rows = $this->roster->assemble(
             $this->parties->booths(),
             $facts['stays'],
-            $this->parties->rates(),
+            $this->lists->rates(),
             $facts['open_rent'],
             $facts['blocked'],
             $today,

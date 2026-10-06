@@ -475,6 +475,8 @@ EXCEPTION
         NULL;
 END $$;
 
+SET CONSTRAINTS ALL DEFERRED;
+
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000202', 'B2', 'Booth B2');
 
@@ -587,6 +589,7 @@ SET CONSTRAINTS ALL IMMEDIATE;
 
 DO $$
 BEGIN
+    SET CONSTRAINTS ALL DEFERRED;
     INSERT INTO journals (
         id, book_id, posting_key, posting_date, occurred_at, period_id,
         currency, source_type, source_reference, description, debit_total_minor, credit_total_minor

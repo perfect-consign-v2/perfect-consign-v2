@@ -8,6 +8,7 @@ use PDO;
 use PerfectConsign\Feature\Pos\LayawayBook;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerPeriods;
+use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
@@ -24,7 +25,7 @@ final class LayawayHoldTest extends TestCase
         $schema = $this->schema($pdo);
         $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
-        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $book = new LayawayBook($statements, $ledger);
         $registerId = $ledger->newId();
         $sessionId = $ledger->newId();
@@ -91,7 +92,7 @@ final class LayawayHoldTest extends TestCase
         $schema = $this->schema($pdo);
         $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
-        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $book = new LayawayBook($statements, $ledger);
         $registerId = $ledger->newId();
         $sessionId = $ledger->newId();

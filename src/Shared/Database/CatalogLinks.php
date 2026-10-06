@@ -21,6 +21,19 @@ final class CatalogLinks
             throw new \InvalidArgumentException('that catalog table is not a name');
         }
         $held = [];
+        foreach ($this->links($table) as $link) {
+            $held += $this->ids($link['relation'], $link['column']);
+        }
+
+        return $held;
+    }
+
+    /**
+     * @return list<array{relation: string, column: string}>
+     */
+    private function links(string $table): array
+    {
+        $links = [];
         foreach ($this->statements->bound(
             "SELECT quote_ident(namespace.nspname) || '.' || quote_ident(child.relname) AS relation,
                     quote_ident(attribute.attname) AS column_name
@@ -41,13 +54,24 @@ final class CatalogLinks
             if (!is_string($relation) || !is_string($column) || $relation === '' || $column === '') {
                 continue;
             }
-            foreach ($this->statements->rows(
-                'SELECT DISTINCT ' . $column . '::text AS id FROM ' . $relation . ' WHERE ' . $column . ' IS NOT NULL'
-            ) as $row) {
-                $id = $row['id'] ?? null;
-                if (is_string($id) && $id !== '') {
-                    $held[$id] = true;
-                }
+            $links[] = ['relation' => $relation, 'column' => $column];
+        }
+
+        return $links;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function ids(string $relation, string $column): array
+    {
+        $held = [];
+        foreach ($this->statements->rows(
+            'SELECT DISTINCT ' . $column . '::text AS id FROM ' . $relation . ' WHERE ' . $column . ' IS NOT NULL'
+        ) as $row) {
+            $id = $row['id'] ?? null;
+            if (is_string($id) && $id !== '') {
+                $held[$id] = true;
             }
         }
 

@@ -10,7 +10,7 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\JournalCash;
 
 final class RentController
 {
@@ -22,7 +22,7 @@ final class RentController
         private readonly ActiveRegister $drawers,
         private readonly MallPayoutSettings $settings,
         private readonly RentReceipt $receipts,
-        private readonly LedgerStore $ledger,
+        private readonly JournalCash $cash,
     ) {
     }
 
@@ -107,7 +107,7 @@ final class RentController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'slip' => $slip,
-            'change' => $this->receipts->change($this->ledger->cashTendered($journalId), $slip['cash']),
+            'change' => $this->receipts->change($this->cash->tendered($journalId), $slip['cash']),
         ]);
     }
 

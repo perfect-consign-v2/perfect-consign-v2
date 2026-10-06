@@ -9,9 +9,7 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\LedgerStore;
-use PerfectConsign\Ledger\Money;
-use PerfectConsign\Shared\Scalar\RowValue;
+use PerfectConsign\Ledger\JournalCash;
 
 final class PosPayController
 {
@@ -23,7 +21,8 @@ final class PosPayController
         private readonly SalePoster $poster,
         private readonly MallSettings $mall,
         private readonly SaleCheckout $checkout,
-        private readonly LedgerStore $ledger,
+        private readonly JournalCash $cash,
+        private readonly ReceiptChange $change,
     ) {
     }
 
@@ -81,7 +80,7 @@ final class PosPayController
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         try {
-            $credit = $this->tenders->credit($this->app->request(), $this->returnAmount($id));
+            $credit = $this->tenders->credit($this->app->request(), $this->change->owed($this->poster->receipt($id), $this->itemId()));
             $this->poster->returnPiece($session, $this->mall->today(), $id, $this->itemId(), $credit['line'], $credit['check']);
         } catch (DatabaseRefusal $refusal) {
             $this->showReceipt($slug, $id, $this->app->catchRefusal($refusal));
@@ -109,31 +108,9 @@ final class PosPayController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'receipt' => $receipt,
-            'change' => $this->change($this->ledger->cashTendered($id), $receipt['cash']),
+            'change' => $this->change->due($this->cash->tendered($id), $receipt['cash']),
             'error' => $error,
         ]);
-    }
-
-    private function change(string $tendered, int $cash): ?int
-    {
-        if ($tendered === '' || $cash < 1 || !$this->amount($tendered)) {
-            return null;
-        }
-        $handed = Money::parseMinor($tendered);
-        if ($handed < $cash) {
-            return null;
-        }
-
-        return $handed - $cash;
-    }
-
-    private function amount(string $value): bool
-    {
-        if ($value === '0' || $value === '0.0' || $value === '0.00') {
-            return false;
-        }
-
-        return preg_match('/^(\d+)(?:\.(\d{1,2}))?$/', $value) === 1;
     }
 
     private function itemId(): string
@@ -146,15 +123,4 @@ final class PosPayController
         return $id;
     }
 
-    private function returnAmount(string $saleId): int
-    {
-        $itemId = $this->itemId();
-        foreach ($this->poster->receipt($saleId)['lines'] as $line) {
-            if ($line['item_id'] === $itemId) {
-                return RowValue::integer($line['price']) - RowValue::integer($line['discount']) + RowValue::integer($line['tax']);
-            }
-        }
-
-        throw new DatabaseRefusal('that piece is not on the ticket');
-    }
 }

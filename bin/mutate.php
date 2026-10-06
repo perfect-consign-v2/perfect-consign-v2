@@ -380,6 +380,21 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 35 && $from === '>' && $to === '>=') {
         return 'a start on the first of the month returns that same day either way';
     }
+    if ($file === 'src\\Ledger\\Money.php' && $line === 19 && $from === '>' && $to === '>=') {
+        return 'nine digits still fit in an integer, and the dollar cap is only reachable on a 32-bit build';
+    }
+    if ($file === 'src\\Feature\\Backup\\CommandProcess.php' && $line === 55 && $from === '||' && $to === '&&') {
+        return 'proc_open either returns every pipe or fails before this check';
+    }
+    if ($file === 'src\\Feature\\Backup\\PostgresTools.php' && $line === 152 && $from === '!' && $to === '') {
+        return 'a password file that unlink removed is already gone, so the second check agrees';
+    }
+    if ($file === 'src\\Feature\\Backup\\PostgresTools.php' && $line === 152 && $from === '&&' && $to === '||') {
+        return 'a password file that unlink removed is already gone, so the second check agrees';
+    }
+    if ($file === 'src\\Feature\\Backup\\PostgresTools.php' && $line === 102 && $from === '!' && $to === '') {
+        return 'getenv with no name returns the environment array';
+    }
 
     return null;
 }

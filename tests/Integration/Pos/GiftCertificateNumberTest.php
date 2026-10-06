@@ -7,6 +7,7 @@ namespace PerfectConsign\Tests\Feature\Pos;
 use PDO;
 use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Ledger\LedgerPeriods;
+use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Support\ProbeMall;
@@ -22,7 +23,7 @@ final class GiftCertificateNumberTest extends TestCase
         $schema = $this->schema($pdo);
         $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
-        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo));
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $gifts = new GiftIssue($statements, $ledger);
         $registerId = $ledger->newId();
         $sessionId = $ledger->newId();

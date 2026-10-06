@@ -181,7 +181,7 @@ final class BoothController
         $rows = $this->roster->assemble(
             $this->booths->booths(),
             $facts['stays'],
-            $this->booths->rates(),
+            $this->lists->rates(),
             $facts['open_rent'],
             $facts['blocked'],
             $this->mall->today(),

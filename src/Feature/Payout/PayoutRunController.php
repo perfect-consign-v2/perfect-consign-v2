@@ -17,6 +17,7 @@ final class PayoutRunController
         private readonly MallApp $app,
         private readonly MallSettings $mall,
         private readonly PayoutRunStore $runs,
+        private readonly PayoutWindow $window,
         private readonly PayoutSettler $settler,
         private readonly PayoutDisburser $disburser,
         private readonly PayoutReverser $reverser,
@@ -116,7 +117,7 @@ final class PayoutRunController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $today = $this->mall->today();
-        $window = $this->runs->window($today);
+        $window = $this->window->window($today);
         try {
             $runId = $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
             $this->runs->review($runId);
@@ -157,7 +158,7 @@ final class PayoutRunController
     {
         $tenant = $this->app->open($slug, true);
         $today = $this->mall->today();
-        $window = $this->runs->window($today);
+        $window = $this->window->window($today);
         $monthName = (new \DateTimeImmutable($window['rent']))->format('F');
         $draft = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
         $pack = $draft === null
