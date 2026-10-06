@@ -561,7 +561,7 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
 
         self::assertSame(200, $refused->status);
-        self::assertSees('A vendor with open rent cannot be made inactive.', $refused);
+        self::assertSees('A vendor who is still owed, or who still owes rent, cannot be made inactive.', $refused);
         self::assertSees('Make inactive', $refused);
     }
 

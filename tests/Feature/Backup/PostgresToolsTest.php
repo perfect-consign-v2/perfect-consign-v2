@@ -109,9 +109,20 @@ final class PostgresToolsTest extends TestCase
      */
     private function passwordFiles(): array
     {
-        $found = glob(sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sta*.tmp');
+        $found = [];
+        foreach (['stall-pg-*', 'sta*.tmp'] as $pattern) {
+            $matches = glob(sys_get_temp_dir() . DIRECTORY_SEPARATOR . $pattern);
+            if (!is_array($matches)) {
+                continue;
+            }
+            foreach ($matches as $match) {
+                $found[$match] = $match;
+            }
+        }
+        $files = array_values($found);
+        sort($files);
 
-        return is_array($found) ? $found : [];
+        return $files;
     }
 }
 

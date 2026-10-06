@@ -34,28 +34,16 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
 );
 
-$installed = false;
+require_once dirname(__DIR__) . '/vendor/autoload.php';
+
 try {
-    $existing = $pdo->query(
-        "SELECT 1 FROM pg_event_trigger WHERE evtname = 'platform_reject_guard_function_replace'"
-    );
-    $installed = $existing !== false && $existing->fetchColumn() !== false;
-} catch (PDOException) {
-    $installed = false;
-}
-if ($installed) {
-    fwrite(STDOUT, "platform already installed\n");
-    exit(0);
+    (new \PerfectConsign\Schema\SchemaMigrator(
+        $pdo,
+        new \PerfectConsign\Schema\SchemaCatalog(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql')
+    ))->migratePlatform();
+} catch (Throwable $error) {
+    fwrite(STDERR, $error->getMessage() . "\n");
+    exit(1);
 }
 
-$directory = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql';
-foreach (['000_platform.sql', '015_stall_app.sql', '016_owners.sql', '018_owner_backup.sql'] as $file) {
-    $sql = file_get_contents($directory . DIRECTORY_SEPARATOR . $file);
-    if ($sql === false) {
-        fwrite(STDERR, "could not read $file\n");
-        exit(1);
-    }
-    $pdo->exec($sql);
-}
-
-fwrite(STDOUT, "platform installed\n");
+fwrite(STDOUT, "platform current\n");

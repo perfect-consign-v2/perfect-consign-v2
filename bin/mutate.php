@@ -383,7 +383,7 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Ledger\\Money.php' && $line === 19 && $from === '>' && $to === '>=') {
         return 'nine digits still fit in an integer, and the dollar cap is only reachable on a 32-bit build';
     }
-    if ($file === 'src\\Feature\\Backup\\CommandProcess.php' && $line === 55 && $from === '||' && $to === '&&') {
+    if ($file === 'src\\Feature\\Backup\\CommandProcess.php' && $line === 60 && $from === '||' && $to === '&&') {
         return 'proc_open either returns every pipe or fails before this check';
     }
     if ($file === 'src\\Feature\\Backup\\PostgresTools.php' && $line === 152 && $from === '!' && $to === '') {

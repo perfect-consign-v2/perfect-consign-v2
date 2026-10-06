@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 $sql = $root . DIRECTORY_SEPARATOR . 'sql';
+$raceLock = holdRaceLock();
 $prepared = phpCommand([$root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'prepare-race-tenant.php'], null);
 if ($prepared['code'] !== 0) {
     fwrite(STDERR, "race tenant was not provisioned\n" . $prepared['output']);
@@ -260,6 +261,40 @@ function phpCommand(array $arguments, ?string $stdin): array
         'code' => proc_close($process),
         'output' => (is_string($output) ? $output : '') . (is_string($error) ? $error : ''),
     ];
+}
+
+function holdRaceLock(): PDO
+{
+    require_once __DIR__ . '/load-env.php';
+    loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
+    $host = raceSetting('STALL_DB_HOST', '127.0.0.1');
+    $port = raceSetting('STALL_DB_PORT', '5436');
+    $name = raceSetting('STALL_DB_NAME', 'consign');
+    $user = raceSetting('STALL_DB_USER', 'stall');
+    $password = raceSetting('STALL_DB_PASSWORD', 'stall');
+    $pdo = new PDO(
+        'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
+        $user,
+        $password,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    $locked = $pdo->query('SELECT pg_try_advisory_lock(814202614)');
+    $value = $locked === false ? false : $locked->fetchColumn();
+    if ($value !== true && $value !== 't' && $value !== 1 && $value !== '1') {
+        fail('a race proof is already running');
+    }
+
+    return $pdo;
+}
+
+function raceSetting(string $name, string $fallback): string
+{
+    $value = getenv($name);
+    if (!is_string($value) || $value === '') {
+        return $fallback;
+    }
+
+    return $value;
 }
 
 function fail(string $message): never

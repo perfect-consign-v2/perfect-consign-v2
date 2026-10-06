@@ -316,7 +316,7 @@ final class PartyController
         if ($vendor === null) {
             $this->app->notFound();
         }
-        $this->forms->form($slug, $vendor, 'A vendor with open rent cannot be made inactive.');
+        $this->forms->form($slug, $vendor, 'A vendor who is still owed, or who still owes rent, cannot be made inactive.');
     }
 
     private function showRecord(string $slug, string $id, ?string $error): void

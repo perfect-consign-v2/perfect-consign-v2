@@ -6,6 +6,11 @@ function runObligations(string $root): void
 {
 $sqlDirectory = $root . DIRECTORY_SEPARATOR . 'sql';
 $failures = [];
+require_once $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+$classified = array_flip(array_merge(
+    (new \PerfectConsign\Schema\SchemaCatalog($sqlDirectory))->platformFiles(),
+    (new \PerfectConsign\Schema\SchemaCatalog($sqlDirectory))->tenantFiles()
+));
 
 $chartProof = readSql($sqlDirectory . DIRECTORY_SEPARATOR . 'prove_chart.sql');
 $itemProof = readSql($sqlDirectory . DIRECTORY_SEPARATOR . 'prove_append_only_guard.sql');
@@ -21,6 +26,9 @@ sort($ledgerFiles);
 
 foreach ($ledgerFiles as $path) {
     $file = basename($path);
+    if (!isset($classified[$file])) {
+        $failures[] = $file . ' is not classified as platform or tenant';
+    }
     $sql = readSql($path);
     foreach (chartRoles($sql) as $role) {
         if (!in_array($role, $expectedRoles, true)) {

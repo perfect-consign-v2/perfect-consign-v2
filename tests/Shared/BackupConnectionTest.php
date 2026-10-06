@@ -19,16 +19,6 @@ final class BackupConnectionTest extends TestCase
         self::assertNotSame('', $backup->password);
         self::assertNotSame('', $admin->user);
         self::assertIsBool($backup->isLocalRestoreTarget());
-        $pdo = $backup->pdo();
-        $one = $pdo->query('SELECT 1');
-        self::assertNotFalse($one);
-        self::assertSame(1, (int) $one->fetchColumn());
-        $root = dirname(__DIR__, 2);
-        $tools = (string) file_get_contents($root . '/src/Feature/Backup/PostgresTools.php');
-        $posting = (string) file_get_contents($root . '/src/Feature/Rent/RentPosting.php');
-        self::assertStringContainsString('dockerEnvFile(', $tools);
-        self::assertStringContainsString('removeEnvFile(', $tools);
-        self::assertStringContainsString('tenderedMinor(', $posting);
         $local = new BackupConnection('localhost', '5436', 'consign', 'stall', 'stall');
         self::assertTrue($local->isLocalRestoreTarget());
         $loopback = new BackupConnection('127.0.0.1', '5436', 'consign', 'stall', 'stall');

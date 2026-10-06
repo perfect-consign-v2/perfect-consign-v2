@@ -216,6 +216,16 @@ BEGIN
         DROP CONSTRAINT piece_returns_sale_journal_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tickets
         DROP CONSTRAINT tickets_posted_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.payout_run_lines
+        DROP CONSTRAINT payout_run_lines_settlement_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.payout_run_lines
+        DROP CONSTRAINT payout_run_lines_disbursement_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.payout_run_sales
+        DROP CONSTRAINT payout_run_sales_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.payout_run_journals
+        DROP CONSTRAINT payout_run_journals_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_cash_tendered
+        DROP CONSTRAINT journal_cash_tendered_journal_id_fkey;
     TRUNCATE
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_lines,
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journals;

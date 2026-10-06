@@ -43,10 +43,15 @@ final class CommandProcess
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
         ];
+        $tool = $command[0] ?? '';
+        if (!$this->present($tool)) {
+            $this->logger->error('backup command could not start', ['tool' => $tool]);
+            throw new BackupException('The backup could not be taken.');
+        }
         $pipes = [];
         $process = proc_open($command, $descriptors, $pipes, null, $env, ['bypass_shell' => true]);
         if ($process === false) {
-            $this->logger->error('backup command could not start', ['tool' => $command[0] ?? '']);
+            $this->logger->error('backup command could not start', ['tool' => $tool]);
             throw new BackupException('The backup could not be taken.');
         }
         $stdin = $pipes[0] ?? null;
@@ -63,6 +68,57 @@ final class CommandProcess
             'stdout' => $stdout,
             'stderr' => $stderr,
         ];
+    }
+
+    private function present(string $tool): bool
+    {
+        if ($tool === '' || $this->filePresent($tool)) {
+            return $tool !== '';
+        }
+        $path = getenv('PATH');
+        if (!is_string($path) || $path === '') {
+            return false;
+        }
+        foreach (explode(PATH_SEPARATOR, $path) as $directory) {
+            $directory = rtrim($directory, '/\\');
+            if ($directory === '') {
+                continue;
+            }
+            foreach ($this->extensions() as $extension) {
+                if ($this->filePresent($directory . DIRECTORY_SEPARATOR . $tool . $extension)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function filePresent(string $path): bool
+    {
+        return is_file($path) && is_executable($path);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extensions(): array
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return [''];
+        }
+        $pathext = getenv('PATHEXT');
+        if (!is_string($pathext) || $pathext === '') {
+            return ['.exe', '.bat', '.cmd', '.com'];
+        }
+        $extensions = [];
+        foreach (explode(PATH_SEPARATOR, $pathext) as $extension) {
+            if ($extension !== '') {
+                $extensions[] = $extension;
+            }
+        }
+
+        return $extensions;
     }
 
     /**

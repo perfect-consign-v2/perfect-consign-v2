@@ -53,6 +53,136 @@ final class CommandProcessTest extends TestCase
         rmdir($root);
     }
 
+    public function testAMissingExecutableDoesNotWarn(): void
+    {
+        $log = new RememberLog();
+        try {
+            (new CommandProcess($log))->run(['stall-missing-dump'], [], null, null, '');
+            self::fail('a missing executable was accepted');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+            self::assertSame('stall-missing-dump', $log->tool);
+        }
+    }
+
+    public function testACommandOnThePathStillRuns(): void
+    {
+        $previous = getenv('PATH');
+        putenv('PATH=' . PATH_SEPARATOR . dirname(PHP_BINARY));
+        try {
+            (new CommandProcess(new NullLogger()))->run(
+                [basename(PHP_BINARY, '.exe'), '-r', 'exit(0);'],
+                [],
+                null,
+                null,
+                ''
+            );
+            self::assertTrue(true);
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('PATH=' . $previous);
+            }
+        }
+    }
+
+    public function testAnUnsetPathRefusesACommand(): void
+    {
+        $previous = getenv('PATH');
+        putenv('PATH');
+        try {
+            (new CommandProcess(new NullLogger()))->run(['stall-missing-dump'], [], null, null, '');
+            self::fail('a command was accepted without PATH');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('PATH=' . $previous);
+            }
+        }
+    }
+
+    public function testPhpIsFoundWhenTheExtensionListIsUnset(): void
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            self::assertTrue(true);
+
+            return;
+        }
+        $path = getenv('PATH');
+        $extensions = getenv('PATHEXT');
+        putenv('PATH=' . dirname(PHP_BINARY));
+        putenv('PATHEXT');
+        try {
+            (new CommandProcess(new NullLogger()))->run(
+                [basename(PHP_BINARY, '.exe'), '-r', 'exit(0);'],
+                [],
+                null,
+                null,
+                ''
+            );
+            self::assertTrue(true);
+        } finally {
+            $this->restoreEnv('PATH', $path);
+            $this->restoreEnv('PATHEXT', $extensions);
+        }
+    }
+
+    public function testAUselessExtensionListRefusesPhp(): void
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            self::assertTrue(true);
+
+            return;
+        }
+        $path = getenv('PATH');
+        $extensions = getenv('PATHEXT');
+        putenv('PATH=' . dirname(PHP_BINARY));
+        putenv('PATHEXT=.NO');
+        try {
+            (new CommandProcess(new NullLogger()))->run(
+                [basename(PHP_BINARY, '.exe'), '-r', 'exit(0);'],
+                [],
+                null,
+                null,
+                ''
+            );
+            self::fail('php was accepted under a useless extension list');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+        } finally {
+            $this->restoreEnv('PATH', $path);
+            $this->restoreEnv('PATHEXT', $extensions);
+        }
+    }
+
+    public function testAFileThatCannotRunIsRefused(): void
+    {
+        $path = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-note-' . bin2hex(random_bytes(4)) . '.txt';
+        if (file_put_contents($path, 'x') === false) {
+            self::fail('could not write a stand-in command');
+        }
+        try {
+            (new CommandProcess(new NullLogger()))->run([$path], [], null, null, '');
+            self::fail('a text file was accepted as a command');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+        } finally {
+            if (is_file($path) && !unlink($path)) {
+                self::fail('could not remove the stand-in command');
+            }
+        }
+    }
+
+    private function restoreEnv(string $name, string|false $previous): void
+    {
+        if (is_string($previous) && $previous !== '') {
+            putenv($name . '=' . $previous);
+
+            return;
+        }
+        putenv($name);
+    }
+
     private function remove(string $path): void
     {
         if (is_file($path) && !unlink($path)) {
@@ -65,6 +195,8 @@ final class RememberLog extends AbstractLogger
 {
     public string $error = '';
 
+    public string $tool = '';
+
     /**
      * @param mixed $level
      * @param array<string, mixed> $context
@@ -73,5 +205,9 @@ final class RememberLog extends AbstractLogger
     {
         $detail = $context['error'] ?? '';
         $this->error = is_string($detail) ? $detail : '';
+        $tool = $context['tool'] ?? '';
+        if (is_string($tool) && $tool !== '') {
+            $this->tool = $tool;
+        }
     }
 }

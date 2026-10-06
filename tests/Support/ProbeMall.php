@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Support;
 
 use PDO;
+use PerfectConsign\Schema\SchemaCatalog;
+use PerfectConsign\Schema\SchemaMigrator;
+use PerfectConsign\Schema\TenantBaselineMismatch;
 use RuntimeException;
 
 final class ProbeMall
@@ -32,12 +35,37 @@ final class ProbeMall
         self::fill('STALL_DB_USER', 'stall');
         self::fill('STALL_DB_PASSWORD', 'stall');
         self::requireDatabaseEnv();
+        $migrator = new SchemaMigrator(self::admin(), new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql'));
+        $migrator->migratePlatform();
         if (!self::exists()) {
             self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php', [self::SLUG, self::DISPLAY_NAME]);
+        } else {
+            self::current($root, $migrator);
         }
         putenv('STALL_OWNER_PASSWORD=' . self::PASSWORD);
         $_ENV['STALL_OWNER_PASSWORD'] = self::PASSWORD;
         self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'set-owner.php', [self::SLUG, self::USERNAME]);
+    }
+
+    public static function forgetSignIns(string $username): void
+    {
+        $statement = self::admin()->prepare(
+            'DELETE FROM platform.owner_sign_in_failures
+             WHERE username = ?
+               AND tenant_id = (SELECT id FROM platform.tenants WHERE slug = ?)'
+        );
+        $statement->execute([$username, self::SLUG]);
+    }
+
+    private static function current(string $root, SchemaMigrator $migrator): void
+    {
+        try {
+            $migrator->migrateTenant(self::SLUG);
+        } catch (TenantBaselineMismatch) {
+            require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'wipe-tenant.php';
+            \wipeTenant(self::admin(), self::SLUG, self::SLUG);
+            self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php', [self::SLUG, self::DISPLAY_NAME]);
+        }
     }
 
     private static function fill(string $name, string $value): void
