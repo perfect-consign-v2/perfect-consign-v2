@@ -846,4 +846,47 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
         border-radius: 0;
         box-shadow: none;
     }
+    .content:has(.sticker-page) { padding: 0; }
+    .sticker-desk { background: transparent; padding: 0; margin: 0; }
+    .sticker-page {
+        margin: 0;
+        box-shadow: none;
+        break-after: page;
+        page-break-after: always;
+    }
+    .sticker-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
+}
+.sticker-page {
+    position: relative;
+    background: #fff;
+    overflow: hidden;
+}
+@media screen {
+    .sticker-desk { background: #e8eaed; padding: 1rem; }
+    .sticker-page { margin: 0 auto 1rem; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
+}
+.sticker {
+    position: absolute;
+    box-sizing: border-box;
+    overflow: hidden;
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.sticker-line,
+.sticker-code {
+    margin: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.sticker-price { font-weight: 700; }
+.sticker-code { text-align: center; }
+.sticker-bars {
+    display: block;
+    width: 100%;
+    object-fit: fill;
+    image-rendering: pixelated;
 }

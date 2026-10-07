@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Inventory;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Feature\Catalog\NameList;
+use PerfectConsign\Feature\Catalog\NameListStore;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Http\ResponseSent;
@@ -15,6 +18,8 @@ final class IntakeController
     public function __construct(
         private readonly MallApp $app,
         private readonly IntakeCatalog $catalog,
+        private readonly NameListStore $lists,
+        private readonly MallSettings $mall,
         private readonly StoreTake $take,
     ) {
     }
@@ -70,6 +75,53 @@ final class IntakeController
             $this->sendJson(['error' => $this->brandError($this->app->catchRefusal($refusal))], 422);
         }
         $this->sendJson(['id' => $id, 'name' => $name]);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/inventory/(colors|categories|sizes|conditions|departments)\.json', ['GET'])]
+    public function findNames(string $slug, string $catalog): void
+    {
+        $this->app->open($slug, true);
+        $list = $this->openList($catalog);
+        $rows = [];
+        foreach ($this->lists->search($list, $this->app->request()->query('q')) as $row) {
+            $rows[] = [
+                'id' => RowValue::string($row['id'] ?? null),
+                'name' => RowValue::string($row['name'] ?? null),
+            ];
+        }
+        $this->sendJson($rows);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/inventory/(colors|categories|sizes|conditions|departments)', ['POST'])]
+    public function addName(string $slug, string $catalog): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $list = $this->openList($catalog);
+        $name = $this->app->request()->field('name');
+        if ($name === '') {
+            $this->sendJson(['error' => 'Enter a ' . $list->singular . ' name.'], 422);
+        }
+        try {
+            $id = $this->lists->add($list, $name);
+        } catch (DatabaseRefusal $refusal) {
+            $message = $this->app->catchRefusal($refusal);
+            if (str_contains($message, $list->table . '_name_key')) {
+                $message = 'That name is already used.';
+            }
+            $this->sendJson(['error' => $message], 422);
+        }
+        $this->sendJson(['id' => $id, 'name' => $name]);
+    }
+
+    private function openList(string $catalog): NameList
+    {
+        $list = NameList::fromPath($catalog);
+        if ($list === null || !$this->mall->enabled($list->flag)) {
+            $this->app->notFound();
+        }
+
+        return $list;
     }
 
     /**

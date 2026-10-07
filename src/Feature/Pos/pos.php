@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 /** @var string $slug */
+/** @var list<NameList> $attributeLists */
 /** @var string $csrf */
 /** @var string $templateDirectory */
 /** @var string $activeRegister */
@@ -407,6 +409,19 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 </div>
                 <p class="field-error" id="instant-brand-error" hidden></p>
             </div>
+            <?php foreach ($attributeLists as $attribute): ?>
+                <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
+                    <label for="instant_<?= View::text($attribute->key) ?>"><?= View::text(ucfirst($attribute->singular)) ?></label>
+                    <input class="input" id="instant_<?= View::text($attribute->key) ?>" name="<?= View::text($attribute->key) ?>_label" autocomplete="off">
+                    <input type="hidden" name="<?= View::text($attribute->key) ?>_id">
+                    <div class="suggest" hidden></div>
+                    <div class="row gap-2" hidden data-create-row>
+                        <span class="muted text-sm">Add <?= View::text($attribute->singular) ?> <strong data-create-name></strong>?</span>
+                        <button class="btn btn-sm" type="button" data-create-button>Add <?= View::text($attribute->singular) ?></button>
+                    </div>
+                    <p class="field-error" hidden></p>
+                </div>
+            <?php endforeach; ?>
             <div class="field">
                 <label for="instant_barcode">Barcode</label>
                 <input class="input" id="instant_barcode" name="barcode" maxlength="100">

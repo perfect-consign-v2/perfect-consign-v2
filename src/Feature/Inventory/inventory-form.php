@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
@@ -11,7 +12,11 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $brandsUrl */
 /** @var string $brandCreateUrl */
 /** @var bool $sold */
-/** @var array{id: string, code: string, barcode: string, description: string, price: string, quantity: string, vendor_id: string, vendor_label: string, brand_id: string, brand_label: string, store_take: string, default_take: string, overridden: bool, intake_on: string, expires_on: string, expire_dirty: bool} $piece */
+/** @var array{id: string, code: string, barcode: string, description: string, price: string, quantity: string, vendor_id: string, vendor_label: string, brand_id: string, brand_label: string, attributes: array<string, array{id: string, label: string}>, store_take: string, default_take: string, overridden: bool, intake_on: string, expires_on: string, expire_dirty: bool} $piece */
+/** @var list<NameList> $attributeLists */
+/** @var string $labelStock */
+/** @var string $printId */
+/** @var list<array{key: string, label: string}> $stocks */
 
 $sold = ($sold ?? false) === true;
 
@@ -37,6 +42,14 @@ $expireHint = $floorDays === ''
 <?php if (!$editing && $piece['vendor_label'] !== ''): ?>
     <p class="muted">Adding pieces for <?= View::text($piece['vendor_label']) ?>.</p>
 <?php endif; ?>
+
+<?php
+$printId = $editing ? $piece['id'] : $printId;
+if ($printId !== '') {
+    $lead = $editing ? 'Print stickers for this piece.' : 'Print stickers for the piece you just saved.';
+    require __DIR__ . '/sticker-job.php';
+}
+?>
 
 <form method="post" action="<?= View::text($action) ?>" id="piece-form" class="grid form-split"
     data-vendors="<?= View::text($vendorsUrl) ?>"
@@ -82,6 +95,20 @@ $expireHint = $floorDays === ''
                 </div>
                 <p class="field-error" id="brand_create_error" hidden></p>
             </div>
+            <?php foreach ($attributeLists as $attribute): ?>
+                <?php $field = $piece['attributes'][$attribute->key] ?? ['id' => '', 'label' => '']; ?>
+                <div class="field combo" style="grid-column: 1 / -1" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
+                    <label for="<?= View::text($attribute->key) ?>_label"><?= View::text(ucfirst($attribute->singular)) ?></label>
+                    <input class="input" id="<?= View::text($attribute->key) ?>_label" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($field['label']) ?>" autocomplete="off">
+                    <input type="hidden" id="<?= View::text($attribute->key) ?>_id" name="<?= View::text($attribute->key) ?>_id" value="<?= View::text($field['id']) ?>">
+                    <div class="suggest" hidden></div>
+                    <div class="row gap-2" hidden data-create-row>
+                        <span class="muted text-sm">Add <?= View::text($attribute->singular) ?> <strong data-create-name></strong>?</span>
+                        <button class="btn btn-sm" type="button" data-create-button>Add <?= View::text($attribute->singular) ?></button>
+                    </div>
+                    <p class="field-error" hidden></p>
+                </div>
+            <?php endforeach; ?>
             <div class="field">
                 <label for="price">Asking price</label>
                 <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($piece['price']) ?>" required<?= $sold ? ' readonly' : '' ?>>

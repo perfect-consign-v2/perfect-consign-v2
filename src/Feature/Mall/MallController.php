@@ -10,6 +10,7 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Backup\BackupHeadline;
 use PerfectConsign\Feature\Backup\BackupStore;
+use PerfectConsign\Feature\Inventory\LabelCatalog;
 use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
@@ -19,11 +20,17 @@ final class MallController
 
     private ?string $postedTaxRate = null;
 
+    /** @var array<string, bool>|null */
+    private ?array $postedCatalogs = null;
+
+    private ?string $postedStock = null;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
         private readonly MallPayoutSettings $payouts,
         private readonly BackupStore $backups,
+        private readonly LabelCatalog $stocks,
     ) {
     }
 
@@ -69,6 +76,7 @@ final class MallController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
+        $this->postedStock = $this->app->request()->field('label_stock');
         $timeZone = $this->app->request()->field('time_zone');
         $width = $this->feet($this->app->request()->field('booth_width_ft'));
         $depth = $this->feet($this->app->request()->field('booth_depth_ft'));
@@ -86,6 +94,13 @@ final class MallController
         }
         $this->postedCashRound = $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '';
         $this->postedTaxRate = $taxRate;
+        $this->postedCatalogs = [
+            'use_color' => $this->app->request()->field('use_color') === '1',
+            'use_category' => $this->app->request()->field('use_category') === '1',
+            'use_size' => $this->app->request()->field('use_size') === '1',
+            'use_condition' => $this->app->request()->field('use_condition') === '1',
+            'use_department' => $this->app->request()->field('use_department') === '1',
+        ];
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
     }
 
@@ -114,8 +129,26 @@ final class MallController
         if ($floorWidth === null || $floorDepth === null) {
             return 'floor size is whole feet';
         }
+        $stickers = $this->stickers();
+        if ($stickers !== null) {
+            return $stickers;
+        }
 
         return $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth, $basis, $days, $taxBasis);
+    }
+
+    private function stickers(): ?string
+    {
+        $stock = $this->postedStock ?? '';
+        if ($stock === '') {
+            $stock = $this->mall->getLabelStock();
+            $this->postedStock = $stock;
+        }
+        if (!$this->stocks->isKnown($stock)) {
+            return 'Choose the stickers this mall uses.';
+        }
+
+        return null;
     }
 
     private function store(
@@ -138,8 +171,14 @@ final class MallController
                 $storeTake,
                 $floorDays,
                 $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
-                $taxRate
+                $taxRate,
+                $this->app->request()->field('use_color') === '1',
+                $this->app->request()->field('use_category') === '1',
+                $this->app->request()->field('use_size') === '1',
+                $this->app->request()->field('use_condition') === '1',
+                $this->app->request()->field('use_department') === '1',
             );
+            $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
             $this->payouts->save(
                 $this->app->request()->field('operating_mode'),
                 $this->app->request()->field('payout_cadence'),
@@ -276,6 +315,15 @@ final class MallController
             'operatingMode' => $this->payouts->operatingMode(),
             'payoutCadence' => $this->payouts->payoutCadence(),
             'rentPrepaid' => $this->payouts->rentPrepaid(),
+            'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
+            'stocks' => $this->stocks->choices(),
+            'catalogs' => $this->postedCatalogs ?? [
+                'use_color' => $this->mall->enabled('use_color'),
+                'use_category' => $this->mall->enabled('use_category'),
+                'use_size' => $this->mall->enabled('use_size'),
+                'use_condition' => $this->mall->enabled('use_condition'),
+                'use_department' => $this->mall->enabled('use_department'),
+            ],
             'error' => $error,
         ]);
     }

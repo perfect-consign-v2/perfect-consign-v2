@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -38,6 +39,7 @@ final class PosAddController
                 $request->field('quantity'),
                 $request->field('brand_id'),
                 $request->field('brand_label'),
+                $this->postedAttributes($request),
                 $request->field('discount_kind'),
                 $request->field('discount_value'),
             ));
@@ -52,5 +54,21 @@ final class PosAddController
         }
         $stay = $request->field('instant_action') === 'save_and_new';
         $this->app->redirect('/' . $slug . '/pos' . ($stay ? '?instant=1' : ''), 'Piece added.');
+    }
+
+    /**
+     * @return array<string, array{id: string, label: string}>
+     */
+    private function postedAttributes(\PerfectConsign\Shared\Http\Request $request): array
+    {
+        $fields = [];
+        foreach (NameList::all() as $list) {
+            $fields[$list->key] = [
+                'id' => $request->field($list->key . '_id'),
+                'label' => $request->field($list->key . '_label'),
+            ];
+        }
+
+        return $fields;
     }
 }

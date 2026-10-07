@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
+use PerfectConsign\Feature\Catalog\NameList;
+use PerfectConsign\Feature\Catalog\NameListStore;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -12,6 +14,7 @@ final class PieceForm
 {
     public function __construct(
         private readonly IntakeCatalog $catalog,
+        private readonly NameListStore $lists,
         private readonly MallSettings $mall,
         private readonly StoreTake $take,
     ) {
@@ -29,6 +32,7 @@ final class PieceForm
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
@@ -48,6 +52,7 @@ final class PieceForm
             'vendor_label' => '',
             'brand_id' => '',
             'brand_label' => '',
+            'attributes' => $this->emptyAttributes(),
             'store_take' => '',
             'intake_on' => $this->date($intake) ?? $this->mall->today(),
             'expires_on' => '',
@@ -68,6 +73,7 @@ final class PieceForm
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
@@ -95,6 +101,7 @@ final class PieceForm
             ),
             'brand_id' => is_string($brandId) ? $brandId : '',
             'brand_label' => is_string($brandName) ? $brandName : '',
+            'attributes' => $this->storedAttributes($row),
             'store_take' => $this->take->format($saved === null
                 ? RowValue::integer($row['vendor_take_bps'] ?? null)
                 : RowValue::integer($saved)),
@@ -116,6 +123,7 @@ final class PieceForm
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
@@ -132,6 +140,7 @@ final class PieceForm
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
@@ -154,6 +163,7 @@ final class PieceForm
         $brand = $this->chosenBrand($draft['brand_id'], $draft['brand_label']);
         $draft['brand_id'] = $brand['id'];
         $draft['brand_label'] = $brand['label'];
+        $draft['attributes'] = $this->chosenAttributes($draft['attributes']);
         if ($draft['fill_expire'] === '1' && $draft['expires_on'] === '') {
             $draft['expires_on'] = $this->expectedExpire($draft['intake_on']);
         }
@@ -173,6 +183,7 @@ final class PieceForm
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
@@ -189,6 +200,7 @@ final class PieceForm
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     default_take: string,
      *     overridden: bool,
@@ -214,6 +226,7 @@ final class PieceForm
             'vendor_label' => $piece['vendor_label'],
             'brand_id' => $piece['brand_id'],
             'brand_label' => $piece['brand_label'],
+            'attributes' => $piece['attributes'],
             'store_take' => $piece['store_take'],
             'default_take' => $vendor['take'],
             'overridden' => $basis !== null && $basis !== $defaultBasis,
@@ -269,6 +282,62 @@ final class PieceForm
         }
 
         return ['id' => $id, 'label' => RowValue::string($brand['name'] ?? null)];
+    }
+
+    /**
+     * @return array<string, array{id: string, label: string}>
+     */
+    private function emptyAttributes(): array
+    {
+        $fields = [];
+        foreach (NameList::all() as $list) {
+            $fields[$list->key] = ['id' => '', 'label' => ''];
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, array{id: string, label: string}>
+     */
+    private function storedAttributes(array $row): array
+    {
+        $fields = [];
+        foreach (NameList::all() as $list) {
+            $id = $row[$list->itemColumn] ?? null;
+            $name = $row[$list->key . '_name'] ?? null;
+            $fields[$list->key] = [
+                'id' => is_string($id) ? $id : '',
+                'label' => is_string($name) ? $name : '',
+            ];
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, array{id: string, label: string}> $posted
+     * @return array<string, array{id: string, label: string}>
+     */
+    private function chosenAttributes(array $posted): array
+    {
+        $fields = [];
+        foreach (NameList::all() as $list) {
+            $field = $posted[$list->key] ?? ['id' => '', 'label' => ''];
+            $id = $this->uuid($field['id']);
+            if ($id === '') {
+                $fields[$list->key] = ['id' => '', 'label' => $field['label']];
+                continue;
+            }
+            $row = $this->lists->named($list, $id);
+            $fields[$list->key] = [
+                'id' => $row === null ? '' : $id,
+                'label' => $row === null ? $field['label'] : RowValue::string($row['name'] ?? null),
+            ];
+        }
+
+        return $fields;
     }
 
     private function expectedExpire(string $intake): string

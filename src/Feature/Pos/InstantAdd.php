@@ -14,6 +14,8 @@ final class InstantAdd
         public readonly string $quantity,
         public readonly string $brandId,
         public readonly string $brandLabel,
+        /** @var array<string, array{id: string, label: string}> */
+        public readonly array $attributes,
         public readonly string $discountKind,
         public readonly string $discountValue,
     ) {

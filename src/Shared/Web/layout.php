@@ -46,6 +46,14 @@ $groups = [
         ['/map', 'Booths Map', 'i-map'],
         ['/brands', 'Brands', 'i-tag'],
     ],
+];
+$catalogNav = is_array($catalogNav ?? null) ? $catalogNav : [];
+foreach ($catalogNav as $link) {
+    if (is_array($link)) {
+        $groups['Operations'][] = $link;
+    }
+}
+$groups += [
     'Business' => [
         ['/adjustment', 'Adjustment', 'i-edit'],
         ['/tax', 'Tax', 'i-percent'],

@@ -288,6 +288,131 @@
     if (brandId.value === '' && brandLabel.value.trim() !== '') {
         searchBrands(brandLabel.value.trim());
     }
+    form.querySelectorAll('[data-name-list]').forEach(function (box) {
+        wireNameList(box, form);
+    });
     paintTake();
     paintExpire();
+
+    function wireNameList(box, host) {
+        let label = box.querySelector('input[type="text"], input.input:not([type="hidden"])');
+        let hidden = box.querySelector('input[type="hidden"]');
+        let suggest = box.querySelector('.suggest');
+        let create = box.querySelector('[data-create-row]');
+        let createName = box.querySelector('[data-create-name]');
+        let createButton = box.querySelector('[data-create-button]');
+        let error = box.querySelector('.field-error');
+        let searchUrl = box.getAttribute('data-search') || '';
+        let createUrl = box.getAttribute('data-create') || '';
+        let timer = null;
+        if (!label || !hidden || !suggest) {
+            return;
+        }
+        function hideSuggest() {
+            suggest.hidden = true;
+            suggest.replaceChildren();
+        }
+        function search(query) {
+            fetch(searchUrl + '?q=' + encodeURIComponent(query), { credentials: 'same-origin' })
+                .then(function (response) { return response.json(); })
+                .then(function (rows) {
+                    if (!Array.isArray(rows)) {
+                        return;
+                    }
+                    if (create) {
+                        create.hidden = true;
+                    }
+                    if (rows.length === 0) {
+                        hideSuggest();
+                        if (create && createName && query !== '') {
+                            createName.textContent = query;
+                            create.hidden = false;
+                        }
+                        return;
+                    }
+                    suggest.replaceChildren();
+                    rows.forEach(function (row) {
+                        let button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'suggest-item';
+                        button.textContent = row.name || '';
+                        button.addEventListener('click', function () {
+                            hidden.value = row.id || '';
+                            label.value = row.name || '';
+                            hideSuggest();
+                            if (create) {
+                                create.hidden = true;
+                            }
+                        });
+                        suggest.appendChild(button);
+                    });
+                    suggest.hidden = false;
+                })
+                .catch(hideSuggest);
+        }
+        label.addEventListener('input', function () {
+            hidden.value = '';
+            if (error) {
+                error.hidden = true;
+            }
+            if (timer) {
+                clearTimeout(timer);
+            }
+            let query = label.value.trim();
+            if (query === '') {
+                hideSuggest();
+                if (create) {
+                    create.hidden = true;
+                }
+                return;
+            }
+            timer = setTimeout(function () { search(query); }, 200);
+        });
+        if (createButton) {
+            createButton.addEventListener('click', function () {
+                let name = label.value.trim();
+                if (name === '' || createUrl === '') {
+                    return;
+                }
+                let token = host.querySelector('input[name="csrf"]');
+                let body = new URLSearchParams();
+                body.set('csrf', token ? token.value : '');
+                body.set('name', name);
+                fetch(createUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body.toString()
+                })
+                    .then(function (response) {
+                        return response.json().then(function (payload) {
+                            return { ok: response.ok, payload: payload };
+                        });
+                    })
+                    .then(function (result) {
+                        if (!result.ok || !result.payload || !result.payload.id) {
+                            if (error) {
+                                error.textContent = (result.payload && result.payload.error) || 'That name was not added.';
+                                error.hidden = false;
+                            }
+                            return;
+                        }
+                        hidden.value = result.payload.id;
+                        label.value = result.payload.name || name;
+                        if (create) {
+                            create.hidden = true;
+                        }
+                        if (error) {
+                            error.hidden = true;
+                        }
+                    })
+                    .catch(function () {
+                        if (error) {
+                            error.textContent = 'That name was not added.';
+                            error.hidden = false;
+                        }
+                    });
+            });
+        }
+    }
 }());

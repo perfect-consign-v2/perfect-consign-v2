@@ -40,6 +40,7 @@ final class InstantPiece
             'vendor_label' => '',
             'brand_id' => trim($piece->brandId),
             'brand_label' => trim($piece->brandLabel),
+            'attributes' => $piece->attributes,
             'store_take' => '',
             'intake_on' => $today,
             'expires_on' => '',

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
+use PerfectConsign\Feature\Catalog\NameList;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\CatalogLinks;
 use PerfectConsign\Shared\Database\Statements;
@@ -14,6 +16,7 @@ final class InventoryStore
     public function __construct(
         private readonly Statements $statements,
         private readonly CatalogLinks $links,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -27,11 +30,19 @@ final class InventoryStore
                        item.vendor_id, item.commission_bps, item.intake_on, item.expires_on,
                        vendor.code AS vendor_code, vendor.name AS vendor_name,
                        COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) AS take_bps,
-                       brand.name AS brand_name
+                       brand.name AS brand_name,
+                       color.name AS color_name, category.name AS category_name,
+                       size.name AS size_name, condition.name AS condition_name,
+                       department.name AS department_name
                 FROM items AS item
                 JOIN vendors AS vendor ON vendor.id = item.vendor_id
                 CROSS JOIN mall
-                LEFT JOIN brands AS brand ON brand.id = item.brand_id';
+                LEFT JOIN brands AS brand ON brand.id = item.brand_id
+                LEFT JOIN colors AS color ON color.id = item.color_id
+                LEFT JOIN categories AS category ON category.id = item.category_id
+                LEFT JOIN sizes AS size ON size.id = item.size_id
+                LEFT JOIN conditions AS condition ON condition.id = item.condition_id
+                LEFT JOIN departments AS department ON department.id = item.department_id';
         if ($needle === '') {
             return $this->statements->rows($sql . ' ORDER BY lower(item.code), item.code');
         }
@@ -43,8 +54,13 @@ final class InventoryStore
                        OR strpos(lower(vendor.code), ?) > 0
                        OR strpos(lower(vendor.name), ?) > 0
                        OR strpos(lower(brand.name), ?) > 0
+                       OR strpos(lower(color.name), ?) > 0
+                       OR strpos(lower(category.name), ?) > 0
+                       OR strpos(lower(size.name), ?) > 0
+                       OR strpos(lower(condition.name), ?) > 0
+                       OR strpos(lower(department.name), ?) > 0
                      ORDER BY lower(item.code), item.code',
-            [$needle, $needle, $needle, $needle, $needle, $needle]
+            [$needle, $needle, $needle, $needle, $needle, $needle, $needle, $needle, $needle, $needle, $needle]
         );
     }
 
@@ -63,13 +79,22 @@ final class InventoryStore
         $rows = $this->statements->bound(
             'SELECT item.id, item.code, item.barcode, item.description, item.price_minor, item.quantity,
                     item.vendor_id, item.brand_id, item.commission_bps, item.intake_on, item.expires_on,
+                    item.color_id, item.category_id, item.size_id, item.condition_id, item.department_id,
                     vendor.code AS vendor_code, vendor.name AS vendor_name,
                     COALESCE(vendor.commission_bps, mall.commission_bps) AS vendor_take_bps,
-                    brand.name AS brand_name
+                    brand.name AS brand_name,
+                    color.name AS color_name, category.name AS category_name,
+                    size.name AS size_name, condition.name AS condition_name,
+                    department.name AS department_name
              FROM items AS item
              JOIN vendors AS vendor ON vendor.id = item.vendor_id
              CROSS JOIN mall
              LEFT JOIN brands AS brand ON brand.id = item.brand_id
+             LEFT JOIN colors AS color ON color.id = item.color_id
+             LEFT JOIN categories AS category ON category.id = item.category_id
+             LEFT JOIN sizes AS size ON size.id = item.size_id
+             LEFT JOIN conditions AS condition ON condition.id = item.condition_id
+             LEFT JOIN departments AS department ON department.id = item.department_id
              WHERE item.id = ?::uuid',
             [$id]
         );
@@ -77,9 +102,9 @@ final class InventoryStore
         return $rows[0] ?? null;
     }
 
-    public function add(PieceEntry $piece, string $today): void
+    public function add(PieceEntry $piece, string $today): string
     {
-        $this->place(null, $piece, $today);
+        return $this->place(null, $piece, $today);
     }
 
     public function save(string $id, PieceEntry $piece, string $today): void
@@ -108,21 +133,41 @@ final class InventoryStore
         return $this->links->referenced('items');
     }
 
-    private function place(?string $id, PieceEntry $piece, string $today): void
+    /**
+     * @param list<string> $ids
+     * @return list<array<string, mixed>>
+     */
+    public function forLabels(array $ids): array
+    {
+        $rows = [];
+        foreach ($ids as $id) {
+            $row = $this->find($id);
+            if ($row === null) {
+                throw new \InvalidArgumentException('That piece is not in this mall.');
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    private function place(?string $id, PieceEntry $piece, string $today): string
     {
         $this->requireVendor($piece->vendorId);
         $this->requireBrand($piece->brandId);
+        $this->requireAttributes($piece->attributes);
         $refusal = null;
         $attempt = 0;
+        $stored = '';
         while ($attempt < 5) {
             $attempt++;
             $barcode = $piece->barcode !== '' ? $piece->barcode : $this->allocate($today);
             try {
-                $this->statements->isolated(function () use ($id, $piece, $barcode): void {
-                    $this->store($id, $piece, $barcode);
+                $this->statements->isolated(function () use ($id, $piece, $barcode, &$stored): void {
+                    $stored = $this->store($id, $piece, $barcode);
                 });
 
-                return;
+                return $stored;
             } catch (DatabaseRefusal $error) {
                 $refusal = $error;
                 if ($piece->barcode !== '' || !str_contains($error->getMessage(), 'items_barcode_key')) {
@@ -130,11 +175,17 @@ final class InventoryStore
                 }
             }
         }
+        if (!$refusal instanceof DatabaseRefusal) {
+            throw new \RuntimeException('A barcode could not be generated.');
+        }
+
         throw $refusal;
     }
 
-    private function store(?string $id, PieceEntry $piece, string $barcode): void
+    private function store(?string $id, PieceEntry $piece, string $barcode): string
     {
+        $columns = ['code', 'barcode', 'vendor_id', 'brand_id', 'description', 'price_minor', 'quantity', 'commission_bps', 'intake_on', 'expires_on'];
+        $casts = ['?', '?', '?::uuid', '?::uuid', '?', '?', '?', '?', '?::date', '?::date'];
         $params = [
             $piece->code,
             $barcode,
@@ -147,23 +198,26 @@ final class InventoryStore
             $piece->dates->intakeOn,
             $piece->dates->expiresOn,
         ];
+        foreach (NameList::all() as $list) {
+            if (!$this->mall->enabled($list->flag)) {
+                continue;
+            }
+            $columns[] = $list->itemColumn;
+            $casts[] = '?::uuid';
+            $params[] = $piece->attributes[$list->key] ?? null;
+        }
         if ($id === null) {
-            $this->statements->change(
-                'INSERT INTO items (
-                    code, barcode, vendor_id, brand_id, description, price_minor, quantity, commission_bps, intake_on, expires_on
-                 ) VALUES (?, ?, ?::uuid, ?::uuid, ?, ?, ?, ?, ?::date, ?::date)',
-                $params
-            );
-
-            return;
+            return $this->inserted($columns, $casts, $params);
+        }
+        $assignments = [];
+        foreach ($columns as $index => $column) {
+            $assignments[] = $column . ' = ' . $casts[$index];
         }
         $params[] = $id;
         $params[] = $piece->priceMinor;
         $params[] = $piece->vendorId;
         $count = $this->statements->affected(
-            'UPDATE items
-             SET code = ?, barcode = ?, vendor_id = ?::uuid, brand_id = ?::uuid, description = ?,
-                 price_minor = ?, quantity = ?, commission_bps = ?, intake_on = ?::date, expires_on = ?::date
+            'UPDATE items SET ' . implode(', ', $assignments) . '
              WHERE id = ?::uuid
                AND (
                    NOT EXISTS (SELECT 1 FROM sale_lines AS sale WHERE sale.item_id = items.id)
@@ -174,6 +228,27 @@ final class InventoryStore
         if ($count === 0) {
             $this->refuseSoldChange($id, $piece);
         }
+
+        return $id;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @param list<string> $casts
+     * @param list<mixed> $params
+     */
+    private function inserted(array $columns, array $casts, array $params): string
+    {
+        $rows = $this->statements->bound(
+            'INSERT INTO items (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $casts) . ') RETURNING id::text AS id',
+            $params
+        );
+        $id = $rows[0]['id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            throw new \RuntimeException('the piece was not saved');
+        }
+
+        return $id;
     }
 
     public function sold(string $id): bool
@@ -252,6 +327,29 @@ final class InventoryStore
         );
         if ($rows === []) {
             throw new \InvalidArgumentException('That brand is not in this mall.');
+        }
+    }
+
+    /**
+     * @param array<string, string|null> $attributes
+     */
+    private function requireAttributes(array $attributes): void
+    {
+        foreach (NameList::all() as $list) {
+            $id = $attributes[$list->key] ?? null;
+            if ($id === null || $id === '') {
+                continue;
+            }
+            if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+                throw new \InvalidArgumentException('That ' . $list->singular . ' is not in this mall.');
+            }
+            $rows = $this->statements->bound(
+                'SELECT id FROM ' . $list->table . ' WHERE id = ?::uuid',
+                [$id]
+            );
+            if ($rows === []) {
+                throw new \InvalidArgumentException('That ' . $list->singular . ' is not in this mall.');
+            }
         }
     }
 }

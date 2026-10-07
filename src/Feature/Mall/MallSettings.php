@@ -77,6 +77,25 @@ final class MallSettings
         return self::flag($this->row()['cash_round_nickel'] ?? null);
     }
 
+    public function getLabelStock(): string
+    {
+        return RowValue::string($this->row()['label_stock'] ?? null);
+    }
+
+    public function setLabelStock(string $stock): void
+    {
+        $this->statements->change('UPDATE mall SET label_stock = ?', [$stock]);
+    }
+
+    public function enabled(string $flag): bool
+    {
+        if (!in_array($flag, ['use_color', 'use_category', 'use_size', 'use_condition', 'use_department'], true)) {
+            throw new \InvalidArgumentException('unknown catalog flag');
+        }
+
+        return self::flag($this->row()[$flag] ?? null);
+    }
+
     public function save(
         string $timeZone,
         int $width,
@@ -87,6 +106,11 @@ final class MallSettings
         ?int $floorDays,
         string $cashRound,
         int $taxRate,
+        bool $useColor,
+        bool $useCategory,
+        bool $useSize,
+        bool $useCondition,
+        bool $useDepartment,
     ): void {
         $this->requireZone($timeZone);
         $this->requireFeet($width, $depth, 'booth size is whole feet');
@@ -95,8 +119,23 @@ final class MallSettings
         $this->requireTax($taxRate);
         $this->guardDays($floorDays);
         $this->statements->change(
-            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?',
-            [$timeZone, $width, $depth, $floorWidth, $floorDepth, $storeTake, $floorDays, $cashRound === '1' ? 'true' : 'false', $taxRate]
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean',
+            [
+                $timeZone,
+                $width,
+                $depth,
+                $floorWidth,
+                $floorDepth,
+                $storeTake,
+                $floorDays,
+                $cashRound === '1' ? 'true' : 'false',
+                $taxRate,
+                $useColor ? 'true' : 'false',
+                $useCategory ? 'true' : 'false',
+                $useSize ? 'true' : 'false',
+                $useCondition ? 'true' : 'false',
+                $useDepartment ? 'true' : 'false',
+            ]
         );
     }
 
@@ -146,7 +185,7 @@ final class MallSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps FROM mall'
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps, use_color, use_category, use_size, use_condition, use_department, label_stock FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

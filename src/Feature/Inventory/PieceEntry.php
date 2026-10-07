@@ -11,6 +11,8 @@ final class PieceEntry
         public readonly string $barcode,
         public readonly string $vendorId,
         public readonly ?string $brandId,
+        /** @var array<string, string|null> */
+        public readonly array $attributes,
         public readonly string $description,
         public readonly int $priceMinor,
         public readonly int $quantity,

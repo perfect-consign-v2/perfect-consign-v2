@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
 
@@ -10,7 +11,10 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $query */
 /** @var int $total */
 /** @var string $confirm */
-/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, vendor_id: string, vendor_label: string, brand_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, deletable: bool}> $items */
+/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, vendor_id: string, vendor_label: string, brand_name: string, color_name: string, category_name: string, size_name: string, condition_name: string, department_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, deletable: bool}> $items */
+/** @var list<NameList> $attributeLists */
+/** @var string $labelStock */
+/** @var list<array{key: string, label: string}> $stocks */
 
 $blank = '—';
 $list = '/' . $slug . '/inventory';
@@ -36,25 +40,38 @@ $list = '/' . $slug . '/inventory';
         <button class="btn" type="submit">Search</button>
     </form>
 
+    <?php if ($items !== []): ?>
+        <?php
+        $printId = '';
+        $lead = 'Check the pieces in the list.';
+        require __DIR__ . '/sticker-job.php';
+        ?>
+    <?php endif; ?>
+
     <div class="card table-wrap list-dt-wrap mt-4">
         <?php if ($items === []): ?>
             <div class="empty"><p>No pieces match.</p></div>
         <?php else: ?>
             <?php
-            ListTable::open(['id' => 'inventory', 'export' => 'inventory']);
-            ListTable::head([
+            $columns = [
+                ['label' => 'Print', 'actions' => true],
                 ['label' => 'Tag'],
                 ['label' => 'Barcode'],
                 ['label' => 'Description'],
                 ['label' => 'Consignor'],
                 ['label' => 'Brand'],
-                ['label' => 'Intake'],
-                ['label' => 'Expires'],
-                ['label' => 'Store take', 'sort' => 'num'],
-                ['label' => 'Qty', 'sort' => 'num'],
-                ['label' => 'Price', 'sort' => 'num'],
-                ['label' => '', 'actions' => true],
-            ]);
+            ];
+            foreach ($attributeLists as $attribute) {
+                $columns[] = ['label' => ucfirst($attribute->singular)];
+            }
+            $columns[] = ['label' => 'Intake'];
+            $columns[] = ['label' => 'Expires'];
+            $columns[] = ['label' => 'Store take', 'sort' => 'num'];
+            $columns[] = ['label' => 'Qty', 'sort' => 'num'];
+            $columns[] = ['label' => 'Price', 'sort' => 'num'];
+            $columns[] = ['label' => '', 'actions' => true];
+            ListTable::open(['id' => 'inventory', 'export' => 'inventory']);
+            ListTable::head($columns);
             ?>
                 <tbody>
                 <?php foreach ($items as $item): ?>
@@ -67,6 +84,7 @@ $list = '/' . $slug . '/inventory';
                     $brand = $item['brand_name'];
                     ?>
                     <tr id="item-<?= View::text($item['id']) ?>">
+                        <td><input form="stickers" type="checkbox" name="item[]" value="<?= View::text($item['id']) ?>" aria-label="Print <?= View::text($item['code']) ?>"></td>
                         <td><a class="strong" href="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/edit"><?= View::text($item['code']) ?></a></td>
                         <td><?= View::text($item['barcode']) ?></td>
                         <td><?= View::text($item['description']) ?></td>
@@ -78,6 +96,16 @@ $list = '/' . $slug . '/inventory';
                                 <?= View::text($brand) ?>
                             <?php endif; ?>
                         </td>
+                        <?php foreach ($attributeLists as $attribute): ?>
+                            <?php $value = $item[$attribute->key . '_name']; ?>
+                            <td>
+                                <?php if ($value === ''): ?>
+                                    <span class="muted"><?= $blank ?></span>
+                                <?php else: ?>
+                                    <?= View::text($value) ?>
+                                <?php endif; ?>
+                            </td>
+                        <?php endforeach; ?>
                         <td><?= View::text($item['intake_on']) ?></td>
                         <td>
                             <?php if ($item['expires_on'] === ''): ?>

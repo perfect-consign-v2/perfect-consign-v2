@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Inventory;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -20,6 +21,7 @@ final class InventoryController
         private readonly PieceWriter $writer,
         private readonly StoreTake $take,
         private readonly MallSettings $mall,
+        private readonly LabelCatalog $stocks,
     ) {
     }
 
@@ -36,7 +38,7 @@ final class InventoryController
         $this->form($slug, $this->forms->blank(
             $this->app->request()->query('vendor'),
             $this->app->request()->query('intake'),
-        ), null);
+        ), null, $this->savedPiece());
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/inventory', ['POST'])]
@@ -88,15 +90,16 @@ final class InventoryController
         $this->app->open($slug, true);
         $draft = $this->draft($id);
         $error = null;
+        $saved = '';
         try {
-            $this->write($id, $this->writer->entry($draft));
+            $saved = $this->write($id, $this->writer->entry($draft));
         } catch (DatabaseRefusal $refusal) {
             $error = $this->itemError($this->app->catchRefusal($refusal));
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
-        if ($error !== null) {
-            $this->form($slug, $this->forms->posted($draft), $error);
+        if ($error !== null || $saved === '') {
+            $this->form($slug, $this->forms->posted($draft), $error ?? 'That piece was not saved.');
 
             return;
         }
@@ -106,21 +109,32 @@ final class InventoryController
                 '/' . $slug . '/inventory/new?' . http_build_query([
                     'vendor' => $draft['vendor_id'],
                     'intake' => $intake,
+                    'print' => $saved,
                 ]),
                 'Piece created.'
             );
         }
-        $this->app->redirect('/' . $slug . '/inventory', 'Piece saved.');
+        $this->app->redirect('/' . $slug . '/inventory/' . $saved . '/edit', 'Piece saved.');
     }
 
-    private function write(?string $id, PieceEntry $piece): void
+    private function write(?string $id, PieceEntry $piece): string
     {
         if ($id === null) {
-            $this->items->add($piece, $this->mall->today());
-
-            return;
+            return $this->items->add($piece, $this->mall->today());
         }
         $this->items->save($id, $piece, $this->mall->today());
+
+        return $id;
+    }
+
+    private function savedPiece(): string
+    {
+        $id = $this->app->request()->query('print');
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1 || $this->items->find($id) === null) {
+            return '';
+        }
+
+        return $id;
     }
 
     /**
@@ -135,6 +149,7 @@ final class InventoryController
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
@@ -154,11 +169,43 @@ final class InventoryController
             'vendor_label' => $this->app->request()->field('vendor_label'),
             'brand_id' => $this->app->request()->field('brand_id'),
             'brand_label' => $this->app->request()->field('brand_label'),
+            'attributes' => $this->postedAttributes(),
             'store_take' => $this->app->request()->field('store_take'),
             'intake_on' => $this->app->request()->field('intake_on'),
             'expires_on' => $this->app->request()->field('expires_on'),
             'fill_expire' => '',
         ];
+    }
+
+    /**
+     * @return array<string, array{id: string, label: string}>
+     */
+    private function postedAttributes(): array
+    {
+        $fields = [];
+        foreach (NameList::all() as $list) {
+            $fields[$list->key] = [
+                'id' => $this->app->request()->field($list->key . '_id'),
+                'label' => $this->app->request()->field($list->key . '_label'),
+            ];
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @return list<NameList>
+     */
+    private function activeLists(): array
+    {
+        $lists = [];
+        foreach (NameList::all() as $list) {
+            if ($this->mall->enabled($list->flag)) {
+                $lists[] = $list;
+            }
+        }
+
+        return $lists;
     }
 
     private function list(string $slug, ?string $error): void
@@ -174,6 +221,9 @@ final class InventoryController
             'query' => $query,
             'total' => $query === '' ? count($items) : $this->items->count(),
             'confirm' => $this->confirming($items, $this->app->request()->query('confirm')),
+            'attributeLists' => $this->activeLists(),
+            'labelStock' => $this->mall->getLabelStock(),
+            'stocks' => $this->stocks->choices(),
             'error' => $error,
         ]);
     }
@@ -190,13 +240,14 @@ final class InventoryController
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
      *     fill_expire: string
      * } $piece
      */
-    private function form(string $slug, array $piece, ?string $error): void
+    private function form(string $slug, array $piece, ?string $error, string $printId = ''): void
     {
         $tenant = $this->app->open($slug, true);
         $days = $this->mall->floorDays();
@@ -210,6 +261,10 @@ final class InventoryController
             'vendorsUrl' => '/' . $tenant->slug . '/inventory/vendors.json',
             'brandsUrl' => '/' . $tenant->slug . '/inventory/brands.json',
             'brandCreateUrl' => '/' . $tenant->slug . '/inventory/brands',
+            'attributeLists' => $this->activeLists(),
+            'labelStock' => $this->mall->getLabelStock(),
+            'stocks' => $this->stocks->choices(),
+            'printId' => $printId,
             'sold' => $sold,
             'error' => $error,
         ]);
@@ -239,6 +294,10 @@ final class InventoryController
             $item['take_label'] = $this->take->format(RowValue::integer($item['take_bps'] ?? null));
             $item['overridden'] = ($item['commission_bps'] ?? null) !== null;
             $item['brand_name'] = is_string($brand) ? $brand : '';
+            foreach (NameList::all() as $list) {
+                $name = $item[$list->key . '_name'] ?? null;
+                $item[$list->key . '_name'] = is_string($name) ? $name : '';
+            }
             $marked[] = $item;
         }
 

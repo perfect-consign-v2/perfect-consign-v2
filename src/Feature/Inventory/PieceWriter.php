@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
+use PerfectConsign\Feature\Catalog\NameList;
+use PerfectConsign\Feature\Catalog\NameListStore;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -12,6 +14,7 @@ final class PieceWriter
 {
     public function __construct(
         private readonly IntakeCatalog $catalog,
+        private readonly NameListStore $lists,
         private readonly MallSettings $mall,
         private readonly StoreTake $take,
     ) {
@@ -29,6 +32,7 @@ final class PieceWriter
      *     vendor_label: string,
      *     brand_id: string,
      *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>,
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
@@ -47,6 +51,7 @@ final class PieceWriter
             $draft['barcode'],
             $draft['vendor_id'],
             $this->brandOf($draft['brand_id'], $draft['brand_label']),
+            $this->attributesOf($draft['attributes']),
             $draft['description'],
             Money::parseMinor($draft['price']),
             $this->quantity($draft['quantity'], $draft['id'] === ''),
@@ -81,6 +86,46 @@ final class PieceWriter
         $found = $this->catalog->brandId($label);
         if ($found === null) {
             throw new \InvalidArgumentException('Add that brand before saving the piece.');
+        }
+
+        return $found;
+    }
+
+    /**
+     * @param array<string, array{id: string, label: string}> $posted
+     * @return array<string, string|null>
+     */
+    private function attributesOf(array $posted): array
+    {
+        $chosen = [];
+        foreach (NameList::all() as $list) {
+            $field = $posted[$list->key] ?? ['id' => '', 'label' => ''];
+            $id = $this->attributeOf($list, $field['id'], $field['label']);
+            if (!$this->mall->enabled($list->flag)) {
+                if ($id !== null) {
+                    throw new \InvalidArgumentException(ucfirst($list->singular) . ' is turned off.');
+                }
+                $chosen[$list->key] = null;
+                continue;
+            }
+            $chosen[$list->key] = $id;
+        }
+
+        return $chosen;
+    }
+
+    private function attributeOf(NameList $list, string $postedId, string $label): ?string
+    {
+        $id = $this->uuid($postedId);
+        if ($id !== '') {
+            return $id;
+        }
+        if ($label === '') {
+            return null;
+        }
+        $found = $this->lists->idForName($list, $label);
+        if ($found === null) {
+            throw new \InvalidArgumentException('Add that ' . $list->singular . ' before saving the piece.');
         }
 
         return $found;

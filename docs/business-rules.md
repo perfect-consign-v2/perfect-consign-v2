@@ -34,6 +34,8 @@ An item is one piece. It has a tag, a barcode, a vendor, a description, an askin
 
 The tag is unique in the mall, ignoring case. A tag is at most 40 characters. The barcode is unique, ignoring case, and at most 100 characters. A blank barcode is filled with BC, the mall date, and a four-digit sequence. A description is at most 200 characters. The asking price is greater than zero.
 
+Stickers print that barcode. The mall remembers which stickers it uses: the 30-up sheet, the 50-up sheet, a hang tag, two hang tags across, or a jewelry tag. A print can pick another. A new sheet starts at row 1, column 1. A job stops at 240 stickers.
+
 The asking price is the price on the piece. It is not a journal. A sale still posts the amount entered on the sale. After a sale, that asking price and that consignor stay. A return pays the consignor on the piece.
 
 The store take on a piece follows the vendor. Saving the vendor's percent, or leaving the field empty, stores no override. A different percent is stored on the piece and marked overridden.
