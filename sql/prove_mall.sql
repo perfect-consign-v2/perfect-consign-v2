@@ -192,4 +192,47 @@ END $$;
 
 UPDATE mall SET floor_days = NULL;
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'mall'
+          AND column_name = 'label_stock'
+          AND data_type = 'text'
+          AND is_nullable = 'NO'
+          AND column_default LIKE '%avery_8160%'
+    ) THEN
+        RAISE EXCEPTION 'stickers do not default to the 30-up sheet';
+    END IF;
+    IF (SELECT label_stock FROM mall) <> 'avery_8160' THEN
+        RAISE EXCEPTION 'stickers do not default to the 30-up sheet';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE mall SET label_stock = 'not-a-sheet';
+    RAISE EXCEPTION 'unknown stickers were accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%mall_label_stock_chk%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+UPDATE mall SET label_stock = 'avery_94073';
+UPDATE mall SET label_stock = 'bcw_consignment';
+UPDATE mall SET label_stock = 'bcw_consignment_2up';
+UPDATE mall SET label_stock = 'bcw_jewelry';
+UPDATE mall SET label_stock = 'avery_8160';
+
+DO $$
+BEGIN
+    IF (SELECT label_stock FROM mall) <> 'avery_8160' THEN
+        RAISE EXCEPTION 'the 30-up sheet was not stored';
+    END IF;
+END $$;
+
 ROLLBACK;

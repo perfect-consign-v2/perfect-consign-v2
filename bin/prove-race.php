@@ -68,6 +68,11 @@ race($schema, $sql, 'prove_race_opening_a.sql', 'prove_race_opening_b.sql', fals
 execSql($schema, "DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d037'");
 
 race($schema, $sql, 'prove_race_brand_a.sql', 'prove_race_brand_b.sql', false, null, true);
+race($schema, $sql, 'prove_race_color_a.sql', 'prove_race_color_b.sql', false, null, true);
+race($schema, $sql, 'prove_race_category_a.sql', 'prove_race_category_b.sql', false, null, true);
+race($schema, $sql, 'prove_race_size_a.sql', 'prove_race_size_b.sql', false, null, true);
+race($schema, $sql, 'prove_race_condition_a.sql', 'prove_race_condition_b.sql', false, null, true);
+race($schema, $sql, 'prove_race_department_a.sql', 'prove_race_department_b.sql', false, null, true);
 
 execSql($schema, "DELETE FROM items WHERE vendor_id IN (SELECT id FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item'); DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0c0' OR code = 'race-item'; INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d0c0', 'race-item', 'Race', 'Item')");
 race($schema, $sql, 'prove_race_item_a.sql', 'prove_race_item_b.sql', false, null, true);
