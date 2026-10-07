@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Mall;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -96,25 +97,47 @@ final class MallSettings
         return self::flag($this->row()[$flag] ?? null);
     }
 
+    /**
+     * @return list<array{0: string, 1: string, 2: string}>
+     */
+    public function getCatalogLinks(): array
+    {
+        $links = [];
+        foreach (NameList::all() as $list) {
+            if ($this->enabled($list->flag)) {
+                $links[] = ['/' . $list->path, $list->plural, 'i-tag'];
+            }
+        }
+
+        return $links;
+    }
+
+    /**
+     * @return list<NameList>
+     */
+    public function getEnabledLists(): array
+    {
+        $lists = [];
+        foreach (NameList::all() as $list) {
+            if ($this->enabled($list->flag)) {
+                $lists[] = $list;
+            }
+        }
+
+        return $lists;
+    }
+
     public function save(
         string $timeZone,
-        int $width,
-        int $depth,
-        int $floorWidth,
-        int $floorDepth,
+        MallWrite $write,
         int $storeTake,
         ?int $floorDays,
         string $cashRound,
         int $taxRate,
-        bool $useColor,
-        bool $useCategory,
-        bool $useSize,
-        bool $useCondition,
-        bool $useDepartment,
     ): void {
         $this->requireZone($timeZone);
-        $this->requireFeet($width, $depth, 'booth size is whole feet');
-        $this->requireFeet($floorWidth, $floorDepth, 'floor size is whole feet');
+        $this->requireFeet($write->boothWidth, $write->boothDepth, 'booth size is whole feet');
+        $this->requireFeet($write->floorWidth, $write->floorDepth, 'floor size is whole feet');
         $this->requireTake($storeTake);
         $this->requireTax($taxRate);
         $this->guardDays($floorDays);
@@ -122,19 +145,19 @@ final class MallSettings
             'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean',
             [
                 $timeZone,
-                $width,
-                $depth,
-                $floorWidth,
-                $floorDepth,
+                $write->boothWidth,
+                $write->boothDepth,
+                $write->floorWidth,
+                $write->floorDepth,
                 $storeTake,
                 $floorDays,
                 $cashRound === '1' ? 'true' : 'false',
                 $taxRate,
-                $useColor ? 'true' : 'false',
-                $useCategory ? 'true' : 'false',
-                $useSize ? 'true' : 'false',
-                $useCondition ? 'true' : 'false',
-                $useDepartment ? 'true' : 'false',
+                $write->color ? 'true' : 'false',
+                $write->category ? 'true' : 'false',
+                $write->size ? 'true' : 'false',
+                $write->condition ? 'true' : 'false',
+                $write->department ? 'true' : 'false',
             ]
         );
     }

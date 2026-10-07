@@ -14,9 +14,7 @@ final class PieceEntry
         /** @var array<string, string|null> */
         public readonly array $attributes,
         public readonly string $description,
-        public readonly int $priceMinor,
-        public readonly int $quantity,
-        public readonly ?int $commissionBps,
+        public readonly PieceSale $sale,
         public readonly PieceDates $dates,
     ) {
     }

@@ -214,6 +214,11 @@ final class OwnerJourneyTest extends WebTestCase
             'floor_depth_ft' => '90',
             'default_store_take' => '0',
             'floor_days' => '30',
+            'use_color' => '1',
+            'use_category' => '1',
+            'use_size' => '1',
+            'use_condition' => '1',
+            'use_department' => '1',
         ]);
         $tag = 't' . bin2hex(random_bytes(4));
         $created = 'Blue ' . $tag;
@@ -306,6 +311,11 @@ final class OwnerJourneyTest extends WebTestCase
             'floor_depth_ft' => '90',
             'default_store_take' => '0',
             'floor_days' => '',
+            'use_color' => '1',
+            'use_category' => '1',
+            'use_size' => '1',
+            'use_condition' => '1',
+            'use_department' => '1',
         ]);
     }
 
@@ -420,6 +430,11 @@ final class OwnerJourneyTest extends WebTestCase
             'default_store_take' => '0',
             'floor_days' => '45',
             'tax_rate' => '9.997',
+            'use_color' => '1',
+            'use_category' => '1',
+            'use_size' => '1',
+            'use_condition' => '1',
+            'use_department' => '1',
         ]);
         self::assertSees('America/Chicago', $saved);
         self::assertSees('value="45"', $saved);
@@ -431,6 +446,11 @@ final class OwnerJourneyTest extends WebTestCase
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
             'default_store_take' => '0',
+            'use_color' => '1',
+            'use_category' => '1',
+            'use_size' => '1',
+            'use_condition' => '1',
+            'use_department' => '1',
         ]);
         self::assertSees('America/Los_Angeles', $restored);
     }
@@ -509,6 +529,11 @@ final class OwnerJourneyTest extends WebTestCase
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
+            'use_color' => '1',
+            'use_category' => '1',
+            'use_size' => '1',
+            'use_condition' => '1',
+            'use_department' => '1',
         ];
         $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '30']);
         self::assertSees('value="30"', $saved);
@@ -575,6 +600,11 @@ final class OwnerJourneyTest extends WebTestCase
             'floor_depth_ft' => '90',
             'default_store_take' => '0',
             'floor_days' => '',
+            'use_color' => '1',
+            'use_category' => '1',
+            'use_size' => '1',
+            'use_condition' => '1',
+            'use_department' => '1',
         ];
         if ($on) {
             $fields['cash_round_nickel'] = '1';

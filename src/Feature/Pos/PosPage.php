@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
-use PerfectConsign\Feature\Catalog\NameList;
-use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\Money;
@@ -22,7 +20,6 @@ final class PosPage
         private readonly SalePoster $poster,
         private readonly LayawayBook $layaways,
         private readonly PayoutStore $payouts,
-        private readonly MallSettings $mall,
     ) {
     }
 
@@ -95,23 +92,7 @@ final class PosPage
             'payGiftNumber' => $pay['payGiftNumber'],
             'payCredit' => $pay['payCredit'],
             'payCreditNumber' => $pay['payCreditNumber'],
-            'attributeLists' => $this->activeLists(),
         ]);
-    }
-
-    /**
-     * @return list<NameList>
-     */
-    private function activeLists(): array
-    {
-        $lists = [];
-        foreach (NameList::all() as $list) {
-            if ($this->mall->enabled($list->flag)) {
-                $lists[] = $list;
-            }
-        }
-
-        return $lists;
     }
 
     /**

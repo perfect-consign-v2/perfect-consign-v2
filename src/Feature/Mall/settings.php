@@ -18,6 +18,8 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $taxRate */
 /** @var string $backupHeadline */
 /** @var array<string, bool> $catalogs */
+/** @var list<array{key: string, label: string}> $stocks */
+/** @var string $labelStock */
 ?>
 <div class="page-head">
     <div class="titles">

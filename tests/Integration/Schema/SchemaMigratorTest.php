@@ -91,6 +91,8 @@ final class SchemaMigratorTest extends TestCase
         $applied = $record->applied($schema);
         self::assertArrayHasKey('001_kernel.sql', $applied);
         self::assertArrayHasKey('044_schema_migrations.sql', $applied);
+        self::assertArrayHasKey('048_item_attributes.sql', $applied);
+        self::assertArrayHasKey('049_label_stock.sql', $applied);
         $pdo->exec('SET search_path TO pg_catalog');
         self::assertArrayHasKey('001_kernel.sql', $record->applied($schema));
         try {
@@ -128,6 +130,28 @@ final class SchemaMigratorTest extends TestCase
             self::fail('a tenant missing journal_cash_tendered was stamped');
         } catch (TenantBaselineMismatch $error) {
             self::assertStringContainsString('journal_cash_tendered', $error->getMessage());
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        }
+    }
+
+    public function testAPartialLaterMigrationIsNotReplayed(): void
+    {
+        $root = dirname(__DIR__, 3);
+        ProbeMall::ensure($root);
+        $pdo = $this->connection();
+        $migrator = new SchemaMigrator($pdo, new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql'));
+        $schema = $this->schema($pdo);
+        $pdo->beginTransaction();
+        try {
+            $pdo->exec('ALTER TABLE ' . $schema . '.mall DROP CONSTRAINT mall_label_stock_chk');
+            $pdo->exec('DROP TABLE ' . $schema . '.schema_migrations');
+            $migrator->migrateTenant(ProbeMall::SLUG);
+            self::fail('a tenant missing mall_label_stock_chk was replayed');
+        } catch (TenantBaselineMismatch $error) {
+            self::assertStringContainsString('mall_label_stock_chk', $error->getMessage());
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

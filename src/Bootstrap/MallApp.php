@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
-use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Http\Request;
@@ -76,7 +75,8 @@ final class MallApp
         }
         $data['notice'] = $notice;
         $data['warning'] = $warning;
-        $data['catalogNav'] = $this->catalogNav();
+        $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
+        $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
 
@@ -97,24 +97,6 @@ final class MallApp
         $this->keepFlash('warning', $warning);
         header('Location: ' . $path, true, 303);
         throw new ResponseSent('redirect');
-    }
-
-    /**
-     * @return list<array{0: string, 1: string, 2: string}>
-     */
-    private function catalogNav(): array
-    {
-        if (!$this->roled) {
-            return [];
-        }
-        $links = [];
-        foreach (NameList::all() as $list) {
-            if ($this->mall->enabled($list->flag)) {
-                $links[] = ['/' . $list->path, $list->plural, 'i-tag'];
-            }
-        }
-
-        return $links;
     }
 
     private function keepFlash(string $key, ?string $value): void

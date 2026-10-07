@@ -123,12 +123,18 @@ $groups += [
                 <div class="nav-group-label"><?= View::text($group) ?></div>
                 <?php foreach ($links as $link): ?>
                     <?php
-                    $href = '/' . $slug . $link[0];
+                    $navPath = is_string($link[0] ?? null) ? $link[0] : '';
+                    $navLabel = is_string($link[1] ?? null) ? $link[1] : '';
+                    $navIcon = is_string($link[2] ?? null) ? $link[2] : '';
+                    if ($navPath === '' || $navLabel === '' || $navIcon === '') {
+                        continue;
+                    }
+                    $href = '/' . $slug . $navPath;
                     $active = $path === $href || str_starts_with($path, $href . '/');
                     ?>
-                    <a class="nav-item" href="<?= View::text($href) ?>"<?= $active ? ' aria-current="page"' : '' ?> title="<?= View::text($link[1]) ?>">
-                        <svg aria-hidden="true"><use href="#<?= View::text($link[2]) ?>"></use></svg>
-                        <span class="nav-label"><?= View::text($link[1]) ?></span>
+                    <a class="nav-item" href="<?= View::text($href) ?>"<?= $active ? ' aria-current="page"' : '' ?> title="<?= View::text($navLabel) ?>">
+                        <svg aria-hidden="true"><use href="#<?= View::text($navIcon) ?>"></use></svg>
+                        <span class="nav-label"><?= View::text($navLabel) ?></span>
                     </a>
                 <?php endforeach; ?>
             <?php endforeach; ?>

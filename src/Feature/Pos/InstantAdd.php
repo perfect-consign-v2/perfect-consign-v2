@@ -12,8 +12,7 @@ final class InstantAdd
         public readonly string $price,
         public readonly string $barcode,
         public readonly string $quantity,
-        public readonly string $brandId,
-        public readonly string $brandLabel,
+        public readonly InstantBrand $brand,
         /** @var array<string, array{id: string, label: string}> */
         public readonly array $attributes,
         public readonly string $discountKind,

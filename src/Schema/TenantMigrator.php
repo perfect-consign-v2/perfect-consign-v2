@@ -20,20 +20,50 @@ final class TenantMigrator
     public function bringCurrent(string $slug): void
     {
         $this->record->holdMigration();
-        $schema = $this->tenantSchema($slug);
-        $this->searchPath($schema);
-        if (!$this->record->ready($schema)) {
-            $this->baselineTenant($slug, $schema);
+        try {
+            $schema = $this->tenantSchema($slug);
+            $this->searchPath($schema);
+            if (!$this->record->ready($schema)) {
+                $this->baselineTenant($slug, $schema);
+                $this->stampPresent($slug, $schema);
+            }
+            $this->record->verify($schema);
+            $this->pendingTenant($slug, $schema);
+        } finally {
+            $this->record->releaseMigration();
         }
-        $this->record->verify($schema);
-        $this->pendingTenant($slug, $schema);
     }
 
     public function storeRecord(string $schema): void
     {
         $this->record->holdMigration();
-        $this->searchPath($schema);
-        $this->record->stamp($schema, $this->catalog->tenantFiles());
+        try {
+            $this->searchPath($schema);
+            $this->record->stamp($schema, $this->catalog->tenantFiles());
+        } finally {
+            $this->record->releaseMigration();
+        }
+    }
+
+    private function stampPresent(string $slug, string $schema): void
+    {
+        $applied = $this->record->applied($schema);
+        $presence = new SchemaPresence($this->pdo);
+        foreach ($this->catalog->tenantFiles() as $file) {
+            if ($file <= '044_schema_migrations.sql' || isset($applied[$file])) {
+                continue;
+            }
+            $covered = $presence->coverage($schema, $this->catalog->fileObjects($file));
+            if ($covered['missing'] === null) {
+                $this->record->stamp($schema, [$file]);
+                continue;
+            }
+            if ($covered['present'] > 0) {
+                throw new TenantBaselineMismatch(
+                    'tenant ' . $slug . ' is missing ' . $covered['missing'] . ' and was not stamped'
+                );
+            }
+        }
     }
 
     private function tenantSchema(string $slug): string

@@ -22,15 +22,19 @@ final class SchemaMigrator
     public function migratePlatform(): void
     {
         $this->record->holdMigration();
-        if (!$this->record->ready('platform')) {
-            if ($this->installed()) {
-                $this->finishPlatform();
-            } else {
-                $this->installPlatform();
+        try {
+            if (!$this->record->ready('platform')) {
+                if ($this->installed()) {
+                    $this->finishPlatform();
+                } else {
+                    $this->installPlatform();
+                }
             }
+            $this->record->verify('platform');
+            $this->pendingPlatform();
+        } finally {
+            $this->record->releaseMigration();
         }
-        $this->record->verify('platform');
-        $this->pendingPlatform();
     }
 
     public function migrateTenant(string $slug): void

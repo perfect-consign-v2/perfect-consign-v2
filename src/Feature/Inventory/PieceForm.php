@@ -285,6 +285,37 @@ final class PieceForm
     }
 
     /**
+     * @param callable(string): string $field
+     * @return array<string, array{id: string, label: string}>
+     */
+    public function postedAttributes(callable $field): array
+    {
+        $fields = [];
+        foreach (NameList::all() as $list) {
+            $fields[$list->key] = [
+                'id' => $field($list->key . '_id'),
+                'label' => $field($list->key . '_label'),
+            ];
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    public function fillNames(array $item): array
+    {
+        foreach (NameList::all() as $list) {
+            $name = $item[$list->key . '_name'] ?? null;
+            $item[$list->key . '_name'] = is_string($name) ? $name : '';
+        }
+
+        return $item;
+    }
+
+    /**
      * @return array<string, array{id: string, label: string}>
      */
     private function emptyAttributes(): array

@@ -38,8 +38,8 @@ final class InstantPiece
             'quantity' => trim($piece->quantity) === '' ? '1' : trim($piece->quantity),
             'vendor_id' => $piece->vendorId,
             'vendor_label' => '',
-            'brand_id' => trim($piece->brandId),
-            'brand_label' => trim($piece->brandLabel),
+            'brand_id' => trim($piece->brand->id),
+            'brand_label' => trim($piece->brand->label),
             'attributes' => $piece->attributes,
             'store_take' => '',
             'intake_on' => $today,
@@ -48,7 +48,7 @@ final class InstantPiece
         ]);
         $this->items->add($saved, $today);
         $this->tickets->scan($session, $saved->code);
-        $this->finish($session, $saved->code, $saved->quantity, $piece->discountKind, $piece->discountValue);
+        $this->finish($session, $saved->code, $saved->sale->quantity, $piece->discountKind, $piece->discountValue);
     }
 
     private function finish(string $session, string $code, int $quantity, string $discountKind, string $discountValue): void

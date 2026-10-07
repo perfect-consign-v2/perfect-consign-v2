@@ -602,6 +602,11 @@ final class FloorCoverageTest extends WebTestCase
             'floor_depth_ft' => '90',
             'default_store_take' => '0',
             'floor_days' => '',
+            'use_color' => '1',
+            'use_category' => '1',
+            'use_size' => '1',
+            'use_condition' => '1',
+            'use_department' => '1',
         ];
         if ($round) {
             $fields['cash_round_nickel'] = '1';

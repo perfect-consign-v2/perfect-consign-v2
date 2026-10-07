@@ -18,6 +18,9 @@ final class TenantLookup
         if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $slug) !== 1) {
             return null;
         }
+        if ($this->pdo->exec('RESET ROLE') === false) {
+            throw new \RuntimeException('the database role could not be reset');
+        }
         $statement = $this->pdo->prepare(
             'SELECT id, slug, schema_name, display_name FROM platform.tenants WHERE slug = ?'
         );

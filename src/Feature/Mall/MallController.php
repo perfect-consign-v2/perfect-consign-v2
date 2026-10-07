@@ -164,19 +164,21 @@ final class MallController
         try {
             $this->mall->save(
                 $timeZone,
-                $width,
-                $depth,
-                $floorWidth,
-                $floorDepth,
+                new MallWrite(
+                    $width,
+                    $depth,
+                    $floorWidth,
+                    $floorDepth,
+                    $this->app->request()->field('use_color') === '1',
+                    $this->app->request()->field('use_category') === '1',
+                    $this->app->request()->field('use_size') === '1',
+                    $this->app->request()->field('use_condition') === '1',
+                    $this->app->request()->field('use_department') === '1',
+                ),
                 $storeTake,
                 $floorDays,
                 $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
                 $taxRate,
-                $this->app->request()->field('use_color') === '1',
-                $this->app->request()->field('use_category') === '1',
-                $this->app->request()->field('use_size') === '1',
-                $this->app->request()->field('use_condition') === '1',
-                $this->app->request()->field('use_department') === '1',
             );
             $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
             $this->payouts->save(

@@ -12,7 +12,7 @@ DECLARE
     vendor_id uuid := '04800000-0000-7000-8000-0000000000a1';
     item_id uuid := '04800000-0000-7000-8000-0000000000a2';
     other_id uuid;
-    column_name text;
+    item_column text;
     flag_name text;
 BEGIN
     INSERT INTO vendors (id, code, first_name, last_name)
@@ -21,12 +21,12 @@ BEGIN
     FOREACH catalog IN ARRAY ARRAY['colors', 'categories', 'sizes', 'conditions', 'departments']
     LOOP
         SELECT count(*) INTO money_columns
-        FROM information_schema.columns
-        WHERE table_schema = current_schema()
-          AND table_name = catalog
+        FROM information_schema.columns AS listed
+        WHERE listed.table_schema = current_schema()
+          AND listed.table_name = catalog
           AND (
-              data_type IN ('numeric', 'money', 'bigint', 'integer', 'smallint')
-              OR column_name ~* '(amount|balance|minor|rate|price|total)'
+              listed.data_type IN ('numeric', 'money', 'bigint', 'integer', 'smallint')
+              OR listed.column_name ~* '(amount|balance|minor|rate|price|total)'
           );
         IF money_columns <> 0 THEN
             RAISE EXCEPTION '% table carries money', catalog;
@@ -64,16 +64,16 @@ BEGIN
 
         held_id := '04800000-0000-7000-8000-0000000000b3';
         EXECUTE format('INSERT INTO %I (id, name) VALUES ($1, ''Held'')', catalog) USING held_id;
-        column_name := left(catalog, length(catalog) - 1) || '_id';
+        item_column := left(catalog, length(catalog) - 1) || '_id';
         IF catalog = 'categories' THEN
-            column_name := 'category_id';
+            item_column := 'category_id';
         ELSIF catalog = 'sizes' THEN
-            column_name := 'size_id';
+            item_column := 'size_id';
         END IF;
 
         EXECUTE format(
             'INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, %I) VALUES ($1, $2, $3, ''Held piece'', 100, $2, DATE ''2026-10-06'', $4)',
-            column_name
+            item_column
         ) USING item_id, catalog || '-held', vendor_id, held_id;
 
         BEGIN
@@ -117,7 +117,7 @@ BEGIN
         BEGIN
             EXECUTE format(
                 'INSERT INTO items (code, vendor_id, description, price_minor, barcode, intake_on, %I) VALUES ($1, $2, ''Off'', 100, $1, DATE ''2026-10-06'', $3)',
-                column_name
+                item_column
             ) USING catalog || '-off', vendor_id, held_id;
             RAISE EXCEPTION '% was accepted while turned off', catalog;
         EXCEPTION
@@ -129,13 +129,13 @@ BEGIN
         EXECUTE format('UPDATE mall SET %I = true', flag_name);
         EXECUTE format(
             'INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, %I) VALUES ($1, $2, $3, ''On'', 100, $2, DATE ''2026-10-06'', $4)',
-            column_name
+            item_column
         ) USING item_id, catalog || '-on', vendor_id, held_id;
 
         EXECUTE format('INSERT INTO %I (id, name) VALUES ($1, ''Other'')', catalog) USING other_id;
         EXECUTE format('UPDATE mall SET %I = false', flag_name);
         BEGIN
-            EXECUTE format('UPDATE items SET %I = $1 WHERE id = $2', column_name) USING other_id, item_id;
+            EXECUTE format('UPDATE items SET %I = $1 WHERE id = $2', item_column) USING other_id, item_id;
             RAISE EXCEPTION '% change was accepted while turned off', catalog;
         EXCEPTION
             WHEN SQLSTATE '23514' THEN

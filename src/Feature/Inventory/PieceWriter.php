@@ -53,9 +53,11 @@ final class PieceWriter
             $this->brandOf($draft['brand_id'], $draft['brand_label']),
             $this->attributesOf($draft['attributes']),
             $draft['description'],
-            Money::parseMinor($draft['price']),
-            $this->quantity($draft['quantity'], $draft['id'] === ''),
-            $this->takeOf($draft['vendor_id'], $draft['store_take']),
+            new PieceSale(
+                Money::parseMinor($draft['price']),
+                $this->quantity($draft['quantity'], $draft['id'] === ''),
+                $this->takeOf($draft['vendor_id'], $draft['store_take']),
+            ),
             new PieceDates($intake, $this->expires($draft['expires_on'], $intake)),
         );
     }

@@ -13,11 +13,14 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class InventoryStore
 {
+    private readonly PieceGuard $guard;
+
     public function __construct(
         private readonly Statements $statements,
         private readonly CatalogLinks $links,
         private readonly MallSettings $mall,
     ) {
+        $this->guard = new PieceGuard($statements);
     }
 
     /**
@@ -153,9 +156,7 @@ final class InventoryStore
 
     private function place(?string $id, PieceEntry $piece, string $today): string
     {
-        $this->requireVendor($piece->vendorId);
-        $this->requireBrand($piece->brandId);
-        $this->requireAttributes($piece->attributes);
+        $this->guard->accept($piece);
         $refusal = null;
         $attempt = 0;
         $stored = '';
@@ -175,10 +176,6 @@ final class InventoryStore
                 }
             }
         }
-        if (!$refusal instanceof DatabaseRefusal) {
-            throw new \RuntimeException('A barcode could not be generated.');
-        }
-
         throw $refusal;
     }
 
@@ -192,9 +189,9 @@ final class InventoryStore
             $piece->vendorId,
             $piece->brandId,
             $piece->description,
-            $piece->priceMinor,
-            $piece->quantity,
-            $piece->commissionBps,
+            $piece->sale->priceMinor,
+            $piece->sale->quantity,
+            $piece->sale->commissionBps,
             $piece->dates->intakeOn,
             $piece->dates->expiresOn,
         ];
@@ -214,7 +211,7 @@ final class InventoryStore
             $assignments[] = $column . ' = ' . $casts[$index];
         }
         $params[] = $id;
-        $params[] = $piece->priceMinor;
+        $params[] = $piece->sale->priceMinor;
         $params[] = $piece->vendorId;
         $count = $this->statements->affected(
             'UPDATE items SET ' . implode(', ', $assignments) . '
@@ -267,7 +264,7 @@ final class InventoryStore
         if ($row === null) {
             throw new \InvalidArgumentException('That piece is not in this mall.');
         }
-        if ($piece->priceMinor !== RowValue::integer($row['price_minor'] ?? null)) {
+        if ($piece->sale->priceMinor !== RowValue::integer($row['price_minor'] ?? null)) {
             throw new \InvalidArgumentException('That price is already on a sale.');
         }
         if ($piece->vendorId !== RowValue::string($row['vendor_id'] ?? null)) {
@@ -297,59 +294,5 @@ final class InventoryStore
         }
 
         return $prefix . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
-    }
-
-    private function requireVendor(string $vendorId): void
-    {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
-            throw new \InvalidArgumentException('That vendor is not in this mall.');
-        }
-        $rows = $this->statements->bound(
-            'SELECT id FROM vendors WHERE id = ?::uuid',
-            [$vendorId]
-        );
-        if ($rows === []) {
-            throw new \InvalidArgumentException('That vendor is not in this mall.');
-        }
-    }
-
-    private function requireBrand(?string $brandId): void
-    {
-        if ($brandId === null || $brandId === '') {
-            return;
-        }
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $brandId) !== 1) {
-            throw new \InvalidArgumentException('That brand is not in this mall.');
-        }
-        $rows = $this->statements->bound(
-            'SELECT id FROM brands WHERE id = ?::uuid',
-            [$brandId]
-        );
-        if ($rows === []) {
-            throw new \InvalidArgumentException('That brand is not in this mall.');
-        }
-    }
-
-    /**
-     * @param array<string, string|null> $attributes
-     */
-    private function requireAttributes(array $attributes): void
-    {
-        foreach (NameList::all() as $list) {
-            $id = $attributes[$list->key] ?? null;
-            if ($id === null || $id === '') {
-                continue;
-            }
-            if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
-                throw new \InvalidArgumentException('That ' . $list->singular . ' is not in this mall.');
-            }
-            $rows = $this->statements->bound(
-                'SELECT id FROM ' . $list->table . ' WHERE id = ?::uuid',
-                [$id]
-            );
-            if ($rows === []) {
-                throw new \InvalidArgumentException('That ' . $list->singular . ' is not in this mall.');
-            }
-        }
     }
 }
