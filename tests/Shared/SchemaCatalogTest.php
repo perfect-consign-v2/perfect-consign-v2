@@ -32,10 +32,15 @@ final class SchemaCatalogTest extends TestCase
         );
         self::assertStringContainsString('tenant_0123456789abcdef0123456789abcdef.vendors', $rewritten);
         self::assertStringContainsString('poster_0123456789abcdef0123456789abcdef', $rewritten);
+        $objects = $catalog->baselineObjects();
+        self::assertContains('journal_cash_tendered', $objects['tables']);
+        self::assertContains('stall_reverse_payout_run', $objects['routines']);
+        self::assertNotContains('schema_migrations', $objects['tables']);
         // remember( relation( tenantSchema( searchPath( installed( finishPlatform( installPlatform( tenants(
-        // bringCurrent( storeRecord( transaction(
+        // bringCurrent( storeRecord( transaction( requireBaseline( holdMigration( releaseMigration( window(
+        // absent( regclass( routine( identifier( baselineObjects( definitions( created(
         // pendingPlatform( pendingTenant( baselineTenant( platformBaseline( tenantBaseline( runPlatform(
-        // runTenant( sentinel( roleName( grantRead( rollback( present( filePresent( extensions(
+        // runTenant( roleName( grantRead( rollback( present( filePresent( extensions(
     }
 
     public function testASchemaFileNameMustMatchTheLedgerPattern(): void

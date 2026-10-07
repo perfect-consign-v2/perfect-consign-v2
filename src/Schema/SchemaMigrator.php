@@ -21,6 +21,7 @@ final class SchemaMigrator
 
     public function migratePlatform(): void
     {
+        $this->record->holdMigration();
         if (!$this->record->ready('platform')) {
             if ($this->installed()) {
                 $this->finishPlatform();

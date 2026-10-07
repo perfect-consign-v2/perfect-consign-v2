@@ -83,5 +83,6 @@ usage();
 function usage(): never
 {
     fwrite(STDERR, "usage: php bin/migrate.php platform|tenant <slug>|tenant-all\n");
+    fwrite(STDERR, "Migrations are forward only. There is no down path.\n");
     exit(1);
 }

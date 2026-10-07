@@ -52,6 +52,33 @@ final class SchemaCatalog
         return self::PLATFORM;
     }
 
+    /**
+     * @return array{tables: list<string>, routines: list<string>}
+     */
+    public function baselineObjects(): array
+    {
+        $tables = [];
+        $routines = [];
+        foreach ($this->tenantFiles() as $file) {
+            if ($file >= '044_schema_migrations.sql') {
+                continue;
+            }
+            $sql = $this->definitions($this->read($file));
+            foreach ($this->created($sql, 'TABLE') as $name) {
+                $tables[$name] = $name;
+            }
+            foreach ($this->created($sql, 'FUNCTION') as $name) {
+                $routines[$name] = $name;
+            }
+        }
+        $tableNames = array_values($tables);
+        $routineNames = array_values($routines);
+        sort($tableNames);
+        sort($routineNames);
+
+        return ['tables' => $tableNames, 'routines' => $routineNames];
+    }
+
     public function checksum(string $file): string
     {
         return hash('sha256', $this->read($file));
@@ -84,5 +111,35 @@ final class SchemaCatalog
             [$schema . '.', 'SCHEMA ' . $schema, $role],
             $sql
         );
+    }
+
+    private function definitions(string $sql): string
+    {
+        $stripped = preg_replace('/\$([A-Za-z0-9_]*)\$(.*?)\$\1\$/s', '', $sql);
+
+        return is_string($stripped) ? $stripped : $sql;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function created(string $sql, string $kind): array
+    {
+        $pattern = $kind === 'TABLE'
+            ? '/CREATE TABLE(?: IF NOT EXISTS)?\s+(?:([a-z_][a-z0-9_]*)\.)?([a-z_][a-z0-9_]*)/i'
+            : '/CREATE(?: OR REPLACE)? FUNCTION\s+(?:([a-z_][a-z0-9_]*)\.)?([a-z_][a-z0-9_]*)/i';
+        $found = [];
+        if (preg_match_all($pattern, $sql, $matches, PREG_SET_ORDER) === false) {
+            return [];
+        }
+        foreach ($matches as $match) {
+            $qualifier = $match[1];
+            if ($qualifier !== '' && strtolower($qualifier) !== 'public') {
+                continue;
+            }
+            $found[] = strtolower($match[2]);
+        }
+
+        return $found;
     }
 }

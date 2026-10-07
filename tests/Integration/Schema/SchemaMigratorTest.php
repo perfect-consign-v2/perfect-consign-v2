@@ -8,6 +8,7 @@ use PDO;
 use PerfectConsign\Schema\MigrationRecord;
 use PerfectConsign\Schema\SchemaCatalog;
 use PerfectConsign\Schema\SchemaMigrator;
+use PerfectConsign\Schema\TenantBaselineMismatch;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -61,7 +62,6 @@ final class SchemaMigratorTest extends TestCase
         $migrator = new SchemaMigrator($pdo, $catalog);
         $record = new MigrationRecord($pdo, $catalog);
         $schema = $this->schema($pdo);
-        $migrator->migrateTenant('mall');
         $pdo->beginTransaction();
         try {
             $pdo->exec('DROP EVENT TRIGGER platform_reject_guard_function_replace');
@@ -91,6 +91,8 @@ final class SchemaMigratorTest extends TestCase
         $applied = $record->applied($schema);
         self::assertArrayHasKey('001_kernel.sql', $applied);
         self::assertArrayHasKey('044_schema_migrations.sql', $applied);
+        $pdo->exec('SET search_path TO pg_catalog');
+        self::assertArrayHasKey('001_kernel.sql', $record->applied($schema));
         try {
             $migrator->migrateTenant('Not Slug');
             self::fail('an invalid slug was accepted');
@@ -108,6 +110,47 @@ final class SchemaMigratorTest extends TestCase
             self::fail('a public schema was recorded');
         } catch (RuntimeException $error) {
             self::assertStringContainsString('not a tenant schema', $error->getMessage());
+        }
+    }
+
+    public function testAMissingBaselineObjectIsNotStamped(): void
+    {
+        $root = dirname(__DIR__, 3);
+        ProbeMall::ensure($root);
+        $pdo = $this->connection();
+        $migrator = new SchemaMigrator($pdo, new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql'));
+        $schema = $this->schema($pdo);
+        $pdo->beginTransaction();
+        try {
+            $pdo->exec('DROP TABLE ' . $schema . '.schema_migrations');
+            $pdo->exec('DROP TABLE ' . $schema . '.journal_cash_tendered');
+            $migrator->migrateTenant(ProbeMall::SLUG);
+            self::fail('a tenant missing journal_cash_tendered was stamped');
+        } catch (TenantBaselineMismatch $error) {
+            self::assertStringContainsString('journal_cash_tendered', $error->getMessage());
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        }
+    }
+
+    public function testASecondMigrationIsRefused(): void
+    {
+        $root = dirname(__DIR__, 3);
+        ProbeMall::ensure($root);
+        $pdo = $this->connection();
+        $catalog = new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql');
+        $record = new MigrationRecord($pdo, $catalog);
+        $other = new MigrationRecord($this->connection(), $catalog);
+        $record->holdMigration();
+        try {
+            $other->holdMigration();
+            self::fail('a second migration was accepted');
+        } catch (RuntimeException $error) {
+            self::assertSame('a migration is already running', $error->getMessage());
+        } finally {
+            $record->releaseMigration();
         }
     }
 

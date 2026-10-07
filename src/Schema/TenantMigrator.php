@@ -19,6 +19,7 @@ final class TenantMigrator
 
     public function bringCurrent(string $slug): void
     {
+        $this->record->holdMigration();
         $schema = $this->tenantSchema($slug);
         $this->searchPath($schema);
         if (!$this->record->ready($schema)) {
@@ -30,6 +31,7 @@ final class TenantMigrator
 
     public function storeRecord(string $schema): void
     {
+        $this->record->holdMigration();
         $this->searchPath($schema);
         $this->record->stamp($schema, $this->catalog->tenantFiles());
     }
@@ -71,11 +73,7 @@ final class TenantMigrator
 
     private function baselineTenant(string $slug, string $schema): void
     {
-        if (!$this->sentinel($schema)) {
-            throw new TenantBaselineMismatch(
-                'tenant ' . $slug . ' does not match the closed payout window and was not stamped'
-            );
-        }
+        $this->record->requireBaseline($slug, $schema);
         $role = $this->roleName($slug, $schema);
         $this->transaction(function () use ($schema, $role): void {
             $sql = $this->catalog->rewrite($this->catalog->read('044_schema_migrations.sql'), $schema, $role);
@@ -130,24 +128,6 @@ final class TenantMigrator
             }
             throw new RuntimeException($file . ' was not applied: ' . $error->getMessage(), 0, $error);
         }
-    }
-
-    private function sentinel(string $schema): bool
-    {
-        $statement = $this->pdo->prepare(
-            'SELECT pg_trigger.tgconstraint = 0 AND NOT pg_trigger.tgdeferrable
-             FROM pg_trigger
-             JOIN pg_class ON pg_class.oid = pg_trigger.tgrelid
-             JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
-             WHERE pg_namespace.nspname = ?
-               AND pg_class.relname = \'journals\'
-               AND pg_trigger.tgname = \'journals_closed_payout_window\'
-               AND NOT pg_trigger.tgisinternal'
-        );
-        $statement->execute([$schema]);
-        $value = $statement->fetchColumn();
-
-        return $value === true || $value === 't' || $value === '1' || $value === 1;
     }
 
     private function roleName(string $slug, string $schema): string
