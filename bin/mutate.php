@@ -395,6 +395,39 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Backup\\PostgresTools.php' && $line === 102 && $from === '!' && $to === '') {
         return 'getenv with no name returns the environment array';
     }
+    if ($file === 'src\\Schema\\SqlObjects.php' && $line === 102 && $from === '||' && $to === '&&') {
+        return 'explode always returns strings, and an empty table name is returned either way';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelSheet.php' && $line === 132 && $from === '+' && $to === '-') {
+        return 'the row gap on every stock is zero, so adding it and subtracting it leave the same top';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelSheet.php' && $line === 173 && $from === '<' && $to === '<=') {
+        return 'a module width of 2 is already the floor this clamp writes';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelSheet.php' && $line === 176 && $from === '>' && $to === '>=') {
+        return 'a module width of 6 is already the cap this clamp writes';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelSheet.php' && $line === 180 && $from === '<' && $to === '<=') {
+        return 'a bar height of 8 pixels is already the floor this clamp writes';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 56 && $from === '>' && $to === '>=') {
+        return 'when the leftover room equals the cap, both branches return that cap';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 136 && $from === '<' && $to === '<=') {
+        return 'a usable width of one module is already below the scan floor, and a barcode always has more than one module';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 136 && $from === '||' && $to === '&&') {
+        return 'a barcode always has more than one module, and a negative width still falls below the scan floor';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 157 && $from === '<' && $to === '<=') {
+        return 'a font of one pixel is already the floor this clamp writes';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 161 && $from === '<' && $to === '<=') {
+        return 'a character of one pixel is already the floor this clamp writes';
+    }
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 165 && $from === '<' && $to === '<=') {
+        return 'four characters are already the floor this clamp writes';
+    }
 
     return null;
 }

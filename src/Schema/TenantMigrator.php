@@ -25,8 +25,8 @@ final class TenantMigrator
             $this->searchPath($schema);
             if (!$this->record->ready($schema)) {
                 $this->baselineTenant($slug, $schema);
-                $this->stampPresent($slug, $schema);
             }
+            $this->stampPresent($slug, $schema);
             $this->record->verify($schema);
             $this->pendingTenant($slug, $schema);
         } finally {

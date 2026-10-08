@@ -86,6 +86,8 @@ BEGIN
 
         DELETE FROM items WHERE id = item_id;
 
+        EXECUTE format('ALTER TABLE items DROP CONSTRAINT %I', 'items_' || item_column || '_fkey');
+
         BEGIN
             EXECUTE format('TRUNCATE %I', catalog);
             RAISE EXCEPTION '% truncate was accepted', catalog;

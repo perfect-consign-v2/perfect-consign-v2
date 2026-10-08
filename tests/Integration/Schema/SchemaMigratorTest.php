@@ -159,6 +159,31 @@ final class SchemaMigratorTest extends TestCase
         }
     }
 
+    public function testALaterFileThatIsAlreadyPresentIsStamped(): void
+    {
+        $root = dirname(__DIR__, 3);
+        ProbeMall::ensure($root);
+        $pdo = $this->connection();
+        $catalog = new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql');
+        $migrator = new SchemaMigrator($pdo, $catalog);
+        $record = new MigrationRecord($pdo, $catalog);
+        $schema = $this->schema($pdo);
+        $pdo->beginTransaction();
+        try {
+            $pdo->exec(
+                'DELETE FROM ' . $schema . ".schema_migrations WHERE filename IN ('048_item_attributes.sql', '049_label_stock.sql')"
+            );
+            $migrator->migrateTenant(ProbeMall::SLUG);
+            $applied = $record->applied($schema);
+            self::assertArrayHasKey('048_item_attributes.sql', $applied);
+            self::assertArrayHasKey('049_label_stock.sql', $applied);
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        }
+    }
+
     public function testASecondMigrationIsRefused(): void
     {
         $root = dirname(__DIR__, 3);

@@ -338,9 +338,9 @@ DECLARE
     mall_id uuid;
     backup_id uuid := '01900000-0000-7000-8000-00000000d0aa';
 BEGIN
-    SELECT id INTO mall_id FROM platform.tenants WHERE slug = 'mall';
+    SELECT id INTO mall_id FROM platform.tenants WHERE schema_name = current_schema();
     IF mall_id IS NULL THEN
-        RAISE EXCEPTION 'mall tenant is missing';
+        RAISE EXCEPTION 'the tenant for this schema is missing';
     END IF;
     INSERT INTO platform.owner_backups (id, tenant_id, completed_at, byte_size, sha256)
     VALUES (backup_id, mall_id, NULL, 1, repeat('a', 64));

@@ -7,9 +7,9 @@ DO $$
 DECLARE
     mall_id uuid;
 BEGIN
-    SELECT id INTO mall_id FROM platform.tenants WHERE slug = 'mall';
+    SELECT id INTO mall_id FROM platform.tenants WHERE schema_name = current_schema();
     IF mall_id IS NULL THEN
-        RAISE EXCEPTION 'mall tenant is missing';
+        RAISE EXCEPTION 'the tenant for this schema is missing';
     END IF;
 
     DELETE FROM platform.owners WHERE tenant_id = mall_id;
