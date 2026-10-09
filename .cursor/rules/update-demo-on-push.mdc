@@ -18,7 +18,7 @@ Deploy the commit that was pushed, not uncommitted files. Leave the server `.env
 ## Deploy
 
 1. `git archive` the pushed commit into a temp directory. `composer install --no-dev --no-interaction --prefer-dist` there. Do not change this checkout's `vendor/`.
-2. Zip `src/`, `public/`, `vendor/`, `composer.json`, and `composer.lock` with forward-slash paths. Do not include `.env`, `.git`, `tests/`, `var/`, or `.idea/`.
+2. Zip `bin/`, `sql/`, `src/`, `public/`, `vendor/`, `composer.json`, and `composer.lock` with forward-slash paths. `bin/migrate.php` reads `sql/`. Do not include `.env`, `.git`, `tests/`, `var/`, or `.idea/`.
 3. FTP the zip to the vhost home. Extract it there with a one-shot script in `public/`, then delete the zip and the script.
 4. Confirm `https://v2.perfectconsign.com/mall` returns 200. Report that URL with the pushed SHA.
 
