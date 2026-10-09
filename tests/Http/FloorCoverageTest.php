@@ -314,7 +314,7 @@ final class FloorCoverageTest extends WebTestCase
         self::assertNotSame('', $export->body);
 
         $adjustmentForm = $this->client->get('/' . self::SLUG . '/adjustment');
-        self::assertSees('Adjustment', $adjustmentForm);
+        self::assertSees('Fix a mistake', $adjustmentForm);
         $cash = $this->account($adjustmentForm->body, '1000');
         $bank = $this->account($adjustmentForm->body, '1010');
         $reference = 'cov' . bin2hex(random_bytes(3));
@@ -352,7 +352,7 @@ final class FloorCoverageTest extends WebTestCase
         );
 
         $opening = $this->client->get('/' . self::SLUG . '/opening');
-        self::assertSees('Opening balance', $opening);
+        self::assertSees('Starting balances', $opening);
         $refused = $this->client->post('/' . self::SLUG . '/opening', ['posting_date' => $today]);
         self::assertSees('an opening is available only while the book has no other journal', $refused);
 
@@ -361,7 +361,7 @@ final class FloorCoverageTest extends WebTestCase
             'ends_on' => '2019-12-31',
         ]);
         $close = $this->client->get('/' . self::SLUG . '/close');
-        self::assertSees('Year-end close', $close);
+        self::assertSees('Close the year', $close);
         $openPeriod = '/<tr>\s*<td>(\d{4}-\d{2}-\d{2})<\/td>\s*<td>(\d{4}-\d{2}-\d{2})<\/td>\s*<td>open<\/td>.*?name="period_id" value="([0-9a-fA-F-]{36})"/s';
         $open = [];
         if (preg_match_all($openPeriod, $close->body, $found, PREG_SET_ORDER) > 0) {
@@ -408,14 +408,30 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Vendor created.', $created);
         $directory = $this->client->get('/' . self::SLUG . '/parties');
         $vendor = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
+        $booth = 'b' . bin2hex(random_bytes(3));
+        $made = $this->client->post('/' . self::SLUG . '/booths', [
+            'code' => $booth,
+            'name' => $booth,
+        ]);
+        self::assertSees($booth, $made);
+        $booths = $this->client->get('/' . self::SLUG . '/booths');
+        $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
+        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
+            'booth_id' => $boothId,
+            'vendor_id' => $vendor,
+            'starts_on' => ProbeMall::PERIOD_START,
+            'ends_on' => '',
+            'rent' => '150.00',
+        ]);
+        self::assertSees('Booth assigned.', $assigned);
         $missing = $this->client->post('/' . self::SLUG . '/pos/instant', [
-            'vendor_id' => '',
+            'booth_code' => '',
             'description' => 'Missing',
             'price' => '4.00',
         ]);
-        self::assertSees('Choose a vendor.', $missing);
+        self::assertSees('Choose a booth.', $missing);
         $added = $this->client->post('/' . self::SLUG . '/pos/instant', [
-            'vendor_id' => $vendor,
+            'booth_code' => $booth,
             'description' => 'Instant ' . $code,
             'price' => '12.00',
         ]);
@@ -559,6 +575,12 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Line discount saved.', $lined);
         self::assertSees('Line discount', $lined);
         self::assertSees('9.00', $lined);
+        $shopper = $this->client->post('/' . self::SLUG . '/pos/customer', [
+            'customer_name' => 'Bea ' . $buyerCode,
+            'customer_phone' => '',
+            'customer_email' => '',
+        ]);
+        self::assertSees('Customer saved.', $shopper);
         $deposit = $this->client->post('/' . self::SLUG . '/pos/pay', [
             'hold' => '1',
             'tender_cash' => '4.00',

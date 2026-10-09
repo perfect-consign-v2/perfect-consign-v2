@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Session;
 use DateTimeImmutable;
 use DateTimeZone;
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Feature\Backup\BackupHeadline;
@@ -17,6 +18,7 @@ final class SessionController
     public function __construct(
         private readonly MallApp $app,
         private readonly BackupStore $backups,
+        private readonly Actor $actor,
     ) {
     }
 
@@ -61,7 +63,7 @@ final class SessionController
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/dashboard', 'Signed in.');
+        $this->app->redirect($this->actor->path($slug), 'Signed in.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/logout', ['POST'])]

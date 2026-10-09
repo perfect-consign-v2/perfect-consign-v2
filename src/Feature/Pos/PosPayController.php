@@ -9,7 +9,6 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\JournalCash;
 
 final class PosPayController
 {
@@ -21,8 +20,8 @@ final class PosPayController
         private readonly SalePoster $poster,
         private readonly MallSettings $mall,
         private readonly SaleCheckout $checkout,
-        private readonly JournalCash $cash,
         private readonly ReceiptChange $change,
+        private readonly ReceiptView $receipts,
     ) {
     }
 
@@ -55,7 +54,7 @@ final class PosPayController
     public function receipt(string $slug, string $id): void
     {
         $this->app->open($slug, true);
-        $this->showReceipt($slug, $id, null);
+        $this->receipts->show($slug, $id, null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/receipt/([0-9a-fA-F-]{36})/void', ['POST'])]
@@ -67,7 +66,7 @@ final class PosPayController
         try {
             $this->poster->voidSale($session, $this->mall->today(), $id);
         } catch (DatabaseRefusal $refusal) {
-            $this->showReceipt($slug, $id, $this->app->catchRefusal($refusal));
+            $this->receipts->show($slug, $id, $this->app->catchRefusal($refusal));
             return;
         }
         $this->app->redirect('/' . $slug . '/pos/receipt/' . $id, 'Ticket voided.');
@@ -83,34 +82,13 @@ final class PosPayController
             $credit = $this->tenders->credit($this->app->request(), $this->change->owed($this->poster->receipt($id), $this->itemId()));
             $this->poster->returnPiece($session, $this->mall->today(), $id, $this->itemId(), $credit['line'], $credit['check']);
         } catch (DatabaseRefusal $refusal) {
-            $this->showReceipt($slug, $id, $this->app->catchRefusal($refusal));
+            $this->receipts->show($slug, $id, $this->app->catchRefusal($refusal));
             return;
         } catch (\InvalidArgumentException $error) {
-            $this->showReceipt($slug, $id, $error->getMessage());
+            $this->receipts->show($slug, $id, $error->getMessage());
             return;
         }
         $this->app->redirect('/' . $slug . '/pos/receipt/' . $id, 'Piece returned.');
-    }
-
-    private function showReceipt(string $slug, string $id, ?string $error): void
-    {
-        try {
-            $receipt = $this->poster->receipt($id);
-        } catch (DatabaseRefusal $refusal) {
-            if ($refusal->getMessage() === 'that ticket is not a sale') {
-                $this->app->notFound();
-            }
-            throw $refusal;
-        }
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Pos/receipt', [
-            'title' => 'Receipt',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'receipt' => $receipt,
-            'change' => $this->change->due($this->cash->tendered($id), $receipt['cash']),
-            'error' => $error,
-        ]);
     }
 
     private function itemId(): string

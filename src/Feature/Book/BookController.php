@@ -63,7 +63,7 @@ final class BookController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Book/book', [
-            'title' => 'Book',
+            'title' => 'Accounts',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'accounts' => $this->ledger->accounts(),

@@ -31,12 +31,13 @@ final class PosAddController
         $request = $this->app->request();
         try {
             $this->sales->refuse($slug);
-            $this->instant->add($session, $this->mall->today(), new InstantAdd(
-                $request->field('vendor_id'),
+            $today = $this->mall->today();
+            $this->instant->sell($session, $today, $request->field('booth_code'), new InstantAdd(
+                '',
                 $request->field('description'),
                 $request->field('price'),
-                $request->field('barcode'),
-                $request->field('quantity'),
+                '',
+                '1',
                 new InstantBrand($request->field('brand_id'), $request->field('brand_label')),
                 $this->postedAttributes($request),
                 $request->field('discount_kind'),

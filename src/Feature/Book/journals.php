@@ -8,7 +8,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $slug */
 /** @var list<array<string, mixed>> $journals */
 ?>
-<h1>Journals</h1>
+<h1>Posted entries</h1>
 <div class="list-dt-wrap">
 <?php
 ListTable::open(['id' => 'journals', 'export' => 'journals']);

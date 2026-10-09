@@ -10,7 +10,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var list<array<string, mixed>> $lines */
 /** @var bool $canVoid */
 ?>
-<h1>Journal <?= View::text($journal['journal_no']) ?></h1>
+<h1>Posted entry <?= View::text($journal['journal_no']) ?></h1>
 <p>Key <?= View::text($journal['posting_key']) ?></p>
 <p>Source <?= View::text($journal['source_type']) ?> <?= View::text($journal['source_reference']) ?></p>
 <p>Date <?= View::text($journal['posting_date']) ?></p>

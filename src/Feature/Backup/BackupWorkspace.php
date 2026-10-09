@@ -18,7 +18,7 @@ final class BackupWorkspace
     public function make(string $backupId): string
     {
         $directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'perfect-consign-backup-' . $backupId;
-        if (!mkdir($directory, 0700) && !is_dir($directory)) {
+        if (!is_dir($directory) && !mkdir($directory, 0700) && !is_dir($directory)) {
             $this->logger->error('could not create a backup directory', ['directory' => $directory]);
             throw new BackupException('The backup could not be taken.');
         }
@@ -37,6 +37,9 @@ final class BackupWorkspace
 
     public function zip(string $zipPath, string $schemaPath, string $platformPath, string $manifestPath): void
     {
+        if (!is_file($schemaPath) || !is_file($platformPath) || !is_file($manifestPath)) {
+            throw new BackupException('The backup could not be taken.');
+        }
         $zip = new ZipArchive();
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new BackupException('The backup could not be taken.');

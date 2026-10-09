@@ -183,7 +183,6 @@ final class MallController
             $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
             $this->payouts->save(
                 $this->app->request()->field('operating_mode'),
-                $this->app->request()->field('payout_cadence'),
                 $this->app->request()->field('rent_prepaid_from_prior_sales') === '1'
             );
         } catch (DatabaseRefusal $refusal) {

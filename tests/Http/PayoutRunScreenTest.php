@@ -22,7 +22,7 @@ final class PayoutRunScreenTest extends WebTestCase
         self::assertSees('Close ', $page);
         self::assertSees('Write checks', $page);
         self::assertSees('class="vendor-sheet"', $page);
-        self::assertDoesNotMatchRegularExpression('/envelope/i', $page->body);
+        self::assertSees('Print envelopes', $page);
         self::assertSees('Owes the store', $page);
         self::assertSees('—', $page);
         self::assertDoesNotMatchRegularExpression('/name="from"|name="to"|name="scope"|name="minimum"/', $page->body);

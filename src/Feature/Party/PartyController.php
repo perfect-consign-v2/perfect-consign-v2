@@ -20,6 +20,8 @@ final class PartyController
         private readonly PayoutStore $payouts,
         private readonly AssignmentOffer $offers,
         private readonly VendorForm $forms,
+        private readonly VendorMove $moves,
+        private readonly VendorPage $pages,
     ) {
     }
 
@@ -242,6 +244,22 @@ final class PartyController
         });
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/vendors/([0-9a-fA-F-]{36})/move', ['POST'])]
+    public function moveVendor(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $boothId = $this->app->request()->field('booth_id');
+        $this->attempt($slug, $id, 'Vendor moved.', function () use ($id, $boothId): void {
+            $this->moves->move(
+                $id,
+                $this->app->request()->field('assignment_id'),
+                $boothId,
+                $this->app->request()->field('ends_on'),
+                $this->offers->contract($boothId, $this->app->request()->field('rent')),
+            );
+        });
+    }
+
     private function attempt(string $slug, string $vendorId, string $notice, callable $action): void
     {
         $this->app->open($slug, true);
@@ -321,36 +339,6 @@ final class PartyController
 
     private function showRecord(string $slug, string $id, ?string $error): void
     {
-        $assembled = $this->roster->assemble(
-            $this->parties->vendorRows(),
-            $this->parties->booths(),
-            $this->mall->today()
-        );
-        $vendor = null;
-        foreach ($assembled['vendors'] as $candidate) {
-            if ($candidate['id'] === $id) {
-                $vendor = $candidate;
-                break;
-            }
-        }
-        if ($vendor === null) {
-            $this->app->notFound();
-        }
-        $stored = $this->parties->findVendor($id);
-        if ($stored === null) {
-            $this->app->notFound();
-        }
-        $vendor = $this->forms->filled($vendor, $stored, $this->mall->storeTake());
-        $quoted = $this->payouts->quote($id, $this->mall->today());
-        $vendor = $this->forms->figures($vendor, $quoted);
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Party/vendor', [
-            'title' => $vendor['name'],
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'vendor' => $vendor,
-            'booths' => $this->offers->booths(),
-            'error' => $error,
-        ]);
+        $this->pages->show($slug, $id, $error);
     }
 }

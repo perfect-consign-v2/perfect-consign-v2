@@ -10,8 +10,25 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutRunStore
 {
-    public function __construct(private readonly Statements $statements)
+    public function __construct(
+        private readonly Statements $statements,
+        private readonly OccupiedPack $occupied,
+    ) {
+    }
+
+    /**
+     * @param list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}> $pack
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     */
+    public function addBooths(array $pack, string $today): array
     {
+        $filled = $this->occupied->fill($pack, $today);
+        usort(
+            $filled,
+            static fn (array $left, array $right): int => strnatcasecmp($left['code'], $right['code'])
+        );
+
+        return $filled;
     }
 
     /**

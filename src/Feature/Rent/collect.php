@@ -50,14 +50,17 @@ $booth = $figure['booth'] === '' ? '—' : $figure['booth'];
             <div class="field">
                 <label for="tender-cash">Cash</label>
                 <input class="input" id="tender-cash" name="tender_cash" inputmode="decimal" value="<?= View::text($tenderCash) ?>">
+                <p class="muted text-sm">Cash goes into the open drawer.</p>
             </div>
             <div class="field">
                 <label for="tender-card">Card</label>
                 <input class="input" id="tender-card" name="tender_card" inputmode="decimal" value="<?= View::text($tenderCard) ?>">
+                <p class="muted text-sm">A card is the amount keyed.</p>
             </div>
             <div class="field">
                 <label for="tender-checks">Check</label>
                 <input class="input" id="tender-checks" name="tender_checks" inputmode="decimal" value="<?= View::text($tenderChecks) ?>">
+                <p class="muted text-sm">A check is kept with its number.</p>
             </div>
             <div id="rent-cash-box" class="stack">
                 <div class="field">

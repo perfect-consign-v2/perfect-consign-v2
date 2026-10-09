@@ -30,10 +30,10 @@ final class OwnerJourneyTest extends WebTestCase
         $signedIn = $this->client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         self::assertSees("Today's sales", $signedIn);
         self::assertSees('Inventory value', $signedIn);
-        self::assertSees('Low stock', $signedIn);
+        self::assertSees('Not for sale', $signedIn);
     }
 
-    public function testTheDashboardKeepsInventoryCardsEmpty(): void
+    public function testTheDashboardShowsOnHandAskingPrice(): void
     {
         $page = $this->client->get('/' . ProbeMall::SLUG . '/dashboard');
 
@@ -41,7 +41,8 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('Sales trend', $page);
         self::assertSees('Booth occupancy', $page);
         self::assertSees('Vendor payables', $page);
-        self::assertDoesNotMatchRegularExpression('/Inventory value<\\/div>\\s*<div class="stat-value">\\$/', $page->body);
+        self::assertMatchesRegularExpression('/Inventory value<\\/div>\\s*<div class="stat-value">\\$/', $page->body);
+        self::assertSees('Not for sale', $page);
     }
 
     public function testTheOwnerPostsASaleAndSeesTheJournal(): void
@@ -82,7 +83,7 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
         self::assertSees($description, $paid);
         self::assertSees('id="cash-round">+$0.02', $paid);
-        self::assertSees('id="change">$9.95', $paid);
+        self::assertSees('id="change">Change due $9.95', $paid);
         self::assertSame(1, preg_match('/sale:[0-9a-f-]{36}/', $paid->body, $key));
         self::assertSees($key[0], $this->client->get('/' . ProbeMall::SLUG . '/journals'));
         self::assertSame(1, preg_match('#/pos/receipt/([0-9a-f-]{36})#', $paid->body, $journalId));
@@ -389,7 +390,7 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
 
         self::assertSame(200, $duplicate->status);
-        self::assertSees('booths_code_key', $duplicate);
+        self::assertSees('That booth is already used.', $duplicate);
     }
 
     public function testTheOwnerSetsTheMallClock(): void

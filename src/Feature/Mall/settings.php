@@ -88,12 +88,7 @@ use PerfectConsign\Shared\Http\View;
                 </select>
             </div>
             <div class="field" style="grid-column:1/-1">
-                <label for="payout_cadence">Payout cadence</label>
-                <select class="input" id="payout_cadence" name="payout_cadence">
-                    <?php foreach (['monthly' => 'Monthly', 'weekly' => 'Weekly', 'biweekly' => 'Every two weeks', 'ad_hoc' => 'When asked'] as $value => $label): ?>
-                        <option value="<?= View::text($value) ?>"<?= ($payoutCadence ?? '') === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <p>Vendors are paid for last month.</p>
             </div>
             <div class="field" style="grid-column:1/-1">
                 <label for="rent_prepaid_from_prior_sales">

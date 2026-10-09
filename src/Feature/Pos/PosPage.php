@@ -58,7 +58,7 @@ final class PosPage
         $gift = $this->giftForm($giftError, $reopenInstant);
         $pay = $this->payForm($payError);
         $this->app->show('Feature/Pos/pos', [
-            'title' => 'POS',
+            'title' => 'Sell',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'showSearch' => false,
@@ -66,6 +66,8 @@ final class PosPage
             'tenders' => $tenders,
             'deposits' => $this->layaways->balance($cart['ticket_id']),
             'payments' => $this->layaways->payments($cart['ticket_id']),
+            'shopperId' => $this->tickets->getShopper($cart['ticket_id'])['id'],
+            'customerName' => $this->tickets->getShopper($cart['ticket_id'])['name'],
             'salesAvailable' => $cart['buyer_id'] === '' ? 0 : max(0, $this->payouts->openPayout($cart['buyer_id'])['payable']),
             'remaining' => $cart['due'] - $applied,
             'giftNumber' => $giftNumber,

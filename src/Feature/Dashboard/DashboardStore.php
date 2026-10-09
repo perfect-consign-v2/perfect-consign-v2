@@ -49,7 +49,8 @@ final class DashboardStore
      *   trend: list<array{day: string, title: string, height: int, today: bool}>,
      *   today_badge: string,
      *   sales_list: list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>,
-     *   occupancy: array{percent: int, caption: string, rows: list<array{label: string, count: int, badge: string}>}
+     *   occupancy: array{percent: int, caption: string, rows: list<array{label: string, count: int, badge: string}>},
+     *   shelf: array{value: string, unsold: int}
      * }
      */
     public function picture(string $today): array
@@ -69,6 +70,7 @@ final class DashboardStore
             'today_badge' => $this->money($todayMinor) . ' today',
             'sales_list' => $this->recent(),
             'occupancy' => $this->occupancy($today),
+            'shelf' => $this->shelf(),
         ];
     }
 
@@ -268,7 +270,25 @@ final class DashboardStore
     }
 
     /**
-     * @return ?array{direction: string, text: string}
+     * @return array{value: string, unsold: int}
+     */
+    private function shelf(): array
+    {
+        $value = $this->statements->rows(
+            'SELECT COALESCE(sum(price_minor * quantity), 0) AS total FROM items WHERE quantity >= 1'
+        );
+        $unsold = $this->statements->rows(
+            'SELECT count(*)::int AS total FROM items WHERE quantity = 0'
+        );
+
+        return [
+            'value' => $this->money(RowValue::integer($value[0]['total'] ?? 0)),
+            'unsold' => RowValue::integer($unsold[0]['total'] ?? 0),
+        ];
+    }
+
+    /**
+     * @return array{direction: string, text: string}|null
      */
     private function delta(int $today, int $yesterday): ?array
     {

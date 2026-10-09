@@ -1,0 +1,43 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PerfectConsign\Feature\Rent;
+
+use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
+use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\Money;
+use PerfectConsign\Ledger\PostedLines;
+
+final class LateFee
+{
+    public function __construct(private readonly LedgerStore $ledger)
+    {
+    }
+
+    public function charge(string $boothId, string $date, string $amount): string
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $boothId) !== 1) {
+            throw new DatabaseRefusal('Choose a booth.');
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            throw new DatabaseRefusal('Enter the date of the late fee.');
+        }
+        $minor = Money::parseMinor($amount);
+        if ($minor < 1) {
+            throw new DatabaseRefusal('Enter the late fee.');
+        }
+
+        return $this->ledger->post(new JournalDraft(
+            'late-fee:' . $boothId . ':' . $date . ':' . bin2hex(random_bytes(8)),
+            $date,
+            new JournalSource('late_fee', $boothId, 'Late fee'),
+            [
+                PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), $minor, 0, 'booth', $boothId),
+                PostedLines::entry($this->ledger->roleAccount('late_fee_income'), 0, $minor, null, null),
+            ],
+        ));
+    }
+}

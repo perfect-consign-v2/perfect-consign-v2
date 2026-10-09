@@ -6,7 +6,8 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var string $displayName */
-/** @var array{number: string, posted_on: string, amount: int, balance: int, voided: bool} $slip */
+/** @var array{number: string, posted_on: string, amount: int, balance: int, voided: bool, label?: string} $slip */
+$slipLabel = is_string($slip['label'] ?? null) ? $slip['label'] : 'Gift certificate';
 $soldOn = DateTimeImmutable::createFromFormat('!Y-m-d', $slip['posted_on']);
 $when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('M j, Y') : $slip['posted_on'];
 ?>
@@ -18,7 +19,7 @@ $when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('M j, Y') : $slip
     <article class="slip">
         <header class="slip-center">
             <p class="slip-store"><?= View::text($displayName) ?></p>
-            <p class="slip-kicker">Gift certificate</p>
+            <p class="slip-kicker"><?= View::text($slipLabel) ?></p>
         </header>
         <?php if ($slip['voided']): ?>
             <p class="slip-void">Voided</p>

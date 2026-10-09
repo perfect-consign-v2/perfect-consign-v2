@@ -7,6 +7,7 @@ namespace PerfectConsign\Tests\Integration\Payout;
 use PDO;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Party\PartyStore;
+use PerfectConsign\Feature\Payout\OccupiedPack;
 use PerfectConsign\Feature\Payout\PayoutDisburser;
 use PerfectConsign\Feature\Payout\PayoutReverser;
 use PerfectConsign\Feature\Payout\PayoutRunLines;
@@ -36,7 +37,7 @@ final class PayoutRunTest extends TestCase
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
-        $runs = new PayoutRunStore($statements);
+        $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $lines = new PayoutRunLines($statements);
         $settler = new PayoutSettler($ledger, $payouts, $runs, $lines);
@@ -186,7 +187,7 @@ final class PayoutRunTest extends TestCase
             $settler->chargeMissing($runId, $vendorId);
             $parties->setPayoutMode($vendorId, 'nope');
         // assignments( row(
-            $mall->save('nope', 'nope', true);
+            $mall->save('nope', true);
             self::assertSame('both', $mall->operatingMode());
             self::assertSame('monthly', $mall->payoutCadence());
             self::assertTrue($mall->rentPrepaid());

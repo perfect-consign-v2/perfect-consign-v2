@@ -27,7 +27,7 @@ final class ReviewCoverageTest extends WebTestCase
         $payout = $this->client->get('/' . self::SLUG . '/payout');
         self::assertLessThan(500, $payout->status);
         $close = $this->client->get('/' . self::SLUG . '/close');
-        self::assertSees('Year-end close', $close);
+        self::assertSees('Close the year', $close);
         $layaway = $this->client->get('/' . self::SLUG . '/pos/layaway/01900000-0000-7000-8000-000000000099');
         self::assertLessThan(500, $layaway->status);
     }

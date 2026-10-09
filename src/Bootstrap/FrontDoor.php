@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Bootstrap;
 
+use PerfectConsign\Shared\Http\ResponseSent;
+
 final class FrontDoor
 {
     public function __construct(
         private readonly MissingPage $missing,
         private readonly PriorClose $prior,
         private readonly OwnerGate $owner,
+        private readonly Actor $actor,
     ) {
     }
 
@@ -49,5 +52,16 @@ final class FrontDoor
     public function catchRefusal(\Throwable $error): string
     {
         return $this->owner->catchRefusal($error);
+    }
+
+    public function actor(): Actor
+    {
+        return $this->actor;
+    }
+
+    public function go(string $path): never
+    {
+        header('Location: ' . $path, true, 303);
+        throw new ResponseSent('redirect');
     }
 }

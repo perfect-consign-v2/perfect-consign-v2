@@ -23,6 +23,7 @@ final class TenantProof
 
     public function run(): void
     {
+        $this->ensureMall();
         $this->runFile('prove_app.sql');
         $this->dropRoles();
         $this->createRoles();
@@ -79,6 +80,16 @@ final class TenantProof
         }
 
         return $sql;
+    }
+
+    private function ensureMall(): void
+    {
+        $existing = $this->pdo->prepare('SELECT 1 FROM platform.tenants WHERE slug = ?');
+        $existing->execute(['mall']);
+        if ($existing->fetchColumn() !== false) {
+            return;
+        }
+        $this->provisioner->provision('mall', 'Mall');
     }
 
     private function createRoles(): void

@@ -182,13 +182,16 @@ final class InventoryController
     {
         $tenant = $this->app->open($slug, true);
         $query = trim($this->app->request()->query('q'));
-        $items = $this->withUse($this->items->items($query));
+        $stock = $this->app->request()->query('stock') === 'out' ? 'out' : '';
+        $items = $this->withUse($this->items->items($query, $stock));
         $this->app->show('Feature/Inventory/inventory', [
-            'title' => 'Inventory',
+            'title' => 'Pieces',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'items' => $items,
             'query' => $query,
+            'stock' => $stock,
+            'unsold' => $this->items->unsold(),
             'total' => $query === '' ? count($items) : $this->items->count(),
             'confirm' => $this->confirming($items, $this->app->request()->query('confirm')),
             'labelStock' => $this->mall->getLabelStock(),

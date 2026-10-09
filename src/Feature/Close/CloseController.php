@@ -78,7 +78,7 @@ final class CloseController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Close/close', [
-            'title' => 'Year-end close',
+            'title' => 'Close the year',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'periods' => $this->ledger->periods(),

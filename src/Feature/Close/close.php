@@ -9,7 +9,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $csrf */
 /** @var list<array<string, mixed>> $periods */
 ?>
-<h1>Year-end close</h1>
+<h1>Close the year</h1>
 <div class="list-dt-wrap">
 <?php
 ListTable::open(['id' => 'close-periods', 'export' => 'close-periods']);

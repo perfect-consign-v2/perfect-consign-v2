@@ -74,6 +74,13 @@ final class WaitListStore
         return RowValue::integer($rows[0]['total'] ?? 0);
     }
 
+    public function waiting(): int
+    {
+        $rows = $this->statements->rows("SELECT count(*)::int AS total FROM wait_list WHERE status = 'waiting'");
+
+        return RowValue::integer($rows[0]['total'] ?? 0);
+    }
+
     /**
      * @return array<string, mixed>|null
      */

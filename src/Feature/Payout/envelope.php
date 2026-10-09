@@ -17,6 +17,9 @@ foreach ($rows as $row) {
 }
 ?>
 <style><?= $css ?></style>
+<div class="no-print">
+    <button class="btn btn-primary" type="button" data-print>Print</button>
+</div>
 <?php foreach ($vendors as $lines): ?>
     <?php $head = $lines[0]; ?>
     <section class="envelope">
@@ -53,3 +56,10 @@ foreach ($rows as $row) {
         <p>Report / reprinted from the stored record.</p>
     </section>
 <?php endforeach; ?>
+<script>
+document.querySelectorAll('[data-print]').forEach(function (button) {
+    button.addEventListener('click', function () {
+        window.print();
+    });
+});
+</script>

@@ -14,7 +14,8 @@ use PerfectConsign\Shared\Web\ListTable;
  *   trend: list<array{day: string, title: string, height: int, today: bool}>,
  *   today_badge: string,
  *   sales_list: list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>,
- *   occupancy: array{percent: int, caption: string, rows: list<array{label: string, count: int, badge: string}>}
+ *   occupancy: array{percent: int, caption: string, rows: list<array{label: string, count: int, badge: string}>},
+ *   shelf: array{value: string, unsold: int}
  * } $picture */
 ?>
 <div class="page-head">
@@ -23,8 +24,8 @@ use PerfectConsign\Shared\Web\ListTable;
         <p class="muted">Here's how <?= View::text($displayName) ?> is doing today.</p>
     </div>
     <div class="row gap-2">
-        <a class="btn" href="/<?= View::text($slug) ?>/journals"><svg aria-hidden="true"><use href="#i-report"></use></svg> Journals</a>
-        <a class="btn btn-primary" href="/<?= View::text($slug) ?>/pos"><svg aria-hidden="true"><use href="#i-pos"></use></svg> Open POS</a>
+        <a class="btn" href="/<?= View::text($slug) ?>/journals"><svg aria-hidden="true"><use href="#i-report"></use></svg> Posted entries</a>
+        <a class="btn btn-primary" href="/<?= View::text($slug) ?>/pos"><svg aria-hidden="true"><use href="#i-pos"></use></svg> Sell</a>
     </div>
 </div>
 
@@ -43,11 +44,11 @@ use PerfectConsign\Shared\Web\ListTable;
     </div>
     <div class="stat">
         <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-box"></use></svg> Inventory value</div>
-        <div class="stat-value">—</div>
+        <div class="stat-value"><?= View::text($picture['shelf']['value']) ?></div>
     </div>
     <div class="stat">
-        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-alert"></use></svg> Low stock</div>
-        <div class="stat-value">—</div>
+        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-alert"></use></svg> Not for sale</div>
+        <div class="stat-value"><?= View::text((string) $picture['shelf']['unsold']) ?></div>
     </div>
 </div>
 

@@ -1,4 +1,5 @@
 .env
+.cursor/demo-server.local
 vendor/
 var/
 .phpunit.result.cache

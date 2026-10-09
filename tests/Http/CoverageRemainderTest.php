@@ -445,10 +445,10 @@ final class CoverageRemainderTest extends WebTestCase
     public function testTheBookExportAndCatalogEdges(): void
     {
         $journals = $this->client->get('/' . self::SLUG . '/journals');
-        self::assertSees('Journals', $journals);
+        self::assertSees('Posted entries', $journals);
         $journalId = $this->match($journals->body, '#/journals/([0-9a-fA-F-]{36})#');
         $journal = $this->client->get('/' . self::SLUG . '/journals/' . $journalId);
-        self::assertSees('Journal', $journal);
+        self::assertSees('Posted entry', $journal);
         $adjustment = $this->client->get('/' . self::SLUG . '/adjustment');
         $cash = $this->account($adjustment->body, '1000');
         $bank = $this->account($adjustment->body, '1010');

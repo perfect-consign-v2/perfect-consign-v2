@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Shared;
 
 use InvalidArgumentException;
 use PerfectConsign\Ledger\Money;
+use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PHPUnit\Framework\TestCase;
 
@@ -36,6 +37,14 @@ final class MoneyTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         Money::parseMinor('10.555');
+    }
+
+    public function testMoneyPrintsZeroAndANegativeCent(): void
+    {
+        self::assertSame('$0.00', View::money(0));
+        self::assertSame('$0.01', View::money(1));
+        self::assertSame('-$0.01', View::money(-1));
+        self::assertSame('$10.50', View::money(1050));
     }
 
     public function testARowIntegerAcceptsDigitsAndRefusesText(): void

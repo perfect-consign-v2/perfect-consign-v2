@@ -29,7 +29,7 @@ declare(strict_types=1);
     const giftLookup = document.getElementById('pay-gift-lookup');
     const giftOver = form.getAttribute('data-gift-over') || '';
     let giftCap = null;
-    const done = document.getElementById('pay-done');
+    const finish = document.getElementById('pay-finish');
     const hold = document.getElementById('pay-hold');
     const fields = form.querySelectorAll('[name^="tender_"]');
     function money(cents) {
@@ -148,12 +148,13 @@ declare(strict_types=1);
             }
         }
         const giftBlocked = giftError ? !giftError.hidden : false;
-        if (done) {
-            done.disabled = checkMissing;
-        }
         const covers = residual === 0 ? sum >= due : cashCents >= cashDue;
+        const short = Number(form.getAttribute('data-lines')) < 1 || !covers || checkMissing || giftBlocked;
         if (process) {
-            process.disabled = Number(form.getAttribute('data-lines')) < 1 || !covers || checkMissing || giftBlocked;
+            process.disabled = short;
+        }
+        if (finish) {
+            finish.disabled = short;
         }
         if (hold) {
             let other = 0;
@@ -162,8 +163,8 @@ declare(strict_types=1);
                     other += cents(input.value);
                 }
             });
-            const buyer = form.getAttribute('data-buyer') || '';
-            hold.disabled = buyer === '' || other > 0 || checkMissing || sum < 1 || covers || Number(form.getAttribute('data-lines')) < 1;
+            const shopper = form.getAttribute('data-shopper') || '';
+            hold.disabled = shopper === '' || other > 0 || checkMissing || sum < 1 || covers || Number(form.getAttribute('data-lines')) < 1;
         }
     }
     function fill(role) {
@@ -187,6 +188,25 @@ declare(strict_types=1);
     form.querySelectorAll('[data-pay-full]').forEach(function (button) {
         button.addEventListener('click', function () {
             fill(button.getAttribute('data-pay-full'));
+        });
+    });
+    form.querySelectorAll('[data-pay-exact]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            let other = 0;
+            fields.forEach(function (input) {
+                if (input.name === 'tender_cash' || input.disabled) {
+                    return;
+                }
+                other += cents(input.value);
+            });
+            const left = Math.max(0, cents(form.getAttribute('data-due') || '') - other);
+            if (cash) {
+                cash.value = (nickel(left) / 100).toFixed(2);
+            }
+            settle();
+            if (cash) {
+                cash.focus();
+            }
         });
     });
     fields.forEach(function (input) {
@@ -288,12 +308,5 @@ declare(strict_types=1);
             settle();
         });
     }
-    document.querySelectorAll('[data-close-modal="enter-payment"]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            if (process && !process.disabled) {
-                process.focus();
-            }
-        });
-    });
     settle();
 })();

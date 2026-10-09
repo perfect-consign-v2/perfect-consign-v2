@@ -12,7 +12,9 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var list<array{vendor_id: string, code: string, name: string, booth: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int}> $pack */
 /** @var list<array{code: string, name: string, mode: string}> $excluded */
 /** @var list<array<string, mixed>> $runs */
+/** @var string $draftRun */
 /** @var string|null $error */
+$draftRun = $draftRun ?? '';
 
 $checks = 0;
 $checkTotal = 0;
@@ -49,11 +51,11 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
         ListTable::head([
             ['label' => 'Vendor', 'token' => 'id'],
             ['label' => 'Booth'],
+            ['label' => 'Check', 'sort' => 'num'],
             ['label' => 'Their share', 'sort' => 'num'],
             ['label' => 'Owed before', 'sort' => 'num'],
             ['label' => 'This month', 'sort' => 'num'],
             ['label' => 'Paid since', 'sort' => 'num'],
-            ['label' => 'Check', 'sort' => 'num'],
             ['label' => 'Owes the store', 'sort' => 'num'],
         ]);
         ?>
@@ -62,11 +64,11 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
                 <tr>
                     <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($row['vendor_id']) ?>">(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></a></td>
                     <td><?= View::text($row['booth'] === '' ? '—' : $row['booth']) ?></td>
+                    <td style="font-size:1.35rem;font-weight:700"><?= View::text(View::money($row['check'])) ?></td>
                     <td><?= View::text(View::money($row['payable'])) ?></td>
                     <td><?= View::text(View::money($row['prior'])) ?></td>
                     <td><?= View::text(View::money($row['charged'])) ?></td>
                     <td><?= View::text(View::money($row['paid'])) ?></td>
-                    <td><?= $row['check'] > 0 ? View::text(View::money($row['check'])) : '' ?></td>
                     <td><?php if ($row['owes'] > 0): ?><span class="text-danger"><?= View::text(View::money($row['owes'])) ?></span><?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>
@@ -95,16 +97,18 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
 <?php endif; ?>
 <div class="stack mt-6 no-print">
     <button class="btn" type="button" onclick="window.print()">Print the pack</button>
-    <form method="post" action="/<?= View::text($slug) ?>/payouts/close">
-        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <button class="btn btn-primary" type="submit">Close <?= View::text($monthName) ?></button>
-    </form>
+    <a class="btn" href="/<?= View::text($slug) ?>/payouts/report<?= $draftRun !== '' ? '?run=' . View::text($draftRun) : '' ?>">Print envelopes</a>
     <form method="post" action="/<?= View::text($slug) ?>/payouts/checks">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
         <input type="hidden" name="run_id" value="<?= View::text($runId) ?>">
         <label for="starting_check">First check number</label>
         <input class="input" id="starting_check" name="starting_check" inputmode="numeric">
+        <p class="muted text-sm">The number on the first check. The next checks count up from here.</p>
         <button class="btn" type="submit">Write checks</button>
+    </form>
+    <form method="post" action="/<?= View::text($slug) ?>/payouts/close">
+        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+        <button class="btn btn-primary" type="submit">Close <?= View::text($monthName) ?></button>
     </form>
 </div>
 <style>

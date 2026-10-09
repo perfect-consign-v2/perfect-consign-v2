@@ -23,6 +23,7 @@ final class RentController
         private readonly MallPayoutSettings $settings,
         private readonly RentReceipt $receipts,
         private readonly JournalCash $cash,
+        private readonly LateFee $lateFees,
     ) {
     }
 
@@ -90,6 +91,29 @@ final class RentController
             return;
         }
         $this->app->redirect('/' . $slug . '/rent/receipt/' . $journalId);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/rent/late-fee', ['POST'])]
+    public function lateFee(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        try {
+            $journalId = $this->lateFees->charge(
+                $this->app->request()->field('booth_id'),
+                $this->app->request()->field('posting_date'),
+                $this->app->request()->field('amount'),
+            );
+        } catch (DatabaseRefusal $refusal) {
+            $this->render($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        } catch (\InvalidArgumentException $error) {
+            $this->render($slug, $error->getMessage());
+
+            return;
+        }
+        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Late fee posted. Void that entry to reverse it.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/rent/receipt/([0-9a-fA-F-]{36})', ['GET'])]

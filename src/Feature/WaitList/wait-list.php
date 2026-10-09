@@ -9,7 +9,9 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $csrf */
 /** @var string $query */
 /** @var string $status */
+/** @var int $waiting */
 /** @var int $total */
+$waiting = $waiting ?? 0;
 /** @var string $confirm */
 /** @var list<array{id: string, name: string, email: string, phone: string, size: string, status: string, status_label: string, status_badge: string, notes: string, waiting_since: string, waited: string}> $entries */
 
@@ -64,7 +66,7 @@ $empty = $status === '' && $query === '' ? 'No one is waiting.' : 'No one matche
             }
             $selected = $status === $value;
             ?>
-            <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
+            <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($value === 'waiting' ? $label . ' (' . $waiting . ')' : $label) ?></a>
         <?php endforeach; ?>
     </div>
 

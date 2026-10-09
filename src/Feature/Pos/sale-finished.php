@@ -111,14 +111,11 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
                         <span><?= View::text(View::money(RowValue::integer($tender['amount']))) ?></span>
                     </p>
                 <?php endforeach; ?>
-                <?php if (is_int($change)): ?>
-                    <p class="register-summary">
-                        <span>Change due</span>
-                        <span class="register-due" id="change"><?= View::text(View::money($change)) ?></span>
-                    </p>
-                <?php endif; ?>
             </div>
         </div>
+        <?php if (is_int($change)): ?>
+            <p class="h1" id="change">Change due <?= View::text(View::money($change)) ?></p>
+        <?php endif; ?>
         <div class="row wrap gap-2">
             <form id="sale-new" method="post" action="/<?= View::text($slug) ?>/pos/new">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

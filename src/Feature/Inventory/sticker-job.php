@@ -12,8 +12,9 @@ use PerfectConsign\Shared\Http\View;
 /** @var list<array{key: string, label: string}> $stocks */
 
 $formId = $printId === '' ? ' id="stickers"' : '';
+$action = isset($action) && is_string($action) && $action !== '' ? $action : '/' . $slug . '/inventory/labels';
 ?>
-<form<?= $formId ?> class="card mt-4" method="post" action="/<?= View::text($slug) ?>/inventory/labels">
+<form<?= $formId ?> class="card mt-4" method="post" action="<?= View::text($action) ?>">
     <div class="card-head"><div class="h3">Print stickers</div></div>
     <div class="card-body grid cols-2">
         <p class="muted text-sm" style="grid-column:1/-1"><?= View::text($lead) ?></p>

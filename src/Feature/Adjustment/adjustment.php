@@ -10,7 +10,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $templateDirectory */
 /** @var string $today */
 ?>
-<h1>Adjustment</h1>
+<h1>Fix a mistake</h1>
 <form method="post" action="/<?= View::text($slug) ?>/adjustment">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
     <label for="source_reference">Source reference</label>

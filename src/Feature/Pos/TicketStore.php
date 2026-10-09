@@ -17,7 +17,16 @@ final class TicketStore
         private readonly TicketPricing $pricing,
         private readonly TicketBuyer $buyers,
         private readonly TicketQueue $queue,
+        private readonly TicketCustomer $customers,
     ) {
+    }
+
+    /**
+     * @return array{id: string, name: string}
+     */
+    public function getShopper(string $ticketId): array
+    {
+        return $this->customers->current($ticketId);
     }
 
     /**

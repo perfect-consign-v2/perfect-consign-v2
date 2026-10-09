@@ -7,13 +7,14 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var StickerSheet $sheet */
+$back = isset($back) && is_string($back) && $back !== '' ? $back : '/' . $slug . '/inventory';
 ?>
 <style>
 @page { size: <?= View::text($sheet->pageWidth) ?> <?= View::text($sheet->pageHeight) ?>; margin: 0; }
 </style>
 <div class="no-print row wrap gap-2">
     <button class="btn btn-primary" type="button" data-print>Print</button>
-    <a class="btn" href="/<?= View::text($slug) ?>/inventory">Back</a>
+    <a class="btn" href="<?= View::text($back) ?>">Back</a>
 </div>
 <p class="no-print muted text-sm mt-4">In the print box, choose Actual size. Do not choose Fit to page.</p>
 <?php if ($sheet->isNarrow()): ?>

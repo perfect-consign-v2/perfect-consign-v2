@@ -8,7 +8,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var list<array<string, mixed>> $accounts */
 /** @var list<array<string, mixed>> $periods */
 ?>
-<h1>Book</h1>
+<h1>Accounts</h1>
 <h2>Periods</h2>
 <div class="list-dt-wrap">
 <?php

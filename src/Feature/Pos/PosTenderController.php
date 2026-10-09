@@ -76,6 +76,10 @@ final class PosTenderController
                 throw new DatabaseRefusal(GiftIssue::NUMBER_REQUIRED);
             }
             $check = $request->field('check_number');
+            $kind = $request->field('gift_kind');
+            if (!in_array($kind, ['gift_certificate', 'gift_card', 'store_credit'], true)) {
+                $kind = 'gift_certificate';
+            }
             $journalId = $this->gifts->issue(
                 $session,
                 $this->mall->today(),
@@ -83,6 +87,7 @@ final class PosTenderController
                 Money::parseMinor($request->field('gift_amount')),
                 $request->field('gift_tender'),
                 $check === '' ? null : $check,
+                $kind,
             );
         } catch (DatabaseRefusal $refusal) {
             $this->page->gift($slug, $this->app->catchRefusal($refusal));
@@ -108,7 +113,7 @@ final class PosTenderController
             return;
         }
         $this->app->show('Feature/Pos/gift-slip', [
-            'title' => 'Gift certificate',
+            'title' => $slip['label'],
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'showSearch' => false,

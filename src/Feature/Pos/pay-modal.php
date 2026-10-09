@@ -41,11 +41,12 @@ $amount = static function (int $minor): string {
             <div class="h3" id="enter-payment-title">Payment</div>
             <button class="btn btn-sm" type="button" data-close-modal="enter-payment">Close</button>
         </div>
-        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json" data-gift-over="<?= View::text(RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) ?>">
+        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-shopper="<?= View::text(is_string($shopperId ?? null) ? $shopperId : '') ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json" data-gift-over="<?= View::text(RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) ?>">
             <div class="card-body stack">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                 <input type="hidden" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
                 <div class="pay-quick" role="group" aria-label="Pay the full amount">
+                    <button class="btn" type="button" data-pay-exact="cash">Exact change</button>
                     <button class="btn" type="button" data-pay-full="cash">Full Amount Cash</button>
                     <button class="btn" type="button" data-pay-full="card">Full Amount Card</button>
                     <button class="btn" type="button" data-pay-full="checks">Full Amount Check</button>
@@ -54,6 +55,7 @@ $amount = static function (int $minor): string {
                     <div class="field">
                         <label for="pay-cash">Cash</label>
                         <input class="input" id="pay-cash" name="tender_cash" inputmode="decimal" placeholder="0.00" value="<?= View::text($payCash) ?>">
+                        <p class="muted text-sm">Type the cash they handed you. Exact change fills what is still due.</p>
                     </div>
                     <div class="field">
                         <label for="pay-card">Card</label>
@@ -75,7 +77,8 @@ $amount = static function (int $minor): string {
                         <input class="input" id="pay-vendor" name="tender_vendor_draw" inputmode="decimal" placeholder="0.00" value="<?= View::text($payVendor) ?>"<?= $canDraw ? '' : ' disabled' ?>>
                         <button class="btn" id="pay-sales-max" type="button"<?= $canDraw ? '' : ' disabled' ?>>Apply max from sales</button>
                     </div>
-                    <p class="muted text-sm" id="pay-sales-hint"><?php if ($cart['buyer_id'] === ''): ?>Choose a buyer.<?php elseif ($sales > 0): ?>Available from sales: <?= View::text(View::money($sales)) ?> (cannot exceed this on checkout).<?php else: ?>No Pay from Sales balance is available for this buyer on this sale.<?php endif; ?></p>
+                    <p class="muted text-sm" id="pay-sales-hint"><?php if ($cart['buyer_id'] === ''): ?>Choose the vendor this sale pays.<?php elseif ($sales > 0): ?>Available from sales: <?= View::text(View::money($sales)) ?> (cannot exceed this on checkout).<?php else: ?>No Pay from Sales balance is available for this vendor on this sale.<?php endif; ?></p>
+                    <button class="btn" type="button" data-open-modal="sale-vendor">Choose vendor</button>
                 </div>
                 <div class="pay-grid">
                     <div class="field">
@@ -90,6 +93,14 @@ $amount = static function (int $minor): string {
                         </div>
                         <p class="field-error" id="pay-gift-error"<?= $payError === '' ? ' hidden' : '' ?>><?= View::text($payError) ?></p>
                         <p class="muted text-sm" id="pay-gift-balance" hidden></p>
+                    </div>
+                    <div class="field">
+                        <label for="pay-gift-card">Gift card</label>
+                        <input class="input" id="pay-gift-card" name="tender_gift_card" inputmode="decimal" placeholder="0.00" value="<?= View::text(is_string($payGiftCard ?? null) ? $payGiftCard : '') ?>">
+                    </div>
+                    <div class="field">
+                        <label for="pay-gift-card-number">Gift card number</label>
+                        <input class="input" id="pay-gift-card-number" name="gift_card_number" autocomplete="off" value="<?= View::text(is_string($payGiftCardNumber ?? null) ? $payGiftCardNumber : '') ?>">
                     </div>
                     <div class="field">
                         <label for="pay-credit">Store credit</label>
@@ -112,7 +123,7 @@ $amount = static function (int $minor): string {
                     <p id="pay-change" class="pay-note" hidden></p>
                 </div>
                 <button class="btn" id="pay-hold" type="submit" name="hold" value="1" disabled>Hold layaway</button>
-                <button class="btn" id="pay-done" type="button" data-close-modal="enter-payment">Done</button>
+                <button class="btn btn-primary" id="pay-finish" type="submit" disabled>Finish sale</button>
             </div>
         </form>
     </div>

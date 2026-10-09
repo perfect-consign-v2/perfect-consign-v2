@@ -164,16 +164,14 @@ final class PayoutRunController
         $pack = $draft === null
             ? $this->runs->preview($window['from'], $window['to'], $window['rent'], $today)
             : $this->runs->pack($draft);
-        usort(
-            $pack,
-            static fn (array $left, array $right): int => strnatcasecmp($left['code'], $right['code'])
-        );
+        $pack = $this->runs->addBooths($pack, $today);
         $this->app->show('Feature/Payout/pay-vendors', [
             'title' => $monthName . ' payout',
             'monthName' => $monthName,
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'pack' => $pack,
+            'draftRun' => $draft ?? '',
             'excluded' => $this->runs->excluded(),
             'runs' => $this->runs->history(),
             'error' => $error,

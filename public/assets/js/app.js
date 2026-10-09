@@ -127,13 +127,4 @@
     });
   });
 
-  /* ---- Global search shortcut ("/") ------------------------------------ */
-  var search = document.querySelector('[data-global-search]');
-  document.addEventListener('keydown', function (e) {
-    if (e.key === '/' && document.activeElement !== search &&
-        !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
-      e.preventDefault();
-      if (search) search.focus();
-    }
-  });
 })();

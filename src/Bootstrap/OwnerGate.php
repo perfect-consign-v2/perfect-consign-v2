@@ -21,6 +21,7 @@ final class OwnerGate
         private readonly TenantLookup $tenants,
         private readonly MissingPage $missing,
         private readonly View $view,
+        private readonly StaffSignIn $staff,
     ) {
     }
 
@@ -52,7 +53,10 @@ final class OwnerGate
         );
         $statement->execute([$tenant->id, $username]);
         $hash = $statement->fetchColumn();
-        if (!is_string($hash) || !password_verify($password, $hash)) {
+        if (!is_string($hash)) {
+            return $this->staff->attempt($tenant, $username, $password);
+        }
+        if (!password_verify($password, $hash)) {
             $failed = $this->pdo->prepare(
                 'INSERT INTO platform.owner_sign_in_failures (tenant_id, username) VALUES (?::uuid, ?)'
             );
@@ -72,6 +76,9 @@ final class OwnerGate
         $this->session->set('signed_in_at', $now);
         $this->session->set('last_seen_at', $now);
         $this->session->set('csrf', bin2hex(random_bytes(16)));
+        $this->session->set('actor_role', 'owner');
+        $this->session->set('actor_staff', '');
+        $this->session->set('actor_vendor', '');
 
         return true;
     }

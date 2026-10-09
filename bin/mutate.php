@@ -353,6 +353,15 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Backup\\DailyBackupFiles.php' && $line === 23 && $from === '||' && $to === '&&') {
         return 'a path that names the volume is already refused, and this process cannot create a symlink';
     }
+    if ($file === 'src\\Feature\\Backup\\BackupWorkspace.php' && $line === 21 && $from === '!' && $to === '') {
+        return 'mkdir failure still fails the copy, and the retry only differs if the directory appears after mkdir fails';
+    }
+    if ($file === 'src\\Feature\\Backup\\BackupWorkspace.php' && $line === 21 && $from === '&&' && $to === '||') {
+        return 'the last clause is true whenever mkdir has just failed, so both operators agree';
+    }
+    if ($file === 'src\\Feature\\Backup\\BackupWorkspace.php' && ($line === 48 || $line === 49 || $line === 50) && $from === '&&' && $to === '||') {
+        return 'addFile is only reached for a path that is already a file, so a false result is the same failure either way';
+    }
     if ($file === 'src\\Feature\\Backup\\DailyBackupFiles.php' && $line === 70 && $from === '!' && $to === '') {
         return 'mkdir failure still fails the copy, and the retry only differs if the directory appears after mkdir fails';
     }

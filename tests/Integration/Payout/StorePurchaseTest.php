@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Integration\Payout;
 
 use PDO;
+use PerfectConsign\Feature\Payout\OccupiedPack;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\StorePurchase;
 use PerfectConsign\Ledger\LedgerPeriods;
@@ -24,7 +25,7 @@ final class StorePurchaseTest extends TestCase
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
-        $runs = new PayoutRunStore($statements);
+        $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $purchases = new StorePurchase($ledger);
         $date = '2096-03-15';
         $pdo->beginTransaction();

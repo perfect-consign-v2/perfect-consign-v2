@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use PerfectConsign\Feature\Catalog\NameList;
-use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -142,7 +141,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 </form>
                 <div class="register-tools">
                     <?php if ($open): ?>
-                        <button class="btn" type="button" data-open-modal="customer">Customer<?php if ($cart['buyer_name'] !== ''): ?>: <?= View::text($cart['buyer_name']) ?><?php endif; ?></button>
+                        <button class="btn" type="button" data-open-modal="customer">Customer<?php if (is_string($customerName ?? null) && $customerName !== ''): ?>: <?= View::text($customerName) ?><?php endif; ?></button>
                         <button class="btn" type="button" data-open-modal="cart-discount">Discount</button>
                         <button class="btn" type="button" data-open-modal="tax-free">Tax-free</button>
                     <?php endif; ?>
@@ -291,9 +290,9 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <button class="btn btn-primary btn-block" type="button" disabled>Enter payment</button>
             <?php endif; ?>
             <?php if ($open): ?>
-                <button class="btn btn-primary btn-block register-complete" type="submit" form="pos-pay"<?= $lines === [] || $remaining > 0 ? ' disabled' : '' ?>>Process sale</button>
+                <button class="btn btn-primary btn-block register-complete" type="submit" form="pos-pay"<?= $lines === [] || $remaining > 0 ? ' disabled' : '' ?>>Finish sale</button>
             <?php elseif ($locked): ?>
-                <button class="btn btn-primary btn-block register-complete" type="button" disabled>Process sale</button>
+                <button class="btn btn-primary btn-block register-complete" type="button" disabled>Finish sale</button>
             <?php endif; ?>
         </div>
     </section>
@@ -325,18 +324,24 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <button class="btn" type="button" data-close-modal="customer">Close</button>
         </div>
         <div class="card-body stack">
-            <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/buyer" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" id="buyer-form">
+            <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/customer">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                <div class="field combo">
-                    <label for="buyer">Find buyer</label>
-                    <input class="input" id="buyer" value="<?= View::text($cart['buyer_name']) ?>" autocomplete="off" placeholder="Name or vendor number">
-                    <input type="hidden" id="buyer_id" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
-                    <div class="suggest" id="buyer-suggest" hidden></div>
+                <div class="field">
+                    <label for="customer_name">Name</label>
+                    <input class="input" id="customer_name" name="customer_name" value="<?= View::text(is_string($customerName ?? null) ? $customerName : '') ?>" required>
                 </div>
-                <p>Selected: <?= $cart['buyer_name'] !== '' ? View::text($cart['buyer_name']) : 'None' ?></p>
+                <div class="field">
+                    <label for="customer_phone">Phone</label>
+                    <input class="input" id="customer_phone" name="customer_phone">
+                </div>
+                <div class="field">
+                    <label for="customer_email">Email</label>
+                    <input class="input" id="customer_email" name="customer_email">
+                </div>
+                <button class="btn btn-primary" type="submit">Save customer</button>
             </form>
-            <?php if ($cart['buyer_id'] !== ''): ?>
-                <form method="post" action="/<?= View::text($slug) ?>/pos/buyer">
+            <?php if (is_string($customerName ?? null) && $customerName !== ''): ?>
+                <form method="post" action="/<?= View::text($slug) ?>/pos/customer">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <button class="btn" type="submit">Clear customer</button>
                 </form>
@@ -356,6 +361,34 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
     </form>
 </div>
 <?php endif; ?>
+<?php if ($open): ?>
+<div id="sale-vendor" class="modal" role="dialog" aria-modal="true" aria-labelledby="sale-vendor-title" hidden>
+    <div class="modal-panel card">
+        <div class="card-head">
+            <div class="h3" id="sale-vendor-title">Pay from sales</div>
+            <button class="btn" type="button" data-close-modal="sale-vendor">Close</button>
+        </div>
+        <div class="card-body stack">
+            <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/buyer" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" id="buyer-form">
+                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                <div class="field combo">
+                    <label for="buyer">Vendor</label>
+                    <input class="input" id="buyer" value="<?= View::text($cart['buyer_name']) ?>" autocomplete="off" placeholder="Name or vendor number">
+                    <input type="hidden" id="buyer_id" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
+                    <div class="suggest" id="buyer-suggest" hidden></div>
+                </div>
+                <p>Selected: <?= $cart['buyer_name'] !== '' ? View::text($cart['buyer_name']) : 'None' ?></p>
+            </form>
+            <?php if ($cart['buyer_id'] !== ''): ?>
+                <form method="post" action="/<?= View::text($slug) ?>/pos/buyer">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <button class="btn" type="submit">Clear vendor</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <div id="instant-add" class="modal" role="dialog" aria-modal="true" aria-labelledby="instant-add-title"<?= $openInstant ? '' : ' hidden' ?>>
     <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" data-brands="/<?= View::text($slug) ?>/inventory/brands.json" data-brand-create="/<?= View::text($slug) ?>/inventory/brands">
         <div class="card-head">
@@ -365,25 +398,16 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <div class="field">
-                <label for="instant_vendor">Vendor #</label>
-                <input class="input" id="instant_vendor" name="vendor_code" autocomplete="off" required placeholder="Vendor #"<?= $openInstant ? ' autofocus' : '' ?>>
-                <input type="hidden" id="instant_vendor_id" name="vendor_id">
-                <p class="muted text-sm" id="instant-vendor-hint" hidden></p>
-                <p class="field-error" id="instant-vendor-error" hidden>No vendor found with that number.</p>
+                <label for="instant_booth">Booth</label>
+                <input class="input" id="instant_booth" name="booth_code" autocomplete="off" required<?= $openInstant ? ' autofocus' : '' ?>>
             </div>
             <div class="field">
-                <label for="instant_description">Item description *</label>
+                <label for="instant_description">Description</label>
                 <input class="input" id="instant_description" name="description" required placeholder="Short description for tags and receipt">
             </div>
-            <div class="grid cols-2">
-                <div class="field">
-                    <label for="instant_price">Price *</label>
-                    <input class="input" id="instant_price" name="price" inputmode="decimal" required>
-                </div>
-                <div class="field">
-                    <label for="instant_quantity">Quantity *</label>
-                    <input class="input" id="instant_quantity" name="quantity" inputmode="numeric" required value="1">
-                </div>
+            <div class="field">
+                <label for="instant_price">Price</label>
+                <input class="input" id="instant_price" name="price" inputmode="decimal" required>
             </div>
             <div class="field">
                 <label for="instant_discount_kind">Line discount</label>
@@ -422,11 +446,6 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <p class="field-error" hidden></p>
                 </div>
             <?php endforeach; ?>
-            <div class="field">
-                <label for="instant_barcode">Barcode</label>
-                <input class="input" id="instant_barcode" name="barcode" maxlength="100">
-                <p class="muted text-sm">Leave blank and a barcode is generated.</p>
-            </div>
             <div class="row gap-2">
                 <button class="btn btn-primary" type="submit" name="instant_action" value="save_and_new">Save and New</button>
                 <button class="btn" type="submit" name="instant_action" value="save_and_close">Save &amp; Close</button>
@@ -434,53 +453,5 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         </div>
     </form>
 </div>
-<?php
-$giftCheckError = $giftError === GiftIssue::CHECK_REQUIRED;
-$giftNumberError = $giftError === GiftIssue::NUMBER_REQUIRED;
-$giftNumberOpen = $giftCustom || $giftFormNumber !== '';
-$giftFormError = ($giftError !== '' && !$giftCheckError && !$giftNumberError) ? $giftError : '';
-?>
-<div id="gift-sell" class="modal" role="dialog" aria-modal="true" aria-labelledby="gift-sell-title"<?= $openGift ? '' : ' hidden' ?>>
-    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/gift">
-        <div class="card-head">
-            <div class="h3" id="gift-sell-title">Sell gift certificate</div>
-            <button class="btn" type="button" data-close-modal="gift-sell">Close</button>
-        </div>
-        <div class="card-body stack">
-            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <p class="field-error" id="gift-sell-error"<?= $giftFormError === '' ? ' hidden' : '' ?>><?= View::text($giftFormError) ?></p>
-            <div class="field">
-                <label for="gift_amount">Amount</label>
-                <input class="input" id="gift_amount" name="gift_amount" inputmode="decimal" required placeholder="0.00" value="<?= View::text($giftFormAmount) ?>"<?= ($openGift && !$giftCheckError && !$giftNumberOpen) ? ' autofocus' : '' ?>>
-            </div>
-            <div class="field">
-                <span class="strong">Paid with</span>
-                <div class="segmented" role="radiogroup" aria-label="Paid with">
-                    <?php foreach (['cash' => 'Cash', 'card' => 'Card', 'checks' => 'Check'] as $tender => $tenderLabel): ?>
-                        <label class="seg-btn"><input class="sr-only" type="radio" name="gift_tender" value="<?= View::text($tender) ?>"<?= $giftFormTender === $tender ? ' checked' : '' ?>> <?= View::text($tenderLabel) ?></label>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <div class="field" id="gift-check-field"<?= $giftFormTender === 'checks' ? '' : ' hidden' ?>>
-                <label for="gift_check">Check number</label>
-                <input class="input" id="gift_check" name="check_number" value="<?= View::text($giftFormCheck) ?>"<?= $giftCheckError ? ' aria-invalid="true" aria-describedby="gift-check-error" autofocus' : '' ?>>
-                <p class="field-error" id="gift-check-error"<?= $giftCheckError ? '' : ' hidden' ?>><?= View::text(GiftIssue::CHECK_REQUIRED) ?></p>
-            </div>
-            <div class="field">
-                <label for="gift_custom">
-                    <input id="gift_custom" name="gift_custom" type="checkbox" value="1"<?= $giftNumberOpen ? ' checked' : '' ?>>
-                    This certificate already has a number
-                </label>
-            </div>
-            <div class="field" id="gift-number-field"<?= $giftNumberOpen ? '' : ' hidden' ?>>
-                <label for="gift_number">Certificate number</label>
-                <input class="input" id="gift_number" name="gift_number" value="<?= View::text($giftFormNumber) ?>" maxlength="40"<?= $giftNumberError ? ' aria-invalid="true" aria-describedby="gift-number-error"' : '' ?><?= ($openGift && !$giftCheckError && $giftNumberOpen) ? ' autofocus' : '' ?>>
-                <p class="field-error" id="gift-number-error"<?= $giftNumberError ? '' : ' hidden' ?>><?= View::text(GiftIssue::NUMBER_REQUIRED) ?></p>
-            </div>
-            <div class="row">
-                <button class="btn btn-primary" type="submit">Sell</button>
-            </div>
-        </div>
-    </form>
-</div>
+<?php require $templateDirectory . '/Feature/Pos/gift-sell.php'; ?>
 <?php require $templateDirectory . '/Feature/Pos/register-ui.php'; ?>

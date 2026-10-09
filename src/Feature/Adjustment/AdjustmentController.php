@@ -25,7 +25,7 @@ final class AdjustmentController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Adjustment/adjustment', [
-            'title' => 'Adjustment',
+            'title' => 'Fix a mistake',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'accounts' => $this->ledger->postableAccounts(true),
@@ -50,7 +50,7 @@ final class AdjustmentController
             ));
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Adjustment/adjustment', [
-                'title' => 'Adjustment',
+                'title' => 'Fix a mistake',
                 'displayName' => $tenant->displayName,
                 'slug' => $tenant->slug,
                 'accounts' => $this->ledger->postableAccounts(true),
@@ -59,7 +59,7 @@ final class AdjustmentController
             return;
         } catch (\InvalidArgumentException $error) {
             $this->app->show('Feature/Adjustment/adjustment', [
-                'title' => 'Adjustment',
+                'title' => 'Fix a mistake',
                 'displayName' => $tenant->displayName,
                 'slug' => $tenant->slug,
                 'accounts' => $this->ledger->postableAccounts(true),

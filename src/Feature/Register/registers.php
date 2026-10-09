@@ -266,6 +266,7 @@ $pageError = is_string($error ?? null) ? $error : '';
             <input class="input" id="cashier" name="cashier" value="<?= View::text($openCashier) ?>" required>
             <label for="opening_float">Opening float</label>
             <input class="input" id="opening_float" name="opening_float" inputmode="decimal" value="<?= View::text($openFloat) ?>" required>
+            <p class="muted text-sm">The bills and coins you put in the drawer before the first sale.</p>
             <button class="btn" type="button" data-open-modal="register-count" data-count-form="open-form">Count cash</button>
             <div class="row gap-2">
                 <button class="btn btn-primary" type="submit">Open register</button>

@@ -42,7 +42,7 @@ const scanList = document.getElementById('scan-suggest');
 const instantOpen = document.getElementById('instant-add');
 const giftOpen = document.getElementById('gift-sell');
 if (instantOpen && !instantOpen.hidden) {
-    const consignor = document.getElementById('instant_vendor');
+    const consignor = document.getElementById('instant_booth');
     if (consignor) {
         consignor.focus();
     }
@@ -361,7 +361,7 @@ document.querySelectorAll('[data-open-modal]').forEach(function (button) {
         if (modal) {
             modal.hidden = false;
             if (modal.id === 'instant-add') {
-                const consignor = document.getElementById('instant_vendor');
+                const consignor = document.getElementById('instant_booth');
                 if (consignor) {
                     consignor.focus();
                 }
@@ -373,7 +373,7 @@ document.querySelectorAll('[data-open-modal]').forEach(function (button) {
                 }
             }
             if (modal.id === 'customer') {
-                const buyer = document.getElementById('buyer');
+                const buyer = document.getElementById('customer_name');
                 if (buyer) {
                     buyer.focus();
                 }

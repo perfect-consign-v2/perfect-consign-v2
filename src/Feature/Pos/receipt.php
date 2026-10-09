@@ -135,10 +135,30 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
                 <?php endforeach; ?>
                 <div class="row wrap gap-2">
                     <button class="btn" type="button" data-open-modal="void-ticket">Void ticket</button>
-                    <a class="btn" href="/<?= View::text($slug) ?>/journals/<?= View::text($receipt['journal_id']) ?>">Journal</a>
+                    <a class="btn" href="/<?= View::text($slug) ?>/journals/<?= View::text($receipt['journal_id']) ?>">Posted entry</a>
                 </div>
             </div>
         </section>
+            <section class="stack no-print">
+                <h2 class="h3">Wrong booth</h2>
+                <p class="muted">This moves what the store owes. The piece price and the consignor on the piece stay as they are.</p>
+                <?php foreach ($lines as $line): ?>
+                    <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/booth">
+                        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                        <input type="hidden" name="item_id" value="<?= View::text($line['item_id']) ?>">
+                        <label for="correct-<?= View::text($line['item_id']) ?>"><?= View::text($line['code']) ?> was paid to <?= View::text($line['vendor']) ?></label>
+                        <select class="select" id="correct-<?= View::text($line['item_id']) ?>" name="vendor_id" required>
+                            <option value="">Pay this vendor instead</option>
+                            <?php foreach ((is_array($vendors ?? null) ? $vendors : []) as $vendor): ?>
+                                <?php if (is_array($vendor) && is_string($vendor['id'] ?? null)): ?>
+                                    <option value="<?= View::text($vendor['id']) ?>"><?= View::text(is_string($vendor['name'] ?? null) ? $vendor['name'] : '') ?></option>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </select>
+                        <p><button class="btn" type="submit">Move the payable</button></p>
+                    </form>
+                <?php endforeach; ?>
+            </section>
         <div id="void-ticket" class="modal no-print" role="dialog" aria-modal="true" aria-labelledby="void-ticket-title" hidden>
             <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/void">
                 <div class="card-head"><div class="h3" id="void-ticket-title">Void ticket</div></div>

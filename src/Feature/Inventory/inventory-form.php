@@ -31,7 +31,7 @@ $expireHint = $floorDays === ''
 <div class="page-head">
     <div class="titles">
         <nav class="breadcrumb">
-            <a href="/<?= View::text($slug) ?>/inventory">Inventory</a><span class="sep">/</span>
+            <a href="/<?= View::text($slug) ?>/inventory">Pieces</a><span class="sep">/</span>
             <span><?= View::text($crumb) ?></span>
         </nav>
         <h1 class="h1"><?= View::text($heading) ?></h1>

@@ -27,13 +27,47 @@ final class DatabaseRefusal extends RuntimeException
 
     private static function shown(string $first, string $raw): string
     {
-        if (str_contains($raw, 'registers_name_key')) {
-            return 'Another register already has that name.';
+        $named = self::uniqueName($raw);
+        if ($named !== null) {
+            return $named;
         }
-        if (str_contains($raw, 'stored_values_number_key')) {
-            return self::CERTIFICATE_NUMBER_USED;
+        if (self::databaseShaped($first)) {
+            return 'That could not be saved.';
         }
 
         return $first;
+    }
+
+    private static function databaseShaped(string $line): bool
+    {
+        return str_contains($line, 'duplicate key');
+    }
+
+    private static function uniqueName(string $raw): ?string
+    {
+        $names = [
+            'staff_username_key' => 'That sign-in name is already used.',
+            'registers_name_key' => 'Another register already has that name.',
+            'stored_values_number_key' => self::CERTIFICATE_NUMBER_USED,
+            'vendors_code_key' => 'That code is already used.',
+            'booths_code_key' => 'That booth is already used.',
+            'items_code_key' => 'That tag is already used.',
+            'items_barcode_key' => 'That barcode is already used.',
+            'brands_name_key' => 'That name is already used.',
+            'colors_name_key' => 'That name is already used.',
+            'categories_name_key' => 'That name is already used.',
+            'sizes_name_key' => 'That name is already used.',
+            'conditions_name_key' => 'That name is already used.',
+            'departments_name_key' => 'That name is already used.',
+            'map_floors_name_key' => 'That floor name is already used.',
+            'wait_list_open_email_key' => 'That email is already on the wait list.',
+        ];
+        foreach ($names as $key => $sentence) {
+            if (str_contains($raw, $key)) {
+                return $sentence;
+            }
+        }
+
+        return null;
     }
 }

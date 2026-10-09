@@ -8,7 +8,6 @@ use PerfectApp\Session\Session;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Http\Request;
-use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
@@ -75,6 +74,7 @@ final class MallApp
         }
         $data['notice'] = $notice;
         $data['warning'] = $warning;
+        $data['actorRole'] = $this->door->actor()->role();
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
         $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
@@ -95,8 +95,7 @@ final class MallApp
     {
         $this->keepFlash('notice', $notice);
         $this->keepFlash('warning', $warning);
-        header('Location: ' . $path, true, 303);
-        throw new ResponseSent('redirect');
+        $this->door->go($path);
     }
 
     private function keepFlash(string $key, ?string $value): void
@@ -188,6 +187,9 @@ final class MallApp
         if ($this->sessionSlug() !== $slug) {
             $this->redirect('/' . $slug . '/login');
         }
+        if (!$this->door->actor()->permitted($slug, $this->request->path, $this->request->method)) {
+            $this->notFound(self::MISS_HIDDEN);
+        }
         if ($this->roled) {
             return;
         }
@@ -198,33 +200,7 @@ final class MallApp
 
     private function sessionSlug(): ?string
     {
-        $slug = $this->session->get('owner_slug');
-        if (!is_string($slug) || $slug === '') {
-            return null;
-        }
-        if ($this->sessionStale(time())) {
-            $this->session->destroy();
-
-            return null;
-        }
-        $this->session->set('last_seen_at', (string) time());
-
-        return $slug;
-    }
-
-    private function sessionStale(int $now): bool
-    {
-        return $this->older('signed_in_at', $now, 86400) || $this->older('last_seen_at', $now, 43200);
-    }
-
-    private function older(string $key, int $now, int $limit): bool
-    {
-        $value = $this->session->get($key);
-        if (!is_string($value) || ctype_digit($value) !== true) {
-            return true;
-        }
-
-        return $now - (int) $value >= $limit;
+        return $this->door->actor()->slug();
     }
 
 }

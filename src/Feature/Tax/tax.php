@@ -18,6 +18,7 @@ use PerfectConsign\Shared\Http\View;
     <label for="amount">Amount</label>
     <input id="amount" name="amount" inputmode="decimal" required>
     <input type="hidden" name="credit" value="bank">
+    <p>This payment comes from the bank. It does not come out of the drawer.</p>
     <label for="posting_date">Posting date</label>
     <input id="posting_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
     <p><button type="submit">Post tax payment</button></p>

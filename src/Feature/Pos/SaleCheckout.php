@@ -20,6 +20,7 @@ final class SaleCheckout
         private readonly LayawayBook $layaways,
         private readonly MallSettings $mall,
         private readonly SaleHold $sales,
+        private readonly TicketCustomer $customers,
     ) {
     }
 
@@ -73,11 +74,12 @@ final class SaleCheckout
      */
     private function hold(string $slug, string $session, array $cart, array $entered): array
     {
-        if ($cart['buyer_id'] === '') {
+        $customer = $this->customers->current($cart['ticket_id']);
+        if ($customer['id'] === '') {
             throw new DatabaseRefusal('Choose a customer to hold a layaway.');
         }
         $this->layaways->hold($session, $this->mall->today(), $cart['ticket_id'], $cart['due'], $entered);
-        $name = $cart['buyer_name'] !== '' ? $cart['buyer_name'] : 'the customer';
+        $name = $customer['name'] !== '' ? $customer['name'] : 'the customer';
 
         return [
             'path' => '/' . $slug . '/pos/layaway/' . $cart['ticket_id'],

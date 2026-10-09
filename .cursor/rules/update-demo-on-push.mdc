@@ -1,0 +1,29 @@
+---
+description: After every GitHub push of this repo, deploy that same commit to the v2 demo server.
+alwaysApply: true
+---
+
+# Update the demo server on every GitHub push
+
+Applies only after a **successful push to GitHub** of this repo (`perfect-consign`). A commit with no push does not deploy. A failed push does not deploy.
+
+Deploy the commit that was pushed, not uncommitted files. Leave the server `.env` in place.
+
+## Server
+
+- Site: `https://v2.perfectconsign.com/mall`
+- FTP home is the app root. Document root is `public/`. `index.php` reads `../.env` and `../vendor`.
+- Credentials: `.cursor/demo-server.local` (gitignored). Do not put the password in a rule, commit, or chat reply.
+
+## Deploy
+
+1. `git archive` the pushed commit into a temp directory. `composer install --no-dev --no-interaction --prefer-dist` there. Do not change this checkout's `vendor/`.
+2. Zip `src/`, `public/`, `vendor/`, `composer.json`, and `composer.lock` with forward-slash paths. Do not include `.env`, `.git`, `tests/`, `var/`, or `.idea/`.
+3. FTP the zip to the vhost home. Extract it there with a one-shot script in `public/`, then delete the zip and the script.
+4. Confirm `https://v2.perfectconsign.com/mall` returns 200. Report that URL with the pushed SHA.
+
+```text
+BAD: git push origin master, stop, demo still on the previous tree
+BAD: upload a new .env over the server file
+GOOD: push master at <sha>, then that tree is live at https://v2.perfectconsign.com/mall
+```

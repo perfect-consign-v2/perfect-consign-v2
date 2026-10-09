@@ -26,9 +26,10 @@ final class InventoryStore
     /**
      * @return list<array<string, mixed>>
      */
-    public function items(string $query): array
+    public function items(string $query, string $stock = ''): array
     {
         $needle = strtolower(trim($query));
+        $onlyUnsold = $stock === 'out';
         $sql = 'SELECT item.id, item.code, item.barcode, item.description, item.price_minor, item.quantity,
                        item.vendor_id, item.commission_bps, item.intake_on, item.expires_on,
                        vendor.code AS vendor_code, vendor.name AS vendor_name,
@@ -46,12 +47,16 @@ final class InventoryStore
                 LEFT JOIN sizes AS size ON size.id = item.size_id
                 LEFT JOIN conditions AS condition ON condition.id = item.condition_id
                 LEFT JOIN departments AS department ON department.id = item.department_id';
-        if ($needle === '') {
+        $unsold = $onlyUnsold ? 'item.quantity = 0' : '';
+        if ($needle === '' && $unsold === '') {
             return $this->statements->rows($sql . ' ORDER BY lower(item.code), item.code');
+        }
+        if ($needle === '') {
+            return $this->statements->rows($sql . ' WHERE ' . $unsold . ' ORDER BY lower(item.code), item.code');
         }
 
         return $this->statements->bound(
-            $sql . ' WHERE strpos(lower(item.code), ?) > 0
+            $sql . ' WHERE ' . ($unsold === '' ? '' : $unsold . ' AND ') . '(strpos(lower(item.code), ?) > 0
                        OR strpos(lower(item.barcode), ?) > 0
                        OR strpos(lower(item.description), ?) > 0
                        OR strpos(lower(vendor.code), ?) > 0
@@ -61,7 +66,7 @@ final class InventoryStore
                        OR strpos(lower(category.name), ?) > 0
                        OR strpos(lower(size.name), ?) > 0
                        OR strpos(lower(condition.name), ?) > 0
-                       OR strpos(lower(department.name), ?) > 0
+                       OR strpos(lower(department.name), ?) > 0)
                      ORDER BY lower(item.code), item.code',
             [$needle, $needle, $needle, $needle, $needle, $needle, $needle, $needle, $needle, $needle, $needle]
         );
@@ -70,6 +75,13 @@ final class InventoryStore
     public function count(): int
     {
         $rows = $this->statements->rows('SELECT count(*)::int AS total FROM items');
+
+        return RowValue::integer($rows[0]['total'] ?? 0);
+    }
+
+    public function unsold(): int
+    {
+        $rows = $this->statements->rows('SELECT count(*)::int AS total FROM items WHERE quantity = 0');
 
         return RowValue::integer($rows[0]['total'] ?? 0);
     }
@@ -171,7 +183,7 @@ final class InventoryStore
                 return $stored;
             } catch (DatabaseRefusal $error) {
                 $refusal = $error;
-                if ($piece->barcode !== '' || !str_contains($error->getMessage(), 'items_barcode_key')) {
+                if ($piece->barcode !== '' || !str_contains($error->getMessage(), 'That barcode is already used.')) {
                     throw $error;
                 }
             }

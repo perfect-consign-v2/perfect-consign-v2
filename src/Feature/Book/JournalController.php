@@ -30,7 +30,7 @@ final class JournalController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Book/journals', [
-            'title' => 'Journals',
+            'title' => 'Posted entries',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'journals' => $this->ledger->journals(),
@@ -46,7 +46,7 @@ final class JournalController
             $this->app->notFound();
         }
         $this->app->show('Feature/Book/journal', [
-            'title' => 'Journal',
+            'title' => 'Posted entry',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'journal' => $journal,
@@ -126,7 +126,7 @@ final class JournalController
     private function showRefusal(TenantRecord $tenant, array $journal, string $id, DatabaseRefusal $refusal): void
     {
         $this->app->show('Feature/Book/journal', [
-            'title' => 'Journal',
+            'title' => 'Posted entry',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'journal' => $journal,

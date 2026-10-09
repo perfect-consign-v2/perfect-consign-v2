@@ -30,13 +30,12 @@ final class MallPayoutSettings
         return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
-    public function save(string $operatingMode, string $cadence, bool $rentPrepaid): void
+    public function save(string $operatingMode, bool $rentPrepaid): void
     {
         $mode = in_array($operatingMode, ['consignor', 'booth_mall', 'both'], true) ? $operatingMode : 'both';
-        $pay = in_array($cadence, ['weekly', 'biweekly', 'monthly', 'ad_hoc'], true) ? $cadence : 'monthly';
         $this->statements->change(
             'UPDATE mall SET operating_mode = ?, payout_cadence = ?, rent_prepaid_from_prior_sales = ?::boolean',
-            [$mode, $pay, $rentPrepaid ? 'true' : 'false']
+            [$mode, 'monthly', $rentPrepaid ? 'true' : 'false']
         );
     }
 

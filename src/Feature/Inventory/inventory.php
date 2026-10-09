@@ -9,7 +9,11 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $query */
+/** @var string $stock */
+/** @var int $unsold */
 /** @var int $total */
+$stock = $stock ?? '';
+$unsold = $unsold ?? 0;
 /** @var string $confirm */
 /** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, vendor_id: string, vendor_label: string, brand_name: string, color_name: string, category_name: string, size_name: string, condition_name: string, department_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, deletable: bool}> $items */
 /** @var list<NameList> $attributeLists */
@@ -21,7 +25,7 @@ $list = '/' . $slug . '/inventory';
 ?>
 <div class="page-head">
     <div class="titles">
-        <h1 class="h1">Inventory</h1>
+        <h1 class="h1">Pieces</h1>
         <p class="muted">One row is one piece on the floor.</p>
     </div>
     <a class="btn btn-primary" href="/<?= View::text($slug) ?>/inventory/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New piece</a>
@@ -38,6 +42,13 @@ $list = '/' . $slug . '/inventory';
     <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
         <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search tag, barcode, description, consignor, or brand" aria-label="Search inventory">
         <button class="btn" type="submit">Search</button>
+        <?php
+        $chip = $list . '?stock=out';
+        if ($query !== '') {
+            $chip .= '&q=' . rawurlencode($query);
+        }
+        ?>
+        <a class="occupancy-pill" href="<?= View::text($chip) ?>"<?= $stock === 'out' ? ' aria-current="page"' : '' ?>>Not for sale (<?= View::text((string) $unsold) ?>)</a>
     </form>
 
     <?php if ($items !== []): ?>

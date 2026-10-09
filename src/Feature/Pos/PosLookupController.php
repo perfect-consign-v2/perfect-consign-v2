@@ -33,9 +33,16 @@ final class PosLookupController
         $this->app->open($slug, true);
         $this->gate->session($slug);
         $number = trim($this->app->request()->query('number'));
-        $balance = $this->gifts->balance($number);
+        $kind = $this->app->request()->query('kind');
+        if (!in_array($kind, ['gift_certificate', 'gift_card', 'store_credit'], true)) {
+            $kind = 'gift_certificate';
+        }
+        $balance = $this->gifts->balance($number, $kind);
         if ($balance === null) {
-            $this->send(['ok' => false, 'error' => RegisterStore::GIFT_CERTIFICATE_MISSING]);
+            $missing = $kind === 'gift_certificate'
+                ? RegisterStore::GIFT_CERTIFICATE_MISSING
+                : 'that ' . str_replace('_', ' ', $kind) . ' number is not on file';
+            $this->send(['ok' => false, 'error' => $missing]);
         }
         $this->send(['ok' => true, 'balance' => View::money($balance), 'cents' => $balance]);
     }

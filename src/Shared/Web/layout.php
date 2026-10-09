@@ -16,11 +16,9 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $templateDirectory */
 /** @var string $path */
 /** @var string $robots */
-/** @var bool $showSearch */
 
 $path = $path ?? '';
 $robots = $robots ?? '';
-$showSearch = ($showSearch ?? true) === true;
 $posShell = ($posShell ?? false) === true;
 $activeRegister = $activeRegister ?? '';
 $chooseRegister = $chooseRegister ?? false;
@@ -35,9 +33,9 @@ $groups = [
         ['/dashboard', 'Dashboard', 'i-dashboard'],
     ],
     'Operations' => [
-        ['/pos', 'POS', 'i-cart'],
+        ['/pos', 'Sell', 'i-cart'],
         ['/parties', 'Vendors', 'i-vendor'],
-        ['/inventory', 'Inventory', 'i-inventory'],
+        ['/inventory', 'Pieces', 'i-inventory'],
         ['/booths', 'Booths', 'i-booth'],
         ['/registers', 'Registers', 'i-pos'],
         ['/rent', 'Rent', 'i-booth'],
@@ -53,19 +51,45 @@ foreach ($catalogNav as $link) {
         $groups['Operations'][] = $link;
     }
 }
+$groups['Operations'][] = ['/settings', 'Settings', 'i-settings'];
 $groups += [
-    'Business' => [
-        ['/adjustment', 'Adjustment', 'i-edit'],
-        ['/tax', 'Tax', 'i-percent'],
-        ['/book', 'Book', 'i-report'],
+    'Books' => [
+        ['/adjustment', 'Fix a mistake', 'i-edit'],
+        ['/tax', 'Sales tax', 'i-percent'],
+        ['/book', 'Accounts', 'i-report'],
         ['/gift-certificates', 'Gift certificates', 'i-receipt'],
-        ['/journals', 'Journals', 'i-receipt'],
-        ['/opening', 'Opening', 'i-plus'],
-        ['/close', 'Close', 'i-lock'],
-        ['/export', 'Export', 'i-arrow-down'],
-        ['/settings', 'Settings', 'i-settings'],
+        ['/journals', 'Posted entries', 'i-receipt'],
+        ['/opening', 'Starting balances', 'i-plus'],
+        ['/close', 'Close the year', 'i-lock'],
+        ['/export', 'Download books', 'i-arrow-down'],
     ],
 ];
+$actorRole = is_string($actorRole ?? null) ? $actorRole : 'owner';
+if ($actorRole === 'owner') {
+    $groups['Overview'][] = ['/month', 'Month', 'i-report'];
+    $groups['Operations'][] = ['/staff', 'Cashiers', 'i-vendor'];
+}
+if ($actorRole === 'cashier') {
+    $groups = [
+        'Counter' => [
+            ['/pos', 'Sell', 'i-cart'],
+            ['/rent', 'Rent', 'i-booth'],
+            ['/registers', 'Register', 'i-pos'],
+        ],
+    ];
+}
+if ($actorRole === 'vendor') {
+    $groups = [
+        'Vendor' => [
+            ['/vendor', 'Your account', 'i-vendor'],
+        ],
+    ];
+}
+$roleLabel = match ($actorRole) {
+    'cashier' => 'Cashier',
+    'vendor' => 'Vendor',
+    default => 'Owner',
+};
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="neutral" data-mode="light">
@@ -152,13 +176,6 @@ $groups += [
             <button class="icon-btn mobile-only" type="button" data-mobile-toggle aria-label="Open navigation">
                 <svg aria-hidden="true"><use href="#i-menu"></use></svg>
             </button>
-            <?php if ($showSearch): ?>
-            <form class="topbar-search" role="search" action="<?= View::text($path) ?>" method="get"<?= $priorCloseStarted ? ' inert' : '' ?>>
-                <svg aria-hidden="true"><use href="#i-search"></use></svg>
-                <input type="search" name="q" placeholder="Search items, vendors, booths…" aria-label="Search" autocomplete="off" data-global-search>
-                <kbd>/</kbd>
-            </form>
-            <?php endif; ?>
             <div class="topbar-spacer"></div>
             <?php if ($chooseRegister): ?>
                 <a class="btn" href="/<?= View::text($slug) ?>/registers">Choose a register</a>
@@ -166,9 +183,6 @@ $groups += [
                 <a class="btn" href="/<?= View::text($slug) ?>/registers">Active: <?= View::text($activeRegister) ?></a>
             <?php endif; ?>
             <div class="topbar-actions">
-                <button class="icon-btn" type="button" aria-label="Notifications">
-                    <svg aria-hidden="true"><use href="#i-bell"></use></svg>
-                </button>
                 <div class="account" data-menu>
                     <button class="icon-btn" type="button" data-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="Appearance">
                         <svg aria-hidden="true"><use href="#i-palette"></use></svg>
@@ -208,7 +222,7 @@ $groups += [
                         <span class="avatar" aria-hidden="true"><?= View::text($mark) ?></span>
                         <span class="account-meta">
                             <span class="name"><?= View::text($displayName) ?></span>
-                            <span class="role">Owner</span>
+                            <span class="role"><?= View::text($roleLabel) ?></span>
                         </span>
                         <svg style="width:14px;height:14px;color:var(--text-subtle)" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
                     </button>
