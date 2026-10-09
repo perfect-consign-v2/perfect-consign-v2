@@ -44,11 +44,13 @@ final class TenantProvisioner
         $role = $this->roleName($slug, $schema);
 
         $createdRole = false;
-        $this->pdo->exec(sprintf(
-            'CREATE ROLE %s NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE',
-            $role
-        ));
-        $createdRole = true;
+        if (!$this->roleExists($role)) {
+            $this->pdo->exec(sprintf(
+                'CREATE ROLE %s NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE',
+                $role
+            ));
+            $createdRole = true;
+        }
 
         try {
             $this->pdo->beginTransaction();
@@ -151,6 +153,15 @@ final class TenantProvisioner
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
             throw new InvalidArgumentException('schema name is not a tenant schema');
         }
+    }
+
+    private function roleExists(string $role): bool
+    {
+        $this->assertRole($role);
+        $exists = $this->pdo->prepare('SELECT 1 FROM pg_roles WHERE rolname = ?');
+        $exists->execute([$role]);
+
+        return $exists->fetchColumn() !== false;
     }
 
     private function assertRole(string $role): void

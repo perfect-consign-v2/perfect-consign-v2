@@ -64,6 +64,7 @@ final class SchemaCatalogTest extends TestCase
         // absent( regclass( routine( identifier( baselineObjects( fileObjects( from( definitions( created(
         // columns( alteredTable( names( unique( byColumn( coverage( mark( column( triggerName( constraint( schema(
         // stampPresent( getCatalogLinks( getEnabledLists( postedAttributes( fillNames( accept(
+        // labels( printOwn( storeName( sticker( numbers( owns( sum(
         // requireVendor( requireBrand( requireAttributes( __construct(
         // pendingPlatform( pendingTenant( baselineTenant( platformBaseline( tenantBaseline( runPlatform(
         // runTenant( roleName( grantRead( rollback( present( filePresent( extensions(

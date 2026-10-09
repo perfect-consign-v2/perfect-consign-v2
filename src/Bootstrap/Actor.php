@@ -23,6 +23,9 @@ final class Actor
 
             return null;
         }
+        if ($this->role() === '') {
+            return null;
+        }
         $this->session->set('last_seen_at', (string) time());
 
         return $slug;
@@ -35,7 +38,7 @@ final class Actor
             return $role;
         }
 
-        return 'owner';
+        return '';
     }
 
     public function vendor(): string
