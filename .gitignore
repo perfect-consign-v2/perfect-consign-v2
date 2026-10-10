@@ -1,6 +1,6 @@
 .env
 .cursor/demo-server.local
-vendor/
+/vendor/
 var/
 .phpunit.result.cache
 .phpunit.cache/

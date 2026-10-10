@@ -184,6 +184,93 @@
         });
     }
 
+    function holdSelectAll(tableEl) {
+        tableEl.querySelectorAll('.list-dt-select-all').forEach(function (input) {
+            if (input.getAttribute('data-select-bound') === '1') {
+                return;
+            }
+            input.setAttribute('data-select-bound', '1');
+            input.addEventListener('click', function (event) {
+                event.stopPropagation();
+            });
+            input.addEventListener('mousedown', function (event) {
+                event.stopPropagation();
+            });
+        });
+    }
+
+    function openInventorySelection(tableEl) {
+        if (tableEl.id !== 'list-inventory') {
+            return null;
+        }
+        var factory = globalThis.InventorySelectionStore;
+        if (!factory || typeof factory.createInventorySelectionStore !== 'function' || typeof factory.bindSelectionChrome !== 'function') {
+            return null;
+        }
+        var form = document.getElementById('stickers');
+        if (!(form instanceof HTMLFormElement)) {
+            return null;
+        }
+        var keyInput = form.querySelector('input[name="selection_storage_key"]');
+        var storageKey = keyInput instanceof HTMLInputElement ? keyInput.value : '';
+        if (storageKey === '') {
+            return null;
+        }
+        var selection = factory.createInventorySelectionStore({
+            storage: window.sessionStorage,
+            storageKey: storageKey,
+        });
+        selection.load();
+        var chrome = factory.bindSelectionChrome(form, selection, {
+            restore: function () {
+                factory.restoreChecks(tableEl, selection);
+            },
+            syncSelectAll: function () {
+                factory.syncSelectAll(tableEl);
+            },
+            uncheckVisible: function () {
+                factory.uncheckVisible(tableEl);
+            },
+        });
+        tableEl.addEventListener('change', function (event) {
+            onInventorySelectionChange(tableEl, selection, chrome, event.target);
+        });
+        return {
+            draw: function () {
+                holdSelectAll(tableEl);
+                chrome.refresh();
+            },
+        };
+    }
+
+    function onInventorySelectionChange(tableEl, selection, chrome, target) {
+        if (!(target instanceof HTMLInputElement)) {
+            return;
+        }
+        var factory = globalThis.InventorySelectionStore;
+        if (target.classList.contains('list-dt-select-all')) {
+            var checked = target.checked;
+            selection.applyPage(factory.selectableIds(tableEl), checked);
+            tableEl.querySelectorAll('tbody input[type="checkbox"][name="item[]"]').forEach(function (box) {
+                if (box instanceof HTMLInputElement) {
+                    box.checked = checked;
+                }
+            });
+            target.indeterminate = false;
+            selection.save();
+            factory.syncSelectAll(tableEl);
+            chrome.syncBar();
+            return;
+        }
+        if (target.name !== 'item[]' || target.type !== 'checkbox') {
+            return;
+        }
+        selection.setChecked(target.value, target.checked);
+        selection.save();
+        factory.syncSelectAll(tableEl);
+        chrome.syncBar();
+    }
+
     function initTable(tableEl) {
         if (tableEl.id === '' || tableEl.getAttribute('data-dt-ready') === '1') {
             return null;
@@ -193,6 +280,14 @@
         }
         registerTypes(DataTable);
         tableEl.setAttribute('data-dt-ready', '1');
+        var pageScroll = tableEl.getAttribute('data-dt-page-scroll') === '1';
+        if (pageScroll) {
+            var scrollWrap = tableEl.closest('.list-dt-wrap');
+            if (scrollWrap !== null) {
+                scrollWrap.classList.add('list-dt-page-scroll');
+            }
+        }
+        var selectionUi = openInventorySelection(tableEl);
         var name = exportName(tableEl);
         var exportOptions = {
             columns: exportable,
@@ -206,13 +301,10 @@
                 },
             },
         };
-        return new DataTable('#' + tableEl.id, {
+        var options = {
             order: readOrder(tableEl),
             pageLength: 10,
             lengthMenu: [10, 25, 50, 100],
-            scrollY: scrollHeight(tableEl),
-            scrollX: true,
-            scrollCollapse: true,
             stripe: true,
             searchDelay: 300,
             layout: {
@@ -232,7 +324,18 @@
                 bindFilters(this.api());
                 this.api().columns.adjust();
             },
-        });
+        };
+        if (!pageScroll) {
+            options.scrollY = scrollHeight(tableEl);
+            options.scrollX = true;
+            options.scrollCollapse = true;
+        }
+        if (selectionUi !== null) {
+            options.drawCallback = function () {
+                selectionUi.draw();
+            };
+        }
+        return new DataTable('#' + tableEl.id, options);
     }
 
     function init() {
@@ -255,10 +358,12 @@
             timer = window.setTimeout(function () {
                 instances.forEach(function (entry) {
                     var settings = entry.api.settings()[0];
-                    if (!settings || !settings.oScroll) {
+                    if (!settings) {
                         return;
                     }
-                    settings.oScroll.sY = scrollHeight(entry.tableEl);
+                    if (entry.tableEl.getAttribute('data-dt-page-scroll') !== '1' && settings.oScroll) {
+                        settings.oScroll.sY = scrollHeight(entry.tableEl);
+                    }
                     entry.api.columns.adjust();
                 });
             }, 150);

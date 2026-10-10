@@ -30,6 +30,21 @@ final class LabelRequest
         ];
     }
 
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function withSelectionKey(array $data, string $raw): array
+    {
+        $key = InventorySelectionKey::fromRequest($raw);
+        if ($key === null) {
+            return $data;
+        }
+        $data['selectionStorageKey'] = $key;
+
+        return $data;
+    }
+
     private function stock(mixed $raw, string $fallback): LabelStock
     {
         $key = is_string($raw) ? trim($raw) : '';

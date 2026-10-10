@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Feature\Catalog\NameList;
+use PerfectConsign\Feature\Inventory\InventorySelectionKey;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
 
@@ -25,10 +26,10 @@ $list = '/' . $slug . '/inventory';
 ?>
 <div class="page-head">
     <div class="titles">
-        <h1 class="h1">Pieces</h1>
-        <p class="muted">One row is one piece on the floor.</p>
+        <h1 class="h1">Items</h1>
+        <p class="muted">One row is one item on the floor.</p>
     </div>
-    <a class="btn btn-primary" href="/<?= View::text($slug) ?>/inventory/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New piece</a>
+    <a class="btn btn-primary" href="/<?= View::text($slug) ?>/inventory/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New item</a>
 </div>
 
 <?php if ($total === 0): ?>
@@ -55,17 +56,18 @@ $list = '/' . $slug . '/inventory';
         <?php
         $printId = '';
         $lead = 'Check the pieces in the list.';
+        $selectionStorageKey = InventorySelectionKey::pieces($slug);
         require __DIR__ . '/sticker-job.php';
         ?>
     <?php endif; ?>
 
-    <div class="card table-wrap list-dt-wrap mt-4">
+    <div class="card table-wrap list-dt-wrap list-dt-page-scroll mt-4">
         <?php if ($items === []): ?>
             <div class="empty"><p>No pieces match.</p></div>
         <?php else: ?>
             <?php
             $columns = [
-                ['label' => 'Print', 'actions' => true],
+                ['label' => 'Print', 'actions' => true, 'select' => true],
                 ['label' => 'Tag'],
                 ['label' => 'Barcode'],
                 ['label' => 'Description'],
@@ -81,7 +83,7 @@ $list = '/' . $slug . '/inventory';
             $columns[] = ['label' => 'Qty', 'sort' => 'num'];
             $columns[] = ['label' => 'Price', 'sort' => 'num'];
             $columns[] = ['label' => '', 'actions' => true];
-            ListTable::open(['id' => 'inventory', 'export' => 'inventory']);
+            ListTable::open(['id' => 'inventory', 'export' => 'inventory', 'pageScroll' => true]);
             ListTable::head($columns);
             ?>
                 <tbody>
@@ -154,5 +156,8 @@ $list = '/' . $slug . '/inventory';
             </table>
         <?php endif; ?>
     </div>
+    <?php if ($items !== []): ?>
+        <?php require __DIR__ . '/selection-bar.php'; ?>
+    <?php endif; ?>
     <?php ListTable::assets(); ?>
 <?php endif; ?>

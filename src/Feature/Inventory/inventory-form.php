@@ -22,16 +22,16 @@ $sold = ($sold ?? false) === true;
 
 $editing = $piece['id'] !== '';
 $action = $editing ? '/' . $slug . '/inventory/' . $piece['id'] : '/' . $slug . '/inventory';
-$heading = $editing ? 'Edit piece' : 'New piece';
+$heading = $editing ? 'Edit item' : 'New item';
 $crumb = $editing && $piece['code'] !== '' ? $piece['code'] : 'New';
 $expireHint = $floorDays === ''
-    ? 'No days-on-the-floor default. Leave this empty and the piece does not expire.'
-    : 'Defaults to ' . $floorDays . ' days after intake. Clear it and this piece does not expire.';
+    ? 'No days-on-the-floor default. Leave this empty and the item does not expire.'
+    : 'Defaults to ' . $floorDays . ' days after intake. Clear it and this item does not expire.';
 ?>
 <div class="page-head">
     <div class="titles">
         <nav class="breadcrumb">
-            <a href="/<?= View::text($slug) ?>/inventory">Pieces</a><span class="sep">/</span>
+            <a href="/<?= View::text($slug) ?>/inventory">Items</a><span class="sep">/</span>
             <span><?= View::text($crumb) ?></span>
         </nav>
         <h1 class="h1"><?= View::text($heading) ?></h1>
@@ -40,13 +40,13 @@ $expireHint = $floorDays === ''
 </div>
 
 <?php if (!$editing && $piece['vendor_label'] !== ''): ?>
-    <p class="muted">Adding pieces for <?= View::text($piece['vendor_label']) ?>.</p>
+    <p class="muted">Adding items for <?= View::text($piece['vendor_label']) ?>.</p>
 <?php endif; ?>
 
 <?php
 $printId = $editing ? $piece['id'] : $printId;
 if ($printId !== '') {
-    $lead = $editing ? 'Print stickers for this piece.' : 'Print stickers for the piece you just saved.';
+    $lead = $editing ? 'Print stickers for this item.' : 'Print stickers for the item you just saved.';
     require __DIR__ . '/sticker-job.php';
 }
 ?>
@@ -61,7 +61,7 @@ if ($printId !== '') {
     data-expire-dirty="<?= $piece['expire_dirty'] ? '1' : '0' ?>"
     data-sold="<?= $sold ? '1' : '0' ?>">
     <div class="card">
-        <div class="card-head"><div class="h3">Piece</div></div>
+        <div class="card-head"><div class="h3">Item</div></div>
         <div class="card-body grid cols-2">
             <div class="field combo" style="grid-column: 1 / -1">
                 <label for="vendor_label">Consignor</label>
@@ -137,11 +137,11 @@ if ($printId !== '') {
     <div class="card">
         <div class="card-head"><div class="h3">Notes</div></div>
         <div class="card-body">
-            <p class="muted text-sm"><?php if ($sold): ?>This piece has been sold. The price and the consignor stay as they were posted.<?php else: ?>One piece. After you save, this form stays open for the same consignor. The asking price is not a sale. Delete the piece only while nothing else uses it.<?php endif; ?></p>
+            <p class="muted text-sm"><?php if ($sold): ?>This item has been sold. The price and the consignor stay as they were posted.<?php else: ?>One item. After you save, this form stays open for the same consignor. The asking price is not a sale. Delete the item only while nothing else uses it.<?php endif; ?></p>
         </div>
         <div class="card-foot row between">
             <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/inventory">Cancel</a>
-            <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create piece' ?></button>
+            <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create item' ?></button>
         </div>
     </div>
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

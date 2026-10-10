@@ -35,7 +35,7 @@ $groups = [
     'Operations' => [
         ['/pos', 'Sell', 'i-cart'],
         ['/parties', 'Vendors', 'i-vendor'],
-        ['/inventory', 'Pieces', 'i-inventory'],
+        ['/inventory', 'Inventory', 'i-inventory'],
         ['/booths', 'Booths', 'i-booth'],
         ['/registers', 'Registers', 'i-pos'],
         ['/rent', 'Rent', 'i-booth'],

@@ -10,7 +10,7 @@ use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Scalar\RowValue;
 
-final class PieceWriter
+final class ItemWriter
 {
     public function __construct(
         private readonly IntakeCatalog $catalog,
@@ -87,7 +87,7 @@ final class PieceWriter
         }
         $found = $this->catalog->brandId($label);
         if ($found === null) {
-            throw new \InvalidArgumentException('Add that brand before saving the piece.');
+            throw new \InvalidArgumentException('Add that brand before saving the item.');
         }
 
         return $found;
@@ -127,7 +127,7 @@ final class PieceWriter
         }
         $found = $this->lists->idForName($list, $label);
         if ($found === null) {
-            throw new \InvalidArgumentException('Add that ' . $list->singular . ' before saving the piece.');
+            throw new \InvalidArgumentException('Add that ' . $list->singular . ' before saving the item.');
         }
 
         return $found;

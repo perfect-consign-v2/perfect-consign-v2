@@ -36,7 +36,7 @@ final class SaturdayNavTest extends TestCase
 
         self::assertIsString($html);
         self::assertStringContainsString('Sell', $html);
-        self::assertStringContainsString('Pieces', $html);
+        self::assertStringContainsString('Inventory', $html);
         self::assertStringContainsString('Close the year', $html);
         self::assertStringNotContainsString('Search items, vendors, booths', $html);
         self::assertStringNotContainsString('Notifications', $html);

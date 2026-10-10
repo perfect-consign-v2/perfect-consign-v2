@@ -63,7 +63,7 @@ final class OwnerJourneyTest extends WebTestCase
             'barcode' => 'BC-' . $tag,
             'intake_on' => '2026-09-01',
         ]);
-        self::assertSees('Piece created.', $created);
+        self::assertSees('Item created.', $created);
         $this->client->post('/' . ProbeMall::SLUG . '/pos/discard', []);
         $cart = $this->client->post('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => 'BC-' . $tag]);
         self::assertSees($description, $cart);
@@ -238,9 +238,9 @@ final class OwnerJourneyTest extends WebTestCase
             'intake_on' => '2026-09-01',
             'expires_on' => '2026-12-01',
         ]);
-        self::assertSees('Piece created.', $page);
+        self::assertSees('Item created.', $page);
         self::assertSees('id="quantity" name="quantity" inputmode="numeric" value="1"', $page);
-        self::assertSees('Adding pieces for ' . $label, $page);
+        self::assertSees('Adding items for ' . $label, $page);
         self::assertSees('value="2026-09-01"', $page);
         self::assertSees('value="2026-10-01"', $page);
         self::assertStringNotContainsString('2026-12-01', $page->body);
@@ -283,7 +283,7 @@ final class OwnerJourneyTest extends WebTestCase
             'barcode' => $barcode,
             'intake_on' => '2026-09-01',
         ]);
-        self::assertSees('Adding pieces for ' . $label, $added);
+        self::assertSees('Adding items for ' . $label, $added);
         $consignors = $this->client->get('/' . ProbeMall::SLUG . '/inventory/vendors.json?q=' . rawurlencode($vendor));
         self::assertSees($label, $consignors);
         $brandName = 'Intake ' . $tag;

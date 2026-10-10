@@ -111,7 +111,7 @@ final class CatalogStickerTest extends WebTestCase
             'color_id' => '',
             'color_label' => $color,
         ]);
-        self::assertSees('Piece created.', $created);
+        self::assertSees('Item created.', $created);
         $list = $this->client->get('/' . self::SLUG . '/inventory?q=' . rawurlencode($tag));
         $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $description);
         $printed = $this->client->post('/' . self::SLUG . '/inventory/labels', [
@@ -123,6 +123,7 @@ final class CatalogStickerTest extends WebTestCase
         ]);
         self::assertSees('Print stickers', $printed);
         self::assertSees($barcode, $printed);
+        self::assertStringNotContainsString('data-selection-storage-key', $printed->body);
         $jewelry = $this->client->post('/' . self::SLUG . '/inventory/labels', [
             'stock' => 'bcw_jewelry',
             'copies' => '1',
@@ -164,5 +165,28 @@ final class CatalogStickerTest extends WebTestCase
             'item' => $gone,
         ]);
         self::assertSees('That piece is not in this mall.', $missingPiece);
+        $kept = $this->client->post('/' . self::SLUG . '/inventory/labels', [
+            'stock' => 'avery_8160',
+            'copies' => '1',
+            'start_row' => '1',
+            'start_column' => '1',
+            'item' => $itemId,
+            'selection_storage_key' => 'pc.inventorySelection.v1.pieces.' . self::SLUG,
+        ]);
+        self::assertSees('Print stickers', $kept);
+        self::assertStringContainsString(
+            'data-selection-storage-key="pc.inventorySelection.v1.pieces.' . self::SLUG . '"',
+            $kept->body,
+        );
+        $dropped = $this->client->post('/' . self::SLUG . '/inventory/labels', [
+            'stock' => 'avery_8160',
+            'copies' => '1',
+            'start_row' => '1',
+            'start_column' => '1',
+            'item' => $itemId,
+            'selection_storage_key' => 'pc.inventorySelection.v1.pieces.' . self::SLUG . '.extra',
+        ]);
+        self::assertSees('Print stickers', $dropped);
+        self::assertStringNotContainsString('data-selection-storage-key', $dropped->body);
     }
 }

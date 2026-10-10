@@ -154,6 +154,76 @@
     color: var(--text) !important;
 }
 
+.list-dt-wrap.list-dt-page-scroll,
+.list-dt-wrap.list-dt-page-scroll .dt-scroll,
+.list-dt-wrap.list-dt-page-scroll .dt-scroll-head,
+.list-dt-wrap.list-dt-page-scroll .dt-scroll-body {
+    overflow: visible;
+    max-height: none;
+    height: auto;
+}
+
+.list-dt-wrap.list-dt-page-scroll table.list-dt {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.list-dt-wrap.list-dt-page-scroll table.list-dt thead th,
+.list-dt-wrap.list-dt-page-scroll .dt-scroll-head table thead th {
+    position: sticky;
+    top: var(--topbar-h);
+    z-index: 3;
+    background: var(--surface-2);
+}
+
+.list-dt-wrap .list-dt-select-all {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 0;
+    align-self: flex-start;
+}
+
+.inventory-selection-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-xs);
+}
+
+.inventory-selection-bar[hidden] {
+    display: none !important;
+}
+
+.card:has(+ .inventory-selection-bar:not([hidden])) {
+    padding-bottom: 12rem;
+}
+
+.inventory-selection-bar .btn {
+    min-height: 2.75rem;
+    height: auto;
+}
+
+@media (min-width: 641px) {
+    .inventory-selection-bar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .card:has(+ .inventory-selection-bar:not([hidden])) {
+        padding-bottom: 6rem;
+    }
+}
+
 @media (max-width: 640px) {
     .list-dt-wrap .dt-layout-row {
         flex-direction: column;

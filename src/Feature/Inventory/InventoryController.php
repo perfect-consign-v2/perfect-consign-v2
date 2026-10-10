@@ -17,7 +17,7 @@ final class InventoryController
         private readonly InventoryStore $items,
         private readonly IntakeCatalog $catalog,
         private readonly PieceForm $forms,
-        private readonly PieceWriter $writer,
+        private readonly ItemWriter $writer,
         private readonly StoreTake $take,
         private readonly MallSettings $mall,
         private readonly LabelCatalog $stocks,
@@ -98,7 +98,7 @@ final class InventoryController
             $error = $errorValue->getMessage();
         }
         if ($error !== null || $saved === '') {
-            $this->form($slug, $this->forms->posted($draft), $error ?? 'That piece was not saved.');
+            $this->form($slug, $this->forms->posted($draft), $error ?? 'That item was not saved.');
 
             return;
         }
@@ -110,10 +110,10 @@ final class InventoryController
                     'intake' => $intake,
                     'print' => $saved,
                 ]),
-                'Piece created.'
+                'Item created.'
             );
         }
-        $this->app->redirect('/' . $slug . '/inventory/' . $saved . '/edit', 'Piece saved.');
+        $this->app->redirect('/' . $slug . '/inventory/' . $saved . '/edit', 'Item saved.');
     }
 
     private function write(?string $id, PieceEntry $piece): string
@@ -185,7 +185,7 @@ final class InventoryController
         $stock = $this->app->request()->query('stock') === 'out' ? 'out' : '';
         $items = $this->withUse($this->items->items($query, $stock));
         $this->app->show('Feature/Inventory/inventory', [
-            'title' => 'Pieces',
+            'title' => 'Items',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'items' => $items,
@@ -225,7 +225,7 @@ final class InventoryController
         $days = $this->mall->floorDays();
         $sold = $piece['id'] !== '' && $this->items->sold($piece['id']);
         $this->app->show('Feature/Inventory/inventory-form', [
-            'title' => $piece['id'] !== '' ? 'Edit piece' : 'New piece',
+            'title' => $piece['id'] !== '' ? 'Edit item' : 'New item',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'piece' => $this->forms->view($piece),

@@ -12,8 +12,14 @@ final class ListTable
 
     private static bool $printed = false;
 
+    private static bool $selectionNeeded = false;
+
+    private static bool $selectionPrinted = false;
+
+    private static bool $stylePrinted = false;
+
     /**
-     * @param array{id: string, export: string, order?: list<array{0: int, 1: string}>} $table
+     * @param array{id: string, export: string, order?: list<array{0: int, 1: string}>, pageScroll?: bool} $table
      */
     public static function open(array $table): void
     {
@@ -28,12 +34,17 @@ final class ListTable
         $order = $clean === []
             ? ''
             : ' data-dt-order="' . View::text((string) json_encode($clean, JSON_THROW_ON_ERROR)) . '"';
+        $scroll = '';
+        if (($table['pageScroll'] ?? false) === true) {
+            self::$selectionNeeded = true;
+            $scroll = ' data-dt-page-scroll="1"';
+        }
         echo '<table id="list-' . View::text($table['id']) . '" class="table list-dt" data-dt-export="'
-            . View::text($table['export']) . '"' . $order . '>';
+            . View::text($table['export']) . '"' . $order . $scroll . '>';
     }
 
     /**
-     * @param list<array{label: string, actions?: bool, sort?: string, token?: string}> $columns
+     * @param list<array{label: string, actions?: bool, sort?: string, token?: string, select?: bool}> $columns
      */
     public static function head(array $columns): void
     {
@@ -56,9 +67,31 @@ final class ListTable
                 $cell .= '<input type="search" class="input list-dt-filter" autocomplete="off" aria-label="Filter '
                     . View::text($caption) . '">';
             }
-            echo $cell . '<span class="dt-column-title">' . View::text($label) . '</span></div></th>';
+            echo $cell . self::selectBox($column) . '<span class="dt-column-title">' . View::text($label) . '</span></div></th>';
         }
         echo '</tr></thead>';
+    }
+
+    /**
+     * @param array{label: string, actions?: bool, sort?: string, token?: string, select?: bool} $column
+     */
+    private static function selectBox(array $column): string
+    {
+        if (($column['select'] ?? false) === true) {
+            return '<input type="checkbox" class="list-dt-select-all" aria-label="Select all on this page">';
+        }
+
+        return '';
+    }
+
+    public static function selectionScript(): void
+    {
+        if (self::$selectionPrinted) {
+            return;
+        }
+        self::$selectionPrinted = true;
+        self::selectionStyle();
+        self::selectionSource();
     }
 
     public static function assets(): void
@@ -67,25 +100,51 @@ final class ListTable
             return;
         }
         self::$printed = true;
-        $path = dirname(__DIR__, 3) . '/public/assets/js/list-datatables.js';
-        $version = '0';
-        if (is_file($path)) {
-            $mtime = filemtime($path);
-            if (is_int($mtime)) {
-                $version = (string) $mtime;
-            }
-        }
+        $script = dirname(__DIR__, 3) . '/public/assets/js/list-datatables.js';
         echo '<link rel="stylesheet" href="/assets/datatables/dataTables.dataTables.min.css">'
-            . '<link rel="stylesheet" href="/assets/datatables/buttons.dataTables.min.css">'
-            . '<link rel="stylesheet" href="/assets/list-datatables.css?v=' . View::text($version) . '">'
-            . '<script src="/assets/js/jquery-3.7.1.min.js"></script>'
+            . '<link rel="stylesheet" href="/assets/datatables/buttons.dataTables.min.css">';
+        self::selectionStyle();
+        echo '<script src="/assets/js/jquery-3.7.1.min.js"></script>'
             . '<script src="/assets/datatables/dataTables.min.js"></script>'
             . '<script src="/assets/datatables/jszip.min.js"></script>'
             . '<script src="/assets/datatables/pdfmake.min.js"></script>'
             . '<script src="/assets/datatables/vfs_fonts.js"></script>'
             . '<script src="/assets/datatables/dataTables.buttons.min.js"></script>'
             . '<script src="/assets/datatables/buttons.html5.min.js"></script>'
-            . '<script src="/assets/datatables/buttons.print.min.js"></script>'
-            . '<script src="/assets/js/list-datatables.js?v=' . View::text($version) . '"></script>';
+            . '<script src="/assets/datatables/buttons.print.min.js"></script>';
+        if (self::$selectionNeeded && !self::$selectionPrinted) {
+            self::$selectionPrinted = true;
+            self::selectionSource();
+        }
+        echo '<script src="/assets/js/list-datatables.js?v=' . View::text(self::assetVersion($script)) . '"></script>';
+    }
+
+    private static function selectionStyle(): void
+    {
+        if (self::$stylePrinted) {
+            return;
+        }
+        self::$stylePrinted = true;
+        $path = dirname(__DIR__, 3) . '/public/assets/list-datatables.css';
+        echo '<link rel="stylesheet" href="/assets/list-datatables.css?v=' . View::text(self::assetVersion($path)) . '">';
+    }
+
+    private static function selectionSource(): void
+    {
+        $path = dirname(__DIR__, 3) . '/public/assets/js/inventory-selection-store.js';
+        echo '<script src="/assets/js/inventory-selection-store.js?v=' . View::text(self::assetVersion($path)) . '"></script>';
+    }
+
+    private static function assetVersion(string $path): string
+    {
+        if (!is_file($path)) {
+            return '0';
+        }
+        $mtime = filemtime($path);
+        if (!is_int($mtime)) {
+            return '0';
+        }
+
+        return (string) $mtime;
     }
 }

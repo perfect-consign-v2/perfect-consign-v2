@@ -238,7 +238,7 @@ final class OwnerJourneyTest extends WebTestCase
             'price' => '12.50',
             'intake_on' => '2026-09-01',
         ]);
-        self::assertSees('Piece created.', $page);
+        self::assertSees('Item created.', $page);
         self::assertSees('#' . $vendor, $page);
         self::assertSees('value="2026-09-01"', $page);
         $list = $this->session->open('/' . ProbeMall::SLUG . '/inventory');
@@ -271,7 +271,7 @@ final class OwnerJourneyTest extends WebTestCase
             'price' => '12.50',
             'intake_on' => '2026-09-01',
         ]);
-        self::assertSees('Piece created.', $added);
+        self::assertSees('Item created.', $added);
         self::assertSees('#' . $vendor, $added);
         $this->session->open('/' . ProbeMall::SLUG . '/inventory/new');
         $duplicate = $this->session->submit('/' . ProbeMall::SLUG . '/inventory', [

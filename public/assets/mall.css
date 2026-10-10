@@ -303,6 +303,19 @@ a.text-link:hover {
     flex-direction: column;
     gap: var(--space-4);
 }
+.sticker-pair {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 45rem) {
+    .sticker-pair {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .sticker-pair-stock {
+        grid-template-columns: minmax(0, 1fr) minmax(8.5rem, 12rem);
+    }
+}
 .content .form-sheet .field > label {
     margin: 0;
 }

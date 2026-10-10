@@ -31,12 +31,12 @@ final class LabelsController
         } catch (\InvalidArgumentException $error) {
             $this->app->redirect($this->back($slug), null, $error->getMessage());
         }
-        $this->app->show('Feature/Inventory/stickers', [
+        $this->app->show('Feature/Inventory/stickers', $this->jobs->withSelectionKey([
             'title' => 'Print stickers',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'sheet' => $sheet,
-        ]);
+        ], $this->app->request()->field('selection_storage_key')));
     }
 
     private function sheet(string $store): StickerSheet

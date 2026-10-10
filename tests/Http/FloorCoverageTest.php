@@ -749,7 +749,7 @@ final class FloorCoverageTest extends WebTestCase
             'barcode' => '',
             'intake_on' => '2026-09-01',
         ]);
-        self::assertSees('Piece created.', $created);
+        self::assertSees('Item created.', $created);
 
         return ['code' => $code, 'description' => $description];
     }

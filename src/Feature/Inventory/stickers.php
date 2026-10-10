@@ -7,13 +7,15 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var StickerSheet $sheet */
+/** @var string $selectionStorageKey */
 $back = isset($back) && is_string($back) && $back !== '' ? $back : '/' . $slug . '/inventory';
+$selectionStorageKey = isset($selectionStorageKey) && is_string($selectionStorageKey) ? $selectionStorageKey : '';
 ?>
 <style>
 @page { size: <?= View::text($sheet->pageWidth) ?> <?= View::text($sheet->pageHeight) ?>; margin: 0; }
 </style>
 <div class="no-print row wrap gap-2">
-    <button class="btn btn-primary" type="button" data-print>Print</button>
+    <button class="btn btn-primary" type="button" data-print<?= $selectionStorageKey !== '' ? ' data-selection-storage-key="' . View::text($selectionStorageKey) . '"' : '' ?>>Print</button>
     <a class="btn" href="<?= View::text($back) ?>">Back</a>
 </div>
 <p class="no-print muted text-sm mt-4">In the print box, choose Actual size. Do not choose Fit to page.</p>
@@ -42,3 +44,24 @@ document.querySelectorAll('[data-print]').forEach(function (button) {
     });
 });
 </script>
+<?php if ($selectionStorageKey !== ''): ?>
+<script>
+(function () {
+    var button = document.querySelector('[data-print]');
+    if (button === null) {
+        return;
+    }
+    var key = button.getAttribute('data-selection-storage-key') || '';
+    if (key === '') {
+        return;
+    }
+    window.addEventListener('afterprint', function () {
+        try {
+            window.sessionStorage.removeItem(key);
+        } catch (err) {
+            return;
+        }
+    });
+})();
+</script>
+<?php endif; ?>

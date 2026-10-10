@@ -593,7 +593,7 @@ final class CoverageRemainderTest extends WebTestCase
         $intakeBrand = $this->client->post('/' . self::SLUG . '/inventory/brands', ['name' => 'Intake ' . $brand]);
         self::assertSame(200, $intakeBrand->status);
         $fresh = $this->client->get('/' . self::SLUG . '/inventory/new?vendor=' . $vendorId);
-        self::assertSees('New piece', $fresh);
+        self::assertSees('New item', $fresh);
         $badPiece = $this->client->post('/' . self::SLUG . '/inventory', [
             'code' => 'bad' . $vendorCode,
             'description' => 'Bad',
@@ -660,7 +660,7 @@ final class CoverageRemainderTest extends WebTestCase
             'barcode' => '',
             'intake_on' => '2026-09-01',
         ]);
-        self::assertSees('Piece created.', $created);
+        self::assertSees('Item created.', $created);
 
         return ['code' => $code, 'description' => $description];
     }

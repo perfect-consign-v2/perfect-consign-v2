@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Feature\Inventory\InventoryStore;
-use PerfectConsign\Feature\Inventory\PieceWriter;
+use PerfectConsign\Feature\Inventory\ItemWriter;
 
 final class InstantPiece
 {
     public function __construct(
-        private readonly PieceWriter $writer,
+        private readonly ItemWriter $writer,
         private readonly InventoryStore $items,
         private readonly TicketStore $tickets,
         private readonly TicketLines $lines,
