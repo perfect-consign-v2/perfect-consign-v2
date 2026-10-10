@@ -60,6 +60,35 @@ final class InventorySelectionKeyTest extends TestCase
         self::assertStringContainsString('>Print</button>', $absent);
     }
 
+    public function testBackUsesTheGivenPathAndAnEmptyPathReturnsToInventory(): void
+    {
+        $sheet = new StickerSheet('8.5in', '11in', 0, []);
+        $custom = $this->preview([
+            'sheet' => $sheet,
+            'slug' => 'webprobe',
+            'back' => '/webprobe/vendor',
+        ]);
+        self::assertStringContainsString('href="/webprobe/vendor"', $custom);
+
+        $empty = $this->preview([
+            'sheet' => $sheet,
+            'slug' => 'webprobe',
+            'back' => '',
+        ]);
+        self::assertStringContainsString('href="/webprobe/inventory"', $empty);
+        self::assertStringNotContainsString('href=""', $empty);
+    }
+
+    public function testANonStringStorageKeyIsOmitted(): void
+    {
+        $html = $this->preview([
+            'sheet' => new StickerSheet('8.5in', '11in', 0, []),
+            'slug' => 'webprobe',
+            'selectionStorageKey' => 1,
+        ]);
+        self::assertStringNotContainsString('data-selection-storage-key', $html);
+    }
+
     /**
      * @param array<string, mixed> $data
      */
@@ -70,6 +99,7 @@ final class InventorySelectionKeyTest extends TestCase
         if (!$sheet instanceof StickerSheet || !is_string($slug)) {
             self::fail('the preview data was incomplete');
         }
+        $back = $data['back'] ?? null;
         $selectionStorageKey = $data['selectionStorageKey'] ?? null;
         ob_start();
         require dirname(__DIR__, 3) . '/src/Feature/Inventory/stickers.php';
