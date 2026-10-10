@@ -17,7 +17,7 @@ final class LateFeeTest extends TestCase
 {
     public function testALateFeeNeedsABoothAndADate(): void
     {
-        $pdo = new PDO('sqlite::memory:');
+        $pdo = $this->createStub(PDO::class);
         $fee = new LateFee(new LedgerStore($pdo, new Statements($pdo), new LedgerPeriods($pdo), new JournalCash($pdo)));
 
         try {

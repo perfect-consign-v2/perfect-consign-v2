@@ -28,32 +28,36 @@ $priorPrompt = ($priorPrompt ?? false) === true;
 $notice = $notice ?? null;
 $warning = $warning ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
-$groups = [
-    'Overview' => [
-        ['/dashboard', 'Dashboard', 'i-dashboard'],
-    ],
-    'Operations' => [
-        ['/pos', 'Sell', 'i-cart'],
-        ['/parties', 'Vendors', 'i-vendor'],
-        ['/inventory', 'Inventory', 'i-inventory'],
-        ['/booths', 'Booths', 'i-booth'],
-        ['/registers', 'Registers', 'i-pos'],
-        ['/rent', 'Rent', 'i-booth'],
-        ['/payouts', 'Pay vendors', 'i-wallet'],
-        ['/wait-list', 'Wait list', 'i-clock'],
-        ['/map', 'Booths Map', 'i-map'],
-        ['/brands', 'Brands', 'i-tag'],
-    ],
-];
-$catalogNav = is_array($catalogNav ?? null) ? $catalogNav : [];
-foreach ($catalogNav as $link) {
-    if (is_array($link)) {
-        $groups['Operations'][] = $link;
+$actorRole = is_string($actorRole ?? null) ? $actorRole : '';
+$groups = [];
+if ($actorRole === 'owner') {
+    $groups = [
+        'Overview' => [
+            ['/dashboard', 'Dashboard', 'i-dashboard'],
+            ['/month', 'Month', 'i-report'],
+        ],
+        'Operations' => [
+            ['/pos', 'Sell', 'i-cart'],
+            ['/parties', 'Vendors', 'i-vendor'],
+            ['/inventory', 'Inventory', 'i-inventory'],
+            ['/booths', 'Booths', 'i-booth'],
+            ['/registers', 'Registers', 'i-pos'],
+            ['/rent', 'Rent', 'i-booth'],
+            ['/payouts', 'Pay vendors', 'i-wallet'],
+            ['/wait-list', 'Wait list', 'i-clock'],
+            ['/map', 'Booths Map', 'i-map'],
+            ['/brands', 'Brands', 'i-tag'],
+        ],
+    ];
+    $catalogNav = is_array($catalogNav ?? null) ? $catalogNav : [];
+    foreach ($catalogNav as $link) {
+        if (is_array($link)) {
+            $groups['Operations'][] = $link;
+        }
     }
-}
-$groups['Operations'][] = ['/settings', 'Settings', 'i-settings'];
-$groups += [
-    'Books' => [
+    $groups['Operations'][] = ['/settings', 'Settings', 'i-settings'];
+    $groups['Operations'][] = ['/staff', 'Cashiers', 'i-vendor'];
+    $groups['Books'] = [
         ['/adjustment', 'Fix a mistake', 'i-edit'],
         ['/tax', 'Sales tax', 'i-percent'],
         ['/book', 'Accounts', 'i-report'],
@@ -62,12 +66,7 @@ $groups += [
         ['/opening', 'Starting balances', 'i-plus'],
         ['/close', 'Close the year', 'i-lock'],
         ['/export', 'Download books', 'i-arrow-down'],
-    ],
-];
-$actorRole = is_string($actorRole ?? null) ? $actorRole : 'owner';
-if ($actorRole === 'owner') {
-    $groups['Overview'][] = ['/month', 'Month', 'i-report'];
-    $groups['Operations'][] = ['/staff', 'Cashiers', 'i-vendor'];
+    ];
 }
 if ($actorRole === 'cashier') {
     $groups = [
@@ -86,9 +85,10 @@ if ($actorRole === 'vendor') {
     ];
 }
 $roleLabel = match ($actorRole) {
+    'owner' => 'Owner',
     'cashier' => 'Cashier',
     'vendor' => 'Vendor',
-    default => 'Owner',
+    default => '',
 };
 ?>
 <!DOCTYPE html>

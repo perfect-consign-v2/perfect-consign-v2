@@ -329,7 +329,7 @@ $booths = static function (int $count): string {
     <?php endforeach; ?>
     <?php ListTable::assets(); ?>
 <?php endif; ?>
-<?php if (($actorRole ?? 'owner') === 'owner' && $rows !== []): ?>
+<?php if (($actorRole ?? '') === 'owner' && $rows !== []): ?>
     <form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/rent/late-fee">
         <div class="card-head"><div class="h3">Late fee</div></div>
         <div class="card-body stack">

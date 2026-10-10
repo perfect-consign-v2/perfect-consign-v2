@@ -13,7 +13,7 @@ final class VendorMoveTest extends TestCase
 {
     public function testAMoveNeedsADateAndABooth(): void
     {
-        $move = new VendorMove(new Statements(new PDO('sqlite::memory:')));
+        $move = new VendorMove(new Statements($this->createStub(PDO::class)));
 
         try {
             $move->move(

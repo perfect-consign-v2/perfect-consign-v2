@@ -51,6 +51,25 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('class="pos-app"', $html);
     }
 
+    public function testAMissingRoleShowsNoOwnerNavigation(): void
+    {
+        $html = $this->shell([]);
+
+        self::assertStringNotContainsString('nav-label">Sell', $html);
+        self::assertStringNotContainsString('Month', $html);
+        self::assertStringNotContainsString('Cashiers', $html);
+        self::assertStringNotContainsString('Close the year', $html);
+        self::assertStringNotContainsString('>Owner<', $html);
+    }
+
+    public function testARoleThatIsNotTextShowsNoOwnerNavigation(): void
+    {
+        $html = $this->shell(['actorRole' => ['owner']]);
+
+        self::assertStringNotContainsString('nav-label">Sell', $html);
+        self::assertStringNotContainsString('>Owner<', $html);
+    }
+
     public function testAnEmptyNameUsesTheFallbackMark(): void
     {
         $html = $this->layout([
@@ -185,6 +204,39 @@ final class LayoutBranchesTest extends TestCase
 
         self::assertSame(1, substr_count($html, 'class="alert alert-success"'));
         self::assertSame(1, substr_count($html, 'class="alert alert-danger"'));
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function shell(array $data): string
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Shared/Web/layout', $data + [
+            'title' => 'Demo',
+            'displayName' => 'Demo Mall',
+            'slug' => 'demo',
+            'nav' => true,
+            'csrf' => 'token',
+            'error' => null,
+            'notice' => null,
+            'warning' => null,
+            'body' => 'Shared/Web/not-found',
+            'path' => '/demo/dashboard',
+            'robots' => '',
+            'activeRegister' => '',
+            'chooseRegister' => false,
+            'leftOpen' => [],
+            'priorCloseStarted' => false,
+            'priorPrompt' => false,
+            'catalogNav' => [],
+            'posShell' => false,
+        ]);
+        $html = ob_get_clean();
+        self::assertIsString($html);
+
+        return $html;
     }
 
     /**
