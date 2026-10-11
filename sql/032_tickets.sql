@@ -162,14 +162,14 @@ DECLARE
     line_item uuid;
     line_off bigint;
     share bigint;
-    pieces integer;
+    items integer;
 BEGIN
     IF kind IS NULL THEN
         RETURN;
     END IF;
-    SELECT count(*)::integer INTO pieces FROM public.ticket_lines WHERE ticket_id = ticket;
-    IF pieces = 0 THEN
-        RAISE EXCEPTION 'a ticket needs a piece'
+    SELECT count(*)::integer INTO items FROM public.ticket_lines WHERE ticket_id = ticket;
+    IF items = 0 THEN
+        RAISE EXCEPTION 'a ticket needs an item'
             USING ERRCODE = '23514';
     END IF;
     FOR line_item, line_price, line_off IN
@@ -270,7 +270,7 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM public.ticket_lines WHERE ticket_id = NEW.id
     ) THEN
-        RAISE EXCEPTION 'a ticket needs a piece'
+        RAISE EXCEPTION 'a ticket needs an item'
             USING ERRCODE = '23514';
     END IF;
 
@@ -324,7 +324,7 @@ LANGUAGE plpgsql
 SET search_path = pg_catalog
 AS $$
 DECLARE
-    piece uuid;
+    item uuid;
     ticket_status text;
     line_item uuid;
     line_ticket uuid;
@@ -354,13 +354,13 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT item.id, item.quantity INTO piece, on_hand
+    SELECT item.id, item.quantity INTO item, on_hand
     FROM public.items AS item
     WHERE item.id = line_item
     FOR UPDATE OF item;
 
-    IF piece IS NULL THEN
-        RAISE EXCEPTION 'a ticket line needs a piece'
+    IF item IS NULL THEN
+        RAISE EXCEPTION 'a ticket line needs an item'
             USING ERRCODE = '23514';
     END IF;
 
@@ -393,7 +393,7 @@ BEGIN
 
     IF NEW.quantity + held > on_hand THEN
         IF held > 0 THEN
-            RAISE EXCEPTION 'a piece is already on a ticket'
+            RAISE EXCEPTION 'an item is already on a ticket'
                 USING ERRCODE = '23514';
         END IF;
         RAISE EXCEPTION 'there are not enough on hand'
@@ -424,7 +424,7 @@ BEGIN
     WHERE item.id = NEW.item_id;
 
     IF held > on_hand THEN
-        RAISE EXCEPTION 'a piece is already on a ticket'
+        RAISE EXCEPTION 'an item is already on a ticket'
             USING ERRCODE = '23514';
     END IF;
 
@@ -615,7 +615,7 @@ BEGIN
         FOR UPDATE OF item;
 
         IF tax_exempt IS NULL THEN
-            RAISE EXCEPTION 'a sale line needs a piece'
+            RAISE EXCEPTION 'a sale line needs an item'
                 USING ERRCODE = '23514';
         END IF;
 
@@ -709,7 +709,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM public.sale_lines WHERE journal_id = NEW.id) THEN
-        RAISE EXCEPTION 'a sale needs a piece'
+        RAISE EXCEPTION 'a sale needs an item'
             USING ERRCODE = '23514';
     END IF;
 

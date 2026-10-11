@@ -76,7 +76,7 @@ final class PosLineController
     {
         $value = $this->app->request()->field('line_no');
         if (preg_match('/^[1-9][0-9]{0,5}$/', $value) !== 1) {
-            throw new DatabaseRefusal('that piece is not on the ticket');
+            throw new DatabaseRefusal('that item is not on the ticket');
         }
 
         return (int) $value;

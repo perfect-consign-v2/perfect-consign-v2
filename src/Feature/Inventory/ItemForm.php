@@ -10,7 +10,7 @@ use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
 
-final class PieceForm
+final class ItemForm
 {
     public function __construct(
         private readonly IntakeCatalog $catalog,
@@ -188,7 +188,7 @@ final class PieceForm
      *     intake_on: string,
      *     expires_on: string,
      *     fill_expire: string
-     * } $piece
+     * } $item
      * @return array{
      *     id: string,
      *     code: string,
@@ -209,30 +209,30 @@ final class PieceForm
      *     expire_dirty: bool
      * }
      */
-    public function view(array $piece): array
+    public function view(array $item): array
     {
-        $vendor = $this->chosenVendor($piece['vendor_id']);
-        $basis = $piece['store_take'] === '' ? null : $this->take->fromPercent($piece['store_take']);
+        $vendor = $this->chosenVendor($item['vendor_id']);
+        $basis = $item['store_take'] === '' ? null : $this->take->fromPercent($item['store_take']);
         $defaultBasis = $this->take->fromPercent($vendor['take']);
 
         return [
-            'id' => $piece['id'],
-            'code' => $piece['code'],
-            'barcode' => $piece['barcode'],
-            'description' => $piece['description'],
-            'price' => $piece['price'],
-            'quantity' => $piece['quantity'],
-            'vendor_id' => $piece['vendor_id'],
-            'vendor_label' => $piece['vendor_label'],
-            'brand_id' => $piece['brand_id'],
-            'brand_label' => $piece['brand_label'],
-            'attributes' => $piece['attributes'],
-            'store_take' => $piece['store_take'],
+            'id' => $item['id'],
+            'code' => $item['code'],
+            'barcode' => $item['barcode'],
+            'description' => $item['description'],
+            'price' => $item['price'],
+            'quantity' => $item['quantity'],
+            'vendor_id' => $item['vendor_id'],
+            'vendor_label' => $item['vendor_label'],
+            'brand_id' => $item['brand_id'],
+            'brand_label' => $item['brand_label'],
+            'attributes' => $item['attributes'],
+            'store_take' => $item['store_take'],
             'default_take' => $vendor['take'],
             'overridden' => $basis !== null && $basis !== $defaultBasis,
-            'intake_on' => $piece['intake_on'],
-            'expires_on' => $piece['expires_on'],
-            'expire_dirty' => $piece['expires_on'] !== $this->expectedExpire($piece['intake_on']),
+            'intake_on' => $item['intake_on'],
+            'expires_on' => $item['expires_on'],
+            'expire_dirty' => $item['expires_on'] !== $this->expectedExpire($item['intake_on']),
         ];
     }
 

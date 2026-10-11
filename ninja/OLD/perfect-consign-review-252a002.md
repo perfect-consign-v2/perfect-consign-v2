@@ -1,6 +1,6 @@
 # Hostile review — perfect-consign-v2 @ `252a002`
 
-Repo: `perfect-consign-v2/perfect-consign-v2` (branch `master`). Local clone `/workspace/repo`. Reviewed at `252a002256502b72dcb4625264fd4c2f05705688` ("Keep batch intake on the same consignor, with a barcode, a store-take override, and floor dates"), preceded by `56deabc` ("Record inventory pieces and a wait list").
+Repo: `perfect-consign-v2/perfect-consign-v2` (branch `master`). Local clone `/workspace/repo`. Reviewed at `252a002256502b72dcb4625264fd4c2f05705688` ("Keep batch intake on the same consignor, with a barcode, a store-take override, and floor dates"), preceded by `56deabc` ("Record inventory items and a wait list").
 
 Scope: two new feature slices — **Inventory** (`023_items.sql`, `025_item_intake.sql`) and **WaitList** (`024_wait_list.sql`) — plus the new barcode/store-take/floor-date intake path, the new schema-attack proofs, and the three new concurrency proofs. Prior findings are carried forward and re-checked against the code, not against the prior write-up.
 
@@ -12,7 +12,7 @@ Scope: two new feature slices — **Inventory** (`023_items.sql`, `025_item_inta
 
 | # | Finding | Severity | Status now |
 | --- | --- | --- | --- |
-| A | Store take is stored on the piece and read by nothing; the sale posts typed commission | MEDIUM | **Open — extended.** A second authoritative-looking field (`items.commission_bps`) now exists with no consumer. |
+| A | Store take is stored on the item and read by nothing; the sale posts typed commission | MEDIUM | **Open — extended.** A second authoritative-looking field (`items.commission_bps`) now exists with no consumer. |
 | B | Money rules copied across layers | MEDIUM | **Open — widened.** Four parse/format copies + the proration rule in two places. |
 | C | `PartyController` against the 500-line gate | MEDIUM | **Open.** 494 lines — six short. Has a deadline. |
 | D | Refusal copy differs between controller and trigger | LOW | **Note.** Trigger is genuinely proven; the casing difference is cosmetic. |
@@ -27,7 +27,7 @@ Scope: two new feature slices — **Inventory** (`023_items.sql`, `025_item_inta
 
 ### A — (MEDIUM) The store take is a stored fact with no consumer
 
-The intake path stores a per-piece take in `items.commission_bps` (nullable), and the list marks a row `overridden` when it is non-null (`InventoryController::withUse`). `PieceWriter::takeOf` is careful: leaving the field at the vendor's percent stores **NULL** (no override); only a genuinely different percent is persisted. That is correct.
+The intake path stores a per-item take in `items.commission_bps` (nullable), and the list marks a row `overridden` when it is non-null (`InventoryController::withUse`). `ItemWriter::takeOf` is careful: leaving the field at the vendor's percent stores **NULL** (no override); only a genuinely different percent is persisted. That is correct.
 
 But the sale path is unchanged and still takes commission as free text:
 
@@ -36,12 +36,12 @@ src/Feature/Sale/SaleController.php:42   $commission = $this->optionalMinor('com
 src/Feature/Sale/SaleController.php:44   $payable = $amount - $commission - $tax;
 ```
 
-Nothing in `src/Feature/Sale/` reads `items.commission_bps`, `vendors.commission_bps`, or `mall.commission_bps`. `docs/business-rules.md` states this ("A sale still posts the amount entered on the sale"), so it is documented — but documentation is not a control. An operator can set a piece's take to 30% and the sale will post whatever number is typed. The form _looks_ authoritative, the value is _stored_, the list _displays_ it as an override, and the software enforces nothing. That is a loaded gun with a sticky note.
+Nothing in `src/Feature/Sale/` reads `items.commission_bps`, `vendors.commission_bps`, or `mall.commission_bps`. `docs/business-rules.md` states this ("A sale still posts the amount entered on the sale"), so it is documented — but documentation is not a control. An operator can set an item's take to 30% and the sale will post whatever number is typed. The form _looks_ authoritative, the value is _stored_, the list _displays_ it as an override, and the software enforces nothing. That is a loaded gun with a sticky note.
 
 The correct end state is one of two, not a third:
 
--   the sale reads the take in order **piece → vendor → mall**, with the override visible on the sale form; or
--   the field comes off the piece form.
+-   the sale reads the take in order **item → vendor → mall**, with the override visible on the sale form; or
+-   the field comes off the item form.
 
 "Leave it and wire it later" is only acceptable if the wiring lands with the next sale change — not after it. If the field survives two more batches still unread, the doc line stops being a mitigation and becomes an excuse.
 
@@ -75,8 +75,8 @@ Both truncate toward zero, so they agree today. "They agree today" is the defini
 
 ```
 while ($attempt < 5) {
-    $barcode = $piece->barcode !== '' ? $piece->barcode : $this->allocate($today);
-    try { $this->store($id, $piece, $barcode); return; }
+    $barcode = $item->barcode !== '' ? $item->barcode : $this->allocate($today);
+    try { $this->store($id, $item, $barcode); return; }
     catch (DatabaseRefusal $error) { ... if (... 'items_barcode_key') throw; }
 }
 ```
@@ -100,14 +100,14 @@ The proof discipline here is the strongest of any batch so far, and it is aimed 
 -   **Append-only attacked from every angle.** Both proofs try `TRUNCATE`, `DISABLE TRIGGER`, `ENABLE REPLICA TRIGGER`, `DROP TRIGGER`, `session_replication_role = replica`, and a poster-role truncate, asserting the exact refusal text. `sql/prove_append_only_guard.sql` additionally asserts the two event triggers remain `evtenabled = 'A'`.
 -   **Real concurrency proofs for the new keys.** `prove_race_item` (tag), `prove_race_barcode` (barcode), and `prove_race_wait` (open email) are hold/wait pairs wired into `prove_race.ps1` with a `>4.5s` wait assertion and a clean-up assertion that no race rows are left. The wait-list case is the interesting one: the guard is a **partial** unique index (`wait_list_open_email_key ... WHERE status IN ('waiting','contacted')`), and `prove_wait_list.sql` proves the exact semantics — a second _open_ email is refused, `contacted` still counts as open, and `placed`/`declined` free the address. Correct, non-obvious, and proven rather than asserted.
 -   **Barcode allocation is honest about its race.** `allocate()` reads the max sequence; the insert is guarded by `items_barcode_key` (unique on `lower(barcode)`) with a bounded retry that only re-allocates when the caller supplied no barcode. The unique index is the real guard; the retry is best-effort. (See H for the two caveats.)
--   **The store-take override records a real fact.** Storing NULL when the piece's take equals the vendor's means `overridden` is a true statement, and a later change to the vendor's percent flows through to non-overridden pieces automatically.
+-   **The store-take override records a real fact.** Storing NULL when the item's take equals the vendor's means `overridden` is a true statement, and a later change to the vendor's percent flows through to non-overridden items automatically.
 -   **Inventory/WaitList keep the ledger boundary.** Neither slice moves money or introduces a quantity; both are granted to `stall_poster` with `TRUNCATE, TRIGGER` revoked, and the docs state the boundary in one line each.
 
 * * *
 
 ## Recommended priority
 
-1.  **Close A at the next sale change.** Wire the sale to default its commission from piece → vendor → mall take (override visible), or remove the field. Do not let it survive another batch unread.
+1.  **Close A at the next sale change.** Wire the sale to default its commission from item → vendor → mall take (override visible), or remove the field. Do not let it survive another batch unread.
 2.  **Fold B now.** One PHP `Percent` unit (used by Mall, Party, Inventory) and one JS helper from the same source; one proration implementation the PHP reads. Hard rule: no sixth copy.
 3.  **Split `PartyController` before the next edit in it (C).** Move standing or the form out. Do not raise the 500 limit.
 4.  **Make G a read-path fix:** render the raw status + alert; keep the throw in the writer only.

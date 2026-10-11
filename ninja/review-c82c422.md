@@ -5,7 +5,7 @@
 | Commit | Subject |
 | --- | --- |
 | `b2b162f` | Refuse a second migration and do not stamp a tenant that is missing an earlier table. |
-| `84cde53` | Record color, category, size, condition, and department on a piece, and which stickers the mall prints. |
+| `84cde53` | Record color, category, size, condition, and department on an item, and which stickers the mall prints. |
 | `e5089cc` | Offer those fields at intake and the register, and print the stickers the mall chose. |
 | `c82c422` | Keep the review of the migration test with the other reviews. |
 
@@ -245,7 +245,7 @@ src/Bootstrap/MallApp.php:17                     ExcessiveClassComplexity 51
 src/Feature/Inventory/InventoryController.php:14 CouplingBetweenObjects  13
 src/Feature/Inventory/InventoryController.php:14 ExcessiveClassComplexity 52
 src/Feature/Inventory/InventoryStore.php:14      ExcessiveClassComplexity 54
-src/Feature/Inventory/PieceEntry.php:9           ExcessiveParameterList  10 params
+src/Feature/Inventory/ItemEntry.php:9           ExcessiveParameterList  10 params
 src/Feature/Mall/MallSettings.php:99             ExcessiveParameterList  14 params
 src/Feature/Pos/InstantAdd.php:9                 ExcessiveParameterList  10 params
 src/Feature/Pos/PosPage.php:15                   ExcessiveParameterList  10 params

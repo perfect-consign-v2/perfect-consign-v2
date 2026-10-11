@@ -55,9 +55,9 @@ use PerfectConsign\Shared\Http\View;
             </p>
         <?php endforeach; ?>
         <?php if ($slip['cancelled'] !== true): ?>
-            <p class="slip-thanks">Pieces stay here until the balance is paid</p>
+            <p class="slip-thanks">Items stay here until the balance is paid</p>
         <?php else: ?>
-            <p class="slip-thanks">Deposits refunded. Pieces are free.</p>
+            <p class="slip-thanks">Deposits refunded. Items are free.</p>
         <?php endif; ?>
     </article>
 </div>

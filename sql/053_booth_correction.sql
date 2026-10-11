@@ -1,4 +1,4 @@
--- A wrong booth moves vendor payable. It does not touch the piece.
+-- A wrong booth moves vendor payable. It does not touch the item.
 -- Apply after 052. The provisioner rewrites stall_poster.
 
 INSERT INTO chart_source_rules (role, source_type)

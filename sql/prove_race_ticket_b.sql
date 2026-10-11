@@ -1,4 +1,4 @@
--- Session B waits for the same piece, then rolls back.
+-- Session B waits for the same item, then rolls back.
 BEGIN;
 INSERT INTO registers (id, name)
 VALUES ('01900000-0000-7000-8000-00000000d0f8', 'Race ticket B');

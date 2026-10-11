@@ -30,7 +30,7 @@ final class BoothCorrection
             throw new DatabaseRefusal('Choose the booth that should have been paid.');
         }
         if ($line['commission'] < 1) {
-            throw new DatabaseRefusal('That piece did not pay a vendor.');
+            throw new DatabaseRefusal('That item did not pay a vendor.');
         }
 
         return $this->ledger->post(new JournalDraft(
@@ -58,7 +58,7 @@ final class BoothCorrection
         );
         $row = $rows[0] ?? null;
         if (!is_array($row) || !is_string($row['vendor_id'] ?? null)) {
-            throw new DatabaseRefusal('that piece is not on the ticket');
+            throw new DatabaseRefusal('that item is not on the ticket');
         }
 
         return [

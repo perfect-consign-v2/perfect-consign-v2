@@ -141,7 +141,7 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
         </section>
             <section class="stack no-print">
                 <h2 class="h3">Wrong booth</h2>
-                <p class="muted">This moves what the store owes. The piece price and the consignor on the piece stay as they are.</p>
+                <p class="muted">This moves what the store owes. The item price and the consignor on the item stay as they are.</p>
                 <?php foreach ($lines as $line): ?>
                     <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/booth">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -164,7 +164,7 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
                 <div class="card-head"><div class="h3" id="void-ticket-title">Void ticket</div></div>
                 <div class="card-body stack">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <p>Voiding reverses this sale and frees every piece.</p>
+                    <p>Voiding reverses this sale and frees every item.</p>
                     <div class="row wrap gap-2">
                         <button class="btn btn-primary" type="submit">Confirm void</button>
                         <button class="btn" type="button" data-close-modal="void-ticket">Cancel</button>

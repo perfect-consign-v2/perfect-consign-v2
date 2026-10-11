@@ -13,14 +13,14 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class InventoryStore
 {
-    private readonly PieceGuard $guard;
+    private readonly ItemGuard $guard;
 
     public function __construct(
         private readonly Statements $statements,
         private readonly CatalogLinks $links,
         private readonly MallSettings $mall,
     ) {
-        $this->guard = new PieceGuard($statements);
+        $this->guard = new ItemGuard($statements);
     }
 
     /**
@@ -117,24 +117,24 @@ final class InventoryStore
         return $rows[0] ?? null;
     }
 
-    public function add(PieceEntry $piece, string $today): string
+    public function add(ItemEntry $item, string $today): string
     {
-        return $this->place(null, $piece, $today);
+        return $this->place(null, $item, $today);
     }
 
-    public function save(string $id, PieceEntry $piece, string $today): void
+    public function save(string $id, ItemEntry $item, string $today): void
     {
-        $this->place($id, $piece, $today);
+        $this->place($id, $item, $today);
     }
 
     public function remove(string $id): void
     {
         if (isset($this->referenced()[$id])) {
-            throw new \InvalidArgumentException('That piece is in use.');
+            throw new \InvalidArgumentException('That item is in use.');
         }
         $count = $this->statements->affected('DELETE FROM items WHERE id = ?::uuid', [$id]);
         if ($count === 0) {
-            throw new \InvalidArgumentException('That piece is not in this mall.');
+            throw new \InvalidArgumentException('That item is not in this mall.');
         }
     }
 
@@ -158,7 +158,7 @@ final class InventoryStore
         foreach ($ids as $id) {
             $row = $this->find($id);
             if ($row === null) {
-                throw new \InvalidArgumentException('That piece is not in this mall.');
+                throw new \InvalidArgumentException('That item is not in this mall.');
             }
             $rows[] = $row;
         }
@@ -166,24 +166,24 @@ final class InventoryStore
         return $rows;
     }
 
-    private function place(?string $id, PieceEntry $piece, string $today): string
+    private function place(?string $id, ItemEntry $item, string $today): string
     {
-        $this->guard->accept($piece);
+        $this->guard->accept($item);
         $refusal = null;
         $attempt = 0;
         $stored = '';
         while ($attempt < 5) {
             $attempt++;
-            $barcode = $piece->barcode !== '' ? $piece->barcode : $this->allocate($today);
+            $barcode = $item->barcode !== '' ? $item->barcode : $this->allocate($today);
             try {
-                $this->statements->isolated(function () use ($id, $piece, $barcode, &$stored): void {
-                    $stored = $this->store($id, $piece, $barcode);
+                $this->statements->isolated(function () use ($id, $item, $barcode, &$stored): void {
+                    $stored = $this->store($id, $item, $barcode);
                 });
 
                 return $stored;
             } catch (DatabaseRefusal $error) {
                 $refusal = $error;
-                if ($piece->barcode !== '' || !str_contains($error->getMessage(), 'That barcode is already used.')) {
+                if ($item->barcode !== '' || !str_contains($error->getMessage(), 'That barcode is already used.')) {
                     throw $error;
                 }
             }
@@ -191,21 +191,21 @@ final class InventoryStore
         throw $refusal;
     }
 
-    private function store(?string $id, PieceEntry $piece, string $barcode): string
+    private function store(?string $id, ItemEntry $item, string $barcode): string
     {
         $columns = ['code', 'barcode', 'vendor_id', 'brand_id', 'description', 'price_minor', 'quantity', 'commission_bps', 'intake_on', 'expires_on'];
         $casts = ['?', '?', '?::uuid', '?::uuid', '?', '?', '?', '?', '?::date', '?::date'];
         $params = [
-            $piece->code,
+            $item->code,
             $barcode,
-            $piece->vendorId,
-            $piece->brandId,
-            $piece->description,
-            $piece->sale->priceMinor,
-            $piece->sale->quantity,
-            $piece->sale->commissionBps,
-            $piece->dates->intakeOn,
-            $piece->dates->expiresOn,
+            $item->vendorId,
+            $item->brandId,
+            $item->description,
+            $item->sale->priceMinor,
+            $item->sale->quantity,
+            $item->sale->commissionBps,
+            $item->dates->intakeOn,
+            $item->dates->expiresOn,
         ];
         foreach (NameList::all() as $list) {
             if (!$this->mall->enabled($list->flag)) {
@@ -213,7 +213,7 @@ final class InventoryStore
             }
             $columns[] = $list->itemColumn;
             $casts[] = '?::uuid';
-            $params[] = $piece->attributes[$list->key] ?? null;
+            $params[] = $item->attributes[$list->key] ?? null;
         }
         if ($id === null) {
             return $this->inserted($columns, $casts, $params);
@@ -223,8 +223,8 @@ final class InventoryStore
             $assignments[] = $column . ' = ' . $casts[$index];
         }
         $params[] = $id;
-        $params[] = $piece->sale->priceMinor;
-        $params[] = $piece->vendorId;
+        $params[] = $item->sale->priceMinor;
+        $params[] = $item->vendorId;
         $count = $this->statements->affected(
             'UPDATE items SET ' . implode(', ', $assignments) . '
              WHERE id = ?::uuid
@@ -235,7 +235,7 @@ final class InventoryStore
             $params
         );
         if ($count === 0) {
-            $this->refuseSoldChange($id, $piece);
+            $this->refuseSoldChange($id, $item);
         }
 
         return $id;
@@ -254,7 +254,7 @@ final class InventoryStore
         );
         $id = $rows[0]['id'] ?? null;
         if (!is_string($id) || $id === '') {
-            throw new \RuntimeException('the piece was not saved');
+            throw new \RuntimeException('the item was not saved');
         }
 
         return $id;
@@ -270,19 +270,19 @@ final class InventoryStore
         return $rows !== [];
     }
 
-    private function refuseSoldChange(string $id, PieceEntry $piece): void
+    private function refuseSoldChange(string $id, ItemEntry $item): void
     {
         $row = $this->find($id);
         if ($row === null) {
-            throw new \InvalidArgumentException('That piece is not in this mall.');
+            throw new \InvalidArgumentException('That item is not in this mall.');
         }
-        if ($piece->sale->priceMinor !== RowValue::integer($row['price_minor'] ?? null)) {
+        if ($item->sale->priceMinor !== RowValue::integer($row['price_minor'] ?? null)) {
             throw new \InvalidArgumentException('That price is already on a sale.');
         }
-        if ($piece->vendorId !== RowValue::string($row['vendor_id'] ?? null)) {
+        if ($item->vendorId !== RowValue::string($row['vendor_id'] ?? null)) {
             throw new \InvalidArgumentException('That consignor is already on a sale.');
         }
-        throw new \InvalidArgumentException('That piece is not in this mall.');
+        throw new \InvalidArgumentException('That item is not in this mall.');
     }
 
     private function allocate(string $today): string

@@ -36,7 +36,7 @@ $list = '/' . $slug . '/inventory';
     <div class="card">
         <div class="empty">
             <svg aria-hidden="true"><use href="#i-inventory"></use></svg>
-            <p>No pieces yet.</p>
+            <p>No items yet.</p>
         </div>
     </div>
 <?php else: ?>
@@ -55,15 +55,15 @@ $list = '/' . $slug . '/inventory';
     <?php if ($items !== []): ?>
         <?php
         $printId = '';
-        $lead = 'Check the pieces in the list.';
-        $selectionStorageKey = InventorySelectionKey::pieces($slug);
+        $lead = 'Check the items in the list.';
+        $selectionStorageKey = InventorySelectionKey::items($slug);
         require __DIR__ . '/sticker-job.php';
         ?>
     <?php endif; ?>
 
     <div class="card table-wrap list-dt-wrap list-dt-page-scroll mt-4">
         <?php if ($items === []): ?>
-            <div class="empty"><p>No pieces match.</p></div>
+            <div class="empty"><p>No items match.</p></div>
         <?php else: ?>
             <?php
             $columns = [
@@ -138,7 +138,7 @@ $list = '/' . $slug . '/inventory';
                         <td class="row gap-2">
                             <a class="btn btn-sm btn-ghost" href="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
                             <?php if ($confirm === $item['id']): ?>
-                                <span>Delete this piece?</span>
+                                <span>Delete this item?</span>
                                 <a class="btn btn-sm btn-ghost" href="<?= View::text($cancel) ?>">Cancel</a>
                                 <form method="post" action="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/delete">
                                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

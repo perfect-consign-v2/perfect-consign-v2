@@ -14,11 +14,11 @@ final class LabelSheet
     }
 
     /**
-     * @param list<StickerPiece> $pieces
+     * @param list<StickerItem> $items
      */
-    public function compose(LabelStock $stock, array $pieces, int $copies, int $row, int $column): StickerSheet
+    public function compose(LabelStock $stock, array $items, int $copies, int $row, int $column): StickerSheet
     {
-        $ready = $this->ready($stock, $pieces);
+        $ready = $this->ready($stock, $items);
         $sequence = $this->expand($ready, $copies);
         $columns = $stock->getColumns();
         $slots = $columns * $stock->getRows();
@@ -39,21 +39,21 @@ final class LabelSheet
     }
 
     /**
-     * @param list<StickerPiece> $pieces
-     * @return list<array{piece: StickerPiece, face: StickerFace}>
+     * @param list<StickerItem> $items
+     * @return list<array{item: StickerItem, face: StickerFace}>
      */
-    private function ready(LabelStock $stock, array $pieces): array
+    private function ready(LabelStock $stock, array $items): array
     {
         $ready = [];
-        foreach ($pieces as $piece) {
-            $ready[] = ['piece' => $piece, 'face' => $this->faces->layout($stock, $piece)];
+        foreach ($items as $item) {
+            $ready[] = ['item' => $item, 'face' => $this->faces->layout($stock, $item)];
         }
 
         return $ready;
     }
 
     /**
-     * @param list<array{piece: StickerPiece, face: StickerFace}> $ready
+     * @param list<array{item: StickerItem, face: StickerFace}> $ready
      */
     private function thin(array $ready): int
     {
@@ -67,8 +67,8 @@ final class LabelSheet
     }
 
     /**
-     * @param list<array{piece: StickerPiece, face: StickerFace}> $ready
-     * @return list<array{piece: StickerPiece, face: StickerFace}>
+     * @param list<array{item: StickerItem, face: StickerFace}> $ready
+     * @return list<array{item: StickerItem, face: StickerFace}>
      */
     private function expand(array $ready, int $copies): array
     {
@@ -83,7 +83,7 @@ final class LabelSheet
     }
 
     /**
-     * @param list<array{piece: StickerPiece, face: StickerFace}> $sequence
+     * @param list<array{item: StickerItem, face: StickerFace}> $sequence
      * @param array<string, string> $images
      * @return list<StickerCell>
      */
@@ -106,7 +106,7 @@ final class LabelSheet
             $item = $sequence[$index - $skip];
             $cells[] = $this->cell(
                 $stock,
-                $item['piece'],
+                $item['item'],
                 $item['face'],
                 $slot % $columns,
                 intdiv($slot, $columns),
@@ -122,7 +122,7 @@ final class LabelSheet
      */
     private function cell(
         LabelStock $stock,
-        StickerPiece $piece,
+        StickerItem $item,
         StickerFace $face,
         int $column,
         int $row,
@@ -131,7 +131,7 @@ final class LabelSheet
         $left = $stock->getMarginLeft() + $column * ($stock->getWidth() + $stock->getColumnGap());
         $top = $stock->getMarginTop() + $row * ($stock->getHeight() + $stock->getRowGap());
         $pad = InchMeasure::text(intdiv($stock->getPadY(), 2)) . ' ' . InchMeasure::text(intdiv($stock->getPadX(), 2));
-        [$ppm, $pixels] = $this->pixels($stock, $this->codes->modules($piece->barcode), $face->bars);
+        [$ppm, $pixels] = $this->pixels($stock, $this->codes->modules($item->barcode), $face->bars);
 
         return new StickerCell(
             'left:' . InchMeasure::text($left)
@@ -140,9 +140,9 @@ final class LabelSheet
                 . ';height:' . InchMeasure::text($stock->getHeight())
                 . ';padding:' . $pad,
             $face->lines,
-            $this->image($piece, $ppm, $pixels, $images),
+            $this->image($item, $ppm, $pixels, $images),
             InchMeasure::text($face->bars),
-            $piece->barcode,
+            $item->barcode,
             InchMeasure::text($face->code),
         );
     }
@@ -150,14 +150,14 @@ final class LabelSheet
     /**
      * @param array<string, string> $images
      */
-    private function image(StickerPiece $piece, int $ppm, int $pixels, array &$images): string
+    private function image(StickerItem $item, int $ppm, int $pixels, array &$images): string
     {
-        $key = $piece->barcode . ':' . $ppm . ':' . $pixels;
+        $key = $item->barcode . ':' . $ppm . ':' . $pixels;
         $cached = $images[$key] ?? null;
         if (is_string($cached)) {
             return $cached;
         }
-        $drawn = base64_encode($this->pngs->draw($this->codes->bits($piece->barcode), $ppm, $pixels));
+        $drawn = base64_encode($this->pngs->draw($this->codes->bits($item->barcode), $ppm, $pixels));
         $images[$key] = $drawn;
 
         return $drawn;

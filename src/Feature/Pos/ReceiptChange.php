@@ -34,7 +34,7 @@ final class ReceiptChange
             }
         }
 
-        throw new DatabaseRefusal('that piece is not on the ticket');
+        throw new DatabaseRefusal('that item is not on the ticket');
     }
 
     private function amount(string $value): bool

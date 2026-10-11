@@ -1,4 +1,4 @@
--- A layaway deposit holds the piece. The sale posts only when the deposits cover it.
+-- A layaway deposit holds the item. The sale posts only when the deposits cover it.
 -- One transaction, then ROLLBACK.
 
 BEGIN;

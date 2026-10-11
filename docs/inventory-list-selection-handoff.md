@@ -1,26 +1,26 @@
-# Handoff: Pieces list scroll and sticker selection
+# Handoff: Items list scroll and sticker selection
 
 Implement this in `C:\laragon\www\perfect-consign` only. Do not edit `curser-pos-specs`, `curser-pos-web`, or `curser-pos-admin`. Do not commit unless the operator asks in that turn.
 
-The storefront already shipped the same behavior in `curser-pos-web` commit `77ee953`. Copy the behavior. Do not copy that app’s server-side DataTables code. This app renders every piece into the page, then `public/assets/js/list-datatables.js` pages the table in the browser.
+The storefront already shipped the same behavior in `curser-pos-web` commit `77ee953`. Copy the behavior. Do not copy that app’s server-side DataTables code. This app renders every item into the page, then `public/assets/js/list-datatables.js` pages the table in the browser.
 
 ## What is wrong
 
-Staff Pieces (`/{slug}/inventory`, table `#list-inventory`) is a client-side DataTable. `initTable` always sets `scrollY`, `scrollX`, and `scrollCollapse`. `scrollY` is the viewport minus the wrap top minus 130px, and at least 220px. The sticker form sits above the table, so the row area collapses to a few lines. The page does not scroll through the rows.
+Staff Items (`/{slug}/inventory`, table `#list-inventory`) is a client-side DataTable. `initTable` always sets `scrollY`, `scrollX`, and `scrollCollapse`. `scrollY` is the viewport minus the wrap top minus 130px, and at least 220px. The sticker form sits above the table, so the row area collapses to a few lines. The page does not scroll through the rows.
 
 DataTables removes off-page rows from the document. The print checkboxes use `form="stickers"` and `name="item[]"`. A submit only posts the boxes that are still in the document, so a check on page 1 disappears when the user checks a row on page 2, and it is not printed.
 
-Vendor home (`src/Feature/Vendor/home.php`) is a plain table of that vendor’s pieces. It does not use DataTables. Leaving that page for the sticker preview, then using Back without printing, drops the checks because nothing stores them.
+Vendor home (`src/Feature/Vendor/home.php`) is a plain table of that vendor’s items. It does not use DataTables. Leaving that page for the sticker preview, then using Back without printing, drops the checks because nothing stores them.
 
-`src/Feature/Inventory/stickers.php` prints with `window.print()` and never clears a saved selection. One edit-form print (`inventory-form.php`, hidden `item` for a single piece) must not clear the list selection.
+`src/Feature/Inventory/stickers.php` prints with `window.print()` and never clears a saved selection. One edit-form print (`inventory-form.php`, hidden `item` for a single item) must not clear the list selection.
 
 ## What to build
 
-### Page scroll, staff Pieces only
+### Page scroll, staff Items only
 
 Mark only `#list-inventory` with `data-dt-page-scroll="1"`. In `initTable`, when that attribute is `1`, do not set `scrollX`, `scrollY`, or `scrollCollapse`. The resize handler must not write `settings.oScroll.sY` for that table. Every other `table.list-dt` (vendors, booths, rent, payouts, journals, and the rest) keeps the current inner scroll.
 
-Leaving `scrollX` on still builds `.dt-scroll` / `.dt-scroll-body` with inline `overflow: auto`. That is why a “skip scrollY only” change still looks like a short scroll box. Omit both axes so Pieces is a normal table and the document scrolls.
+Leaving `scrollX` on still builds `.dt-scroll` / `.dt-scroll-body` with inline `overflow: auto`. That is why a “skip scrollY only” change still looks like a short scroll box. Omit both axes so Items is a normal table and the document scrolls.
 
 Add class `list-dt-page-scroll` on the `.list-dt-wrap` for that table. Stick the real `thead th` while the page scrolls. The selector has to beat any `position: static` rule on those headers. Do not set `overflow` other than `visible` on an ancestor of that header: `overflow-x: auto` forces `overflow-y` to `auto`, and the header then sticks inside that box instead of the page. `.list-dt-wrap.table-wrap` is already `overflow: visible`.
 
@@ -30,16 +30,16 @@ Do not change the shared `pageLength` of 10. Do not add DataTables to the vendor
 
 ### Selection that survives paging
 
-New browser store, same shape as the storefront store, without per-piece copy counts. This app has one “How many” field (`copies`, 1–999) for the whole batch. Leave that field on the sticker form. Do not add a copies box on each row.
+New browser store, same shape as the storefront store, without per-item copy counts. This app has one “How many” field (`copies`, 1–999) for the whole batch. Leave that field on the sticker form. Do not add a copies box on each row.
 
-Store an ordered list of piece ids. `setChecked(id, checked)` adds or removes. `applyPage(ids, checked)` changes only those ids. `snapshot()` is the id list. `load` / `save` use `sessionStorage`. Bad JSON or a non-array loads as empty. `clear()` saves `[]`.
+Store an ordered list of item ids. `setChecked(id, checked)` adds or removes. `applyPage(ids, checked)` changes only those ids. `snapshot()` is the id list. `load` / `save` use `sessionStorage`. Bad JSON or a non-array loads as empty. `clear()` saves `[]`.
 
 Keys, posted as a hidden `selection_storage_key`:
 
-- Staff: `pc.inventorySelection.v1.pieces.{slug}`
+- Staff: `pc.inventorySelection.v1.items.{slug}`
 - Vendor: `pc.inventorySelection.v1.vendor.{slug}`
 
-`{slug}` matches the route: `[a-z][a-z0-9-]{0,62}`. A small PHP allowlist returns the key only when it matches `^pc\.inventorySelection\.v1\.(pieces|vendor)\.[a-z][a-z0-9-]{0,62}$`. Anything else is omitted. Do not put this `if` into a method that is already at cyclomatic complexity 10.
+`{slug}` matches the route: `[a-z][a-z0-9-]{0,62}`. A small PHP allowlist returns the key only when it matches `^pc\.inventorySelection\.v1\.(items|vendor)\.[a-z][a-z0-9-]{0,62}$`. Anything else is omitted. Do not put this `if` into a method that is already at cyclomatic complexity 10.
 
 On each draw of `#list-inventory`, restore checks from the store. Filtering, sorting, and paging do not clear the store. Unchecking a row removes that id.
 
@@ -55,7 +55,7 @@ On submit of `#stickers`, disable the live `item[]` checkboxes and inject hidden
 
 ### Clear after the print dialog
 
-`LabelsController::preview` and `VendorStickers::printOwn` pass `selectionStorageKey` into `Feature/Inventory/stickers` only when the posted key passes the allowlist. The edit-form print does not post a key, so a single-piece print does not clear the list.
+`LabelsController::preview` and `VendorStickers::printOwn` pass `selectionStorageKey` into `Feature/Inventory/stickers` only when the posted key passes the allowlist. The edit-form print does not post a key, so a single-item print does not clear the list.
 
 On `stickers.php`, when the key is present, the Print button carries it and `afterprint` runs `sessionStorage.removeItem(key)`. Browsers also fire `afterprint` when the dialog is cancelled, so closing the dialog ends the batch. Back without opening Print leaves the checks in place.
 
@@ -83,6 +83,6 @@ On `stickers.php`, when the key is present, the Print button carries it and `aft
 
 ## Check in the browser
 
-Staff `/{slug}/inventory`: no inner vertical scrollbar on the piece rows, the page scrolls, the header stays visible while scrolling, a check on page 1 is still checked after a check on page 2, select-all does not drop the other page, Print stickers posts both ids, Clear hides the bar, and closing the print dialog clears the saved checks. Back from the preview without Print keeps them.
+Staff `/{slug}/inventory`: no inner vertical scrollbar on the item rows, the page scrolls, the header stays visible while scrolling, a check on page 1 is still checked after a check on page 2, select-all does not drop the other page, Print stickers posts both ids, Clear hides the bar, and closing the print dialog clears the saved checks. Back from the preview without Print keeps them.
 
-Vendor `/{slug}/vendor`: checks survive Back from the sticker preview, and closing the print dialog clears them. A piece printed from the edit form does not clear the Pieces list selection.
+Vendor `/{slug}/vendor`: checks survive Back from the sticker preview, and closing the print dialog clears them. An item printed from the edit form does not clear the Items list selection.

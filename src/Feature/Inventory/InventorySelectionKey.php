@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Inventory;
 
 /**
- * sessionStorage key for piece checkbox selection.
+ * sessionStorage key for item checkbox selection.
  * Posted with sticker preview and accepted only from this allowlist.
  */
 final class InventorySelectionKey
 {
-    private const string PATTERN = '/^pc\.inventorySelection\.v1\.(pieces|vendor)\.[a-z][a-z0-9-]{0,62}$/';
+    private const string PATTERN = '/^pc\.inventorySelection\.v1\.(items|vendor)\.[a-z][a-z0-9-]{0,62}$/';
 
-    public static function pieces(string $slug): string
+    public static function items(string $slug): string
     {
-        return 'pc.inventorySelection.v1.pieces.' . $slug;
+        return 'pc.inventorySelection.v1.items.' . $slug;
     }
 
     public static function vendor(string $slug): string

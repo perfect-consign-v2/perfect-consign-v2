@@ -7,7 +7,7 @@ namespace PerfectConsign\Feature\Pos;
 use PerfectConsign\Feature\Inventory\InventoryStore;
 use PerfectConsign\Feature\Inventory\ItemWriter;
 
-final class InstantPiece
+final class InstantItem
 {
     public function __construct(
         private readonly ItemWriter $writer,
@@ -18,45 +18,45 @@ final class InstantPiece
     ) {
     }
 
-    public function sell(string $session, string $today, string $boothCode, InstantAdd $piece): void
+    public function sell(string $session, string $today, string $boothCode, InstantAdd $item): void
     {
         $this->add($session, $today, new InstantAdd(
             $this->booths->vendor($boothCode, $today),
-            $piece->description,
-            $piece->price,
-            $piece->barcode,
-            $piece->quantity,
-            $piece->brand,
-            $piece->attributes,
-            $piece->discountKind,
-            $piece->discountValue,
+            $item->description,
+            $item->price,
+            $item->barcode,
+            $item->quantity,
+            $item->brand,
+            $item->attributes,
+            $item->discountKind,
+            $item->discountValue,
         ));
     }
 
-    public function add(string $session, string $today, InstantAdd $piece): void
+    public function add(string $session, string $today, InstantAdd $item): void
     {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $piece->vendorId) !== 1) {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $item->vendorId) !== 1) {
             throw new \InvalidArgumentException('Choose a vendor.');
         }
-        $description = trim($piece->description);
+        $description = trim($item->description);
         if ($description === '') {
             throw new \InvalidArgumentException('Enter a description.');
         }
-        if (trim($piece->price) === '') {
+        if (trim($item->price) === '') {
             throw new \InvalidArgumentException('Enter a price.');
         }
         $saved = $this->writer->entry([
             'id' => '',
             'code' => $this->code(),
-            'barcode' => trim($piece->barcode),
+            'barcode' => trim($item->barcode),
             'description' => $description,
-            'price' => $piece->price,
-            'quantity' => trim($piece->quantity) === '' ? '1' : trim($piece->quantity),
-            'vendor_id' => $piece->vendorId,
+            'price' => $item->price,
+            'quantity' => trim($item->quantity) === '' ? '1' : trim($item->quantity),
+            'vendor_id' => $item->vendorId,
             'vendor_label' => '',
-            'brand_id' => trim($piece->brand->id),
-            'brand_label' => trim($piece->brand->label),
-            'attributes' => $piece->attributes,
+            'brand_id' => trim($item->brand->id),
+            'brand_label' => trim($item->brand->label),
+            'attributes' => $item->attributes,
             'store_take' => '',
             'intake_on' => $today,
             'expires_on' => '',
@@ -64,7 +64,7 @@ final class InstantPiece
         ]);
         $this->items->add($saved, $today);
         $this->tickets->scan($session, $saved->code);
-        $this->finish($session, $saved->code, $saved->sale->quantity, $piece->discountKind, $piece->discountValue);
+        $this->finish($session, $saved->code, $saved->sale->quantity, $item->discountKind, $item->discountValue);
     }
 
     private function finish(string $session, string $code, int $quantity, string $discountKind, string $discountValue): void
@@ -89,7 +89,7 @@ final class InstantPiece
             }
         }
         if ($lineNo < 1) {
-            throw new \InvalidArgumentException('That piece is not on the ticket.');
+            throw new \InvalidArgumentException('That item is not on the ticket.');
         }
 
         return $lineNo;

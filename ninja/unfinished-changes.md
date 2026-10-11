@@ -45,10 +45,10 @@ Legend: **OPEN** = still present · **PARTIAL** = partly addressed · **CLOSED**
 -   `src/Feature/Inventory/stickers.php:58-64` removes the `sessionStorage` selection key on `afterprint`. `afterprint` fires on cancel too, so previewing/cancelling the print dialog destroys a multi-page selection. `afterprint` is also unreliable across engines. Contradicts the "grandma-friendly" bar.
 -   **Fix:** clear on an explicit action, or only on a completed print, not on `afterprint`.
 
-### C2 — `Pieces → Items` rename is half-done; the UI contradicts itself
+### C2 — `Items → Items` rename is half-done; the UI contradicts itself
 
 -   **Status: OPEN** · first seen `2dc616a`
--   Headings say "Items" (`inventory.php:29`), but body copy and the whole vendor surface still say "piece(s)": `inventory.php:39,58,66,141`; `Vendor/home.php:36`; `VendorStickers.php:59`; `InventoryStore.php:133,137,161,277,285`; `InventoryController.php:82`; `Code128.php:66`; `LabelRequest.php:79,88,93,102`. Class layer split too (`ItemWriter` vs `StickerPiece`, `PieceForm`, `PieceEntry`, `PieceSale`, `PieceDates`, `PieceGuard`, `InstantPiece`).
+-   Headings say "Items" (`inventory.php:29`), but body copy and the whole vendor surface still say "item(s)": `inventory.php:39,58,66,141`; `Vendor/home.php:36`; `VendorStickers.php:59`; `InventoryStore.php:133,137,161,277,285`; `InventoryController.php:82`; `Code128.php:66`; `LabelRequest.php:79,88,93,102`. Class layer split too (`ItemWriter` vs `StickerItem`, `ItemForm`, `ItemEntry`, `ItemSale`, `ItemDates`, `ItemGuard`, `InstantItem`).
 -   **Fix:** finish the rename end-to-end (table is `items` → use "item"), with a test asserting the old noun is gone from rendered output; or revert the headings.
 
 * * *
@@ -65,7 +65,7 @@ Legend: **OPEN** = still present · **PARTIAL** = partly addressed · **CLOSED**
 
 ## E. Performance / correctness hygiene
 
-### E1 — `VendorAccount::pieces()` is unbounded and sorts in PHP
+### E1 — `VendorAccount::items()` is unbounded and sorts in PHP
 
 -   **Status: OPEN** · first seen `2dc616a`
 -   `VendorAccount.php:57-79` selects all items for a vendor with no limit and `usort`/`strnatcasecmp`s in PHP. Move the natural-key sort into SQL (`ORDER BY` + collation) or bound it.

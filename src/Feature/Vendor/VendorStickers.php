@@ -8,7 +8,7 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Inventory\InventoryStore;
 use PerfectConsign\Feature\Inventory\LabelRequest;
 use PerfectConsign\Feature\Inventory\LabelSheet;
-use PerfectConsign\Feature\Inventory\StickerPiece;
+use PerfectConsign\Feature\Inventory\StickerItem;
 use PerfectConsign\Feature\Inventory\StickerSheet;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Http\View;
@@ -34,7 +34,7 @@ final class VendorStickers
         try {
             $sheet = $this->sheet($this->storeName($slug), $vendorId);
         } catch (\InvalidArgumentException $error) {
-            $this->app->redirect('/' . $slug . '/vendor', null, $error->getMessage());
+            $this->app->redirect('/' . $slug . '/vendor/inventory', null, $error->getMessage());
         }
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Inventory/stickers', $this->jobs->withSelectionKey([
@@ -42,7 +42,7 @@ final class VendorStickers
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'sheet' => $sheet,
-            'back' => '/' . $tenant->slug . '/vendor',
+            'back' => '/' . $tenant->slug . '/vendor/inventory',
         ], $this->app->request()->field('selection_storage_key')));
     }
 
@@ -56,25 +56,25 @@ final class VendorStickers
         $job = $this->jobs->read($this->app->request()->post, $this->mall->getLabelStock());
         foreach ($job['ids'] as $id) {
             if (!$this->account->owns($vendorId, $id)) {
-                throw new \InvalidArgumentException('That piece is not yours.');
+                throw new \InvalidArgumentException('That item is not yours.');
             }
         }
-        $pieces = [];
+        $items = [];
         foreach ($this->items->forLabels($job['ids']) as $row) {
-            $pieces[] = $this->sticker($row, $store);
+            $items[] = $this->sticker($row, $store);
         }
 
-        return $this->sheets->compose($job['stock'], $pieces, $job['copies'], $job['row'], $job['column']);
+        return $this->sheets->compose($job['stock'], $items, $job['copies'], $job['row'], $job['column']);
     }
 
     /**
      * @param array<string, mixed> $row
      */
-    private function sticker(array $row, string $store): StickerPiece
+    private function sticker(array $row, string $store): StickerItem
     {
         $brand = $row['brand_name'] ?? null;
 
-        return new StickerPiece(
+        return new StickerItem(
             RowValue::string($row['barcode'] ?? null),
             View::money(RowValue::integer($row['price_minor'] ?? null)),
             RowValue::string($row['description'] ?? null),

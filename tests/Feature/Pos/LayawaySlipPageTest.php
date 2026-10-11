@@ -15,7 +15,7 @@ final class LayawaySlipPageTest extends TestCase
 
         self::assertStringContainsString('>Layaway<', $html);
         self::assertStringContainsString('Layaways', $html);
-        self::assertStringContainsString('Pieces stay here until the balance is paid', $html);
+        self::assertStringContainsString('Items stay here until the balance is paid', $html);
         self::assertStringContainsString('Cash', $html);
     }
 
@@ -25,7 +25,7 @@ final class LayawaySlipPageTest extends TestCase
 
         self::assertStringContainsString('Layaway cancelled', $html);
         self::assertStringNotContainsString('Layaways', $html);
-        self::assertStringContainsString('Deposits refunded. Pieces are free.', $html);
+        self::assertStringContainsString('Deposits refunded. Items are free.', $html);
         self::assertStringContainsString('>None<', $html);
     }
 

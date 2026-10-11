@@ -1,4 +1,4 @@
--- Session B waits for the same piece, then rolls back.
+-- Session B waits for the same item, then rolls back.
 BEGIN;
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,

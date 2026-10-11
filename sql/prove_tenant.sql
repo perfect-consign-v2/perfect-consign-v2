@@ -210,10 +210,10 @@ BEGIN
         DROP CONSTRAINT register_checks_journal_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.sale_lines
         DROP CONSTRAINT sale_lines_journal_id_fkey;
-    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.piece_returns
-        DROP CONSTRAINT piece_returns_journal_id_fkey;
-    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.piece_returns
-        DROP CONSTRAINT piece_returns_sale_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.item_returns
+        DROP CONSTRAINT item_returns_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.item_returns
+        DROP CONSTRAINT item_returns_sale_journal_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tickets
         DROP CONSTRAINT tickets_posted_journal_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.payout_run_lines

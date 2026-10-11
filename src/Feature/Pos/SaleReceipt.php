@@ -72,7 +72,7 @@ final class SaleReceipt
             'SELECT sale.item_id, sale.price_minor, sale.quantity, sale.commission_minor, sale.tax_minor, sale.discount_minor,
                     item.code, item.description, vendor.name AS vendor_name,
                     EXISTS (
-                        SELECT 1 FROM piece_returns AS returned
+                        SELECT 1 FROM item_returns AS returned
                         WHERE returned.sale_journal_id = sale.journal_id
                           AND returned.item_id = sale.item_id
                     ) AS returned

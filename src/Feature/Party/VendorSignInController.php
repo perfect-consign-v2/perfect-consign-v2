@@ -24,8 +24,9 @@ final class VendorSignInController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $request = $this->app->request();
+        $replaced = false;
         try {
-            $this->staff->addVendor(
+            $replaced = $this->staff->saveVendor(
                 $request->field('username'),
                 $request->field('display_name'),
                 $request->raw('password'),
@@ -40,6 +41,7 @@ final class VendorSignInController
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/vendors/' . $id, 'Vendor sign-in added.');
+        $notice = $replaced ? 'Vendor sign-in saved.' : 'Vendor sign-in added.';
+        $this->app->redirect('/' . $slug . '/vendors/' . $id, $notice);
     }
 }

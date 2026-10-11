@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
-final class PieceSale
+final class ItemSale
 {
     public function __construct(
         public readonly int $priceMinor,

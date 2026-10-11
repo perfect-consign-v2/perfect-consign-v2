@@ -62,12 +62,12 @@ At `65683a1` it was **3** violations; this batch added **7**:
 ```
 src/Feature/Mall/MallSettings.php:12   TooManyPublicMethods     (11 public methods)
 src/Feature/Mall/MallSettings.php:113  CyclomaticComplexity 11 / NPath 324
-src/Feature/Pos/InstantPiece.php:20    ExcessiveParameterList   (11 parameters)
-src/Feature/Pos/InstantPiece.php:64    CyclomaticComplexity 10 / NPath 288
+src/Feature/Pos/InstantItem.php:20    ExcessiveParameterList   (11 parameters)
+src/Feature/Pos/InstantItem.php:64    CyclomaticComplexity 10 / NPath 288
 src/Feature/Pos/PosPage.php:24         BooleanArgumentFlag      ($reopenInstant)
 ```
 
-`phpmd.xml`'s own description says _"Append rules only after `composer run probe:phpmd` reports zero violations under src/."_ — the intent is zero. The gate is not zero, and `composer check` aborts here before it ever reaches PHPStan or the tests. The correctness gate (PHPStan level 10) is green, so this is a maintainability/process failure rather than a money bug — but a gate that is declared and does not pass is exactly the kind of corner the bar here says not to cut. The two `InstantPiece` hits are easy to fix (pass a small value object instead of 11 scalars; split `finish()`).
+`phpmd.xml`'s own description says _"Append rules only after `composer run probe:phpmd` reports zero violations under src/."_ — the intent is zero. The gate is not zero, and `composer check` aborts here before it ever reaches PHPStan or the tests. The correctness gate (PHPStan level 10) is green, so this is a maintainability/process failure rather than a money bug — but a gate that is declared and does not pass is exactly the kind of corner the bar here says not to cut. The two `InstantItem` hits are easy to fix (pass a small value object instead of 11 scalars; split `finish()`).
 
 ### W — LOW — the paid-ticket↔sale match does not check quantity
 
@@ -92,9 +92,9 @@ Quantity is not in the comparison, and nothing else in the kernel cross-checks t
 
 I went at these hard because they are the largest surface added so far. They hold up.
 
-**On-hand quantity (`037_item_quantity.sql`).** `items.quantity` defaults to 1 and is `>= 0`; `ticket_lines`/`sale_lines`/`piece_returns` carry `quantity > 0`. `stall_assert_ticket_line` takes `FOR UPDATE OF item` and refuses `NEW.quantity + held > on_hand`, where `held` sums every open/parked/layaway line for that piece. `stall_assert_sale_shape` decrements `items.quantity` by the sold quantity and refuses a sale past on hand. `stall_restore_on_hand` (a new `ENABLE ALWAYS` trigger on `journals`) puts units back on a void and on a return. `prove_on_hand.sql` walks the whole cycle (sell 2 → 3 left; sell 4 → refused; return 1 → 4; void → 5) and `prove_race_on_hand.ps1` proves the second seller **waits > 4.5 s** on the row lock and then rolls back. This is correct and it is proven.
+**On-hand quantity (`037_item_quantity.sql`).** `items.quantity` defaults to 1 and is `>= 0`; `ticket_lines`/`sale_lines`/`item_returns` carry `quantity > 0`. `stall_assert_ticket_line` takes `FOR UPDATE OF item` and refuses `NEW.quantity + held > on_hand`, where `held` sums every open/parked/layaway line for that item. `stall_assert_sale_shape` decrements `items.quantity` by the sold quantity and refuses a sale past on hand. `stall_restore_on_hand` (a new `ENABLE ALWAYS` trigger on `journals`) puts units back on a void and on a return. `prove_on_hand.sql` walks the whole cycle (sell 2 → 3 left; sell 4 → refused; return 1 → 4; void → 5) and `prove_race_on_hand.ps1` proves the second seller **waits > 4.5 s** on the row lock and then rolls back. This is correct and it is proven.
 
-**Per-unit return proration.** `stall_assert_piece_return` prorates `(sale_price * sale_quantity * NEW.quantity) / sale_quantity` for a partial return and lets the last return absorb the remainder (`sale_price * sale_quantity - prior_price`), so the sum of returns is exactly the sale. Commission, tax, and discount prorate the same way. The payable/commission/tax debits are re-derived and matched. Solid.
+**Per-unit return proration.** `stall_assert_item_return` prorates `(sale_price * sale_quantity * NEW.quantity) / sale_quantity` for a partial return and lets the last return absorb the remainder (`sale_price * sale_quantity - prior_price`), so the sum of returns is exactly the sale. Commission, tax, and discount prorate the same way. The payable/commission/tax debits are re-derived and matched. Solid.
 
 **Store take on the post-discount price (`036`).** `expected_commission := ((price*qty − discount) * commission_bps + 5000) / 10000` and vendor payable is `price*qty − discount − commission`. The "discount larger than the store take" refusal is gone, replaced by "the discount is more than the price". That is the correct model — the store can discount into its own take — and the docs were updated to match. Good.
 
@@ -110,7 +110,7 @@ The business-rules doc was rewritten to match all of the above, and the new `Flo
 
 ## Recommended priority
 
-1.  **V** — make `composer check` green: fix the two `InstantPiece` smells and the `MallSettings`/`PosPage`/`MallApp` ones, or explicitly drop the rules and say so. Do not leave a declared gate red.
+1.  **V** — make `composer check` green: fix the two `InstantItem` smells and the `MallSettings`/`PosPage`/`MallApp` ones, or explicitly drop the rules and say so. Do not leave a declared gate red.
 2.  **W** — add `quantity` to the paid-ticket↔sale `EXCEPT ALL` match. Cheap, and it restores the database as the last line of defence.
 3.  **R** — decide whether card/checks over-short is real accounting. If it is, post it to real accounts and show it on the tape; if it is not, stop rendering a difference the ledger does not carry.
 4.  **B / N / T** — collapse the duplicated money math (bps parse/format, discount shares, expected drawer) behind one module each. Three-decimal tax made B worse; the next rate change will make it worse again.

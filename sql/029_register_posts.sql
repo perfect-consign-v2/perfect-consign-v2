@@ -46,7 +46,7 @@ BEGIN
 
     IF source IS NULL OR source NOT IN (
         'sale',
-        'piece_return',
+        'item_return',
         'rent_payment',
         'cash_disbursement',
         'gift_certificate_issue',
@@ -141,7 +141,7 @@ DECLARE
 BEGIN
     IF NEW.source_type IN (
         'sale',
-        'piece_return',
+        'item_return',
         'rent_payment',
         'cash_disbursement',
         'gift_certificate_issue',
@@ -160,7 +160,7 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    IF NEW.source_type IN ('sale', 'piece_return', 'layaway_deposit', 'layaway_refund') AND NOT NEW.is_reversal THEN
+    IF NEW.source_type IN ('sale', 'item_return', 'layaway_deposit', 'layaway_refund') AND NOT NEW.is_reversal THEN
         SELECT count(*) INTO checks_count
         FROM public.journal_lines AS line
         JOIN public.chart_roles AS role ON role.account_id = line.account_id
@@ -168,7 +168,7 @@ BEGIN
           AND role.role = 'checks'
           AND (
               (NEW.source_type IN ('sale', 'layaway_deposit') AND line.debit_minor > 0)
-              OR (NEW.source_type IN ('piece_return', 'layaway_refund') AND line.credit_minor > 0)
+              OR (NEW.source_type IN ('item_return', 'layaway_refund') AND line.credit_minor > 0)
           );
 
         SELECT count(*) INTO check_row

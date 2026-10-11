@@ -26,7 +26,7 @@ $labelAction = isset($labelAction) && is_string($labelAction) && $labelAction !=
         <div class="sticker-pair sticker-pair-stock">
             <div class="field">
                 <label for="stock">Which stickers</label>
-                <select class="select" id="stock" name="stock">
+                <select class="select" id="stock" name="stock"<?= $selectionStorageKey !== '' ? ' data-sticker-stock-key="' . View::text($selectionStorageKey) . '"' : '' ?>>
                     <?php foreach ($stocks as $stock): ?>
                         <option value="<?= View::text($stock['key']) ?>"<?= $stock['key'] === $labelStock ? ' selected' : '' ?>><?= View::text($stock['label']) ?></option>
                     <?php endforeach; ?>
@@ -58,6 +58,12 @@ $labelAction = isset($labelAction) && is_string($labelAction) && $labelAction !=
         <?php if ($printId !== ''): ?>
             <input type="hidden" name="item" value="<?= View::text($printId) ?>">
         <?php endif; ?>
-        <button class="btn btn-primary" type="submit">Print stickers</button>
+        <div class="row gap-3">
+            <button class="btn btn-primary" type="submit">Print stickers</button>
+            <?php if ($printId === '' && $selectionStorageKey !== ''): ?>
+                <button class="btn" type="button" data-inventory-selection-clear hidden>Clear</button>
+                <span data-inventory-selection-count="paren" hidden>(0 selected)</span>
+            <?php endif; ?>
+        </div>
     </div>
 </form>

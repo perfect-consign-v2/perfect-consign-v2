@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Ordered piece-id selection for sticker printing.
+ * Ordered item-id selection for sticker printing.
  * Checks survive paging. Copy count stays on the sticker form.
  *
  * @param {{ storage?: Storage, storageKey?: string }} opts
@@ -244,15 +244,24 @@ function uncheckVisible(tableEl) {
  */
 function bindSelectionChrome(form, selection, list) {
     function syncBar() {
-        var bar = document.querySelector('[data-inventory-selection-bar]');
-        if (!(bar instanceof HTMLElement)) {
-            return;
-        }
         var n = selection.count();
-        bar.hidden = n === 0;
-        var countEl = bar.querySelector('[data-inventory-selection-count]');
-        if (countEl !== null) {
-            countEl.textContent = n === 1 ? '1 selected' : String(n) + ' selected';
+        var words = n === 1 ? '1 selected' : String(n) + ' selected';
+        document.querySelectorAll('[data-inventory-selection-count]').forEach(function (countEl) {
+            countEl.textContent = countEl.getAttribute('data-inventory-selection-count') === 'paren'
+                ? '(' + words + ')'
+                : words;
+            if (countEl.closest('[data-inventory-selection-bar]') === null) {
+                countEl.hidden = n === 0;
+            }
+        });
+        document.querySelectorAll('[data-inventory-selection-clear]').forEach(function (clearBtn) {
+            if (clearBtn.closest('[data-inventory-selection-bar]') === null) {
+                clearBtn.hidden = n === 0;
+            }
+        });
+        var bar = document.querySelector('[data-inventory-selection-bar]');
+        if (bar instanceof HTMLElement) {
+            bar.hidden = n === 0;
         }
     }
 
@@ -294,15 +303,14 @@ function bindSelectionChrome(form, selection, list) {
             });
             selection.save();
         });
-        var clearBtn = document.querySelector('[data-inventory-selection-clear]');
-        if (clearBtn !== null) {
+        document.querySelectorAll('[data-inventory-selection-clear]').forEach(function (clearBtn) {
             clearBtn.addEventListener('click', function () {
                 selection.clear();
                 list.uncheckVisible();
                 list.syncSelectAll();
                 syncBar();
             });
-        }
+        });
         window.addEventListener('pageshow', function () {
             selection.load();
             releaseFields();
@@ -314,6 +322,69 @@ function bindSelectionChrome(form, selection, list) {
         syncBar: syncBar,
         refresh: refresh,
     };
+}
+
+function bootStickerStock() {
+    document.querySelectorAll('select[name="stock"][data-sticker-stock-key]').forEach(function (select) {
+        if (!(select instanceof HTMLSelectElement)) {
+            return;
+        }
+        var raw = select.getAttribute('data-sticker-stock-key');
+        if (raw === null || raw === '') {
+            return;
+        }
+        var key = 'pc.stickerStock.v1.' + raw;
+        var saved = readStock(key);
+        if (saved !== '' && stockOption(select, saved)) {
+            select.value = saved;
+        }
+        function keep() {
+            writeStock(key, select.value);
+        }
+        select.addEventListener('change', keep);
+        if (select.form instanceof HTMLFormElement) {
+            select.form.addEventListener('submit', keep);
+        }
+    });
+}
+
+/**
+ * @param {HTMLSelectElement} select
+ * @param {string} value
+ */
+function stockOption(select, value) {
+    for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === value) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @param {string} key
+ */
+function readStock(key) {
+    try {
+        var saved = window.localStorage.getItem(key);
+
+        return saved === null ? '' : saved;
+    } catch (error) {
+        return '';
+    }
+}
+
+/**
+ * @param {string} key
+ * @param {string} value
+ */
+function writeStock(key, value) {
+    try {
+        window.localStorage.setItem(key, value);
+    } catch (error) {
+        return;
+    }
 }
 
 function bootPlainLists() {
@@ -379,8 +450,12 @@ if (typeof module !== 'undefined' && module.exports) {
 }
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bootPlainLists);
+        document.addEventListener('DOMContentLoaded', function () {
+            bootStickerStock();
+            bootPlainLists();
+        });
     } else {
+        bootStickerStock();
         bootPlainLists();
     }
 }

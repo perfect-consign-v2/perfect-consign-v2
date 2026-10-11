@@ -11,11 +11,11 @@ use PerfectConsign\Ledger\PostedLines;
 final class SaleJournal
 {
     /**
-     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $pieces
+     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $items
      * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $tenders
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
-    public static function sale(LedgerStore $ledger, array $pieces, array $tenders, int $cash, int $roundOn, int $due): array
+    public static function sale(LedgerStore $ledger, array $items, array $tenders, int $cash, int $roundOn, int $due): array
     {
         $delta = $roundOn === 1 && self::onlyCash($tenders, $cash) ? CashRound::rounded($due) - $due : 0;
         if ($delta === 0 || $cash === $due) {
@@ -24,7 +24,7 @@ final class SaleJournal
             $lines = self::keptCash($ledger, $tenders, $delta);
         }
 
-        return array_merge($lines, self::credits($ledger, $pieces));
+        return array_merge($lines, self::credits($ledger, $items));
     }
 
     /**
@@ -111,20 +111,20 @@ final class SaleJournal
     }
 
     /**
-     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $pieces
+     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $items
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
-    private static function credits(LedgerStore $ledger, array $pieces): array
+    private static function credits(LedgerStore $ledger, array $items): array
     {
         $commission = 0;
         $tax = 0;
         $payable = [];
-        foreach ($pieces as $piece) {
-            $commission += $piece['commission'];
-            $tax += $piece['tax'];
-            $owed = $piece['price'] * $piece['quantity'] - $piece['discount'] - $piece['commission'];
+        foreach ($items as $item) {
+            $commission += $item['commission'];
+            $tax += $item['tax'];
+            $owed = $item['price'] * $item['quantity'] - $item['discount'] - $item['commission'];
             if ($owed > 0) {
-                $vendor = $piece['vendor_id'];
+                $vendor = $item['vendor_id'];
                 $payable[$vendor] = ($payable[$vendor] ?? 0) + $owed;
             }
         }

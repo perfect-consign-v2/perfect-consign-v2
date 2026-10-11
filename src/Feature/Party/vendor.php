@@ -11,6 +11,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $today */
 /** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, check_minor: int, owes_minor: int, settled_minor: int, rent_from_sales: bool, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>} $vendor */
 /** @var list<array<string, mixed>> $booths */
+/** @var array{username: string, display_name: string}|null $signIn */
 
 $sections = [
     'Current Booths' => $vendor['current'],
@@ -303,24 +304,28 @@ $blank = '—';
             </div>
         </form>
     <?php endif; ?>
-    <form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/sign-in">
+    <form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/sign-in" autocomplete="off">
         <div class="card-head"><div class="h3">Vendor sign-in</div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <p class="muted">They see what the store owes them, the rent they owe, and stickers for their own pieces.</p>
+            <?php if ($signIn === null): ?>
+                <p class="muted">They see their check, their sales, and stickers for their own items.</p>
+            <?php else: ?>
+                <p class="muted">Sign-in name is <?= View::text($signIn['username']) ?>. A new password replaces the old one.</p>
+            <?php endif; ?>
             <div class="field">
                 <label for="vendor_display_name">Name</label>
-                <input class="input" id="vendor_display_name" name="display_name" required maxlength="80">
+                <input class="input" id="vendor_display_name" name="display_name" required maxlength="80" value="<?= View::text($signIn === null ? '' : $signIn['display_name']) ?>">
             </div>
             <div class="field">
                 <label for="vendor_username">Sign-in name</label>
-                <input class="input" id="vendor_username" name="username" required maxlength="63" autocapitalize="none">
+                <input class="input" id="vendor_username" name="username" required maxlength="63" autocapitalize="none" autocomplete="off" value="<?= View::text($signIn === null ? '' : $signIn['username']) ?>">
             </div>
             <div class="field">
                 <label for="vendor_password">Password</label>
-                <input class="input" id="vendor_password" name="password" type="password" required minlength="8" autocomplete="new-password">
+                <input class="input" id="vendor_password" name="password" type="password" required minlength="8" autocomplete="off">
             </div>
-            <p><button class="btn" type="submit">Add sign-in</button></p>
+            <p><button class="btn" type="submit"><?= $signIn === null ? 'Add sign-in' : 'Save sign-in' ?></button></p>
         </div>
     </form>
 </article>

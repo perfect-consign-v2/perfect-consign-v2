@@ -77,6 +77,10 @@ final class RoleGate
 
     private static function vendor(string $rest): bool
     {
-        return in_array($rest, ['/vendor', '/vendor/labels', '/logout', '/logout/confirm'], true);
+        if (in_array($rest, ['/vendor', '/vendor/labels', '/vendor/sales', '/vendor/inventory', '/logout', '/logout/confirm'], true)) {
+            return true;
+        }
+
+        return preg_match('#^/vendor/checks/[0-9a-fA-F-]{36}$#', $rest) === 1;
     }
 }

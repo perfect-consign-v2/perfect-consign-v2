@@ -73,14 +73,14 @@ final class PosPayController
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/receipt/([0-9a-fA-F-]{36})/return', ['POST'])]
-    public function returnPiece(string $slug, string $id): void
+    public function returnItem(string $slug, string $id): void
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         try {
             $credit = $this->tenders->credit($this->app->request(), $this->change->owed($this->poster->receipt($id), $this->itemId()));
-            $this->poster->returnPiece($session, $this->mall->today(), $id, $this->itemId(), $credit['line'], $credit['check']);
+            $this->poster->returnItem($session, $this->mall->today(), $id, $this->itemId(), $credit['line'], $credit['check']);
         } catch (DatabaseRefusal $refusal) {
             $this->receipts->show($slug, $id, $this->app->catchRefusal($refusal));
             return;
@@ -88,14 +88,14 @@ final class PosPayController
             $this->receipts->show($slug, $id, $error->getMessage());
             return;
         }
-        $this->app->redirect('/' . $slug . '/pos/receipt/' . $id, 'Piece returned.');
+        $this->app->redirect('/' . $slug . '/pos/receipt/' . $id, 'Item returned.');
     }
 
     private function itemId(): string
     {
         $id = $this->app->request()->field('item_id');
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
-            throw new DatabaseRefusal('that piece is not on the ticket');
+            throw new DatabaseRefusal('that item is not on the ticket');
         }
 
         return $id;

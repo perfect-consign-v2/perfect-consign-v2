@@ -1,5 +1,5 @@
 -- Proof that a discount lowers the sold price and store take is the percent of that price.
--- One transaction, then ROLLBACK. A second register session cannot take the same piece.
+-- One transaction, then ROLLBACK. A second register session cannot take the same item.
 
 BEGIN;
 
@@ -142,7 +142,7 @@ BEGIN
     RAISE EXCEPTION 'a second session took the hat';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a piece is already on a ticket%' THEN
+        IF SQLERRM NOT LIKE '%an item is already on a ticket%' THEN
             RAISE;
         END IF;
 END $$;
@@ -222,7 +222,7 @@ BEGIN
         '01900000-0000-7000-8000-000000000001',
         'return:hat-full', '2096-03-02', '2096-03-02 12:00:00+00',
         '01900000-0000-7000-8000-0000000009a7',
-        'USD', 'piece_return', 'return-hat-full', 'Return the hat at full price', 1090, 1090
+        'USD', 'item_return', 'return-hat-full', 'Return the hat at full price', 1090, 1090
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES
@@ -236,7 +236,7 @@ BEGIN
         '01900000-0000-7000-8000-000000000001',
         3, '01900000-0000-7000-8000-000000000014', 500, 0, 'vendor', '01900000-0000-7000-8000-000000000191'
     );
-    INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor, discount_minor)
+    INSERT INTO item_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor, discount_minor)
     VALUES (
         '01900000-0000-7000-8000-0000000009c8',
         '01900000-0000-7000-8000-0000000009c1',
@@ -250,7 +250,7 @@ SET CONSTRAINTS ALL DEFERRED;
     RAISE EXCEPTION 'a return ignored the discount share';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a return reverses that piece%' THEN
+        IF SQLERRM NOT LIKE '%a return reverses that item%' THEN
             RAISE;
         END IF;
 END $$;
@@ -263,7 +263,7 @@ INSERT INTO journals (
     '01900000-0000-7000-8000-000000000001',
     'return:hat', '2096-03-02', '2096-03-02 12:00:00+00',
     '01900000-0000-7000-8000-0000000009a7',
-    'USD', 'piece_return', 'return-hat', 'Return the hat', 990, 990
+    'USD', 'item_return', 'return-hat', 'Return the hat', 990, 990
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
@@ -280,7 +280,7 @@ INSERT INTO journal_lines (
     3, '01900000-0000-7000-8000-000000000014', 450, 0, 'vendor', '01900000-0000-7000-8000-000000000191'
 );
 
-INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor, discount_minor)
+INSERT INTO item_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor, discount_minor)
 VALUES (
     '01900000-0000-7000-8000-0000000009c2',
     '01900000-0000-7000-8000-0000000009c1',

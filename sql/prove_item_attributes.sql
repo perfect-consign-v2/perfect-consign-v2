@@ -72,7 +72,7 @@ BEGIN
         END IF;
 
         EXECUTE format(
-            'INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, %I) VALUES ($1, $2, $3, ''Held piece'', 100, $2, DATE ''2026-10-06'', $4)',
+            'INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, %I) VALUES ($1, $2, $3, ''Held item'', 100, $2, DATE ''2026-10-06'', $4)',
             item_column
         ) USING item_id, catalog || '-held', vendor_id, held_id;
 

@@ -1,4 +1,4 @@
--- Session A holds the piece, then rolls back.
+-- Session A holds the item, then rolls back.
 BEGIN;
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,

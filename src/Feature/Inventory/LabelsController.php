@@ -42,22 +42,22 @@ final class LabelsController
     private function sheet(string $store): StickerSheet
     {
         $job = $this->jobs->read($this->app->request()->post, $this->mall->getLabelStock());
-        $pieces = [];
+        $items = [];
         foreach ($this->items->forLabels($job['ids']) as $row) {
-            $pieces[] = $this->piece($row, $store);
+            $items[] = $this->item($row, $store);
         }
 
-        return $this->sheets->compose($job['stock'], $pieces, $job['copies'], $job['row'], $job['column']);
+        return $this->sheets->compose($job['stock'], $items, $job['copies'], $job['row'], $job['column']);
     }
 
     /**
      * @param array<string, mixed> $row
      */
-    private function piece(array $row, string $store): StickerPiece
+    private function item(array $row, string $store): StickerItem
     {
         $brand = $row['brand_name'] ?? null;
 
-        return new StickerPiece(
+        return new StickerItem(
             RowValue::string($row['barcode'] ?? null),
             View::money(RowValue::integer($row['price_minor'] ?? null)),
             RowValue::string($row['description'] ?? null),

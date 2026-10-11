@@ -1,4 +1,4 @@
--- Inventory. One piece: a tag, a vendor, an optional brand, a description, and an asking price.
+-- Inventory. One item: a tag, a vendor, an optional brand, a description, and an asking price.
 -- The asking price is not a journal. Apply inside each tenant schema, after 022.
 -- The provisioner rewrites stall_poster.
 

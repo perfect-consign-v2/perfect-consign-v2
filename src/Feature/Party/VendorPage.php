@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Party;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Payout\PayoutStore;
+use PerfectConsign\Feature\Staff\StaffStore;
 
 final class VendorPage
 {
@@ -18,6 +19,7 @@ final class VendorPage
         private readonly PayoutStore $payouts,
         private readonly AssignmentOffer $offers,
         private readonly VendorForm $forms,
+        private readonly StaffStore $staff,
     ) {
     }
 
@@ -49,6 +51,7 @@ final class VendorPage
             'slug' => $tenant->slug,
             'vendor' => $vendor,
             'booths' => $this->offers->booths(),
+            'signIn' => $this->staff->vendorSignIn($id),
             'error' => $error,
         ]);
     }

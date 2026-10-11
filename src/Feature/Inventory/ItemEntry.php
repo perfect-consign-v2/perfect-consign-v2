@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
-final class PieceEntry
+final class ItemEntry
 {
     public function __construct(
         public readonly string $code,
@@ -14,8 +14,8 @@ final class PieceEntry
         /** @var array<string, string|null> */
         public readonly array $attributes,
         public readonly string $description,
-        public readonly PieceSale $sale,
-        public readonly PieceDates $dates,
+        public readonly ItemSale $sale,
+        public readonly ItemDates $dates,
     ) {
     }
 }

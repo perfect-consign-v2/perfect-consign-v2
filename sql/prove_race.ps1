@@ -347,7 +347,7 @@ if ($registerRace.Code -ne 0) {
 Invoke-Exec -Command @"
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d0e4', '01900000-0000-7000-8000-000000000001', '2038-01-01', '2038-12-31', 'open');
 INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d0e0', 'race-sale', 'Race', 'Sale');
-INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps) VALUES ('01900000-0000-7000-8000-00000000d0e3', 'Race sale', '01900000-0000-7000-8000-00000000d0e0', 'Race piece', 100, 'Race sale tag', DATE '2038-03-01', 0);
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps) VALUES ('01900000-0000-7000-8000-00000000d0e3', 'Race sale', '01900000-0000-7000-8000-00000000d0e0', 'Race item', 100, 'Race sale tag', DATE '2038-03-01', 0);
 "@ | Out-Null
 $saleJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_sale_a.sql'), $script:TenantSchema
 Start-Sleep -Seconds 1
@@ -358,7 +358,7 @@ Wait-Job $saleJob | Out-Null
 Receive-Job $saleJob | Out-Null
 Invoke-Exec -Command "DELETE FROM items WHERE id = '01900000-0000-7000-8000-00000000d0e3'; DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0e0'; DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d0e4';" | Out-Null
 if ($saleWatch.ElapsedMilliseconds -lt 4500) {
-    throw "second sale of the piece did not wait ($($saleWatch.ElapsedMilliseconds) ms)`n$($saleRace.Output)"
+    throw "second sale of the item did not wait ($($saleWatch.ElapsedMilliseconds) ms)`n$($saleRace.Output)"
 }
 if ($saleRace.Code -ne 0) {
     throw "second sale failed after the first rolled back`n$($saleRace.Output)"
@@ -366,7 +366,7 @@ if ($saleRace.Code -ne 0) {
 
 Invoke-Exec -Command @"
 INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d0f0', 'race-ticket', 'Race', 'Ticket');
-INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps) VALUES ('01900000-0000-7000-8000-00000000d0f3', 'Race ticket', '01900000-0000-7000-8000-00000000d0f0', 'Race ticket piece', 100, 'Race ticket tag', DATE '2039-03-01', 0);
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps) VALUES ('01900000-0000-7000-8000-00000000d0f3', 'Race ticket', '01900000-0000-7000-8000-00000000d0f0', 'Race ticket item', 100, 'Race ticket tag', DATE '2039-03-01', 0);
 "@ | Out-Null
 $ticketJob = Start-Job -ScriptBlock $runRace -ArgumentList (Join-Path $root 'prove_race_ticket_a.sql'), $script:TenantSchema
 Start-Sleep -Seconds 1
@@ -377,7 +377,7 @@ Wait-Job $ticketJob | Out-Null
 Receive-Job $ticketJob | Out-Null
 Invoke-Exec -Command "DELETE FROM items WHERE id = '01900000-0000-7000-8000-00000000d0f3'; DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d0f0';" | Out-Null
 if ($ticketWatch.ElapsedMilliseconds -lt 4500) {
-    throw "second ticket for the piece did not wait ($($ticketWatch.ElapsedMilliseconds) ms)`n$($ticketRace.Output)"
+    throw "second ticket for the item did not wait ($($ticketWatch.ElapsedMilliseconds) ms)`n$($ticketRace.Output)"
 }
 if ($ticketRace.Code -ne 0) {
     throw "second ticket failed after the first rolled back`n$($ticketRace.Output)"

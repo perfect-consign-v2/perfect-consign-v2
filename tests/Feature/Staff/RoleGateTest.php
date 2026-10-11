@@ -36,6 +36,9 @@ final class RoleGateTest extends TestCase
     {
         self::assertTrue(RoleGate::allows('vendor', '/vendor', 'GET'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/labels', 'POST'));
+        self::assertTrue(RoleGate::allows('vendor', '/vendor/sales', 'GET'));
+        self::assertTrue(RoleGate::allows('vendor', '/vendor/inventory', 'GET'));
+        self::assertTrue(RoleGate::allows('vendor', '/vendor/checks/01900000-0000-7000-8000-000000000d10', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/pos', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/book', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/vendors/01900000-0000-7000-8000-000000000d10', 'GET'));

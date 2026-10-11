@@ -365,9 +365,9 @@ final class CoverageRemainderTest extends WebTestCase
         self::assertSees('Change', $paidRent);
 
         $this->client->post('/' . self::SLUG . '/pos/discard', []);
-        $piece = $this->piece($vendorId, '10.00', '6');
-        $cart = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $piece['code']]);
-        self::assertSees($piece['description'], $cart);
+        $item = $this->item($vendorId, '10.00', '6');
+        $cart = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $item['code']]);
+        self::assertSees($item['description'], $cart);
         $lineNo = $this->match($cart->body, '/name="line_no" value="(\d+)"/');
         $quantity = $this->client->post('/' . self::SLUG . '/pos/quantity', [
             'line_no' => $lineNo,
@@ -414,7 +414,7 @@ final class CoverageRemainderTest extends WebTestCase
             'return_tender' => 'checks',
             'return_check_number' => 'RET' . $tag,
         ]);
-        self::assertSees('Piece returned.', $returned);
+        self::assertSees('Item returned.', $returned);
 
         $held = $this->client->post('/' . self::SLUG . '/pos/tender', [
             'tender_role' => 'card',
@@ -594,7 +594,7 @@ final class CoverageRemainderTest extends WebTestCase
         self::assertSame(200, $intakeBrand->status);
         $fresh = $this->client->get('/' . self::SLUG . '/inventory/new?vendor=' . $vendorId);
         self::assertSees('New item', $fresh);
-        $badPiece = $this->client->post('/' . self::SLUG . '/inventory', [
+        $badItem = $this->client->post('/' . self::SLUG . '/inventory', [
             'code' => 'bad' . $vendorCode,
             'description' => 'Bad',
             'vendor_id' => $vendorId,
@@ -602,16 +602,16 @@ final class CoverageRemainderTest extends WebTestCase
             'quantity' => '0',
             'intake_on' => '2026-09-01',
         ]);
-        self::assertSees('Enter a quantity of at least 1.', $badPiece);
-        $piece = $this->piece($vendorId, '3.00', '2');
-        $inventory = $this->client->get('/' . self::SLUG . '/inventory?q=' . $piece['code']);
-        $itemId = HtmlPage::taggedId($inventory->body, 'tr', 'item', $piece['code']);
+        self::assertSees('Enter a quantity of at least 1.', $badItem);
+        $item = $this->item($vendorId, '3.00', '2');
+        $inventory = $this->client->get('/' . self::SLUG . '/inventory?q=' . $item['code']);
+        $itemId = HtmlPage::taggedId($inventory->body, 'tr', 'item', $item['code']);
         $editor = $this->client->get('/' . self::SLUG . '/inventory/' . $itemId . '/edit');
-        self::assertSees($piece['description'], $editor);
+        self::assertSees($item['description'], $editor);
         $asked = $this->client->get('/' . self::SLUG . '/inventory?confirm=' . $itemId);
-        self::assertSees($piece['description'], $asked);
+        self::assertSees($item['description'], $asked);
         $gone = $this->client->post('/' . self::SLUG . '/inventory/' . $itemId . '/delete', []);
-        self::assertSees('Piece deleted.', $gone);
+        self::assertSees('Item deleted.', $gone);
 
         $signOut = $this->client->post('/' . self::SLUG . '/logout', []);
         self::assertSees('Sign out', $signOut);
@@ -646,10 +646,10 @@ final class CoverageRemainderTest extends WebTestCase
     /**
      * @return array{code: string, description: string}
      */
-    private function piece(string $vendorId, string $price, string $quantity): array
+    private function item(string $vendorId, string $price, string $quantity): array
     {
         $code = 't' . bin2hex(random_bytes(3));
-        $description = 'Piece ' . $code;
+        $description = 'Item ' . $code;
         $created = $this->client->post('/' . self::SLUG . '/inventory', [
             'code' => $code,
             'description' => $description,

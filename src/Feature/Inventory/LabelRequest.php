@@ -76,7 +76,7 @@ final class LabelRequest
             $raw = [$raw];
         }
         if (!is_array($raw)) {
-            throw new \InvalidArgumentException('Choose a piece.');
+            throw new \InvalidArgumentException('Choose an item.');
         }
         $ids = [];
         foreach ($raw as $value) {
@@ -85,12 +85,12 @@ final class LabelRequest
             }
             $id = trim($value);
             if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
-                throw new \InvalidArgumentException('Choose a piece.');
+                throw new \InvalidArgumentException('Choose an item.');
             }
             $ids[strtolower($id)] = $id;
         }
         if ($ids === []) {
-            throw new \InvalidArgumentException('Choose a piece.');
+            throw new \InvalidArgumentException('Choose an item.');
         }
 
         return array_values($ids);
@@ -99,7 +99,7 @@ final class LabelRequest
     private function cap(int $count, int $copies): void
     {
         if ($count > LabelCatalog::LIMIT || $copies > intdiv(LabelCatalog::LIMIT, $count)) {
-            throw new \InvalidArgumentException('That is more than 240 stickers. Print fewer pieces or fewer copies.');
+            throw new \InvalidArgumentException('That is more than 240 stickers. Print fewer items or fewer copies.');
         }
     }
 

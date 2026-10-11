@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    let form = document.getElementById('piece-form');
+    let form = document.getElementById('item-form');
     if (!form) {
         return;
     }

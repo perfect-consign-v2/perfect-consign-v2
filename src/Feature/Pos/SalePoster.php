@@ -37,9 +37,9 @@ final class SalePoster
      */
     public function pay(string $sessionId, string $date, int $roundOn, array $cart, array $tender, ?int $handed): string
     {
-        $pieces = $cart['lines'];
-        if ($pieces === []) {
-            throw new DatabaseRefusal('a ticket needs a piece');
+        $items = $cart['lines'];
+        if ($items === []) {
+            throw new DatabaseRefusal('a ticket needs an item');
         }
         $cashOnly = $tender['cash'] > 0 && $tender['cash'] === $tender['sum'];
         $settled = $roundOn === 1 && $cashOnly ? CashRound::rounded($cart['due']) : $cart['due'];
@@ -53,11 +53,11 @@ final class SalePoster
             postingKey: 'sale:' . $ticketId,
             postingDate: $date,
             source: new JournalSource('sale', 'sale:' . $ticketId, 'Sale'),
-            lines: SaleJournal::sale($this->ledger, $pieces, $tender['lines'], $tender['cash'], $roundOn, $cart['due']),
+            lines: SaleJournal::sale($this->ledger, $items, $tender['lines'], $tender['cash'], $roundOn, $cart['due']),
             sessionId: $sessionId,
             checkNumber: $tender['check'],
-            beforeCommit: function (string $journalId) use ($ticketId, $pieces): void {
-                $this->attach($journalId, $ticketId, $pieces);
+            beforeCommit: function (string $journalId) use ($ticketId, $items): void {
+                $this->attach($journalId, $ticketId, $items);
                 $this->statements->change('DELETE FROM ticket_tenders WHERE ticket_id = ?::uuid', [$ticketId]);
             },
             tenderedMinor: $handed,
@@ -88,7 +88,7 @@ final class SalePoster
     /**
      * @param array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string} $credit
      */
-    public function returnPiece(
+    public function returnItem(
         string $sessionId,
         string $date,
         string $saleId,
@@ -96,28 +96,28 @@ final class SalePoster
         array $credit,
         ?string $check,
     ): string {
-        $piece = $this->piece($saleId, $itemId);
+        $item = $this->item($saleId, $itemId);
 
         return $this->ledger->post(new JournalDraft(
             postingKey: 'return:' . $saleId . ':' . $itemId,
             postingDate: $date,
-            source: new JournalSource('piece_return', 'return:' . $itemId, 'Return'),
+            source: new JournalSource('item_return', 'return:' . $itemId, 'Return'),
             lines: SaleJournal::giveBack(
                 $this->ledger,
-                $piece['price'],
-                $piece['commission'],
-                $piece['tax'],
-                $piece['discount'],
-                $piece['vendor_id'],
+                $item['price'],
+                $item['commission'],
+                $item['tax'],
+                $item['discount'],
+                $item['vendor_id'],
                 $credit
             ),
             sessionId: $sessionId,
             checkNumber: $check,
-            beforeCommit: function (string $journalId) use ($saleId, $itemId, $piece): void {
+            beforeCommit: function (string $journalId) use ($saleId, $itemId, $item): void {
                 $this->statements->change(
-                    'INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, quantity, commission_minor, tax_minor, discount_minor)
+                    'INSERT INTO item_returns (journal_id, sale_journal_id, item_id, price_minor, quantity, commission_minor, tax_minor, discount_minor)
                      VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?)',
-                    [$journalId, $saleId, $itemId, $piece['price'], $piece['quantity'], $piece['commission'], $piece['tax'], $piece['discount']]
+                    [$journalId, $saleId, $itemId, $item['price'], $item['quantity'], $item['commission'], $item['tax'], $item['discount']]
                 );
             },
         ));
@@ -148,9 +148,9 @@ final class SalePoster
     }
 
     /**
-     * @param list<array{line_no: int, item_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $pieces
+     * @param list<array{line_no: int, item_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $items
      */
-    private function attach(string $journalId, string $ticketId, array $pieces): void
+    private function attach(string $journalId, string $ticketId, array $items): void
     {
         $locked = $this->statements->bound(
             'SELECT id FROM tickets WHERE id = ?::uuid AND status = ? FOR UPDATE',
@@ -159,12 +159,12 @@ final class SalePoster
         if ($locked === []) {
             throw new DatabaseRefusal('a posted ticket cannot change');
         }
-        $this->samePrices($ticketId, $pieces);
-        foreach ($pieces as $piece) {
+        $this->samePrices($ticketId, $items);
+        foreach ($items as $item) {
             $this->statements->change(
                 'INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, quantity, commission_minor, tax_minor, discount_minor)
                  VALUES (?::uuid, ?, ?::uuid, ?, ?, ?, ?, ?)',
-                [$journalId, $piece['line_no'], $piece['item_id'], $piece['price'], $piece['quantity'], $piece['commission'], $piece['tax'], $piece['discount']]
+                [$journalId, $item['line_no'], $item['item_id'], $item['price'], $item['quantity'], $item['commission'], $item['tax'], $item['discount']]
             );
         }
         $updated = $this->statements->affected(
@@ -177,31 +177,31 @@ final class SalePoster
     }
 
     /**
-     * @param list<array{item_id: string, price: int, quantity: int}> $pieces
+     * @param list<array{item_id: string, price: int, quantity: int}> $items
      */
-    private function samePrices(string $ticketId, array $pieces): void
+    private function samePrices(string $ticketId, array $items): void
     {
         $rows = $this->statements->bound(
             'SELECT item_id, price_minor, quantity FROM ticket_lines WHERE ticket_id = ?::uuid ORDER BY line_no',
             [$ticketId]
         );
-        if (count($rows) !== count($pieces)) {
+        if (count($rows) !== count($items)) {
             throw new DatabaseRefusal('the ticket changed before pay');
         }
-        foreach ($pieces as $index => $piece) {
-            $this->samePiece($rows[$index] ?? null, $piece);
+        foreach ($items as $index => $item) {
+            $this->sameItem($rows[$index] ?? null, $item);
         }
     }
 
     /**
-     * @param array{item_id: string, price: int, quantity: int} $piece
+     * @param array{item_id: string, price: int, quantity: int} $item
      */
-    private function samePiece(mixed $row, array $piece): void
+    private function sameItem(mixed $row, array $item): void
     {
         if (!is_array($row)
-            || RowValue::string($row['item_id'] ?? null) !== $piece['item_id']
-            || RowValue::integer($row['price_minor'] ?? null) !== $piece['price']
-            || RowValue::integer($row['quantity'] ?? null) !== $piece['quantity']) {
+            || RowValue::string($row['item_id'] ?? null) !== $item['item_id']
+            || RowValue::integer($row['price_minor'] ?? null) !== $item['price']
+            || RowValue::integer($row['quantity'] ?? null) !== $item['quantity']) {
             throw new DatabaseRefusal('the ticket changed before pay');
         }
     }
@@ -233,7 +233,7 @@ final class SalePoster
     /**
      * @return array{price: int, quantity: int, commission: int, tax: int, discount: int, vendor_id: string}
      */
-    private function piece(string $saleId, string $itemId): array
+    private function item(string $saleId, string $itemId): array
     {
         $rows = $this->statements->bound(
             'SELECT sale.price_minor, sale.quantity, sale.commission_minor, sale.tax_minor, sale.discount_minor, item.vendor_id
@@ -248,7 +248,7 @@ final class SalePoster
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {
-            throw new DatabaseRefusal('that piece is not on the ticket');
+            throw new DatabaseRefusal('that item is not on the ticket');
         }
 
         $quantity = RowValue::integer($row['quantity'] ?? null);

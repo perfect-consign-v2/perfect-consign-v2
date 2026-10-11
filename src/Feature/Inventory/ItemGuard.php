@@ -7,17 +7,17 @@ namespace PerfectConsign\Feature\Inventory;
 use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Shared\Database\Statements;
 
-final class PieceGuard
+final class ItemGuard
 {
     public function __construct(private readonly Statements $statements)
     {
     }
 
-    public function accept(PieceEntry $piece): void
+    public function accept(ItemEntry $item): void
     {
-        $this->requireVendor($piece->vendorId);
-        $this->requireBrand($piece->brandId);
-        $this->requireAttributes($piece->attributes);
+        $this->requireVendor($item->vendorId);
+        $this->requireBrand($item->brandId);
+        $this->requireAttributes($item->attributes);
     }
 
     private function requireVendor(string $vendorId): void

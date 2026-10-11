@@ -31,6 +31,7 @@ final class OwnerGate
         if ($tenant === null) {
             $this->missing->render(MallApp::MISS_MALL, $this->token());
         }
+        $username = strtolower(trim($username));
         if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
             $this->logger->info('owner sign-in refused', ['slug' => $slug]);
 

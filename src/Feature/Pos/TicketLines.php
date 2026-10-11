@@ -26,7 +26,7 @@ final class TicketLines
                 [$quantity, $ticketId, $lineNo]
             );
             if ($updated !== 1) {
-                throw new DatabaseRefusal('that piece is not on the ticket');
+                throw new DatabaseRefusal('that item is not on the ticket');
             }
             $this->pricing->recheck($ticketId);
         });
@@ -45,7 +45,7 @@ final class TicketLines
                 [$kind, $value, $reason, $ticketId, $lineNo]
             );
             if ($updated !== 1) {
-                throw new DatabaseRefusal('that piece is not on the ticket');
+                throw new DatabaseRefusal('that item is not on the ticket');
             }
             $this->pricing->recheck($ticketId);
         });

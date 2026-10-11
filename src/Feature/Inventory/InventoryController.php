@@ -16,7 +16,7 @@ final class InventoryController
         private readonly MallApp $app,
         private readonly InventoryStore $items,
         private readonly IntakeCatalog $catalog,
-        private readonly PieceForm $forms,
+        private readonly ItemForm $forms,
         private readonly ItemWriter $writer,
         private readonly StoreTake $take,
         private readonly MallSettings $mall,
@@ -37,7 +37,7 @@ final class InventoryController
         $this->form($slug, $this->forms->blank(
             $this->app->request()->query('vendor'),
             $this->app->request()->query('intake'),
-        ), null, $this->savedPiece());
+        ), null, $this->savedItem());
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/inventory', ['POST'])]
@@ -79,7 +79,7 @@ final class InventoryController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/inventory', 'Piece deleted.');
+            $this->app->redirect('/' . $slug . '/inventory', 'Item deleted.');
         }
         $this->list($slug, $error);
     }
@@ -116,17 +116,17 @@ final class InventoryController
         $this->app->redirect('/' . $slug . '/inventory/' . $saved . '/edit', 'Item saved.');
     }
 
-    private function write(?string $id, PieceEntry $piece): string
+    private function write(?string $id, ItemEntry $item): string
     {
         if ($id === null) {
-            return $this->items->add($piece, $this->mall->today());
+            return $this->items->add($item, $this->mall->today());
         }
-        $this->items->save($id, $piece, $this->mall->today());
+        $this->items->save($id, $item, $this->mall->today());
 
         return $id;
     }
 
-    private function savedPiece(): string
+    private function savedItem(): string
     {
         $id = $this->app->request()->query('print');
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1 || $this->items->find($id) === null) {
@@ -217,18 +217,18 @@ final class InventoryController
      *     intake_on: string,
      *     expires_on: string,
      *     fill_expire: string
-     * } $piece
+     * } $item
      */
-    private function form(string $slug, array $piece, ?string $error, string $printId = ''): void
+    private function form(string $slug, array $item, ?string $error, string $printId = ''): void
     {
         $tenant = $this->app->open($slug, true);
         $days = $this->mall->floorDays();
-        $sold = $piece['id'] !== '' && $this->items->sold($piece['id']);
+        $sold = $item['id'] !== '' && $this->items->sold($item['id']);
         $this->app->show('Feature/Inventory/inventory-form', [
-            'title' => $piece['id'] !== '' ? 'Edit item' : 'New item',
+            'title' => $item['id'] !== '' ? 'Edit item' : 'New item',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'piece' => $this->forms->view($piece),
+            'item' => $this->forms->view($item),
             'floorDays' => $days === null ? '' : (string) $days,
             'vendorsUrl' => '/' . $tenant->slug . '/inventory/vendors.json',
             'brandsUrl' => '/' . $tenant->slug . '/inventory/brands.json',
@@ -307,7 +307,7 @@ final class InventoryController
             }
         }
         if (str_contains($message, 'foreign key constraint') || str_contains($message, 'is still referenced')) {
-            return 'That piece is in use.';
+            return 'That item is in use.';
         }
 
         return $message;

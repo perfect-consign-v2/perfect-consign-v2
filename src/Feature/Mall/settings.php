@@ -24,7 +24,7 @@ use PerfectConsign\Shared\Http\View;
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, the stickers, how long pieces stay out, and a copy of the mall.</p>
+        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, the stickers, how long items stay out, and a copy of the mall.</p>
     </div>
 </div>
 
@@ -113,7 +113,7 @@ use PerfectConsign\Shared\Http\View;
                 <p class="muted text-sm">Print stickers starts on this sheet or tag. A print can still pick another.</p>
             </div>
             <div class="field" style="grid-column:1/-1">
-                <p class="muted text-sm">Piece fields. Turn one off and it leaves the intake form, the register, and the menu. A value already stored on a piece stays until the field is turned back on.</p>
+                <p class="muted text-sm">Item fields. Turn one off and it leaves the intake form, the register, and the menu. A value already stored on an item stays until the field is turned back on.</p>
                 <?php foreach ([
                     'use_color' => 'Color',
                     'use_category' => 'Category',
@@ -130,7 +130,7 @@ use PerfectConsign\Shared\Http\View;
             <div class="field" style="grid-column:1/-1">
                 <label for="floor_days">Days on the floor</label>
                 <input class="input" id="floor_days" name="floor_days" inputmode="numeric" value="<?= View::text($floorDays) ?>">
-                <p class="muted text-sm">How long a new piece stays before it expires. Leave this empty and pieces do not expire. A consignment store sets it. A vendor mall leaves it empty.</p>
+                <p class="muted text-sm">How long a new item stays before it expires. Leave this empty and items do not expire. A consignment store sets it. A vendor mall leaves it empty.</p>
             </div>
         </div>
     </div>

@@ -1,4 +1,4 @@
--- A layaway deposit is cash, card, or a check held for this ticket. The piece stays unsold until the deposits cover the amount due.
+-- A layaway deposit is cash, card, or a check held for this ticket. The item stays unsold until the deposits cover the amount due.
 -- Apply after 039. The provisioner rewrites stall_poster.
 
 INSERT INTO accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type)

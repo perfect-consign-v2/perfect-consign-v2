@@ -135,10 +135,10 @@ BEGIN
     VALUES ('01900000-0000-7000-8000-0000000009b3', '01900000-0000-7000-8000-000000000d2e');
     INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor)
     VALUES ('01900000-0000-7000-8000-0000000009b3', 1, '01900000-0000-7000-8000-0000000009a1', 2500);
-    RAISE EXCEPTION 'two shifts held the same piece';
+    RAISE EXCEPTION 'two shifts held the same item';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a piece is already on a ticket%' THEN
+        IF SQLERRM NOT LIKE '%an item is already on a ticket%' THEN
             RAISE;
         END IF;
 END $$;

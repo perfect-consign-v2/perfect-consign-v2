@@ -8,7 +8,7 @@
 
 Every item below is code-grounded against the kernel at `1d28611` and was verified before acceptance. Each is tagged **\[v2.2\]** inline at the point of change.
 
-1.  **The payable identity is now the ledger identity, not a column sum (§4.7, §5, §11).** v2.1's `brought_forward + sales − commission − draw + adjustment` omitted real payable movements. A discount lowers the sold price — `032_tickets.sql` computes the store take as `half_up(price − discount)` and the tender as `prices − discounts + taxes`, and `034_piece_return.sql` proves the payable debit on a return is `price − discount − commission`. A void (a reversal of the sale) debits the payable. And a check written on the 1st is dated inside the _next_ window — neither brought forward nor a draw. Fix: `carried_payable = brought_forward + Σ(vendor_payable credits − debits in the window)`, with the columns as a breakdown that now includes `discount_minor`, `return_minor`, `void_minor`, `check_paid_minor`.
+1.  **The payable identity is now the ledger identity, not a column sum (§4.7, §5, §11).** v2.1's `brought_forward + sales − commission − draw + adjustment` omitted real payable movements. A discount lowers the sold price — `032_tickets.sql` computes the store take as `half_up(price − discount)` and the tender as `prices − discounts + taxes`, and `034_item_return.sql` proves the payable debit on a return is `price − discount − commission`. A void (a reversal of the sale) debits the payable. And a check written on the 1st is dated inside the _next_ window — neither brought forward nor a draw. Fix: `carried_payable = brought_forward + Σ(vendor_payable credits − debits in the window)`, with the columns as a breakdown that now includes `discount_minor`, `return_minor`, `void_minor`, `check_paid_minor`.
 2.  **The envelope shows the rent breakdown (§4.7, §5, §9.1).** Netting all open rent is right, but the page printed only this month's charge as "Rent," so the check never equalled their share minus the printed rent when an older shortfall was open. Fix: add `rent_brought_forward_minor` and `rent_paid_since_minor`, so `rent_brought_forward + rent_charged − rent_paid_since = carried_rent` (the rent netted).
 3.  **The checksum is verified against the frozen rows, not the live ledger (§4.11, §6.1, §6.2, §11).** Review hashes the live projection; settlement then reduces the payable, so re-hashing the live ledger at `disburse()` could never match. And `payout_run_sales` does not exist at review. Fix: one checksum definition with two entry points — live projection at review, stored rows after post — that must produce the same string; `disburse()` verifies the frozen hash and separately asserts the live open payable still equals the frozen `check_minor`.
 4.  **The freeze is column-aware (§4.12, §6.2, §11).** v2.1's guard refused _any_ change once settled, which blocked `disburse()` from writing `check_number` and `disbursement_journal_id`. Fix: money columns freeze at settle; `check_number`/`disbursement_journal_id` are write-once while `settled`, then freeze.
@@ -239,7 +239,7 @@ CREATE TABLE payout_run_lines (
     commission_minor bigint NOT NULL DEFAULT 0,
     tax_minor bigint NOT NULL DEFAULT 0,
     discount_minor bigint NOT NULL DEFAULT 0,          -- [v2.2] discounts in the window (lower the payable)
-    return_minor bigint NOT NULL DEFAULT 0,            -- [v2.2] piece returns in the window (debit the payable)
+    return_minor bigint NOT NULL DEFAULT 0,            -- [v2.2] item returns in the window (debit the payable)
     void_minor bigint NOT NULL DEFAULT 0,              -- [v2.2] voids/reversals in the window (debit the payable)
     draw_minor bigint NOT NULL DEFAULT 0,
     check_paid_minor bigint NOT NULL DEFAULT 0,        -- [v2.2] checks already written in the window (debit the payable)
@@ -273,7 +273,7 @@ Column meanings (all minor units, signed where noted):
 | `discount_minor` | **\[v2.2\]** Discounts given on those sales in the window. A discount lowers the sold price, so it lowers the payable. |
 | `commission_minor` | Store take on the discounted price. |
 | `tax_minor` | Sales tax collected (pass-through; shown, never deducted from the vendor). |
-| `return_minor` | **\[v2.2\]** Piece returns in the window (debit the payable). |
+| `return_minor` | **\[v2.2\]** Item returns in the window (debit the payable). |
 | `void_minor` | **\[v2.2\]** Voids (reversals of a sale) in the window (debit the payable). |
 | `draw_minor` | `vendor_draw` taken at the POS in the window (debits the payable). |
 | `check_paid_minor` | **\[v2.2\]** Checks already written in the window (debit the payable). |
@@ -525,7 +525,7 @@ check_minor   == max(0, carried_payable_minor − carried_rent_minor)
 owes_minor    == max(0, carried_rent_minor − carried_payable_minor)
 ```
 
-> **\[v2.2\] Why the ledger identity, not a column sum.** v2.1's column sum omitted real movements. A discount lowers the sold price — `032_tickets.sql` computes the store take as `half_up(price − discount)` and the tender as `prices − discounts + taxes`; `034_piece_return.sql` proves the payable debit on a return is `price − discount − commission`. A void (a reversal of the sale) debits the payable. And when the tenant pays on the 1st, the check is dated inside the _next_ window — it is neither brought forward nor a draw, so it must appear as `check_paid_minor`. The enforced assertion computes the movement **directly from `journal_lines`** (excluding the run's own journals); the columns are the human-readable breakdown and are asserted to sum to it.
+> **\[v2.2\] Why the ledger identity, not a column sum.** v2.1's column sum omitted real movements. A discount lowers the sold price — `032_tickets.sql` computes the store take as `half_up(price − discount)` and the tender as `prices − discounts + taxes`; `034_item_return.sql` proves the payable debit on a return is `price − discount − commission`. A void (a reversal of the sale) debits the payable. And when the tenant pays on the 1st, the check is dated inside the _next_ window — it is neither brought forward nor a draw, so it must appear as `check_paid_minor`. The enforced assertion computes the movement **directly from `journal_lines`** (excluding the run's own journals); the columns are the human-readable breakdown and are asserted to sum to it.
 
 > **\[v2.1\] `brought_forward_minor` is mandatory in the identity.** Without it the identity only holds when nothing carried in from an earlier month; a vendor unpaid in February would fail the identity in March and the run would refuse. `brought_forward_minor` is the payable at the opening of the window, `carried_payable_minor` is the payable at post time, and the period movements bridge the two.
 
@@ -755,7 +755,7 @@ One transaction, then `ROLLBACK`, following `prove_payout.sql`. It must prove:
 10.  **Brought-forward is exercised.** A vendor left open in month _M_ and paid in _M+1_ posts a run whose `brought_forward_minor > 0`, whose identity holds, and whose payable clears to zero — the exact case that failed the v2 identity.
 11.  **All open rent is swept.** A vendor with an older open rent shortfall (month _M_) and a new charge (_M+1_) has both netted by the _M+1_ run: `carried_rent_minor` equals the sum of every open month, and no shortfall is left stranded.
 12.  **\[v2.2\] A discounted sale does not break the identity.** A window containing a discounted sale posts a run whose identity holds — the discount is carried as `discount_minor`, not dropped.
-13.  **\[v2.2\] A return, a void, and a prior check are all in the identity.** A window containing a piece return, a void (reversal), and a check written on the 1st each posts a run whose identity holds — carried as `return_minor`, `void_minor`, `check_paid_minor`.
+13.  **\[v2.2\] A return, a void, and a prior check are all in the identity.** A window containing an item return, a void (reversal), and a check written on the 1st each posts a run whose identity holds — carried as `return_minor`, `void_minor`, `check_paid_minor`.
 14.  **\[v2.2\] The rent breakdown reconciles.** `rent_brought_forward + rent_charged − rent_paid_since == carried_rent`, and the check equals their share minus the printed rent.
 15.  **\[v2.2\] The live hash equals the frozen hash.** `stall_pack_checksum(run)` taken at review equals `stall_pack_checksum_frozen(run)` taken after post — the same string.
 16.  **Checksum drift refused.** Change a sale between review and `settle()`; the checksum differs and the run refuses. A void plus a new sale with the **same net** also changes the checksum (the sale detail is hashed), so the run refuses.

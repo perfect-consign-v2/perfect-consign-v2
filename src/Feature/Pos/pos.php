@@ -28,7 +28,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
  *     rounding: string,
  *     buyer_id: string,
  *     buyer_name: string,
- *     parked: list<array{id: string, pieces: int, sold: int, status: string}>
+ *     parked: list<array{id: string, items: int, sold: int, status: string}>
  * } $cart
  */
 /** @var list<array{role: string, amount: int, reference: string}> $tenders */
@@ -308,7 +308,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         <div class="card-head"><div class="h3" id="void-ticket-title">Void ticket</div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <p>Voiding reverses this sale and frees every piece.</p>
+            <p>Voiding reverses this sale and frees every item.</p>
             <button class="btn btn-primary" type="submit">Confirm void</button>
             <button class="btn" type="button" data-close-modal="void-ticket">Cancel</button>
         </div>

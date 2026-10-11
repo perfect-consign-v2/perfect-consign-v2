@@ -82,7 +82,7 @@ final class CatalogStickerTest extends WebTestCase
         self::assertSees('Color deleted.', $gone);
     }
 
-    public function testAPiecePrintsOnTheChosenStickers(): void
+    public function testAItemPrintsOnTheChosenStickers(): void
     {
         $code = 'v' . bin2hex(random_bytes(3));
         $vendor = $this->client->post('/' . self::SLUG . '/vendors', [
@@ -157,25 +157,25 @@ final class CatalogStickerTest extends WebTestCase
         ]);
         self::assertSees($description, $saved);
         $gone = '01900000-0000-7000-8000-0000000000cc';
-        $missingPiece = $this->client->post('/' . self::SLUG . '/inventory/labels', [
+        $missingItem = $this->client->post('/' . self::SLUG . '/inventory/labels', [
             'stock' => 'avery_8160',
             'copies' => '1',
             'start_row' => '1',
             'start_column' => '1',
             'item' => $gone,
         ]);
-        self::assertSees('That piece is not in this mall.', $missingPiece);
+        self::assertSees('That item is not in this mall.', $missingItem);
         $kept = $this->client->post('/' . self::SLUG . '/inventory/labels', [
             'stock' => 'avery_8160',
             'copies' => '1',
             'start_row' => '1',
             'start_column' => '1',
             'item' => $itemId,
-            'selection_storage_key' => 'pc.inventorySelection.v1.pieces.' . self::SLUG,
+            'selection_storage_key' => 'pc.inventorySelection.v1.items.' . self::SLUG,
         ]);
         self::assertSees('Print stickers', $kept);
         self::assertStringContainsString(
-            'data-selection-storage-key="pc.inventorySelection.v1.pieces.' . self::SLUG . '"',
+            'data-selection-storage-key="pc.inventorySelection.v1.items.' . self::SLUG . '"',
             $kept->body,
         );
         $dropped = $this->client->post('/' . self::SLUG . '/inventory/labels', [
@@ -184,7 +184,7 @@ final class CatalogStickerTest extends WebTestCase
             'start_row' => '1',
             'start_column' => '1',
             'item' => $itemId,
-            'selection_storage_key' => 'pc.inventorySelection.v1.pieces.' . self::SLUG . '.extra',
+            'selection_storage_key' => 'pc.inventorySelection.v1.items.' . self::SLUG . '.extra',
         ]);
         self::assertSees('Print stickers', $dropped);
         self::assertStringNotContainsString('data-selection-storage-key', $dropped->body);

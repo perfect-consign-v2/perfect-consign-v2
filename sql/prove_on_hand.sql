@@ -1,4 +1,4 @@
--- Proof that a sale takes quantity off the piece and a return puts units back. One transaction, then ROLLBACK.
+-- Proof that a sale takes quantity off the item and a return puts units back. One transaction, then ROLLBACK.
 
 BEGIN;
 
@@ -102,7 +102,7 @@ INSERT INTO journals (
     '01900000-0000-7000-8000-000000000001',
     'return:cola', '2094-04-04', '2094-04-04 12:00:00+00',
     '01900000-0000-7000-8000-0000000009a2',
-    'USD', 'piece_return', 'return-cola', 'Return one cola', 1000, 1000
+    'USD', 'item_return', 'return-cola', 'Return one cola', 1000, 1000
 );
 INSERT INTO journal_lines (
     journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
@@ -117,7 +117,7 @@ VALUES (
     '01900000-0000-7000-8000-000000000001',
     2, '01900000-0000-7000-8000-000000000010', 0, 1000
 );
-INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, quantity, commission_minor, tax_minor, discount_minor)
+INSERT INTO item_returns (journal_id, sale_journal_id, item_id, price_minor, quantity, commission_minor, tax_minor, discount_minor)
 VALUES (
     '01900000-0000-7000-8000-0000000009c2',
     '01900000-0000-7000-8000-0000000009c1',

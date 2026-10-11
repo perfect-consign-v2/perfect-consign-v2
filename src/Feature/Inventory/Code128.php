@@ -63,7 +63,7 @@ final class Code128
     private function guard(string $text): void
     {
         if ($text === '') {
-            throw new \InvalidArgumentException('This piece has no barcode.');
+            throw new \InvalidArgumentException('This item has no barcode.');
         }
         $length = strlen($text);
         for ($index = 0; $index < $length; $index++) {

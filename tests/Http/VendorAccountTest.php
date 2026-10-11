@@ -9,7 +9,7 @@ use PerfectConsign\Tests\Support\WebTestCase;
 
 final class VendorAccountTest extends WebTestCase
 {
-    public function testAVendorOpensTheirAccountAndCannotPrintSomeoneElsesPiece(): void
+    public function testAVendorOpensTheirAccountAndCannotPrintSomeoneElsesItem(): void
     {
         $owner = self::client();
         $owner->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
@@ -35,16 +35,24 @@ final class VendorAccountTest extends WebTestCase
             'password' => 'vendor-pass',
         ]);
         self::assertSees('Vendor sign-in added.', $added);
+        $saved = $owner->post('/' . ProbeMall::SLUG . '/vendors/' . $vendorId . '/sign-in', [
+            'username' => $username,
+            'display_name' => 'Ada Lane',
+            'password' => 'vendor-next',
+        ]);
+        self::assertSees('Vendor sign-in saved.', $saved);
 
         $vendor = self::client();
-        $home = $vendor->signIn(ProbeMall::SLUG, $username, 'vendor-pass');
+        $stale = $vendor->signIn(ProbeMall::SLUG, $username, 'vendor-pass');
+        self::assertSees('That username or password is wrong.', $stale);
+        $home = $vendor->signIn(ProbeMall::SLUG, $username, 'vendor-next');
         self::assertSame(200, $home->status);
-        self::assertSees('Your account', $home);
-        self::assertSees('The store owes you', $home);
+        self::assertSees('Your check', $home);
+        self::assertSees('Your share of sales', $home);
         self::assertSees('Rent you owe', $home);
         $labels = $vendor->get('/' . ProbeMall::SLUG . '/vendor/labels');
         self::assertSame(200, $labels->status);
-        self::assertSees('Your account', $labels);
+        self::assertSees('Your items', $labels);
         $printed = $vendor->post('/' . ProbeMall::SLUG . '/vendor/labels', [
             'item' => '00000000-0000-7000-8000-0000000000aa',
             'copies' => '1',
@@ -53,10 +61,11 @@ final class VendorAccountTest extends WebTestCase
             'start_column' => '1',
         ]);
         self::assertLessThan(500, $printed->status);
-        self::assertSees('That piece is not yours.', $printed);
+        self::assertSees('Your items', $printed);
+        self::assertSees('That item is not yours.', $printed);
     }
 
-    public function testABoothFixWithoutAPieceIsRefused(): void
+    public function testABoothFixWithoutAItemIsRefused(): void
     {
         $client = self::client();
         $client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
@@ -78,7 +87,7 @@ final class VendorAccountTest extends WebTestCase
         ]);
         self::assertSees('Register opened.', $opened);
         $moved = $client->post('/' . ProbeMall::SLUG . '/pos/receipt/00000000-0000-7000-8000-000000000099/booth', [
-            'item_id' => 'not-a-piece',
+            'item_id' => 'not-a-item',
             'vendor_id' => '00000000-0000-7000-8000-0000000000bb',
         ]);
         self::assertLessThan(500, $moved->status);

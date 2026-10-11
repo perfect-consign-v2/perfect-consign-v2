@@ -52,27 +52,54 @@ final class VendorAccount
     }
 
     /**
-     * @return list<array{id: string, code: string, description: string, price_minor: int}>
+     * @return list<array{id: string, code: string, description: string, price_minor: int, quantity: int, sold_on: string}>
      */
-    public function pieces(string $vendorId): array
+    public function items(string $vendorId): array
     {
         $rows = [];
         foreach ($this->statements->bound(
-            'SELECT id::text AS id, code, description, price_minor
+            "SELECT id::text AS id, code, description, price_minor, quantity,
+                    CASE
+                        WHEN quantity = 0 THEN (
+                            SELECT to_char(journal.posting_date, 'YYYY-MM-DD')
+                            FROM sale_lines AS sale
+                            JOIN journals AS journal ON journal.id = sale.journal_id
+                            WHERE sale.item_id = items.id
+                              AND journal.source_type = 'sale'
+                              AND NOT journal.is_reversal
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM journals AS reversal
+                                  WHERE reversal.reverses_journal_id = journal.id
+                              )
+                            ORDER BY journal.posting_date DESC, journal.occurred_at DESC
+                            LIMIT 1
+                        )
+                    END AS sold_on
              FROM items
-             WHERE vendor_id = ?::uuid',
+             WHERE vendor_id = ?::uuid",
             [$vendorId]
         ) as $row) {
+            $sold = RowValue::optionalString($row['sold_on'] ?? null);
             $rows[] = [
                 'id' => RowValue::string($row['id'] ?? null),
                 'code' => RowValue::string($row['code'] ?? null),
                 'description' => RowValue::string($row['description'] ?? null),
                 'price_minor' => RowValue::integer($row['price_minor'] ?? null),
+                'quantity' => RowValue::integer($row['quantity'] ?? null),
+                'sold_on' => $sold ?? '',
             ];
         }
         usort(
             $rows,
-            static fn (array $left, array $right): int => strnatcasecmp($left['code'], $right['code'])
+            static function (array $left, array $right): int {
+                $leftOnHand = $left['quantity'] > 0;
+                $rightOnHand = $right['quantity'] > 0;
+                if ($leftOnHand !== $rightOnHand) {
+                    return $leftOnHand ? -1 : 1;
+                }
+
+                return strnatcasecmp($left['code'], $right['code']);
+            }
         );
 
         return $rows;

@@ -14,10 +14,10 @@ final class InventorySelectionKeyTest extends TestCase
 {
     public function testStaffAndVendorKeysRoundTrip(): void
     {
-        $staff = InventorySelectionKey::pieces('webprobe');
+        $staff = InventorySelectionKey::items('webprobe');
         $vendor = InventorySelectionKey::vendor('beccas-bargains');
 
-        self::assertSame('pc.inventorySelection.v1.pieces.webprobe', $staff);
+        self::assertSame('pc.inventorySelection.v1.items.webprobe', $staff);
         self::assertSame($staff, InventorySelectionKey::fromRequest($staff));
         self::assertSame('pc.inventorySelection.v1.vendor.beccas-bargains', $vendor);
         self::assertSame($vendor, InventorySelectionKey::fromRequest($vendor));
@@ -26,7 +26,7 @@ final class InventorySelectionKeyTest extends TestCase
     public function testAnExtraSuffixOrEmptyKeyIsRejected(): void
     {
         self::assertNull(InventorySelectionKey::fromRequest(''));
-        self::assertNull(InventorySelectionKey::fromRequest(InventorySelectionKey::pieces('webprobe') . '.extra'));
+        self::assertNull(InventorySelectionKey::fromRequest(InventorySelectionKey::items('webprobe') . '.extra'));
         self::assertNull(InventorySelectionKey::fromRequest(InventorySelectionKey::vendor('webprobe') . '.extra'));
     }
 
@@ -37,18 +37,18 @@ final class InventorySelectionKeyTest extends TestCase
         $slug = 'webprobe';
         $kept = $jobs->withSelectionKey(
             ['sheet' => $sheet, 'slug' => $slug],
-            InventorySelectionKey::pieces($slug),
+            InventorySelectionKey::items($slug),
         );
         $keptHtml = $this->preview($kept);
         self::assertMatchesRegularExpression(
-            '/<button[^>]*data-print[^>]*data-selection-storage-key="pc\.inventorySelection\.v1\.pieces\.webprobe"/',
+            '/<button[^>]*data-print[^>]*data-selection-storage-key="pc\.inventorySelection\.v1\.items\.webprobe"/',
             $keptHtml,
         );
         self::assertStringContainsString('sessionStorage.removeItem', $keptHtml);
 
         $dropped = $jobs->withSelectionKey(
             ['sheet' => $sheet, 'slug' => $slug],
-            InventorySelectionKey::pieces($slug) . '.extra',
+            InventorySelectionKey::items($slug) . '.extra',
         );
         self::assertArrayNotHasKey('selectionStorageKey', $dropped);
         $droppedHtml = $this->preview($dropped);

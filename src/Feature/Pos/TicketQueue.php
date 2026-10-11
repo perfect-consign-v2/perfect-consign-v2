@@ -28,14 +28,14 @@ final class TicketQueue
     }
 
     /**
-     * @return list<array{id: string, customer: string, pieces: int, deposits: int, balance: int, last: string}>
+     * @return list<array{id: string, customer: string, items: int, deposits: int, balance: int, last: string}>
      */
     public function layaways(): array
     {
         $tax = $this->taxRate();
         $rows = $this->statements->rows(
             "SELECT ticket.id, COALESCE(vendor.name, '') AS customer,
-                    count(line.line_no) AS pieces,
+                    count(line.line_no) AS items,
                     COALESCE((
                         SELECT sum(journal_line.credit_minor - journal_line.debit_minor)
                         FROM journal_lines AS journal_line
@@ -70,7 +70,7 @@ final class TicketQueue
             $held[] = [
                 'id' => $id,
                 'customer' => RowValue::string(is_string($row['customer'] ?? null) ? $row['customer'] : ''),
-                'pieces' => RowValue::integer($row['pieces'] ?? null),
+                'items' => RowValue::integer($row['items'] ?? null),
                 'deposits' => $deposits,
                 'balance' => max(0, $due - $deposits),
                 'last' => is_string($last) ? $last : '',

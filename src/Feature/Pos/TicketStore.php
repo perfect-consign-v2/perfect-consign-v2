@@ -70,7 +70,7 @@ final class TicketStore
      *     rounding: string,
      *     buyer_id: string,
      *     buyer_name: string,
-     *     parked: list<array{id: string, pieces: int, sold: int, status: string}>
+     *     parked: list<array{id: string, items: int, sold: int, status: string}>
      * }
      */
     public function cart(string $sessionId): array
@@ -115,10 +115,10 @@ final class TicketStore
         if ($code === '') {
             throw new DatabaseRefusal('scan a barcode or a tag');
         }
-        $piece = $this->piece($code);
-        $this->statements->transaction(function () use ($sessionId, $piece): void {
+        $item = $this->item($code);
+        $this->statements->transaction(function () use ($sessionId, $item): void {
             $ticketId = $this->openTicket($sessionId);
-            $this->add($ticketId, $piece['id'], $piece['price']);
+            $this->add($ticketId, $item['id'], $item['price']);
             $this->pricing->recheck($ticketId);
         });
     }
@@ -132,7 +132,7 @@ final class TicketStore
                 [$price, $ticketId, $lineNo]
             );
             if ($updated !== 1) {
-                throw new DatabaseRefusal('that piece is not on the ticket');
+                throw new DatabaseRefusal('that item is not on the ticket');
             }
             $this->pricing->recheck($ticketId);
         });
@@ -147,7 +147,7 @@ final class TicketStore
                 [$ticketId, $lineNo]
             );
             if ($deleted !== 1) {
-                throw new DatabaseRefusal('that piece is not on the ticket');
+                throw new DatabaseRefusal('that item is not on the ticket');
             }
             $this->pricing->recheck($ticketId);
         });
@@ -169,7 +169,7 @@ final class TicketStore
     }
 
     /**
-     * @return list<array{id: string, customer: string, pieces: int, deposits: int, balance: int, last: string}>
+     * @return list<array{id: string, customer: string, items: int, deposits: int, balance: int, last: string}>
      */
     public function layaways(): array
     {
@@ -250,7 +250,7 @@ final class TicketStore
     /**
      * @return array{id: string, price: int}
      */
-    private function piece(string $code): array
+    private function item(string $code): array
     {
         $rows = $this->statements->bound(
             'SELECT id, price_minor FROM items
@@ -259,11 +259,11 @@ final class TicketStore
             [$code, $code]
         );
         if (count($rows) > 1) {
-            throw new DatabaseRefusal('that scan matches more than one piece');
+            throw new DatabaseRefusal('that scan matches more than one item');
         }
         $row = $rows[0] ?? null;
         if (!is_array($row)) {
-            throw new DatabaseRefusal('that piece is not on the floor');
+            throw new DatabaseRefusal('that item is not on the floor');
         }
 
         return [
@@ -284,7 +284,7 @@ final class TicketStore
                 [$ticketId, $itemId]
             );
             if ($updated !== 1) {
-                throw new DatabaseRefusal('that piece is not on the ticket');
+                throw new DatabaseRefusal('that item is not on the ticket');
             }
 
             return;
@@ -306,12 +306,12 @@ final class TicketStore
     }
 
     /**
-     * @return list<array{id: string, pieces: int, sold: int, status: string}>
+     * @return list<array{id: string, items: int, sold: int, status: string}>
      */
     private function parked(): array
     {
         $rows = $this->statements->rows(
-            'SELECT ticket.id, ticket.status, count(line.line_no) AS pieces,
+            'SELECT ticket.id, ticket.status, count(line.line_no) AS items,
                     COALESCE(sum(line.price_minor * line.quantity), 0) AS sold
              FROM tickets AS ticket
              LEFT JOIN ticket_lines AS line ON line.ticket_id = ticket.id
@@ -323,7 +323,7 @@ final class TicketStore
         foreach ($rows as $row) {
             $parked[] = [
                 'id' => RowValue::string($row['id'] ?? null),
-                'pieces' => RowValue::integer($row['pieces'] ?? null),
+                'items' => RowValue::integer($row['items'] ?? null),
                 'sold' => RowValue::integer($row['sold'] ?? null),
                 'status' => RowValue::string($row['status'] ?? null),
             ];

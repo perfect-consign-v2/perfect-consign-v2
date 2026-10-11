@@ -2,64 +2,128 @@
 
 declare(strict_types=1);
 
-use PerfectConsign\Feature\Inventory\InventorySelectionKey;
 use PerfectConsign\Shared\Http\View;
-use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
-/** @var string $csrf */
-/** @var int $payable */
-/** @var int $rent */
-/** @var list<array{id: string, code: string, description: string, price_minor: int}> $pieces */
-/** @var string $labelStock */
-/** @var list<array{key: string, label: string}> $stocks */
+/** @var array{
+ *     name: string,
+ *     hold: bool,
+ *     open: bool,
+ *     payable: int,
+ *     rent_label: string,
+ *     rent: int,
+ *     check: int,
+ *     desk: int,
+ *     booth: array{code: string, rent: int|null, note: string}|null,
+ *     others: list<array{code: string, starts_on: string, ends_on: string, rent: int|null}>,
+ *     activity: list<array{date: string, label: string, amount: int, run_id: string}>,
+ *     last: array{run_id: string, paid_on: string, amount: int, number: string}|null
+ * } $page
+ */
 ?>
 <div class="page-head">
     <div class="titles">
-        <h1 class="h1">Your account</h1>
-        <p class="muted">What the store owes you, and the rent you owe.</p>
+        <h1 class="h1">Your check</h1>
+        <p class="muted"><?= View::text($page['name']) ?></p>
     </div>
 </div>
-<div class="grid cols-2 mt-6">
+<?php if ($page['hold']): ?>
+    <p class="mt-4">The store is not writing a check. Pay rent at the desk.</p>
+<?php endif; ?>
+<?php if (!$page['open']): ?>
+    <p class="mt-4">No check is open.</p>
+<?php endif; ?>
+<div class="payout-figures">
     <div class="stat">
-        <div class="stat-label">The store owes you</div>
-        <div class="stat-value"><?= View::text(View::money($payable)) ?></div>
+        <div class="stat-label">Your share of sales</div>
+        <div class="stat-value" id="check-share"><?= View::text(View::money($page['payable'])) ?></div>
     </div>
     <div class="stat">
-        <div class="stat-label">Rent you owe</div>
-        <div class="stat-value"><?= View::text(View::money($rent)) ?></div>
+        <div class="stat-label"><?= View::text($page['rent_label']) ?></div>
+        <div class="stat-value"><?= View::text(View::money($page['rent'])) ?></div>
+    </div>
+    <div class="stat payout-check">
+        <div class="stat-label">Your check</div>
+        <div class="stat-value"><?= View::text(View::money($page['check'])) ?></div>
     </div>
 </div>
-<?php if ($pieces !== []): ?>
-    <?php
-    $printId = '';
-    $lead = 'Check your own pieces.';
-    $labelAction = '/' . $slug . '/vendor/labels';
-    $selectionStorageKey = InventorySelectionKey::vendor($slug);
-    require __DIR__ . '/../Inventory/sticker-job.php';
-    ?>
-    <div class="card table-wrap mt-4">
-        <table data-inventory-selection="plain">
+<?php if ($page['desk'] > 0): ?>
+    <p class="mt-4">You still owe <?= View::text(View::money($page['desk'])) ?> at the desk.</p>
+<?php endif; ?>
+<?php if ($page['last'] === null): ?>
+    <p class="muted mt-4">No check has been written.</p>
+<?php else: ?>
+    <p class="mt-4">
+        <a href="/<?= View::text($slug) ?>/vendor/checks/<?= View::text($page['last']['run_id']) ?>">
+            Last check <?= View::text($page['last']['paid_on']) ?>
+            <?= View::text(View::money($page['last']['amount'])) ?>
+        </a>
+        <?php if ($page['last']['number'] !== ''): ?>
+            <span class="muted">No. <?= View::text($page['last']['number']) ?></span>
+        <?php endif; ?>
+    </p>
+<?php endif; ?>
+<section class="card mt-6">
+    <div class="card-head"><div class="h3">Booth</div></div>
+    <div class="card-body">
+        <?php if ($page['booth'] === null): ?>
+            <p class="muted">No booth.</p>
+        <?php else: ?>
+            <p><?= View::text($page['booth']['code']) ?>
+                <?php if ($page['booth']['rent'] !== null): ?>
+                    · <?= View::text(View::money($page['booth']['rent'])) ?>
+                <?php endif; ?>
+            </p>
+            <?php if ($page['booth']['note'] !== ''): ?>
+                <p class="muted"><?= View::text($page['booth']['note']) ?></p>
+            <?php endif; ?>
+        <?php endif; ?>
+        <?php if ($page['others'] !== []): ?>
+            <ul class="mt-4">
+                <?php foreach ($page['others'] as $stay): ?>
+                    <li>
+                        <?= View::text($stay['code']) ?>
+                        <?= View::text($stay['starts_on']) ?>
+                        <?php if ($stay['ends_on'] !== ''): ?>
+                            to <?= View::text($stay['ends_on']) ?>
+                        <?php endif; ?>
+                        <?php if ($stay['rent'] !== null): ?>
+                            <?= View::text(View::money($stay['rent'])) ?>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </div>
+</section>
+<section class="card table-wrap mt-6">
+    <div class="card-head"><div class="h3">Activity</div></div>
+    <?php if ($page['activity'] === []): ?>
+        <div class="card-body"><p class="muted">Nothing posted yet.</p></div>
+    <?php else: ?>
+        <table>
             <thead>
                 <tr>
-                    <th>Print</th>
-                    <th>Tag</th>
-                    <th>Description</th>
-                    <th>Price</th>
+                    <th>Date</th>
+                    <th>What</th>
+                    <th>Amount</th>
                 </tr>
             </thead>
             <tbody>
-            <?php foreach ($pieces as $piece): ?>
+            <?php foreach ($page['activity'] as $line): ?>
                 <tr>
-                    <td><input form="stickers" type="checkbox" name="item[]" value="<?= View::text($piece['id']) ?>" aria-label="Print <?= View::text($piece['code']) ?>"></td>
-                    <td><?= View::text($piece['code']) ?></td>
-                    <td><?= View::text($piece['description']) ?></td>
-                    <td><?= View::text(View::money($piece['price_minor'])) ?></td>
+                    <td><?= View::text($line['date']) ?></td>
+                    <td>
+                        <?php if ($line['run_id'] !== ''): ?>
+                            <a href="/<?= View::text($slug) ?>/vendor/checks/<?= View::text($line['run_id']) ?>"><?= View::text($line['label']) ?></a>
+                        <?php else: ?>
+                            <?= View::text($line['label']) ?>
+                        <?php endif; ?>
+                    </td>
+                    <td<?= $line['label'] === 'Bought at the store' ? ' class="draw-amount"' : '' ?>><?= View::text(View::money($line['amount'])) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
-    </div>
-    <?php require __DIR__ . '/../Inventory/selection-bar.php'; ?>
-    <?php ListTable::selectionScript(); ?>
-<?php endif; ?>
+    <?php endif; ?>
+</section>

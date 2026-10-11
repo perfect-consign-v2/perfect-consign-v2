@@ -15,7 +15,7 @@ use PerfectConsign\Feature\Inventory\LabelInk;
 use PerfectConsign\Feature\Inventory\LabelRequest;
 use PerfectConsign\Feature\Inventory\LabelSheet;
 use PerfectConsign\Feature\Inventory\LabelStock;
-use PerfectConsign\Feature\Inventory\StickerPiece;
+use PerfectConsign\Feature\Inventory\StickerItem;
 use PerfectConsign\Feature\Inventory\StickerSheet;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -42,7 +42,7 @@ final class StickerLayoutTest extends TestCase
             $codes->bits('');
             self::fail('a blank barcode was drawn');
         } catch (InvalidArgumentException $error) {
-            self::assertSame('This piece has no barcode.', $error->getMessage());
+            self::assertSame('This item has no barcode.', $error->getMessage());
         }
         try {
             $codes->bits("BC\n");
@@ -76,7 +76,7 @@ final class StickerLayoutTest extends TestCase
         }
     }
 
-    public function testEachStickerStockLaysOutAPiece(): void
+    public function testEachStickerStockLaysOutAItem(): void
     {
         self::assertSame('0.000000in', InchMeasure::text(0));
         self::assertSame('1.500000in', InchMeasure::text(1500000));
@@ -94,8 +94,8 @@ final class StickerLayoutTest extends TestCase
         self::assertSame(LabelCatalog::DEFAULT, $catalog->get(LabelCatalog::DEFAULT)->getKey());
         $codes = new Code128();
         $sheet = new LabelSheet($codes, new BarcodePng(), new LabelFace($codes));
-        $piece = new StickerPiece('BC-100', '$10.00', 'A wool coat', 'Web Probe', 'ADA', 'Wool', '09/01/2026', 'T100');
-        $long = new StickerPiece(
+        $item = new StickerItem('BC-100', '$10.00', 'A wool coat', 'Web Probe', 'ADA', 'Wool', '09/01/2026', 'T100');
+        $long = new StickerItem(
             str_repeat('A', 40),
             '$1.00',
             str_repeat('word ', 40),
@@ -119,19 +119,19 @@ final class StickerLayoutTest extends TestCase
             self::assertSame((int) $known[2], $stock->getRows());
             self::assertSame((int) $known[3], $stock->getColumns());
             self::assertSame(0, $stock->getRowGap());
-            $laid = $sheet->compose($stock, [$piece, $long], 2, 2, 2);
+            $laid = $sheet->compose($stock, [$item, $long], 2, 2, 2);
             self::assertSame($known[4], $this->fingerprint($laid));
             self::assertCount($this->pages($stock->getKey()), $laid->pages);
         }
-        $full = $sheet->compose($catalog->get('avery_8160'), [$piece], 30, 1, 1);
+        $full = $sheet->compose($catalog->get('avery_8160'), [$item], 30, 1, 1);
         self::assertCount(1, $full->pages);
         $fitted = str_repeat('b', 46);
         $clipped = str_repeat('c', 47);
         $avery = $catalog->get('avery_8160');
         $face = new LabelFace($codes);
-        $exact = $face->layout($avery, new StickerPiece('BC-100', '$10.00', $fitted, 'Web Probe', 'ADA', 'Wool', '09/01/2026', 'T100'));
+        $exact = $face->layout($avery, new StickerItem('BC-100', '$10.00', $fitted, 'Web Probe', 'ADA', 'Wool', '09/01/2026', 'T100'));
         self::assertSame($fitted, $exact->lines[1]->text);
-        $over = $face->layout($avery, new StickerPiece('BC-100', '$10.00', $clipped, 'Web Probe', 'ADA', 'Wool', '09/01/2026', 'T100'));
+        $over = $face->layout($avery, new StickerItem('BC-100', '$10.00', $clipped, 'Web Probe', 'ADA', 'Wool', '09/01/2026', 'T100'));
         self::assertSame(str_repeat('c', 45) . '…', $over->lines[1]->text);
         $tight = new LabelStock(
             'tight',
@@ -140,7 +140,7 @@ final class StickerLayoutTest extends TestCase
             new LabelBox(1, 1, 2000000, 2000000, 0, 0, 2000000, 123000, 0),
             new LabelInk(1000, 5000, 1000, 1000, 1000),
         );
-        $price = $face->layout($tight, new StickerPiece('A', '$1.00', 'desc', 'store', 'ada', 'wool', 'day', 'tag'));
+        $price = $face->layout($tight, new StickerItem('A', '$1.00', 'desc', 'store', 'ada', 'wool', 'day', 'tag'));
         self::assertCount(1, $price->lines);
         self::assertSame('price', $price->lines[0]->kind);
         self::assertSame('$1.00', $price->lines[0]->text);
@@ -154,7 +154,7 @@ final class StickerLayoutTest extends TestCase
             new LabelBox(1, 1, 2000000, 2000000, 0, 0, 2000000, 123000, 0),
             new LabelInk(1000, 500, 1000, 1000, 1000),
         );
-        self::assertSame(1000, $face->layout($capped, new StickerPiece('A', '$1.00', '', '', '', '', '', ''))->bars);
+        self::assertSame(1000, $face->layout($capped, new StickerItem('A', '$1.00', '', '', '', '', '', ''))->bars);
         $exact = new LabelStock(
             'exact',
             'Exact',
@@ -162,7 +162,7 @@ final class StickerLayoutTest extends TestCase
             new LabelBox(1, 1, 4000000, 4000000, 0, 0, 4000000, 3000000, 0),
             new LabelInk(1000, 2000, 1000, 1000, 1000),
         );
-        self::assertSame('0.280000in', $face->layout($exact, $piece)->lines[0]->size);
+        self::assertSame('0.280000in', $face->layout($exact, $item)->lines[0]->size);
         $edge = new LabelStock(
             'edge',
             'Edge',
@@ -170,7 +170,7 @@ final class StickerLayoutTest extends TestCase
             new LabelBox(1, 1, 1000000, 1000000, 0, 0, 594000, 1000000, 0),
             new LabelInk(1000, 2000, 1000, 100000, 1000),
         );
-        self::assertTrue($face->layout($edge, new StickerPiece('A', '$1.00', 'coat', 'store', 'ada', 'wool', 'day', 'tag'))->isNarrow());
+        self::assertTrue($face->layout($edge, new StickerItem('A', '$1.00', 'coat', 'store', 'ada', 'wool', 'day', 'tag'))->isNarrow());
         $even = new LabelStock(
             'even',
             'Even',
@@ -178,7 +178,7 @@ final class StickerLayoutTest extends TestCase
             new LabelBox(1, 1, 1000000, 1000000, 0, 0, 496000, 1000000, 0),
             new LabelInk(1000, 2000, 1000, 1000, 1000),
         );
-        self::assertFalse($face->layout($even, new StickerPiece('A', '$1.00', 'coat', 'store', 'ada', 'wool', 'day', 'tag'))->isNarrow());
+        self::assertFalse($face->layout($even, new StickerItem('A', '$1.00', 'coat', 'store', 'ada', 'wool', 'day', 'tag'))->isNarrow());
     }
 
     public function testAPrintJobRefusesABadRequest(): void
@@ -226,9 +226,9 @@ final class StickerLayoutTest extends TestCase
         }
         try {
             $jobs->read(['copies' => '1', 'item' => 'nope'], 'avery_8160');
-            self::fail('a bad piece was accepted');
+            self::fail('a bad item was accepted');
         } catch (InvalidArgumentException $error) {
-            self::assertSame('Choose a piece.', $error->getMessage());
+            self::assertSame('Choose an item.', $error->getMessage());
         }
         try {
             $jobs->read(['copies' => '1', 'start_row' => '11', 'item' => $id], 'avery_8160');
@@ -240,7 +240,7 @@ final class StickerLayoutTest extends TestCase
             $jobs->read(['copies' => '241', 'start_row' => '1', 'start_column' => '1', 'item' => $id], 'avery_8160');
             self::fail('too many stickers were accepted');
         } catch (InvalidArgumentException $error) {
-            self::assertSame('That is more than 240 stickers. Print fewer pieces or fewer copies.', $error->getMessage());
+            self::assertSame('That is more than 240 stickers. Print fewer items or fewer copies.', $error->getMessage());
         }
         try {
             $jobs->read(['copies' => '1', 'start_row' => '1', 'item' => $id], 'avery_8160');
@@ -256,9 +256,9 @@ final class StickerLayoutTest extends TestCase
         }
         try {
             $jobs->read(['copies' => '1', 'start_row' => '1', 'start_column' => '1', 'item' => 4], 'avery_8160');
-            self::fail('a number was accepted as a piece');
+            self::fail('a number was accepted as an item');
         } catch (InvalidArgumentException $error) {
-            self::assertSame('Choose a piece.', $error->getMessage());
+            self::assertSame('Choose an item.', $error->getMessage());
         }
     }
 

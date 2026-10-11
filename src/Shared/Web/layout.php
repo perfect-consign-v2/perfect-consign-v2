@@ -80,7 +80,9 @@ if ($actorRole === 'cashier') {
 if ($actorRole === 'vendor') {
     $groups = [
         'Vendor' => [
-            ['/vendor', 'Your account', 'i-vendor'],
+            ['/vendor', 'Check', 'i-wallet'],
+            ['/vendor/sales', 'Sales', 'i-report'],
+            ['/vendor/inventory', 'Inventory', 'i-inventory'],
         ],
     ];
 }
@@ -154,7 +156,9 @@ $roleLabel = match ($actorRole) {
                         continue;
                     }
                     $href = '/' . $slug . $navPath;
-                    $active = $path === $href || str_starts_with($path, $href . '/');
+                    $active = $navPath === '/vendor'
+                        ? ($path === $href || str_starts_with($path, $href . '/checks/'))
+                        : ($path === $href || str_starts_with($path, $href . '/'));
                     ?>
                     <a class="nav-item" href="<?= View::text($href) ?>"<?= $active ? ' aria-current="page"' : '' ?> title="<?= View::text($navLabel) ?>">
                         <svg aria-hidden="true"><use href="#<?= View::text($navIcon) ?>"></use></svg>

@@ -273,7 +273,7 @@ BEGIN
         WHERE id = '01900000-0000-7000-8000-000000000c01'
           AND brand_id IS NULL
     ) THEN
-        RAISE EXCEPTION 'a piece without a brand was not stored';
+        RAISE EXCEPTION 'an item without a brand was not stored';
     END IF;
     IF NOT EXISTS (
         SELECT 1
@@ -285,7 +285,7 @@ BEGIN
           AND expires_on IS NULL
           AND quantity = 1
     ) THEN
-        RAISE EXCEPTION 'a piece did not keep an empty expire date and the consignor split';
+        RAISE EXCEPTION 'an item did not keep an empty expire date and the consignor split';
     END IF;
 END $$;
 
@@ -450,7 +450,7 @@ BEGIN
           AND expires_on = DATE '2026-10-01'
           AND quantity = 4
     ) THEN
-        RAISE EXCEPTION 'piece fields were not saved';
+        RAISE EXCEPTION 'item fields were not saved';
     END IF;
 END $$;
 
@@ -472,7 +472,7 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM items WHERE id = '01900000-0000-7000-8000-000000000c03'
     ) THEN
-        RAISE EXCEPTION 'unreferenced piece was not deleted';
+        RAISE EXCEPTION 'unreferenced item was not deleted';
     END IF;
 END $$;
 
@@ -497,7 +497,7 @@ VALUES ('01900000-0000-7000-8000-000000000c04');
 DO $$
 BEGIN
     DELETE FROM items WHERE id = '01900000-0000-7000-8000-000000000c04';
-    RAISE EXCEPTION 'referenced piece delete was accepted';
+    RAISE EXCEPTION 'referenced item delete was accepted';
 EXCEPTION
     WHEN SQLSTATE '23503' THEN
         IF SQLERRM NOT LIKE '%item_hold_item_id_fkey%' THEN
@@ -531,7 +531,7 @@ END $$;
 
 ALTER TABLE ticket_lines DROP CONSTRAINT ticket_lines_item_id_fkey;
 ALTER TABLE sale_lines DROP CONSTRAINT sale_lines_item_id_fkey;
-ALTER TABLE piece_returns DROP CONSTRAINT piece_returns_item_id_fkey;
+ALTER TABLE item_returns DROP CONSTRAINT item_returns_item_id_fkey;
 ALTER TABLE payout_run_sales DROP CONSTRAINT payout_run_sales_item_id_fkey;
 
 DO $$
@@ -572,7 +572,7 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM items WHERE id = '01900000-0000-7000-8000-000000000c05'
     ) THEN
-        RAISE EXCEPTION 'poster did not delete the piece';
+        RAISE EXCEPTION 'poster did not delete the item';
     END IF;
     BEGIN
         TRUNCATE items;

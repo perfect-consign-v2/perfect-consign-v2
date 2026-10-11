@@ -1,4 +1,4 @@
--- Session A holds the piece on an open ticket, then rolls back.
+-- Session A holds the item on an open ticket, then rolls back.
 BEGIN;
 INSERT INTO registers (id, name)
 VALUES ('01900000-0000-7000-8000-00000000d0f5', 'Race ticket A');

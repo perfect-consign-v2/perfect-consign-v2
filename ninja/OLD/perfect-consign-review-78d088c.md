@@ -38,7 +38,7 @@ FAIL  prove_tenant_race_wait.sql  race pair run sequentially (harness)
 FAIL  prove_vendors_booths.sql    TRUNCATE hits the FK check before the guard trigger
 ```
 
-Every **money-path** proof passes: `prove_sale`, `prove_cash_round`, `prove_layaway`, `prove_tickets`, `prove_sale_lines`, `prove_line_discount`, `prove_ticket_adjustments`, `prove_vendor_draw`, `prove_register_close`, `prove_registers`, `prove_sessions`, `prove_tenders`, `prove_piece_return`, `prove_account_balances`, `prove_tax_payment`, `prove_payout`, `prove_rent_*`. The new `stall_half_up` / `stall_tax_minor` functions are exercised by those proofs and hold. The four cross-tenant/race failures are harness artifacts (they need a specific demo tenant or two concurrent sessions). The two genuinely interesting failures are `prove_chart` and `prove_export` — see **AA/AB**.
+Every **money-path** proof passes: `prove_sale`, `prove_cash_round`, `prove_layaway`, `prove_tickets`, `prove_sale_lines`, `prove_line_discount`, `prove_ticket_adjustments`, `prove_vendor_draw`, `prove_register_close`, `prove_registers`, `prove_sessions`, `prove_tenders`, `prove_item_return`, `prove_account_balances`, `prove_tax_payment`, `prove_payout`, `prove_rent_*`. The new `stall_half_up` / `stall_tax_minor` functions are exercised by those proofs and hold. The four cross-tenant/race failures are harness artifacts (they need a specific demo tenant or two concurrent sessions). The two genuinely interesting failures are `prove_chart` and `prove_export` — see **AA/AB**.
 
 ## Status of prior findings
 

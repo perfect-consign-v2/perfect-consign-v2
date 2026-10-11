@@ -112,7 +112,7 @@ final class MallDemo
     /** @var list<string> */
     private array $brands = [];
 
-    private int $pieceNo = 0;
+    private int $itemNo = 0;
 
     private int $nextCheck = 1001;
 
@@ -161,7 +161,7 @@ final class MallDemo
         $this->stock('GIN', '2026-09-20', 0);
         $this->stock('IRI', '2026-11-01', 4);
         $this->stock('JON', '2026-11-01', 4);
-        $this->pieceNotes();
+        $this->itemNotes();
         $this->opening();
         foreach (['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'] as $month) {
             $this->month($month);
@@ -388,10 +388,10 @@ final class MallDemo
     {
         $brand = 0;
         for ($index = 0; $index < $sellable + count(self::SHELF); $index++) {
-            $this->pieceNo++;
+            $this->itemNo++;
             $id = $this->ledger->newId();
             $price = $index < $sellable ? self::BASKET[$index % count(self::BASKET)] : self::SHELF[$index - $sellable];
-            $barcode = 'PC' . str_pad((string) $this->pieceNo, 12, '0', STR_PAD_LEFT);
+            $barcode = 'PC' . str_pad((string) $this->itemNo, 12, '0', STR_PAD_LEFT);
             $code = $vendor . '-' . str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT);
             $this->statements->change(
                 'INSERT INTO items (id, code, vendor_id, brand_id, description, price_minor, barcode, intake_on, quantity)
@@ -401,7 +401,7 @@ final class MallDemo
                     $code,
                     $this->vendors[$vendor],
                     $this->brands[$brand % count($this->brands)],
-                    self::GOODS[$this->pieceNo % count(self::GOODS)],
+                    self::GOODS[$this->itemNo % count(self::GOODS)],
                     $price,
                     $barcode,
                     $intake,
@@ -460,7 +460,7 @@ final class MallDemo
     {
         $next = array_shift($this->queues[$vendor]);
         if ($next === null) {
-            throw new RuntimeException($vendor . ' is out of demo pieces on ' . $date);
+            throw new RuntimeException($vendor . ' is out of demo items on ' . $date);
         }
         $this->tickets->scan($sessionId, $next['barcode']);
         $cart = $this->tickets->cart($sessionId);
@@ -509,7 +509,7 @@ final class MallDemo
      */
     private function giveBack(string $sessionId, string $date, array $sale): void
     {
-        $this->poster->returnPiece(
+        $this->poster->returnItem(
             $sessionId,
             $date,
             $sale['journal'],
@@ -625,7 +625,7 @@ final class MallDemo
         ));
     }
 
-    private function pieceNotes(): void
+    private function itemNotes(): void
     {
         $this->statements->change(
             'UPDATE items SET quantity = 3 WHERE vendor_id = ?::uuid AND code = ?',
@@ -702,7 +702,7 @@ final class MallDemo
         );
         $barcode = $rows[0]['barcode'] ?? null;
         if (!is_string($barcode) || $barcode === '') {
-            throw new RuntimeException($vendor . ' has no shelf piece left');
+            throw new RuntimeException($vendor . ' has no shelf item left');
         }
 
         return $barcode;

@@ -37,7 +37,7 @@ final class FloorCoverageTest extends WebTestCase
         $this->settings(false);
         $this->openRegister();
         $vendor = $this->vendor();
-        $first = $this->piece($vendor, '10.00');
+        $first = $this->item($vendor, '10.00');
         $this->client->post('/' . self::SLUG . '/pos/discard', []);
         $cart = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $first['code']]);
         self::assertSees($first['description'], $cart);
@@ -61,7 +61,7 @@ final class FloorCoverageTest extends WebTestCase
         $ticketId = $this->lastMatch($suspended->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/');
         $recalled = $this->client->post('/' . self::SLUG . '/pos/recall', ['ticket_id' => $ticketId]);
         self::assertSees($first['description'], $recalled);
-        $second = $this->piece($vendor, '4.00');
+        $second = $this->item($vendor, '4.00');
         $withTwo = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $second['code']]);
         $lineNo = $this->match(
             $withTwo->body,
@@ -80,7 +80,7 @@ final class FloorCoverageTest extends WebTestCase
             'item_id' => $itemId,
             'return_tender' => 'cash',
         ]);
-        self::assertSees('Piece returned.', $returned);
+        self::assertSees('Item returned.', $returned);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
         $again = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $first['code']]);
         self::assertSees($first['description'], $again);
@@ -112,8 +112,8 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Vendor created.', $created);
         $directory = $this->client->get('/' . self::SLUG . '/parties');
         $vendor = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
-        $first = $this->piece($vendor, '10.00');
-        $second = $this->piece($vendor, '30.00');
+        $first = $this->item($vendor, '10.00');
+        $second = $this->item($vendor, '30.00');
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $first['code']]);
         $cart = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $second['code']]);
         self::assertSees('10.00', $cart);
@@ -143,9 +143,9 @@ final class FloorCoverageTest extends WebTestCase
             'item_id' => $itemId,
             'return_tender' => 'cash',
         ]);
-        self::assertSees('Piece returned.', $returned);
+        self::assertSees('Item returned.', $returned);
         self::assertSees($second['description'], $returned);
-        $third = $this->piece($vendor, '8.00');
+        $third = $this->item($vendor, '8.00');
         $this->client->post('/' . self::SLUG . '/pos/new', []);
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $third['code']]);
         $waived = $this->client->post('/' . self::SLUG . '/pos/tax-free', [
@@ -435,16 +435,16 @@ final class FloorCoverageTest extends WebTestCase
             'description' => 'Instant ' . $code,
             'price' => '12.00',
         ]);
-        self::assertSees('Piece added.', $added);
+        self::assertSees('Item added.', $added);
         self::assertSees('Instant ' . $code, $added);
         self::assertSees('Clear cart', $added);
         $cleared = $this->client->post('/' . self::SLUG . '/pos/discard', []);
         self::assertSees('Ticket discarded.', $cleared);
         self::assertStringNotContainsString('Clear cart', $cleared->body);
-        $piece = $this->piece($vendor, '10.00');
-        $suggest = $this->client->get('/' . self::SLUG . '/pos/suggest.json?q=' . $piece['code']);
-        self::assertStringContainsString($piece['code'], $suggest->body);
-        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $piece['code']]);
+        $item = $this->item($vendor, '10.00');
+        $suggest = $this->client->get('/' . self::SLUG . '/pos/suggest.json?q=' . $item['code']);
+        self::assertStringContainsString($item['code'], $suggest->body);
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $item['code']]);
         $this->client->post('/' . self::SLUG . '/pos/tender', [
             'tender_role' => 'cash',
             'tender_amount' => '4.00',
@@ -458,8 +458,8 @@ final class FloorCoverageTest extends WebTestCase
         $paid = $this->client->post('/' . self::SLUG . '/pos/pay', []);
         self::assertSees('Sale posted.', $paid);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
-        $overPiece = $this->piece($vendor, '15.00');
-        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $overPiece['code']]);
+        $overItem = $this->item($vendor, '15.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $overItem['code']]);
         $over = $this->client->post('/' . self::SLUG . '/pos/tender', [
             'tender_role' => 'vendor_draw',
             'tender_amount' => '12.00',
@@ -494,8 +494,8 @@ final class FloorCoverageTest extends WebTestCase
         self::assertStringContainsString('$20.00', $found->body);
         $unknown = $this->giftCertificate('missing-' . $number);
         self::assertStringContainsString('that gift certificate number is not on file', $unknown->body);
-        $redeemedPiece = $this->piece($vendor, '5.00');
-        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $redeemedPiece['code']]);
+        $redeemedItem = $this->item($vendor, '5.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $redeemedItem['code']]);
         $missing = $this->payment([
             'tender_gift_certificate' => '5.00',
             'gift_certificate_number' => 'missing-' . $number,
@@ -524,8 +524,8 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Balance left', $slip);
         self::assertSees('$15.00', $slip);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
-        $overPiece = $this->piece($vendor, '20.00');
-        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $overPiece['code']]);
+        $overItem = $this->item($vendor, '20.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $overItem['code']]);
         $overGift = $this->payment([
             'tender_gift_certificate' => '20.00',
             'gift_certificate_number' => $number,
@@ -535,8 +535,8 @@ final class FloorCoverageTest extends WebTestCase
         self::assertStringNotContainsString('alert alert-danger', $overGift->body);
         $this->client->post('/' . self::SLUG . '/pos/discard', []);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
-        $drawPiece = $this->piece($vendor, '4.00');
-        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $drawPiece['code']]);
+        $drawItem = $this->item($vendor, '4.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $drawItem['code']]);
         $drawn = $this->client->post('/' . self::SLUG . '/pos/tender', [
             'tender_role' => 'vendor_draw',
             'tender_amount' => '4.00',
@@ -555,8 +555,8 @@ final class FloorCoverageTest extends WebTestCase
         ]);
         self::assertSees('Vendor created.', $buyer);
         $buyerId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $buyerCode);
-        $heldPiece = $this->piece($buyerId, '10.00');
-        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
+        $heldItem = $this->item($buyerId, '10.00');
+        $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldItem['code']]);
         $noCustomer = $this->client->post('/' . self::SLUG . '/pos/pay', [
             'hold' => '1',
             'tender_cash' => '4.00',
@@ -591,8 +591,8 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Cash', $deposit);
         self::assertSees('$4.00', $deposit);
         self::assertSees('Balance', $deposit);
-        $stillThere = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
-        self::assertSees('a piece is already on a ticket', $stillThere);
+        $stillThere = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldItem['code']]);
+        self::assertSees('an item is already on a ticket', $stillThere);
         $layaways = $this->client->get('/' . self::SLUG . '/pos/layaways');
         $recalledLayaway = $this->client->post('/' . self::SLUG . '/pos/recall', [
             'ticket_id' => $this->match($layaways->body, '/' . preg_quote($buyerCode, '/') . '[\\s\\S]*?name="ticket_id" value="([0-9a-fA-F-]{36})"/'),
@@ -607,11 +607,11 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Sale posted.', $finished);
         $cleared = $this->client->get('/' . self::SLUG . '/pos/layaways');
         self::assertStringNotContainsString($buyerCode, $cleared->body);
-        $locked = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldPiece['code']]);
+        $locked = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldItem['code']]);
         self::assertSees('start a new sale', $locked);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
-        $after = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => 'not-a-piece']);
-        self::assertSees('that piece is not on the floor', $after);
+        $after = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => 'not-a-item']);
+        self::assertSees('that item is not on the floor', $after);
     }
 
     private function settings(bool $round): void
@@ -736,10 +736,10 @@ final class FloorCoverageTest extends WebTestCase
     /**
      * @return array{code: string, description: string}
      */
-    private function piece(string $vendorId, string $price): array
+    private function item(string $vendorId, string $price): array
     {
         $code = 't' . bin2hex(random_bytes(3));
-        $description = 'Piece ' . $code;
+        $description = 'Item ' . $code;
         $created = $this->client->post('/' . self::SLUG . '/inventory', [
             'code' => $code,
             'description' => $description,

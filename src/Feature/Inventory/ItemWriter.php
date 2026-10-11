@@ -39,26 +39,26 @@ final class ItemWriter
      *     fill_expire: string
      * } $draft
      */
-    public function entry(array $draft): PieceEntry
+    public function entry(array $draft): ItemEntry
     {
         $intake = $this->date($draft['intake_on']);
         if ($intake === null) {
             throw new \InvalidArgumentException('Enter an intake date.');
         }
 
-        return new PieceEntry(
+        return new ItemEntry(
             $draft['code'],
             $draft['barcode'],
             $draft['vendor_id'],
             $this->brandOf($draft['brand_id'], $draft['brand_label']),
             $this->attributesOf($draft['attributes']),
             $draft['description'],
-            new PieceSale(
+            new ItemSale(
                 Money::parseMinor($draft['price']),
                 $this->quantity($draft['quantity'], $draft['id'] === ''),
                 $this->takeOf($draft['vendor_id'], $draft['store_take']),
             ),
-            new PieceDates($intake, $this->expires($draft['expires_on'], $intake)),
+            new ItemDates($intake, $this->expires($draft['expires_on'], $intake)),
         );
     }
 

@@ -11,9 +11,9 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $templateDirectory */
 /** @var string $heldStatus */
 /** @var array{
- *     parked: list<array{id: string, pieces: int, sold: int, status: string}>
+ *     parked: list<array{id: string, items: int, sold: int, status: string}>
  * } $cart */
-/** @var list<array{id: string, customer: string, pieces: int, deposits: int, balance: int, last: string}> $layaways */
+/** @var list<array{id: string, customer: string, items: int, deposits: int, balance: int, last: string}> $layaways */
 
 $layaway = $heldStatus === 'layaway';
 $rows = [];
@@ -40,7 +40,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 ListTable::open(['id' => 'layaways', 'export' => 'layaways']);
                 ListTable::head([
                     ['label' => 'Customer'],
-                    ['label' => 'Pieces', 'sort' => 'num'],
+                    ['label' => 'Items', 'sort' => 'num'],
                     ['label' => 'Deposits', 'sort' => 'num'],
                     ['label' => 'Balance', 'sort' => 'num'],
                     ['label' => 'Last deposit'],
@@ -51,7 +51,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                         <?php foreach ($layaways as $held): ?>
                             <tr>
                                 <td><?= View::text($held['customer']) ?></td>
-                                <td><?= View::text((string) $held['pieces']) ?></td>
+                                <td><?= View::text((string) $held['items']) ?></td>
                                 <td><?= View::text(View::money($held['deposits'])) ?></td>
                                 <td><?= View::text(View::money($held['balance'])) ?></td>
                                 <td><?= View::text($held['last']) ?></td>
@@ -80,7 +80,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <?php
                 ListTable::open(['id' => 'suspended', 'export' => 'suspended']);
                 ListTable::head([
-                    ['label' => 'Pieces', 'sort' => 'num'],
+                    ['label' => 'Items', 'sort' => 'num'],
                     ['label' => 'Sold', 'sort' => 'num'],
                     ['label' => '', 'actions' => true],
                 ]);
@@ -88,7 +88,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <tbody>
                         <?php foreach ($rows as $held): ?>
                             <tr>
-                                <td><?= View::text((string) $held['pieces']) ?></td>
+                                <td><?= View::text((string) $held['items']) ?></td>
                                 <td><?= View::text(View::money(RowValue::integer($held['sold']))) ?></td>
                                 <td>
                                     <form method="post" action="/<?= View::text($slug) ?>/pos/recall">

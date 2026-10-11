@@ -45,7 +45,7 @@ final class BoothFixController
     {
         $id = $this->app->request()->field('item_id');
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
-            throw new DatabaseRefusal('that piece is not on the ticket');
+            throw new DatabaseRefusal('that item is not on the ticket');
         }
 
         return $id;

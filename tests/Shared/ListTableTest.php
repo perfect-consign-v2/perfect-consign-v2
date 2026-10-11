@@ -90,7 +90,7 @@ final class ListTableTest extends TestCase
         self::assertSame(1, substr_count($html, 'list-datatables.js'));
     }
 
-    public function testPiecesScrollWithThePageAndSelectTheVisibleRows(): void
+    public function testItemsScrollWithThePageAndSelectTheVisibleRows(): void
     {
         ob_start();
         ListTable::open(['id' => 'inventory', 'export' => 'inventory', 'pageScroll' => true]);

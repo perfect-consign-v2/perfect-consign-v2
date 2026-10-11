@@ -1,4 +1,4 @@
--- Proof that one piece can be returned and sold again. One transaction, then ROLLBACK.
+-- Proof that one item can be returned and sold again. One transaction, then ROLLBACK.
 
 BEGIN;
 
@@ -37,7 +37,7 @@ INSERT INTO journals (
     '01900000-0000-7000-8000-000000000001',
     'sale:return-ticket', '2093-03-01', '2093-03-01 12:00:00+00',
     '01900000-0000-7000-8000-0000000008a3',
-    'USD', 'sale', 'return-ticket', 'Two pieces', 5000, 5000
+    'USD', 'sale', 'return-ticket', 'Two items', 5000, 5000
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES (
@@ -67,7 +67,7 @@ INSERT INTO journals (
     '01900000-0000-7000-8000-000000000001',
     'return:coat', '2093-03-02', '2093-03-02 12:00:00+00',
     '01900000-0000-7000-8000-0000000008a3',
-    'USD', 'piece_return', 'return-coat', 'Return the coat', 1000, 1000
+    'USD', 'item_return', 'return-coat', 'Return the coat', 1000, 1000
 );
 INSERT INTO journal_lines (
     journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
@@ -82,7 +82,7 @@ VALUES (
     '01900000-0000-7000-8000-000000000001',
     2, '01900000-0000-7000-8000-000000000010', 0, 1000
 );
-INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor)
+INSERT INTO item_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor)
 VALUES (
     '01900000-0000-7000-8000-0000000008c2',
     '01900000-0000-7000-8000-0000000008c1',
@@ -95,7 +95,7 @@ VALUES ('01900000-0000-7000-8000-000000000d2b', '01900000-0000-7000-8000-0000000
 DO $$
 BEGIN
     IF (SELECT quantity FROM items WHERE id = '01900000-0000-7000-8000-0000000008a1') <> 1 THEN
-        RAISE EXCEPTION 'a return did not put the piece back';
+        RAISE EXCEPTION 'a return did not put the item back';
     END IF;
 END $$;
 
@@ -154,14 +154,14 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor)
+    INSERT INTO item_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor)
     VALUES (
         '01900000-0000-7000-8000-0000000008c2',
         '01900000-0000-7000-8000-0000000008c1',
         '01900000-0000-7000-8000-0000000008a1',
         1000, 0, 0
     );
-    RAISE EXCEPTION 'a second return of the piece was accepted';
+    RAISE EXCEPTION 'a second return of the item was accepted';
 EXCEPTION
     WHEN unique_violation THEN
         NULL;
@@ -181,9 +181,9 @@ BEGIN
         '01900000-0000-7000-8000-000000000001',
         'return:wrong', '2093-03-05', '2093-03-05 12:00:00+00',
         '01900000-0000-7000-8000-0000000008a3',
-        'USD', 'piece_return', 'return-wrong', 'Wrong amount', 4000, 4000
+        'USD', 'item_return', 'return-wrong', 'Wrong amount', 4000, 4000
     );
-    INSERT INTO piece_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor)
+    INSERT INTO item_returns (journal_id, sale_journal_id, item_id, price_minor, commission_minor, tax_minor)
     VALUES (
         '01900000-0000-7000-8000-0000000008c5',
         '01900000-0000-7000-8000-0000000008c1',
@@ -193,14 +193,14 @@ BEGIN
     RAISE EXCEPTION 'a wrong return amount was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a return reverses that piece%' THEN
+        IF SQLERRM NOT LIKE '%a return reverses that item%' THEN
             RAISE;
         END IF;
 END $$;
 
 DO $$
 BEGIN
-    UPDATE piece_returns SET price_minor = 1 WHERE journal_id = '01900000-0000-7000-8000-0000000008c2';
+    UPDATE item_returns SET price_minor = 1 WHERE journal_id = '01900000-0000-7000-8000-0000000008c2';
     RAISE EXCEPTION 'changing a return was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -211,18 +211,18 @@ END $$;
 
 DO $$
 BEGIN
-    TRUNCATE piece_returns;
+    TRUNCATE item_returns;
     RAISE EXCEPTION 'return truncate was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
-        IF SQLERRM NOT LIKE '%table piece_returns is append-only and cannot be truncated%' THEN
+        IF SQLERRM NOT LIKE '%table item_returns is append-only and cannot be truncated%' THEN
             RAISE;
         END IF;
 END $$;
 
 DO $$
 BEGIN
-    ALTER TABLE piece_returns DISABLE TRIGGER piece_returns_no_delete;
+    ALTER TABLE item_returns DISABLE TRIGGER item_returns_no_delete;
     RAISE EXCEPTION 'disabling the return trigger was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
@@ -233,7 +233,7 @@ END $$;
 
 DO $$
 BEGIN
-    ALTER TABLE piece_returns ENABLE REPLICA TRIGGER piece_returns_no_delete;
+    ALTER TABLE item_returns ENABLE REPLICA TRIGGER item_returns_no_delete;
     RAISE EXCEPTION 'replica-only return trigger was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
@@ -244,7 +244,7 @@ END $$;
 
 DO $$
 BEGIN
-    DROP TRIGGER piece_returns_no_delete ON piece_returns;
+    DROP TRIGGER item_returns_no_delete ON item_returns;
     RAISE EXCEPTION 'dropping the return trigger was accepted';
 EXCEPTION
     WHEN SQLSTATE '25006' THEN
@@ -255,7 +255,7 @@ END $$;
 
 DO $$
 BEGIN
-    CREATE OR REPLACE FUNCTION stall_assert_piece_return()
+    CREATE OR REPLACE FUNCTION stall_assert_item_return()
     RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = pg_catalog
@@ -276,7 +276,7 @@ DO $$
 BEGIN
     SET LOCAL session_replication_role = replica;
     BEGIN
-        DELETE FROM piece_returns WHERE journal_id = '01900000-0000-7000-8000-0000000008c2';
+        DELETE FROM item_returns WHERE journal_id = '01900000-0000-7000-8000-0000000008c2';
         RAISE EXCEPTION 'replica return delete was accepted';
     EXCEPTION
         WHEN SQLSTATE '23514' THEN
@@ -290,7 +290,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM piece_returns WHERE journal_id = '01900000-0000-7000-8000-0000000008c2'
+        SELECT 1 FROM item_returns WHERE journal_id = '01900000-0000-7000-8000-0000000008c2'
     ) THEN
         RAISE EXCEPTION 'a replica attack removed a return';
     END IF;
@@ -300,7 +300,7 @@ DO $$
 BEGIN
     SET LOCAL ROLE stall_poster;
     BEGIN
-        TRUNCATE piece_returns;
+        TRUNCATE item_returns;
         RAISE EXCEPTION 'poster truncate was accepted';
     EXCEPTION
         WHEN insufficient_privilege THEN

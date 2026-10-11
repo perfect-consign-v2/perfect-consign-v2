@@ -863,7 +863,7 @@ pay AS (
             WHERE journal.posting_date >= params.sales_from
         ), 0) AS movement_minor,
         COALESCE(sum(line.debit_minor - line.credit_minor) FILTER (
-            WHERE journal.source_type = 'piece_return'
+            WHERE journal.source_type = 'item_return'
               AND journal.posting_date BETWEEN params.sales_from AND params.sales_to
         ), 0) AS return_minor,
         COALESCE(sum(line.debit_minor - line.credit_minor) FILTER (

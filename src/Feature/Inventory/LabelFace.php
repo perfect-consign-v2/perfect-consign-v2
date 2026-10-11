@@ -12,9 +12,9 @@ final class LabelFace
     {
     }
 
-    public function layout(LabelStock $stock, StickerPiece $piece): StickerFace
+    public function layout(LabelStock $stock, StickerItem $item): StickerFace
     {
-        $kept = $this->fit($stock, $this->candidates($stock, $piece));
+        $kept = $this->fit($stock, $this->candidates($stock, $item));
         $used = 0;
         $lines = [];
         foreach ($kept as $line) {
@@ -23,7 +23,7 @@ final class LabelFace
         }
         $bars = $this->bars($stock, $used);
 
-        return new StickerFace($lines, $bars, $stock->getCodeHeight(), $this->isNarrow($stock, $piece->barcode) ? 1 : 0);
+        return new StickerFace($lines, $bars, $stock->getCodeHeight(), $this->isNarrow($stock, $item->barcode) ? 1 : 0);
     }
 
     /**
@@ -63,34 +63,34 @@ final class LabelFace
     /**
      * @return list<array{kind: string, text: string, height: int}>
      */
-    private function candidates(LabelStock $stock, StickerPiece $piece): array
+    private function candidates(LabelStock $stock, StickerItem $item): array
     {
         $large = $stock->getHeight() >= 3000000;
         $price = $stock->isJewelry() ? 120000 : ($large ? 280000 : 160000);
-        $lines = $this->kept($this->line('price', $piece->price, $price, $stock), []);
+        $lines = $this->kept($this->line('price', $item->price, $price, $stock), []);
         if ($stock->isJewelry()) {
             return $lines;
         }
 
-        return $this->details($stock, $piece, $lines, $large ? 160000 : 120000, $large ? 120000 : 100000);
+        return $this->details($stock, $item, $lines, $large ? 160000 : 120000, $large ? 120000 : 100000);
     }
 
     /**
      * @param list<array{kind: string, text: string, height: int}> $lines
      * @return list<array{kind: string, text: string, height: int}>
      */
-    private function details(LabelStock $stock, StickerPiece $piece, array $lines, int $description, int $meta): array
+    private function details(LabelStock $stock, StickerItem $item, array $lines, int $description, int $meta): array
     {
-        $lines = $this->kept($this->line('description', $piece->description, $description, $stock), $lines);
-        $lines = $this->kept($this->line('store', $piece->store, $meta, $stock), $lines);
-        $lines = $this->kept($this->line('consignor', $this->prefixed('Consignor: ', $piece->consignor), $meta, $stock), $lines);
-        $lines = $this->kept($this->line('brand', $piece->brand, $meta, $stock), $lines);
-        $lines = $this->kept($this->line('date', $piece->intake, $meta, $stock), $lines);
+        $lines = $this->kept($this->line('description', $item->description, $description, $stock), $lines);
+        $lines = $this->kept($this->line('store', $item->store, $meta, $stock), $lines);
+        $lines = $this->kept($this->line('consignor', $this->prefixed('Consignor: ', $item->consignor), $meta, $stock), $lines);
+        $lines = $this->kept($this->line('brand', $item->brand, $meta, $stock), $lines);
+        $lines = $this->kept($this->line('date', $item->intake, $meta, $stock), $lines);
         if (!$stock->isTagged()) {
             return $lines;
         }
 
-        return $this->kept($this->line('tag', $this->prefixed('Tag ', $piece->tag), $meta, $stock), $lines);
+        return $this->kept($this->line('tag', $this->prefixed('Tag ', $item->tag), $meta, $stock), $lines);
     }
 
     /**

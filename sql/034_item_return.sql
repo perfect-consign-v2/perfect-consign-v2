@@ -1,12 +1,12 @@
--- A return is its own journal. It gives one piece back and leaves the rest of the sale sold.
+-- A return is its own journal. It gives one item back and leaves the rest of the sale sold.
 -- Apply after 033. The provisioner rewrites stall_poster.
--- sql/029_register_posts.sql accepts piece_return on the session post. This file replaces that function for a mall that already ran 029.
+-- sql/029_register_posts.sql accepts item_return on the session post. This file replaces that function for a mall that already ran 029.
 
 
 
 
 
-CREATE TABLE IF NOT EXISTS piece_returns (
+CREATE TABLE IF NOT EXISTS item_returns (
     journal_id uuid PRIMARY KEY REFERENCES journals (id),
     sale_journal_id uuid NOT NULL REFERENCES journals (id),
     item_id uuid NOT NULL REFERENCES items (id),
@@ -15,23 +15,23 @@ CREATE TABLE IF NOT EXISTS piece_returns (
     tax_minor bigint NOT NULL,
     discount_minor bigint NOT NULL DEFAULT 0,
     quantity integer NOT NULL DEFAULT 1,
-    CONSTRAINT piece_returns_price_chk CHECK (price_minor > 0),
-    CONSTRAINT piece_returns_commission_chk CHECK (
+    CONSTRAINT item_returns_price_chk CHECK (price_minor > 0),
+    CONSTRAINT item_returns_commission_chk CHECK (
         commission_minor >= 0 AND commission_minor <= price_minor
     ),
-    CONSTRAINT piece_returns_tax_chk CHECK (tax_minor >= 0),
-    CONSTRAINT piece_returns_discount_chk CHECK (
+    CONSTRAINT item_returns_tax_chk CHECK (tax_minor >= 0),
+    CONSTRAINT item_returns_discount_chk CHECK (
         discount_minor >= 0 AND discount_minor <= price_minor
     ),
-    CONSTRAINT piece_returns_quantity_chk CHECK (quantity > 0)
+    CONSTRAINT item_returns_quantity_chk CHECK (quantity > 0)
 );
 
-GRANT SELECT, INSERT ON piece_returns TO stall_poster;
-REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER ON piece_returns FROM stall_poster;
-GRANT SELECT ON piece_returns TO stall_backup;
+GRANT SELECT, INSERT ON item_returns TO stall_poster;
+REVOKE UPDATE, DELETE, TRUNCATE, TRIGGER ON item_returns FROM stall_poster;
+GRANT SELECT ON item_returns TO stall_backup;
 
 INSERT INTO chart_source_rules (role, source_type)
-SELECT seed.role, 'piece_return'
+SELECT seed.role, 'item_return'
 FROM (
     VALUES
         ('cash'),
@@ -48,10 +48,10 @@ WHERE NOT EXISTS (
     SELECT 1
     FROM chart_source_rules AS existing
     WHERE existing.role = seed.role
-      AND existing.source_type = 'piece_return'
+      AND existing.source_type = 'item_return'
 );
 
-CREATE OR REPLACE FUNCTION stall_assert_piece_return()
+CREATE OR REPLACE FUNCTION stall_assert_item_return()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog
@@ -77,7 +77,7 @@ DECLARE
     tax_debit bigint;
     payable_debit bigint;
 BEGIN
-    IF TG_TABLE_NAME = 'piece_returns' THEN
+    IF TG_TABLE_NAME = 'item_returns' THEN
         IF TG_OP <> 'INSERT' THEN
             RAISE EXCEPTION 'a return cannot be changed'
                 USING ERRCODE = '23514';
@@ -86,7 +86,7 @@ BEGIN
             SELECT 1
             FROM public.journals AS journal
             WHERE journal.id = NEW.journal_id
-              AND journal.source_type = 'piece_return'
+              AND journal.source_type = 'item_return'
               AND journal.is_reversal = false
         ) THEN
             RAISE EXCEPTION 'a return belongs on a return'
@@ -112,7 +112,7 @@ BEGIN
                COALESCE(sum(returned.tax_minor), 0),
                COALESCE(sum(returned.discount_minor), 0)
         INTO prior_quantity, prior_price, prior_commission, prior_tax, prior_discount
-        FROM public.piece_returns AS returned
+        FROM public.item_returns AS returned
         JOIN public.journals AS return_journal ON return_journal.id = returned.journal_id
         WHERE returned.sale_journal_id = NEW.sale_journal_id
           AND returned.item_id = NEW.item_id
@@ -145,7 +145,7 @@ BEGIN
             OR NEW.commission_minor <> expected_commission
             OR NEW.tax_minor <> expected_tax
             OR NEW.discount_minor <> expected_discount THEN
-            RAISE EXCEPTION 'a return reverses that piece'
+            RAISE EXCEPTION 'a return reverses that item'
                 USING ERRCODE = '23514';
         END IF;
 
@@ -156,20 +156,20 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    IF NEW.source_type <> 'piece_return' OR NEW.is_reversal THEN
+    IF NEW.source_type <> 'item_return' OR NEW.is_reversal THEN
         RETURN NULL;
     END IF;
 
     IF NOT EXISTS (
-        SELECT 1 FROM public.piece_returns WHERE journal_id = NEW.id
+        SELECT 1 FROM public.item_returns WHERE journal_id = NEW.id
     ) THEN
-        RAISE EXCEPTION 'a return needs a piece'
+        RAISE EXCEPTION 'a return needs an item'
             USING ERRCODE = '23514';
     END IF;
 
     SELECT price_minor, commission_minor, tax_minor, discount_minor
     INTO sale_price, sale_commission, sale_tax, sale_discount
-    FROM public.piece_returns
+    FROM public.item_returns
     WHERE journal_id = NEW.id;
 
     SELECT count(*), COALESCE(sum(line.credit_minor), 0)
@@ -210,7 +210,7 @@ BEGIN
         OR commission_debit <> sale_commission
         OR tax_debit <> sale_tax
         OR payable_debit <> sale_price - sale_discount - sale_commission THEN
-        RAISE EXCEPTION 'a return reverses that piece'
+        RAISE EXCEPTION 'a return reverses that item'
             USING ERRCODE = '23514';
     END IF;
 
@@ -222,12 +222,12 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_trigger
-        WHERE tgrelid = 'piece_returns'::regclass AND tgname = 'piece_returns_no_delete' AND NOT tgisinternal
+        WHERE tgrelid = 'item_returns'::regclass AND tgname = 'item_returns_no_delete' AND NOT tgisinternal
     ) THEN
-        CREATE TRIGGER piece_returns_no_delete
-            BEFORE INSERT OR UPDATE OR DELETE ON piece_returns
+        CREATE TRIGGER item_returns_no_delete
+            BEFORE INSERT OR UPDATE OR DELETE ON item_returns
             FOR EACH ROW
-            EXECUTE FUNCTION stall_assert_piece_return();
+            EXECUTE FUNCTION stall_assert_item_return();
     END IF;
 END $$;
 
@@ -235,10 +235,10 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_trigger
-        WHERE tgrelid = 'piece_returns'::regclass AND tgname = 'piece_returns_no_truncate' AND NOT tgisinternal
+        WHERE tgrelid = 'item_returns'::regclass AND tgname = 'item_returns_no_truncate' AND NOT tgisinternal
     ) THEN
-        CREATE TRIGGER piece_returns_no_truncate
-            BEFORE TRUNCATE ON piece_returns
+        CREATE TRIGGER item_returns_no_truncate
+            BEFORE TRUNCATE ON item_returns
             FOR EACH STATEMENT
             EXECUTE FUNCTION ledger_reject_truncate();
     END IF;
@@ -248,20 +248,20 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_trigger
-        WHERE tgrelid = 'journals'::regclass AND tgname = 'journals_piece_return' AND NOT tgisinternal
+        WHERE tgrelid = 'journals'::regclass AND tgname = 'journals_item_return' AND NOT tgisinternal
     ) THEN
-        CREATE CONSTRAINT TRIGGER journals_piece_return
+        CREATE CONSTRAINT TRIGGER journals_item_return
             AFTER INSERT ON journals
             DEFERRABLE INITIALLY DEFERRED
             FOR EACH ROW
-            EXECUTE FUNCTION stall_assert_piece_return();
+            EXECUTE FUNCTION stall_assert_item_return();
     END IF;
 END $$;
 
-ALTER TABLE piece_returns
-    ENABLE ALWAYS TRIGGER piece_returns_no_delete,
-    ENABLE ALWAYS TRIGGER piece_returns_no_truncate;
+ALTER TABLE item_returns
+    ENABLE ALWAYS TRIGGER item_returns_no_delete,
+    ENABLE ALWAYS TRIGGER item_returns_no_truncate;
 
-ALTER TABLE journals ENABLE ALWAYS TRIGGER journals_piece_return;
+ALTER TABLE journals ENABLE ALWAYS TRIGGER journals_item_return;
 
 

@@ -1,4 +1,4 @@
--- A sale is one or more pieces. Tax is on top of the sold price.
+-- A sale is one or more items. Tax is on top of the sold price.
 -- Commission is the store take of that price. Apply after 030. The provisioner rewrites stall_poster.
 
 CREATE TABLE IF NOT EXISTS sale_lines (

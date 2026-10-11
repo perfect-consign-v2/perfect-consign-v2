@@ -144,7 +144,7 @@ VALUES ('01900000-0000-7000-8000-00000000e101', 'poster', 'Poster', 'Vendor');
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
 VALUES (
     '01900000-0000-7000-8000-00000000e102',
-    'Poster piece',
+    'Poster item',
     '01900000-0000-7000-8000-00000000e101',
     'Poster coat',
     1000,

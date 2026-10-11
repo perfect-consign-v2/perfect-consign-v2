@@ -24,16 +24,16 @@ final class ReceiptChangeTest extends TestCase
         self::assertNull($change->due('1.00', 200));
     }
 
-    public function testTheReturnedPieceIsPricedFromTheReceipt(): void
+    public function testTheReturnedItemIsPricedFromTheReceipt(): void
     {
         $change = new ReceiptChange();
         $receipt = [
             'lines' => [
                 ['item_id' => 'other', 'price' => 100, 'discount' => 0, 'tax' => 0],
-                ['item_id' => 'piece', 'price' => 1000, 'discount' => 200, 'tax' => 80],
+                ['item_id' => 'item', 'price' => 1000, 'discount' => 200, 'tax' => 80],
             ],
         ];
-        self::assertSame(880, $change->owed($receipt, 'piece'));
+        self::assertSame(880, $change->owed($receipt, 'item'));
         $this->expectException(DatabaseRefusal::class);
         $change->owed($receipt, 'missing');
     }

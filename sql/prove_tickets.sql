@@ -94,7 +94,7 @@ DO $$
 BEGIN
     INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor)
     VALUES ('01900000-0000-7000-8000-0000000006b1', 3, '01900000-0000-7000-8000-0000000006a1', 1000);
-    RAISE EXCEPTION 'a second scan of the same piece was accepted';
+    RAISE EXCEPTION 'a second scan of the same item was accepted';
 EXCEPTION
     WHEN unique_violation THEN
         NULL;
@@ -124,10 +124,10 @@ BEGIN
     VALUES ('01900000-0000-7000-8000-0000000006b3', '01900000-0000-7000-8000-000000000d29');
     INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor)
     VALUES ('01900000-0000-7000-8000-0000000006b3', 1, '01900000-0000-7000-8000-0000000006a1', 1500);
-    RAISE EXCEPTION 'one piece was on two open tickets';
+    RAISE EXCEPTION 'one item was on two open tickets';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a piece is already on a ticket%' THEN
+        IF SQLERRM NOT LIKE '%an item is already on a ticket%' THEN
             RAISE;
         END IF;
 END $$;
@@ -178,10 +178,10 @@ BEGIN
     INSERT INTO register_session_posts (session_id, journal_id)
     VALUES ('01900000-0000-7000-8000-000000000d28', '01900000-0000-7000-8000-0000000006c1');
     SET CONSTRAINTS ALL IMMEDIATE;
-    RAISE EXCEPTION 'a sale left the piece on an open ticket';
+    RAISE EXCEPTION 'a sale left the item on an open ticket';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a piece is already on a ticket%' THEN
+        IF SQLERRM NOT LIKE '%an item is already on a ticket%' THEN
             RAISE;
         END IF;
 END $$;
@@ -223,7 +223,7 @@ BEGIN
     RAISE EXCEPTION 'a ticket posted at the wrong price';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a paid ticket must match its sale%' AND SQLERRM NOT LIKE '%a piece is already on a ticket%' THEN
+        IF SQLERRM NOT LIKE '%a paid ticket must match its sale%' AND SQLERRM NOT LIKE '%an item is already on a ticket%' THEN
             RAISE;
         END IF;
 END $$;
@@ -299,7 +299,7 @@ BEGIN
     VALUES ('01900000-0000-7000-8000-0000000006b4', '01900000-0000-7000-8000-000000000d28');
     INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor)
     VALUES ('01900000-0000-7000-8000-0000000006b4', 1, '01900000-0000-7000-8000-0000000006a1', 1500);
-    RAISE EXCEPTION 'a sold piece was put on a new ticket';
+    RAISE EXCEPTION 'a sold item was put on a new ticket';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         IF SQLERRM NOT LIKE '%there are not enough on hand%' THEN

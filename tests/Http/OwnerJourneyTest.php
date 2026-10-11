@@ -94,7 +94,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSame(1, preg_match('/<tr id="item-' . preg_quote($itemId, '/') . '">.*?<\/tr>/s', $list->body, $row));
         self::assertStringContainsString('In use', $row[0]);
         self::assertStringNotContainsString('Delete', $row[0]);
-        self::assertStringNotContainsString('Delete this piece?', $this->client->get('/' . ProbeMall::SLUG . '/inventory?confirm=' . $itemId)->body);
+        self::assertStringNotContainsString('Delete this item?', $this->client->get('/' . ProbeMall::SLUG . '/inventory?confirm=' . $itemId)->body);
         $edit = $this->client->get('/' . ProbeMall::SLUG . '/inventory/' . $itemId . '/edit');
         self::assertSame(1, preg_match('/id="price"[^>]*readonly/', $edit->body));
         self::assertSees('This price is on a sale and cannot be changed.', $edit);
@@ -112,8 +112,8 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('That price is already on a sale.', $refused);
         self::assertStringContainsString('$10.02', $this->client->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag))->body);
         $blocked = $this->client->post('/' . ProbeMall::SLUG . '/inventory/' . $itemId . '/delete', []);
-        self::assertSees('That piece is in use.', $blocked);
-        self::assertStringNotContainsString('Delete this piece?', $blocked->body);
+        self::assertSees('That item is in use.', $blocked);
+        self::assertStringNotContainsString('Delete this item?', $blocked->body);
         $this->roundCash(false);
     }
 

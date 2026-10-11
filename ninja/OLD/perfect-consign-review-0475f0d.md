@@ -63,7 +63,7 @@ src/Feature/Pos/SaleCheckout.php:29  NPathComplexity           pay() has an NPat
 src/Feature/Pos/TicketStore.php:13   ExcessiveClassComplexity  TicketStore has an overall complexity of 52 (threshold 50).
 ```
 
-Credit where due: the ten violations at `8e2adfd` are gone — `MallSettings`, `InstantPiece`, `PosPage`, and `MallApp` were all cleaned up. But the gate is not zero, and `phpmd.xml`'s own description says _"Append rules only after `composer run probe:phpmd` reports zero violations under src/."_ The intent is zero. `composer check` aborts at PHPMD before it ever reaches PHPStan or the tests, so the one gate that is declared to protect the codebase is the one that is off.
+Credit where due: the ten violations at `8e2adfd` are gone — `MallSettings`, `InstantItem`, `PosPage`, and `MallApp` were all cleaned up. But the gate is not zero, and `phpmd.xml`'s own description says _"Append rules only after `composer run probe:phpmd` reports zero violations under src/."_ The intent is zero. `composer check` aborts at PHPMD before it ever reaches PHPStan or the tests, so the one gate that is declared to protect the codebase is the one that is off.
 
 The `SaleCheckout::pay()` hit is not cosmetic — it is the symptom of a method that now does five jobs: it decides hold-vs-pay, detects all-cash, computes the rounded cash due, rewrites the tender, and posts. That is exactly the kind of method where a future edit lands in the wrong branch. Split it (hold-layaway, settle-tender, post) or extract the all-cash/rounding decision into a small value object. `TicketStore` is a 396-line, 21-method god-class that owns drawer, cart, scan, price, remove, discount, waive, discard, park, layaway-listing, and recall — it wants to be two or three classes.
 

@@ -67,7 +67,7 @@ Measured: **16 functions are created in more than one numbered file.** The worst
 | `stall_assert_sale_not_on_ticket` | 032, 037, 040 |
 | `stall_assert_register_session` | 029, 034, 040 |
 | `stall_reject_session_post` | 029, 034, 040 |
-| `stall_assert_piece_return` | 034, 036, 037 |
+| `stall_assert_item_return` | 034, 036, 037 |
 | `stall_line_discount` | 036, 037, 039 |
 | `stall_refuse_ticket_discount` | 036, 037, 039 |
 | `stall_assert_rent_charge` | 005, 022 |
@@ -105,7 +105,7 @@ And the guard triggers do point at the functions the later files redefine. For e
 So every later file that wants to _extend_ one of these guard functions must first `SET event_triggers = false`. That is exactly why the blocks exist:
 
 ```
-sql/034_piece_return.sql:5        SET event_triggers = false;   ... :58   = true
+sql/034_item_return.sql:5        SET event_triggers = false;   ... :58   = true
 sql/035_park_ticket.sql:13        SET event_triggers = false;   ... :121  = true
 sql/036_ticket_adjustments.sql:141 SET event_triggers = false;  ... :714  = true
 sql/037_item_quantity.sql:82,326  SET event_triggers = false;   ... :805  = true

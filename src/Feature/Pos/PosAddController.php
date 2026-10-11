@@ -17,7 +17,7 @@ final class PosAddController
         private readonly MallSettings $mall,
         private readonly RegisterGate $gate,
         private readonly PosPage $page,
-        private readonly InstantPiece $instant,
+        private readonly InstantItem $instant,
         private readonly SaleHold $sales,
     ) {
     }
@@ -53,7 +53,7 @@ final class PosAddController
             return;
         }
         $stay = $request->field('instant_action') === 'save_and_new';
-        $this->app->redirect('/' . $slug . '/pos' . ($stay ? '?instant=1' : ''), 'Piece added.');
+        $this->app->redirect('/' . $slug . '/pos' . ($stay ? '?instant=1' : ''), 'Item added.');
     }
 
     /**

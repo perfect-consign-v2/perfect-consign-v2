@@ -13,7 +13,7 @@ But the push is **not clean**, and two of the problems are exactly the kind of t
 1.  **The unit suite is red in any environment that installs the extensions the project declares.** Two unit tests need `pdo_sqlite`; the project declares itself PostgreSQL-only and CI declares only `pdo_pgsql, zip, curl`. CI is green **by accident** (the `setup-php` default build bundles sqlite), which is worse than being red — the dependency is invisible. This cascades: `test:mutate` refuses to score and `test:coverage` exits non-zero.
 2.  **The "do not treat a missing role as the owner" fix from `385c5dd` is incomplete.** Two owner-default fallbacks (`layout.php:67`, `rent.php:332`) still exist. They are currently latent (not exploitable) because `MallApp::show()` always injects a real role — but they are the exact pattern the previous commit claimed to have eliminated.
 
-Plus a half-finished `Pieces → Items` rename that leaves the UI self-contradictory, and a `afterprint`\-clears-on-cancel behaviour that is a real footgun for the "grandma-friendly" bar.
+Plus a half-finished `Items → Items` rename that leaves the UI self-contradictory, and a `afterprint`\-clears-on-cancel behaviour that is a real footgun for the "grandma-friendly" bar.
 
 None of these are catastrophic. All of them are the difference between "works" and "world class."
 
@@ -21,7 +21,7 @@ None of these are catastrophic. All of them are the difference between "works" a
 
 ## 1\. What the commits claim
 
--   **`2dc616a`** — "Keep sticker checks when the list pages, and call the stock items." Fixes the gitignore that hid the vendor screens; adds vendor account page; adds a sessionStorage selection store so sticker checkboxes survive client-side paging; renames `PieceWriter`→`ItemWriter` and switches the staff list headings to "Items"; fixes CSS cache-busting to use the CSS file's own mtime.
+-   **`2dc616a`** — "Keep sticker checks when the list pages, and call the stock items." Fixes the gitignore that hid the vendor screens; adds vendor account page; adds a sessionStorage selection store so sticker checkboxes survive client-side paging; renames `ItemWriter`→`ItemWriter` and switches the staff list headings to "Items"; fixes CSS cache-busting to use the CSS file's own mtime.
 -   **`856bc24`** — "Reject an empty sticker back link and a non-text storage key." Adds 5 unit tests.
 -   **`6343ff9`** — "Keep the review of the staff and vendor commit with the other reviews." Commits my own prior review into `ninja/review-bb9a395.md`.
 
@@ -124,24 +124,24 @@ This directly contradicts the "grandma-friendly" bar: a user who opens the print
 
 **Fix:** don't clear on `afterprint`. Clear on an explicit "Done" / "Clear" action, or clear only when the print actually completed (best-effort), or leave the selection until the user clears it. A destructive, non-deterministic, cancel-triggered wipe is not enterprise behaviour.
 
-### F4 — MEDIUM (consistency) — The `Pieces → Items` rename is half-done and the UI now contradicts itself
+### F4 — MEDIUM (consistency) — The `Items → Items` rename is half-done and the UI now contradicts itself
 
-The commit renames the staff list headings to "Items" (`inventory.php:29` "Items", "New item", "One row is one item on the floor.") and renames `PieceWriter`→`ItemWriter`. But the body copy and the entire vendor surface still say "piece(s)":
+The commit renames the staff list headings to "Items" (`inventory.php:29` "Items", "New item", "One row is one item on the floor.") and renames `ItemWriter`→`ItemWriter`. But the body copy and the entire vendor surface still say "item(s)":
 
--   `inventory.php:58` — "Check the **pieces** in the list."
--   `inventory.php:66` — "No **pieces** match."
--   `inventory.php:141` — "Delete this **piece**?"
--   `inventory.php:39` — "No **pieces** yet."
--   `src/Feature/Vendor/home.php:36` — "Check your own **pieces**."
--   `src/Feature/Vendor/VendorStickers.php:59` — "That **piece** is not yours."
--   `src/Feature/Inventory/InventoryStore.php:133,137,161,277,285` — "That **piece** is in use / not in this mall."
--   `src/Feature/Inventory/InventoryController.php:82` — "**Piece** deleted."
--   `src/Feature/Inventory/Code128.php:66` — "This **piece** has no barcode."
--   `src/Feature/Inventory/LabelRequest.php:79,88,93,102` — "Choose a **piece**." / "Print fewer **pieces**…"
+-   `inventory.php:58` — "Check the **items** in the list."
+-   `inventory.php:66` — "No **items** match."
+-   `inventory.php:141` — "Delete this **item**?"
+-   `inventory.php:39` — "No **items** yet."
+-   `src/Feature/Vendor/home.php:36` — "Check your own **items**."
+-   `src/Feature/Vendor/VendorStickers.php:59` — "That **item** is not yours."
+-   `src/Feature/Inventory/InventoryStore.php:133,137,161,277,285` — "That **item** is in use / not in this mall."
+-   `src/Feature/Inventory/InventoryController.php:82` — "**Item** deleted."
+-   `src/Feature/Inventory/Code128.php:66` — "This **item** has no barcode."
+-   `src/Feature/Inventory/LabelRequest.php:79,88,93,102` — "Choose a **item**." / "Print fewer **items**…"
 
-The class layer is likewise split: `ItemWriter`/`items` table vs `StickerPiece`, `PieceForm`, `PieceEntry`, `PieceSale`, `PieceDates`, `PieceGuard`, `InstantPiece`, `InventoryStore::$piece`.
+The class layer is likewise split: `ItemWriter`/`items` table vs `StickerItem`, `ItemForm`, `ItemEntry`, `ItemSale`, `ItemDates`, `ItemGuard`, `InstantItem`, `InventoryStore::$item`.
 
-So the same screen says "Items" in the header and "No pieces match" two lines down. That is exactly the kind of internal inconsistency a world-class product does not ship. A rename is either done or it is not; a half-rename is worse than not renaming, because it signals the change was never verified end-to-end.
+So the same screen says "Items" in the header and "No items match" two lines down. That is exactly the kind of internal inconsistency a world-class product does not ship. A rename is either done or it is not; a half-rename is worse than not renaming, because it signals the change was never verified end-to-end.
 
 **Fix:** finish it (or revert the headings). Pick one noun — the table is `items`, so "item" — and sweep the user-facing strings, the class names, and the local variables in one commit with a test that asserts the old noun no longer appears in rendered output.
 
@@ -155,7 +155,7 @@ So the same screen says "Items" in the header and "No pieces match" two lines do
 
 ### F7 — LOW (performance / correctness hygiene)
 
--   `VendorAccount::pieces()` loads **all** of a vendor's items with no limit and sorts in PHP (`usort`/`strnatcasecmp`). Fine for a small consignor; unbounded for a large one. The natural-key sort belongs in SQL (`ORDER BY` with a collation) or at least behind a limit.
+-   `VendorAccount::items()` loads **all** of a vendor's items with no limit and sorts in PHP (`usort`/`strnatcasecmp`). Fine for a small consignor; unbounded for a large one. The natural-key sort belongs in SQL (`ORDER BY` with a collation) or at least behind a limit.
 -   `VendorAccount::numbers()` runs two aggregates over `journal_lines` joined to `chart_roles`, filtered on `subledger_ref`/`subledger_type` with no obvious supporting index. Worth an `EXPLAIN` before this page is hit by a vendor with a long history.
 -   `VendorStickers::printOwn()` calls `$this->app->open($slug, true)` at line 39, but `$this->sheet()` (line 35) already opened the tenant via `storeName()`. Redundant `SET ROLE`/open. Harmless, sloppy.
 
@@ -202,4 +202,4 @@ node tests/js/inventory-selection-store.test.cjs
 
 ## 7\. Bottom line
 
-The repair is real and the prior CRITICAL is closed. But the push ships a **hidden sqlite dependency** that makes the "proven" gate unavailable outside CI, leaves **two owner-default fallbacks** the previous commit claimed to have removed, wipes the user's selection on print-cancel, and leaves the UI calling the same thing both "Items" and "pieces." Fix F1 and F2 and this is a solid push; leave them and the "prove-before-advance" governance is decoration.
+The repair is real and the prior CRITICAL is closed. But the push ships a **hidden sqlite dependency** that makes the "proven" gate unavailable outside CI, leaves **two owner-default fallbacks** the previous commit claimed to have removed, wipes the user's selection on print-cancel, and leaves the UI calling the same thing both "Items" and "items." Fix F1 and F2 and this is a solid push; leave them and the "prove-before-advance" governance is decoration.

@@ -1,4 +1,4 @@
--- Proof that a sale is pieces, tax is on top, and a piece sells once. One transaction, then ROLLBACK.
+-- Proof that a sale is items, tax is on top, and an item sells once. One transaction, then ROLLBACK.
 
 BEGIN;
 
@@ -57,13 +57,13 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-0000000005c1',
     '01900000-0000-7000-8000-000000000001',
-    'sale:pieces',
+    'sale:items',
     '2099-03-03',
     '2099-03-03 12:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
     'sale',
-    'pieces',
+    'items',
     'Two vendors',
     14800,
     14800
@@ -114,11 +114,11 @@ SET CONSTRAINTS ALL DEFERRED;
 DO $$
 BEGIN
     IF (SELECT price_minor FROM items WHERE id = '01900000-0000-7000-8000-0000000005b1') <> 12000 THEN
-        RAISE EXCEPTION 'the asking price changed when the piece sold';
+        RAISE EXCEPTION 'the asking price changed when the item sold';
     END IF;
     IF (SELECT quantity FROM items WHERE id = '01900000-0000-7000-8000-0000000005b1') <> 0
         OR (SELECT quantity FROM items WHERE id = '01900000-0000-7000-8000-0000000005b2') <> 0 THEN
-        RAISE EXCEPTION 'a sale did not take the piece off the floor';
+        RAISE EXCEPTION 'a sale did not take the item off the floor';
     END IF;
 END $$;
 
@@ -150,7 +150,7 @@ BEGIN
     );
     INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
     VALUES ('01900000-0000-7000-8000-0000000005c2', 1, '01900000-0000-7000-8000-0000000005b1', 10000, 2500, 800);
-    RAISE EXCEPTION 'a sold piece was accepted again';
+    RAISE EXCEPTION 'a sold item was accepted again';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         IF SQLERRM NOT LIKE '%there are not enough on hand%' THEN
@@ -163,7 +163,7 @@ BEGIN
     UPDATE items SET quantity = 1 WHERE id = '01900000-0000-7000-8000-0000000005b1';
     INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
     VALUES ('01900000-0000-7000-8000-0000000005c1', 3, '01900000-0000-7000-8000-0000000005b1', 10000, 2500, 800);
-    RAISE EXCEPTION 'a second line for the same piece was accepted';
+    RAISE EXCEPTION 'a second line for the same item was accepted';
 EXCEPTION
     WHEN unique_violation THEN
         NULL;
@@ -251,11 +251,11 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-0000000005c4',
         '01900000-0000-7000-8000-000000000001',
-        'sale:no-piece',
+        'sale:no-item',
         '2099-03-04',
         '2099-03-04 12:00:00+00',
         '01900000-0000-7000-8000-000000000021',
-        'USD', 'sale', 'no-piece', 'Sale with no piece', 1000, 1000
+        'USD', 'sale', 'no-item', 'Sale with no item', 1000, 1000
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES (
@@ -273,10 +273,10 @@ BEGIN
     INSERT INTO register_session_posts (session_id, journal_id)
     VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-0000000005c4');
     SET CONSTRAINTS ALL IMMEDIATE;
-    RAISE EXCEPTION 'a sale with no piece was accepted';
+    RAISE EXCEPTION 'a sale with no item was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a sale needs a piece%' THEN
+        IF SQLERRM NOT LIKE '%a sale needs an item%' THEN
             RAISE;
         END IF;
 END $$;
@@ -288,11 +288,11 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-0000000005c5',
     '01900000-0000-7000-8000-000000000001',
-    'sale:pieces:void',
+    'sale:items:void',
     '2099-03-05',
     '2099-03-05 12:00:00+00',
     '01900000-0000-7000-8000-000000000021',
-    'USD', 'sale', 'pieces-void', 'Void the ticket', true,
+    'USD', 'sale', 'items-void', 'Void the ticket', true,
     '01900000-0000-7000-8000-0000000005c1',
     14800, 14800
 );
