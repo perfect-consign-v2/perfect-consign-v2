@@ -146,21 +146,22 @@ final class PayoutRunStore
         );
     }
 
-    public function ensureDraft(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string
-    {
+    public function ensureDraft(
+        string $salesFrom,
+        string $salesTo,
+        string $rentMonth,
+        string $postingDate,
+        string $tender = 'check',
+    ): string {
+        $tender = $this->tender($tender);
         $existing = $this->openDraft($salesFrom, $salesTo, $rentMonth);
         if ($existing !== null) {
-            $this->statements->change(
-                "UPDATE payout_runs
-                 SET posting_date = ?::date
-                 WHERE id = ?::uuid AND status = 'draft' AND posting_date IS DISTINCT FROM ?::date",
-                [$postingDate, $existing, $postingDate]
-            );
+            $this->stamp($existing, $postingDate, $tender);
 
             return $existing;
         }
         try {
-            return $this->begin($salesFrom, $salesTo, $rentMonth, $postingDate);
+            return $this->begin($salesFrom, $salesTo, $rentMonth, $postingDate, $tender);
         } catch (PDOException $error) {
             if ($error->getCode() !== '23505') {
                 throw $error;
@@ -169,12 +170,7 @@ final class PayoutRunStore
             if ($winner === null) {
                 throw $error;
             }
-            $this->statements->change(
-                "UPDATE payout_runs
-                 SET posting_date = ?::date
-                 WHERE id = ?::uuid AND status = 'draft' AND posting_date IS DISTINCT FROM ?::date",
-                [$postingDate, $winner, $postingDate]
-            );
+            $this->stamp($winner, $postingDate, $tender);
 
             return $winner;
         }
@@ -191,48 +187,68 @@ final class PayoutRunStore
     }
 
     /**
-     * @return array{tender: string, status: string}
+     * @return array{tender: string, status: string, posting_date: string, rent_month: string}
      */
     public function run(string $runId): array
     {
         $rows = $this->statements->bound(
-            'SELECT tender, status FROM payout_runs WHERE id = ?::uuid',
+            "SELECT tender, status,
+                    COALESCE(to_char(posting_date, 'YYYY-MM-DD'), '') AS posting_date,
+                    COALESCE(to_char(rent_month, 'YYYY-MM-DD'), '') AS rent_month
+             FROM payout_runs WHERE id = ?::uuid",
             [$runId]
         );
 
         return [
             'tender' => RowValue::string($rows[0]['tender'] ?? null),
             'status' => RowValue::string($rows[0]['status'] ?? null),
+            'posting_date' => RowValue::string($rows[0]['posting_date'] ?? null),
+            'rent_month' => RowValue::string($rows[0]['rent_month'] ?? null),
         ];
     }
 
     /**
      * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, commission: int, tax: int, check: int, owes: int, check_number: string}>
      */
-    public function envelopes(string $runId): array
+    public function envelopes(
+        string $runId,
+        string $salesFrom = '',
+        string $salesTo = '',
+        string $rentMonth = '',
+        string $postingDate = '',
+    ): array {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $runId) === 1) {
+            $stored = $this->sheets($this->storedSheets(), [$runId]);
+            if ($stored !== []) {
+                return $stored;
+            }
+
+            return $this->sheets($this->openSheets(), [$runId]);
+        }
+        if ($this->day($salesFrom) === '' || $this->day($salesTo) === '' || $this->day($rentMonth) === '' || $this->day($postingDate) === '') {
+            return [];
+        }
+
+        return $this->sheets($this->previewSheets(), [$salesFrom, $salesTo, $rentMonth, $postingDate, $salesFrom, $salesTo]);
+    }
+
+    /**
+     * @param list<mixed> $params
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, commission: int, tax: int, check: int, owes: int, check_number: string}>
+     */
+    private function sheets(string $sql, array $params): array
     {
-        $rows = $this->statements->bound(
-            "SELECT line.vendor_id, vendor.code, btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
-                    sale.sold_on, sale.item_code, sale.description, sale.price_minor, sale.commission_minor, sale.tax_minor,
-                    line.check_minor, line.owes_minor, line.check_number
-             FROM payout_run_lines AS line
-             JOIN vendors AS vendor ON vendor.id = line.vendor_id
-             LEFT JOIN payout_run_sales AS sale ON sale.run_id = line.run_id AND sale.vendor_id = line.vendor_id
-             WHERE line.run_id = ?::uuid AND line.mode = 'pay'
-             ORDER BY vendor.code, sale.sold_on, sale.line_no",
-            [$runId]
-        );
-        $envelopes = [];
-        foreach ($rows as $row) {
+        $sheets = [];
+        foreach ($this->statements->bound($sql, $params) as $row) {
             $number = $row['check_number'] ?? null;
-            $envelopes[] = [
+            $sheets[] = [
                 'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
                 'code' => RowValue::string($row['code'] ?? null),
                 'name' => RowValue::string($row['name'] ?? null),
-                'booth' => '',
-                'sold_on' => is_string($row['sold_on'] ?? null) ? $row['sold_on'] : '',
-                'item_code' => is_string($row['item_code'] ?? null) ? $row['item_code'] : '',
-                'description' => is_string($row['description'] ?? null) ? $row['description'] : '',
+                'booth' => RowValue::string($row['booth'] ?? null),
+                'sold_on' => RowValue::string($row['sold_on'] ?? null),
+                'item_code' => RowValue::string($row['item_code'] ?? null),
+                'description' => RowValue::string($row['description'] ?? null),
                 'price' => RowValue::integer($row['price_minor'] ?? 0),
                 'commission' => RowValue::integer($row['commission_minor'] ?? 0),
                 'tax' => RowValue::integer($row['tax_minor'] ?? 0),
@@ -242,20 +258,121 @@ final class PayoutRunStore
             ];
         }
 
-        return $envelopes;
+        return $sheets;
     }
 
-    private function begin(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): string
+    private function storedSheets(): string
     {
+        return "SELECT line.vendor_id::text AS vendor_id, vendor.code,
+                       btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
+                       COALESCE(spot.booth, '') AS booth,
+                       COALESCE(to_char(sale.sold_on, 'YYYY-MM-DD'), '') AS sold_on,
+                       COALESCE(sale.item_code, '') AS item_code,
+                       COALESCE(sale.description, '') AS description,
+                       COALESCE(sale.price_minor, 0) AS price_minor,
+                       COALESCE(sale.commission_minor, 0) AS commission_minor,
+                       COALESCE(sale.tax_minor, 0) AS tax_minor,
+                       line.check_minor, line.owes_minor, COALESCE(line.check_number, '') AS check_number
+                FROM payout_run_lines AS line
+                JOIN vendors AS vendor ON vendor.id = line.vendor_id
+                LEFT JOIN payout_run_sales AS sale ON sale.run_id = line.run_id AND sale.vendor_id = line.vendor_id
+                LEFT JOIN LATERAL (
+                    SELECT booth.code AS booth
+                    FROM payout_runs AS run
+                    JOIN booth_assignments AS assignment
+                      ON assignment.vendor_id = line.vendor_id
+                     AND assignment.assignment_range @> run.posting_date
+                    JOIN booths AS booth ON booth.id = assignment.booth_id
+                    WHERE run.id = line.run_id
+                    ORDER BY booth.code
+                    LIMIT 1
+                ) AS spot ON true
+                WHERE line.run_id = ?::uuid AND line.mode = 'pay'
+                ORDER BY vendor.code, sale.sold_on, sale.line_no";
+    }
+
+    private function openSheets(): string
+    {
+        return "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth,
+                       COALESCE(to_char(sale.sold_on, 'YYYY-MM-DD'), '') AS sold_on,
+                       COALESCE(sale.item_code, '') AS item_code,
+                       COALESCE(sale.description, '') AS description,
+                       COALESCE(sale.price_minor, 0) AS price_minor,
+                       COALESCE(sale.commission_minor, 0) AS commission_minor,
+                       COALESCE(sale.tax_minor, 0) AS tax_minor,
+                       pack.check_minor, pack.owes_minor, '' AS check_number
+                FROM payout_pack AS pack
+                LEFT JOIN payout_pack_sales AS sale
+                  ON sale.run_id = pack.run_id AND sale.vendor_id = pack.vendor_id
+                WHERE pack.run_id = ?::uuid AND pack.mode = 'pay'
+                ORDER BY pack.code, sale.sold_on, sale.line_no";
+    }
+
+    private function previewSheets(): string
+    {
+        return "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth,
+                       COALESCE(to_char(sale.sold_on, 'YYYY-MM-DD'), '') AS sold_on,
+                       COALESCE(sale.item_code, '') AS item_code,
+                       COALESCE(sale.description, '') AS description,
+                       COALESCE(sale.price_minor, 0) AS price_minor,
+                       COALESCE(sale.commission_minor, 0) AS commission_minor,
+                       COALESCE(sale.tax_minor, 0) AS tax_minor,
+                       pack.check_minor, pack.owes_minor, '' AS check_number
+                FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date) AS pack
+                LEFT JOIN LATERAL (
+                    SELECT journal.posting_date AS sold_on, item.code AS item_code, item.description,
+                           sale.price_minor, sale.commission_minor, sale.tax_minor, sale.line_no
+                    FROM journals AS journal
+                    JOIN sale_lines AS sale ON sale.journal_id = journal.id
+                    JOIN items AS item ON item.id = sale.item_id AND item.vendor_id = pack.vendor_id
+                    WHERE journal.posting_date BETWEEN ?::date AND ?::date
+                      AND journal.source_type = 'sale'
+                      AND NOT journal.is_reversal
+                ) AS sale ON true
+                WHERE pack.mode = 'pay'
+                ORDER BY pack.code, sale.sold_on, sale.line_no";
+    }
+
+    private function day(string $value): string
+    {
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
+    }
+
+    private function tender(string $tender): string
+    {
+        if ($tender === 'drawer_cash' || $tender === 'safe_cash' || $tender === 'check') {
+            return $tender;
+        }
+
+        return 'check';
+    }
+
+    private function stamp(string $runId, string $postingDate, string $tender): void
+    {
+        $this->statements->change(
+            "UPDATE payout_runs
+             SET posting_date = ?::date, tender = ?
+             WHERE id = ?::uuid AND status = 'draft'",
+            [$postingDate, $tender, $runId]
+        );
+    }
+
+    private function begin(
+        string $salesFrom,
+        string $salesTo,
+        string $rentMonth,
+        string $postingDate,
+        string $tender,
+    ): string {
         $rows = $this->statements->bound(
             "INSERT INTO payout_runs (
                 book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
              )
-             SELECT id, 'batch', 'monthly', ?::date, ?::date, ?::date, 'check', 'draft', ?::date
+             SELECT id, 'batch', 'monthly', ?::date, ?::date, ?::date, ?, 'draft', ?::date
              FROM ledger_books
              WHERE is_default
              RETURNING id",
-            [$salesFrom, $salesTo, $rentMonth, $postingDate]
+            [$salesFrom, $salesTo, $rentMonth, $tender, $postingDate]
         );
 
         return RowValue::string($rows[0]['id'] ?? null);

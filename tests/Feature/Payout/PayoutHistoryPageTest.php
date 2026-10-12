@@ -150,6 +150,57 @@ final class PayoutHistoryPageTest extends TestCase
         self::assertSame(1, substr_count($html, 'Undone by'));
     }
 
+    public function testAPaidCheckCanBePrintedAgain(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/history', [
+            'slug' => 'webprobe',
+            'csrf' => 'token',
+            'error' => null,
+            'excluded' => [],
+            'runs' => [
+                [
+                    'id' => '00000000-0000-7000-8000-000000000020',
+                    'run_no' => 9,
+                    'sales_from' => '2026-09-01',
+                    'sales_to' => '2026-09-30',
+                    'rent_month' => '2026-10-01',
+                    'tender' => 'check',
+                    'status' => 'paid',
+                    'reverses_run_id' => '',
+                    'undone_by' => '',
+                    'undone_reason' => '',
+                    'undone_at' => '',
+                ],
+                [
+                    'id' => '00000000-0000-7000-8000-000000000021',
+                    'run_no' => 8,
+                    'sales_from' => '2026-08-01',
+                    'sales_to' => '2026-08-31',
+                    'rent_month' => '2026-09-01',
+                    'tender' => 'drawer_cash',
+                    'status' => 'paid',
+                    'reverses_run_id' => '',
+                    'undone_by' => '',
+                    'undone_reason' => '',
+                    'undone_at' => '',
+                ],
+            ],
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertSame(2, substr_count($html, 'Print each vendor\'s sales'));
+        self::assertSame(1, substr_count($html, 'Print checks'));
+        self::assertStringContainsString('/payouts/checks?run=00000000-0000-7000-8000-000000000020', $html);
+        self::assertStringNotContainsString('/payouts/checks?run=00000000-0000-7000-8000-000000000021', $html);
+        self::assertStringContainsString('Cash from the drawer', $html);
+        self::assertStringContainsString('Paid', $html);
+        self::assertStringNotContainsString('drawer_cash', $html);
+        self::assertStringNotContainsString('>paid<', $html);
+    }
+
     public function testABlankErrorIsNotAnAlert(): void
     {
         $view = new View(dirname(__DIR__, 3) . '/src');

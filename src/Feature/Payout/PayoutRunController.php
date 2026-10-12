@@ -18,8 +18,7 @@ final class PayoutRunController
         private readonly MallSettings $mall,
         private readonly PayoutRunStore $runs,
         private readonly PayoutWindow $window,
-        private readonly PayoutSettler $settler,
-        private readonly PayoutDisburser $disburser,
+        private readonly PayoutOnce $once,
         private readonly PayoutReverser $reverser,
         private readonly ActiveRegister $register,
         private readonly MallClock $clock,
@@ -36,12 +35,17 @@ final class PayoutRunController
     public function report(string $slug): void
     {
         $tenant = $this->app->open($slug, true);
-        $runId = $this->app->request()->query('run');
+        $today = $this->mall->today();
+        $window = $this->window->window($today);
+        $requested = $this->app->request()->query('run');
+        $rows = preg_match('/^[0-9a-fA-F-]{36}$/', $requested) === 1
+            ? $this->runs->envelopes($requested)
+            : $this->runs->envelopes('', $window['from'], $window['to'], $window['rent'], $today);
         $this->app->show('Feature/Payout/envelope', [
-            'title' => 'Payout report',
+            'title' => 'Each vendor\'s sales',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'rows' => preg_match('/^[0-9a-fA-F-]{36}$/', $runId) === 1 ? $this->runs->envelopes($runId) : [],
+            'rows' => $rows,
         ]);
     }
 
@@ -118,40 +122,103 @@ final class PayoutRunController
         $this->app->open($slug, true);
         $today = $this->mall->today();
         $window = $this->window->window($today);
+        if ($this->once->finishedRun($window['from'], $window['to'], $window['rent']) !== null) {
+            $this->render($slug, 'This month is already paid.');
+
+            return;
+        }
+        $tender = $this->app->request()->field('tender');
+        if ($tender !== 'check' && $tender !== 'drawer_cash' && $tender !== 'safe_cash') {
+            $this->render($slug, 'Choose how to pay.');
+
+            return;
+        }
+        $number = $this->firstCheck($tender);
+        if ($number === null) {
+            $this->render($slug, 'Type the number on the first check.');
+
+            return;
+        }
+        $sessionId = $this->drawer($slug, $tender);
+        if ($sessionId === null) {
+            $this->render($slug, 'Open the drawer before paying cash from it.');
+
+            return;
+        }
         try {
-            $runId = $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
-            $this->runs->review($runId);
-            $this->settler->close($runId, $today);
+            $session = $tender === 'drawer_cash' ? $sessionId : null;
+            $this->once->pay($window['from'], $window['to'], $window['rent'], $today, $tender, $number, $session);
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/payouts', 'Payout closed.');
+        $monthName = (new \DateTimeImmutable($window['rent']))->format('F');
+        $this->app->redirect('/' . $slug . '/payouts', $monthName . ' is paid.');
     }
 
-    #[Route('/([a-z][a-z0-9-]{0,62})/payouts/checks', ['POST'])]
+    #[Route('/([a-z][a-z0-9-]{0,62})/payouts/checks', ['GET'])]
     public function checks(string $slug): void
     {
-        $this->app->checkCsrf();
-        $this->app->open($slug, true);
-        $today = $this->mall->today();
+        $tenant = $this->app->open($slug, true);
+        $runId = $this->app->request()->query('run');
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $runId) !== 1) {
+            $this->render($slug, 'That payout is missing.');
+
+            return;
+        }
+        $run = $this->runs->run($runId);
+        if ($run['status'] !== 'paid' || $run['tender'] !== 'check' || $this->day($run['posting_date']) === '') {
+            $this->render($slug, 'Those checks are not ready to print.');
+
+            return;
+        }
+        $checks = $this->once->savedChecks($runId);
+        if ($checks === []) {
+            $this->render($slug, 'Nobody on this payout is getting a check.');
+
+            return;
+        }
+        $rent = $this->day($run['rent_month']);
+        $monthName = $rent === '' ? 'Payout' : (new \DateTimeImmutable($rent))->format('F');
+        $this->app->show('Feature/Payout/checks', [
+            'title' => 'Checks',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'dated' => (new \DateTimeImmutable($run['posting_date']))->format('F j, Y'),
+            'monthName' => $monthName,
+            'checks' => $checks,
+        ]);
+    }
+
+    private function firstCheck(string $tender): ?int
+    {
+        if ($tender !== 'check') {
+            return 0;
+        }
         $start = $this->app->request()->field('starting_check');
         $number = ctype_digit($start) ? (int) $start : 0;
-        if ($number <= 0) {
-            $this->render($slug, 'the first check number is required');
 
-            return;
-        }
-        try {
-            $runId = $this->app->request()->field('run_id');
-            $this->disburser->pay($runId, $today, $number);
-        } catch (DatabaseRefusal $refusal) {
-            $this->render($slug, $this->app->catchRefusal($refusal));
+        return $number > 0 ? $number : null;
+    }
 
-            return;
+    private function drawer(string $slug, string $tender): ?string
+    {
+        if ($tender !== 'drawer_cash') {
+            return '';
         }
-        $this->app->redirect('/' . $slug . '/payouts', 'Checks written.');
+        $sessionId = $this->register->chosen($slug, true)['id'];
+
+        return $sessionId === '' ? null : $sessionId;
+    }
+
+    private function day(mixed $value): string
+    {
+        if (!is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}/', $value) !== 1) {
+            return '';
+        }
+
+        return substr($value, 0, 10);
     }
 
     private function render(string $slug, ?string $error): void
@@ -160,20 +227,20 @@ final class PayoutRunController
         $today = $this->mall->today();
         $window = $this->window->window($today);
         $monthName = (new \DateTimeImmutable($window['rent']))->format('F');
-        $draft = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
-        $pack = $draft === null
-            ? $this->runs->preview($window['from'], $window['to'], $window['rent'], $today)
-            : $this->runs->pack($draft);
-        $pack = $this->runs->addBooths($pack, $today);
+        $finished = $this->once->finishedRun($window['from'], $window['to'], $window['rent']);
+        $pack = $finished === null
+            ? $this->once->openPack($window['from'], $window['to'], $window['rent'], $today)
+            : $this->once->savedPack($finished['id']);
         $this->app->show('Feature/Payout/pay-vendors', [
             'title' => $monthName . ' payout',
             'monthName' => $monthName,
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'pack' => $pack,
-            'draftRun' => $draft ?? '',
+            'pack' => $this->runs->addBooths($pack, $today),
+            'savedRun' => $finished === null ? '' : $finished['id'],
+            'savedTender' => $finished === null ? '' : $finished['tender'],
+            'savedStatus' => $finished === null ? '' : $finished['status'],
             'excluded' => $this->runs->excluded(),
-            'runs' => $this->runs->history(),
             'error' => $error,
         ]);
     }

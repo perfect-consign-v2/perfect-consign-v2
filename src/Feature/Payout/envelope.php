@@ -12,19 +12,30 @@ if ($css === false) {
     throw new RuntimeException('the envelope stylesheet is missing');
 }
 $vendors = [];
+$storedReport = false;
 foreach ($rows as $row) {
     $vendors[$row['vendor_id']][] = $row;
+    if ($row['check_number'] !== '') {
+        $storedReport = true;
+    }
 }
 ?>
 <style><?= $css ?></style>
 <div class="no-print">
+    <p>One page for each vendor, with what they sold and the check.</p>
     <button class="btn btn-primary" type="button" data-print>Print</button>
 </div>
+<?php if ($vendors === []): ?>
+    <p>This payout has no vendor sheets.</p>
+<?php endif; ?>
 <?php foreach ($vendors as $lines): ?>
     <?php $head = $lines[0]; ?>
     <section class="envelope">
         <h1><?= View::text($displayName) ?></h1>
         <h2><?= View::text($head['name']) ?> <span><?= View::text($head['code']) ?></span></h2>
+        <?php if ($head['booth'] !== ''): ?>
+            <p>Booth <?= View::text($head['booth']) ?></p>
+        <?php endif; ?>
         <table>
             <thead>
                 <tr><th>Item</th><th>Date</th><th>Price</th><th>Store fee</th><th>Tax</th></tr>
@@ -53,7 +64,7 @@ foreach ($rows as $row) {
         <?php if ($head['owes'] > 0): ?>
             <p class="owed">Amount owed to store: <?= View::text(View::money($head['owes'])) ?></p>
         <?php endif; ?>
-        <p>Report / reprinted from the stored record.</p>
+        <p><?= $storedReport ? 'Report / reprinted from the stored record.' : 'Report for this payout.' ?></p>
     </section>
 <?php endforeach; ?>
 <script>

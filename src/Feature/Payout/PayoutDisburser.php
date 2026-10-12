@@ -20,7 +20,7 @@ final class PayoutDisburser
     ) {
     }
 
-    public function pay(string $runId, string $postingDate, int $startCheck): void
+    public function pay(string $runId, string $postingDate, int $startCheck, ?string $sessionId = null): void
     {
         $run = $this->runs->run($runId);
         if ($run['status'] !== 'settled') {
@@ -35,6 +35,7 @@ final class PayoutDisburser
             }
             $source = $this->source($run['tender']);
             $check = $run['tender'] === 'check' ? (string) $number : null;
+            $session = $run['tender'] === 'drawer_cash' ? $sessionId : null;
             $journalId = $this->disburse(
                 $runId,
                 $line['vendor_id'],
@@ -42,7 +43,8 @@ final class PayoutDisburser
                 $line['check_minor'],
                 $check,
                 $source['source'],
-                $source['role']
+                $source['role'],
+                $session,
             );
             $this->lines->link($runId, $journalId, 'disbursement');
             $this->lines->attachDisbursement($runId, $line['vendor_id'], $journalId, $check);
@@ -76,6 +78,7 @@ final class PayoutDisburser
         ?string $checkNumber,
         string $source = 'check_disbursement',
         string $creditRole = 'bank',
+        ?string $sessionId = null,
     ): string {
         if ($amount <= 0) {
             return '';
@@ -90,6 +93,7 @@ final class PayoutDisburser
                 PostedLines::entry($this->ledger->roleAccount($creditRole), 0, $amount, null, null),
             ],
             checkNumber: $checkNumber,
+            sessionId: $sessionId,
         ));
     }
 }

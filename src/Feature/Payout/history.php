@@ -39,15 +39,27 @@ ListTable::head([
             <td><?= View::text((string) RowValue::integer($run['run_no'] ?? null)) ?></td>
             <td><?= View::text(RowValue::string($run['sales_from'] ?? null)) ?> – <?= View::text(RowValue::string($run['sales_to'] ?? null)) ?></td>
             <td><?php $rentMonth = $run['rent_month'] ?? null; ?><?= is_string($rentMonth) && $rentMonth !== '' ? View::text($rentMonth) : '—' ?></td>
-            <td><?= View::text(RowValue::string($run['tender'] ?? null)) ?></td>
+            <td><?php
+                $tender = RowValue::string($run['tender'] ?? null);
+                $tenderWords = ['check' => 'Check', 'drawer_cash' => 'Cash from the drawer', 'safe_cash' => 'Cash from the safe'];
+                echo View::text($tenderWords[$tender] ?? $tender);
+            ?></td>
             <td>
-                <?= View::text(RowValue::string($run['status'] ?? null)) ?>
+                <?php
+                $status = RowValue::string($run['status'] ?? null);
+                $statusWords = ['paid' => 'Paid', 'settled' => 'Paid', 'draft' => 'Open', 'reversed' => 'Undone'];
+                echo View::text($statusWords[$status] ?? $status);
+                ?>
                 <?php if (is_string($run['undone_by'] ?? null) && $run['undone_by'] !== '' && is_string($run['undone_reason'] ?? null) && $run['undone_reason'] !== '' && is_string($run['undone_at'] ?? null) && $run['undone_at'] !== ''): ?>
                     <div class="muted">Undone by <?= View::text($run['undone_by']) ?> on <?= View::text($run['undone_at']) ?> — <?= View::text($run['undone_reason']) ?></div>
                 <?php endif; ?>
             </td>
             <td>
                 <?php if (in_array($run['status'] ?? '', ['settled', 'paid'], true) && ($run['reverses_run_id'] ?? '') === ''): ?>
+                    <a href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text(RowValue::string($run['id'] ?? null)) ?>">Print each vendor's sales</a>
+                    <?php if (($run['tender'] ?? '') === 'check' && ($run['status'] ?? '') === 'paid'): ?>
+                        <a href="/<?= View::text($slug) ?>/payouts/checks?run=<?= View::text(RowValue::string($run['id'] ?? null)) ?>">Print checks</a>
+                    <?php endif; ?>
                     <form method="post" action="/<?= View::text($slug) ?>/payouts/undo">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                         <input type="hidden" name="run_id" value="<?= View::text(RowValue::string($run['id'] ?? null)) ?>">

@@ -31,6 +31,9 @@ final class EnvelopePageTest extends TestCase
         self::assertSame(2, substr_count($html, 'Check:'));
         self::assertSame(1, substr_count($html, 'Amount owed to store'));
         self::assertStringNotContainsString('Check number </p>', $html);
+        self::assertStringContainsString('Booth 12', $html);
+        self::assertStringContainsString('what they sold and the check', $html);
+        self::assertStringNotContainsString("vendor's envelope", $html);
         self::assertStringContainsString('>Print<', $html);
         self::assertStringContainsString('window.print()', $html);
     }

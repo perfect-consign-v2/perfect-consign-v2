@@ -11,10 +11,13 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $monthName */
 /** @var list<array{vendor_id: string, code: string, name: string, booth: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int}> $pack */
 /** @var list<array{code: string, name: string, mode: string}> $excluded */
-/** @var list<array<string, mixed>> $runs */
-/** @var string $draftRun */
+/** @var string $savedRun */
+/** @var string $savedTender */
+/** @var string $savedStatus */
 /** @var string|null $error */
-$draftRun = $draftRun ?? '';
+$savedRun = $savedRun ?? '';
+$savedTender = $savedTender ?? '';
+$savedStatus = $savedStatus ?? '';
 
 $checks = 0;
 $checkTotal = 0;
@@ -30,8 +33,6 @@ foreach ($pack as $row) {
         $owesTotal += $row['owes'];
     }
 }
-$latest = $runs[0]['id'] ?? '';
-$runId = is_string($latest) ? $latest : '';
 $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
 ?>
 <div class="page-head">
@@ -74,48 +75,44 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
             <?php endforeach; ?>
             </tbody>
         </table>
-        <p class="muted"><?= View::text((string) $checks) ?> checks, <?= View::text(View::money($checkTotal)) ?>. <?= View::text((string) $owesCount) ?> owe the store, <?= View::text(View::money($owesTotal)) ?>.</p>
+        <p class="muted"><?= View::text((string) $checks) ?> <?= $savedStatus === 'paid' ? 'paid' : 'to pay' ?>, <?= View::text(View::money($checkTotal)) ?>. <?= View::text((string) $owesCount) ?> owe the store, <?= View::text(View::money($owesTotal)) ?>.</p>
     </div>
 </div>
-<?php foreach ($pack as $row): ?>
-    <section class="vendor-sheet">
-        <h2>(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></h2>
-        <p><?= View::text($row['booth'] === '' ? 'No booth' : $row['booth']) ?></p>
-        <p>Their share <?= View::text(View::money($row['payable'])) ?></p>
-        <p>Owed before <?= View::text(View::money($row['prior'])) ?></p>
-        <p>This month <?= View::text(View::money($row['charged'])) ?></p>
-        <?php if ($row['check'] > 0): ?>
-            <p>Check <?= View::text(View::money($row['check'])) ?></p>
-        <?php endif; ?>
-        <?php if ($row['owes'] > 0): ?>
-            <p>Owes the store <?= View::text(View::money($row['owes'])) ?></p>
-        <?php endif; ?>
-    </section>
-<?php endforeach; ?>
 <?php if ($excluded !== []): ?>
     <p class="muted">Left off this payout: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['name']) ?> (<?= View::text($words[$vendor['mode']] ?? $vendor['mode']) ?>) <?php endforeach; ?></p>
 <?php endif; ?>
+<?php if ($savedStatus === 'paid'): ?>
+    <p class="strong"><?= View::text($monthName) ?> is paid.</p>
+<?php elseif ($savedStatus === 'settled'): ?>
+    <p class="strong"><?= View::text($monthName) ?> is saved, and the payment was not recorded.</p>
+<?php endif; ?>
 <div class="stack mt-6 no-print">
-    <button class="btn" type="button" onclick="window.print()">Print the pack</button>
-    <a class="btn" href="/<?= View::text($slug) ?>/payouts/report<?= $draftRun !== '' ? '?run=' . View::text($draftRun) : '' ?>">Print envelopes</a>
-    <form method="post" action="/<?= View::text($slug) ?>/payouts/checks">
-        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <input type="hidden" name="run_id" value="<?= View::text($runId) ?>">
-        <label for="starting_check">First check number</label>
-        <input class="input" id="starting_check" name="starting_check" inputmode="numeric">
-        <p class="muted text-sm">The number on the first check. The next checks count up from here.</p>
-        <button class="btn" type="submit">Write checks</button>
-    </form>
-    <form method="post" action="/<?= View::text($slug) ?>/payouts/close">
-        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <button class="btn btn-primary" type="submit">Close <?= View::text($monthName) ?></button>
-    </form>
+    <button class="btn" type="button" onclick="window.print()">Print this list</button>
+    <?php if ($savedRun !== ''): ?>
+        <a class="btn" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each vendor's sales</a>
+        <?php if ($savedTender === 'check' && $savedStatus === 'paid'): ?>
+            <a class="btn" href="/<?= View::text($slug) ?>/payouts/checks?run=<?= View::text($savedRun) ?>">Print checks</a>
+        <?php endif; ?>
+    <?php else: ?>
+        <form class="pay-vendors" method="post" action="/<?= View::text($slug) ?>/payouts/close">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <label for="tender">Pay from</label>
+            <select class="input" id="tender" name="tender">
+                <option value="check" selected>Check</option>
+                <option value="drawer_cash">Cash from the drawer</option>
+                <option value="safe_cash">Cash from the safe</option>
+            </select>
+            <div class="when-check">
+                <label for="starting_check">First check number</label>
+                <input class="input" id="starting_check" name="starting_check" inputmode="numeric">
+                <p class="muted text-sm">The number on the first check. The next checks count up from here.</p>
+            </div>
+            <button class="btn btn-primary" type="submit">Pay these vendors</button>
+        </form>
+        <style>
+            .pay-vendors .when-check { display: none; }
+            .pay-vendors:has(#tender option[value="check"]:checked) .when-check { display: block; }
+        </style>
+    <?php endif; ?>
 </div>
-<style>
-.vendor-sheet { display: none; }
-@media print {
-    .vendor-sheet { display: block; break-before: page; }
-    .no-print { display: none; }
-}
-</style>
 <?php ListTable::assets(); ?>

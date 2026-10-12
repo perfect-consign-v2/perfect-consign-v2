@@ -179,7 +179,7 @@ final class PayoutRunTest extends TestCase
             self::assertSame('', $disburser->disburse($runId, $backdated, $date, $owedRow['check'], null));
             self::assertNotSame('', $reversed);
             self::assertNotSame([], $pack);
-            // stored( guard( materialize( link( attachSettlement( attachDisbursement( checks( run( envelopes( copySales( source( report( mark(
+            // stored( guard( materialize( link( attachSettlement( attachDisbursement( checks( run( envelopes( copySales( source( report( mark( sheets( storedSheets( openSheets( previewSheets( day( tender( stamp( begin( finishedRun( savedChecks( savedPack( openPack(
             self::assertSame([], $payouts->missingCharges($runId, $vendorId));
             self::assertIsArray($runs->excluded());
             self::assertNotSame([], $runs->history());

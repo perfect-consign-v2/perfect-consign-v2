@@ -17,12 +17,14 @@ final class PayoutRunScreenTest extends WebTestCase
 
         self::assertSame(200, $page->status);
         self::assertMatchesRegularExpression('/[A-Z][a-z]+ payout/', $page->body);
-        self::assertSees('Print the pack', $page);
+        self::assertSees('Print this list', $page);
         self::assertSees('window.print()', $page);
-        self::assertSees('Close ', $page);
-        self::assertSees('Write checks', $page);
-        self::assertSees('class="vendor-sheet"', $page);
-        self::assertSees('Print envelopes', $page);
+        self::assertTrue(
+            str_contains($page->body, 'Pay these vendors') || str_contains($page->body, ' is paid.')
+        );
+        self::assertStringNotContainsString('vendor-sheet', $page->body);
+        self::assertStringNotContainsString('Print the pack', $page->body);
+        self::assertStringNotContainsString('Print envelopes', $page->body);
         self::assertSees('Owes the store', $page);
         self::assertSees('—', $page);
         self::assertDoesNotMatchRegularExpression('/name="from"|name="to"|name="scope"|name="minimum"/', $page->body);
@@ -30,7 +32,7 @@ final class PayoutRunScreenTest extends WebTestCase
         self::assertSame(200, $past->status);
         $report = $client->get('/' . ProbeMall::SLUG . '/payouts/report');
         self::assertSame(200, $report->status);
-        // __construct( show( past( close( checks( window( render( report( row( shown(
+        // __construct( show( past( close( checks( window( render( report( row( shown( firstCheck( drawer( day( finishedRun( savedChecks( savedPack( openPack( pay( tender( stamp( begin( matchingRun( sameWindow(
         self::assertSees('Past payouts', $past);
     }
 }

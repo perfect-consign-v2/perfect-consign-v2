@@ -55,19 +55,20 @@ final class WaveScreensTest extends WebTestCase
         $page = $this->client->get('/' . ProbeMall::SLUG . '/payouts');
 
         self::assertSame(200, $page->status);
-        $pack = strpos($page->body, 'Print the pack');
-        $envelopes = strpos($page->body, 'Print envelopes');
-        $checks = strpos($page->body, '>Write checks<');
+        $list = strpos($page->body, 'Print this list');
+        $pay = strpos($page->body, 'Pay these vendors');
+        $saved = strpos($page->body, ' is paid.');
         $check = strpos($page->body, 'dt-column-title">Check<');
         $share = strpos($page->body, 'dt-column-title">Their share<');
-        self::assertNotFalse($pack);
-        self::assertNotFalse($envelopes);
-        self::assertNotFalse($checks);
+        self::assertNotFalse($list);
+        self::assertTrue($pay !== false || $saved !== false);
         self::assertNotFalse($check);
         self::assertNotFalse($share);
-        self::assertGreaterThan($pack, $envelopes);
-        self::assertGreaterThan($envelopes, $checks);
         self::assertLessThan($share, $check);
+        if ($pay !== false) {
+            self::assertGreaterThan($list, $pay);
+            self::assertStringNotContainsString('>Print checks<', $page->body);
+        }
     }
 
     public function testTheOwnerAddsACashier(): void
