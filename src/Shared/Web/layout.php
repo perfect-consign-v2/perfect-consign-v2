@@ -181,6 +181,12 @@ $roleLabel = match ($actorRole) {
                 <svg aria-hidden="true"><use href="#i-menu"></use></svg>
             </button>
             <div class="topbar-spacer"></div>
+            <?php if ($slug === 'dev' && $actorRole === 'owner'): ?>
+                <form method="post" action="/<?= View::text($slug) ?>/reset-test-data" onsubmit="return confirm('Wipe the dev mall and load the test data again?');">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <button class="btn btn-danger" type="submit">Reset Test Data</button>
+                </form>
+            <?php endif; ?>
             <?php if ($chooseRegister): ?>
                 <a class="btn" href="/<?= View::text($slug) ?>/registers">Choose a register</a>
             <?php elseif ($activeRegister !== ''): ?>

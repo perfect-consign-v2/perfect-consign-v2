@@ -9,7 +9,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $csrf */
 /** @var string $displayName */
 /** @var string $monthName */
-/** @var list<array{vendor_id: string, code: string, name: string, booth: string, payable: int, monthRent: int, check: int, owes: int, note?: string}> $pack */
+/** @var list<array{vendor_id: string, code: string, name: string, booth: string, boothId: string, payable: int, monthRent: int, check: int, owes: int, note?: string}> $pack */
 /** @var list<array{code: string, name: string, mode: string}> $excluded */
 /** @var string $savedRun */
 /** @var string $savedTender */
@@ -52,9 +52,9 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
         ListTable::head([
             ['label' => 'Vendor', 'token' => 'id'],
             ['label' => 'Booth'],
-            ['label' => 'Pay them', 'sort' => 'num'],
             ['label' => 'They earned', 'sort' => 'num'],
             ['label' => 'Rent', 'sort' => 'num'],
+            ['label' => 'Pay them', 'sort' => 'num'],
             ['label' => 'Owes the store', 'sort' => 'num'],
         ]);
         ?>
@@ -66,10 +66,10 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
                         <?php if (($row['note'] ?? '') !== ''): ?><p class="muted"><?= View::text($row['note']) ?></p><?php endif; ?>
                     </td>
                     <td><?= View::text($row['booth'] === '' ? '—' : $row['booth']) ?></td>
-                    <td style="font-size:1.35rem;font-weight:700"><?= View::text(View::money($row['check'])) ?></td>
                     <td><?= View::text(View::money($row['payable'])) ?></td>
                     <td><?= View::text(View::money($row['monthRent'])) ?></td>
-                    <td><?php if ($row['owes'] > 0): ?><span class="text-danger"><?= View::text(View::money($row['owes'])) ?></span><?php endif; ?></td>
+                    <td style="font-size:1.35rem;font-weight:700"><?= View::text(View::money($row['check'])) ?></td>
+                    <td><?php if ($row['owes'] > 0): ?><a class="owe-amount" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>&amp;booth=<?= View::text($row['boothId']) ?>">(<?= View::text(View::money($row['owes'])) ?>)</a><?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

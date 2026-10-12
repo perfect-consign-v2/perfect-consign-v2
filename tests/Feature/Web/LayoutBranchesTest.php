@@ -40,6 +40,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('href="/demo/conditions"', $html);
         self::assertStringContainsString('href="/demo/dashboard" aria-current="page"', $html);
         self::assertStringContainsString('Active: Front', $html);
+        self::assertStringNotContainsString('Reset Test Data', $html);
         self::assertStringContainsString('class="alert alert-success"', $html);
         self::assertStringContainsString('Saved.', $html);
         self::assertStringContainsString('class="alert alert-warning"', $html);
@@ -49,6 +50,41 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('sidebar-scrim', $html);
         self::assertStringNotContainsString('id="prior-register"', $html);
         self::assertStringNotContainsString('class="pos-app"', $html);
+    }
+
+    public function testTheDevOwnerSeesResetTestDataLeftOfTheActiveRegister(): void
+    {
+        $html = $this->layout([
+            'slug' => 'dev',
+            'actorRole' => 'owner',
+            'path' => '/dev/dashboard',
+            'activeRegister' => 'Front',
+        ]);
+
+        self::assertStringContainsString('action="/dev/reset-test-data"', $html);
+        self::assertStringContainsString('class="btn btn-danger"', $html);
+        self::assertStringContainsString('name="csrf" value="token"', $html);
+        self::assertStringContainsString('Reset Test Data', $html);
+        self::assertStringContainsString('Active: Front', $html);
+        $resetAt = strpos($html, 'Reset Test Data');
+        $activeAt = strpos($html, 'Active: Front');
+        self::assertNotFalse($resetAt);
+        self::assertNotFalse($activeAt);
+        self::assertLessThan($activeAt, $resetAt);
+    }
+
+    public function testACashierOnTheDevMallDoesNotSeeResetTestData(): void
+    {
+        $html = $this->layout([
+            'slug' => 'dev',
+            'actorRole' => 'cashier',
+            'path' => '/dev/pos',
+            'activeRegister' => 'Front',
+        ]);
+
+        self::assertStringContainsString('Active: Front', $html);
+        self::assertStringNotContainsString('Reset Test Data', $html);
+        self::assertStringNotContainsString('/dev/reset-test-data', $html);
     }
 
     public function testANestedCatalogPageStaysInThatSection(): void

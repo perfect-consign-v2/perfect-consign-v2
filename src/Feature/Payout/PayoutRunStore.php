@@ -17,8 +17,8 @@ final class PayoutRunStore
     }
 
     /**
-     * @param list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int, note: string}> $pack
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int, note: string}>
+     * @param list<array{vendor_id: string, code: string, name: string, booth: string, boothId: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int, note: string}> $pack
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, boothId: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int, note: string}>
      */
     public function addBooths(array $pack, string $today): array
     {
@@ -32,12 +32,12 @@ final class PayoutRunStore
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, boothId: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function pack(string $runId): array
     {
         return $this->lines(
-            'SELECT vendor_id, code, name, booth, mode, prior, charged, paid, payable, rent,
+            'SELECT vendor_id, code, name, booth, booth_id::text AS booth_id, mode, prior, charged, paid, payable, rent,
                     rent_minor AS month_rent,
                     "check" AS check_amount, owes AS owe_amount, settled_minor, adjustment_minor
              FROM payout_pack WHERE run_id = ?::uuid AND mode = ?
@@ -47,14 +47,25 @@ final class PayoutRunStore
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, boothId: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function stored(string $runId): array
     {
         return $this->lines(
             "SELECT line.vendor_id, vendor.code,
                     btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
-                    '' AS booth, line.mode,
+                    '' AS booth,
+                    (
+                        SELECT booth.id::text
+                        FROM booth_assignments AS assignment
+                        JOIN booths AS booth ON booth.id = assignment.booth_id
+                        JOIN payout_runs AS run ON run.id = line.run_id
+                        WHERE assignment.vendor_id = line.vendor_id
+                          AND assignment.assignment_range @> run.posting_date
+                        ORDER BY booth.code
+                        LIMIT 1
+                    ) AS booth_id,
+                    line.mode,
                     line.rent_brought_forward_minor AS prior,
                     line.rent_charged_minor + line.rent_minor AS charged,
                     line.rent_paid_since_minor + line.settlement_applied_minor AS paid,
@@ -134,12 +145,12 @@ final class PayoutRunStore
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, boothId: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function preview(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): array
     {
         return $this->lines(
-            'SELECT vendor_id, code, name, booth, mode, prior, charged, paid, payable, rent,
+            'SELECT vendor_id, code, name, booth, booth_id::text AS booth_id, mode, prior, charged, paid, payable, rent,
                     rent_minor AS month_rent,
                     "check" AS check_amount, owes AS owe_amount, settled_minor, adjustment_minor
              FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date)
@@ -383,7 +394,7 @@ final class PayoutRunStore
 
     /**
      * @param list<mixed> $params
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, boothId: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     private function lines(string $sql, array $params): array
     {
@@ -394,6 +405,7 @@ final class PayoutRunStore
                 'code' => $this->text($row, 'code'),
                 'name' => $this->text($row, 'name'),
                 'booth' => $this->text($row, 'booth'),
+                'boothId' => $this->optionalText($row, 'booth_id'),
                 'mode' => $this->text($row, 'mode'),
                 'prior' => RowValue::integer($row['prior'] ?? null),
                 'charged' => RowValue::integer($row['charged'] ?? null),
@@ -422,5 +434,18 @@ final class PayoutRunStore
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function optionalText(array $row, string $key): string
+    {
+        $value = $row[$key] ?? null;
+        if ($value === null) {
+            return '';
+        }
+
+        return $this->text($row, $key);
     }
 }

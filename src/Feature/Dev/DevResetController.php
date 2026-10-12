@@ -1,0 +1,51 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PerfectConsign\Feature\Dev;
+
+use PerfectApp\Routing\Route;
+use PerfectApp\Session\Session;
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Bootstrap\MallApp;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+final class DevResetController
+{
+    public function __construct(
+        private readonly MallApp $app,
+        private readonly Actor $actor,
+        private readonly Session $session,
+        private readonly LoggerInterface $logger,
+        private readonly DevTenantReset $reset,
+    ) {
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/reset-test-data', ['POST'])]
+    public function reset(string $slug): void
+    {
+        $this->app->checkCsrf();
+        if ($slug !== DevTenantReset::SLUG || $this->actor->role() !== 'owner' || $this->actor->slug() !== $slug) {
+            $this->app->notFound(MallApp::MISS_HIDDEN);
+        }
+        try {
+            $this->reset->load();
+        } catch (Throwable $error) {
+            $this->logger->error('test data reset failed', [
+                'slug' => $slug,
+                'message' => $error->getMessage(),
+            ]);
+            $this->app->redirect('/' . $slug . '/dashboard', null, 'Test data was not reset.');
+        }
+        $this->clearMall($slug);
+        $this->app->redirect('/' . $slug . '/dashboard', 'Test data reset.');
+    }
+
+    private function clearMall(string $slug): void
+    {
+        foreach (['register:', 'register_name:', 'sale:', 'sale_tendered:', 'close_prior:'] as $prefix) {
+            $this->session->delete($prefix . $slug);
+        }
+    }
+}

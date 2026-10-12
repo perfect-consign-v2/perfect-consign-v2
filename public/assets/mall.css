@@ -225,7 +225,7 @@
     max-width: 100%;
 }
 
-.content a:not(.btn):not(.stat):not(.stat-link):not(.seg-btn):not(.occupancy-pill):not(.booth-cell):not(.map-floor-tab),
+.content a:not(.btn):not(.stat):not(.stat-link):not(.seg-btn):not(.occupancy-pill):not(.booth-cell):not(.map-floor-tab):not(.owe-amount),
 a.mailto,
 a.text-link {
     color: var(--accent);
@@ -233,10 +233,16 @@ a.text-link {
     text-underline-offset: 0.15em;
 }
 
-.content a:not(.btn):not(.stat):not(.stat-link):not(.seg-btn):not(.occupancy-pill):not(.booth-cell):not(.map-floor-tab):hover,
+.content a:not(.btn):not(.stat):not(.stat-link):not(.seg-btn):not(.occupancy-pill):not(.booth-cell):not(.map-floor-tab):not(.owe-amount):hover,
 a.mailto:hover,
 a.text-link:hover {
     color: var(--accent-hover);
+}
+
+.content a.owe-amount,
+.content a.owe-amount:hover {
+    color: var(--danger);
+    font-weight: 700;
 }
 
 .modal[data-lock] {
@@ -874,6 +880,7 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .slip-meta { margin: 0; color: #5c6775; font-size: 0.75rem; }
 .slip-rule { border: 0; border-top: 1px dashed #1a2230; margin: var(--space-3) 0; }
 .slip-total { font-weight: 700; font-size: 1rem; margin-top: var(--space-2); }
+#rent-owed span:last-child { font-size: 1.75rem; font-weight: 700; }
 .slip-number {
     margin: var(--space-3) 0;
     text-align: center;

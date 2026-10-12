@@ -8,7 +8,6 @@ use PDO;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -23,14 +22,15 @@ final class RentReceipt
         private readonly MallPayoutSettings $settings,
         private readonly RentPosting $posting,
         private readonly RentSlip $slips,
+        private readonly RentPayment $payments,
     ) {
     }
 
     /**
      * The amount the vendor page already shows. Pack owes when sales pay the rent,
-     * otherwise that booth's open receivable.
+     * otherwise that booth's open receivable. A late fee still on the booth is part of it.
      *
-     * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, collect: string}|null
+     * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, rent: int, late: int, collect: string}|null
      */
     public function figure(string $vendorId, string $boothId, string $today): ?array
     {
@@ -42,7 +42,7 @@ final class RentReceipt
     }
 
     /**
-     * @param array{cash: string, card: string, checks: string, tendered: string, check: string} $tender
+     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string} $tender
      */
     public function collect(
         string $vendorId,
@@ -52,18 +52,21 @@ final class RentReceipt
         string $amount,
         array $tender,
     ): string {
-        $parsed = Money::parseMinor($amount);
         $figure = $this->figure($vendorId, $boothId, $today);
-        if ($figure === null || $parsed > $figure['owed']) {
+        if ($figure === null) {
             throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
         }
-        $lines = $this->posting->tenders($parsed, $tender);
+        $shaped = $this->payments->apply($tender, $amount, $figure['owed']);
+        if ($shaped['minor'] > $figure['owed']) {
+            throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
+        }
+        $lines = $this->posting->tenders($shaped['minor'], $shaped['tender']);
         $this->ownsTransaction = !$this->pdo->inTransaction();
         if ($this->ownsTransaction) {
             $this->pdo->beginTransaction();
         }
         try {
-            $journalId = $this->posting->postReceipt($figure['vendor_id'], $figure['booth_id'], $today, $sessionId, $parsed, $tender, $lines);
+            $journalId = $this->posting->postReceipt($figure['vendor_id'], $figure['booth_id'], $today, $sessionId, $shaped['minor'], $shaped['tender'], $lines);
             if ($this->ownsTransaction) {
                 $this->pdo->commit();
             }
@@ -108,7 +111,7 @@ final class RentReceipt
     }
 
     /**
-     * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, collect: string}|null
+     * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, rent: int, late: int, collect: string}|null
      */
     private function packFigure(string $vendorId, string $boothId, string $today): ?array
     {
@@ -124,12 +127,16 @@ final class RentReceipt
             return null;
         }
 
+        $parts = $this->payments->parts($quote['owes'], $this->lateCharged($vendorId, ''));
+
         return [
             'vendor_id' => $vendorId,
             'vendor_name' => $picked['name'],
             'booth_id' => $picked['booth_id'],
             'booth' => $picked['booth'],
             'owed' => $quote['owes'],
+            'rent' => $parts['rent'],
+            'late' => $parts['late'],
             'collect' => $this->dollars($quote['owes']),
         ];
     }
@@ -159,7 +166,7 @@ final class RentReceipt
     }
 
     /**
-     * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, collect: string}|null
+     * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, rent: int, late: int, collect: string}|null
      */
     private function openFigure(string $vendorId, string $boothId, string $today): ?array
     {
@@ -203,14 +210,48 @@ final class RentReceipt
             return null;
         }
 
+        $parts = $this->payments->parts($owed, $this->lateCharged($found, $boothId));
+
         return [
             'vendor_id' => $found,
             'vendor_name' => RowValue::string($row['vendor_name'] ?? null),
             'booth_id' => $boothId,
             'booth' => RowValue::string($row['code'] ?? null),
             'owed' => $owed,
+            'rent' => $parts['rent'],
+            'late' => $parts['late'],
             'collect' => $this->dollars($owed),
         ];
+    }
+
+    private function lateCharged(string $vendorId, string $boothId): int
+    {
+        $sql = "SELECT COALESCE(sum(line.debit_minor), 0) AS late_minor
+                FROM journal_lines AS line
+                JOIN journals AS journal ON journal.id = line.journal_id
+                JOIN chart_roles AS role ON role.account_id = line.account_id
+                WHERE role.role = 'booth_rent_receivable'
+                  AND journal.source_type = 'late_fee'
+                  AND line.subledger_type = 'booth'
+                  AND line.debit_minor > 0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM journals AS reversal
+                      WHERE reversal.reverses_journal_id = journal.id
+                  )
+                  AND EXISTS (
+                      SELECT 1 FROM booth_assignments AS assignment
+                      WHERE assignment.vendor_id = ?::uuid
+                        AND assignment.booth_id = line.subledger_ref::uuid
+                        AND assignment.assignment_range @> journal.posting_date
+                  )";
+        $params = [$vendorId];
+        if ($boothId !== '') {
+            $sql .= ' AND line.subledger_ref = ?::uuid';
+            $params[] = $boothId;
+        }
+        $row = $this->statements->bound($sql, $params)[0] ?? null;
+
+        return is_array($row) ? RowValue::integer($row['late_minor'] ?? null) : 0;
     }
 
     private function dollars(int $minor): string

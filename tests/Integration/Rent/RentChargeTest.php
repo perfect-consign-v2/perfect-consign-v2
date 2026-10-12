@@ -13,7 +13,9 @@ use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
+use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\RentLines;
+use PerfectConsign\Feature\Rent\RentPayment;
 use PerfectConsign\Feature\Rent\RentPosting;
 use PerfectConsign\Feature\Rent\RentReceipt;
 use PerfectConsign\Feature\Rent\RentSlip;
@@ -97,6 +99,7 @@ final class RentChargeTest extends TestCase
                 new MallPayoutSettings($statements),
             ),
             new RentSlip($statements),
+            new RentPayment(),
         );
         $rent = new RentStore($statements, new MallSettings($statements), new RentLines(), $ledger);
         $pdo->beginTransaction();
@@ -115,11 +118,19 @@ final class RentChargeTest extends TestCase
             $rent->postCharge($boothId, '2026-06-15');
             $sessionId = $this->session($statements, $ledger);
             $before = $this->expected($statements, $sessionId);
-            // packFigure( openFigure( postReceipt( credits( tenders( requireCheck( handed( debitLines( minor( dollars( rollbackOwned( party( tenderLines( tenderName( checkOn( boothOf( figures( form( rates( filled( sessionStale( older( links( ids( writeJournal( storeTendered( abortJournal( due( owed( amount( begin(
+            // packFigure( openFigure( postReceipt( credits( tenders( requireCheck( handed( debitLines( minor( dollars( rollbackOwned( party( tenderLines( tenderName( checkOn( boothOf( figures( form( rates( filled( sessionStale( older( links( ids( writeJournal( storeTendered( abortJournal( due( owed( amount( begin( lateCharged( apply( parts( cash( card( check( split(
             $figure = $receipts->figure('', $boothId, '2026-06-15');
             self::assertNotNull($figure);
             self::assertSame(4800, $figure['owed']);
+            self::assertSame(4800, $figure['rent']);
+            self::assertSame(0, $figure['late']);
             self::assertSame('48.00', $figure['collect']);
+            (new LateFee($ledger))->charge($boothId, '2026-06-15', '5.00');
+            $withFee = $receipts->figure('', $boothId, '2026-06-15');
+            self::assertNotNull($withFee);
+            self::assertSame(5300, $withFee['owed']);
+            self::assertSame(4800, $withFee['rent']);
+            self::assertSame(500, $withFee['late']);
             $journalId = $receipts->collect($vendorId, $boothId, '2026-06-15', $sessionId, '10.00', [
                 'cash' => '10.00',
                 'card' => '',
@@ -173,6 +184,46 @@ final class RentChargeTest extends TestCase
             } catch (DatabaseRefusal $refusal) {
                 self::assertSame('a rent check needs a check number', $refusal->getMessage());
             }
+            try {
+                $receipts->collect($vendorId, $boothId, '2026-06-15', $sessionId, '', [
+                    'way' => 'card',
+                    'cash' => '',
+                    'card' => '100.00',
+                    'checks' => '',
+                    'tendered' => '',
+                    'check' => '',
+                ]);
+                self::fail('a card rent receipt above the open rent was accepted');
+            } catch (DatabaseRefusal $refusal) {
+                self::assertSame('a rent receipt cannot exceed the open rent', $refusal->getMessage());
+            }
+            $splitId = $receipts->collect($vendorId, $boothId, '2026-06-15', $sessionId, '', [
+                'way' => 'split',
+                'cash' => '1.00',
+                'card' => '2.00',
+                'checks' => '',
+                'tendered' => '5.00',
+                'check' => '',
+            ]);
+            $split = $receipts->read($splitId);
+            self::assertNotNull($split);
+            self::assertSame(300, $split['amount']);
+            self::assertSame(100, $split['cash']);
+            self::assertSame(400, $receipts->change('5.00', $split['cash']));
+            $handedId = $receipts->collect($vendorId, $boothId, '2026-06-15', $sessionId, '', [
+                'way' => 'cash',
+                'cash' => '',
+                'card' => '',
+                'checks' => '',
+                'tendered' => '50.00',
+                'check' => '',
+            ]);
+            $handed = $receipts->read($handedId);
+            self::assertNotNull($handed);
+            self::assertSame(3600, $handed['amount']);
+            self::assertSame(3600, $handed['cash']);
+            self::assertSame(1400, $receipts->change('50.00', $handed['cash']));
+            self::assertSame($before + 4700, $this->expected($statements, $sessionId));
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

@@ -2,5 +2,8 @@ parameters:
     level: 10
     paths:
         - src
+    bootstrapFiles:
+        - bin/wipe-tenant.php
+        - bin/provision-tenant.php
     reportUnmatchedIgnoredErrors: true
     treatPhpDocTypesAsCertain: false

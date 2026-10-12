@@ -341,8 +341,12 @@ final class CoverageRemainderTest extends WebTestCase
         self::assertStringNotContainsString('Pay this vendor', $owing->body);
         // collectForm( slip( showCollect( kept( payment(
         $collect = $this->client->get('/' . self::SLUG . '/rent/collect?booth=' . $boothId);
-        self::assertSees('Amount received', $collect);
-        self::assertSees('Amount owed', $collect);
+        self::assertSees('They owe', $collect);
+        self::assertSees('id="tender-cash" name="tender_cash" inputmode="decimal" value=""', $collect);
+        self::assertSees('They are paying', $collect);
+        self::assertStringNotContainsString('Cash they handed you', $collect->body);
+        self::assertSame(1, substr_count($collect->body, '>Collect</button>'));
+        self::assertStringNotContainsString('Amount received', $collect->body);
         $noTender = $this->client->post('/' . self::SLUG . '/rent/payment', [
             'booth_id' => $boothId,
             'amount' => '1.00',

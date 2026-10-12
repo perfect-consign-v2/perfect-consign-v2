@@ -76,6 +76,7 @@ final class RentController
                 $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true)),
                 $this->app->request()->field('amount'),
                 [
+                    'way' => $this->app->request()->field('pay_with'),
                     'cash' => $this->app->request()->field('tender_cash'),
                     'card' => $this->app->request()->field('tender_card'),
                     'checks' => $this->app->request()->field('tender_checks'),
@@ -151,30 +152,19 @@ final class RentController
             $this->render($slug, $error ?? 'a rent receipt cannot exceed the open rent');
             return;
         }
+        $returning = $this->app->request()->field('pay_with') !== '';
         $this->app->show('Feature/Rent/collect', [
             'title' => 'Collect rent',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'figure' => $figure,
-            'amount' => $this->kept('amount', $figure['collect']),
-            'tenderCash' => $this->kept('tender_cash', $figure['collect']),
-            'tenderCard' => $this->kept('tender_card', ''),
-            'tenderChecks' => $this->kept('tender_checks', ''),
-            'cashTendered' => $this->kept('cash_tendered', $figure['collect']),
-            'checkNumber' => $this->kept('check_number', ''),
+            'tenderCash' => $returning ? $this->app->request()->field('tender_cash') : '',
+            'tenderCard' => $returning ? $this->app->request()->field('tender_card') : '',
+            'tenderChecks' => $returning ? $this->app->request()->field('tender_checks') : '',
+            'checkNumber' => $returning ? $this->app->request()->field('check_number') : '',
             'error' => $error,
             'openRegister' => $this->registers->openSessions() !== [],
         ]);
-    }
-
-    private function kept(string $name, string $fallback): string
-    {
-        $posted = $this->app->request()->field($name);
-        if ($posted !== '') {
-            return $posted;
-        }
-
-        return $fallback;
     }
 
     private function render(string $slug, ?string $error): void
