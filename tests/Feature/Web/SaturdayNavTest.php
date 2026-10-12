@@ -31,6 +31,7 @@ final class SaturdayNavTest extends TestCase
             'priorCloseStarted' => false,
             'priorPrompt' => false,
             'catalogNav' => [],
+            'actorRole' => 'owner',
         ]);
         $html = ob_get_clean();
 

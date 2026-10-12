@@ -58,19 +58,7 @@ final class MallApp
         $data['path'] = $this->request->path;
         $data['today'] = $this->roled ? $this->mall->today() : '';
         if (is_string($slug)) {
-            $chosen = $this->drawers->chosen($slug, $this->roled);
-            $data['activeRegister'] = $chosen['name'];
-            $data['activeSessionId'] = $chosen['id'];
-            $data['chooseRegister'] = $chosen['choose'];
-            $leftOpen = $this->drawers->leftOpen($this->roled);
-            $data['leftOpen'] = $leftOpen;
-            $away = $this->door->priorShift($slug, $leftOpen);
-            if ($away !== null) {
-                $this->redirect($away, $notice, $warning);
-            }
-            $data['priorCloseStarted'] = $this->session->get('close_prior:' . $slug) === 'yes';
-            $onHub = preg_match('#/registers$#', $this->request->path) === 1;
-            $data['priorPrompt'] = $leftOpen !== [] && $data['priorCloseStarted'] !== true && !$onHub;
+            $this->registerBar($data, $slug, $notice, $warning);
         }
         $data['notice'] = $notice;
         $data['warning'] = $warning;
@@ -78,6 +66,31 @@ final class MallApp
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
         $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function registerBar(array &$data, string $slug, ?string $notice, ?string $warning): void
+    {
+        $chosen = $this->drawers->chosen($slug, $this->roled);
+        $data['activeRegister'] = $chosen['name'];
+        $data['activeSessionId'] = $chosen['id'];
+        $data['chooseRegister'] = $chosen['choose'];
+        $leftOpen = $this->drawers->leftOpen($this->roled);
+        $data['leftOpen'] = $leftOpen;
+        $vendor = $this->door->actor()->role() === 'vendor';
+        if ($vendor) {
+            $this->session->delete('close_prior:' . $slug);
+        }
+        $away = $vendor ? null : $this->door->priorShift($slug, $leftOpen);
+        if ($away !== null) {
+            $this->redirect($away, $notice, $warning);
+        }
+        $started = $this->session->get('close_prior:' . $slug) === 'yes';
+        $data['priorCloseStarted'] = $started;
+        $onHub = preg_match('#/registers$#', $this->request->path) === 1;
+        $data['priorPrompt'] = !$vendor && $leftOpen !== [] && $started !== true && $onHub !== true;
     }
 
     public function notFound(string $reason = self::MISS_RECORD): never

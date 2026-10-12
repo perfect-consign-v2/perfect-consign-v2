@@ -49,7 +49,7 @@ final class VendorPortalTest extends WebTestCase
         self::assertSees('Bought at the store', $home);
         self::assertSees('Check', $home);
         self::assertSees('Sales', $home);
-        self::assertSees('Items', $home);
+        self::assertSees('Inventory', $home);
 
         $sales = $vendor->get('/' . self::SLUG . '/vendor/sales');
         self::assertSees('Since your last check', $sales);

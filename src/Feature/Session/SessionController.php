@@ -70,6 +70,10 @@ final class SessionController
     public function logout(string $slug): void
     {
         $this->app->checkCsrf();
+        if ($this->actor->role() !== 'owner') {
+            $this->app->signOut();
+            $this->app->redirect('/' . $slug, 'Signed out.');
+        }
         $this->confirm($slug, null);
     }
 

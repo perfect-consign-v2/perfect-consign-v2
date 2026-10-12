@@ -350,7 +350,7 @@ final class VendorCheck
 
     private function reversed(mixed $value): bool
     {
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
+        return in_array($value, [true, 1, '1', 't', 'true'], true);
     }
 
     private function label(string $source, string $role, int $debit): string

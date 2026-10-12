@@ -63,6 +63,15 @@ final class VendorAccountTest extends WebTestCase
         self::assertLessThan(500, $printed->status);
         self::assertSees('Your items', $printed);
         self::assertSees('That item is not yours.', $printed);
+        self::assertStringNotContainsString('Close the register from an earlier day', $home->body);
+        self::assertStringNotContainsString('Last backup you downloaded', $home->body);
+        $left = $vendor->post('/' . ProbeMall::SLUG . '/logout', []);
+        self::assertSees('Signed out.', $left);
+        self::assertSees('Sign in', $left);
+        self::assertStringNotContainsString('Last backup you downloaded', $left->body);
+        self::assertStringNotContainsString('Close the register from an earlier day', $left->body);
+        $closed = $vendor->get('/' . ProbeMall::SLUG . '/vendor');
+        self::assertStringNotContainsString('Your check', $closed->body);
     }
 
     public function testABoothFixWithoutAItemIsRefused(): void
