@@ -138,13 +138,15 @@ function duplicateFunctions(string $sqlDirectory): array
         $sql = readSql($path);
         $seen = [];
         if (preg_match_all(
-            '/CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+((?:[a-z_][a-z0-9_]*\\.)?[a-z_][a-z0-9_]*)\\s*\\(/i',
+            '/CREATE\\s+(OR\\s+REPLACE\\s+)?FUNCTION\\s+((?:[a-z_][a-z0-9_]*\\.)?[a-z_][a-z0-9_]*)\\s*\\(/i',
             $sql,
-            $matches
+            $matches,
+            PREG_SET_ORDER
         ) === false) {
             continue;
         }
-        foreach ($matches[1] as $name) {
+        foreach ($matches as $match) {
+            $name = $match[2] ?? null;
             if (!is_string($name)) {
                 continue;
             }
@@ -153,7 +155,9 @@ function duplicateFunctions(string $sqlDirectory): array
                 $failures[] = $file . ' creates ' . $name . ' twice';
             }
             $seen[$key] = true;
-            if (isset($defined[$key])) {
+            // A later file may replace a checksum-locked function. A bare second CREATE may not.
+            $replacing = isset($match[1]) && is_string($match[1]) && $match[1] !== '';
+            if (isset($defined[$key]) && !$replacing) {
                 $failures[] = $file . ' creates ' . $name . ' and ' . $defined[$key] . ' already creates it';
                 continue;
             }

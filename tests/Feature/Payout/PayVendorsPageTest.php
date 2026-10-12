@@ -39,7 +39,39 @@ final class PayVendorsPageTest extends TestCase
         self::assertStringNotContainsString('Print checks', $html);
         self::assertStringNotContainsString('Close October', $html);
         self::assertStringContainsString('1 to pay', $html);
+        self::assertStringContainsString('0 owe the store', $html);
+        self::assertStringContainsString('A-1', $html);
+        self::assertStringContainsString('—', $html);
+        self::assertStringNotContainsString('text-danger', $html);
+        self::assertStringNotContainsString('<p class="alert">', $html);
+        self::assertStringNotContainsString('Left off this payout', $html);
+        self::assertStringNotContainsString('was not recorded', $html);
         self::assertStringNotContainsString('Still unpaid', $html);
+    }
+
+    public function testAPaymentProblemIsShown(): void
+    {
+        $html = $this->page('', '', '', '', 'Open the drawer first.');
+
+        self::assertStringContainsString('<p class="alert">Open the drawer first.</p>', $html);
+    }
+
+    public function testASettledMonthSaysThePaymentWasNotRecorded(): void
+    {
+        $html = $this->page('00000000-0000-7000-8000-000000000022', 'check', 'settled');
+
+        self::assertStringContainsString('is saved, and the payment was not recorded.', $html);
+        self::assertStringNotContainsString('Print checks', $html);
+        self::assertStringNotContainsString('Pay these vendors', $html);
+    }
+
+    public function testAVendorLeftOffIsNamed(): void
+    {
+        $html = $this->page('', '', '', '', null, [
+            ['code' => 'IRIS', 'name' => 'Iris', 'mode' => 'hold'],
+        ]);
+
+        self::assertStringContainsString('Left off this payout: Iris (hold)', $html);
     }
 
     public function testAShortfallNamesTheEarlierRent(): void
@@ -72,8 +104,17 @@ final class PayVendorsPageTest extends TestCase
         self::assertStringNotContainsString('Pay these vendors', $html);
     }
 
-    private function page(string $runId, string $tender, string $status, string $note = ''): string
-    {
+    /**
+     * @param list<array{code: string, name: string, mode: string}> $excluded
+     */
+    private function page(
+        string $runId,
+        string $tender,
+        string $status,
+        string $note = '',
+        ?string $error = null,
+        array $excluded = [],
+    ): string {
         $view = new View(dirname(__DIR__, 3) . '/src');
         ob_start();
         $view->render('Feature/Payout/pay-vendors', [
@@ -81,8 +122,8 @@ final class PayVendorsPageTest extends TestCase
             'csrf' => 'token',
             'displayName' => 'Web Probe',
             'monthName' => 'October',
-            'error' => null,
-            'excluded' => [],
+            'error' => $error,
+            'excluded' => $excluded,
             'savedRun' => $runId,
             'savedTender' => $tender,
             'savedStatus' => $status,
@@ -100,6 +141,20 @@ final class PayVendorsPageTest extends TestCase
                 'check' => 7200,
                 'owes' => 0,
                 'note' => $note,
+            ], [
+                'vendor_id' => 'vendor-2',
+                'code' => 'GIN',
+                'name' => 'Gina Holt',
+                'booth' => '',
+                'prior' => 0,
+                'charged' => 0,
+                'paid' => 0,
+                'payable' => 0,
+                'rent' => 0,
+                'monthRent' => 0,
+                'check' => 0,
+                'owes' => 0,
+                'note' => '',
             ]],
         ]);
         $html = ob_get_clean();

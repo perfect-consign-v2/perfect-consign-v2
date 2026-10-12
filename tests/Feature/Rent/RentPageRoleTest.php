@@ -13,6 +13,8 @@ final class RentPageRoleTest extends TestCase
     {
         $owner = $this->page(['actorRole' => 'owner', 'rows' => [$this->booth()]]);
         self::assertStringContainsString('action="/demo/rent/late-fee"', $owner);
+        self::assertStringContainsString('Previous', $owner);
+        self::assertStringNotContainsString('Not charged', $owner);
         self::assertStringContainsString('Post late fee', $owner);
 
         $cashier = $this->page(['actorRole' => 'cashier', 'rows' => [$this->booth()]]);

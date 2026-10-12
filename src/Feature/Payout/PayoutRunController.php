@@ -22,7 +22,7 @@ final class PayoutRunController
         private readonly PayoutReverser $reverser,
         private readonly ActiveRegister $register,
         private readonly MallClock $clock,
-        private readonly RentShortfall $shortfall,
+        private readonly PrintedChecks $printed,
     ) {
     }
 
@@ -158,85 +158,16 @@ final class PayoutRunController
         if ($this->app->request()->method === 'POST') {
             $this->app->checkCsrf();
         }
-        $tenant = $this->app->open($slug, true);
         $runId = $this->app->request()->query('run');
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $runId) !== 1) {
             $this->render($slug, 'That payout is missing.');
 
             return;
         }
-        $run = $this->runs->run($runId);
-        if (!$this->printable($run)) {
-            $this->render($slug, 'Those checks are not ready to print.');
-
-            return;
+        $error = $this->printed->present($slug, $runId);
+        if ($error !== null) {
+            $this->render($slug, $error);
         }
-        $error = null;
-        if ($this->app->request()->method === 'POST' && $this->blankChecks($runId)) {
-            $error = $this->fillBlanks($runId);
-        }
-        if ($this->blankChecks($runId)) {
-            $this->app->show('Feature/Payout/check-number', [
-                'title' => 'Print checks',
-                'displayName' => $tenant->displayName,
-                'slug' => $tenant->slug,
-                'runId' => $runId,
-                'error' => $error,
-            ]);
-
-            return;
-        }
-        $checks = $this->once->savedChecks($runId);
-        if ($checks === []) {
-            $this->render($slug, 'Nobody on this payout is getting a check.');
-
-            return;
-        }
-        $rent = $this->day($run['rent_month']);
-        $monthName = $rent === '' ? 'Payout' : (new \DateTimeImmutable($rent))->format('F');
-        $this->app->show('Feature/Payout/checks', [
-            'title' => 'Checks',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'dated' => (new \DateTimeImmutable($run['posting_date']))->format('F j, Y'),
-            'monthName' => $monthName,
-            'checks' => $checks,
-        ]);
-    }
-
-    /**
-     * @param array{tender: string, status: string, posting_date: string, rent_month: string} $run
-     */
-    private function printable(array $run): bool
-    {
-        return $run['status'] === 'paid' && $run['tender'] === 'check' && $this->day($run['posting_date']) !== '';
-    }
-
-    private function fillBlanks(string $runId): ?string
-    {
-        $start = $this->app->request()->field('starting_check');
-        $number = ctype_digit($start) ? (int) $start : 0;
-        if ($number <= 0) {
-            return 'Type the number on the first check.';
-        }
-        try {
-            $this->once->numberChecks($runId, $number);
-        } catch (DatabaseRefusal $refusal) {
-            return $this->app->catchRefusal($refusal);
-        }
-
-        return null;
-    }
-
-    private function blankChecks(string $runId): bool
-    {
-        foreach ($this->runs->envelopes($runId) as $row) {
-            if ($row['check'] > 0 && $row['check_number'] === '') {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function drawer(string $slug, string $tender): ?string
@@ -247,15 +178,6 @@ final class PayoutRunController
         $sessionId = $this->register->chosen($slug, true)['id'];
 
         return $sessionId === '' ? null : $sessionId;
-    }
-
-    private function day(mixed $value): string
-    {
-        if (!is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}/', $value) !== 1) {
-            return '';
-        }
-
-        return substr($value, 0, 10);
     }
 
     private function render(string $slug, ?string $error): void
@@ -273,7 +195,7 @@ final class PayoutRunController
             'monthName' => $monthName,
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'pack' => $this->shortfall->attach($this->runs->addBooths($pack, $today), $window['rent']),
+            'pack' => $this->runs->addBooths($pack, $today),
             'savedRun' => $finished === null ? '' : $finished['id'],
             'savedTender' => $finished === null ? '' : $finished['tender'],
             'savedStatus' => $finished === null ? '' : $finished['status'],

@@ -17,6 +17,14 @@ final class RentShortfallTest extends TestCase
         );
     }
 
+    public function testOneDayNamesThatDay(): void
+    {
+        self::assertSame(
+            'Still unpaid from September: $13.33. One day at C-1 was $13.33.',
+            RentShortfall::sentence('September', 'C-1', 1, 1333, 0, 1333)
+        );
+    }
+
     public function testAFullMonthWithNoPaymentNamesTheMonth(): void
     {
         self::assertSame(

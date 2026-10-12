@@ -69,9 +69,10 @@ final class RentShortfall
     {
         $still = 'Still unpaid from ' . $month . ': ' . View::money($unpaid) . '.';
         $place = $booth === '' ? '' : ' at ' . $booth;
-        if ($days > 1) {
+        if ($days > 0) {
             $word = self::DAY_WORDS[$days] ?? (string) $days;
-            $detail = $word . ' days' . $place . ' was ' . View::money($charged);
+            $unit = $days === 1 ? 'day' : 'days';
+            $detail = $word . ' ' . $unit . $place . ' was ' . View::money($charged);
         } else {
             $detail = $month . ' rent' . $place . ' was ' . View::money($charged);
         }

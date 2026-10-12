@@ -601,12 +601,6 @@ BEGIN
         RAISE EXCEPTION 'a disbursement journal is written once'
             USING ERRCODE = '23514';
     END IF;
-    IF run_status = 'paid'
-       AND OLD.check_number IS NULL
-       AND NEW.check_number IS NOT NULL
-       AND NEW.disbursement_journal_id IS NOT DISTINCT FROM OLD.disbursement_journal_id THEN
-        RETURN NEW;
-    END IF;
     IF run_status <> 'settled'
        AND (NEW.check_number IS DISTINCT FROM OLD.check_number
             OR NEW.disbursement_journal_id IS DISTINCT FROM OLD.disbursement_journal_id) THEN

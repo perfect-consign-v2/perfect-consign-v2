@@ -60,12 +60,8 @@ final class CheckWords
         if ($value < 100) {
             return '';
         }
-        $hundreds = self::ONES[intdiv($value, 100)] ?? null;
-        if ($hundreds === null || $hundreds === '') {
-            throw new InvalidArgumentException('a check amount is out of range');
-        }
 
-        return $hundreds . ' hundred';
+        return self::ONES[intdiv($value, 100)] . ' hundred';
     }
 
     private function belowHundred(int $value): string
@@ -73,24 +69,14 @@ final class CheckWords
         if ($value >= 20) {
             return $this->tens($value);
         }
-        if ($value <= 0) {
-            return '';
-        }
-        $one = self::ONES[$value] ?? null;
-        if ($one === null || $one === '') {
-            throw new InvalidArgumentException('a check amount is out of range');
-        }
 
-        return $one;
+        return self::ONES[$value];
     }
 
     private function tens(int $value): string
     {
-        $rest = self::TENS[intdiv($value, 10)] ?? null;
-        $one = self::ONES[$value % 10] ?? null;
-        if ($rest === null || $rest === '' || $one === null) {
-            throw new InvalidArgumentException('a check amount is out of range');
-        }
+        $rest = self::TENS[intdiv($value, 10)];
+        $one = self::ONES[$value % 10];
         if ($one === '') {
             return $rest;
         }

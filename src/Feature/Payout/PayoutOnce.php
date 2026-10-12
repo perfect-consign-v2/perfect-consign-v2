@@ -16,6 +16,7 @@ final class PayoutOnce
         private readonly PayoutDisburser $disburser,
         private readonly Statements $statements,
         private readonly CheckWords $words,
+        private readonly RentShortfall $shortfall,
     ) {
     }
 
@@ -118,7 +119,7 @@ final class PayoutOnce
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int, note: string}>
      */
     public function savedPack(string $runId): array
     {
@@ -129,19 +130,20 @@ final class PayoutOnce
             }
         }
 
-        return $pack;
+        return $this->shortfall->attach($pack, $this->day($this->runs->run($runId)['rent_month']));
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int, note: string}>
      */
     public function openPack(string $from, string $to, string $rent, string $today): array
     {
         $draft = $this->runs->openDraft($from, $to, $rent);
-
-        return $draft === null
+        $pack = $draft === null
             ? $this->runs->preview($from, $to, $rent, $today)
             : $this->runs->pack($draft);
+
+        return $this->shortfall->attach($pack, $rent);
     }
 
     private function day(mixed $value): string

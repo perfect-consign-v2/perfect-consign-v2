@@ -36,6 +36,39 @@ final class EnvelopePageTest extends TestCase
         self::assertStringNotContainsString("vendor's envelope", $html);
         self::assertStringContainsString('>Print<', $html);
         self::assertStringContainsString('window.print()', $html);
+        self::assertStringContainsString('reprinted from the stored record', $html);
+        self::assertStringNotContainsString('no vendor sheets', $html);
+    }
+
+    public function testAPayoutWithoutCheckNumbersIsThisMonthsReport(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/envelope', [
+            'displayName' => 'Web Probe',
+            'rows' => [
+                $this->line('vendor-1', 'Ada', 'A1', 'BC-1', 'Wool coat', 1000, 200, 80, 720, '', 0),
+            ],
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringContainsString('Report for this payout.', $html);
+        self::assertStringNotContainsString('reprinted from the stored record', $html);
+    }
+
+    public function testAnEmptyPayoutHasNoVendorSheets(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/envelope', [
+            'displayName' => 'Web Probe',
+            'rows' => [],
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringContainsString('This payout has no vendor sheets.', $html);
     }
 
     /**

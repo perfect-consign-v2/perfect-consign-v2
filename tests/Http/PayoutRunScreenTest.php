@@ -41,7 +41,7 @@ final class PayoutRunScreenTest extends WebTestCase
         self::assertSame(200, $past->status);
         $report = $client->get('/' . ProbeMall::SLUG . '/payouts/report');
         self::assertSame(200, $report->status);
-        // __construct( show( past( close( checks( window( render( report( row( shown( printable( fillBlanks( blankChecks( drawer( day( finishedRun( savedChecks( numberChecks( savedPack( openPack( pay( tender( stamp( begin( matchingRun( sameWindow( assignNumbers( attach( sentence( facts( note( payments( charges( days(
+        // __construct( show( past( close( checks( window( render( report( row( shown( printable( fillBlanks( blankChecks( drawer( day( finishedRun( savedChecks( numberChecks( savedPack( openPack( pay( tender( stamp( begin( matchingRun( sameWindow( assignNumbers( attach( sentence( facts( note( payments( charges( days( present( ask( numberForm( faces( printable( fillBlanks( blankChecks(
         self::assertSees('Past payouts', $past);
     }
 }

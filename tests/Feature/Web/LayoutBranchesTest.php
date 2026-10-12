@@ -51,6 +51,18 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('class="pos-app"', $html);
     }
 
+    public function testANestedCatalogPageStaysInThatSection(): void
+    {
+        $html = $this->layout([
+            'path' => '/demo/colors/red',
+            'catalogNav' => [
+                ['/colors', 'Colors', 'i-tag'],
+            ],
+        ]);
+
+        self::assertStringContainsString('href="/demo/colors" aria-current="page"', $html);
+    }
+
     public function testAMissingRoleShowsNoOwnerNavigation(): void
     {
         $html = $this->shell([]);
