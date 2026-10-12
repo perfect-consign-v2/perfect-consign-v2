@@ -246,7 +246,7 @@ final class RentReceipt
                   )";
         $params = [$vendorId];
         if ($boothId !== '') {
-            $sql .= ' AND line.subledger_ref = ?::uuid';
+            $sql .= ' AND line.subledger_ref = ?';
             $params[] = $boothId;
         }
         $row = $this->statements->bound($sql, $params)[0] ?? null;

@@ -66,8 +66,8 @@ final class WaveScreensTest extends WebTestCase
         self::assertNotFalse($earned);
         self::assertNotFalse($rent);
         self::assertNotFalse($payThem);
-        self::assertLessThan($earned, $rent);
-        self::assertLessThan($rent, $payThem);
+        self::assertLessThan($rent, $earned);
+        self::assertLessThan($payThem, $rent);
         self::assertStringContainsString('dt-column-title">Rent<', $page->body);
         self::assertStringContainsString('Rent comes out of what they earned.', $page->body);
         self::assertStringNotContainsString('dt-column-title">Their share<', $page->body);

@@ -136,8 +136,8 @@ final class RentPayment
             ];
         }
         $exact = $card + $checks;
-        $room = max(0, $owed - $exact);
-        $applied = $exact > $owed ? 0 : min($bills, $room);
+        $over = $exact > $owed;
+        $applied = $over ? 0 : min($bills, max(0, $owed - $exact));
 
         return [
             'minor' => $applied + $exact,
@@ -145,7 +145,7 @@ final class RentPayment
                 'cash' => $this->dollars($applied),
                 'card' => $this->dollars($card),
                 'checks' => $this->dollars($checks),
-                'tendered' => $bills > $applied ? $this->dollars($bills) : '',
+                'tendered' => !$over && $bills > $applied ? $this->dollars($bills) : '',
                 'check' => trim($tender['check']),
             ],
         ];
