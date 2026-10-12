@@ -5,5 +5,6 @@ parameters:
     bootstrapFiles:
         - bin/wipe-tenant.php
         - bin/provision-tenant.php
+        - bin/MallDemo.php
     reportUnmatchedIgnoredErrors: true
     treatPhpDocTypesAsCertain: false

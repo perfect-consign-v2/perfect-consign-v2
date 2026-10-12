@@ -19,6 +19,7 @@ final class DevResetController
         private readonly Session $session,
         private readonly LoggerInterface $logger,
         private readonly DevTenantReset $reset,
+        private readonly MallTenantReset $mall,
     ) {
     }
 
@@ -26,11 +27,11 @@ final class DevResetController
     public function reset(string $slug): void
     {
         $this->app->checkCsrf();
-        if ($slug !== DevTenantReset::SLUG || $this->actor->role() !== 'owner' || $this->actor->slug() !== $slug) {
+        if (!$this->allowed($slug)) {
             $this->app->notFound(MallApp::MISS_HIDDEN);
         }
         try {
-            $this->reset->load();
+            $this->reload($slug);
         } catch (Throwable $error) {
             $this->logger->error('test data reset failed', [
                 'slug' => $slug,
@@ -40,6 +41,25 @@ final class DevResetController
         }
         $this->clearMall($slug);
         $this->app->redirect('/' . $slug . '/dashboard', 'Test data reset.');
+    }
+
+    private function allowed(string $slug): bool
+    {
+        if ($this->actor->role() !== 'owner' || $this->actor->slug() !== $slug) {
+            return false;
+        }
+
+        return $slug === DevTenantReset::SLUG || $slug === MallTenantReset::SLUG;
+    }
+
+    private function reload(string $slug): void
+    {
+        if ($slug === MallTenantReset::SLUG) {
+            $this->mall->load();
+
+            return;
+        }
+        $this->reset->load();
     }
 
     private function clearMall(string $slug): void

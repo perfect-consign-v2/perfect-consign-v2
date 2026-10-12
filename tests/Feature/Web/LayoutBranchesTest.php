@@ -73,6 +73,26 @@ final class LayoutBranchesTest extends TestCase
         self::assertLessThan($activeAt, $resetAt);
     }
 
+    public function testTheMallOwnerSeesResetTestDataLeftOfTheActiveRegister(): void
+    {
+        $html = $this->layout([
+            'slug' => 'mall',
+            'actorRole' => 'owner',
+            'path' => '/mall/dashboard',
+            'activeRegister' => 'Front',
+        ]);
+
+        self::assertStringContainsString('action="/mall/reset-test-data"', $html);
+        self::assertStringContainsString('class="btn btn-danger"', $html);
+        self::assertStringContainsString('Reset Test Data', $html);
+        self::assertStringContainsString('Active: Front', $html);
+        $resetAt = strpos($html, 'Reset Test Data');
+        $activeAt = strpos($html, 'Active: Front');
+        self::assertNotFalse($resetAt);
+        self::assertNotFalse($activeAt);
+        self::assertLessThan($activeAt, $resetAt);
+    }
+
     public function testACashierOnTheDevMallDoesNotSeeResetTestData(): void
     {
         $html = $this->layout([

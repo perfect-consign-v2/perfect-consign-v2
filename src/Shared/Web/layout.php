@@ -29,6 +29,7 @@ $notice = $notice ?? null;
 $warning = $warning ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $actorRole = is_string($actorRole ?? null) ? $actorRole : '';
+$resetTestData = ($slug === 'dev' || $slug === 'mall') && $actorRole === 'owner';
 $groups = [];
 if ($actorRole === 'owner') {
     $groups = [
@@ -181,8 +182,8 @@ $roleLabel = match ($actorRole) {
                 <svg aria-hidden="true"><use href="#i-menu"></use></svg>
             </button>
             <div class="topbar-spacer"></div>
-            <?php if ($slug === 'dev' && $actorRole === 'owner'): ?>
-                <form method="post" action="/<?= View::text($slug) ?>/reset-test-data" onsubmit="return confirm('Wipe the dev mall and load the test data again?');">
+            <?php if ($resetTestData): ?>
+                <form method="post" action="/<?= View::text($slug) ?>/reset-test-data" onsubmit="return confirm('Wipe this mall and load the test data again?');">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <button class="btn btn-danger" type="submit">Reset Test Data</button>
                 </form>
