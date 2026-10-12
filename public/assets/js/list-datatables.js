@@ -200,7 +200,7 @@
     }
 
     function openInventorySelection(tableEl) {
-        if (tableEl.id !== 'list-inventory') {
+        if (tableEl.getAttribute('data-dt-page-scroll') !== '1') {
             return null;
         }
         var factory = globalThis.InventorySelectionStore;

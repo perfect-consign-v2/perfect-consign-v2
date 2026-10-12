@@ -77,9 +77,11 @@ final class VendorPortalTest extends WebTestCase
 
         $items = $vendor->get('/' . self::SLUG . '/vendor/inventory');
         self::assertSees('Your items', $items);
-        self::assertMatchesRegularExpression('/' . preg_quote($ten['description'], '/') . '[\s\S]*?1 on hand/', $items->body);
-        self::assertMatchesRegularExpression('/' . preg_quote($twenty['description'], '/') . '[\s\S]*?Sold \d{4}-\d{2}-\d{2}/', $items->body);
-        self::assertMatchesRegularExpression('/' . preg_quote($six['description'], '/') . '[\s\S]*?Sold \d{4}-\d{2}-\d{2}/', $items->body);
+        self::assertSees('list-dt-filter', $items);
+        self::assertSees('Not for sale', $items);
+        self::assertMatchesRegularExpression('/' . preg_quote($ten['description'], '/') . '[\s\S]*?<td class="num">1<\/td>/', $items->body);
+        self::assertMatchesRegularExpression('/' . preg_quote($twenty['description'], '/') . '[\s\S]*?<td class="num">0<\/td>/', $items->body);
+        self::assertMatchesRegularExpression('/' . preg_quote($six['description'], '/') . '[\s\S]*?<td class="num">0<\/td>/', $items->body);
         self::assertStringNotContainsString($other['description'], $items->body);
 
         $missing = $vendor->get('/' . self::SLUG . '/vendor/checks/00000000-0000-7000-8000-000000000099');

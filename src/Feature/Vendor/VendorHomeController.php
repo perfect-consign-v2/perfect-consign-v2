@@ -108,11 +108,18 @@ final class VendorHomeController
     {
         $vendorId = $this->vendor($slug);
         $tenant = $this->app->open($slug, true);
+        $query = trim($this->app->request()->query('q'));
+        $stock = $this->app->request()->query('stock') === 'out' ? 'out' : '';
+        $items = $this->account->items($vendorId, $query, $stock);
         $this->app->show('Feature/Vendor/items', [
             'title' => 'Your items',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'items' => $this->account->items($vendorId),
+            'items' => $items,
+            'query' => $query,
+            'stock' => $stock,
+            'unsold' => $this->account->unsold($vendorId),
+            'total' => $query === '' ? count($items) : $this->account->count($vendorId),
             'labelStock' => $this->mall->getLabelStock(),
             'stocks' => $this->catalog->choices(),
         ]);
