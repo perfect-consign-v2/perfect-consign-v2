@@ -58,16 +58,21 @@ final class WaveScreensTest extends WebTestCase
         $list = strpos($page->body, 'Print this list');
         $pay = strpos($page->body, 'Pay these vendors');
         $saved = strpos($page->body, ' is paid.');
-        $check = strpos($page->body, 'dt-column-title">Check<');
-        $share = strpos($page->body, 'dt-column-title">Their share<');
+        $payThem = strpos($page->body, 'dt-column-title">Pay them<');
+        $earned = strpos($page->body, 'dt-column-title">They earned<');
         self::assertNotFalse($list);
         self::assertTrue($pay !== false || $saved !== false);
-        self::assertNotFalse($check);
-        self::assertNotFalse($share);
-        self::assertLessThan($share, $check);
+        self::assertNotFalse($payThem);
+        self::assertNotFalse($earned);
+        self::assertLessThan($earned, $payThem);
+        self::assertStringContainsString('dt-column-title">Rent<', $page->body);
+        self::assertStringContainsString('Rent comes out of what they earned.', $page->body);
+        self::assertStringNotContainsString('dt-column-title">Their share<', $page->body);
+        self::assertStringNotContainsString('dt-column-title">This month<', $page->body);
         if ($pay !== false) {
             self::assertGreaterThan($list, $pay);
             self::assertStringNotContainsString('>Print checks<', $page->body);
+            self::assertStringNotContainsString('First check number', $page->body);
         }
     }
 

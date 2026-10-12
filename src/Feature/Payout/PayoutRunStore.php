@@ -17,8 +17,8 @@ final class PayoutRunStore
     }
 
     /**
-     * @param list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}> $pack
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @param list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}> $pack
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function addBooths(array $pack, string $today): array
     {
@@ -32,12 +32,13 @@ final class PayoutRunStore
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function pack(string $runId): array
     {
         return $this->lines(
             'SELECT vendor_id, code, name, booth, mode, prior, charged, paid, payable, rent,
+                    rent_minor AS month_rent,
                     "check" AS check_amount, owes AS owe_amount, settled_minor, adjustment_minor
              FROM payout_pack WHERE run_id = ?::uuid AND mode = ?
              ORDER BY code',
@@ -46,7 +47,7 @@ final class PayoutRunStore
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function stored(string $runId): array
     {
@@ -59,6 +60,7 @@ final class PayoutRunStore
                     line.rent_paid_since_minor + line.settlement_applied_minor AS paid,
                     line.carried_payable_minor AS payable,
                     line.carried_rent_minor AS rent,
+                    line.rent_minor AS month_rent,
                     line.check_minor AS check_amount,
                     line.owes_minor AS owe_amount,
                     line.settled_minor,
@@ -132,12 +134,13 @@ final class PayoutRunStore
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function preview(string $salesFrom, string $salesTo, string $rentMonth, string $postingDate): array
     {
         return $this->lines(
             'SELECT vendor_id, code, name, booth, mode, prior, charged, paid, payable, rent,
+                    rent_minor AS month_rent,
                     "check" AS check_amount, owes AS owe_amount, settled_minor, adjustment_minor
              FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date)
              WHERE mode = ?
@@ -380,7 +383,7 @@ final class PayoutRunStore
 
     /**
      * @param list<mixed> $params
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     private function lines(string $sql, array $params): array
     {
@@ -397,6 +400,7 @@ final class PayoutRunStore
                 'paid' => RowValue::integer($row['paid'] ?? null),
                 'payable' => RowValue::integer($row['payable'] ?? null),
                 'rent' => RowValue::integer($row['rent'] ?? null),
+                'monthRent' => RowValue::integer($row['month_rent'] ?? null),
                 'check' => RowValue::integer($row['check_amount'] ?? null),
                 'owes' => RowValue::integer($row['owe_amount'] ?? null),
                 'settled' => RowValue::integer($row['settled_minor'] ?? null),

@@ -114,8 +114,6 @@ final class MallDemo
 
     private int $itemNo = 0;
 
-    private int $nextCheck = 1001;
-
     private bool $roundCash = false;
 
     public function __construct(private readonly PDO $pdo, private readonly string $schema)
@@ -565,12 +563,7 @@ final class MallDemo
         $runId = $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $postingDate);
         $this->runs->review($runId);
         $this->settler->close($runId, $postingDate);
-        $this->disburser->pay($runId, $postingDate, $this->nextCheck);
-        $written = $this->statements->bound(
-            'SELECT count(*) AS checks FROM payout_run_lines WHERE run_id = ?::uuid AND check_number IS NOT NULL',
-            [$runId]
-        );
-        $this->nextCheck += RowValue::integer($written[0]['checks'] ?? null);
+        $this->disburser->pay($runId, $postingDate);
         fwrite(STDOUT, '  payout ' . $window['from'] . ' through ' . $window['to'] . ' posted ' . $postingDate . "\n");
     }
 

@@ -22,6 +22,7 @@ final class PayoutRunController
         private readonly PayoutReverser $reverser,
         private readonly ActiveRegister $register,
         private readonly MallClock $clock,
+        private readonly RentShortfall $shortfall,
     ) {
     }
 
@@ -133,12 +134,6 @@ final class PayoutRunController
 
             return;
         }
-        $number = $this->firstCheck($tender);
-        if ($number === null) {
-            $this->render($slug, 'Type the number on the first check.');
-
-            return;
-        }
         $sessionId = $this->drawer($slug, $tender);
         if ($sessionId === null) {
             $this->render($slug, 'Open the drawer before paying cash from it.');
@@ -147,7 +142,7 @@ final class PayoutRunController
         }
         try {
             $session = $tender === 'drawer_cash' ? $sessionId : null;
-            $this->once->pay($window['from'], $window['to'], $window['rent'], $today, $tender, $number, $session);
+            $this->once->pay($window['from'], $window['to'], $window['rent'], $today, $tender, $session);
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -157,9 +152,12 @@ final class PayoutRunController
         $this->app->redirect('/' . $slug . '/payouts', $monthName . ' is paid.');
     }
 
-    #[Route('/([a-z][a-z0-9-]{0,62})/payouts/checks', ['GET'])]
+    #[Route('/([a-z][a-z0-9-]{0,62})/payouts/checks', ['GET', 'POST'])]
     public function checks(string $slug): void
     {
+        if ($this->app->request()->method === 'POST') {
+            $this->app->checkCsrf();
+        }
         $tenant = $this->app->open($slug, true);
         $runId = $this->app->request()->query('run');
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $runId) !== 1) {
@@ -168,8 +166,23 @@ final class PayoutRunController
             return;
         }
         $run = $this->runs->run($runId);
-        if ($run['status'] !== 'paid' || $run['tender'] !== 'check' || $this->day($run['posting_date']) === '') {
+        if (!$this->printable($run)) {
             $this->render($slug, 'Those checks are not ready to print.');
+
+            return;
+        }
+        $error = null;
+        if ($this->app->request()->method === 'POST' && $this->blankChecks($runId)) {
+            $error = $this->fillBlanks($runId);
+        }
+        if ($this->blankChecks($runId)) {
+            $this->app->show('Feature/Payout/check-number', [
+                'title' => 'Print checks',
+                'displayName' => $tenant->displayName,
+                'slug' => $tenant->slug,
+                'runId' => $runId,
+                'error' => $error,
+            ]);
 
             return;
         }
@@ -191,15 +204,39 @@ final class PayoutRunController
         ]);
     }
 
-    private function firstCheck(string $tender): ?int
+    /**
+     * @param array{tender: string, status: string, posting_date: string, rent_month: string} $run
+     */
+    private function printable(array $run): bool
     {
-        if ($tender !== 'check') {
-            return 0;
-        }
+        return $run['status'] === 'paid' && $run['tender'] === 'check' && $this->day($run['posting_date']) !== '';
+    }
+
+    private function fillBlanks(string $runId): ?string
+    {
         $start = $this->app->request()->field('starting_check');
         $number = ctype_digit($start) ? (int) $start : 0;
+        if ($number <= 0) {
+            return 'Type the number on the first check.';
+        }
+        try {
+            $this->once->numberChecks($runId, $number);
+        } catch (DatabaseRefusal $refusal) {
+            return $this->app->catchRefusal($refusal);
+        }
 
-        return $number > 0 ? $number : null;
+        return null;
+    }
+
+    private function blankChecks(string $runId): bool
+    {
+        foreach ($this->runs->envelopes($runId) as $row) {
+            if ($row['check'] > 0 && $row['check_number'] === '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function drawer(string $slug, string $tender): ?string
@@ -236,7 +273,7 @@ final class PayoutRunController
             'monthName' => $monthName,
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'pack' => $this->runs->addBooths($pack, $today),
+            'pack' => $this->shortfall->attach($this->runs->addBooths($pack, $today), $window['rent']),
             'savedRun' => $finished === null ? '' : $finished['id'],
             'savedTender' => $finished === null ? '' : $finished['tender'],
             'savedStatus' => $finished === null ? '' : $finished['status'],

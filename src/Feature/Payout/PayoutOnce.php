@@ -25,15 +25,14 @@ final class PayoutOnce
         string $rent,
         string $today,
         string $tender,
-        int $number,
         ?string $sessionId,
     ): void {
         try {
-            $this->statements->transaction(function () use ($from, $to, $rent, $today, $tender, $number, $sessionId): void {
+            $this->statements->transaction(function () use ($from, $to, $rent, $today, $tender, $sessionId): void {
                 $runId = $this->runs->ensureDraft($from, $to, $rent, $today, $tender);
                 $this->runs->review($runId);
                 $this->settler->close($runId, $today);
-                $this->disburser->pay($runId, $today, $number, $sessionId);
+                $this->disburser->pay($runId, $today, $sessionId);
             });
         } catch (PDOException $error) {
             throw DatabaseRefusal::fromPdo($error);
@@ -113,8 +112,13 @@ final class PayoutOnce
         return array_values($checks);
     }
 
+    public function numberChecks(string $runId, int $start): void
+    {
+        $this->disburser->numberChecks($runId, $start);
+    }
+
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function savedPack(string $runId): array
     {
@@ -129,7 +133,7 @@ final class PayoutOnce
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function openPack(string $from, string $to, string $rent, string $today): array
     {

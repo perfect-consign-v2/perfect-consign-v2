@@ -2122,6 +2122,65 @@ EXCEPTION
         END IF;
 END $$;
 
+UPDATE payout_runs
+SET status = 'paid', paid_at = clock_timestamp()
+WHERE id = '01900000-0000-7000-8000-00000000f91f' AND status = 'settled';
+
+INSERT INTO payout_run_lines (
+    run_id, vendor_id, mode, check_minor, owes_minor, net_minor
+) VALUES (
+    '01900000-0000-7000-8000-00000000f91f',
+    '01900000-0000-7000-8000-00000000f201',
+    'pay', 500, 0, 500
+);
+
+UPDATE payout_run_lines
+SET check_number = '90'
+WHERE run_id = '01900000-0000-7000-8000-00000000f91f'
+  AND vendor_id = '01900000-0000-7000-8000-00000000f201'
+  AND check_number IS NULL;
+
+DO $$
+DECLARE
+    written text;
+BEGIN
+    SELECT check_number INTO written
+    FROM payout_run_lines
+    WHERE run_id = '01900000-0000-7000-8000-00000000f91f'
+      AND vendor_id = '01900000-0000-7000-8000-00000000f201';
+    IF written IS DISTINCT FROM '90' THEN
+        RAISE EXCEPTION 'a blank check number on a paid run was not filled';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE payout_run_lines
+    SET check_number = '91'
+    WHERE run_id = '01900000-0000-7000-8000-00000000f91f'
+      AND vendor_id = '01900000-0000-7000-8000-00000000f201';
+    RAISE EXCEPTION 'a paid check number was written twice';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a check number is written once%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE payout_run_lines
+    SET check_minor = 1
+    WHERE run_id = '01900000-0000-7000-8000-00000000f91f'
+      AND vendor_id = '01900000-0000-7000-8000-00000000f201';
+    RAISE EXCEPTION 'a paid money line was rewritten';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a settled payout run money line cannot change%' THEN
+            RAISE;
+        END IF;
+END $$;
+
 -- Unchecked: rent is not taken from the share. The check is the share. The rent stays owed.
 
 UPDATE mall SET rent_prepaid_from_prior_sales = false;

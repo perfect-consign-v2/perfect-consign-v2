@@ -9,7 +9,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $csrf */
 /** @var string $displayName */
 /** @var string $monthName */
-/** @var list<array{vendor_id: string, code: string, name: string, booth: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int}> $pack */
+/** @var list<array{vendor_id: string, code: string, name: string, booth: string, payable: int, monthRent: int, check: int, owes: int, note?: string}> $pack */
 /** @var list<array{code: string, name: string, mode: string}> $excluded */
 /** @var string $savedRun */
 /** @var string $savedTender */
@@ -52,29 +52,29 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
         ListTable::head([
             ['label' => 'Vendor', 'token' => 'id'],
             ['label' => 'Booth'],
-            ['label' => 'Check', 'sort' => 'num'],
-            ['label' => 'Their share', 'sort' => 'num'],
-            ['label' => 'Owed before', 'sort' => 'num'],
-            ['label' => 'This month', 'sort' => 'num'],
-            ['label' => 'Paid since', 'sort' => 'num'],
+            ['label' => 'Pay them', 'sort' => 'num'],
+            ['label' => 'They earned', 'sort' => 'num'],
+            ['label' => 'Rent', 'sort' => 'num'],
             ['label' => 'Owes the store', 'sort' => 'num'],
         ]);
         ?>
             <tbody>
             <?php foreach ($pack as $row): ?>
                 <tr>
-                    <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($row['vendor_id']) ?>">(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></a></td>
+                    <td>
+                        <a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($row['vendor_id']) ?>">(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></a>
+                        <?php if (($row['note'] ?? '') !== ''): ?><p class="muted"><?= View::text($row['note']) ?></p><?php endif; ?>
+                    </td>
                     <td><?= View::text($row['booth'] === '' ? '—' : $row['booth']) ?></td>
                     <td style="font-size:1.35rem;font-weight:700"><?= View::text(View::money($row['check'])) ?></td>
                     <td><?= View::text(View::money($row['payable'])) ?></td>
-                    <td><?= View::text(View::money($row['prior'])) ?></td>
-                    <td><?= View::text(View::money($row['charged'])) ?></td>
-                    <td><?= View::text(View::money($row['paid'])) ?></td>
+                    <td><?= View::text(View::money($row['monthRent'])) ?></td>
                     <td><?php if ($row['owes'] > 0): ?><span class="text-danger"><?= View::text(View::money($row['owes'])) ?></span><?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
+        <p>Rent comes out of what they earned.</p>
         <p class="muted"><?= View::text((string) $checks) ?> <?= $savedStatus === 'paid' ? 'paid' : 'to pay' ?>, <?= View::text(View::money($checkTotal)) ?>. <?= View::text((string) $owesCount) ?> owe the store, <?= View::text(View::money($owesTotal)) ?>.</p>
     </div>
 </div>
@@ -102,17 +102,8 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
                 <option value="drawer_cash">Cash from the drawer</option>
                 <option value="safe_cash">Cash from the safe</option>
             </select>
-            <div class="when-check">
-                <label for="starting_check">First check number</label>
-                <input class="input" id="starting_check" name="starting_check" inputmode="numeric">
-                <p class="muted text-sm">The number on the first check. The next checks count up from here.</p>
-            </div>
             <button class="btn btn-primary" type="submit">Pay these vendors</button>
         </form>
-        <style>
-            .pay-vendors .when-check { display: none; }
-            .pay-vendors:has(#tender option[value="check"]:checked) .when-check { display: block; }
-        </style>
     <?php endif; ?>
 </div>
 <?php ListTable::assets(); ?>

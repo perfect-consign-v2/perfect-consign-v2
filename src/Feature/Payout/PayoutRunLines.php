@@ -133,6 +133,44 @@ final class PayoutRunLines
         return $checks;
     }
 
+    public function assignNumbers(string $runId, int $start): void
+    {
+        if ($start <= 0) {
+            throw new DatabaseRefusal('Type the number on the first check.');
+        }
+        $this->statements->transaction(function () use ($runId, $start): void {
+            $rows = $this->statements->bound(
+                "SELECT line.vendor_id, line.disbursement_journal_id
+                 FROM payout_run_lines AS line
+                 JOIN vendors AS vendor ON vendor.id = line.vendor_id
+                 WHERE line.run_id = ?::uuid AND line.mode = 'pay' AND line.check_minor > 0
+                   AND line.check_number IS NULL
+                   AND line.disbursement_journal_id IS NOT NULL
+                 ORDER BY vendor.code",
+                [$runId]
+            );
+            foreach ($rows as $row) {
+                $vendorId = RowValue::string($row['vendor_id'] ?? null);
+                $journalId = RowValue::string($row['disbursement_journal_id'] ?? null);
+                $number = (string) $start;
+                $written = $this->statements->affected(
+                    'UPDATE payout_run_lines
+                     SET check_number = ?
+                     WHERE run_id = ?::uuid AND vendor_id = ?::uuid AND check_number IS NULL',
+                    [$number, $runId, $vendorId]
+                );
+                if ($written !== 1) {
+                    continue;
+                }
+                $this->statements->change(
+                    'INSERT INTO register_checks (journal_id, check_number) VALUES (?::uuid, ?)',
+                    [$journalId, $number]
+                );
+                $start++;
+            }
+        });
+    }
+
     public function mark(string $runId, string $status): void
     {
         if ($status === 'settled') {

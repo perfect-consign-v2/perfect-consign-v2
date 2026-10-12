@@ -14,8 +14,8 @@ final class OccupiedPack
     }
 
     /**
-     * @param list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}> $pack
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, check: int, owes: int, settled: int, adjustment: int}>
+     * @param list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}> $pack
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int}>
      */
     public function fill(array $pack, string $today): array
     {
@@ -45,6 +45,7 @@ final class OccupiedPack
                 'paid' => 0,
                 'payable' => 0,
                 'rent' => 0,
+                'monthRent' => 0,
                 'check' => 0,
                 'owes' => 0,
                 'settled' => 0,

@@ -20,39 +20,43 @@ final class PayoutDisburser
     ) {
     }
 
-    public function pay(string $runId, string $postingDate, int $startCheck, ?string $sessionId = null): void
+    public function pay(string $runId, string $postingDate, ?string $sessionId = null): void
     {
         $run = $this->runs->run($runId);
         if ($run['status'] !== 'settled') {
             throw new DatabaseRefusal('a check is written only while the run is settled');
         }
         $this->lines->guard($runId, true);
-        $number = $startCheck;
         foreach ($this->lines->checks($runId) as $line) {
             $open = $this->payouts->openPayout($line['vendor_id'])['payable'];
             if ($open !== $line['check_minor']) {
                 throw new DatabaseRefusal('the open payable changed after review');
             }
             $source = $this->source($run['tender']);
-            $check = $run['tender'] === 'check' ? (string) $number : null;
             $session = $run['tender'] === 'drawer_cash' ? $sessionId : null;
             $journalId = $this->disburse(
                 $runId,
                 $line['vendor_id'],
                 $postingDate,
                 $line['check_minor'],
-                $check,
+                null,
                 $source['source'],
                 $source['role'],
                 $session,
             );
             $this->lines->link($runId, $journalId, 'disbursement');
-            $this->lines->attachDisbursement($runId, $line['vendor_id'], $journalId, $check);
-            if ($run['tender'] === 'check') {
-                $number++;
-            }
+            $this->lines->attachDisbursement($runId, $line['vendor_id'], $journalId, null);
         }
         $this->lines->mark($runId, 'paid');
+    }
+
+    public function numberChecks(string $runId, int $start): void
+    {
+        $run = $this->runs->run($runId);
+        if ($run['status'] !== 'paid' || $run['tender'] !== 'check') {
+            throw new DatabaseRefusal('Those checks are not ready to print.');
+        }
+        $this->lines->assignNumbers($runId, $start);
     }
 
     /**
