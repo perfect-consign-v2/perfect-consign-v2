@@ -298,6 +298,35 @@ a.text-link:hover {
     width: 100%;
     max-width: 36rem;
 }
+.vendor-edit {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+}
+.vendor-pair {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: minmax(0, 1fr);
+}
+.vendor-save {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+.vendor-danger { margin-top: var(--space-4); }
+.content .vendor-edit .field > label,
+.content .vendor-danger .field > label {
+    margin: 0;
+}
+.content .vendor-edit .field > label.row {
+    display: flex;
+    align-items: center;
+}
+@media (min-width: 45rem) {
+    .vendor-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
 .stack {
     display: flex;
     flex-direction: column;

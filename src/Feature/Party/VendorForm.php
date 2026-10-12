@@ -114,8 +114,9 @@ final class VendorForm
         $mallBasis = $this->mall->storeTake();
         $shown = $this->shownTake($vendor, $mallBasis);
         $editing = $vendor !== null && isset($vendor['id']);
+        $named = is_array($vendor) && is_string($vendor['name'] ?? null) ? $vendor['name'] : '';
         $this->app->show('Feature/Party/vendor-form', [
-            'title' => $editing ? 'Edit vendor' : 'New vendor',
+            'title' => $editing && $named !== '' ? $named : ($editing ? 'Edit vendor' : 'New vendor'),
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'vendor' => $vendor,
