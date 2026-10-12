@@ -306,7 +306,11 @@ final class MallDemo
             $this->assign('B-2', 'EVE', '2026-08-01', '', 27500);
         }
         $next = (new DateTimeImmutable($month . '-01'))->modify('first day of next month')->format('Y-m-d');
-        $this->payout($next);
+        if ($month !== '2026-09') {
+            $this->payout($next);
+        } else {
+            fwrite(STDOUT, "  October payout left unpaid\n");
+        }
         if ($month === '2026-05') {
             $this->parties->setActive($this->vendors['LEO'], false);
         }
