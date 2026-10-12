@@ -9,20 +9,19 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $csrf */
 /** @var string $query */
 /** @var string $status */
-/** @var int $waiting */
+/** @var array{open: int, waiting: int, contacted: int, placed: int, declined: int} $counts */
 /** @var int $total */
-$waiting = $waiting ?? 0;
 /** @var string $confirm */
 /** @var list<array{id: string, name: string, email: string, phone: string, size: string, status: string, status_label: string, status_badge: string, notes: string, waiting_since: string, waited: string}> $entries */
 
 $list = '/' . $slug . '/wait-list';
-$filters = [
-    '' => 'Open',
-    'waiting' => 'Waiting',
-    'contacted' => 'Contacted',
-    'placed' => 'Placed',
-    'declined' => 'Declined',
+$shows = [
     'all' => 'All',
+    '' => 'Open (' . $counts['open'] . ')',
+    'waiting' => 'Waiting (' . $counts['waiting'] . ')',
+    'contacted' => 'Contacted (' . $counts['contacted'] . ')',
+    'placed' => 'Placed (' . $counts['placed'] . ')',
+    'declined' => 'Declined (' . $counts['declined'] . ')',
 ];
 $empty = $status === '' && $query === '' ? 'No one is waiting.' : 'No one matches.';
 ?>
@@ -50,24 +49,27 @@ $empty = $status === '' && $query === '' ? 'No one is waiting.' : 'No one matche
         <button class="btn" type="submit">Search</button>
     </form>
 
-    <div class="segmented mt-6" role="navigation" aria-label="Wait list">
-        <?php foreach ($filters as $value => $label): ?>
-            <?php
-            $params = [];
-            if ($value !== '') {
-                $params['status'] = $value;
-            }
-            if ($query !== '') {
-                $params['q'] = $query;
-            }
-            $href = $list;
-            if ($params !== []) {
-                $href .= '?' . http_build_query($params);
-            }
-            $selected = $status === $value;
-            ?>
-            <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($value === 'waiting' ? $label . ' (' . $waiting . ')' : $label) ?></a>
-        <?php endforeach; ?>
+    <div class="list-show">
+        <p class="muted">Show</p>
+        <div class="segmented" role="navigation" aria-label="Show">
+            <?php foreach ($shows as $value => $label): ?>
+                <?php
+                $params = [];
+                if ($value !== '') {
+                    $params['status'] = $value;
+                }
+                if ($query !== '') {
+                    $params['q'] = $query;
+                }
+                $href = $list;
+                if ($params !== []) {
+                    $href .= '?' . http_build_query($params);
+                }
+                $selected = $status === $value;
+                ?>
+                <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
+            <?php endforeach; ?>
+        </div>
     </div>
 
     <div class="card table-wrap list-dt-wrap mt-4">

@@ -308,11 +308,7 @@ final class PartyController
     private function render(string $slug, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
-        $assembled = $this->roster->assemble(
-            $this->parties->vendorRows(),
-            $this->parties->booths(),
-            $this->mall->today()
-        );
+        $assembled = $this->roster->assemble($this->parties->vendorRows(), $this->mall->today());
         $query = $this->app->request()->query('q');
         $status = $this->roster->selected($this->app->request()->query('status'));
         $this->app->show('Feature/Party/parties', [
@@ -321,7 +317,6 @@ final class PartyController
             'slug' => $tenant->slug,
             'stats' => $assembled['stats'],
             'vendors' => $this->roster->matching($assembled['vendors'], $status, $query),
-            'openBooths' => $assembled['open'],
             'status' => $status,
             'query' => $query,
             'error' => $error,

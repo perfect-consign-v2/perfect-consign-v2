@@ -16,7 +16,6 @@ final class VendorRoster
         'ending' => true,
         'incoming' => true,
         'inactive' => true,
-        'open' => true,
     ];
 
     public function __construct(
@@ -27,10 +26,8 @@ final class VendorRoster
 
     /**
      * @param list<array<string, mixed>> $rows
-     * @param list<array<string, mixed>> $booths
      * @return array{
-     *   stats: array{vendors: int, active: int, ending: int, open_booths: int},
-     *   open: list<array{id: string, code: string, name: string}>,
+     *   stats: array{vendors: int, active: int, inactive: int, ending: int, incoming: int},
      *   vendors: list<array{
      *     id: string,
      *     code: string,
@@ -49,37 +46,39 @@ final class VendorRoster
      *   }>
      * }
      */
-    public function assemble(array $rows, array $booths, string $today): array
+    public function assemble(array $rows, string $today): array
     {
         $this->values->requireDate($today);
         $vendors = [];
         $active = 0;
+        $inactive = 0;
         $ending = 0;
-        $occupied = [];
+        $incoming = 0;
         foreach ($this->group($rows) as $vendor) {
             $presented = $this->present($vendor, $today);
             $vendors[] = $presented;
             if ($presented['status'] === 'active') {
                 $active++;
             }
+            if ($presented['status'] === 'inactive') {
+                $inactive++;
+            }
             if ($this->hasDated($presented['current'])) {
                 $ending++;
             }
-            foreach ($this->placement->covering($vendor['assignments'], $today) as $assignment) {
-                $occupied[$assignment['booth_id']] = true;
+            if ($presented['upcoming'] !== []) {
+                $incoming++;
             }
         }
-
-        $open = $this->openBooths($booths, $occupied);
 
         return [
             'stats' => [
                 'vendors' => count($vendors),
                 'active' => $active,
+                'inactive' => $inactive,
                 'ending' => $ending,
-                'open_booths' => count($open),
+                'incoming' => $incoming,
             ],
-            'open' => $open,
             'vendors' => $vendors,
         ];
     }
@@ -303,30 +302,5 @@ final class VendorRoster
         }
 
         return false;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $booths
-     * @param array<string, true> $occupied
-     * @return list<array{id: string, code: string, name: string}>
-     */
-    private function openBooths(array $booths, array $occupied): array
-    {
-        $open = [];
-        foreach ($booths as $booth) {
-            $id = $this->values->text($booth['id'] ?? null);
-            if (isset($occupied[$id])) {
-                continue;
-            }
-            $code = $booth['code'] ?? '';
-            $name = $booth['name'] ?? '';
-            $open[] = [
-                'id' => $id,
-                'code' => is_string($code) ? $code : '',
-                'name' => is_string($name) ? $name : '',
-            ];
-        }
-
-        return $open;
     }
 }

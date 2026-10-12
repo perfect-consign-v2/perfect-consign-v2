@@ -271,6 +271,28 @@
         chrome.syncBar();
     }
 
+    var PAGE_LENGTHS = [10, 25, 50, 100];
+    var PAGE_LENGTH_KEY = 'pc-page-length';
+
+    function storedPageLength() {
+        try {
+            var saved = parseInt(window.localStorage.getItem(PAGE_LENGTH_KEY), 10);
+            if (PAGE_LENGTHS.indexOf(saved) !== -1) {
+                return saved;
+            }
+        } catch (e) {}
+        return 10;
+    }
+
+    function rememberPageLength(length) {
+        if (PAGE_LENGTHS.indexOf(length) === -1) {
+            return;
+        }
+        try {
+            window.localStorage.setItem(PAGE_LENGTH_KEY, String(length));
+        } catch (e) {}
+    }
+
     function initTable(tableEl) {
         if (tableEl.id === '' || tableEl.getAttribute('data-dt-ready') === '1') {
             return null;
@@ -303,7 +325,7 @@
         };
         var options = {
             order: readOrder(tableEl),
-            pageLength: 10,
+            pageLength: storedPageLength(),
             lengthMenu: [10, 25, 50, 100],
             stripe: true,
             searchDelay: 300,
@@ -352,6 +374,26 @@
         if (instances.length === 0) {
             return;
         }
+        var applyingLength = false;
+        instances.forEach(function (entry) {
+            entry.api.on('length.dt', function (e, settings, len) {
+                if (applyingLength) {
+                    return;
+                }
+                var length = parseInt(len, 10);
+                if (PAGE_LENGTHS.indexOf(length) === -1) {
+                    return;
+                }
+                rememberPageLength(length);
+                applyingLength = true;
+                instances.forEach(function (other) {
+                    if (other.api.page.len() !== length) {
+                        other.api.page.len(length).draw(false);
+                    }
+                });
+                applyingLength = false;
+            });
+        });
         var timer = 0;
         window.addEventListener('resize', function () {
             window.clearTimeout(timer);

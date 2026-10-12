@@ -6,22 +6,17 @@ use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
 
 /** @var string $slug */
-/** @var array{vendors: int, active: int, ending: int, open_booths: int} $stats */
+/** @var array{vendors: int, active: int, inactive: int, ending: int, incoming: int} $stats */
 /** @var list<array{id: string, code: string, name: string, status: string, status_label: string, status_badge: string, since: string, booths: list<array{id: string, code: string, occupancy: string}>}> $vendors */
-/** @var list<array{id: string, code: string, name: string}> $openBooths */
 /** @var string $status */
 /** @var string $query */
 
-$cards = [
-    ['key' => '', 'label' => 'Vendors', 'value' => $stats['vendors']],
-    ['key' => 'active', 'label' => 'Active', 'value' => $stats['active']],
-    ['key' => 'ending', 'label' => 'Ending', 'value' => $stats['ending']],
-    ['key' => 'open', 'label' => 'Open booths', 'value' => $stats['open_booths']],
-];
-$filters = [
+$shows = [
     '' => 'All',
-    'inactive' => 'Inactive',
-    'incoming' => 'Incoming',
+    'active' => 'Active (' . $stats['active'] . ')',
+    'inactive' => 'Inactive (' . $stats['inactive'] . ')',
+    'ending' => 'Ending (' . $stats['ending'] . ')',
+    'incoming' => 'Incoming (' . $stats['incoming'] . ')',
 ];
 ?>
 <div class="page-head">
@@ -32,7 +27,7 @@ $filters = [
     <a class="btn btn-primary" href="/<?= View::text($slug) ?>/vendors/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New vendor</a>
 </div>
 
-<?php if ($stats['vendors'] === 0 && $stats['open_booths'] === 0): ?>
+<?php if ($stats['vendors'] === 0): ?>
     <div class="card">
         <div class="empty">
             <svg aria-hidden="true"><use href="#i-vendor"></use></svg>
@@ -40,87 +35,37 @@ $filters = [
         </div>
     </div>
 <?php else: ?>
-    <div class="grid cols-4">
-        <?php foreach ($cards as $card): ?>
-            <?php
-            $selected = $status === $card['key'];
-            $params = [];
-            if ($card['key'] !== '' && !$selected) {
-                $params['status'] = $card['key'];
-            }
-            if ($query !== '') {
-                $params['q'] = $query;
-            }
-            $href = '/' . $slug . '/parties';
-            if ($params !== []) {
-                $href .= '?' . http_build_query($params);
-            }
-            ?>
-            <?php if ($card['key'] === ''): ?>
-                <div class="stat">
-                    <div class="stat-label"><?= View::text($card['label']) ?></div>
-                    <div class="stat-value"><?= View::text($card['value']) ?></div>
-                </div>
-            <?php else: ?>
-                <a class="stat stat-link" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>>
-                    <div class="stat-label"><?= View::text($card['label']) ?></div>
-                    <div class="stat-value"><?= View::text($card['value']) ?></div>
-                </a>
-            <?php endif; ?>
-        <?php endforeach; ?>
+    <div class="list-show">
+        <p class="muted">Show</p>
+        <div class="segmented" role="navigation" aria-label="Show">
+            <?php foreach ($shows as $value => $label): ?>
+                <?php
+                $params = [];
+                if ($value !== '') {
+                    $params['status'] = $value;
+                }
+                if ($query !== '') {
+                    $params['q'] = $query;
+                }
+                $href = '/' . $slug . '/parties';
+                if ($params !== []) {
+                    $href .= '?' . http_build_query($params);
+                }
+                $selected = $status === $value;
+                ?>
+                <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
+            <?php endforeach; ?>
+        </div>
     </div>
 
-    <div class="segmented mt-6" role="navigation" aria-label="Vendor list">
-        <?php foreach ($filters as $value => $label): ?>
-            <?php
-            $params = [];
-            if ($value !== '') {
-                $params['status'] = $value;
-            }
-            if ($query !== '') {
-                $params['q'] = $query;
-            }
-            $href = '/' . $slug . '/parties';
-            if ($params !== []) {
-                $href .= '?' . http_build_query($params);
-            }
-            $selected = $status === $value;
-            ?>
-            <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
-        <?php endforeach; ?>
-    </div>
-
-    <?php if ($status !== 'open'): ?>
-        <ul class="occupancy-legend" aria-label="Booth colors">
-            <li><span class="occupancy-pill occupied">Occupied</span></li>
-            <li><span class="occupancy-pill ending">Ending</span></li>
-            <li><span class="occupancy-pill incoming">Incoming</span></li>
-        </ul>
-    <?php endif; ?>
+    <ul class="occupancy-legend" aria-label="Booth colors">
+        <li><span class="occupancy-pill occupied">Occupied</span></li>
+        <li><span class="occupancy-pill ending">Ending</span></li>
+        <li><span class="occupancy-pill incoming">Incoming</span></li>
+    </ul>
 
     <div class="card table-wrap list-dt-wrap mt-4">
-        <?php if ($status === 'open'): ?>
-            <?php if ($openBooths === []): ?>
-                <div class="empty"><p>No open booths.</p></div>
-            <?php else: ?>
-                <?php
-                ListTable::open(['id' => 'open-booths', 'export' => 'open-booths']);
-                ListTable::head([
-                    ['label' => 'Booth'],
-                    ['label' => 'Name'],
-                ]);
-                ?>
-                    <tbody>
-                    <?php foreach ($openBooths as $booth): ?>
-                        <tr>
-                            <td><a class="strong" href="/<?= View::text($slug) ?>/booths#booth-<?= View::text($booth['id']) ?>"><?= View::text($booth['code']) ?></a></td>
-                            <td><?= View::text($booth['name']) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php endif; ?>
-        <?php elseif ($vendors === []): ?>
+        <?php if ($vendors === []): ?>
             <div class="empty"><p>No vendors match.</p></div>
         <?php else: ?>
             <?php

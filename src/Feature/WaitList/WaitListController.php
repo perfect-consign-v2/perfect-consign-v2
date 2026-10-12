@@ -191,7 +191,7 @@ final class WaitListController
             'entries' => $entries,
             'query' => $query,
             'status' => $status,
-            'waiting' => $this->waitList->waiting(),
+            'counts' => $this->waitList->counts(),
             'total' => $this->waitList->count(),
             'confirm' => $this->confirming($entries, $this->app->request()->query('confirm')),
             'error' => $error,

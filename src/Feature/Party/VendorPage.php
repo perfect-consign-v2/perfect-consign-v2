@@ -25,11 +25,7 @@ final class VendorPage
 
     public function show(string $slug, string $id, ?string $error): void
     {
-        $assembled = $this->roster->assemble(
-            $this->parties->vendorRows(),
-            $this->parties->booths(),
-            $this->mall->today()
-        );
+        $assembled = $this->roster->assemble($this->parties->vendorRows(), $this->mall->today());
         $vendor = null;
         foreach ($assembled['vendors'] as $candidate) {
             if ($candidate['id'] === $id) {

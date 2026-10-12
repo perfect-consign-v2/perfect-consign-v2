@@ -74,11 +74,22 @@ final class WaitListStore
         return RowValue::integer($rows[0]['total'] ?? 0);
     }
 
-    public function waiting(): int
+    /**
+     * @return array{open: int, waiting: int, contacted: int, placed: int, declined: int}
+     */
+    public function counts(): array
     {
-        $rows = $this->statements->rows("SELECT count(*)::int AS total FROM wait_list WHERE status = 'waiting'");
+        $counts = ['waiting' => 0, 'contacted' => 0, 'placed' => 0, 'declined' => 0];
+        foreach ($this->statements->rows('SELECT status, count(*)::int AS total FROM wait_list GROUP BY status') as $row) {
+            $status = RowValue::string($row['status'] ?? null);
+            if (!array_key_exists($status, $counts)) {
+                continue;
+            }
+            $counts[$status] = RowValue::integer($row['total'] ?? 0);
+        }
+        $counts['open'] = $counts['waiting'] + $counts['contacted'];
 
-        return RowValue::integer($rows[0]['total'] ?? 0);
+        return $counts;
     }
 
     /**

@@ -119,7 +119,7 @@ final class CoverageRemainderTest extends WebTestCase
         ]);
         self::assertSees('That code is already used.', $again);
         $directory = $this->client->get('/' . self::SLUG . '/parties?status=inactive&q=' . $code);
-        self::assertSees('aria-current="page">Inactive', $directory);
+        self::assertSees('aria-current="page">Inactive (', $directory);
         $this->client->get('/' . self::SLUG . '/parties?status=ending&q=nomatch-vendor');
         $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $code);
         $record = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
