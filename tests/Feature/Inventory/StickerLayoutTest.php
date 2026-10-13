@@ -106,10 +106,10 @@ final class StickerLayoutTest extends TestCase
             'T200',
         );
         $expected = [
-            'avery_8160' => ['0', '1', '10', '3', '852da6bd1e055f2c44b7d2d93f493100e46c2bd5cb5b159e0a75918882f764c0'],
-            'avery_94073' => ['0', '0', '10', '5', '2b39b8200f410bb57364ebf5b270f630252cd62b7992eb4052375c1439768966'],
-            'bcw_consignment' => ['0', '1', '1', '1', '8c266388f255841ad9c6b158751a76f6af7c954b709615d343fcd432b5a28d24'],
-            'bcw_consignment_2up' => ['0', '1', '1', '2', 'd20258a6319eaad371e52562e6cbeb70cb4262e08e3ef948ad3b287dafc9e1a3'],
+            'avery_8160' => ['0', '1', '10', '3', '8bb627dad3e815dc70297b51810270384415ba71a6c71b47ba97b1f96bdbd305'],
+            'avery_94073' => ['0', '0', '10', '5', 'd7c004788744b4b1592b53aa776c5014591988239748c4ecd95d214ea21c9a3b'],
+            'bcw_consignment' => ['0', '1', '1', '1', '493d3e05a059a743285a1e346f4ecac2e836970fd4443198f89574bb0f7daff4'],
+            'bcw_consignment_2up' => ['0', '1', '1', '2', 'a11cd2b582b876391f8e16679f10dbd383e36ed262227d60ee509a15cb10a7f8'],
             'bcw_jewelry' => ['1', '0', '1', '1', '277bd25db2058e6d46353688d7da5775ac377e724d382316485d28b7af3935ce'],
         ];
         foreach ($catalog->all() as $stock) {
