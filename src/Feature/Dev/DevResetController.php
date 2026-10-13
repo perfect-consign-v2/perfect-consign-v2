@@ -30,6 +30,7 @@ final class DevResetController
         if (!$this->allowed($slug)) {
             $this->app->notFound(MallApp::MISS_HIDDEN);
         }
+        set_time_limit(0);
         try {
             $this->reload($slug);
         } catch (Throwable $error) {

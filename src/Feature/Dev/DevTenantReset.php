@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Dev;
 
-use PerfectConsign\Feature\Backup\BackupConnection;
 use PDO;
 use RuntimeException;
 
@@ -14,10 +13,7 @@ final class DevTenantReset
 
     public function load(): string
     {
-        $connection = BackupConnection::admin();
-        if (!$connection->isLocalRestoreTarget()) {
-            throw new RuntimeException('test data reset is only allowed on the local consign database');
-        }
+        $connection = LocalAdmin::open();
         $this->requireTools();
         $pdo = $connection->pdo();
         $owner = $this->owner($pdo);

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Dev;
 
-use PerfectConsign\Feature\Backup\BackupConnection;
 use PDO;
 use RuntimeException;
 
@@ -14,20 +13,50 @@ final class MallTenantReset
 
     public function load(): string
     {
-        $connection = BackupConnection::admin();
-        if (!$connection->isLocalRestoreTarget()) {
-            throw new RuntimeException('test data reset is only allowed on the local consign database');
-        }
+        $connection = LocalAdmin::open();
         $this->requireTools();
         $pdo = $connection->pdo();
-        $owner = $this->owner($pdo);
+        $owner = $this->owner($pdo) ?? $this->replacementOwner();
         \wipeTenant($pdo, self::SLUG, self::SLUG);
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Mall');
-        (new \MallDemo($pdo, $schema))->load();
-        $this->restoreOwner($pdo, $owner);
+        try {
+            $this->keepProgress();
+            (new \MallDemo($pdo, $schema))->load();
+        } finally {
+            $this->restoreOwner($pdo, $owner);
+        }
 
         return $schema;
+    }
+
+    private function keepProgress(): void
+    {
+        if (defined('STDOUT')) {
+            return;
+        }
+        $stream = fopen('php://temp', 'w');
+        if ($stream === false) {
+            throw new RuntimeException('could not open a progress stream');
+        }
+        define('STDOUT', $stream);
+    }
+
+    /**
+     * @return array{username: string, password_hash: string}
+     */
+    private function replacementOwner(): array
+    {
+        $password = getenv('STALL_OWNER_PASSWORD');
+        if (!is_string($password) || $password === '') {
+            $password = 'mall-demo';
+        }
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        if ($hash === false) {
+            throw new RuntimeException('the password hash could not be created');
+        }
+
+        return ['username' => 'owner', 'password_hash' => $hash];
     }
 
     private function requireTools(): void
@@ -77,13 +106,10 @@ final class MallTenantReset
     }
 
     /**
-     * @param array{username: string, password_hash: string}|null $owner
+     * @param array{username: string, password_hash: string} $owner
      */
-    private function restoreOwner(PDO $pdo, ?array $owner): void
+    private function restoreOwner(PDO $pdo, array $owner): void
     {
-        if ($owner === null) {
-            return;
-        }
         $statement = $pdo->prepare(
             'INSERT INTO platform.owners (id, tenant_id, username, password_hash)
              SELECT uuidv7(), id, ?, ?
