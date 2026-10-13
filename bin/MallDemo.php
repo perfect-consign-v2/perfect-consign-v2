@@ -159,6 +159,8 @@ final class MallDemo
         $this->stock('GIN', '2026-09-20', 0);
         $this->stock('IRI', '2026-11-01', 4);
         $this->stock('JON', '2026-11-01', 4);
+        $this->stock('MAX', '2026-08-01', 0);
+        $this->stock('NIA', '2026-08-01', 0);
         $this->itemNotes();
         $this->opening();
         foreach (['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'] as $month) {
@@ -201,6 +203,8 @@ final class MallDemo
             'B-2' => [38, 2, 20000],
             'C-1' => [2, 16, 40000],
             'C-2' => [14, 16, 7500],
+            'D-1' => [26, 16, 15000],
+            'D-2' => [38, 16, 10000],
         ];
         foreach ($places as $code => $place) {
             $id = $this->ledger->newId();
@@ -225,6 +229,8 @@ final class MallDemo
         $this->vendor('GIN', 'Gina', 'Holt', '555-0152', 'gina@example.com', '44 Mill St', 2000, '2026-09-20', '', 'Moved into C-1 in September. Sales do not cover the booth.');
         $this->vendor('IRI', 'Iris', 'Chen', '555-0154', 'iris@example.com', '3 Lake Dr', 2000, '2026-11-01', '', 'Arrives in November, after Bea leaves A-2. Resale certificate on file.');
         $this->vendor('JON', 'Jon', 'Hale', '555-0156', 'jon@example.com', '18 River Rd', 2000, '2026-11-01', '', 'Arrives in November for B-1. Payouts are on hold.');
+        $this->vendor('MAX', 'Max', 'Reed', '555-0158', 'max@example.com', '9 Dock St', 2000, '2026-08-01', '', 'Took D-1 in August. August, September, and October rent was never paid.');
+        $this->vendor('NIA', 'Nia', 'Cole', '555-0160', 'nia@example.com', '21 Wharf Ln', 2000, '2026-08-01', '', 'Took D-2 in August. August, September, and October rent was never paid.');
         $this->assign('A-1', 'ADA', '2026-04-01', '', 30000);
         $this->assign('A-2', 'BEA', '2026-04-01', '', 25000);
         $this->assign('B-2', 'DAN', '2026-04-01', '', 20000);
@@ -302,6 +308,8 @@ final class MallDemo
             $this->parties->setAskingRent($this->booths['A-1'], 35000);
             $this->parties->setAskingRent($this->booths['B-2'], 27500);
             $this->assign('B-2', 'EVE', '2026-08-01', '', 27500);
+            $this->assign('D-1', 'MAX', '2026-08-01', '', 15000);
+            $this->assign('D-2', 'NIA', '2026-08-01', '', 10000);
         }
         $next = (new DateTimeImmutable($month . '-01'))->modify('first day of next month')->format('Y-m-d');
         if ($month !== '2026-09') {
@@ -330,6 +338,8 @@ final class MallDemo
         $this->roundCash = true;
         $this->statements->change('UPDATE mall SET cash_round_nickel = true', []);
         $session = $this->openDrawer('2026-10-01');
+        $this->rent->postCharge($this->booths['D-1'], '2026-10-01');
+        $this->rent->postCharge($this->booths['D-2'], '2026-10-01');
         foreach (['ADA', 'BEA', 'CAL', 'EVE'] as $code) {
             $this->sell($session, $code, '2026-10-02', false);
             $this->sell($session, $code, '2026-10-04', $code === 'ADA');
