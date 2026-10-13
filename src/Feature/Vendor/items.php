@@ -22,6 +22,7 @@ $query = $query ?? '';
 /** @var list<array{key: string, label: string}> $stocks */
 
 $blank = '—';
+$showBrand = ($showBrand ?? true) === true;
 $list = '/' . $slug . '/vendor/inventory';
 ?>
 <div class="page-head">
@@ -40,7 +41,7 @@ $list = '/' . $slug . '/vendor/inventory';
     </div>
 <?php else: ?>
     <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search tag, barcode, description, or brand" aria-label="Search inventory">
+        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="<?= $showBrand ? 'Search tag, barcode, description, or brand' : 'Search tag, barcode, or description' ?>" aria-label="Search inventory">
         <button class="btn" type="submit">Search</button>
         <?php
         $chip = $list . '?stock=out';
@@ -71,8 +72,10 @@ $list = '/' . $slug . '/vendor/inventory';
                 ['label' => 'Tag'],
                 ['label' => 'Barcode'],
                 ['label' => 'Description'],
-                ['label' => 'Brand'],
             ];
+            if ($showBrand) {
+                $columns[] = ['label' => 'Brand'];
+            }
             foreach ($attributeLists as $attribute) {
                 $columns[] = ['label' => ucfirst($attribute->singular)];
             }
@@ -92,6 +95,7 @@ $list = '/' . $slug . '/vendor/inventory';
                         <td class="strong"><?= View::text($item['code']) ?></td>
                         <td><?= View::text($item['barcode']) ?></td>
                         <td><?= View::text($item['description']) ?></td>
+                        <?php if ($showBrand): ?>
                         <td>
                             <?php if ($brand === ''): ?>
                                 <span class="muted"><?= $blank ?></span>
@@ -99,6 +103,7 @@ $list = '/' . $slug . '/vendor/inventory';
                                 <?= View::text($brand) ?>
                             <?php endif; ?>
                         </td>
+                        <?php endif; ?>
                         <?php foreach ($attributeLists as $attribute): ?>
                             <?php $value = $item[$attribute->key . '_name']; ?>
                             <td>
@@ -109,12 +114,12 @@ $list = '/' . $slug . '/vendor/inventory';
                                 <?php endif; ?>
                             </td>
                         <?php endforeach; ?>
-                        <td><?= View::text($item['intake_on']) ?></td>
+                        <td><?= View::date($item['intake_on']) ?></td>
                         <td>
                             <?php if ($item['expires_on'] === ''): ?>
                                 <span class="muted"><?= $blank ?></span>
                             <?php else: ?>
-                                <?= View::text($item['expires_on']) ?>
+                                <?= View::date($item['expires_on']) ?>
                             <?php endif; ?>
                         </td>
                         <td>

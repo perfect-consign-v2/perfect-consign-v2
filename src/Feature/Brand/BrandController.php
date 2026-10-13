@@ -6,13 +6,16 @@ namespace PerfectConsign\Feature\Brand;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class BrandController
 {
     public function __construct(
         private readonly MallApp $app,
         private readonly BrandStore $brands,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -24,7 +27,7 @@ final class BrandController
 
     private function list(string $slug, ?string $error, ?string $modal = null, string $draft = ''): void
     {
-        $tenant = $this->app->open($slug, true);
+        $tenant = $this->requireBrand($slug);
         $query = trim($this->app->request()->query('q'));
         $brands = $this->withUse($this->brands->brands($query));
         if ($modal === null) {
@@ -57,7 +60,7 @@ final class BrandController
     #[Route('/([a-z][a-z0-9-]{0,62})/brands/new', ['GET'])]
     public function create(string $slug): void
     {
-        $this->app->open($slug, true);
+        $this->requireBrand($slug);
         $this->app->redirect('/' . $slug . '/brands?new=1');
     }
 
@@ -73,7 +76,7 @@ final class BrandController
     #[Route('/([a-z][a-z0-9-]{0,62})/brands/([0-9a-fA-F-]{36})/edit', ['GET'])]
     public function edit(string $slug, string $id): void
     {
-        $this->app->open($slug, true);
+        $this->requireBrand($slug);
         if ($this->brands->find($id) === null) {
             $this->app->notFound();
         }
@@ -93,7 +96,7 @@ final class BrandController
     public function remove(string $slug, string $id): void
     {
         $this->app->checkCsrf();
-        $this->app->open($slug, true);
+        $this->requireBrand($slug);
         $error = null;
         try {
             $this->brands->remove($id);
@@ -110,7 +113,7 @@ final class BrandController
 
     private function change(string $slug, ?string $id, callable $action): void
     {
-        $this->app->open($slug, true);
+        $this->requireBrand($slug);
         $error = null;
         try {
             $action();
@@ -174,6 +177,16 @@ final class BrandController
         }
 
         return '';
+    }
+
+    private function requireBrand(string $slug): TenantRecord
+    {
+        $tenant = $this->app->open($slug, true);
+        if (!$this->mall->enabled('use_brand')) {
+            $this->app->notFound();
+        }
+
+        return $tenant;
     }
 
     private function brandError(string $message): string

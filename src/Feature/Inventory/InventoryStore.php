@@ -210,20 +210,28 @@ final class InventoryStore
 
     private function store(?string $id, ItemEntry $item, string $barcode): string
     {
-        $columns = ['code', 'barcode', 'vendor_id', 'brand_id', 'description', 'price_minor', 'quantity', 'commission_bps', 'intake_on', 'expires_on'];
-        $casts = ['?', '?', '?::uuid', '?::uuid', '?', '?', '?', '?', '?::date', '?::date'];
+        $columns = ['code', 'barcode', 'vendor_id'];
+        $casts = ['?', '?', '?::uuid'];
         $params = [
             $item->code,
             $barcode,
             $item->vendorId,
-            $item->brandId,
+        ];
+        if ($this->mall->enabled('use_brand')) {
+            $columns[] = 'brand_id';
+            $casts[] = '?::uuid';
+            $params[] = $item->brandId;
+        }
+        $columns = array_merge($columns, ['description', 'price_minor', 'quantity', 'commission_bps', 'intake_on', 'expires_on']);
+        $casts = array_merge($casts, ['?', '?', '?', '?', '?::date', '?::date']);
+        $params = array_merge($params, [
             $item->description,
             $item->sale->priceMinor,
             $item->sale->quantity,
             $item->sale->commissionBps,
             $item->dates->intakeOn,
             $item->dates->expiresOn,
-        ];
+        ]);
         foreach (NameList::all() as $list) {
             if (!$this->mall->enabled($list->flag)) {
                 continue;

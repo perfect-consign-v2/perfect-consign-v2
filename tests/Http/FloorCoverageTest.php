@@ -629,6 +629,7 @@ final class FloorCoverageTest extends WebTestCase
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
+            'use_brand' => '1',
         ];
         if ($round) {
             $fields['cash_round_nickel'] = '1';

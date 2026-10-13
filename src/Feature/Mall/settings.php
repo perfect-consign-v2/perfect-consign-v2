@@ -114,18 +114,25 @@ use PerfectConsign\Shared\Http\View;
             </div>
             <div class="field" style="grid-column:1/-1">
                 <p class="muted text-sm">Item fields. Turn one off and it leaves the intake form, the register, and the menu. A value already stored on an item stays until the field is turned back on.</p>
+                <div class="catalog-switches">
                 <?php foreach ([
+                    'use_brand' => 'Brand',
                     'use_color' => 'Color',
                     'use_category' => 'Category',
                     'use_size' => 'Size',
                     'use_condition' => 'Condition',
                     'use_department' => 'Department',
                 ] as $flag => $label): ?>
-                    <label for="<?= View::text($flag) ?>">
-                        <input id="<?= View::text($flag) ?>" name="<?= View::text($flag) ?>" type="checkbox" value="1"<?= !empty($catalogs[$flag]) ? ' checked' : '' ?>>
+                    <label class="switch-row" for="<?= View::text($flag) ?>">
+                        <span class="switch">
+                            <input id="<?= View::text($flag) ?>" name="<?= View::text($flag) ?>" type="checkbox" value="1"<?= !empty($catalogs[$flag]) ? ' checked' : '' ?>>
+                            <span class="switch-track" aria-hidden="true"></span>
+                            <span class="switch-knob" aria-hidden="true"></span>
+                        </span>
                         <?= View::text($label) ?>
                     </label>
                 <?php endforeach; ?>
+                </div>
             </div>
             <div class="field" style="grid-column:1/-1">
                 <label for="floor_days">Days on the floor</label>

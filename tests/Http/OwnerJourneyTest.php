@@ -220,6 +220,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
+            'use_brand' => '1',
         ]);
         $tag = 't' . bin2hex(random_bytes(4));
         $created = 'Blue ' . $tag;
@@ -250,7 +251,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees($created, $list);
         self::assertSees($brand, $list);
         self::assertSees($barcode, $list);
-        self::assertSees('2026-12-01', $list);
+        self::assertSees('12-01-2026', $list);
         self::assertSees('Overridden', $list);
         self::assertSees($label, $list);
         self::assertSees('>4<', $list);
@@ -317,6 +318,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
+            'use_brand' => '1',
         ]);
     }
 
@@ -436,6 +438,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
+            'use_brand' => '1',
         ]);
         self::assertSees('America/Chicago', $saved);
         self::assertSees('value="45"', $saved);
@@ -452,6 +455,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
+            'use_brand' => '1',
         ]);
         self::assertSees('America/Los_Angeles', $restored);
     }
@@ -515,8 +519,8 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
 
         self::assertSees('0%', $created);
-        self::assertSees('2026-01-01', $created);
-        self::assertSees('2026-12-31', $created);
+        self::assertSees('01-01-2026', $created);
+        self::assertSees('12-31-2026', $created);
         self::assertSees('12-3456789', $created);
         self::assertSees('Booth near the door', $created);
         self::assertSees('RESALE-100', $created);
@@ -535,6 +539,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
+            'use_brand' => '1',
         ];
         $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '30']);
         self::assertSees('value="30"', $saved);
@@ -606,6 +611,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
+            'use_brand' => '1',
         ];
         if ($on) {
             $fields['cash_round_nickel'] = '1';

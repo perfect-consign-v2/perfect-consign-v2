@@ -78,6 +78,19 @@ final class ItemWriter
 
     private function brandOf(string $brandId, string $label): ?string
     {
+        $id = $this->brandId($brandId, $label);
+        if ($this->mall->enabled('use_brand')) {
+            return $id;
+        }
+        if ($id !== null) {
+            throw new \InvalidArgumentException('Brand is turned off.');
+        }
+
+        return null;
+    }
+
+    private function brandId(string $brandId, string $label): ?string
+    {
         $id = $this->uuid($brandId);
         if ($id !== '') {
             return $id;

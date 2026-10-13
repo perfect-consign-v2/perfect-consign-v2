@@ -100,6 +100,7 @@ final class MallController
             'use_size' => $this->app->request()->field('use_size') === '1',
             'use_condition' => $this->app->request()->field('use_condition') === '1',
             'use_department' => $this->app->request()->field('use_department') === '1',
+            'use_brand' => $this->app->request()->field('use_brand') === '1',
         ];
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
     }
@@ -174,6 +175,7 @@ final class MallController
                     $this->app->request()->field('use_size') === '1',
                     $this->app->request()->field('use_condition') === '1',
                     $this->app->request()->field('use_department') === '1',
+                    $this->app->request()->field('use_brand') === '1',
                 ),
                 $storeTake,
                 $floorDays,
@@ -324,6 +326,7 @@ final class MallController
                 'use_size' => $this->mall->enabled('use_size'),
                 'use_condition' => $this->mall->enabled('use_condition'),
                 'use_department' => $this->mall->enabled('use_department'),
+                'use_brand' => $this->mall->enabled('use_brand'),
             ],
             'error' => $error,
         ]);

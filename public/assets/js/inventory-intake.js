@@ -22,7 +22,7 @@
     let storeDefault = document.getElementById('store_take_default');
     let intake = document.getElementById('intake_on');
     let expires = document.getElementById('expires_on');
-    if (!vendorId || !vendorLabel || !vendorSuggest || !brandId || !brandLabel || !brandSuggest || !storeTake || !intake || !expires) {
+    if (!vendorId || !vendorLabel || !vendorSuggest || !storeTake || !intake || !expires) {
         return;
     }
 
@@ -198,24 +198,26 @@
         });
     }
 
-    brandLabel.addEventListener('input', function () {
-        brandId.value = '';
-        if (brandCreateError) {
-            brandCreateError.hidden = true;
-        }
-        if (brandTimer) {
-            clearTimeout(brandTimer);
-        }
-        let query = brandLabel.value.trim();
-        if (query === '') {
-            hide(brandSuggest);
-            if (brandCreate) {
-                brandCreate.hidden = true;
+    if (brandId && brandLabel && brandSuggest) {
+        brandLabel.addEventListener('input', function () {
+            brandId.value = '';
+            if (brandCreateError) {
+                brandCreateError.hidden = true;
             }
-            return;
-        }
-        brandTimer = setTimeout(function () { searchBrands(query); }, 200);
-    });
+            if (brandTimer) {
+                clearTimeout(brandTimer);
+            }
+            let query = brandLabel.value.trim();
+            if (query === '') {
+                hide(brandSuggest);
+                if (brandCreate) {
+                    brandCreate.hidden = true;
+                }
+                return;
+            }
+            brandTimer = setTimeout(function () { searchBrands(query); }, 200);
+        });
+    }
 
     storeTake.addEventListener('input', function () {
         takeDirty = true;
@@ -238,7 +240,7 @@
         vendorLabel.focus();
     });
 
-    if (brandCreateButton) {
+    if (brandId && brandLabel && brandCreateButton) {
         brandCreateButton.addEventListener('click', function () {
             let name = brandLabel.value.trim();
             if (name === '' || !brandCreateUrl) {
@@ -285,7 +287,7 @@
         });
     }
 
-    if (brandId.value === '' && brandLabel.value.trim() !== '') {
+    if (brandId && brandLabel && brandId.value === '' && brandLabel.value.trim() !== '') {
         searchBrands(brandLabel.value.trim());
     }
     form.querySelectorAll('[data-name-list]').forEach(function (box) {

@@ -90,7 +90,7 @@ final class MallSettings
 
     public function enabled(string $flag): bool
     {
-        if (!in_array($flag, ['use_color', 'use_category', 'use_size', 'use_condition', 'use_department'], true)) {
+        if (!in_array($flag, ['use_color', 'use_category', 'use_size', 'use_condition', 'use_department', 'use_brand'], true)) {
             throw new \InvalidArgumentException('unknown catalog flag');
         }
 
@@ -142,7 +142,7 @@ final class MallSettings
         $this->requireTax($taxRate);
         $this->guardDays($floorDays);
         $this->statements->change(
-            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean',
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean, use_brand = ?::boolean',
             [
                 $timeZone,
                 $write->boothWidth,
@@ -158,6 +158,7 @@ final class MallSettings
                 $write->size ? 'true' : 'false',
                 $write->condition ? 'true' : 'false',
                 $write->department ? 'true' : 'false',
+                $write->brand ? 'true' : 'false',
             ]
         );
     }
@@ -208,7 +209,7 @@ final class MallSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps, use_color, use_category, use_size, use_condition, use_department, label_stock FROM mall'
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps, use_color, use_category, use_size, use_condition, use_department, use_brand, label_stock FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

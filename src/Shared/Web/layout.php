@@ -28,6 +28,7 @@ $priorPrompt = ($priorPrompt ?? false) === true;
 $notice = $notice ?? null;
 $warning = $warning ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
+$showBrand = ($showBrand ?? true) === true;
 $actorRole = is_string($actorRole ?? null) ? $actorRole : '';
 $resetTestData = ($slug === 'dev' || $slug === 'mall') && $actorRole === 'owner';
 $groups = [];
@@ -47,9 +48,11 @@ if ($actorRole === 'owner') {
             ['/payouts', 'Pay vendors', 'i-wallet'],
             ['/wait-list', 'Wait list', 'i-clock'],
             ['/map', 'Booths Map', 'i-map'],
-            ['/brands', 'Brands', 'i-tag'],
         ],
     ];
+    if ($showBrand) {
+        $groups['Operations'][] = ['/brands', 'Brands', 'i-tag'];
+    }
     $catalogNav = is_array($catalogNav ?? null) ? $catalogNav : [];
     foreach ($catalogNav as $link) {
         if (is_array($link)) {

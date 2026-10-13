@@ -166,4 +166,49 @@ BEGIN
     RESET ROLE;
 END $$;
 
+DO $$
+DECLARE
+    vendor_id uuid := '01900000-0000-7000-8000-0000000000c1';
+    item_id uuid := '01900000-0000-7000-8000-0000000000c2';
+    kept_id uuid := '01900000-0000-7000-8000-0000000000c3';
+    other_id uuid := '01900000-0000-7000-8000-0000000000c4';
+BEGIN
+    INSERT INTO vendors (id, code, first_name, last_name)
+    VALUES (vendor_id, 'brand-off', 'Ada', 'Off');
+    INSERT INTO brands (id, name) VALUES (kept_id, 'Kept');
+    INSERT INTO brands (id, name) VALUES (other_id, 'Other brand');
+    UPDATE mall SET use_brand = false;
+    BEGIN
+        INSERT INTO items (code, vendor_id, brand_id, description, price_minor, barcode, intake_on)
+        VALUES ('brand-off', vendor_id, kept_id, 'Off', 100, 'brand-off', DATE '2026-10-06');
+        RAISE EXCEPTION 'brand was accepted while turned off';
+    EXCEPTION
+        WHEN SQLSTATE '23514' THEN
+            NULL;
+    END;
+    UPDATE mall SET use_brand = true;
+    INSERT INTO items (id, code, vendor_id, brand_id, description, price_minor, barcode, intake_on)
+    VALUES (item_id, 'brand-on', vendor_id, kept_id, 'On', 100, 'brand-on', DATE '2026-10-06');
+    UPDATE mall SET use_brand = false;
+    BEGIN
+        UPDATE items SET brand_id = other_id WHERE id = item_id;
+        RAISE EXCEPTION 'brand change was accepted while turned off';
+    EXCEPTION
+        WHEN SQLSTATE '23514' THEN
+            NULL;
+    END;
+    UPDATE items SET description = 'Still held' WHERE id = item_id;
+    IF NOT EXISTS (
+        SELECT 1 FROM items
+        WHERE id = item_id AND description = 'Still held' AND brand_id = kept_id
+    ) THEN
+        RAISE EXCEPTION 'brand row was not kept while the field was off';
+    END IF;
+    DELETE FROM items WHERE id = item_id;
+    UPDATE mall SET use_brand = true;
+    DELETE FROM brands WHERE id = other_id;
+    DELETE FROM brands WHERE id = kept_id;
+    DELETE FROM vendors WHERE id = vendor_id;
+END $$;
+
 ROLLBACK;

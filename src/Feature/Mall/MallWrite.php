@@ -16,6 +16,7 @@ final class MallWrite
         public readonly bool $size,
         public readonly bool $condition,
         public readonly bool $department,
+        public readonly bool $brand,
     ) {
     }
 }

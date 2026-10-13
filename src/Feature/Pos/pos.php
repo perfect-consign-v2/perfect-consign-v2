@@ -9,6 +9,8 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 /** @var string $slug */
 /** @var list<NameList> $attributeLists */
+/** @var bool $showBrand */
+$showBrand = ($showBrand ?? true) === true;
 /** @var string $csrf */
 /** @var string $templateDirectory */
 /** @var string $activeRegister */
@@ -264,7 +266,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                         <tbody>
                             <?php foreach ($payments as $payment): ?>
                                 <tr>
-                                    <td><?= View::text($payment['posted_on']) ?></td>
+                                    <td><?= View::date($payment['posted_on']) ?></td>
                                     <td><?= View::text($payment['kind']) ?> <?= View::text($payment['tender']) ?></td>
                                     <td><?= View::text(View::money($payment['amount'])) ?></td>
                                 </tr>
@@ -422,6 +424,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 </div>
                 <p class="muted text-sm">Consignor default applies the vendor’s default POS line discount when set. Choose None for no discount, or enter a percent or flat amount.</p>
             </div>
+            <?php if ($showBrand): ?>
             <div class="field combo">
                 <label for="instant_brand">Brand</label>
                 <input class="input" id="instant_brand" name="brand_label" autocomplete="off" placeholder="Search brands or type a new one">
@@ -433,6 +436,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 </div>
                 <p class="field-error" id="instant-brand-error" hidden></p>
             </div>
+            <?php endif; ?>
             <?php foreach ($attributeLists as $attribute): ?>
                 <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
                     <label for="instant_<?= View::text($attribute->key) ?>"><?= View::text(ucfirst($attribute->singular)) ?></label>

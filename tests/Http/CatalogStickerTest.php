@@ -33,6 +33,7 @@ final class CatalogStickerTest extends WebTestCase
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
+            'use_brand' => '1',
         ]);
         self::assertSees('Settings saved.', $saved);
     }

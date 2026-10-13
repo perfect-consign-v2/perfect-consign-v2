@@ -45,5 +45,8 @@ final class SettingsPageTest extends TestCase
         self::assertStringNotContainsString('name="rent_prepaid_from_prior_sales" type="checkbox" value="1" checked', $html);
         self::assertStringNotContainsString('name="cash_round_nickel" type="checkbox" value="1" checked', $html);
         self::assertStringNotContainsString('name="use_color" type="checkbox" value="1" checked', $html);
+        self::assertStringContainsString('name="use_brand" type="checkbox" value="1"', $html);
+        self::assertStringContainsString('Brand', $html);
+        self::assertStringContainsString('switch-knob', $html);
     }
 }

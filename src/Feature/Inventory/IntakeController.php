@@ -50,6 +50,9 @@ final class IntakeController
     public function findBrands(string $slug): void
     {
         $this->app->open($slug, true);
+        if (!$this->mall->enabled('use_brand')) {
+            $this->app->notFound();
+        }
         $rows = [];
         foreach ($this->catalog->searchBrands($this->app->request()->query('q')) as $row) {
             $rows[] = [
@@ -65,6 +68,9 @@ final class IntakeController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
+        if (!$this->mall->enabled('use_brand')) {
+            $this->app->notFound();
+        }
         $name = $this->app->request()->field('name');
         if ($name === '') {
             $this->sendJson(['error' => 'Enter a brand name.'], 422);

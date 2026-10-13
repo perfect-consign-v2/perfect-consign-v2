@@ -63,6 +63,7 @@ final class MallApp
         $data['notice'] = $notice;
         $data['warning'] = $warning;
         $data['actorRole'] = $this->door->actor()->role();
+        $data['showBrand'] = $this->roled ? $this->mall->enabled('use_brand') : true;
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
         $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);

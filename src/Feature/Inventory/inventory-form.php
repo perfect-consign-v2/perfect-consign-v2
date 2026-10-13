@@ -19,6 +19,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var list<array{key: string, label: string}> $stocks */
 
 $sold = ($sold ?? false) === true;
+$showBrand = ($showBrand ?? true) === true;
 
 $editing = $item['id'] !== '';
 $action = $editing ? '/' . $slug . '/inventory/' . $item['id'] : '/' . $slug . '/inventory';
@@ -84,6 +85,7 @@ if ($printId !== '') {
                 <label for="description">Description</label>
                 <input class="input" id="description" name="description" value="<?= View::text($item['description']) ?>" required>
             </div>
+            <?php if ($showBrand): ?>
             <div class="field combo" style="grid-column: 1 / -1">
                 <label for="brand_label">Brand</label>
                 <input class="input" id="brand_label" name="brand_label" value="<?= View::text($item['brand_label']) ?>" autocomplete="off">
@@ -95,6 +97,7 @@ if ($printId !== '') {
                 </div>
                 <p class="field-error" id="brand_create_error" hidden></p>
             </div>
+            <?php endif; ?>
             <?php foreach ($attributeLists as $attribute): ?>
                 <?php $field = $item['attributes'][$attribute->key] ?? ['id' => '', 'label' => '']; ?>
                 <div class="field combo" style="grid-column: 1 / -1" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
