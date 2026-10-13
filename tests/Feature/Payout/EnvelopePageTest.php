@@ -16,10 +16,10 @@ final class EnvelopePageTest extends TestCase
         $view->render('Feature/Payout/envelope', [
             'displayName' => 'Web Probe',
             'rows' => [
-                $this->line('vendor-1', 'Ada', 'A1', 'BC-1', 'Wool coat', 1000, 200, 80, 720, '1042', 0),
-                $this->line('vendor-1', 'Ada', 'A1', '', '', 0, 0, 0, 720, '1042', 0),
-                $this->line('vendor-2', 'Bea', 'B2', 'BC-2', 'Lamp', 500, 100, 40, 360, '', 150),
-                $this->line('vendor-3', 'Cy', 'C3', 'BC-3', 'Mug', 200, 40, 16, 0, '', 0),
+                $this->line('vendor-1', 'Ada', 'A1', 'BC-1', 'Wool coat', 1000, 200, 1, 720, '1042', 0, 300),
+                $this->line('vendor-1', 'Ada', 'A1', '', '', 0, 0, 0, 720, '1042', 0, 300),
+                $this->line('vendor-2', 'Bea', 'B2', 'BC-2', 'Lamp', 500, 100, 2, 360, '', 150, 0),
+                $this->line('vendor-3', 'Cy', 'C3', 'BC-3', 'Mug', 200, 40, 1, 0, '', 0, 0),
             ],
         ]);
         $html = ob_get_clean();
@@ -27,7 +27,15 @@ final class EnvelopePageTest extends TestCase
         self::assertIsString($html);
         self::assertSame(3, substr_count($html, 'class="envelope"'));
         self::assertStringContainsString('Wool coat', $html);
+        self::assertStringContainsString('>Qty<', $html);
+        self::assertStringContainsString('>Credits/Debits<', $html);
+        self::assertStringNotContainsString('>Tax<', $html);
+        self::assertStringContainsString('10-01-2026', $html);
+        self::assertStringContainsString('$8.00', $html);
+        self::assertStringContainsString('class="num debit">($3.00)', $html);
+        self::assertStringContainsString('<td class="num">Check: $7.20</td>', $html);
         self::assertStringContainsString('Check number 1042', $html);
+        self::assertSame('10-01-2026', View::date('2026-10-01'));
         self::assertSame(2, substr_count($html, 'Check:'));
         self::assertSame(1, substr_count($html, 'Amount owed to store'));
         self::assertStringNotContainsString('Check number </p>', $html);
@@ -47,7 +55,7 @@ final class EnvelopePageTest extends TestCase
         $view->render('Feature/Payout/envelope', [
             'displayName' => 'Web Probe',
             'rows' => [
-                $this->line('vendor-1', 'Ada', 'A1', 'BC-1', 'Wool coat', 1000, 200, 80, 720, '', 0),
+                $this->line('vendor-1', 'Ada', 'A1', 'BC-1', 'Wool coat', 1000, 200, 1, 720, '', 0, 0),
             ],
         ]);
         $html = ob_get_clean();
@@ -72,7 +80,7 @@ final class EnvelopePageTest extends TestCase
     }
 
     /**
-     * @return array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, commission: int, tax: int, check: int, owes: int, check_number: string}
+     * @return array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, quantity: int, commission: int, rent: int, check: int, owes: int, check_number: string}
      */
     private function line(
         string $vendorId,
@@ -82,10 +90,11 @@ final class EnvelopePageTest extends TestCase
         string $description,
         int $price,
         int $commission,
-        int $tax,
+        int $quantity,
         int $check,
         string $checkNumber,
         int $owes,
+        int $rent,
     ): array {
         return [
             'vendor_id' => $vendorId,
@@ -96,8 +105,9 @@ final class EnvelopePageTest extends TestCase
             'item_code' => $itemCode,
             'description' => $description,
             'price' => $price,
+            'quantity' => $quantity,
             'commission' => $commission,
-            'tax' => $tax,
+            'rent' => $rent,
             'check' => $check,
             'owes' => $owes,
             'check_number' => $checkNumber,

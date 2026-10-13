@@ -222,7 +222,7 @@ final class PayoutRunStore
     }
 
     /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, commission: int, tax: int, check: int, owes: int, check_number: string}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, quantity: int, commission: int, rent: int, check: int, owes: int, check_number: string}>
      */
     public function envelopes(
         string $runId,
@@ -248,7 +248,7 @@ final class PayoutRunStore
 
     /**
      * @param list<mixed> $params
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, commission: int, tax: int, check: int, owes: int, check_number: string}>
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, quantity: int, commission: int, rent: int, check: int, owes: int, check_number: string}>
      */
     private function sheets(string $sql, array $params): array
     {
@@ -264,8 +264,9 @@ final class PayoutRunStore
                 'item_code' => RowValue::string($row['item_code'] ?? null),
                 'description' => RowValue::string($row['description'] ?? null),
                 'price' => RowValue::integer($row['price_minor'] ?? 0),
+                'quantity' => RowValue::integer($row['quantity'] ?? 0),
                 'commission' => RowValue::integer($row['commission_minor'] ?? 0),
-                'tax' => RowValue::integer($row['tax_minor'] ?? 0),
+                'rent' => RowValue::integer($row['settled_minor'] ?? 0),
                 'check' => RowValue::integer($row['check_minor'] ?? null),
                 'owes' => RowValue::integer($row['owes_minor'] ?? null),
                 'check_number' => is_string($number) ? $number : '',
@@ -284,9 +285,9 @@ final class PayoutRunStore
                        COALESCE(sale.item_code, '') AS item_code,
                        COALESCE(sale.description, '') AS description,
                        COALESCE(sale.price_minor, 0) AS price_minor,
+                       COALESCE(sale.quantity, 0) AS quantity,
                        COALESCE(sale.commission_minor, 0) AS commission_minor,
-                       COALESCE(sale.tax_minor, 0) AS tax_minor,
-                       line.check_minor, line.owes_minor, COALESCE(line.check_number, '') AS check_number
+                       line.settled_minor, line.check_minor, line.owes_minor, COALESCE(line.check_number, '') AS check_number
                 FROM payout_run_lines AS line
                 JOIN vendors AS vendor ON vendor.id = line.vendor_id
                 LEFT JOIN payout_run_sales AS sale ON sale.run_id = line.run_id AND sale.vendor_id = line.vendor_id
@@ -312,9 +313,9 @@ final class PayoutRunStore
                        COALESCE(sale.item_code, '') AS item_code,
                        COALESCE(sale.description, '') AS description,
                        COALESCE(sale.price_minor, 0) AS price_minor,
+                       COALESCE(sale.quantity, 0) AS quantity,
                        COALESCE(sale.commission_minor, 0) AS commission_minor,
-                       COALESCE(sale.tax_minor, 0) AS tax_minor,
-                       pack.check_minor, pack.owes_minor, '' AS check_number
+                       pack.settled_minor, pack.check_minor, pack.owes_minor, '' AS check_number
                 FROM payout_pack AS pack
                 LEFT JOIN payout_pack_sales AS sale
                   ON sale.run_id = pack.run_id AND sale.vendor_id = pack.vendor_id
@@ -329,13 +330,13 @@ final class PayoutRunStore
                        COALESCE(sale.item_code, '') AS item_code,
                        COALESCE(sale.description, '') AS description,
                        COALESCE(sale.price_minor, 0) AS price_minor,
+                       COALESCE(sale.quantity, 0) AS quantity,
                        COALESCE(sale.commission_minor, 0) AS commission_minor,
-                       COALESCE(sale.tax_minor, 0) AS tax_minor,
-                       pack.check_minor, pack.owes_minor, '' AS check_number
+                       pack.settled_minor, pack.check_minor, pack.owes_minor, '' AS check_number
                 FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date) AS pack
                 LEFT JOIN LATERAL (
                     SELECT journal.posting_date AS sold_on, item.code AS item_code, item.description,
-                           sale.price_minor, sale.commission_minor, sale.tax_minor, sale.line_no
+                           sale.price_minor, sale.quantity, sale.commission_minor, sale.line_no
                     FROM journals AS journal
                     JOIN sale_lines AS sale ON sale.journal_id = journal.id
                     JOIN items AS item ON item.id = sale.item_id AND item.vendor_id = pack.vendor_id

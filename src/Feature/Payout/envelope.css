@@ -21,13 +21,43 @@
     border-collapse: collapse;
 }
 
+.content .envelope table,
+.envelope table {
+    background: transparent;
+    border: 0;
+}
+
+.content .envelope td,
+.content .envelope th,
 .envelope td,
 .envelope th {
     text-align: left;
-    padding: 0.15rem 0;
+    padding: 0.15rem 0.35rem 0.15rem 0;
     background: transparent;
+    border: 0;
 }
 
+.content .envelope td.num,
+.content .envelope th.num,
+.envelope .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.envelope tfoot td {
+    font-weight: 700;
+    padding-top: 0.45rem;
+}
+
+.envelope .debit,
 .envelope .owed {
-    color: #9b1c1c;
+    color: var(--danger, #d92d20);
+    font-weight: 700;
+}
+
+@media print {
+    .envelope .debit,
+    .envelope .owed {
+        color: #9b1c1c;
+    }
 }
