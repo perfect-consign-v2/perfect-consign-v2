@@ -51,12 +51,10 @@ final class MallTenantReset
         if (!is_string($password) || $password === '') {
             $password = 'mall-demo';
         }
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        if ($hash === false) {
-            throw new RuntimeException('the password hash could not be created');
-        }
-
-        return ['username' => 'owner', 'password_hash' => $hash];
+        return [
+            'username' => 'owner',
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+        ];
     }
 
     private function requireTools(): void
