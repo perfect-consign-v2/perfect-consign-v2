@@ -7,7 +7,6 @@ namespace PerfectConsign\Feature\Mall;
 use DateTimeImmutable;
 use DateTimeZone;
 use PerfectConsign\Feature\Catalog\NameList;
-use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -75,7 +74,7 @@ final class MallSettings
 
     public function cashRoundNickel(): bool
     {
-        return self::flag($this->row()['cash_round_nickel'] ?? null);
+        return MallGuard::flag($this->row()['cash_round_nickel'] ?? null);
     }
 
     public function getLabelStock(): string
@@ -94,7 +93,7 @@ final class MallSettings
             throw new \InvalidArgumentException('unknown catalog flag');
         }
 
-        return self::flag($this->row()[$flag] ?? null);
+        return MallGuard::flag($this->row()[$flag] ?? null);
     }
 
     /**
@@ -135,12 +134,12 @@ final class MallSettings
         string $cashRound,
         int $taxRate,
     ): void {
-        $this->requireZone($timeZone);
-        $this->requireFeet($write->boothWidth, $write->boothDepth, 'booth size is whole feet');
-        $this->requireFeet($write->floorWidth, $write->floorDepth, 'floor size is whole feet');
-        $this->requireTake($storeTake);
-        $this->requireTax($taxRate);
-        $this->guardDays($floorDays);
+        MallGuard::requireZone($timeZone);
+        MallGuard::requireFeet($write->boothWidth, $write->boothDepth, 'booth size is whole feet');
+        MallGuard::requireFeet($write->floorWidth, $write->floorDepth, 'floor size is whole feet');
+        MallGuard::requireTake($storeTake);
+        MallGuard::requireTax($taxRate);
+        MallGuard::guardDays($floorDays);
         $this->statements->change(
             'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean, use_brand = ?::boolean',
             [
@@ -153,54 +152,9 @@ final class MallSettings
                 $floorDays,
                 $cashRound === '1' ? 'true' : 'false',
                 $taxRate,
-                $write->color ? 'true' : 'false',
-                $write->category ? 'true' : 'false',
-                $write->size ? 'true' : 'false',
-                $write->condition ? 'true' : 'false',
-                $write->department ? 'true' : 'false',
-                $write->brand ? 'true' : 'false',
+                ...$write->flags->stored(),
             ]
         );
-    }
-
-    private static function flag(mixed $value): bool
-    {
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
-    }
-
-    private function requireZone(string $timeZone): void
-    {
-        if (!in_array($timeZone, timezone_identifiers_list(DateTimeZone::ALL_WITH_BC), true)) {
-            throw new \InvalidArgumentException('that time zone is not an IANA name');
-        }
-    }
-
-    private function requireFeet(int $width, int $depth, string $message): void
-    {
-        if ($width < 1 || $depth < 1) {
-            throw new \InvalidArgumentException($message);
-        }
-    }
-
-    private function requireTake(int $storeTake): void
-    {
-        if ($storeTake < 0 || $storeTake > BasisPoints::PERCENT) {
-            throw new \InvalidArgumentException('store take is a percent from 0 to 100');
-        }
-    }
-
-    private function requireTax(int $taxRate): void
-    {
-        if ($taxRate < 0 || $taxRate > BasisPoints::TAX) {
-            throw new \InvalidArgumentException('tax rate is a percent from 0 to 100');
-        }
-    }
-
-    private function guardDays(?int $floorDays): void
-    {
-        if ($floorDays !== null && ($floorDays < 1 || $floorDays > 365)) {
-            throw new \InvalidArgumentException('days on the floor is a whole number from 1 to 365, or empty');
-        }
     }
 
     /**

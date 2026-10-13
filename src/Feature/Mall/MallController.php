@@ -165,17 +165,19 @@ final class MallController
         try {
             $this->mall->save(
                 $timeZone,
-                new MallWrite(
+                MallWrite::posted(
                     $width,
                     $depth,
                     $floorWidth,
                     $floorDepth,
-                    $this->app->request()->field('use_color') === '1',
-                    $this->app->request()->field('use_category') === '1',
-                    $this->app->request()->field('use_size') === '1',
-                    $this->app->request()->field('use_condition') === '1',
-                    $this->app->request()->field('use_department') === '1',
-                    $this->app->request()->field('use_brand') === '1',
+                    [
+                        'color' => $this->app->request()->field('use_color') === '1',
+                        'category' => $this->app->request()->field('use_category') === '1',
+                        'size' => $this->app->request()->field('use_size') === '1',
+                        'condition' => $this->app->request()->field('use_condition') === '1',
+                        'department' => $this->app->request()->field('use_department') === '1',
+                        'brand' => $this->app->request()->field('use_brand') === '1',
+                    ],
                 ),
                 $storeTake,
                 $floorDays,
