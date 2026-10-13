@@ -115,7 +115,7 @@ final class HtmlPage
     public static function covers(string $html, string $date): bool
     {
         $found = preg_match_all(
-            '/<td>(\d{4}-\d{2}-\d{2})<\/td>\s*<td>(\d{4}-\d{2}-\d{2})<\/td>/',
+            '/<td>(\d{4}-\d{2}-\d{2}|\d{2}-\d{2}-\d{4})<\/td>\s*<td>(\d{4}-\d{2}-\d{2}|\d{2}-\d{2}-\d{4})<\/td>/',
             $html,
             $rows,
             PREG_SET_ORDER
@@ -123,12 +123,22 @@ final class HtmlPage
         if ($found === false) {
             return false;
         }
+        $day = self::isoDate($date);
         foreach ($rows as $row) {
-            if ($row[1] <= $date && $date <= $row[2]) {
+            if (self::isoDate($row[1]) <= $day && $day <= self::isoDate($row[2])) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static function isoDate(string $value): string
+    {
+        if (preg_match('/^(\d{2})-(\d{2})-(\d{4})$/', $value, $match) === 1) {
+            return $match[3] . '-' . $match[1] . '-' . $match[2];
+        }
+
+        return $value;
     }
 }
