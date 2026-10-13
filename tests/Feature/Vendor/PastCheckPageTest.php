@@ -12,15 +12,15 @@ final class PastCheckPageTest extends TestCase
     public function testAPastCheckListsWhatWasOnIt(): void
     {
         $html = $this->page('1042', [
-            ['date' => 'Sep 30', 'label' => 'Sales', 'amount' => 61200, 'run_id' => 'run-1'],
-            ['date' => 'Oct 1', 'label' => 'Rent', 'amount' => -30000, 'run_id' => 'run-1'],
+            ['date' => '2026-09-30', 'label' => 'Sales', 'amount' => 61200, 'run_id' => 'run-1'],
+            ['date' => '2026-10-01', 'label' => 'Rent', 'amount' => -30000, 'run_id' => 'run-1'],
         ]);
 
-        self::assertStringContainsString('Check Oct 1', $html);
+        self::assertStringContainsString('Check 10-01-2026', $html);
         self::assertStringContainsString('$312.00', $html);
         self::assertStringContainsString('No. 1042', $html);
         self::assertStringContainsString('href="/mall/vendor"', $html);
-        self::assertStringContainsString('Sep 30', $html);
+        self::assertStringContainsString('09-30-2026', $html);
         self::assertStringContainsString('Sales', $html);
         self::assertStringContainsString('$612.00', $html);
         self::assertStringContainsString('-$300.00', $html);
@@ -31,7 +31,7 @@ final class PastCheckPageTest extends TestCase
     {
         $html = $this->page('', []);
 
-        self::assertStringContainsString('Check Oct 1', $html);
+        self::assertStringContainsString('Check 10-01-2026', $html);
         self::assertStringNotContainsString('No. ', $html);
         self::assertStringContainsString('No lines on this check.', $html);
     }
@@ -46,7 +46,7 @@ final class PastCheckPageTest extends TestCase
         $view->render('Feature/Vendor/past-check', [
             'slug' => 'mall',
             'check' => [
-                'paid_on' => 'Oct 1',
+                'paid_on' => '2026-10-01',
                 'amount' => 31200,
                 'number' => $number,
                 'lines' => $lines,

@@ -9,7 +9,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var array{number: string, posted_on: string, amount: int, balance: int, voided: bool, label?: string} $slip */
 $slipLabel = is_string($slip['label'] ?? null) ? $slip['label'] : 'Gift certificate';
 $soldOn = DateTimeImmutable::createFromFormat('!Y-m-d', $slip['posted_on']);
-$when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('M j, Y') : $slip['posted_on'];
+$when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('m-d-Y') : View::date($slip['posted_on']);
 ?>
 <div class="slip-page">
     <div class="no-print row wrap gap-2">

@@ -30,7 +30,7 @@ use PerfectConsign\Shared\Web\ListTable;
         <?php foreach ($rows as $row): ?>
             <tr>
                 <td><?= View::text($row['number']) ?></td>
-                <td><?= View::text($row['sold_on']) ?></td>
+                <td><?= View::date($row['sold_on']) ?></td>
                 <td><?= View::text(View::money($row['issued'])) ?></td>
                 <td><?= View::text(View::money($row['balance'])) ?></td>
                 <td><a href="/<?= View::text($slug) ?>/pos/gift/<?= View::text($row['journal_id']) ?>">Print certificate</a></td>

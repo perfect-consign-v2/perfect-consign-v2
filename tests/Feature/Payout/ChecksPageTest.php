@@ -33,7 +33,7 @@ final class ChecksPageTest extends TestCase
         self::assertStringContainsString('One check for each vendor who is getting paid.', $html);
         self::assertStringContainsString('Web Probe', $html);
         self::assertStringContainsString('Check 1042', $html);
-        self::assertStringContainsString('October 12, 2026', $html);
+        self::assertStringContainsString('10-12-2026', $html);
         self::assertStringContainsString('Pay to the order of Ada Lane', $html);
         self::assertStringContainsString('$312.00', $html);
         self::assertStringContainsString('Three hundred twelve and 00/100', $html);
@@ -71,7 +71,7 @@ final class ChecksPageTest extends TestCase
         ob_start();
         $view->render('Feature/Payout/checks', [
             'displayName' => 'Web Probe',
-            'dated' => 'October 12, 2026',
+            'dated' => '10-12-2026',
             'monthName' => 'October',
             'checks' => $checks,
         ]);

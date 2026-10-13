@@ -23,7 +23,7 @@ final class BackupHeadlineTest extends TestCase
         $now = new DateTimeImmutable('2026-09-26 12:00:00+00');
 
         self::assertSame(
-            'Sep 12, 2026, 6:41 PM UTC · 14 days ago',
+            '09-12-2026, 6:41 PM UTC · 14 days ago',
             BackupHeadline::text($completed, $now)
         );
     }
@@ -34,7 +34,7 @@ final class BackupHeadlineTest extends TestCase
         $now = new DateTimeImmutable('2026-09-12 23:10:00+00');
 
         self::assertSame(
-            'Sep 12, 2026, 6:41 PM UTC · today',
+            '09-12-2026, 6:41 PM UTC · today',
             BackupHeadline::text($completed, $now)
         );
     }
@@ -45,7 +45,7 @@ final class BackupHeadlineTest extends TestCase
         $now = new DateTimeImmutable('2026-09-26 12:00:00+00');
 
         self::assertSame(
-            'Sep 27, 2026, 1:00 AM UTC · today',
+            '09-27-2026, 1:00 AM UTC · today',
             BackupHeadline::text($completed, $now)
         );
     }
@@ -56,7 +56,7 @@ final class BackupHeadlineTest extends TestCase
         $now = new DateTimeImmutable('2026-09-13 00:30:00+00');
 
         self::assertSame(
-            'Sep 12, 2026, 6:41 PM UTC · 1 day ago',
+            '09-12-2026, 6:41 PM UTC · 1 day ago',
             BackupHeadline::text($completed, $now)
         );
     }

@@ -50,7 +50,7 @@ use PerfectConsign\Shared\Http\View;
         <p class="slip-kicker">Payments</p>
         <?php foreach ($slip['payments'] as $payment): ?>
             <p class="slip-row">
-                <span><?= View::text($payment['posted_on']) ?> <?= View::text($payment['kind']) ?> <?= View::text($payment['tender']) ?></span>
+                <span><?= View::date($payment['posted_on']) ?> <?= View::text($payment['kind']) ?> <?= View::text($payment['tender']) ?></span>
                 <span><?= View::text(View::money($payment['amount'])) ?></span>
             </p>
         <?php endforeach; ?>

@@ -19,7 +19,7 @@ final class MallClock
             return is_string($value) ? $value : '';
         }
 
-        return $time->format('M j, Y g:i a');
+        return $time->format('m-d-Y g:i a');
     }
 
     public function localDate(mixed $value): string

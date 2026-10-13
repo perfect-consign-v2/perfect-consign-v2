@@ -55,7 +55,7 @@ use PerfectConsign\Shared\Http\View;
 <?php else: ?>
     <p class="mt-4">
         <a href="/<?= View::text($slug) ?>/vendor/checks/<?= View::text($page['last']['run_id']) ?>">
-            Last check <?= View::text($page['last']['paid_on']) ?>
+            Last check <?= View::date($page['last']['paid_on']) ?>
             <?= View::text(View::money($page['last']['amount'])) ?>
         </a>
         <?php if ($page['last']['number'] !== ''): ?>
@@ -83,9 +83,9 @@ use PerfectConsign\Shared\Http\View;
                 <?php foreach ($page['others'] as $stay): ?>
                     <li>
                         <?= View::text($stay['code']) ?>
-                        <?= View::text($stay['starts_on']) ?>
+                        <?= View::date($stay['starts_on']) ?>
                         <?php if ($stay['ends_on'] !== ''): ?>
-                            to <?= View::text($stay['ends_on']) ?>
+                            to <?= View::date($stay['ends_on']) ?>
                         <?php endif; ?>
                         <?php if ($stay['rent'] !== null): ?>
                             <?= View::text(View::money($stay['rent'])) ?>
@@ -112,7 +112,7 @@ use PerfectConsign\Shared\Http\View;
             <tbody>
             <?php foreach ($page['activity'] as $line): ?>
                 <tr>
-                    <td><?= View::text($line['date']) ?></td>
+                    <td><?= View::date($line['date']) ?></td>
                     <td>
                         <?php if ($line['run_id'] !== ''): ?>
                             <a href="/<?= View::text($slug) ?>/vendor/checks/<?= View::text($line['run_id']) ?>"><?= View::text($line['label']) ?></a>

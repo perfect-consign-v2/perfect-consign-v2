@@ -14,7 +14,7 @@ $base = '/' . $slug . '/vendor/sales';
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Your sales</h1>
-        <p class="muted"><?= View::text($span['label']) ?> · <?= View::text($span['from']) ?> to <?= View::text($span['to']) ?></p>
+        <p class="muted"><?= View::text($span['label']) ?> · <?= View::date($span['from']) ?> to <?= View::date($span['to']) ?></p>
     </div>
 </div>
 <p class="mt-4">
@@ -58,7 +58,7 @@ $base = '/' . $slug . '/vendor/sales';
             <tbody>
             <?php foreach ($rows as $row): ?>
                 <tr>
-                    <td><?= View::text($row['date']) ?></td>
+                    <td><?= View::date($row['date']) ?></td>
                     <td><?= View::text($row['code']) ?></td>
                     <td><?= View::text($row['description']) ?></td>
                     <td><?= View::text(View::money($row['price'])) ?></td>

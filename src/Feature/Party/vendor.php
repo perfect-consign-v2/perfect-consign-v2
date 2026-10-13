@@ -182,7 +182,7 @@ $blank = '—';
                             <?php foreach ($assignments as $assignment): ?>
                                 <tr>
                                     <td><a href="/<?= View::text($slug) ?>/booths#booth-<?= View::text($assignment['booth_id']) ?>"><?= View::text($assignment['booth_code']) ?></a></td>
-                                    <td><?= View::text($assignment['starts_on']) ?></td>
+                                    <td><?= View::date($assignment['starts_on']) ?></td>
                                     <td>
                                         <?php if ($assignment['ends_on'] === ''): ?>
                                             <form class="row-form" method="post" action="/<?= View::text($slug) ?>/assignments/<?= View::text($assignment['id']) ?>/end">
@@ -192,7 +192,7 @@ $blank = '—';
                                                 <button class="btn btn-sm" type="submit">End</button>
                                             </form>
                                         <?php else: ?>
-                                            <?= View::text($assignment['ends_on']) ?>
+                                            <?= View::date($assignment['ends_on']) ?>
                                         <?php endif; ?>
                                     </td>
                                     <td class="num">

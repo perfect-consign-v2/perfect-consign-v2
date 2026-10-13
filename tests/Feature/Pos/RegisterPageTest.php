@@ -250,11 +250,11 @@ final class RegisterPageTest extends TestCase
     {
         $html = $this->page([
             'deposits' => 150,
-            'payments' => [['posted_on' => 'Oct 1', 'tender' => 'Cash', 'amount' => 150, 'kind' => 'Deposit']],
+            'payments' => [['posted_on' => '2026-10-01', 'tender' => 'Cash', 'amount' => 150, 'kind' => 'Deposit']],
         ]);
 
         self::assertStringContainsString('Layaway $1.50', $html);
-        self::assertStringContainsString('Oct 1', $html);
+        self::assertStringContainsString('10-01-2026', $html);
     }
 
     public function testTheScannerYieldsWhileAGiftOrAPaymentIsOpen(): void

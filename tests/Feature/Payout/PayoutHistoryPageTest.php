@@ -141,11 +141,11 @@ final class PayoutHistoryPageTest extends TestCase
         self::assertIsString($html);
         self::assertStringContainsString('a payout reversal needs the operator and a reason', $html);
         self::assertStringContainsString('Undo this payout', $html);
-        self::assertStringContainsString('Undone by Ada on 2026-09-02 — wrong window', $html);
+        self::assertStringContainsString('Undone by Ada on 09-02-2026 — wrong window', $html);
         self::assertStringContainsString('2099-11', $html);
         self::assertStringContainsString('Vendors excluded: Bea', $html);
         self::assertStringContainsString('>—<', $html);
-        self::assertStringContainsString('2026-09', $html);
+        self::assertStringContainsString('09-01-2026', $html);
         self::assertSame(1, substr_count($html, 'Undo this payout'));
         self::assertSame(1, substr_count($html, 'Undone by'));
     }

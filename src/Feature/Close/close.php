@@ -23,8 +23,8 @@ ListTable::head([
     <tbody>
     <?php foreach ($periods as $period): ?>
         <tr>
-            <td><?= View::text($period['starts_on']) ?></td>
-            <td><?= View::text($period['ends_on']) ?></td>
+            <td><?= View::date($period['starts_on']) ?></td>
+            <td><?= View::date($period['ends_on']) ?></td>
             <td><?= View::text($period['status']) ?></td>
             <td>
                 <?php if ($period['status'] === 'open'): ?>

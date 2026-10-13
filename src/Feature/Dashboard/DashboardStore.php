@@ -132,7 +132,7 @@ final class DashboardStore
             $date = new DateTimeImmutable($day);
             $bars[] = [
                 'day' => $date->format('j'),
-                'title' => $date->format('M j') . ': ' . $this->money($minor),
+                'title' => $date->format('m-d-Y') . ': ' . $this->money($minor),
                 'height' => $peak === 0 ? 0 : (int) round($minor * 100 / $peak),
                 'today' => $day === $today,
             ];

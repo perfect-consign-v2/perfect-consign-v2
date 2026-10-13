@@ -29,6 +29,6 @@ final class BackupHeadline
             default => $days . ' days ago',
         };
 
-        return $completed->format('M j, Y, g:i A') . ' UTC · ' . $age;
+        return $completed->format('m-d-Y, g:i A') . ' UTC · ' . $age;
     }
 }

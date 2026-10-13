@@ -20,7 +20,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
  *     tenders: list<array{name: string, amount: int}>
  * } $slip */
 $postedOn = DateTimeImmutable::createFromFormat('!Y-m-d', $slip['posted_on']);
-$when = $postedOn instanceof DateTimeImmutable ? $postedOn->format('M j, Y') : $slip['posted_on'];
+$when = $postedOn instanceof DateTimeImmutable ? $postedOn->format('m-d-Y') : View::date($slip['posted_on']);
 $booth = $slip['booth'] === '' ? '—' : $slip['booth'];
 ?>
 <div class="slip-page">

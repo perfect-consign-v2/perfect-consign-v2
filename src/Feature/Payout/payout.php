@@ -123,7 +123,7 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
         </form>
     </div>
     <?php if (is_array($undone)): ?>
-        <p class="muted mt-4">Undone by <?= View::text($undone['by']) ?> on <?= View::text($undone['at']) ?> — <?= View::text($undone['reason']) ?></p>
+        <p class="muted mt-4">Undone by <?= View::text($undone['by']) ?> on <?= View::date($undone['at']) ?> — <?= View::text($undone['reason']) ?></p>
     <?php endif; ?>
     <?php if ($runId !== ''): ?>
         <section class="card mt-6">

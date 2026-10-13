@@ -19,9 +19,9 @@ final class PartyRecord
             if ($row['value'] === '') {
                 echo $blank;
             } elseif ($row['href'] !== '') {
-                echo '<a class="' . ($row['label'] === 'Email' ? 'mailto' : '') . '" href="' . View::text($row['href']) . '">' . View::text($row['value']) . '</a>';
+                echo '<a class="' . ($row['label'] === 'Email' ? 'mailto' : '') . '" href="' . View::text($row['href']) . '">' . View::date($row['value']) . '</a>';
             } else {
-                echo View::text($row['value']);
+                echo View::date($row['value']);
             }
             echo '</dd></div>';
         }

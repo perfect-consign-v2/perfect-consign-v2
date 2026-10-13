@@ -50,4 +50,14 @@ final class View
         $absolute = abs($minor);
         return $sign . '$' . intdiv($absolute, 100) . '.' . str_pad((string) ($absolute % 100), 2, '0', STR_PAD_LEFT);
     }
+
+    public static function date(mixed $value): string
+    {
+        $text = self::text($value);
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})(.*)$/', $text, $match) !== 1) {
+            return $text;
+        }
+
+        return $match[2] . '-' . $match[3] . '-' . $match[1] . $match[4];
+    }
 }

@@ -104,7 +104,7 @@ final class PrintedChecks
             'title' => 'Checks',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'dated' => (new \DateTimeImmutable($run['posting_date']))->format('F j, Y'),
+            'dated' => (new \DateTimeImmutable($run['posting_date']))->format('m-d-Y'),
             'monthName' => $monthName,
             'checks' => $checks,
         ]);

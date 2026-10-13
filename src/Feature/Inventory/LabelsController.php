@@ -73,7 +73,7 @@ final class LabelsController
     {
         $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $day);
         if ($date instanceof \DateTimeImmutable && $date->format('Y-m-d') === $day) {
-            return $date->format('m/d/Y');
+            return $date->format('m-d-Y');
         }
 
         return $day;

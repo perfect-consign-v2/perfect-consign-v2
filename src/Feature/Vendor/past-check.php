@@ -15,7 +15,7 @@ use PerfectConsign\Shared\Http\View;
 ?>
 <div class="page-head">
     <div class="titles">
-        <h1 class="h1">Check <?= View::text($check['paid_on']) ?></h1>
+        <h1 class="h1">Check <?= View::date($check['paid_on']) ?></h1>
         <p class="muted">
             <?= View::text(View::money($check['amount'])) ?>
             <?php if ($check['number'] !== ''): ?>
@@ -40,7 +40,7 @@ use PerfectConsign\Shared\Http\View;
             <tbody>
             <?php foreach ($check['lines'] as $line): ?>
                 <tr>
-                    <td><?= View::text($line['date']) ?></td>
+                    <td><?= View::date($line['date']) ?></td>
                     <td><?= View::text($line['label']) ?></td>
                     <td><?= View::text(View::money($line['amount'])) ?></td>
                 </tr>

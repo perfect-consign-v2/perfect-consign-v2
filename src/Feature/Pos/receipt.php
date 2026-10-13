@@ -39,7 +39,7 @@ $discount = RowValue::integer($receipt['discount']);
 $round = RowValue::integer($receipt['round']);
 $total = $items - $discount + $tax + $round;
 $soldOn = DateTimeImmutable::createFromFormat('!Y-m-d', $receipt['posted_on']);
-$when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('M j, Y') : $receipt['posted_on'];
+$when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('m-d-Y') : View::date($receipt['posted_on']);
 $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
 ?>
 <div class="slip-page">

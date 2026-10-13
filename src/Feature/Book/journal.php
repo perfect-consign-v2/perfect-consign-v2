@@ -13,7 +13,7 @@ use PerfectConsign\Shared\Http\View;
 <h1>Posted entry <?= View::text($journal['journal_no']) ?></h1>
 <p>Key <?= View::text($journal['posting_key']) ?></p>
 <p>Source <?= View::text($journal['source_type']) ?> <?= View::text($journal['source_reference']) ?></p>
-<p>Date <?= View::text($journal['posting_date']) ?></p>
+<p>Date <?= View::date($journal['posting_date']) ?></p>
 <p><?= View::text($journal['description']) ?></p>
 <?php
 $sourceType = is_string($journal['source_type'] ?? null) ? $journal['source_type'] : '';

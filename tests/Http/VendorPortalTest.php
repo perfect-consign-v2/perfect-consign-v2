@@ -91,7 +91,7 @@ final class VendorPortalTest extends WebTestCase
 
         $clamped = $vendor->get('/' . self::SLUG . '/vendor/sales?range=custom&from=2026-06-02&to=2026-06-01');
         self::assertSees('Those dates', $clamped);
-        self::assertSees('2026-06-02 to 2026-06-02', $clamped);
+        self::assertSees('06-02-2026 to 06-02-2026', $clamped);
     }
 
     /**

@@ -24,7 +24,7 @@ ListTable::head([
     <?php foreach ($journals as $journal): ?>
         <tr>
             <td><?= View::text($journal['journal_no']) ?></td>
-            <td><?= View::text($journal['posting_date']) ?></td>
+            <td><?= View::date($journal['posting_date']) ?></td>
             <td><?= View::text($journal['posting_key']) ?></td>
             <td><?= View::text($journal['source_type']) ?></td>
             <td><a href="/<?= View::text($slug) ?>/journals/<?= View::text($journal['id']) ?>">Open</a></td>
