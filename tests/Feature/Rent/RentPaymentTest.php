@@ -152,6 +152,62 @@ final class RentPaymentTest extends TestCase
         self::assertSame(['rent' => 4800, 'late' => 500], $this->payment->parts(5300, 500));
         self::assertSame(['rent' => 0, 'late' => 1000], $this->payment->parts(1000, 5000));
         self::assertSame(['rent' => 0, 'late' => 0], $this->payment->parts(0, 500));
+        self::assertSame(['rent' => 0, 'late' => 0], $this->payment->parts(-1, 5));
+        self::assertSame(['rent' => 5299, 'late' => 1], $this->payment->parts(5300, 1));
+        self::assertSame(['rent' => 0, 'late' => 1], $this->payment->parts(1, 1));
+    }
+
+    public function testASplitAddsTheCheckToTheCardAndTheCash(): void
+    {
+        $paid = $this->payment->apply(
+            $this->tender('split', cash: '1.00', card: '2.00', checks: '3.00', tendered: '5.00', check: '44'),
+            '',
+            4800,
+        );
+
+        self::assertSame(600, $paid['minor']);
+        self::assertSame('3.00', $paid['tender']['checks']);
+        self::assertSame('44', $paid['tender']['check']);
+    }
+
+    public function testACardAndACheckBothCountBeforeTheCash(): void
+    {
+        $paid = $this->payment->apply(
+            $this->tender('split', cash: '20.00', card: '10.00', checks: '5.00'),
+            '',
+            4800,
+        );
+
+        self::assertSame(3500, $paid['minor']);
+        self::assertSame('20.00', $paid['tender']['cash']);
+        self::assertSame('10.00', $paid['tender']['card']);
+        self::assertSame('5.00', $paid['tender']['checks']);
+        self::assertSame('', $paid['tender']['tendered']);
+    }
+
+    public function testCashAfterACardThatCoversTheBalanceIsChange(): void
+    {
+        $paid = $this->payment->apply(
+            $this->tender('split', cash: '10.00', card: '48.00'),
+            '',
+            4800,
+        );
+
+        self::assertSame(4800, $paid['minor']);
+        self::assertSame('0.00', $paid['tender']['cash']);
+        self::assertSame('48.00', $paid['tender']['card']);
+        self::assertSame('10.00', $paid['tender']['tendered']);
+    }
+
+    public function testAZeroCashAmountIsNotAPayment(): void
+    {
+        foreach (['0', '0.0', '0.00'] as $amount) {
+            $paid = $this->payment->apply($this->tender('cash', tendered: $amount), '', 4800);
+
+            self::assertSame(0, $paid['minor'], $amount);
+            self::assertSame('0.00', $paid['tender']['cash'], $amount);
+            self::assertSame('0.00', $paid['tender']['tendered'], $amount);
+        }
     }
 
     /**

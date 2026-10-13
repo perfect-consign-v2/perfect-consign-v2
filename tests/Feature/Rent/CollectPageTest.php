@@ -26,6 +26,7 @@ final class CollectPageTest extends TestCase
         self::assertStringNotContainsString('Amount received', $html);
         self::assertStringNotContainsString('<span>Rent</span>', $html);
         self::assertStringNotContainsString('<span>Late fee</span>', $html);
+        self::assertStringContainsString('<span>C-1</span>', $html);
         self::assertSame(1, substr_count($html, '<form '));
         self::assertSame(1, substr_count($html, '>Collect</button>'));
         self::assertStringContainsString('id="rent-check-box" hidden', $html);
@@ -40,6 +41,23 @@ final class CollectPageTest extends TestCase
         self::assertStringContainsString('<span>Late fee</span>', $html);
         self::assertStringContainsString('$25.00', $html);
         self::assertStringContainsString('$496.66', $html);
+    }
+
+    public function testARentBalanceWithoutALateFeeDoesNotRepeatRent(): void
+    {
+        $html = $this->page(0, 4000, 4000);
+
+        self::assertStringContainsString('<span>C-1</span>', $html);
+        self::assertStringNotContainsString('<span>Rent</span>', $html);
+        self::assertStringNotContainsString('<span>Late fee</span>', $html);
+    }
+
+    public function testAnEmptyBoothIsShownAsADash(): void
+    {
+        $html = $this->page(0, 4000, 4000, true, '', '', '', '', '');
+
+        self::assertStringContainsString('<span>—</span>', $html);
+        self::assertStringNotContainsString('<span>C-1</span>', $html);
     }
 
     public function testABalanceThatIsOnlyALateFeeDoesNotRepeatRent(): void
@@ -88,6 +106,7 @@ final class CollectPageTest extends TestCase
         string $tenderCard = '',
         string $tenderChecks = '',
         string $checkNumber = '',
+        string $booth = 'C-1',
     ): string {
         $view = new View(dirname(__DIR__, 3) . '/src');
         ob_start();
@@ -98,7 +117,7 @@ final class CollectPageTest extends TestCase
                 'vendor_id' => 'vendor-1',
                 'vendor_name' => 'Gina Holt',
                 'booth_id' => 'booth-1',
-                'booth' => 'C-1',
+                'booth' => $booth,
                 'owed' => $owed,
                 'rent' => $rent,
                 'late' => $late,

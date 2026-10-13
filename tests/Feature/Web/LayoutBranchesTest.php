@@ -9,6 +9,16 @@ use PHPUnit\Framework\TestCase;
 
 final class LayoutBranchesTest extends TestCase
 {
+    public function testAMallThatDoesNotUseBrandsHidesThatPage(): void
+    {
+        $html = $this->layout([
+            'showBrand' => false,
+        ]);
+
+        self::assertStringNotContainsString('href="/demo/brands"', $html);
+        self::assertStringContainsString('Cashiers', $html);
+    }
+
     public function testTheOwnerShellShowsTheNoticeAndTheCurrentPage(): void
     {
         $html = $this->layout([
@@ -33,6 +43,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('content="noindex"', $html);
         self::assertStringContainsString('Month', $html);
         self::assertStringContainsString('Cashiers', $html);
+        self::assertStringContainsString('href="/demo/brands"', $html);
         self::assertStringContainsString('Owner', $html);
         self::assertStringContainsString('href="/demo/colors"', $html);
         self::assertStringNotContainsString('Missing path', $html);

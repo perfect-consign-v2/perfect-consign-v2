@@ -65,6 +65,32 @@ final class EnvelopePageTest extends TestCase
         self::assertStringNotContainsString('reprinted from the stored record', $html);
     }
 
+    public function testAZeroQuantityPrintsOneAndAZeroBalanceStaysPlain(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/envelope', [
+            'displayName' => 'Web Probe',
+            'rows' => [
+                $this->line('vendor-1', 'Ada', 'A1', 'BC-1', 'Lamp', 500, 100, 2, 0, '', 0, 0),
+                $this->line('vendor-2', 'Bea', 'B2', 'BC-2', 'Pin', 400, 400, 0, 0, '99', 0, 0),
+            ],
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringContainsString('class="num">2</td>', $html);
+        self::assertStringContainsString('$10.00', $html);
+        self::assertStringContainsString('$9.00', $html);
+        self::assertStringContainsString('class="num">1</td>', $html);
+        self::assertStringContainsString('$4.00', $html);
+        self::assertStringContainsString('class="num">$0.00', $html);
+        self::assertStringNotContainsString('class="num debit"', $html);
+        self::assertStringNotContainsString('>Rent<', $html);
+        self::assertStringNotContainsString('Check number 99', $html);
+        self::assertStringNotContainsString('Amount owed to store', $html);
+    }
+
     public function testAnEmptyPayoutHasNoVendorSheets(): void
     {
         $view = new View(dirname(__DIR__, 3) . '/src');

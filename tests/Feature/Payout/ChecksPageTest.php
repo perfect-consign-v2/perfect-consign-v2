@@ -62,6 +62,24 @@ final class ChecksPageTest extends TestCase
         self::assertStringContainsString('/mall/payouts/checks?run=run-1', $html);
     }
 
+    public function testAQuietCheckNumberFormHidesTheAlert(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/check-number', [
+            'slug' => 'mall',
+            'csrf' => 'token',
+            'displayName' => 'Web Probe',
+            'runId' => 'run-1',
+            'error' => null,
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringNotContainsString('class="alert"', $html);
+        self::assertStringContainsString('name="starting_check"', $html);
+    }
+
     /**
      * @param list<array{number: string, name: string, code: string, booth: string, amount: int, words: string}> $checks
      */

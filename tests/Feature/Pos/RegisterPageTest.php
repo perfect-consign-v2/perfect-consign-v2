@@ -25,6 +25,15 @@ final class RegisterPageTest extends TestCase
         self::assertStringNotContainsString('data-open-modal="enter-payment"', $html);
         self::assertStringNotContainsString('That certificate is not on file.', $html);
         self::assertStringNotContainsString('class="register-status"', $html);
+        self::assertStringContainsString('id="instant_brand"', $html);
+    }
+
+    public function testAMallThatDoesNotUseBrandsOmitsTheBrandField(): void
+    {
+        $html = $this->page(['showBrand' => false, 'openInstant' => true]);
+
+        self::assertStringNotContainsString('id="instant_brand"', $html);
+        self::assertStringContainsString('id="instant_description"', $html);
     }
 
     public function testAnOpenSaleShowsTheCartAndTheAmountStillDue(): void

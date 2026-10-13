@@ -47,6 +47,7 @@ final class PayVendorsPageTest extends TestCase
         self::assertStringContainsString('0 owe the store', $html);
         self::assertStringContainsString('A-1', $html);
         self::assertStringContainsString('—', $html);
+        self::assertStringNotContainsString('class="owe-amount"', $html);
         self::assertStringNotContainsString('text-danger', $html);
         self::assertStringNotContainsString('<p class="alert">', $html);
         self::assertStringNotContainsString('Left off this payout', $html);
