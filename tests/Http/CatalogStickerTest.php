@@ -34,6 +34,8 @@ final class CatalogStickerTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
         ]);
         self::assertSees('Settings saved.', $saved);
     }

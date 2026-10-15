@@ -221,6 +221,8 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
         ]);
         $tag = 't' . bin2hex(random_bytes(4));
         $created = 'Blue ' . $tag;
@@ -319,6 +321,8 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
         ]);
     }
 
@@ -439,6 +443,8 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
         ]);
         self::assertSees('America/Chicago', $saved);
         self::assertSees('value="45"', $saved);
@@ -456,6 +462,8 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
         ]);
         self::assertSees('America/Los_Angeles', $restored);
     }
@@ -540,6 +548,8 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
         ];
         $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '30']);
         self::assertSees('value="30"', $saved);
@@ -560,7 +570,7 @@ final class OwnerJourneyTest extends WebTestCase
             'store_take' => '30',
         ]);
         self::assertSees('30%', $matched);
-        self::assertMatchesRegularExpression('/<dt>Store take<\/dt>\s*<dd>\s*30%\s*<\/dd>/', $matched->body);
+        self::assertMatchesRegularExpression('/<dt>Store take<\\/dt>\\s*<dd>\\s*30%\\s*<\\/dd>/', $matched->body);
         $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '0']);
         self::assertSees('value="0"', $restored);
     }
@@ -612,6 +622,8 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
         ];
         if ($on) {
             $fields['cash_round_nickel'] = '1';

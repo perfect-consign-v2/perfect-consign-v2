@@ -167,6 +167,7 @@ final class RentController
         $this->app->show('Feature/Rent/rent-slip', [
             'title' => 'Rent receipt',
             'displayName' => $tenant->displayName,
+            'companyLines' => $this->app->getCompanyLines(),
             'slug' => $tenant->slug,
             'slip' => $slip,
             'change' => $this->receipts->change($this->cash->tendered($journalId), $slip['cash']),
@@ -184,7 +185,8 @@ final class RentController
         if ($boothId === '') {
             $boothId = $this->chosen('booth_id');
         }
-        $figure = $this->receipts->figure($vendorId, $boothId, $this->rent->today());
+        $today = $this->rent->today();
+        $figure = $this->receipts->figure($vendorId, $boothId, $today);
         if ($figure === null) {
             $this->render($slug, $error ?? 'a rent receipt cannot exceed the open rent');
             return;
@@ -195,7 +197,7 @@ final class RentController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'figure' => $figure,
-            'lines' => $this->receipts->explain($figure['vendor_id'], $figure['booth_id'], $figure['owed']),
+            'lines' => $this->receipts->explain($figure['vendor_id'], $figure['booth_id'], $figure['owed'], $today),
             'tenderCash' => $returning ? $this->app->request()->field('tender_cash') : '',
             'tenderCard' => $returning ? $this->app->request()->field('tender_card') : '',
             'tenderChecks' => $returning ? $this->app->request()->field('tender_checks') : '',
@@ -211,7 +213,7 @@ final class RentController
         $today = $this->rent->today();
         $month = $this->book->month($this->chosen('month'), $today);
         $fromSales = $this->settings->rentPrepaid();
-        $book = $this->book->assemble($this->rent->facts($month), $month, $today);
+        $book = $this->book->assemble($this->rent->facts($month), $month, $today, $this->settings->cycleDay());
         $visible = $this->book->narrow($book['rows'], $this->chosen('q'), $fromSales ? '' : $this->chosen('standing'));
         $this->app->show('Feature/Rent/rent', [
             'title' => 'Rent',
@@ -239,7 +241,7 @@ final class RentController
     private function waiveChosen(string $vendorId, string $boothId, int $owed, string $today): int
     {
         $open = [];
-        foreach ($this->receipts->explain($vendorId, $boothId, $owed) as $line) {
+        foreach ($this->receipts->explain($vendorId, $boothId, $owed, $today) as $line) {
             if ($line['journal_id'] !== '') {
                 $open[$line['journal_id']] = true;
             }

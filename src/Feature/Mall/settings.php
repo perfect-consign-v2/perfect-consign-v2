@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Rent\RentCycle;
 use PerfectConsign\Shared\Http\View;
+
+$boothRentals = ($boothRentals ?? true) === true;
+$cycleDay = is_int($cycleDay ?? null) && $cycleDay >= 1 && $cycleDay <= 28 ? $cycleDay : 1;
+$cycleFrozen = ($cycleFrozen ?? false) === true;
+$rentSentence = $boothRentals ? (new RentCycle($cycleDay))->sentence(!empty($rentPrepaid)) : '';
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -88,13 +94,38 @@ use PerfectConsign\Shared\Http\View;
                 </select>
             </div>
             <div class="field" style="grid-column:1/-1">
-                <p>Vendors are paid for last month.</p>
-            </div>
-            <div class="field" style="grid-column:1/-1">
-                <label for="rent_prepaid_from_prior_sales">
-                    <input id="rent_prepaid_from_prior_sales" name="rent_prepaid_from_prior_sales" type="checkbox" value="1"<?= !empty($rentPrepaid) ? ' checked' : '' ?>>
-                    Last month's sales pay this month's rent
-                </label>
+                <p class="muted text-sm">Booth rent</p>
+                <div class="catalog-switches">
+                    <label class="switch-row" for="booth_rentals_enabled">
+                        <span class="switch">
+                            <input id="booth_rentals_enabled" name="booth_rentals_enabled" type="checkbox" value="1"<?= $boothRentals ? ' checked' : '' ?>>
+                            <span class="switch-track" aria-hidden="true"></span>
+                            <span class="switch-knob" aria-hidden="true"></span>
+                        </span>
+                        Booth rentals
+                    </label>
+                    <?php if ($boothRentals): ?>
+                        <label class="switch-row" for="rent_prepaid_from_prior_sales">
+                            <span class="switch">
+                                <input id="rent_prepaid_from_prior_sales" name="rent_prepaid_from_prior_sales" type="checkbox" value="1"<?= !empty($rentPrepaid) ? ' checked' : '' ?>>
+                                <span class="switch-track" aria-hidden="true"></span>
+                                <span class="switch-knob" aria-hidden="true"></span>
+                            </span>
+                            Take rent from prior sales
+                        </label>
+                    <?php endif; ?>
+                </div>
+                <?php if ($boothRentals && $cycleFrozen): ?>
+                    <p>Cycle day <?= View::text((string) $cycleDay) ?></p>
+                <?php elseif ($boothRentals): ?>
+                    <label for="rent_cycle_day">Cycle day</label>
+                    <input class="input" id="rent_cycle_day" name="rent_cycle_day" inputmode="numeric" min="1" max="28" value="<?= View::text((string) $cycleDay) ?>" required>
+                <?php else: ?>
+                    <p>This mall does not charge booth rent.</p>
+                <?php endif; ?>
+                <?php if ($boothRentals): ?>
+                    <p><?= View::text($rentSentence) ?></p>
+                <?php endif; ?>
             </div>
             <div class="field" style="grid-column:1/-1">
                 <label for="cash_round_nickel">

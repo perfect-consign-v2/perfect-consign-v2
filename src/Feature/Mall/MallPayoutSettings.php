@@ -25,18 +25,56 @@ final class MallPayoutSettings
 
     public function rentPrepaid(): bool
     {
-        $value = $this->row()['rent_prepaid_from_prior_sales'] ?? null;
-
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
+        return $this->flag('rent_prepaid_from_prior_sales');
     }
 
-    public function save(string $operatingMode, bool $rentPrepaid): void
+    public function rentalsEnabled(): bool
+    {
+        return $this->flag('booth_rentals_enabled');
+    }
+
+    public function cycleDay(): int
+    {
+        $day = RowValue::integer($this->row()['rent_cycle_day'] ?? null);
+
+        return $day >= 1 && $day <= 28 ? $day : 1;
+    }
+
+    public function cycleFrozen(): bool
+    {
+        $rows = $this->statements->rows(
+            "SELECT 1
+             FROM journals AS posted
+             WHERE posted.source_type = 'rent_charge'
+               AND NOT posted.is_reversal
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM journals AS reversal
+                   WHERE reversal.reverses_journal_id = posted.id
+               )
+             LIMIT 1"
+        );
+
+        return $rows !== [];
+    }
+
+    public function save(string $operatingMode, bool $rentPrepaid, bool $rentalsEnabled, int $cycleDay): void
     {
         $mode = in_array($operatingMode, ['consignor', 'booth_mall', 'both'], true) ? $operatingMode : 'both';
+        $day = $cycleDay >= 1 && $cycleDay <= 28 ? $cycleDay : 1;
         $this->statements->change(
-            'UPDATE mall SET operating_mode = ?, payout_cadence = ?, rent_prepaid_from_prior_sales = ?::boolean',
-            [$mode, 'monthly', $rentPrepaid ? 'true' : 'false']
+            'UPDATE mall
+             SET operating_mode = ?, payout_cadence = ?, rent_prepaid_from_prior_sales = ?::boolean,
+                 booth_rentals_enabled = ?::boolean, rent_cycle_day = ?',
+            [$mode, 'monthly', $rentPrepaid ? 'true' : 'false', $rentalsEnabled ? 'true' : 'false', $day]
         );
+    }
+
+    private function flag(string $column): bool
+    {
+        $value = $this->row()[$column] ?? null;
+
+        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
     /**
@@ -45,7 +83,9 @@ final class MallPayoutSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT operating_mode, payout_cadence, rent_prepaid_from_prior_sales FROM mall'
+            'SELECT operating_mode, payout_cadence, rent_prepaid_from_prior_sales,
+                    booth_rentals_enabled, rent_cycle_day
+             FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

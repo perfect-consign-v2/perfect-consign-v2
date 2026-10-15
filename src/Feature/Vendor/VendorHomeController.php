@@ -53,7 +53,7 @@ final class VendorHomeController
             $request->query('from'),
             $request->query('to'),
             $this->checks->lastPaidOn($vendorId),
-            $this->window->window($today)
+            $this->window->window($today, $this->mall->getCycleDay())
         );
         $posted = $this->sales->lines($vendorId, $span['from'], $span['to']);
         $this->app->show('Feature/Vendor/sales', [

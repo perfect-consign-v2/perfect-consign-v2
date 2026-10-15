@@ -48,11 +48,11 @@ final class RentBook
      *   }>
      * }
      */
-    public function assemble(array $facts, string $month, string $today): array
+    public function assemble(array $facts, string $month, string $today, int $cycleDay = 1): array
     {
         $this->requireMonth($month);
         $this->requireDay($today);
-        $rows = $this->lines->build($facts, $month, $today);
+        $rows = $this->lines->build($facts, $month, $today, $cycleDay);
         $start = new DateTimeImmutable($month . '-01');
 
         return [

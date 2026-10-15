@@ -37,7 +37,7 @@ final class PayoutRunController
     {
         $tenant = $this->app->open($slug, true);
         $today = $this->mall->today();
-        $window = $this->window->window($today);
+        $window = $this->window->window($today, $this->mall->getCycleDay());
         $requested = $this->app->request()->query('run');
         $rows = preg_match('/^[0-9a-fA-F-]{36}$/', $requested) === 1
             ? $this->runs->envelopes($requested)
@@ -122,7 +122,7 @@ final class PayoutRunController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $today = $this->mall->today();
-        $window = $this->window->window($today);
+        $window = $this->window->window($today, $this->mall->getCycleDay());
         if ($this->once->finishedRun($window['from'], $window['to'], $window['rent']) !== null) {
             $this->render($slug, 'This month is already paid.');
 
@@ -184,7 +184,7 @@ final class PayoutRunController
     {
         $tenant = $this->app->open($slug, true);
         $today = $this->mall->today();
-        $window = $this->window->window($today);
+        $window = $this->window->window($today, $this->mall->getCycleDay());
         $monthName = (new \DateTimeImmutable($window['rent']))->format('F');
         $finished = $this->once->finishedRun($window['from'], $window['to'], $window['rent']);
         $pack = $finished === null

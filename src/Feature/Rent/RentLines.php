@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Rent;
 
-use DateTimeImmutable;
 use InvalidArgumentException;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -37,17 +36,16 @@ final class RentLines
      *   collect_amount: string
      * }>
      */
-    public function build(array $facts, string $month, string $today): array
+    public function build(array $facts, string $month, string $today, int $cycleDay = 1, ?string $periodStart = null): array
     {
-        $start = $month . '-01';
-        $end = (new DateTimeImmutable($start))->modify('last day of this month')->format('Y-m-d');
+        $span = RentSpan::cover($month, $today, $cycleDay, $periodStart);
         $stays = $this->stays($facts['assignments']);
         $rates = $this->rates($facts['rates']);
-        $charges = $this->charges($facts['charges'], $month);
+        $charges = $this->charges($facts['charges'], $span->suffixes);
         $open = $this->openBalances($facts['open_rent']);
         $rows = [];
         foreach ($facts['booths'] as $booth) {
-            $row = $this->row($booth, $stays, $rates, $charges, $open, $month, $today, $start, $end);
+            $row = $this->row($booth, $stays, $rates, $charges, $open, $span);
             if ($row !== null) {
                 $rows[] = $row;
             }
@@ -88,13 +86,10 @@ final class RentLines
         array $rates,
         array $charges,
         array $open,
-        string $month,
-        string $today,
-        string $start,
-        string $end,
+        RentSpan $span,
     ): ?array {
         $id = $this->text($booth['id'] ?? null);
-        $holder = $this->holder($stays, $id, $start, $end);
+        $holder = $this->holder($stays, $id, $span->start, $span->end);
         $rate = $rates[$id] ?? null;
         $charge = $charges[$id] ?? null;
         $balance = $open[$id] ?? 0;
@@ -110,8 +105,7 @@ final class RentLines
             $rate,
             $charge,
             $balance,
-            $month,
-            $today,
+            $span,
         );
     }
 
@@ -151,8 +145,7 @@ final class RentLines
         ?int $rate,
         ?array $charge,
         int $balance,
-        string $month,
-        string $today,
+        RentSpan $span,
     ): array {
         $vendorId = null;
         $vendorName = null;
@@ -166,7 +159,16 @@ final class RentLines
             $override = $holder['override'];
             $endsOn = $holder['endsOn'];
         }
-        $figure = RentFigure::posted($rate, $startsOn, $endsOn, $override, $month, $today);
+        $figure = RentFigure::posted(
+            $rate,
+            $startsOn,
+            $endsOn,
+            $override,
+            $span->month,
+            $span->today,
+            $span->day,
+            $span->period,
+        );
         $chargeDate = $figure['date'];
         $chargeable = $figure['chargeable'];
         $posted = $figure['amount'];
@@ -285,14 +287,14 @@ final class RentLines
 
     /**
      * @param list<array<string, mixed>> $rows
+     * @param list<string> $suffixes
      * @return array<string, array{journalId: string, amount: int}>
      */
-    private function charges(array $rows, string $month): array
+    private function charges(array $rows, array $suffixes): array
     {
         $live = [];
-        $suffix = ':' . $month;
         foreach ($rows as $row) {
-            $boothId = $this->chargeBooth($row, $suffix);
+            $boothId = $this->chargeBooth($row, $suffixes);
             if ($boothId === null) {
                 continue;
             }
@@ -307,18 +309,26 @@ final class RentLines
 
     /**
      * @param array<string, mixed> $row
+     * @param list<string> $suffixes
      */
-    private function chargeBooth(array $row, string $suffix): ?string
+    private function chargeBooth(array $row, array $suffixes): ?string
     {
         if (in_array($row['reversed'] ?? false, [true, 1, '1', 't', 'true'], true)) {
             return null;
         }
         $key = $this->text($row['posting_key'] ?? null);
         $prefix = 'rent-charge:';
-        if (!str_starts_with($key, $prefix) || !str_ends_with($key, $suffix)) {
+        if (!str_starts_with($key, $prefix)) {
             return null;
         }
-        return substr($key, strlen($prefix), -strlen($suffix));
+        foreach ($suffixes as $suffix) {
+            $tail = ':' . $suffix;
+            if (str_ends_with($key, $tail)) {
+                return substr($key, strlen($prefix), -strlen($tail));
+            }
+        }
+
+        return null;
     }
 
     /**

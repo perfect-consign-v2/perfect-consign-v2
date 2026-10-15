@@ -4,20 +4,17 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Payout;
 
+use PerfectConsign\Feature\Rent\RentCycle;
+
 final class PayoutWindow
 {
     /**
      * @return array{from: string, to: string, rent: string}
      */
-    public function window(string $today): array
+    public function window(string $today, int $cycleDay = 1): array
     {
-        $rent = substr($today, 0, 7) . '-01';
-        $to = (new \DateTimeImmutable($rent))->modify('-1 day')->format('Y-m-d');
+        $day = $cycleDay >= 1 && $cycleDay <= 28 ? $cycleDay : 1;
 
-        return [
-            'from' => substr($to, 0, 7) . '-01',
-            'to' => $to,
-            'rent' => $rent,
-        ];
+        return (new RentCycle($day))->payout($today);
     }
 }

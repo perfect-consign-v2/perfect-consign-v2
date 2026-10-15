@@ -23,7 +23,7 @@ final class MonthController
     public function show(string $slug): void
     {
         $tenant = $this->app->open($slug, true);
-        $span = $this->window->window($this->mall->today());
+        $span = $this->window->window($this->mall->today(), $this->mall->getCycleDay());
         $monthName = (new \DateTimeImmutable($span['from']))->format('F Y');
         $this->app->show('Feature/Month/month', [
             'title' => $monthName,

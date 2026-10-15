@@ -25,6 +25,12 @@ final class MallController
 
     private ?string $postedStock = null;
 
+    private ?bool $postedRentals = null;
+
+    private ?int $postedCycleDay = null;
+
+    private ?bool $postedPrepaid = null;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
@@ -88,7 +94,8 @@ final class MallController
         $basis = $this->basisPoints($storeTake);
         $taxBasis = $this->taxMillis($taxRate);
         $days = $this->wholeDays($floorRaw);
-        $error = $this->refusal($basis, $taxBasis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
+        $rentError = $this->rentPolicy();
+        $error = $rentError ?? $this->refusal($basis, $taxBasis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
         }
@@ -187,7 +194,9 @@ final class MallController
             $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
             $this->payouts->save(
                 $this->app->request()->field('operating_mode'),
-                $this->app->request()->field('rent_prepaid_from_prior_sales') === '1'
+                $this->postedPrepaid ?? false,
+                $this->postedRentals ?? false,
+                $this->postedCycleDay ?? 1,
             );
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
@@ -238,6 +247,26 @@ final class MallController
         }
 
         return $days;
+    }
+
+    private function rentPolicy(): ?string
+    {
+        $enabled = $this->app->request()->field('booth_rentals_enabled') === '1';
+        $this->postedRentals = $enabled;
+        $day = $this->payouts->cycleDay();
+        if ($enabled && !$this->payouts->cycleFrozen()) {
+            $raw = $this->app->request()->field('rent_cycle_day');
+            if (preg_match('/^(?:[1-9]|1[0-9]|2[0-8])$/', $raw) !== 1) {
+                return 'the rent cycle day is a whole number from 1 to 28';
+            }
+            $day = (int) $raw;
+        }
+        $this->postedCycleDay = $day;
+        $this->postedPrepaid = $enabled
+            ? $this->app->request()->field('rent_prepaid_from_prior_sales') === '1'
+            : $this->payouts->rentPrepaid();
+
+        return null;
     }
 
     private function dayText(?int $days): string
@@ -319,7 +348,10 @@ final class MallController
             ),
             'operatingMode' => $this->payouts->operatingMode(),
             'payoutCadence' => $this->payouts->payoutCadence(),
-            'rentPrepaid' => $this->payouts->rentPrepaid(),
+            'rentPrepaid' => $this->postedPrepaid ?? $this->payouts->rentPrepaid(),
+            'boothRentals' => $this->postedRentals ?? $this->payouts->rentalsEnabled(),
+            'cycleDay' => $this->postedCycleDay ?? $this->payouts->cycleDay(),
+            'cycleFrozen' => $this->payouts->cycleFrozen(),
             'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
             'stocks' => $this->stocks->choices(),
             'catalogs' => $this->postedCatalogs ?? [

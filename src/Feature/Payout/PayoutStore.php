@@ -46,7 +46,7 @@ final class PayoutStore
      */
     public function quote(string $vendorId, string $today): ?array
     {
-        $window = $this->window->window($today);
+        $window = $this->window->window($today, $this->cycleDay());
         $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
         if ($runId === null) {
             $rows = $this->statements->bound(
@@ -87,7 +87,7 @@ final class PayoutStore
      */
     public function quotedRun(string $vendorId, string $today): ?array
     {
-        $window = $this->window->window($today);
+        $window = $this->window->window($today, $this->cycleDay());
         $this->runs->ensureDraft($window['from'], $window['to'], $window['rent'], $today);
 
         return $this->quote($vendorId, $today);
@@ -105,7 +105,7 @@ final class PayoutStore
             "SELECT booth_id::text AS booth_id,
                     to_char(posting_date, 'YYYY-MM-DD') AS posting_date,
                     amount,
-                    to_char(month_start, 'YYYY-MM') AS month
+                    stall_rent_charge_suffix(month_start) AS month
              FROM payout_missing_rent
              WHERE run_id = ?::uuid AND vendor_id = ?::uuid AND amount > 0
              ORDER BY month_start, booth_id",
@@ -129,7 +129,7 @@ final class PayoutStore
      */
     public function salesRent(string $today): array
     {
-        $window = $this->window->window($today);
+        $window = $this->window->window($today, $this->cycleDay());
         $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
         if ($runId === null) {
             return [];
@@ -138,7 +138,7 @@ final class PayoutStore
         foreach ($this->statements->bound(
             "SELECT missing.booth_id::text AS booth_id, booth.code,
                     btrim(vendor.first_name || ' ' || vendor.last_name) AS vendor_name,
-                    to_char(missing.month_start, 'YYYY-MM') AS month, missing.amount
+                    stall_rent_charge_suffix(missing.month_start) AS month, missing.amount
              FROM payout_missing_rent AS missing
              JOIN booths AS booth ON booth.id = missing.booth_id
              JOIN vendors AS vendor ON vendor.id = missing.vendor_id
@@ -148,12 +148,13 @@ final class PayoutStore
         ) as $row) {
             $month = RowValue::string($row['month'] ?? null);
             $name = RowValue::string($row['vendor_name'] ?? null);
+            $labelOn = strlen($month) === 7 ? $month . '-01' : $month;
             $taken[] = [
                 'booth_id' => RowValue::string($row['booth_id'] ?? null),
                 'code' => RowValue::string($row['code'] ?? null),
                 'vendor_name' => $name === '' ? null : $name,
                 'month' => $month,
-                'label' => (new DateTimeImmutable($month . '-01'))->format('F Y'),
+                'label' => (new DateTimeImmutable($labelOn))->format(strlen($month) === 7 ? 'F Y' : 'M j, Y'),
                 'amount_minor' => RowValue::integer($row['amount'] ?? null),
                 'charge_date' => '',
             ];
@@ -169,7 +170,7 @@ final class PayoutStore
      */
     public function debtors(string $today): array
     {
-        $window = $this->window->window($today);
+        $window = $this->window->window($today, $this->cycleDay());
         $runId = $this->runs->openDraft($window['from'], $window['to'], $window['rent']);
         $sql = $runId === null
             ? "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth, pack.owes,
@@ -242,6 +243,14 @@ final class PayoutStore
         }
 
         return $booths;
+    }
+
+    private function cycleDay(): int
+    {
+        $rows = $this->statements->rows('SELECT rent_cycle_day FROM mall');
+        $day = RowValue::integer($rows[0]['rent_cycle_day'] ?? null);
+
+        return $day >= 1 && $day <= 28 ? $day : 1;
     }
 
 }

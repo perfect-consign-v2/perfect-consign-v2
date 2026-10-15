@@ -64,6 +64,7 @@ final class MallApp
         $data['warning'] = $warning;
         $data['actorRole'] = $this->door->actor()->role();
         $data['showBrand'] = $this->roled ? $this->mall->enabled('use_brand') : true;
+        $data['boothRentals'] ??= $this->roled ? $this->mall->isRentalsEnabled() : true;
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
         $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
@@ -74,24 +75,10 @@ final class MallApp
      */
     private function registerBar(array &$data, string $slug, ?string $notice, ?string $warning): void
     {
-        $chosen = $this->drawers->chosen($slug, $this->roled);
-        $data['activeRegister'] = $chosen['name'];
-        $data['activeSessionId'] = $chosen['id'];
-        $data['chooseRegister'] = $chosen['choose'];
-        $leftOpen = $this->drawers->leftOpen($this->roled);
-        $data['leftOpen'] = $leftOpen;
-        $vendor = $this->door->actor()->role() === 'vendor';
-        if ($vendor) {
-            $this->session->delete('close_prior:' . $slug);
-        }
-        $away = $vendor ? null : $this->door->priorShift($slug, $leftOpen);
+        $away = $this->chrome()->away($data, $slug, $this->roled);
         if ($away !== null) {
             $this->redirect($away, $notice, $warning);
         }
-        $started = $this->session->get('close_prior:' . $slug) === 'yes';
-        $data['priorCloseStarted'] = $started;
-        $onHub = preg_match('#/registers$#', $this->request->path) === 1;
-        $data['priorPrompt'] = !$vendor && $leftOpen !== [] && $started !== true && $onHub !== true;
     }
 
     public function notFound(string $reason = self::MISS_RECORD): never
@@ -138,11 +125,14 @@ final class MallApp
         $this->refuseForeign($slug);
         $cached = $this->cachedTenant($slug, $books);
         if ($cached !== null) {
+            $this->refuseClosedRentals($slug);
+
             return $cached;
         }
         $tenant = $this->requireTenant($slug);
         $this->enterBooks($books, $slug, $tenant);
         $this->tenant = $tenant;
+        $this->refuseClosedRentals($slug);
 
         return $tenant;
     }
@@ -173,6 +163,18 @@ final class MallApp
     public function getCompanyLines(): array
     {
         return $this->mall->getCompanyLines();
+    }
+
+    private function refuseClosedRentals(string $slug): void
+    {
+        if (!$this->roled) {
+            return;
+        }
+        $home = $this->chrome()->rentHome($slug, true, $this->mall->isRentalsEnabled());
+        if ($home === null) {
+            return;
+        }
+        $this->redirect($home, null, 'This mall does not charge booth rent.');
     }
 
     private function refuseForeign(string $slug): void
@@ -227,6 +229,11 @@ final class MallApp
     private function sessionSlug(): ?string
     {
         return $this->door->actor()->slug();
+    }
+
+    private function chrome(): MallChrome
+    {
+        return new MallChrome($this->drawers, $this->session, $this->door, $this->request);
     }
 
 }

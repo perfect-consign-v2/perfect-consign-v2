@@ -118,7 +118,15 @@ final class RentChargeTest extends TestCase
             $this->assign($statements, $boothId, $vendorId, '2026-06-15', null);
             $charged = $rent->chargeAmount($boothId, '2026-06-15');
             self::assertSame(4800, $charged);
+            $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = true', []);
+            $preview = $receipts->explain($vendorId, $boothId, $charged, '2026-06-20');
+            self::assertNotSame([], $preview);
+            $dates = array_map(static fn (array $line): string => $line['date'], $preview);
+            self::assertContains('06-15-2026 through 06-30-2026', $dates);
+            $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = false', []);
             $rent->postCharge($boothId, '2026-06-15');
+            $explained = $receipts->explain($vendorId, $boothId, $charged, '2026-06-20');
+            self::assertNotSame([], $explained);
             $sessionId = $this->session($statements, $ledger);
             $before = $this->expected($statements, $sessionId);
             // packFigure( openFigure( postReceipt( credits( tenders( requireCheck( handed( debitLines( minor( dollars( rollbackOwned( party( tenderLines( tenderName( checkOn( boothOf( figures( form( rates( filled( sessionStale( older( links( ids( writeJournal( storeTendered( abortJournal( due( owed( amount( begin( lateCharged( apply( parts( cash( card( check( split(

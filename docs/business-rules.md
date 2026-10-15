@@ -18,7 +18,11 @@ A vendor is tax exempt only with a resale or tax exempt number on file. That num
 
 A vendor with open rent cannot be made Inactive. Open rent is a positive rent receivable on a booth that vendor held. A positive vendor payable means the store owes the vendor, and that balance does not by itself block Inactive.
 
-A rent charge for the month a vendor moves in counts the days from the start date through the end of that month, and the amount truncates toward zero. A rent charge for a month the vendor leaves is the full month.
+Booth rent can be turned off. While it is off, the mall does not post a rent charge, pay-vendors does not take rent from the check, and the booth, rent, wait list, and map pages stay closed. Turning it off is refused while a booth still owes rent.
+
+The rent period starts on the cycle day, a whole number from 1 to 28. Day 1 is a calendar month. Any other day runs from that day through the day before it next month. The cycle day cannot change after a rent charge is posted.
+
+A rent charge for the period a vendor moves in counts the days from the start date through the end of that period, and the amount truncates toward zero. Collect rent names those dates on that charge. A full period shows its charge date. A rent charge for a period the vendor leaves is the full period. Sales can pay that period's rent only up to what the vendor earned. Anything sales do not cover stays receivable and is collected at the register.
 
 ## Payouts
 

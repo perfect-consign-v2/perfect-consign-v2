@@ -29,6 +29,7 @@ $notice = $notice ?? null;
 $warning = $warning ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $showBrand = ($showBrand ?? true) === true;
+$boothRentals = ($boothRentals ?? true) === true;
 $actorRole = is_string($actorRole ?? null) ? $actorRole : '';
 $resetTestData = ($slug === 'dev' || $slug === 'mall') && $actorRole === 'owner';
 $groups = [];
@@ -93,6 +94,18 @@ if ($actorRole === 'vendor') {
         ],
     ];
 }
+if (!$boothRentals) {
+    foreach ($groups as $name => $links) {
+        $kept = [];
+        foreach ($links as $link) {
+            $navPath = is_string($link[0] ?? null) ? $link[0] : '';
+            if (!in_array($navPath, ['/booths', '/rent', '/wait-list', '/map'], true)) {
+                $kept[] = $link;
+            }
+        }
+        $groups[$name] = $kept;
+    }
+}
 $roleLabel = match ($actorRole) {
     'owner' => 'Owner',
     'cashier' => 'Cashier',
@@ -153,6 +166,7 @@ $roleLabel = match ($actorRole) {
             <?php endif; ?>
             <?php if ($leftOpen === [] || !$priorCloseStarted): ?>
             <?php foreach ($groups as $group => $links): ?>
+                <?php if ($links === []) { continue; } ?>
                 <div class="nav-group-label"><?= View::text($group) ?></div>
                 <?php foreach ($links as $link): ?>
                     <?php

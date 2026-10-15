@@ -227,65 +227,9 @@ final class RentReceipt
     /**
      * @return list<array{label: string, date: string, amount: int, journal_id: string}>
      */
-    public function explain(string $vendorId, string $boothId, int $owed): array
+    public function explain(string $vendorId, string $boothId, int $owed, string $today): array
     {
-        if ($vendorId === '' || $owed < 1) {
-            return [];
-        }
-        $booth = $this->settings->rentPrepaid() ? '' : $boothId;
-        if ($booth === '' && !$this->settings->rentPrepaid()) {
-            return [];
-        }
-
-        return (new RentBill())->explain($this->moves($vendorId, $booth), $owed);
-    }
-
-    /**
-     * @return list<array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int}>
-     */
-    private function moves(string $vendorId, string $boothId): array
-    {
-        $sql = "SELECT journal.id::text AS journal_id, journal.source_type AS source,
-                       to_char(journal.posting_date, 'YYYY-MM-DD') AS posted_on,
-                       COALESCE(booth.code, '') AS booth,
-                       line.debit_minor, line.credit_minor
-                FROM journal_lines AS line
-                JOIN journals AS journal ON journal.id = line.journal_id
-                JOIN chart_roles AS role ON role.account_id = line.account_id
-                LEFT JOIN booths AS booth ON booth.id::text = line.subledger_ref
-                WHERE role.role = 'booth_rent_receivable'
-                  AND line.subledger_type = 'booth'
-                  AND (line.debit_minor > 0 OR line.credit_minor > 0)
-                  AND journal.is_reversal = false
-                  AND NOT EXISTS (
-                      SELECT 1 FROM journals AS reversal
-                      WHERE reversal.reverses_journal_id = journal.id
-                  )
-                  AND EXISTS (
-                      SELECT 1 FROM booth_assignments AS assignment
-                      WHERE assignment.vendor_id = ?::uuid
-                        AND assignment.booth_id = line.subledger_ref::uuid
-                        AND assignment.assignment_range @> journal.posting_date
-                  )";
-        $params = [$vendorId];
-        if ($boothId !== '') {
-            $sql .= ' AND line.subledger_ref = ?';
-            $params[] = $boothId;
-        }
-        $sql .= ' ORDER BY journal.posting_date, journal.journal_no, line.line_no';
-        $moves = [];
-        foreach ($this->statements->bound($sql, $params) as $row) {
-            $moves[] = [
-                'journal_id' => RowValue::string($row['journal_id'] ?? null),
-                'source' => RowValue::string($row['source'] ?? null),
-                'date' => RowValue::string($row['posted_on'] ?? null),
-                'booth' => RowValue::string($row['booth'] ?? null),
-                'debit' => RowValue::integer($row['debit_minor'] ?? null),
-                'credit' => RowValue::integer($row['credit_minor'] ?? null),
-            ];
-        }
-
-        return $moves;
+        return (new RentMoves($this->statements, $this->settings))->explain($vendorId, $boothId, $owed, $today);
     }
 
     private function lateCharged(string $vendorId, string $boothId): int
