@@ -10,7 +10,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $csrf */
 /** @var string $today */
 /** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, check_minor: int, owes_minor: int, settled_minor: int, rent_from_sales: bool, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>} $vendor */
-/** @var list<array<string, mixed>> $booths */
+/** @var list<array{id: string, code: string, rent: string, available_on: string}> $booths */
 /** @var array{username: string, display_name: string, email: string}|null $signIn */
 
 $sections = [
@@ -214,7 +214,7 @@ $blank = '—';
         <div class="vendor-work">
             <div class="card">
                 <div class="card-head"><div class="h3">Assign a booth</div></div>
-                <form method="post" action="/<?= View::text($slug) ?>/assignments">
+                <form method="post" action="/<?= View::text($slug) ?>/assignments" data-today="<?= View::text($today) ?>">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <input type="hidden" name="vendor_id" value="<?= View::text($vendor['id']) ?>">
                     <div class="card-body stack">
@@ -223,13 +223,14 @@ $blank = '—';
                             <select class="select" id="assign_booth" name="booth_id" required>
                                 <option value="">Choose a booth</option>
                                 <?php foreach ($booths as $booth): ?>
-                                    <option value="<?= View::text($booth['id']) ?>" data-rent="<?= View::text($booth['rent'] ?? '') ?>"><?= View::text($booth['code']) ?></option>
+                                    <option value="<?= View::text($booth['id']) ?>" data-rent="<?= View::text($booth['rent']) ?>" data-available="<?= View::text($booth['available_on']) ?>"><?= View::text($booth['code']) ?><?php if ($booth['available_on'] !== ''): ?> — available <?= View::date($booth['available_on']) ?><?php endif; ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="field">
-                            <label for="assign_rent">Rent</label>
+                            <label for="assign_rent">Rent <span class="badge badge-warning" id="assign_rent_badge" hidden></span></label>
                             <input class="input" id="assign_rent" name="rent" inputmode="decimal">
+                            <p class="muted text-sm">Default booth rent. You can change it.</p>
                         </div>
                         <div class="field">
                             <label for="starts_on">Start</label>
@@ -248,14 +249,47 @@ $blank = '—';
                     (function () {
                         var select = document.getElementById('assign_booth');
                         var rent = document.getElementById('assign_rent');
-                        if (!select || !rent) {
+                        var start = document.getElementById('starts_on');
+                        var badge = document.getElementById('assign_rent_badge');
+                        var form = select ? select.form : null;
+                        if (!select || !rent || !start || !form) {
                             return;
                         }
+                        var today = form.getAttribute('data-today') || '';
+                        var cents = function (text) {
+                            var amount = String(text || '').replace(/[$,\s]/g, '');
+                            var match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(amount);
+                            if (!match) {
+                                return null;
+                            }
+                            var fraction = (match[2] || '').padEnd(2, '0');
+                            return (parseInt(match[1], 10) * 100) + parseInt(fraction, 10);
+                        };
+                        var mark = function () {
+                            if (!badge) {
+                                return;
+                            }
+                            var option = select.options[select.selectedIndex];
+                            var asking = cents(option ? option.getAttribute('data-rent') : '');
+                            var typed = cents(rent.value);
+                            badge.hidden = asking === null || typed === null || typed === asking;
+                            badge.textContent = badge.hidden ? '' : 'Overridden';
+                        };
                         var fill = function () {
                             var option = select.options[select.selectedIndex];
+                            var available = option ? (option.getAttribute('data-available') || '') : '';
                             rent.value = option ? (option.getAttribute('data-rent') || '') : '';
+                            if (available !== '') {
+                                start.value = available;
+                                start.min = available;
+                            } else {
+                                start.value = today;
+                                start.removeAttribute('min');
+                            }
+                            mark();
                         };
                         select.addEventListener('change', fill);
+                        rent.addEventListener('input', mark);
                         fill();
                     }());
                 </script>
@@ -288,11 +322,12 @@ $blank = '—';
                             <?php
                             $boothId = $booth['id'] ?? null;
                             $boothCode = $booth['code'] ?? null;
-                            if (!is_string($boothId) || !is_string($boothCode)) {
+                            $available = $booth['available_on'] ?? '';
+                            if (!is_string($boothId) || !is_string($boothCode) || !is_string($available)) {
                                 continue;
                             }
                             ?>
-                            <option value="<?= View::text($boothId) ?>"><?= View::text($boothCode) ?></option>
+                            <option value="<?= View::text($boothId) ?>"><?= View::text($boothCode) ?><?php if ($available !== ''): ?> — available <?= View::date($available) ?><?php endif; ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

@@ -28,6 +28,15 @@ final class DatabaseRefusalTest extends TestCase
         self::assertSame('That could not be saved.', DatabaseRefusal::fromPdo($error)->getMessage());
     }
 
+    public function testAnOverlappingBoothStayIsASentence(): void
+    {
+        $error = new PDOException(
+            'SQLSTATE[23P01]: Exclusion violation: 7 ERROR:  conflicting key value violates exclusion constraint "booth_assignments_no_overlap"'
+        );
+
+        self::assertSame('That booth is already taken on those dates.', DatabaseRefusal::fromPdo($error)->getMessage());
+    }
+
     public function testAPlainRefusalPassesThrough(): void
     {
         $error = new PDOException('SQLSTATE[P0001]: Raise exception: 7 ERROR:  a check sale needs a check number');

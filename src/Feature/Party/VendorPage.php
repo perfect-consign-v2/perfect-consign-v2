@@ -46,7 +46,7 @@ final class VendorPage
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'vendor' => $vendor,
-            'booths' => $this->offers->booths(),
+            'booths' => $this->offers->booths($this->mall->today()),
             'signIn' => $this->staff->vendorSignIn($id),
             'error' => $error,
         ]);

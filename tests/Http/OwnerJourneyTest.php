@@ -560,7 +560,7 @@ final class OwnerJourneyTest extends WebTestCase
             'store_take' => '30',
         ]);
         self::assertSees('30%', $matched);
-        self::assertStringNotContainsString('Overridden', $matched->body);
+        self::assertMatchesRegularExpression('/<dt>Store take<\/dt>\s*<dd>\s*30%\s*<\/dd>/', $matched->body);
         $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '0']);
         self::assertSees('value="0"', $restored);
     }

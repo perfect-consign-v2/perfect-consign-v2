@@ -6,7 +6,7 @@ namespace PerfectConsign\Feature\Party;
 
 use PerfectConsign\Shared\Database\Statements;
 
-final class PartyStore
+class PartyStore
 {
     public function __construct(private readonly Statements $statements)
     {
@@ -38,8 +38,8 @@ final class PartyStore
     public function assignments(): array
     {
         return $this->statements->rows(
-            'SELECT assignment.id, assignment.vendor_id, booth.code AS booth_code, vendor.code AS vendor_code,
-                    assignment.starts_on, assignment.ends_on
+            'SELECT assignment.id, assignment.booth_id, assignment.vendor_id, booth.code AS booth_code,
+                    vendor.code AS vendor_code, assignment.starts_on, assignment.ends_on
              FROM booth_assignments AS assignment
              JOIN booths AS booth ON booth.id = assignment.booth_id
              JOIN vendors AS vendor ON vendor.id = assignment.vendor_id

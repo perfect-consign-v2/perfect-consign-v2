@@ -51,6 +51,7 @@ final class DatabaseRefusal extends RuntimeException
             'stored_values_number_key' => self::CERTIFICATE_NUMBER_USED,
             'vendors_code_key' => 'That code is already used.',
             'booths_code_key' => 'That booth is already used.',
+            'booth_assignments_no_overlap' => 'That booth is already taken on those dates.',
             'items_code_key' => 'That tag is already used.',
             'items_barcode_key' => 'That barcode is already used.',
             'brands_name_key' => 'That name is already used.',
