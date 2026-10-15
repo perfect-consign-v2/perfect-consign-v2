@@ -7,13 +7,24 @@ namespace PerfectConsign\Feature\Mall;
 use DateTimeImmutable;
 use DateTimeZone;
 use PerfectConsign\Feature\Catalog\NameList;
+use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class MallSettings
 {
-    public function __construct(private readonly Statements $statements)
+    public function __construct(
+        private readonly Statements $statements,
+        private readonly CompanyStore $company,
+    ) {
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getCompanyLines(): array
     {
+        return $this->company->lines();
     }
 
     public function today(): string

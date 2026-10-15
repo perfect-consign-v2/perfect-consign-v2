@@ -77,6 +77,7 @@ final class PosLayawayController
         $this->app->show('Feature/Pos/layaway-slip', [
             'title' => 'Layaway receipt',
             'displayName' => $tenant->displayName,
+            'companyLines' => $this->app->getCompanyLines(),
             'slug' => $tenant->slug,
             'showSearch' => false,
             'slip' => $slip,

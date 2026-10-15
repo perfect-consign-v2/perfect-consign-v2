@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $displayName */
@@ -49,10 +50,10 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
     </div>
 
     <article class="slip">
-        <header class="slip-center">
-            <p class="slip-store"><?= View::text($displayName) ?></p>
-            <p class="slip-kicker">Receipt</p>
-        </header>
+        <?php
+        $kicker = 'Receipt';
+        require $templateDirectory . '/Shared/Web/partials/slip-head.php';
+        ?>
         <?php if ($voided): ?>
             <p class="slip-void">Voided</p>
         <?php endif; ?>

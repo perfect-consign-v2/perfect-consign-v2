@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $displayName */
 /** @var array{
@@ -27,10 +28,10 @@ use PerfectConsign\Shared\Http\View;
         <?php endif; ?>
     </div>
     <article class="slip">
-        <header class="slip-center">
-            <p class="slip-store"><?= View::text($displayName) ?></p>
-            <p class="slip-kicker"><?= $slip['cancelled'] ? 'Layaway cancelled' : 'Layaway' ?></p>
-        </header>
+        <?php
+        $kicker = $slip['cancelled'] ? 'Layaway cancelled' : 'Layaway';
+        require $templateDirectory . '/Shared/Web/partials/slip-head.php';
+        ?>
         <p class="slip-row"><span>Customer</span><span><?= View::text($slip['customer'] !== '' ? $slip['customer'] : 'None') ?></span></p>
         <hr class="slip-rule">
         <?php foreach ($slip['lines'] as $line): ?>

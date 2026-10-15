@@ -115,6 +115,7 @@ final class PosTenderController
         $this->app->show('Feature/Pos/gift-slip', [
             'title' => $slip['label'],
             'displayName' => $tenant->displayName,
+            'companyLines' => $this->app->getCompanyLines(),
             'slug' => $tenant->slug,
             'showSearch' => false,
             'slip' => $slip,

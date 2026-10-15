@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $displayName */
 /** @var array{number: string, posted_on: string, amount: int, balance: int, voided: bool, label?: string} $slip */
@@ -17,10 +18,10 @@ $when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('m-d-Y') : View::
         <a class="btn" href="/<?= View::text($slug) ?>/pos">Back to register</a>
     </div>
     <article class="slip">
-        <header class="slip-center">
-            <p class="slip-store"><?= View::text($displayName) ?></p>
-            <p class="slip-kicker"><?= View::text($slipLabel) ?></p>
-        </header>
+        <?php
+        $kicker = $slipLabel;
+        require $templateDirectory . '/Shared/Web/partials/slip-head.php';
+        ?>
         <?php if ($slip['voided']): ?>
             <p class="slip-void">Voided</p>
         <?php endif; ?>

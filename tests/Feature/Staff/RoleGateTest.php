@@ -28,6 +28,8 @@ final class RoleGateTest extends TestCase
     {
         self::assertFalse(RoleGate::allows('cashier', '/book', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/settings', 'GET'));
+        self::assertFalse(RoleGate::allows('cashier', '/company', 'GET'));
+        self::assertFalse(RoleGate::allows('cashier', '/company', 'POST'));
         self::assertFalse(RoleGate::allows('cashier', '/payouts/undo', 'POST'));
         self::assertFalse(RoleGate::allows('cashier', '/close', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/rent/charge', 'POST'));
@@ -50,6 +52,7 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('vendor', '/password', 'GET'));
         self::assertTrue(RoleGate::allows('vendor', '/password', 'POST'));
         self::assertTrue(RoleGate::allows('vendor', '/password/email', 'POST'));
+        self::assertFalse(RoleGate::allows('vendor', '/company', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/pos', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/book', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/vendors/01900000-0000-7000-8000-000000000d10', 'GET'));

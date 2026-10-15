@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $displayName */
 /** @var int|null $change */
@@ -30,10 +31,10 @@ $booth = $slip['booth'] === '' ? '—' : $slip['booth'];
     </div>
 
     <article class="slip">
-        <header class="slip-center">
-            <p class="slip-store"><?= View::text($displayName) ?></p>
-            <p class="slip-kicker">Rent receipt</p>
-        </header>
+        <?php
+        $kicker = 'Rent receipt';
+        require $templateDirectory . '/Shared/Web/partials/slip-head.php';
+        ?>
         <p class="slip-row"><span>Receipt</span><span><?= View::text((string) $slip['number']) ?></span></p>
         <p class="slip-row"><span>Date</span><span><?= View::text($when) ?></span></p>
         <p class="slip-row"><span>Vendor</span><span><?= View::text($slip['vendor']) ?></span></p>

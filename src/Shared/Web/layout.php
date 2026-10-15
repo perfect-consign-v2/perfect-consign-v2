@@ -60,6 +60,7 @@ if ($actorRole === 'owner') {
             $groups['Operations'][] = $link;
         }
     }
+    $groups['Operations'][] = ['/company', 'Company', 'i-settings'];
     $groups['Operations'][] = ['/settings', 'Settings', 'i-settings'];
     $groups['Operations'][] = ['/staff', 'Cashiers', 'i-vendor'];
     $groups['Books'] = [

@@ -167,6 +167,14 @@ final class MallApp
         return $this->door->catchRefusal($error);
     }
 
+    /**
+     * @return list<string>
+     */
+    public function getCompanyLines(): array
+    {
+        return $this->mall->getCompanyLines();
+    }
+
     private function refuseForeign(string $slug): void
     {
         if ($this->access->isForeign($this->sessionSlug(), $slug)) {

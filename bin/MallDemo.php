@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Bootstrap\DatabaseRole;
+use PerfectConsign\Feature\Company\CompanyLines;
+use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
@@ -127,7 +130,8 @@ final class MallDemo
         $pricing = new TicketPricing($this->statements);
         $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)));
         $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements));
-        $this->rent = new RentStore($this->statements, new MallSettings($this->statements), new RentLines(), $this->ledger);
+        $company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
+        $this->rent = new RentStore($this->statements, new MallSettings($this->statements, $company), new RentLines(), $this->ledger);
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));
         $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
         $lines = new PayoutRunLines($this->statements);

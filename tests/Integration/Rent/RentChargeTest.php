@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Integration\Rent;
 
 use PDO;
+use PerfectConsign\Bootstrap\DatabaseRole;
+use PerfectConsign\Feature\Company\CompanyLines;
+use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Payout\OccupiedPack;
@@ -40,7 +43,7 @@ final class RentChargeTest extends TestCase
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
-        $rent = new RentStore($statements, new MallSettings($statements), new RentLines(), $ledger);
+        $rent = new RentStore($statements, $this->mall($pdo, $statements), new RentLines(), $ledger);
         $pdo->beginTransaction();
         try {
             self::assertSame('', (new JournalCash($pdo))->tendered($ledger->newId()));
@@ -101,7 +104,7 @@ final class RentChargeTest extends TestCase
             new RentSlip($statements),
             new RentPayment(),
         );
-        $rent = new RentStore($statements, new MallSettings($statements), new RentLines(), $ledger);
+        $rent = new RentStore($statements, $this->mall($pdo, $statements), new RentLines(), $ledger);
         $pdo->beginTransaction();
         try {
             $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = false', []);
@@ -319,6 +322,11 @@ final class RentChargeTest extends TestCase
         }
 
         return $schema;
+    }
+
+    private function mall(PDO $pdo, Statements $statements): MallSettings
+    {
+        return new MallSettings($statements, new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines()));
     }
 
     private function connection(): PDO
