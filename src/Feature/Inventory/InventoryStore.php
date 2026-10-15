@@ -103,7 +103,8 @@ final class InventoryStore
                     brand.name AS brand_name,
                     color.name AS color_name, category.name AS category_name,
                     size.name AS size_name, condition.name AS condition_name,
-                    department.name AS department_name
+                    department.name AS department_name,
+                    stall_sticker_deal(item.id) AS deal_name
              FROM items AS item
              JOIN vendors AS vendor ON vendor.id = item.vendor_id
              CROSS JOIN mall

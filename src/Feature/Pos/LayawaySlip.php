@@ -107,7 +107,7 @@ final class LayawaySlip
         $lines = [];
         $due = 0;
         foreach ($this->pricing->lines($ticketId, $tax, $adjustment) as $line) {
-            $amount = ($line['price'] * $line['quantity']) - $line['discount'] + $line['tax'];
+            $amount = ($line['price'] * $line['quantity']) - $line['discount'] - $line['store_discount'] + $line['tax'];
             $due += $amount;
             $lines[] = [
                 'description' => $line['description'],

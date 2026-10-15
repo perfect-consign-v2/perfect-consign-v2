@@ -11,10 +11,20 @@ final class CollectPageTest extends TestCase
 {
     public function testOneFormAddsUpTheWaysTheyPaid(): void
     {
-        $html = $this->page(0, 49666);
+        $html = $this->page(0, 49666, 0, true, '', '', '', '', 'C-1', [
+            ['label' => 'Rent', 'date' => '2026-09-20', 'amount' => 14666, 'journal_id' => ''],
+            ['label' => 'Paid', 'date' => '2026-09-20', 'amount' => -5000, 'journal_id' => ''],
+            ['label' => 'Rent', 'date' => '2026-10-01', 'amount' => 40000, 'journal_id' => ''],
+        ]);
 
         self::assertStringContainsString('>They owe<', $html);
         self::assertStringContainsString('$496.66', $html);
+        self::assertStringContainsString('09-20-2026', $html);
+        self::assertStringContainsString('$146.66', $html);
+        self::assertStringContainsString('($50.00)', $html);
+        self::assertStringContainsString('10-01-2026', $html);
+        self::assertStringContainsString('$400.00', $html);
+        self::assertStringNotContainsString('>Waive<', $html);
         self::assertStringContainsString('They are paying', $html);
         self::assertStringContainsString('id="tender-cash" name="tender_cash" inputmode="decimal" value=""', $html);
         self::assertStringContainsString('id="tender-card" name="tender_card" inputmode="decimal" value=""', $html);
@@ -34,13 +44,34 @@ final class CollectPageTest extends TestCase
 
     public function testALateFeeIsPartOfWhatTheyOwe(): void
     {
-        $html = $this->page(2500, 49666, 47166);
+        $html = $this->page(2500, 49666, 47166, true, '', '', '', '', 'C-1', [
+            ['label' => 'Rent', 'date' => '2026-10-01', 'amount' => 47166, 'journal_id' => ''],
+            ['label' => 'Late fee', 'date' => '2026-10-05', 'amount' => 2500, 'journal_id' => '00000000-0000-7000-8000-000000000099'],
+        ]);
 
-        self::assertStringContainsString('<span>Rent</span>', $html);
+        self::assertStringContainsString('>Rent <', $html);
         self::assertStringContainsString('$471.66', $html);
-        self::assertStringContainsString('<span>Late fee</span>', $html);
+        self::assertStringContainsString('>Late fee <', $html);
+        self::assertStringContainsString('10-05-2026', $html);
         self::assertStringContainsString('$25.00', $html);
         self::assertStringContainsString('$496.66', $html);
+        self::assertStringContainsString('name="journal_id" value="00000000-0000-7000-8000-000000000099"', $html);
+        self::assertStringContainsString('>Waive</button>', $html);
+        self::assertStringNotContainsString('Waive all late fees', $html);
+        self::assertStringContainsString('action="/mall/rent/waive"', $html);
+    }
+
+    public function testEveryLateFeeCanBeWaivedTogether(): void
+    {
+        $html = $this->page(3500, 3500, 0, true, '', '', '', '', 'C-1', [
+            ['label' => 'Late fee', 'date' => '2026-09-01', 'amount' => 2500, 'journal_id' => '00000000-0000-7000-8000-000000000099'],
+            ['label' => 'Late fee', 'date' => '2026-10-01', 'amount' => 1000, 'journal_id' => '00000000-0000-7000-8000-000000000098'],
+        ]);
+
+        self::assertSame(2, substr_count($html, '>Waive</button>'));
+        self::assertStringContainsString('name="all" value="1"', $html);
+        self::assertStringContainsString('Waive all late fees', $html);
+        self::assertStringContainsString('Waive every late fee?', $html);
     }
 
     public function testARentBalanceWithoutALateFeeDoesNotRepeatRent(): void
@@ -48,8 +79,9 @@ final class CollectPageTest extends TestCase
         $html = $this->page(0, 4000, 4000);
 
         self::assertStringContainsString('<span>C-1</span>', $html);
-        self::assertStringNotContainsString('<span>Rent</span>', $html);
-        self::assertStringNotContainsString('<span>Late fee</span>', $html);
+        self::assertStringContainsString('>Rent <', $html);
+        self::assertStringNotContainsString('>Late fee <', $html);
+        self::assertStringNotContainsString('>Waive</button>', $html);
     }
 
     public function testAnEmptyBoothIsShownAsADash(): void
@@ -62,10 +94,13 @@ final class CollectPageTest extends TestCase
 
     public function testABalanceThatIsOnlyALateFeeDoesNotRepeatRent(): void
     {
-        $html = $this->page(2500, 2500, 0);
+        $html = $this->page(2500, 2500, 0, true, '', '', '', '', 'C-1', [
+            ['label' => 'Late fee', 'date' => '2026-10-05', 'amount' => 2500, 'journal_id' => '00000000-0000-7000-8000-000000000099'],
+        ]);
 
-        self::assertStringContainsString('<span>Late fee</span>', $html);
-        self::assertStringNotContainsString('<span>Rent</span>', $html);
+        self::assertStringContainsString('>Late fee <', $html);
+        self::assertStringContainsString('>Waive</button>', $html);
+        self::assertStringNotContainsString('>Rent <', $html);
     }
 
     public function testAClosedRegisterDoesNotAskForMoney(): void
@@ -107,7 +142,13 @@ final class CollectPageTest extends TestCase
         string $tenderChecks = '',
         string $checkNumber = '',
         string $booth = 'C-1',
+        ?array $lines = null,
     ): string {
+        if ($lines === null) {
+            $lines = [
+                ['label' => 'Rent', 'date' => '2026-10-01', 'amount' => $owed, 'journal_id' => ''],
+            ];
+        }
         $view = new View(dirname(__DIR__, 3) . '/src');
         ob_start();
         $view->render('Feature/Rent/collect', [
@@ -123,6 +164,7 @@ final class CollectPageTest extends TestCase
                 'late' => $late,
                 'collect' => '0.00',
             ],
+            'lines' => $lines,
             'tenderCash' => $tenderCash,
             'tenderCard' => $tenderCard,
             'tenderChecks' => $tenderChecks,

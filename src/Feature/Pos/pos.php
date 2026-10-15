@@ -113,22 +113,6 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
     <section class="card">
         <div class="card-head">
             <h2 class="h3">Current sale</h2>
-            <?php if (($notice !== null && $notice !== '') || ($error !== null && $error !== '')): ?>
-                <div class="register-status">
-                    <?php if ($notice !== null && $notice !== ''): ?>
-                        <div class="alert alert-success" role="status">
-                            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-check"></use></svg>
-                            <p class="notice"><?= View::text($notice) ?></p>
-                        </div>
-                    <?php endif; ?>
-                    <?php if ($error !== null && $error !== ''): ?>
-                        <div class="alert alert-danger" role="alert">
-                            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
-                            <p class="error"><?= View::text($error) ?></p>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
         </div>
         <div class="card-body stack">
             <fieldset class="register-lock" <?= $locked ? 'disabled' : '' ?>>
@@ -203,12 +187,19 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                                         </form>
                                     </td>
                                     <td>
+                                        <?php
+                                        $offerName = is_string($line['offer_name'] ?? null) ? $line['offer_name'] : '';
+                                        $offerOff = RowValue::integer($line['offer_discount'] ?? 0) + RowValue::integer($line['store_discount'] ?? 0);
+                                        ?>
+                                        <?php if ($offerName !== '' && $offerOff > 0): ?>
+                                            <p class="ticket-meta"><?= View::text($offerName) ?> −<?= View::text(View::money($offerOff)) ?></p>
+                                        <?php endif; ?>
                                         <?php if ($line['line_discount'] > 0): ?>
                                             <p class="ticket-meta">Line discount −<?= View::text(View::money(RowValue::integer($line['line_discount']))) ?></p>
                                         <?php endif; ?>
                                         <button class="btn btn-sm" type="button" data-open-modal="line-discount-<?= View::text((string) $line['line_no']) ?>">Discount</button>
                                     </td>
-                                    <td><?= View::text(View::money(RowValue::integer($line['price'] * $line['quantity'] - $line['line_discount']))) ?></td>
+                                    <td><?= View::text(View::money(RowValue::integer($line['price'] * $line['quantity'] - $line['line_discount'] - $offerOff))) ?></td>
                                     <td>
                                         <form method="post" action="/<?= View::text($slug) ?>/pos/remove">
                                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -391,6 +382,19 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
     </div>
 </div>
 <?php endif; ?>
+<?php
+$instantError = is_string($instantError ?? null) ? $instantError : '';
+$instantVendorId = is_string($instantVendorId ?? null) ? $instantVendorId : '';
+$instantVendorLabel = is_string($instantVendorLabel ?? null) ? $instantVendorLabel : '';
+$instantDescription = is_string($instantDescription ?? null) ? $instantDescription : '';
+$instantPrice = is_string($instantPrice ?? null) ? $instantPrice : '';
+$instantDiscountKind = is_string($instantDiscountKind ?? null) ? $instantDiscountKind : 'consignor_default';
+$instantDiscountValue = is_string($instantDiscountValue ?? null) ? $instantDiscountValue : '';
+$instantBrandId = is_string($instantBrandId ?? null) ? $instantBrandId : '';
+$instantBrandLabel = is_string($instantBrandLabel ?? null) ? $instantBrandLabel : '';
+$instantAttributes = is_array($instantAttributes ?? null) ? $instantAttributes : [];
+$instantPriceError = in_array($instantError, ['Enter a price.', 'enter an amount in dollars and cents', 'the amount is too large', 'the amount must be greater than zero'], true);
+?>
 <div id="instant-add" class="modal" role="dialog" aria-modal="true" aria-labelledby="instant-add-title"<?= $openInstant ? '' : ' hidden' ?>>
     <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" data-brands="/<?= View::text($slug) ?>/inventory/brands.json" data-brand-create="/<?= View::text($slug) ?>/inventory/brands">
         <div class="card-head">
@@ -399,36 +403,40 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <div class="field">
-                <label for="instant_booth">Booth</label>
-                <input class="input" id="instant_booth" name="booth_code" autocomplete="off" required<?= $openInstant ? ' autofocus' : '' ?>>
+            <p class="error" id="instant-error" role="alert"<?= $instantError === '' ? ' hidden' : '' ?>><?= View::text($instantError) ?></p>
+            <div class="field combo">
+                <label for="instant_vendor">Consignor</label>
+                <input class="input" id="instant_vendor" name="vendor_label" value="<?= View::text($instantVendorLabel) ?>" autocomplete="off" required placeholder="Name or vendor number"<?= ($openInstant && !$instantPriceError) ? ' autofocus' : '' ?>>
+                <input type="hidden" id="instant_vendor_id" name="vendor_id" value="<?= View::text($instantVendorId) ?>">
+                <div class="suggest" id="instant-vendor-suggest" hidden></div>
+                <p class="muted text-sm" id="instant-vendor-hint" hidden></p>
+                <p class="field-error" id="instant-vendor-error" hidden></p>
             </div>
             <div class="field">
                 <label for="instant_description">Description</label>
-                <input class="input" id="instant_description" name="description" required placeholder="Short description for tags and receipt">
+                <input class="input" id="instant_description" name="description" value="<?= View::text($instantDescription) ?>" required placeholder="Short description for tags and receipt">
             </div>
             <div class="field">
                 <label for="instant_price">Price</label>
-                <input class="input" id="instant_price" name="price" inputmode="decimal" required>
+                <input class="input" id="instant_price" name="price" value="<?= View::text($instantPrice) ?>" inputmode="decimal" required<?= $instantPriceError ? ' aria-invalid="true" aria-describedby="instant-error" autofocus' : '' ?>>
             </div>
             <div class="field">
                 <label for="instant_discount_kind">Line discount</label>
                 <div class="register-line">
                     <select class="input" id="instant_discount_kind" name="discount_kind" aria-label="Line discount type">
-                        <option value="consignor_default" selected>Consignor default</option>
-                        <option value="none">None</option>
-                        <option value="percent">%</option>
-                        <option value="flat">$</option>
+                        <?php foreach (['consignor_default' => 'Consignor default', 'none' => 'None', 'percent' => '%', 'flat' => '$'] as $discountKind => $discountLabel): ?>
+                            <option value="<?= View::text($discountKind) ?>"<?= $instantDiscountKind === $discountKind ? ' selected' : '' ?>><?= View::text($discountLabel) ?></option>
+                        <?php endforeach; ?>
                     </select>
-                    <input class="input" id="instant_discount_value" name="discount_value" inputmode="decimal" placeholder="0" aria-label="Line discount value" hidden disabled>
+                    <input class="input" id="instant_discount_value" name="discount_value" value="<?= View::text($instantDiscountValue) ?>" inputmode="decimal" placeholder="0" aria-label="Line discount value" hidden disabled>
                 </div>
                 <p class="muted text-sm">Consignor default applies the vendor’s default POS line discount when set. Choose None for no discount, or enter a percent or flat amount.</p>
             </div>
             <?php if ($showBrand): ?>
             <div class="field combo">
                 <label for="instant_brand">Brand</label>
-                <input class="input" id="instant_brand" name="brand_label" autocomplete="off" placeholder="Search brands or type a new one">
-                <input type="hidden" id="instant_brand_id" name="brand_id">
+                <input class="input" id="instant_brand" name="brand_label" value="<?= View::text($instantBrandLabel) ?>" autocomplete="off" placeholder="Search brands or type a new one">
+                <input type="hidden" id="instant_brand_id" name="brand_id" value="<?= View::text($instantBrandId) ?>">
                 <div class="suggest" id="instant-brand-suggest" hidden></div>
                 <div class="row gap-2" id="instant-brand-create" hidden>
                     <span class="muted text-sm">Add brand <strong id="instant-brand-create-name"></strong>?</span>
@@ -438,10 +446,15 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             </div>
             <?php endif; ?>
             <?php foreach ($attributeLists as $attribute): ?>
+                <?php
+                $savedAttribute = $instantAttributes[$attribute->key] ?? ['id' => '', 'label' => ''];
+                $attributeId = is_array($savedAttribute) && is_string($savedAttribute['id'] ?? null) ? $savedAttribute['id'] : '';
+                $attributeLabel = is_array($savedAttribute) && is_string($savedAttribute['label'] ?? null) ? $savedAttribute['label'] : '';
+                ?>
                 <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
                     <label for="instant_<?= View::text($attribute->key) ?>"><?= View::text(ucfirst($attribute->singular)) ?></label>
-                    <input class="input" id="instant_<?= View::text($attribute->key) ?>" name="<?= View::text($attribute->key) ?>_label" autocomplete="off">
-                    <input type="hidden" name="<?= View::text($attribute->key) ?>_id">
+                    <input class="input" id="instant_<?= View::text($attribute->key) ?>" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($attributeLabel) ?>" autocomplete="off">
+                    <input type="hidden" name="<?= View::text($attribute->key) ?>_id" value="<?= View::text($attributeId) ?>">
                     <div class="suggest" hidden></div>
                     <div class="row gap-2" hidden data-create-row>
                         <span class="muted text-sm">Add <?= View::text($attribute->singular) ?> <strong data-create-name></strong>?</span>

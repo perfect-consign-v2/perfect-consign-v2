@@ -425,13 +425,13 @@ final class FloorCoverageTest extends WebTestCase
         ]);
         self::assertSees('Booth assigned.', $assigned);
         $missing = $this->client->post('/' . self::SLUG . '/pos/instant', [
-            'booth_code' => '',
+            'vendor_id' => '',
             'description' => 'Missing',
             'price' => '4.00',
         ]);
-        self::assertSees('Choose a booth.', $missing);
+        self::assertSees('Choose a vendor.', $missing);
         $added = $this->client->post('/' . self::SLUG . '/pos/instant', [
-            'booth_code' => $booth,
+            'vendor_id' => $vendor,
             'description' => 'Instant ' . $code,
             'price' => '12.00',
         ]);

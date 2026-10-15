@@ -66,6 +66,7 @@ final class LabelsController
             is_string($brand) ? $brand : '',
             $this->intake(RowValue::string($row['intake_on'] ?? null)),
             RowValue::string($row['code'] ?? null),
+            is_string($row['deal_name'] ?? null) ? $row['deal_name'] : '',
         );
     }
 

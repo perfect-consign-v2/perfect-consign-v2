@@ -334,7 +334,7 @@ $booths = static function (int $count): string {
         <div class="card-head"><div class="h3">Late fee</div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <p class="muted">This is its own charge. It does not reduce what the store owes the vendor. Void the posted entry to reverse it.</p>
+            <p class="muted">This is its own charge. It does not reduce what the store owes the vendor. Waive it from Collect rent.</p>
             <div class="field">
                 <label for="late_booth">Booth</label>
                 <select class="select" id="late_booth" name="booth_id" required>

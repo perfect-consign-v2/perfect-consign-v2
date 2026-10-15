@@ -41,7 +41,7 @@ final class RegisterFeatures
         if (preg_match('/^namespace\s+([^;]+);/m', $source, $namespace) !== 1) {
             return null;
         }
-        if (preg_match('/^final class\s+(\w+)/m', $source, $class) !== 1) {
+        if (preg_match('/^(?:final\s+)?class\s+(\w+)/m', $source, $class) !== 1) {
             return null;
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectConsign\Shared\Http\ResponseSent;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class FrontDoor
 {
@@ -13,7 +14,13 @@ final class FrontDoor
         private readonly PriorClose $prior,
         private readonly OwnerGate $owner,
         private readonly Actor $actor,
+        private readonly CredentialStamp $credentials,
     ) {
+    }
+
+    public function credentialsMatch(TenantRecord $tenant): bool
+    {
+        return $this->credentials->matches($tenant);
     }
 
     public function miss(string $reason): never

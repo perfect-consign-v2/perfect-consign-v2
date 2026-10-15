@@ -52,12 +52,14 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('href="/demo/dashboard" aria-current="page"', $html);
         self::assertStringContainsString('Active: Front', $html);
         self::assertStringNotContainsString('Reset Test Data', $html);
-        self::assertStringContainsString('class="alert alert-success"', $html);
-        self::assertStringContainsString('Saved.', $html);
-        self::assertStringContainsString('class="alert alert-warning"', $html);
-        self::assertStringContainsString('Watch.', $html);
-        self::assertStringContainsString('class="alert alert-danger"', $html);
-        self::assertStringContainsString('Boom.', $html);
+        self::assertStringContainsString('id="flash-dialog"', $html);
+        self::assertStringContainsString('data-kind="danger"', $html);
+        self::assertStringNotContainsString('class="alert alert-success"', $html);
+        self::assertStringNotContainsString('Saved.', $html);
+        self::assertStringNotContainsString('class="alert alert-warning"', $html);
+        self::assertStringNotContainsString('Watch.', $html);
+        self::assertStringContainsString('alert alert-danger flash-panel', $html);
+        self::assertStringContainsString('<p class="error">Boom.</p>', $html);
         self::assertStringContainsString('sidebar-scrim', $html);
         self::assertStringNotContainsString('id="prior-register"', $html);
         self::assertStringNotContainsString('class="pos-app"', $html);
@@ -176,14 +178,52 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('class="alert alert-danger"', $html);
     }
 
-    public function testAModalHidesThePageError(): void
+    public function testAModalStillShowsThePageError(): void
     {
         $html = $this->layout([
             'error' => 'Boom.',
             'modal' => 'pay',
         ]);
 
+        self::assertStringContainsString('id="flash-dialog"', $html);
+        self::assertStringContainsString('data-kind="danger"', $html);
+        self::assertStringContainsString('<p class="error">Boom.</p>', $html);
+    }
+
+    public function testANoticeOpensTheSuccessDialog(): void
+    {
+        $html = $this->layout(['notice' => 'Saved.']);
+
+        self::assertStringContainsString('data-kind="success"', $html);
+        self::assertStringContainsString('alert alert-success flash-panel', $html);
+        self::assertStringContainsString('<p class="notice">Saved.</p>', $html);
         self::assertStringNotContainsString('class="alert alert-danger"', $html);
+    }
+
+    public function testAWarningOpensTheWarningDialog(): void
+    {
+        $html = $this->layout(['warning' => 'Watch.']);
+
+        self::assertStringContainsString('data-kind="warning"', $html);
+        self::assertStringContainsString('alert alert-warning flash-panel', $html);
+        self::assertStringContainsString('<p class="warning">Watch.</p>', $html);
+        self::assertStringNotContainsString('class="alert alert-danger"', $html);
+    }
+
+    public function testASignInErrorOpensTheDialog(): void
+    {
+        $html = $this->layout([
+            'nav' => false,
+            'displayName' => '',
+            'body' => 'Shared/Web/root',
+            'error' => null,
+            'mall' => 'missing',
+            'mallError' => 'No such mall.',
+        ]);
+
+        self::assertStringContainsString('data-kind="danger"', $html);
+        self::assertStringContainsString('<p class="error">No such mall.</p>', $html);
+        self::assertStringNotContainsString('role="alert"', $html);
     }
 
     public function testAnOpenRegisterFromTodayKeepsTheMenu(): void
@@ -281,8 +321,11 @@ final class LayoutBranchesTest extends TestCase
             'giftBalance' => null,
         ]);
 
-        self::assertSame(1, substr_count($html, 'class="alert alert-success"'));
-        self::assertSame(1, substr_count($html, 'class="alert alert-danger"'));
+        self::assertStringNotContainsString('class="register-status"', $html);
+        self::assertSame(0, substr_count($html, 'alert alert-success flash-panel'));
+        self::assertSame(1, substr_count($html, 'alert alert-danger flash-panel'));
+        self::assertStringContainsString('<p class="error">Boom.</p>', $html);
+        self::assertStringNotContainsString('Saved.', $html);
     }
 
     /**

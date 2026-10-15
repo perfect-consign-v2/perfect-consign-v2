@@ -42,6 +42,7 @@ if ($actorRole === 'owner') {
             ['/pos', 'Sell', 'i-cart'],
             ['/parties', 'Vendors', 'i-vendor'],
             ['/inventory', 'Inventory', 'i-inventory'],
+            ['/offers', 'Deals', 'i-percent'],
             ['/booths', 'Booths', 'i-booth'],
             ['/registers', 'Registers', 'i-pos'],
             ['/rent', 'Rent', 'i-booth'],
@@ -87,6 +88,7 @@ if ($actorRole === 'vendor') {
             ['/vendor', 'Check', 'i-wallet'],
             ['/vendor/sales', 'Sales', 'i-report'],
             ['/vendor/inventory', 'Inventory', 'i-inventory'],
+            ['/vendor/offers', 'Deals', 'i-percent'],
         ],
     ];
 }
@@ -241,6 +243,11 @@ $roleLabel = match ($actorRole) {
                         <svg style="width:14px;height:14px;color:var(--text-subtle)" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
                     </button>
                     <div class="menu" data-menu-panel hidden>
+                        <a class="menu-item" href="/<?= View::text($slug) ?>/password">
+                            <svg aria-hidden="true"><use href="#i-lock"></use></svg>
+                            Password
+                        </a>
+                        <div class="menu-sep" role="separator"></div>
                         <form method="post" action="/<?= View::text($slug) ?>/logout">
                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                             <button class="menu-item" type="submit">
@@ -256,24 +263,6 @@ $roleLabel = match ($actorRole) {
 <?php else: ?>
 <main id="main">
 <?php endif; ?>
-    <?php if ($body !== 'Feature/Pos/pos' && $notice !== null && $notice !== ''): ?>
-        <div class="alert alert-success" role="status">
-            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-check"></use></svg>
-            <p class="notice"><?= View::text($notice) ?></p>
-        </div>
-    <?php endif; ?>
-    <?php if ($warning !== null && $warning !== ''): ?>
-        <div class="alert alert-warning" role="status">
-            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
-            <p class="warning"><?= View::text($warning) ?></p>
-        </div>
-    <?php endif; ?>
-    <?php if ($body !== 'Feature/Pos/pos' && ($error !== null && $error !== '') && ($modal ?? '') === ''): ?>
-        <div class="alert alert-danger" role="alert">
-            <svg style="width:18px;height:18px;flex-shrink:0" aria-hidden="true"><use href="#i-alert"></use></svg>
-            <p class="error"><?= View::text($error) ?></p>
-        </div>
-    <?php endif; ?>
     <?php require $templateDirectory . DIRECTORY_SEPARATOR . $body . '.php'; ?>
 </main>
 <?php if ($posShell && $nav): ?>
@@ -316,5 +305,6 @@ $roleLabel = match ($actorRole) {
 })();
 </script>
 <?php endif; ?>
+<?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
 </body>
 </html>

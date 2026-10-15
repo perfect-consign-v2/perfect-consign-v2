@@ -31,10 +31,6 @@ $payload = json_encode($booths, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JS
     <a class="btn" href="/<?= View::text($slug) ?>/map<?= $floorId === null ? '' : '?floor=' . View::text($floorId) ?>"><svg aria-hidden="true"><use href="#i-map"></use></svg> View map</a>
 </div>
 
-<?php if ($error !== null && $error !== ''): ?>
-    <p class="error"><?= View::text($error) ?></p>
-<?php endif; ?>
-
 <div class="map-floor-tabs" role="tablist" aria-label="Building floors">
     <?php foreach ($floors as $floor): ?>
         <?php $current = $floor['id'] === $floorId; ?>

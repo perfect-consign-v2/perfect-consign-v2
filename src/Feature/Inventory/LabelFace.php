@@ -68,6 +68,8 @@ final class LabelFace
         $large = $stock->getHeight() >= 3000000;
         $price = $stock->isJewelry() ? 120000 : ($large ? 280000 : 160000);
         $lines = $this->kept($this->line('price', $item->price, $price, $stock), []);
+        $deal = $stock->isJewelry() ? 80000 : ($large ? 140000 : 100000);
+        $lines = $this->kept($this->line('deal', $item->deal, $deal, $stock), $lines);
         if ($stock->isJewelry()) {
             return $lines;
         }

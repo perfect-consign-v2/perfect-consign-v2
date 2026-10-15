@@ -63,7 +63,7 @@ final class TicketQueue
             $adjustment = $this->pricing->adjustment($id);
             $due = 0;
             foreach ($this->pricing->lines($id, $tax, $adjustment) as $line) {
-                $due += ($line['price'] * $line['quantity']) - $line['discount'] + $line['tax'];
+                $due += ($line['price'] * $line['quantity']) - $line['discount'] - $line['store_discount'] + $line['tax'];
             }
             $deposits = RowValue::integer($row['deposits'] ?? null);
             $last = $row['last_deposit'] ?? null;

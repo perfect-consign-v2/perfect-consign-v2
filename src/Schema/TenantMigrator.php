@@ -53,12 +53,15 @@ final class TenantMigrator
             if ($file <= '044_schema_migrations.sql' || isset($applied[$file])) {
                 continue;
             }
-            $covered = $presence->coverage($schema, $this->catalog->fileObjects($file));
+            $objects = $this->catalog->fileObjects($file);
+            $covered = $presence->coverage($schema, $objects);
             if ($covered['missing'] === null) {
                 $this->record->stamp($schema, [$file]);
                 continue;
             }
-            if ($covered['present'] > 0) {
+            $objects['routines'] = [];
+            $started = $presence->coverage($schema, $objects);
+            if ($started['present'] > 0) {
                 throw new TenantBaselineMismatch(
                     'tenant ' . $slug . ' is missing ' . $covered['missing'] . ' and was not stamped'
                 );

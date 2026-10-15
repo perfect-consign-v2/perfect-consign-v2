@@ -57,9 +57,30 @@ final class PayVendorsPageTest extends TestCase
 
     public function testAPaymentProblemIsShown(): void
     {
-        $html = $this->page('', '', '', '', 'Open the drawer first.');
+        $partial = $this->page('', '', '', '', 'Open the drawer first.');
+        self::assertStringNotContainsString('<p class="alert">', $partial);
 
-        self::assertStringContainsString('<p class="alert">Open the drawer first.</p>', $html);
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Shared/Web/layout', [
+            'title' => 'Pay',
+            'displayName' => 'Web Probe',
+            'slug' => 'webprobe',
+            'nav' => true,
+            'csrf' => 'token',
+            'error' => 'Open the drawer first.',
+            'notice' => null,
+            'warning' => null,
+            'body' => 'Shared/Web/not-found',
+            'path' => '/webprobe/payouts',
+            'actorRole' => 'owner',
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringContainsString('id="flash-dialog"', $html);
+        self::assertStringContainsString('data-kind="danger"', $html);
+        self::assertStringContainsString('<p class="error">Open the drawer first.</p>', $html);
     }
 
     public function testASettledMonthSaysThePaymentWasNotRecorded(): void

@@ -7,7 +7,6 @@ namespace PerfectConsign\Feature\Pos;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
-use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class PosPayController
@@ -34,17 +33,12 @@ final class PosPayController
         try {
             $next = $this->checkout->pay($slug, $session, $this->app->request());
         } catch (DatabaseRefusal $refusal) {
-            $message = $this->app->catchRefusal($refusal);
-            if ($message === RegisterStore::GIFT_CERTIFICATE_MISSING || $message === RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) {
-                $this->page->payment($slug, $message);
-
-                return;
-            }
-            $this->page->cart($slug, $message);
+            $this->page->payment($slug, $this->app->catchRefusal($refusal));
 
             return;
         } catch (\InvalidArgumentException $error) {
-            $this->page->cart($slug, $error->getMessage());
+            $this->page->payment($slug, $error->getMessage());
+
             return;
         }
         $this->app->redirect($next['path'], $next['notice']);

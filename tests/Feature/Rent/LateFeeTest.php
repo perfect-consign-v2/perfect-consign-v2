@@ -27,8 +27,15 @@ final class LateFeeTest extends TestCase
             self::assertSame('Choose a booth.', $error->getMessage());
         }
 
+        try {
+            $fee->charge('00000000-0000-7000-8000-000000000004', 'October', '1.50');
+            self::fail('a late fee without a date was accepted');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('Enter the date of the late fee.', $error->getMessage());
+        }
+
         $this->expectException(DatabaseRefusal::class);
-        $this->expectExceptionMessage('Enter the date of the late fee.');
-        $fee->charge('00000000-0000-7000-8000-000000000004', 'October', '1.50');
+        $this->expectExceptionMessage('Choose a late fee.');
+        $fee->waive('not-a-fee', '2026-10-01');
     }
 }

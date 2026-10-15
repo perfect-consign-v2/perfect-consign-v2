@@ -32,7 +32,7 @@ use PerfectConsign\Shared\Http\View;
                     </div>
                 </div>
                 <div class="card-foot row between">
-                    <span></span>
+                    <a href="/<?= View::text($slug) ?>/forgot">Forgot password</a>
                     <button class="btn btn-primary" type="submit">Sign in</button>
                 </div>
             </form>

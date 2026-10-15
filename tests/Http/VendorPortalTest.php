@@ -121,6 +121,7 @@ final class VendorPortalTest extends WebTestCase
             'username' => $username,
             'display_name' => 'Ada ' . $code,
             'password' => 'vendor-pass',
+            'email' => 'ada@example.com',
         ]);
         self::assertSees('Vendor sign-in added.', $added);
 

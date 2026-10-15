@@ -36,7 +36,7 @@ final class ProbeServer
             ],
             $pipes,
             $root,
-            null,
+            self::environment(),
             ['bypass_shell' => true]
         );
         if (!is_resource($process)) {
@@ -59,6 +59,11 @@ final class ProbeServer
         return 'http://127.0.0.1:' . self::PORT;
     }
 
+    public static function mailFile(): string
+    {
+        return sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-probe-mail.txt';
+    }
+
     public function stop(): void
     {
         if (!is_resource($this->process)) {
@@ -71,6 +76,31 @@ final class ProbeServer
         }
         proc_close($this->process);
         $this->process = null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function environment(): array
+    {
+        $mail = self::mailFile();
+        $created = fopen($mail, 'ab');
+        if ($created === false) {
+            throw new RuntimeException('the mail file could not be created');
+        }
+        fclose($created);
+        $inherited = getenv();
+        $env = [];
+        if (is_array($inherited)) {
+            foreach ($inherited as $key => $value) {
+                if (is_string($key) && is_string($value)) {
+                    $env[$key] = $value;
+                }
+            }
+        }
+        $env['STALL_MAIL_FILE'] = $mail;
+
+        return $env;
     }
 
     private function waitUntilListening(): void

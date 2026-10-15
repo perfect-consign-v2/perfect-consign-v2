@@ -4,22 +4,27 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Staff;
 
+use PerfectConsign\Feature\Password\PasswordChoice;
+use PerfectConsign\Feature\Password\RecoveryAddress;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class StaffStore
 {
-    public function __construct(private readonly Statements $statements)
-    {
+    public function __construct(
+        private readonly Statements $statements,
+        private readonly RecoveryAddress $addresses,
+        private readonly PasswordChoice $passwords,
+    ) {
     }
 
     /**
-     * @return list<array{id: string, username: string, display_name: string, role: string}>
+     * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
      */
     public function cashiers(): array
     {
         $rows = $this->statements->rows(
-            "SELECT id, username, display_name, role
+            "SELECT id, username, display_name, role, email
              FROM staff
              WHERE role = 'cashier'
              ORDER BY lower(display_name), username"
@@ -31,28 +36,46 @@ final class StaffStore
                 'username' => RowValue::string($row['username'] ?? null),
                 'display_name' => RowValue::string($row['display_name'] ?? null),
                 'role' => RowValue::string($row['role'] ?? null),
+                'email' => RowValue::optionalString($row['email'] ?? null) ?? '',
             ];
         }
 
         return $people;
     }
 
-    public function addCashier(string $username, string $displayName, string $password): void
+    public function addCashier(string $username, string $displayName, string $password, string $email): void
     {
-        $this->add($username, $displayName, $password, 'cashier', null);
+        $this->add($username, $displayName, $password, $this->addresses->parse($email), 'cashier', null);
     }
 
-    public function addVendor(string $username, string $displayName, string $password, string $vendorId): void
+    public function replaceCashier(string $id, string $password, string $email): void
     {
-        $this->saveVendor($username, $displayName, $password, $vendorId);
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            throw new \InvalidArgumentException('Choose a cashier.');
+        }
+        $saved = $this->statements->affected(
+            "UPDATE staff
+             SET password_hash = ?, email = ?, credentials_version = credentials_version + 1
+             WHERE id = ?::uuid AND role = 'cashier'",
+            [$this->passwords->hash($password), $this->addresses->parse($email), $id]
+        );
+        if ($saved < 1) {
+            throw new \InvalidArgumentException('Choose a cashier.');
+        }
     }
 
-    public function saveVendor(string $username, string $displayName, string $password, string $vendorId): bool
+    public function addVendor(string $username, string $displayName, string $password, string $email, string $vendorId): void
+    {
+        $this->saveVendor($username, $displayName, $password, $email, $vendorId);
+    }
+
+    public function saveVendor(string $username, string $displayName, string $password, string $email, string $vendorId): bool
     {
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
             throw new \InvalidArgumentException('Choose a vendor.');
         }
         $prepared = $this->prepared($username, $displayName, $password);
+        $address = $this->addresses->parse($email);
         $existing = $this->statements->bound(
             "SELECT id::text AS id FROM staff WHERE role = 'vendor' AND vendor_id = ?::uuid",
             [$vendorId]
@@ -60,24 +83,25 @@ final class StaffStore
         if ($existing !== []) {
             $this->statements->change(
                 "UPDATE staff
-                 SET username = ?, display_name = ?, password_hash = ?
+                 SET username = ?, display_name = ?, password_hash = ?, email = ?,
+                     credentials_version = credentials_version + 1
                  WHERE role = 'vendor' AND vendor_id = ?::uuid",
-                [$prepared['username'], $prepared['displayName'], $prepared['hash'], $vendorId]
+                [$prepared['username'], $prepared['displayName'], $prepared['hash'], $address, $vendorId]
             );
 
             return true;
         }
         $this->statements->change(
-            'INSERT INTO staff (username, display_name, password_hash, role, vendor_id)
-             VALUES (?, ?, ?, ?, ?::uuid)',
-            [$prepared['username'], $prepared['displayName'], $prepared['hash'], 'vendor', $vendorId]
+            'INSERT INTO staff (username, display_name, password_hash, role, vendor_id, email)
+             VALUES (?, ?, ?, ?, ?::uuid, ?)',
+            [$prepared['username'], $prepared['displayName'], $prepared['hash'], 'vendor', $vendorId, $address]
         );
 
         return false;
     }
 
     /**
-     * @return array{username: string, display_name: string}|null
+     * @return array{username: string, display_name: string, email: string}|null
      */
     public function vendorSignIn(string $vendorId): ?array
     {
@@ -85,7 +109,7 @@ final class StaffStore
             return null;
         }
         $rows = $this->statements->bound(
-            "SELECT username, display_name
+            "SELECT username, display_name, email
              FROM staff
              WHERE role = 'vendor' AND vendor_id = ?::uuid",
             [$vendorId]
@@ -100,16 +124,20 @@ final class StaffStore
             return null;
         }
 
-        return ['username' => $username, 'display_name' => $displayName];
+        return [
+            'username' => $username,
+            'display_name' => $displayName,
+            'email' => RowValue::optionalString($row['email'] ?? null) ?? '',
+        ];
     }
 
-    private function add(string $username, string $displayName, string $password, string $role, ?string $vendorId): void
+    private function add(string $username, string $displayName, string $password, string $email, string $role, ?string $vendorId): void
     {
         $prepared = $this->prepared($username, $displayName, $password);
         $this->statements->change(
-            'INSERT INTO staff (username, display_name, password_hash, role, vendor_id)
-             VALUES (?, ?, ?, ?, ?::uuid)',
-            [$prepared['username'], $prepared['displayName'], $prepared['hash'], $role, $vendorId]
+            'INSERT INTO staff (username, display_name, password_hash, role, vendor_id, email)
+             VALUES (?, ?, ?, ?, ?::uuid, ?)',
+            [$prepared['username'], $prepared['displayName'], $prepared['hash'], $role, $vendorId, $email]
         );
     }
 
@@ -126,14 +154,11 @@ final class StaffStore
         if ($displayName === '' || strlen($displayName) > 80) {
             throw new \InvalidArgumentException('Enter the name people will see.');
         }
-        if (strlen($password) < 8) {
-            throw new \InvalidArgumentException('Use a password of at least 8 characters.');
-        }
 
         return [
             'username' => $username,
             'displayName' => $displayName,
-            'hash' => password_hash($password, PASSWORD_DEFAULT),
+            'hash' => $this->passwords->hash($password),
         ];
     }
 }

@@ -23,12 +23,14 @@ use PerfectConsign\Shared\Scalar\RowValue;
 if ($completed === null) {
     return;
 }
-/** @param array{price: int, quantity: int, discount: int, tax: int} $line */
+/** @param array{price: int, quantity: int, discount: int, store_discount?: int, tax: int} $line */
 $charged = static function (array $line): int {
     $quantity = RowValue::integer($line['quantity']);
+    $store = RowValue::integer($line['store_discount'] ?? 0);
 
     return RowValue::integer($line['price']) * ($quantity > 0 ? $quantity : 1)
         - RowValue::integer($line['discount'])
+        - $store
         + RowValue::integer($line['tax']);
 };
 $cartTotal = 0;

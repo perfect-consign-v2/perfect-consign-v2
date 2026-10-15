@@ -39,7 +39,6 @@ $renameName = $modal === 'register-rename' && is_string($draft['name'] ?? null) 
 $renameAction = $modal === 'register-rename' && $registerId !== ''
     ? '/' . $slug . '/registers/' . $registerId
     : '';
-$pageError = is_string($error ?? null) ? $error : '';
 ?>
 <div class="page-head">
     <div class="titles">
@@ -105,11 +104,6 @@ $pageError = is_string($error ?? null) ? $error : '';
             <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/delete">
                 <div class="card-head"><div class="h3" id="delete-title-<?= View::text($id) ?>">Delete <?= View::text($name) ?></div></div>
                 <div class="card-body stack">
-                    <?php if ($modal === 'delete-' . $id && $pageError !== ''): ?>
-                        <div class="alert alert-danger" role="alert">
-                            <p class="error"><?= View::text($pageError) ?></p>
-                        </div>
-                    <?php endif; ?>
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <p><?= View::text($name) ?> has never been opened.</p>
                     <div class="row gap-2">
@@ -143,10 +137,6 @@ $pageError = is_string($error ?? null) ? $error : '';
                         <div class="alert alert-danger" role="alert">
                             <p class="error">A sale is still open on this register. Finish it or cancel it, then close.</p>
                             <p><a class="text-link" href="/<?= View::text($slug) ?>/pos">Open the sale</a></p>
-                        </div>
-                    <?php elseif ($modal === 'close-' . $id && $pageError !== ''): ?>
-                        <div class="alert alert-danger" role="alert">
-                            <p class="error"><?= View::text($pageError) ?></p>
                         </div>
                     <?php endif; ?>
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -226,11 +216,6 @@ $pageError = is_string($error ?? null) ? $error : '';
             <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/drop">
                 <div class="card-head"><div class="h3" id="drop-title-<?= View::text($id) ?>">Drop cash</div></div>
                 <div class="card-body stack">
-                    <?php if ($modal === 'drop-' . $id && $pageError !== ''): ?>
-                        <div class="alert alert-danger" role="alert">
-                            <p class="error"><?= View::text($pageError) ?></p>
-                        </div>
-                    <?php endif; ?>
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <label for="drop-amount-<?= View::text($id) ?>">Amount</label>
                     <input class="input" id="drop-amount-<?= View::text($id) ?>" name="amount" inputmode="decimal" required>
@@ -252,11 +237,6 @@ $pageError = is_string($error ?? null) ? $error : '';
     <form id="open-form" class="modal-panel card" method="post" action="<?= View::text($openAction) ?>">
         <div class="card-head"><div class="h3" id="register-open-title">Open register</div></div>
         <div class="card-body stack">
-            <?php if ($modal === 'register-open' && $pageError !== ''): ?>
-                <div class="alert alert-danger" role="alert">
-                    <p class="error"><?= View::text($pageError) ?></p>
-                </div>
-            <?php endif; ?>
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <?php foreach (DenominationCount::KEYS as $key): ?>
                 <?php $saved = $openCounts[(string) $key] ?? 0; ?>
@@ -280,11 +260,6 @@ $pageError = is_string($error ?? null) ? $error : '';
     <form class="modal-panel card" method="post" action="<?= View::text($renameAction) ?>">
         <div class="card-head"><div class="h3" id="register-rename-title">Rename register</div></div>
         <div class="card-body stack">
-            <?php if ($modal === 'register-rename' && $pageError !== ''): ?>
-                <div class="alert alert-danger" role="alert">
-                    <p class="error"><?= View::text($pageError) ?></p>
-                </div>
-            <?php endif; ?>
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="register-name">Name</label>
             <input class="input" id="register-name" name="name" value="<?= View::text($renameName) ?>" maxlength="40" required>

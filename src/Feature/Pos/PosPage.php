@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\Money;
 
@@ -30,7 +31,7 @@ final class PosPage
 
     public function instant(string $slug, ?string $error): void
     {
-        $this->render($slug, $error, true);
+        $this->render($slug, null, true, null, null, $error ?? '');
     }
 
     public function gift(string $slug, string $error): void
@@ -43,7 +44,7 @@ final class PosPage
         $this->render($slug, null, false, null, $error);
     }
 
-    private function render(string $slug, ?string $error, bool $reopenInstant, ?string $giftError = null, ?string $payError = null): void
+    private function render(string $slug, ?string $error, bool $reopenInstant, ?string $giftError = null, ?string $payError = null, string $instantError = ''): void
     {
         $tenant = $this->app->open($slug, true);
         $cart = $this->tickets->cart($this->gate->session($slug));
@@ -57,6 +58,7 @@ final class PosPage
         $held = $this->sales->id($slug);
         $gift = $this->giftForm($giftError, $reopenInstant);
         $pay = $this->payForm($payError);
+        $instant = $this->instantForm($instantError);
         $this->app->show('Feature/Pos/pos', [
             'title' => 'Sell',
             'displayName' => $tenant->displayName,
@@ -92,8 +94,20 @@ final class PosPage
             'payVendor' => $pay['payVendor'],
             'payGift' => $pay['payGift'],
             'payGiftNumber' => $pay['payGiftNumber'],
+            'payGiftCard' => $pay['payGiftCard'],
+            'payGiftCardNumber' => $pay['payGiftCardNumber'],
             'payCredit' => $pay['payCredit'],
             'payCreditNumber' => $pay['payCreditNumber'],
+            'instantError' => $instant['instantError'],
+            'instantVendorId' => $instant['instantVendorId'],
+            'instantVendorLabel' => $instant['instantVendorLabel'],
+            'instantDescription' => $instant['instantDescription'],
+            'instantPrice' => $instant['instantPrice'],
+            'instantDiscountKind' => $instant['instantDiscountKind'],
+            'instantDiscountValue' => $instant['instantDiscountValue'],
+            'instantBrandId' => $instant['instantBrandId'],
+            'instantBrandLabel' => $instant['instantBrandLabel'],
+            'instantAttributes' => $instant['instantAttributes'],
         ]);
     }
 
@@ -132,7 +146,7 @@ final class PosPage
     }
 
     /**
-     * @return array{openPayment: bool, payError: string, payCash: string, payCard: string, payCheck: string, payCheckNumber: string, payVendor: string, payGift: string, payGiftNumber: string, payCredit: string, payCreditNumber: string}
+     * @return array{openPayment: bool, payError: string, payCash: string, payCard: string, payCheck: string, payCheckNumber: string, payVendor: string, payGift: string, payGiftNumber: string, payGiftCard: string, payGiftCardNumber: string, payCredit: string, payCreditNumber: string}
      */
     private function payForm(?string $payError): array
     {
@@ -147,6 +161,8 @@ final class PosPage
             'payVendor' => '',
             'payGift' => '',
             'payGiftNumber' => '',
+            'payGiftCard' => '',
+            'payGiftCardNumber' => '',
             'payCredit' => '',
             'payCreditNumber' => '',
         ];
@@ -162,8 +178,55 @@ final class PosPage
         $form['payVendor'] = $request->field('tender_vendor_draw');
         $form['payGift'] = $request->field('tender_gift_certificate');
         $form['payGiftNumber'] = $request->field('gift_certificate_number');
+        $form['payGiftCard'] = $request->field('tender_gift_card');
+        $form['payGiftCardNumber'] = $request->field('gift_card_number');
         $form['payCredit'] = $request->field('tender_store_credit');
         $form['payCreditNumber'] = $request->field('store_credit_number');
+
+        return $form;
+    }
+
+    /**
+     * @return array{instantError: string, instantVendorId: string, instantVendorLabel: string, instantDescription: string, instantPrice: string, instantDiscountKind: string, instantDiscountValue: string, instantBrandId: string, instantBrandLabel: string, instantAttributes: array<string, array{id: string, label: string}>}
+     */
+    private function instantForm(string $instantError): array
+    {
+        $form = [
+            'instantError' => '',
+            'instantVendorId' => '',
+            'instantVendorLabel' => '',
+            'instantDescription' => '',
+            'instantPrice' => '',
+            'instantDiscountKind' => 'consignor_default',
+            'instantDiscountValue' => '',
+            'instantBrandId' => '',
+            'instantBrandLabel' => '',
+            'instantAttributes' => [],
+        ];
+        if ($instantError === '') {
+            return $form;
+        }
+        $request = $this->app->request();
+        $kind = $request->field('discount_kind');
+        $attributes = [];
+        foreach (NameList::all() as $list) {
+            $attributes[$list->key] = [
+                'id' => $request->field($list->key . '_id'),
+                'label' => $request->field($list->key . '_label'),
+            ];
+        }
+        $form['instantError'] = $instantError;
+        $form['instantVendorId'] = $request->field('vendor_id');
+        $form['instantVendorLabel'] = $request->field('vendor_label');
+        $form['instantDescription'] = $request->field('description');
+        $form['instantPrice'] = $request->field('price');
+        $form['instantDiscountKind'] = in_array($kind, ['consignor_default', 'none', 'percent', 'flat'], true)
+            ? $kind
+            : 'consignor_default';
+        $form['instantDiscountValue'] = $request->field('discount_value');
+        $form['instantBrandId'] = $request->field('brand_id');
+        $form['instantBrandLabel'] = $request->field('brand_label');
+        $form['instantAttributes'] = $attributes;
 
         return $form;
     }

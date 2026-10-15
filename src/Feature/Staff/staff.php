@@ -6,7 +6,7 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var string $csrf */
-/** @var list<array{id: string, username: string, display_name: string, role: string}> $cashiers */
+/** @var list<array{id: string, username: string, display_name: string, role: string, email: string}> $cashiers */
 /** @var string|null $error */
 ?>
 <div class="page-head">
@@ -15,9 +15,6 @@ use PerfectConsign\Shared\Http\View;
         <p class="muted">A cashier can sell, take rent, and close their drawer.</p>
     </div>
 </div>
-<?php if (is_string($error) && $error !== ''): ?>
-    <p class="alert"><?= View::text($error) ?></p>
-<?php endif; ?>
 <div class="card mt-6">
     <div class="card-head"><div class="h3">Add a cashier</div></div>
     <form class="card-body stack" method="post" action="/<?= View::text($slug) ?>/staff">
@@ -35,6 +32,10 @@ use PerfectConsign\Shared\Http\View;
             <label for="password">Password</label>
             <input class="input" id="password" name="password" type="password" required minlength="8" autocomplete="new-password">
         </div>
+        <div class="field">
+            <label for="email">Recovery email</label>
+            <input class="input" id="email" name="email" type="email" required maxlength="200" autocomplete="email">
+        </div>
         <p><button class="btn btn-primary" type="submit">Add cashier</button></p>
     </form>
 </div>
@@ -45,7 +46,21 @@ use PerfectConsign\Shared\Http\View;
         <?php else: ?>
             <ul>
                 <?php foreach ($cashiers as $cashier): ?>
-                    <li><?= View::text($cashier['display_name']) ?> (<?= View::text($cashier['username']) ?>)</li>
+                    <li>
+                        <p><?= View::text($cashier['display_name']) ?> (<?= View::text($cashier['username']) ?>)</p>
+                        <form class="stack" method="post" action="/<?= View::text($slug) ?>/staff/<?= View::text($cashier['id']) ?>/password" data-cashier="<?= View::text($cashier['username']) ?>">
+                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                            <div class="field">
+                                <label for="email-<?= View::text($cashier['id']) ?>">Recovery email</label>
+                                <input class="input" id="email-<?= View::text($cashier['id']) ?>" name="email" type="email" required maxlength="200" value="<?= View::text($cashier['email']) ?>" autocomplete="email">
+                            </div>
+                            <div class="field">
+                                <label for="password-<?= View::text($cashier['id']) ?>">New password</label>
+                                <input class="input" id="password-<?= View::text($cashier['id']) ?>" name="password" type="password" required minlength="8" autocomplete="new-password">
+                            </div>
+                            <p><button class="btn" type="submit">Save cashier sign-in</button></p>
+                        </form>
+                    </li>
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>

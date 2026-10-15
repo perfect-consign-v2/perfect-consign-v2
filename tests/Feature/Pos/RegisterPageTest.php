@@ -275,7 +275,7 @@ final class RegisterPageTest extends TestCase
         self::assertStringNotContainsString('autocomplete="off" autofocus', $payment);
     }
 
-    public function testANoticeAndAnErrorStayOnTheirOwnAlerts(): void
+    public function testTheSaleCardLeavesTheNoticeAndTheErrorToTheDialog(): void
     {
         $saved = $this->page(['notice' => 'Saved.', 'error' => null]);
         $boom = $this->page(['notice' => null, 'error' => 'Boom.']);
@@ -283,12 +283,14 @@ final class RegisterPageTest extends TestCase
         $blankError = $this->page(['notice' => 'Saved.', 'error' => '']);
         $blank = $this->page(['notice' => '', 'error' => '']);
 
-        self::assertSame(1, substr_count($saved, 'class="alert alert-success"'));
-        self::assertSame(0, substr_count($saved, 'class="alert alert-danger"'));
-        self::assertSame(1, substr_count($boom, 'class="alert alert-danger"'));
-        self::assertSame(0, substr_count($boom, 'class="alert alert-success"'));
-        self::assertSame(0, substr_count($blankNotice, 'class="alert alert-success"'));
-        self::assertSame(0, substr_count($blankError, 'class="alert alert-danger"'));
+        self::assertStringNotContainsString('class="register-status"', $saved);
+        self::assertStringNotContainsString('class="alert alert-success"', $saved);
+        self::assertStringNotContainsString('Saved.', $saved);
+        self::assertStringNotContainsString('class="register-status"', $boom);
+        self::assertStringNotContainsString('class="alert alert-danger"', $boom);
+        self::assertStringNotContainsString('Boom.', $boom);
+        self::assertStringNotContainsString('class="alert alert-success"', $blankNotice);
+        self::assertStringNotContainsString('class="alert alert-danger"', $blankError);
         self::assertStringNotContainsString('class="register-status"', $blank);
     }
 

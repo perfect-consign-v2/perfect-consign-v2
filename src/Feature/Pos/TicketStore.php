@@ -57,7 +57,7 @@ final class TicketStore
     /**
      * @return array{
      *     ticket_id: string,
-     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
+     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
      *     merchandise: int,
      *     discount: int,
      *     discount_reason: string,
@@ -84,7 +84,7 @@ final class TicketStore
         $tax = 0;
         foreach ($lines as $line) {
             $merchandise += $line['price'] * $line['quantity'];
-            $discount += $line['discount'];
+            $discount += $line['discount'] + $line['store_discount'];
             $tax += $line['tax'];
         }
         $due = $merchandise - $discount + $tax;

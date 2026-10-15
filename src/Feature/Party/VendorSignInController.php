@@ -30,6 +30,7 @@ final class VendorSignInController
                 $request->field('username'),
                 $request->field('display_name'),
                 $request->raw('password'),
+                $request->field('email'),
                 $id,
             );
         } catch (DatabaseRefusal $refusal) {

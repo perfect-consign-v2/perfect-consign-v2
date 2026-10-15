@@ -230,7 +230,17 @@ function requestFromGlobals(): Request
         $path = rtrim($path, '/');
     }
 
-    return new Request($method, $path, $_GET, $_POST, sameHostPath(refererHeader(), hostHeader()));
+    return new Request($method, $path, $_GET, $_POST, sameHostPath(refererHeader(), hostHeader()), requestOrigin());
+}
+
+function requestOrigin(): string
+{
+    $host = hostHeader();
+    if (preg_match('/^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/', $host) !== 1) {
+        return '';
+    }
+
+    return (requestIsHttps() ? 'https' : 'http') . '://' . $host;
 }
 
 function refererHeader(): string

@@ -18,9 +18,6 @@ use PerfectConsign\Shared\Web\ListTable;
     </div>
     <a class="btn" href="/<?= View::text($slug) ?>/payouts">Pay vendors</a>
 </div>
-<?php if (is_string($error) && $error !== ''): ?>
-    <p class="alert"><?= View::text($error) ?></p>
-<?php endif; ?>
 <div class="list-dt-wrap">
 <?php
 ListTable::open(['id' => 'payout-history', 'export' => 'payout-history']);
@@ -74,6 +71,9 @@ ListTable::head([
 </table>
 </div>
 <?php ListTable::assets(); ?>
+<?php if (is_string($error) && $error !== ''): ?>
+    <p class="error"><?= View::text($error) ?></p>
+<?php endif; ?>
 <?php if ($excluded !== []): ?>
     <p>Vendors excluded: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['name']) ?> <?php endforeach; ?></p>
 <?php endif; ?>

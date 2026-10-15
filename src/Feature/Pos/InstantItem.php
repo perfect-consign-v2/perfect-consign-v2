@@ -14,23 +14,7 @@ final class InstantItem
         private readonly InventoryStore $items,
         private readonly TicketStore $tickets,
         private readonly TicketLines $lines,
-        private readonly BoothVendor $booths,
     ) {
-    }
-
-    public function sell(string $session, string $today, string $boothCode, InstantAdd $item): void
-    {
-        $this->add($session, $today, new InstantAdd(
-            $this->booths->vendor($boothCode, $today),
-            $item->description,
-            $item->price,
-            $item->barcode,
-            $item->quantity,
-            $item->brand,
-            $item->attributes,
-            $item->discountKind,
-            $item->discountValue,
-        ));
     }
 
     public function add(string $session, string $today, InstantAdd $item): void

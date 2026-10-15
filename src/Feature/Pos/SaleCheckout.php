@@ -90,7 +90,7 @@ final class SaleCheckout
     /**
      * @param array{
      *     ticket_id: string,
-     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}>,
+     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int}>,
      *     due: int
      * } $cart
      * @param array{

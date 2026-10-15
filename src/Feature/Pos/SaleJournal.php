@@ -11,7 +11,7 @@ use PerfectConsign\Ledger\PostedLines;
 final class SaleJournal
 {
     /**
-     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $items
+     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int}> $items
      * @param list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}> $tenders
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
@@ -22,6 +22,13 @@ final class SaleJournal
             $lines = $delta === 0 ? $tenders : self::roundedCash($ledger, $tenders, $cash, $delta);
         } else {
             $lines = self::keptCash($ledger, $tenders, $delta);
+        }
+        $promo = 0;
+        foreach ($items as $item) {
+            $promo += $item['store_discount'];
+        }
+        if ($promo > 0) {
+            $lines[] = PostedLines::entry($ledger->roleAccount('promotion_expense'), $promo, 0, null, null);
         }
 
         return array_merge($lines, self::credits($ledger, $items));
@@ -37,6 +44,7 @@ final class SaleJournal
         int $commission,
         int $tax,
         int $discount,
+        int $storeDiscount,
         string $vendorId,
         array $credit,
     ): array {
@@ -46,6 +54,9 @@ final class SaleJournal
         }
         if ($tax > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('sales_tax_payable'), $tax, 0, null, null);
+        }
+        if ($storeDiscount > 0) {
+            $lines[] = PostedLines::entry($ledger->roleAccount('promotion_expense'), 0, $storeDiscount, null, null);
         }
         $owed = $price - $discount - $commission;
         if ($owed > 0) {
@@ -111,7 +122,7 @@ final class SaleJournal
     }
 
     /**
-     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int}> $items
+     * @param list<array{vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int}> $items
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
     private static function credits(LedgerStore $ledger, array $items): array

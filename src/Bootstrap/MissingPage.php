@@ -22,6 +22,11 @@ final class MissingPage
     ) {
     }
 
+    public function missingMall(string $csrf): never
+    {
+        $this->render(MallApp::MISS_MALL, $csrf);
+    }
+
     public function render(string $reason, string $csrf): never
     {
         http_response_code(404);

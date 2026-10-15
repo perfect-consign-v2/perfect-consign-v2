@@ -22,6 +22,7 @@ final class OwnerGate
         private readonly MissingPage $missing,
         private readonly View $view,
         private readonly StaffSignIn $staff,
+        private readonly LoginSession $sessions,
     ) {
     }
 
@@ -29,7 +30,7 @@ final class OwnerGate
     {
         $tenant = $this->tenants->find($slug);
         if ($tenant === null) {
-            $this->missing->render(MallApp::MISS_MALL, $this->token());
+            $this->missing->missingMall($this->token());
         }
         $username = strtolower(trim($username));
         if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
@@ -49,15 +50,11 @@ final class OwnerGate
             $this->logger->info('owner sign-in locked', ['slug' => $slug, 'username' => $username]);
             throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
         }
-        $statement = $this->pdo->prepare(
-            'SELECT password_hash FROM platform.owners WHERE tenant_id = ?::uuid AND username = ?'
-        );
-        $statement->execute([$tenant->id, $username]);
-        $hash = $statement->fetchColumn();
-        if (!is_string($hash)) {
+        $owner = $this->owner($tenant->id, $username);
+        if ($owner === null) {
             return $this->staff->attempt($tenant, $username, $password);
         }
-        if (!password_verify($password, $hash)) {
+        if (!password_verify($password, $owner['hash'])) {
             $failed = $this->pdo->prepare(
                 'INSERT INTO platform.owner_sign_in_failures (tenant_id, username) VALUES (?::uuid, ?)'
             );
@@ -70,18 +67,37 @@ final class OwnerGate
             'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = ?::uuid AND username = ?'
         );
         $clear->execute([$tenant->id, $username]);
-        $now = (string) time();
-        $this->session->regenerateId(true);
-        $this->session->set('owner_slug', $slug);
-        $this->session->set('owner_name', $username);
-        $this->session->set('signed_in_at', $now);
-        $this->session->set('last_seen_at', $now);
-        $this->session->set('csrf', bin2hex(random_bytes(16)));
-        $this->session->set('actor_role', 'owner');
-        $this->session->set('actor_staff', '');
-        $this->session->set('actor_vendor', '');
+        $this->sessions->open($slug, $username, 'owner', $owner['id'], $owner['version'], '', '');
 
         return true;
+    }
+
+    /**
+     * @return array{id: string, hash: string, version: string}|null
+     */
+    private function owner(string $tenantId, string $username): ?array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT id::text AS id, password_hash, credentials_version
+             FROM platform.owners
+             WHERE tenant_id = ?::uuid AND username = ?'
+        );
+        $statement->execute([$tenantId, $username]);
+        $row = $statement->fetch();
+        if (!is_array($row)) {
+            return null;
+        }
+        $id = $row['id'] ?? null;
+        $hash = $row['password_hash'] ?? null;
+        $version = $row['credentials_version'] ?? null;
+        if (is_int($version)) {
+            $version = (string) $version;
+        }
+        if (!is_string($id) || !is_string($hash) || !is_string($version) || ctype_digit($version) !== true) {
+            return null;
+        }
+
+        return ['id' => $id, 'hash' => $hash, 'version' => $version];
     }
 
     public function signOut(): void

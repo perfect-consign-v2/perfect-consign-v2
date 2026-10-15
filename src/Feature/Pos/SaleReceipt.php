@@ -25,7 +25,7 @@ final class SaleReceipt
      *     posted_on: string,
      *     description: string,
      *     voided: bool,
-     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, returned: bool}>,
+     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_name: string, returned: bool}>,
      *     tenders: list<array{name: string, amount: int}>,
      *     round: int,
      *     cash: int,
@@ -41,7 +41,7 @@ final class SaleReceipt
         $note = $this->note($journalId);
         $discount = 0;
         foreach ($lines as $line) {
-            $discount += $line['discount'];
+            $discount += $line['discount'] + $line['store_discount'];
         }
 
         return [
@@ -64,12 +64,13 @@ final class SaleReceipt
     }
 
     /**
-     * @return list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, returned: bool}>
+     * @return list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_name: string, returned: bool}>
      */
     private function lines(string $journalId): array
     {
         $rows = $this->statements->bound(
             'SELECT sale.item_id, sale.price_minor, sale.quantity, sale.commission_minor, sale.tax_minor, sale.discount_minor,
+                    sale.store_discount_minor, COALESCE(offer.name, \'\') AS offer_name,
                     item.code, item.description, vendor.name AS vendor_name,
                     EXISTS (
                         SELECT 1 FROM item_returns AS returned
@@ -79,6 +80,7 @@ final class SaleReceipt
              FROM sale_lines AS sale
              JOIN items AS item ON item.id = sale.item_id
              JOIN vendors AS vendor ON vendor.id = item.vendor_id
+             LEFT JOIN offers AS offer ON offer.id = sale.offer_id
              WHERE sale.journal_id = ?::uuid
              ORDER BY sale.line_no',
             [$journalId]
@@ -95,6 +97,8 @@ final class SaleReceipt
                 'commission' => RowValue::integer($row['commission_minor'] ?? null),
                 'tax' => RowValue::integer($row['tax_minor'] ?? null),
                 'discount' => RowValue::integer($row['discount_minor'] ?? null),
+                'store_discount' => RowValue::integer($row['store_discount_minor'] ?? null),
+                'offer_name' => RowValue::string($row['offer_name'] ?? null),
                 'returned' => self::flag($row['returned'] ?? null),
             ];
         }

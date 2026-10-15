@@ -31,7 +31,13 @@ declare(strict_types=1);
     let giftCap = null;
     const finish = document.getElementById('pay-finish');
     const hold = document.getElementById('pay-hold');
+    const payError = document.getElementById('pay-error');
     const fields = form.querySelectorAll('[name^="tender_"]');
+    const amountMessages = [
+        'enter an amount in dollars and cents',
+        'the amount is too large',
+        'the amount must be greater than zero'
+    ];
     function money(cents) {
         const n = Math.max(0, cents);
         return '$' + Math.floor(n / 100) + '.' + String(n % 100).padStart(2, '0');
@@ -43,6 +49,41 @@ declare(strict_types=1);
         }
         const value = Math.round(parseFloat(cleaned) * 100);
         return Number.isFinite(value) && value > 0 ? value : 0;
+    }
+    function amountProblem(raw) {
+        const cleaned = String(raw || '').replace(/[$,\s]/g, '');
+        if (cleaned === '' || cleaned === '0' || cleaned === '0.00') {
+            return '';
+        }
+        const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(cleaned);
+        if (!match) {
+            return amountMessages[0];
+        }
+        if (match[1].length > 9) {
+            return amountMessages[1];
+        }
+        const minor = (Number(match[1]) * 100) + Number((match[2] || '').padEnd(2, '0'));
+        if (!Number.isFinite(minor) || minor < 1) {
+            return amountMessages[2];
+        }
+        return '';
+    }
+    function amountError() {
+        let problem = '';
+        fields.forEach(function (input) {
+            const found = amountProblem(input.value);
+            if (found !== '') {
+                problem = found;
+                input.setAttribute('aria-invalid', 'true');
+                input.setAttribute('aria-describedby', 'pay-error');
+                return;
+            }
+            if (input.getAttribute('aria-describedby') === 'pay-error') {
+                input.removeAttribute('aria-invalid');
+                input.removeAttribute('aria-describedby');
+            }
+        });
+        return problem;
     }
     function nickel(exact) {
         const inc = form.getAttribute('data-round') === '5' ? 5 : 1;
@@ -147,9 +188,20 @@ declare(strict_types=1);
                 giftError.textContent = '';
             }
         }
+        const typedAmount = amountError();
+        if (payError && (typedAmount !== '' || amountMessages.indexOf(payError.textContent) !== -1)) {
+            const previous = payError.textContent;
+            payError.hidden = typedAmount === '';
+            payError.textContent = typedAmount;
+            if (typedAmount !== '' && typedAmount !== previous && typeof window.pcFlash === 'function') {
+                window.pcFlash(typedAmount, 'danger');
+            } else if (typedAmount === '' && amountMessages.indexOf(previous) !== -1 && typeof window.pcFlashClose === 'function') {
+                window.pcFlashClose();
+            }
+        }
         const giftBlocked = giftError ? !giftError.hidden : false;
         const covers = residual === 0 ? sum >= due : cashCents >= cashDue;
-        const short = Number(form.getAttribute('data-lines')) < 1 || !covers || checkMissing || giftBlocked;
+        const short = Number(form.getAttribute('data-lines')) < 1 || !covers || checkMissing || giftBlocked || typedAmount !== '';
         if (process) {
             process.disabled = short;
         }
@@ -164,7 +216,7 @@ declare(strict_types=1);
                 }
             });
             const shopper = form.getAttribute('data-shopper') || '';
-            hold.disabled = shopper === '' || other > 0 || checkMissing || sum < 1 || covers || Number(form.getAttribute('data-lines')) < 1;
+            hold.disabled = shopper === '' || other > 0 || checkMissing || typedAmount !== '' || sum < 1 || covers || Number(form.getAttribute('data-lines')) < 1;
         }
     }
     function fill(role) {
@@ -185,28 +237,15 @@ declare(strict_types=1);
             focus.focus();
         }
     }
+    form.addEventListener('submit', function (event) {
+        if (amountError() !== '') {
+            event.preventDefault();
+            settle();
+        }
+    });
     form.querySelectorAll('[data-pay-full]').forEach(function (button) {
         button.addEventListener('click', function () {
             fill(button.getAttribute('data-pay-full'));
-        });
-    });
-    form.querySelectorAll('[data-pay-exact]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            let other = 0;
-            fields.forEach(function (input) {
-                if (input.name === 'tender_cash' || input.disabled) {
-                    return;
-                }
-                other += cents(input.value);
-            });
-            const left = Math.max(0, cents(form.getAttribute('data-due') || '') - other);
-            if (cash) {
-                cash.value = (nickel(left) / 100).toFixed(2);
-            }
-            settle();
-            if (cash) {
-                cash.focus();
-            }
         });
     });
     fields.forEach(function (input) {

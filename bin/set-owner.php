@@ -9,6 +9,7 @@ if (PHP_SAPI !== 'cli' || !isset($argv[0]) || realpath($argv[0]) !== realpath(__
 $slug = $argv[1] ?? '';
 $username = $argv[2] ?? '';
 $password = getenv('STALL_OWNER_PASSWORD');
+$email = ownerEmail(getenv('STALL_OWNER_EMAIL'));
 $host = getenv('STALL_DB_HOST');
 $port = getenv('STALL_DB_PORT');
 $name = getenv('STALL_DB_NAME');
@@ -40,17 +41,33 @@ if ($hash === false) {
     exit(1);
 }
 $statement = $pdo->prepare(
-    'INSERT INTO platform.owners (id, tenant_id, username, password_hash)
-     SELECT uuidv7(), id, ?, ?
+    'INSERT INTO platform.owners (id, tenant_id, username, password_hash, email)
+     SELECT uuidv7(), id, ?, ?, ?
      FROM platform.tenants
      WHERE slug = ?
      ON CONFLICT (tenant_id) DO UPDATE
         SET username = EXCLUDED.username,
-            password_hash = EXCLUDED.password_hash'
+            password_hash = EXCLUDED.password_hash,
+            email = COALESCE(EXCLUDED.email, platform.owners.email),
+            credentials_version = platform.owners.credentials_version + 1'
 );
-$statement->execute([$username, $hash, $slug]);
+$statement->execute([$username, $hash, $email, $slug]);
 if ($statement->rowCount() < 1) {
     fwrite(STDERR, "that mall was not found\n");
     exit(1);
 }
 fwrite(STDOUT, "owner saved\n");
+
+function ownerEmail(mixed $email): ?string
+{
+    if (!is_string($email) || trim($email) === '') {
+        return null;
+    }
+    $email = trim($email);
+    if (strlen($email) > 200 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1) {
+        fwrite(STDERR, "STALL_OWNER_EMAIL is not an email address\n");
+        exit(1);
+    }
+
+    return $email;
+}

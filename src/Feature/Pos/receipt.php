@@ -63,14 +63,16 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
             <?php
             $quantity = RowValue::integer($line['quantity']);
             $count = $quantity > 0 ? $quantity : 1;
-            $amount = RowValue::integer($line['price']) * $count - RowValue::integer($line['discount']);
+            $store = RowValue::integer($line['store_discount'] ?? 0);
+            $amount = RowValue::integer($line['price']) * $count - RowValue::integer($line['discount']) - $store;
+            $offer = is_string($line['offer_name'] ?? null) ? $line['offer_name'] : '';
             ?>
             <div class="slip-item">
                 <p class="slip-row">
                     <span><?= View::text($line['description']) ?></span>
                     <span><?= View::text(View::money($amount)) ?></span>
                 </p>
-                <p class="slip-meta"><?= View::text((string) $count) ?> · <?= View::text($line['code']) ?><?php if ($line['returned'] === true): ?> · Returned<?php endif; ?></p>
+                <p class="slip-meta"><?= View::text((string) $count) ?> · <?= View::text($line['code']) ?><?php if ($offer !== ''): ?> · <?= View::text($offer) ?><?php endif; ?><?php if ($line['returned'] === true): ?> · Returned<?php endif; ?></p>
             </div>
         <?php endforeach; ?>
         <hr class="slip-rule">

@@ -117,6 +117,43 @@ final class RentController
         $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Late fee posted. Void that entry to reverse it.');
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/rent/waive', ['POST'])]
+    public function waive(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $vendorId = $this->chosen('vendor_id');
+        $boothId = $this->chosen('booth_id');
+        $today = $this->rent->today();
+        $figure = $this->receipts->figure($vendorId, $boothId, $today);
+        if ($figure === null) {
+            $this->render($slug, 'Choose a late fee.');
+
+            return;
+        }
+        try {
+            $count = $this->waiveChosen($figure['vendor_id'], $figure['booth_id'], $figure['owed'], $today);
+        } catch (DatabaseRefusal $refusal) {
+            $this->showCollect($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        }
+        if ($count < 1) {
+            $this->showCollect($slug, 'Choose a late fee.');
+
+            return;
+        }
+        $notice = $count === 1 ? 'Late fee waived.' : 'Late fees waived.';
+        $still = $this->receipts->figure($figure['vendor_id'], $figure['booth_id'], $today);
+        if ($still === null) {
+            $this->app->redirect('/' . $slug . '/rent', $notice);
+        }
+        $this->app->redirect(
+            '/' . $slug . '/rent/collect?vendor=' . rawurlencode($figure['vendor_id']) . '&booth=' . rawurlencode($figure['booth_id']),
+            $notice,
+        );
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/rent/receipt/([0-9a-fA-F-]{36})', ['GET'])]
     public function slip(string $slug, string $journalId): void
     {
@@ -158,6 +195,7 @@ final class RentController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'figure' => $figure,
+            'lines' => $this->receipts->explain($figure['vendor_id'], $figure['booth_id'], $figure['owed']),
             'tenderCash' => $returning ? $this->app->request()->field('tender_cash') : '',
             'tenderCard' => $returning ? $this->app->request()->field('tender_card') : '',
             'tenderChecks' => $returning ? $this->app->request()->field('tender_checks') : '',
@@ -196,6 +234,31 @@ final class RentController
             'backlog' => $fromSales ? [] : $this->rent->uncharged($today, $month),
             'error' => $error,
         ]);
+    }
+
+    private function waiveChosen(string $vendorId, string $boothId, int $owed, string $today): int
+    {
+        $open = [];
+        foreach ($this->receipts->explain($vendorId, $boothId, $owed) as $line) {
+            if ($line['journal_id'] !== '') {
+                $open[$line['journal_id']] = true;
+            }
+        }
+        $chosen = [];
+        if ($this->app->request()->field('all') === '1') {
+            foreach (array_keys($open) as $journalId) {
+                if (is_string($journalId)) {
+                    $chosen[] = $journalId;
+                }
+            }
+        } elseif (isset($open[$this->app->request()->field('journal_id')])) {
+            $chosen[] = $this->app->request()->field('journal_id');
+        }
+        foreach ($chosen as $journalId) {
+            $this->lateFees->waive($journalId, $today);
+        }
+
+        return count($chosen);
     }
 
     private function chosen(string $name): string

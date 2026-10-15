@@ -42,6 +42,21 @@ abstract class WebTestCase extends TestCase
         return new FormClient(self::$baseUrl);
     }
 
+    protected static function clearMailbox(): void
+    {
+        $written = file_put_contents(ProbeServer::mailFile(), '');
+        if ($written === false) {
+            self::fail('the mail file could not be cleared');
+        }
+    }
+
+    protected static function mailbox(): string
+    {
+        $text = file_get_contents(ProbeServer::mailFile());
+
+        return is_string($text) ? $text : '';
+    }
+
     protected static function makeRoomForAFloor(FormClient $client, string $slug): void
     {
         $editor = $client->get('/' . $slug . '/map/edit');

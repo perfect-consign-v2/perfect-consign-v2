@@ -10,6 +10,7 @@ use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Ledger\PostedLines;
+use PerfectConsign\Shared\Scalar\RowValue;
 
 final class LateFee
 {
@@ -39,5 +40,65 @@ final class LateFee
                 PostedLines::entry($this->ledger->roleAccount('late_fee_income'), 0, $minor, null, null),
             ],
         ));
+    }
+
+    public function waive(string $journalId, string $date): string
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $journalId) !== 1) {
+            throw new DatabaseRefusal('Choose a late fee.');
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            throw new DatabaseRefusal('Enter the date of the late fee.');
+        }
+        $journal = $this->ledger->journal($journalId);
+        if ($journal === null || RowValue::string($journal['source_type'] ?? null) !== 'late_fee') {
+            throw new DatabaseRefusal('Choose a late fee.');
+        }
+        if ($this->flag($journal['is_reversal'] ?? null) || $this->ledger->reversed($journalId)) {
+            throw new DatabaseRefusal('That late fee is already waived.');
+        }
+        $posted = RowValue::string($journal['posting_date'] ?? null);
+        if ($date < $posted) {
+            $date = $posted;
+        }
+
+        return $this->ledger->post(new JournalDraft(
+            postingKey: 'reversal:' . $journalId,
+            postingDate: $date,
+            source: new JournalSource(
+                'late_fee',
+                RowValue::string($journal['source_reference'] ?? null) . ':waive',
+                'Late fee waived',
+            ),
+            lines: $this->swapped($journalId),
+            reversesJournalId: $journalId,
+        ));
+    }
+
+    /**
+     * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
+     */
+    private function swapped(string $journalId): array
+    {
+        $lines = [];
+        foreach ($this->ledger->lines($journalId) as $line) {
+            $lines[] = PostedLines::entry(
+                RowValue::string($line['account_id'] ?? null),
+                RowValue::integer($line['credit_minor'] ?? null),
+                RowValue::integer($line['debit_minor'] ?? null),
+                RowValue::optionalString($line['subledger_type'] ?? null),
+                RowValue::optionalString($line['subledger_ref'] ?? null),
+            );
+        }
+        if (count($lines) < 2) {
+            throw new DatabaseRefusal('Choose a late fee.');
+        }
+
+        return $lines;
+    }
+
+    private function flag(mixed $value): bool
+    {
+        return in_array($value, [true, 1, '1', 't', 'true'], true);
     }
 }

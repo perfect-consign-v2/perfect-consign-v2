@@ -32,8 +32,8 @@ final class PosAddController
         try {
             $this->sales->refuse($slug);
             $today = $this->mall->today();
-            $this->instant->sell($session, $today, $request->field('booth_code'), new InstantAdd(
-                '',
+            $this->instant->add($session, $today, new InstantAdd(
+                $request->field('vendor_id'),
                 $request->field('description'),
                 $request->field('price'),
                 '',

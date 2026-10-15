@@ -32,7 +32,7 @@ final class WaveScreensTest extends WebTestCase
     public function testTheMonthPageReadsTheBooks(): void
     {
         $page = $this->client->get('/' . ProbeMall::SLUG . '/month');
-        // cashiers( addCashier( addVendor( findOrCreate( role( vendor( path( permitted( rest( slug( stale( older( go( actor( getShopper( addBooths( itemId( kind( kindFromSource( prefix( label( lateFee( moveVendor( vendorSignIn( unsold( waiting( shelf( occupied( printLabels( printOwn( storeName( owns( numbers( home( sticker( intake( sheet( clear( current( save( render( attempt( refuse( schema( cashier( counter( rentPage( drawer( lockedRegister( show( add( move( line( items( store( allocate( issuedAmount( databaseShaped( uniqueName( sell( shopper( withBooths( accept( lookup( passwordMatches( knownRole( openSession( staffRow(
+        // cashiers( addCashier( addVendor( findOrCreate( role( vendor( path( permitted( rest( slug( stale( older( go( actor( getShopper( addBooths( itemId( kind( kindFromSource( prefix( label( lateFee( moveVendor( vendorSignIn( saveVendor( instantForm( unsold( waiting( shelf( occupied( printLabels( printOwn( storeName( owns( numbers( home( sticker( intake( sheet( clear( current( save( render( attempt( refuse( schema( cashier( counter( rentPage( drawer( lockedRegister( show( add( move( line( items( store( allocate( issuedAmount( databaseShaped( uniqueName( sell( shopper( withBooths( accept( lookup( passwordMatches( knownRole( openSession( staffRow(
 
         self::assertSame(200, $page->status);
         self::assertSees('Sales', $page);

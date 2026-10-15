@@ -42,9 +42,6 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
     </div>
     <a class="btn no-print" href="/<?= View::text($slug) ?>/payouts/past">Past payouts</a>
 </div>
-<?php if (is_string($error) && $error !== ''): ?>
-    <p class="alert"><?= View::text($error) ?></p>
-<?php endif; ?>
 <div class="card list-dt-wrap">
     <div class="card-body">
         <?php

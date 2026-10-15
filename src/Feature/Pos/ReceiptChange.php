@@ -24,13 +24,20 @@ final class ReceiptChange
     }
 
     /**
-     * @param array{lines: list<array{item_id: string, price: int, discount: int, tax: int}>} $receipt
+     * @param array{lines: list<array{item_id: string, price: int, quantity?: int, discount: int, store_discount?: int, tax: int}>} $receipt
      */
     public function owed(array $receipt, string $itemId): int
     {
         foreach ($receipt['lines'] as $line) {
             if ($line['item_id'] === $itemId) {
-                return RowValue::integer($line['price']) - RowValue::integer($line['discount']) + RowValue::integer($line['tax']);
+                $quantity = RowValue::integer($line['quantity'] ?? 1);
+                $count = $quantity > 0 ? $quantity : 1;
+                $store = RowValue::integer($line['store_discount'] ?? 0);
+
+                return RowValue::integer($line['price']) * $count
+                    - RowValue::integer($line['discount'])
+                    - $store
+                    + RowValue::integer($line['tax']);
             }
         }
 

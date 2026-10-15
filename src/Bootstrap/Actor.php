@@ -41,6 +41,16 @@ final class Actor
         return '';
     }
 
+    public function account(): string
+    {
+        $account = $this->session->get('actor_account');
+        if (!is_string($account) || preg_match('/^[0-9a-fA-F-]{36}$/', $account) !== 1) {
+            return '';
+        }
+
+        return $account;
+    }
+
     public function vendor(): string
     {
         $vendor = $this->session->get('actor_vendor');

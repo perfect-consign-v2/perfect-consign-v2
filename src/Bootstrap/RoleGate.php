@@ -32,7 +32,7 @@ final class RoleGate
 
     private static function counter(string $rest): bool
     {
-        if (in_array($rest, ['/dashboard', '/logout', '/logout/confirm'], true)) {
+        if (in_array($rest, ['/dashboard', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
             return true;
         }
 
@@ -77,7 +77,10 @@ final class RoleGate
 
     private static function vendor(string $rest): bool
     {
-        if (in_array($rest, ['/vendor', '/vendor/labels', '/vendor/sales', '/vendor/inventory', '/logout', '/logout/confirm'], true)) {
+        if (in_array($rest, ['/vendor', '/vendor/labels', '/vendor/sales', '/vendor/inventory', '/vendor/offers', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
+            return true;
+        }
+        if (str_starts_with($rest, '/vendor/offers/')) {
             return true;
         }
 

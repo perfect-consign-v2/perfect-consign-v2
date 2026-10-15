@@ -16,7 +16,8 @@
     font-weight: 600;
 }
 .alert .error,
-.alert .notice {
+.alert .notice,
+.alert .warning {
     margin: 0;
     padding: 0;
     border: 0;
@@ -307,6 +308,38 @@ a.text-link:hover {
 .prior-register-panel ul {
     margin: var(--space-3) 0 0;
     padding-left: 1.1rem;
+}
+
+.flash-dialog {
+    max-width: 28rem;
+    width: calc(100% - 2rem);
+    border: none;
+    padding: 0;
+    background: transparent;
+    color: var(--text);
+}
+
+.flash-dialog::backdrop {
+    background: var(--overlay);
+}
+
+.flash-dialog .flash-panel {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+    margin: 0;
+    padding: var(--space-6);
+    font-size: var(--text-lg);
+    font-weight: 650;
+    box-shadow: var(--shadow-lg);
+}
+
+.flash-dialog .flash-panel p {
+    margin: 0;
+}
+
+.flash-dialog .btn {
+    align-self: end;
 }
 
 .form-sheet {
@@ -629,25 +662,6 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     justify-content: space-between;
     gap: var(--space-3);
 }
-.register > .card > .card-head { position: relative; }
-.register-status {
-    position: absolute;
-    top: 50%;
-    right: var(--space-5);
-    max-width: calc(100% - 11rem);
-    margin: 0;
-    transform: translateY(-50%);
-}
-.register-status .alert {
-    margin: 0;
-    align-items: center;
-    padding: var(--space-1) var(--space-3);
-}
-.register-status .alert p {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
 .register-cart { table-layout: auto; }
 .register-cart .register-item { width: 99%; }
 .register-cart .register-qty-col,
@@ -701,6 +715,21 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 }
 .content .register-pay-modal form label { margin: 0; }
 .pay-split { display: grid; }
+#instant-error {
+    margin: 0;
+    color: var(--danger);
+    background: var(--danger-soft);
+    border: 0;
+    border-radius: var(--radius);
+}
+#pay-error {
+    grid-column: 1 / -1;
+    margin: var(--space-4) var(--space-4) 0;
+    color: var(--danger);
+    background: var(--danger-soft);
+    border: 0;
+    border-radius: var(--radius);
+}
 .pay-split > .card-body { container-type: inline-size; min-width: 0; }
 .pay-quick {
     display: flex;

@@ -15,6 +15,7 @@ final class StickerItem
         public readonly string $brand,
         public readonly string $intake,
         public readonly string $tag,
+        public readonly string $deal = '',
     ) {
     }
 }

@@ -201,6 +201,10 @@ final class MallApp
         if ($this->sessionSlug() !== $slug) {
             $this->redirect('/' . $slug . '/login');
         }
+        if (!$this->door->credentialsMatch($tenant)) {
+            $this->signOut();
+            $this->redirect('/' . $slug . '/login');
+        }
         if (!$this->door->actor()->permitted($slug, $this->request->path, $this->request->method)) {
             $this->notFound(self::MISS_HIDDEN);
         }

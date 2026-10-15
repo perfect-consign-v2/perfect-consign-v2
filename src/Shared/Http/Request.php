@@ -16,6 +16,7 @@ final class Request
         public readonly array $query,
         public readonly array $post,
         public readonly string $referer = '',
+        public readonly string $origin = '',
     ) {
     }
 

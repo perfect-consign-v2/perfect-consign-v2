@@ -1,4 +1,6 @@
--- One owner per mall. stall_app can read the row and cannot write it.
+-- One owner per mall. stall_app can read the row.
+-- It can change the password, recovery email, and session generation.
+-- It cannot change the username, tenant, or id.
 -- The script rolls back.
 
 BEGIN;
@@ -49,11 +51,59 @@ BEGIN
     END;
     BEGIN
         UPDATE platform.owners SET username = 'changed' WHERE tenant_id = mall_id;
-        RAISE EXCEPTION 'stall_app updated an owner';
+        RAISE EXCEPTION 'stall_app updated an owner username';
     EXCEPTION
         WHEN insufficient_privilege THEN
             NULL;
     END;
+    BEGIN
+        UPDATE platform.owners SET id = '01900000-0000-7000-8000-00000000c005' WHERE tenant_id = mall_id;
+        RAISE EXCEPTION 'stall_app updated an owner id';
+    EXCEPTION
+        WHEN insufficient_privilege THEN
+            NULL;
+    END;
+    BEGIN
+        UPDATE platform.owners SET tenant_id = '01900000-0000-7000-8000-00000000c006' WHERE tenant_id = mall_id;
+        RAISE EXCEPTION 'stall_app updated an owner tenant';
+    EXCEPTION
+        WHEN insufficient_privilege THEN
+            NULL;
+    END;
+    BEGIN
+        UPDATE platform.owners SET email = 'not-an-email' WHERE tenant_id = mall_id;
+        RAISE EXCEPTION 'a bad owner email was accepted';
+    EXCEPTION
+        WHEN check_violation THEN
+            NULL;
+    END;
+    BEGIN
+        UPDATE platform.owners SET credentials_version = 0 WHERE tenant_id = mall_id;
+        RAISE EXCEPTION 'a zero session generation was accepted';
+    EXCEPTION
+        WHEN check_violation THEN
+            NULL;
+    END;
+    UPDATE platform.owners
+    SET password_hash = 'hash-next', email = 'owner@example.com', credentials_version = 2
+    WHERE tenant_id = mall_id;
+    IF (SELECT password_hash FROM platform.owners WHERE tenant_id = mall_id) IS DISTINCT FROM 'hash-next'
+        OR (SELECT email FROM platform.owners WHERE tenant_id = mall_id) IS DISTINCT FROM 'owner@example.com'
+        OR (SELECT credentials_version FROM platform.owners WHERE tenant_id = mall_id) IS DISTINCT FROM 2 THEN
+        RAISE EXCEPTION 'stall_app could not update the owner password';
+    END IF;
+    BEGIN
+        UPDATE platform.owners
+        SET username = 'changed', password_hash = 'nope'
+        WHERE tenant_id = mall_id;
+        RAISE EXCEPTION 'stall_app changed the owner username';
+    EXCEPTION
+        WHEN insufficient_privilege THEN
+            NULL;
+    END;
+    IF (SELECT password_hash FROM platform.owners WHERE tenant_id = mall_id) IS DISTINCT FROM 'hash-next' THEN
+        RAISE EXCEPTION 'a refused owner update changed the password';
+    END IF;
 END $$;
 
 ROLLBACK;

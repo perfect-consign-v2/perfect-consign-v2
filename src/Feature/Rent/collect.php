@@ -7,6 +7,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, rent: int, late: int, collect: string} $figure */
+/** @var list<array{label: string, date: string, amount: int, journal_id: string}> $lines */
 /** @var string $tenderCash */
 /** @var string $tenderCard */
 /** @var string $tenderChecks */
@@ -16,6 +17,12 @@ use PerfectConsign\Shared\Http\View;
 $booth = $figure['booth'] === '' ? '—' : $figure['booth'];
 $owed = View::money($figure['owed']);
 $checkOn = $tenderChecks !== '' && $tenderChecks !== '0' && $tenderChecks !== '0.00';
+$waive = 0;
+foreach ($lines as $line) {
+    if ($line['journal_id'] !== '') {
+        $waive++;
+    }
+}
 ?>
 <div class="page-head">
     <div class="titles">
@@ -32,11 +39,36 @@ $checkOn = $tenderChecks !== '' && $tenderChecks !== '0' && $tenderChecks !== '0
     <div class="card-body stack">
         <p class="slip-row"><span>Vendor</span><span><?= View::text($figure['vendor_name']) ?></span></p>
         <p class="slip-row"><span>Booth</span><span><?= View::text($booth) ?></span></p>
-        <?php if ($figure['late'] > 0 && $figure['rent'] > 0): ?>
-            <p class="slip-row"><span>Rent</span><span><?= View::text(View::money($figure['rent'])) ?></span></p>
-        <?php endif; ?>
-        <?php if ($figure['late'] > 0): ?>
-            <p class="slip-row"><span>Late fee</span><span><?= View::text(View::money($figure['late'])) ?></span></p>
+        <?php foreach ($lines as $line): ?>
+            <?php
+            $negative = $line['amount'] < 0;
+            $amount = $negative ? '(' . View::money(-$line['amount']) . ')' : View::money($line['amount']);
+            $canWaive = $line['journal_id'] !== '';
+            ?>
+            <?php if ($canWaive): ?>
+                <form class="slip-row" method="post" action="/<?= View::text($slug) ?>/rent/waive" onsubmit="return confirm('Waive this late fee?')">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <input type="hidden" name="vendor_id" value="<?= View::text($figure['vendor_id']) ?>">
+                    <input type="hidden" name="booth_id" value="<?= View::text($figure['booth_id']) ?>">
+                    <input type="hidden" name="journal_id" value="<?= View::text($line['journal_id']) ?>">
+                    <span><?= View::text($line['label']) ?><?php if ($line['date'] !== ''): ?> <span class="muted"><?= View::date($line['date']) ?></span><?php endif; ?></span>
+                    <span><?= View::text($amount) ?> <button class="btn" type="submit">Waive</button></span>
+                </form>
+            <?php else: ?>
+                <p class="slip-row">
+                    <span><?= View::text($line['label']) ?><?php if ($line['date'] !== ''): ?> <span class="muted"><?= View::date($line['date']) ?></span><?php endif; ?></span>
+                    <span<?= $negative ? ' style="color:var(--danger);font-weight:700"' : '' ?>><?= View::text($amount) ?></span>
+                </p>
+            <?php endif; ?>
+        <?php endforeach; ?>
+        <?php if ($waive > 1): ?>
+            <form method="post" action="/<?= View::text($slug) ?>/rent/waive" onsubmit="return confirm('Waive every late fee?')">
+                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                <input type="hidden" name="vendor_id" value="<?= View::text($figure['vendor_id']) ?>">
+                <input type="hidden" name="booth_id" value="<?= View::text($figure['booth_id']) ?>">
+                <input type="hidden" name="all" value="1">
+                <p><button class="btn" type="submit">Waive all late fees</button></p>
+            </form>
         <?php endif; ?>
         <p class="slip-row slip-total" id="rent-owed" data-cents="<?= View::text((string) $figure['owed']) ?>">
             <span>They owe</span><span style="font-size:1.75rem;font-weight:700"><?= View::text($owed) ?></span>

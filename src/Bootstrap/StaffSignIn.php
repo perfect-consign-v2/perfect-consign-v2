@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Bootstrap;
 
-use PerfectApp\Session\Session;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
 use Psr\Log\LoggerInterface;
@@ -13,8 +12,8 @@ final class StaffSignIn
 {
     public function __construct(
         private readonly PDO $pdo,
-        private readonly Session $session,
         private readonly LoggerInterface $logger,
+        private readonly LoginSession $sessions,
     ) {
     }
 
@@ -32,7 +31,7 @@ final class StaffSignIn
     }
 
     /**
-     * @return array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null}|null
+     * @return array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string}|null
      */
     private function lookup(TenantRecord $tenant, string $username): ?array
     {
@@ -53,12 +52,12 @@ final class StaffSignIn
     }
 
     /**
-     * @return array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null}|null
+     * @return array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string}|null
      */
     private function staffRow(TenantRecord $tenant, string $username): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id::text AS id, display_name, password_hash, role, vendor_id::text AS vendor_id
+            'SELECT id::text AS id, display_name, password_hash, role, vendor_id::text AS vendor_id, credentials_version
              FROM ' . $this->schema($tenant->schema) . '.staff
              WHERE lower(username) = lower(?)'
         );
@@ -72,7 +71,8 @@ final class StaffSignIn
         $hash = $row['password_hash'] ?? null;
         $role = $row['role'] ?? null;
         $vendorId = $row['vendor_id'] ?? null;
-        if (!is_string($id) || !is_string($displayName) || !is_string($hash) || !is_string($role)) {
+        $version = $this->version($row['credentials_version'] ?? null);
+        if (!is_string($id) || !is_string($displayName) || !is_string($hash) || !is_string($role) || $version === null) {
             return null;
         }
 
@@ -82,11 +82,24 @@ final class StaffSignIn
             'password_hash' => $hash,
             'role' => $role,
             'vendor_id' => is_string($vendorId) ? $vendorId : null,
+            'version' => $version,
         ];
     }
 
+    private function version(mixed $value): ?string
+    {
+        if (is_int($value)) {
+            $value = (string) $value;
+        }
+        if (!is_string($value) || ctype_digit($value) !== true) {
+            return null;
+        }
+
+        return $value;
+    }
+
     /**
-     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null} $row
+     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string} $row
      */
     private function passwordMatches(array $row, string $password): bool
     {
@@ -94,7 +107,7 @@ final class StaffSignIn
     }
 
     /**
-     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null} $row
+     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string} $row
      */
     private function knownRole(array $row): bool
     {
@@ -102,7 +115,7 @@ final class StaffSignIn
     }
 
     /**
-     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null} $row
+     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string} $row
      */
     private function openSession(TenantRecord $tenant, string $username, array $row): void
     {
@@ -110,18 +123,17 @@ final class StaffSignIn
             'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = ?::uuid AND username = ?'
         );
         $clear->execute([$tenant->id, $username]);
-        $now = (string) time();
-        $role = $row['role'] ?? null;
-        $this->session->regenerateId(true);
-        $this->session->set('owner_slug', $tenant->slug);
-        $this->session->set('owner_name', is_string($row['display_name'] ?? null) ? $row['display_name'] : $username);
-        $this->session->set('signed_in_at', $now);
-        $this->session->set('last_seen_at', $now);
-        $this->session->set('csrf', bin2hex(random_bytes(16)));
-        $this->session->set('actor_role', is_string($role) ? $role : '');
-        $this->session->set('actor_staff', is_string($row['id'] ?? null) ? $row['id'] : '');
-        $vendor = $row['vendor_id'] ?? null;
-        $this->session->set('actor_vendor', $role === 'vendor' && is_string($vendor) ? $vendor : '');
+        $role = $row['role'];
+        $vendor = $row['vendor_id'];
+        $this->sessions->open(
+            $tenant->slug,
+            $row['display_name'],
+            $role,
+            $row['id'],
+            $row['version'],
+            $row['id'],
+            $role === 'vendor' && is_string($vendor) ? $vendor : '',
+        );
     }
 
     private function refuse(TenantRecord $tenant, string $username): void

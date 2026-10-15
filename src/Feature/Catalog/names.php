@@ -12,7 +12,6 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var int $total */
 /** @var string $confirm */
 /** @var string $modal */
-/** @var string|null $error */
 /** @var string $draft */
 /** @var NameList $list */
 /** @var list<array<string, mixed>> $rows */
@@ -98,9 +97,6 @@ $noun = $list->singular;
         <div class="card-head"><div class="h3" id="name-new-title">New <?= View::text($noun) ?></div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <?php if ($modal === 'new' && is_string($error) && $error !== ''): ?>
-                <p class="error"><?= View::text($error) ?></p>
-            <?php endif; ?>
             <label for="name-new-name">Name</label>
             <input class="input" id="name-new-name" name="name" value="<?= $modal === 'new' ? View::text($draft) : '' ?>" required>
             <div class="row gap-2">
@@ -116,9 +112,6 @@ $noun = $list->singular;
         <div class="card-head"><div class="h3" id="name-rename-title">Rename <?= View::text($noun) ?></div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <?php if ($renaming && is_string($error) && $error !== ''): ?>
-                <p class="error"><?= View::text($error) ?></p>
-            <?php endif; ?>
             <label for="name-rename-name">Name</label>
             <input class="input" id="name-rename-name" name="name" value="<?= $renaming ? View::text($draft) : '' ?>" required>
             <div class="row gap-2">

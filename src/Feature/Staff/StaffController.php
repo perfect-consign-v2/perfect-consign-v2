@@ -33,6 +33,7 @@ final class StaffController
                 $request->field('username'),
                 $request->field('display_name'),
                 $request->raw('password'),
+                $request->field('email'),
             );
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
@@ -44,6 +45,26 @@ final class StaffController
             return;
         }
         $this->app->redirect('/' . $slug . '/staff', 'Cashier added.');
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/staff/([0-9a-fA-F-]{36})/password', ['POST'])]
+    public function replace(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $request = $this->app->request();
+        try {
+            $this->staff->replaceCashier($id, $request->raw('password'), $request->field('email'));
+        } catch (DatabaseRefusal $refusal) {
+            $this->render($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        } catch (\InvalidArgumentException $error) {
+            $this->render($slug, $error->getMessage());
+
+            return;
+        }
+        $this->app->redirect('/' . $slug . '/staff', 'Cashier password saved.');
     }
 
     private function render(string $slug, ?string $error): void
