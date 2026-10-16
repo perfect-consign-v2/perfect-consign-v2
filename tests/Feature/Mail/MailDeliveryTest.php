@@ -103,6 +103,73 @@ final class MailDeliveryTest extends TestCase
         }
     }
 
+    public function testACompletedDialogueIsAccepted(): void
+    {
+        $server = $this->server('accept');
+        $client = new SmtpClient(
+            '127.0.0.1',
+            $server['port'],
+            'user',
+            'secret',
+            'mall@example.com',
+            static fn (mixed $socket): bool => true
+        );
+        try {
+            $client->send('ada@example.com', 'Hello', "Line\n.");
+            self::assertTrue(true);
+        } finally {
+            $this->stop($server);
+        }
+    }
+
+    public function testFortyContinuationLinesAreRefused(): void
+    {
+        $server = $this->server('long');
+        $client = new SmtpClient(
+            '127.0.0.1',
+            $server['port'],
+            'user',
+            'secret',
+            'mall@example.com',
+            static fn (mixed $socket): bool => true
+        );
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('smtp send failed');
+            $client->send('ada@example.com', 'Hello', 'Body');
+        } finally {
+            $this->stop($server);
+        }
+    }
+
+    public function testAMissingPieceIsNotConfigured(): void
+    {
+        $mail = new OutboundMail(new RecordedMailLog());
+        $settings = new \ReflectionMethod(OutboundMail::class, 'settings');
+        foreach (['STALL_SMTP_USERNAME', 'STALL_SMTP_PASSWORD', 'STALL_SMTP_FROM'] as $blank) {
+            $env = $this->smtp('127.0.0.1', '587');
+            $env[$blank] = '';
+            $this->withEnv($env, function () use ($mail, $settings): void {
+                self::assertNull($settings->invoke($mail));
+            });
+        }
+        $port = new \ReflectionMethod(OutboundMail::class, 'port');
+        $this->withEnv($this->smtp('127.0.0.1', '1'), function () use ($mail, $port): void {
+            self::assertSame(1, $port->invoke($mail));
+        });
+        $this->withEnv($this->smtp('127.0.0.1', '65535'), function () use ($mail, $port): void {
+            self::assertSame(65535, $port->invoke($mail));
+        });
+        $this->withEnv($this->smtp('127.0.0.1', '65536'), function () use ($mail, $port): void {
+            self::assertNull($port->invoke($mail));
+        });
+        $unset = $this->smtp('127.0.0.1', '587');
+        $unset['STALL_SMTP_PORT'] = null;
+        $this->withEnv($unset, function () use ($mail, $port): void {
+            self::assertSame(587, $port->invoke($mail));
+        });
+    }
+
     public function testTheClientStopsOnABrokenGreeting(): void
     {
         foreach (['garbage', 'tab', 'flood'] as $mode) {
@@ -187,6 +254,52 @@ if ($mode === 'tab') {
 if ($mode === 'flood') {
     for ($line = 0; $line < 40; $line++) {
         fwrite($connection, "220-more\r\n");
+    }
+    exit(0);
+}
+if ($mode === 'accept' || $mode === 'long') {
+    if ($mode === 'long') {
+        for ($line = 0; $line < 40; $line++) {
+            fwrite($connection, "220-more\r\n");
+        }
+        fwrite($connection, "220 ready\r\n");
+    } else {
+        fwrite($connection, "220-ready\r\n220 ready\r\n");
+    }
+    $phase = 'command';
+    while (is_string($line = fgets($connection))) {
+        if ($phase === 'user') {
+            fwrite($connection, "334 next\r\n");
+            $phase = 'pass';
+            continue;
+        }
+        if ($phase === 'pass') {
+            fwrite($connection, "235 ok\r\n");
+            $phase = 'command';
+            continue;
+        }
+        $text = strtoupper(trim($line));
+        if (str_starts_with($text, 'DATA')) {
+            fwrite($connection, "354 go\r\n");
+            while (is_string($body = fgets($connection)) && trim($body) !== '.') {
+            }
+            fwrite($connection, "250 queued\r\n");
+            continue;
+        }
+        if (str_starts_with($text, 'QUIT')) {
+            fwrite($connection, "221 bye\r\n");
+            break;
+        }
+        if (str_starts_with($text, 'AUTH')) {
+            fwrite($connection, "334 next\r\n");
+            $phase = 'user';
+            continue;
+        }
+        if (str_starts_with($text, 'STARTTLS')) {
+            fwrite($connection, "220 go\r\n");
+            continue;
+        }
+        fwrite($connection, "250 OK\r\n");
     }
     exit(0);
 }

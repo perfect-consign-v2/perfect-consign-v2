@@ -41,6 +41,9 @@ final class PayVendorsPageTest extends TestCase
         self::assertStringNotContainsString('dt-column-title">This month<', $html);
         self::assertStringNotContainsString('dt-column-title">Paid since<', $html);
         self::assertStringContainsString('Print this list', $html);
+        self::assertStringContainsString('class="payout-sheet"', $html);
+        self::assertStringContainsString('data-dt-fit="1"', $html);
+        self::assertStringContainsString('beforeprint', $html);
         self::assertStringNotContainsString('Print checks', $html);
         self::assertStringNotContainsString('Close October', $html);
         self::assertStringContainsString('1 to pay', $html);
@@ -122,9 +125,15 @@ final class PayVendorsPageTest extends TestCase
     {
         $html = $this->page('00000000-0000-7000-8000-000000000020', 'check', 'paid');
 
-        self::assertStringContainsString('October is paid.', $html);
+        self::assertStringContainsString('October is paid by check. 1 check, $72.00.', $html);
+        self::assertStringContainsString('dt-column-title">Paid them<', $html);
+        self::assertStringContainsString('Paid $72.00', $html);
+        self::assertStringContainsString('No payment', $html);
+        self::assertStringNotContainsString('dt-column-title">Pay them<', $html);
+        self::assertStringNotContainsString('payout-due', $html);
         self::assertStringContainsString('/payouts/report?run=00000000-0000-7000-8000-000000000020', $html);
-        self::assertStringContainsString('/payouts/checks?run=00000000-0000-7000-8000-000000000020', $html);
+        self::assertStringContainsString('class="btn btn-primary" href="/webprobe/payouts/checks?run=00000000-0000-7000-8000-000000000020"', $html);
+        self::assertStringContainsString('class="text-link" href="/webprobe/payouts/report?run=00000000-0000-7000-8000-000000000020"', $html);
         self::assertStringContainsString('Print each vendor\'s sales', $html);
         self::assertStringContainsString('Print checks', $html);
         self::assertStringNotContainsString('Pay these vendors', $html);
@@ -135,10 +144,28 @@ final class PayVendorsPageTest extends TestCase
     {
         $html = $this->page('00000000-0000-7000-8000-000000000021', 'safe_cash', 'paid');
 
-        self::assertStringContainsString('October is paid.', $html);
+        self::assertStringContainsString('October is paid from the safe. $72.00 went out.', $html);
+        self::assertStringContainsString('Paid $72.00', $html);
+        self::assertStringContainsString('class="text-link" href="/webprobe/payouts/report?run=00000000-0000-7000-8000-000000000021"', $html);
         self::assertStringContainsString('Print each vendor\'s sales', $html);
         self::assertStringNotContainsString('Print checks', $html);
         self::assertStringNotContainsString('Pay these vendors', $html);
+        $drawer = $this->page('00000000-0000-7000-8000-000000000021', 'drawer_cash', 'paid');
+        self::assertStringContainsString('October is paid from the drawer. $72.00 went out.', $drawer);
+    }
+
+    public function testAPaidCheckMonthWithNothingToPaySaysSo(): void
+    {
+        $html = $this->page('00000000-0000-7000-8000-000000000020', 'check', 'paid', '', null, [], '', 0, 0);
+
+        self::assertStringContainsString('October is paid by check. Nobody is getting a check.', $html);
+        $other = $this->page('00000000-0000-7000-8000-000000000020', 'store_credit', 'paid', '', null, [], '', 0, 0);
+        self::assertStringContainsString('>October is paid.</h1>', $other);
+        self::assertStringNotContainsString('from the safe', $other);
+        self::assertStringContainsString('No payment', $html);
+        self::assertStringContainsString('0 paid', $html);
+        self::assertStringNotContainsString('1 check', $html);
+        self::assertStringNotContainsString('payout-due', $html);
     }
 
     /**
@@ -153,6 +180,7 @@ final class PayVendorsPageTest extends TestCase
         array $excluded = [],
         string $boothId = '',
         int $owes = 0,
+        int $check = 7200,
     ): string {
         $view = new View(dirname(__DIR__, 3) . '/src');
         ob_start();
@@ -178,7 +206,7 @@ final class PayVendorsPageTest extends TestCase
                 'payable' => 10200,
                 'rent' => 3000,
                 'monthRent' => 30000,
-                'check' => 7200,
+                'check' => $check,
                 'owes' => $owes,
                 'note' => $note,
             ], [

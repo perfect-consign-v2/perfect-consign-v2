@@ -56,6 +56,39 @@ final class MallChrome
         return '/' . $slug . '/' . $page;
     }
 
+    public function previewAs(string $slug): string
+    {
+        if ($slug === '' || $this->door->actor()->role() !== 'owner') {
+            return '';
+        }
+        if (!VendorPreview::onPortal($this->request->path, $slug)) {
+            return '';
+        }
+
+        return VendorPreview::token($this->request->query('as'));
+    }
+
+    public function keepFlash(string $key, ?string $value): void
+    {
+        if ($value === null || $value === '') {
+            return;
+        }
+        $this->session->set($key, $value);
+    }
+
+    public function takeFlash(string $key): ?string
+    {
+        $value = $this->session->get($key);
+        if ($this->session->has($key)) {
+            $this->session->delete($key);
+        }
+        if (!is_string($value) || $value === '') {
+            return null;
+        }
+
+        return $value;
+    }
+
     private function previewing(string $slug): bool
     {
         return $this->door->actor()->role() === 'owner'

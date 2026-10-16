@@ -19,23 +19,38 @@ final class OccupiedPack
      */
     public function fill(array $pack, string $today): array
     {
-        $seen = [];
-        foreach ($pack as $index => $row) {
-            $seen[$row['vendor_id'] . '|' . $row['booth']] = $index;
+        $rows = [];
+        foreach ($pack as $row) {
+            $id = $row['vendor_id'];
+            if (!isset($rows[$id])) {
+                $rows[$id] = $row;
+                continue;
+            }
+            $rows[$id] = self::withBooth($rows[$id], [
+                'vendor_id' => $id,
+                'code' => $row['code'],
+                'name' => $row['name'],
+                'booth' => $row['booth'],
+                'booth_id' => $row['boothId'],
+            ]);
         }
         foreach ($this->occupied($today) as $stay) {
-            $key = $stay['vendor_id'] . '|' . $stay['booth'];
-            if (isset($seen[$key])) {
-                continue;
-            }
-            $blank = $stay['vendor_id'] . '|';
-            if (isset($seen[$blank]) && $pack[$seen[$blank]]['booth'] === '') {
-                $pack[$seen[$blank]]['booth'] = $stay['booth'];
-                $pack[$seen[$blank]]['boothId'] = $stay['booth_id'];
-                $seen[$key] = $seen[$blank];
-                continue;
-            }
-            $pack[] = [
+            $id = $stay['vendor_id'];
+            $rows[$id] = self::withBooth($rows[$id] ?? null, $stay);
+        }
+
+        return array_values($rows);
+    }
+
+    /**
+     * @param array{vendor_id: string, code: string, name: string, booth: string, boothId: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int, note: string}|null $row
+     * @param array{vendor_id: string, code: string, name: string, booth: string, booth_id: string} $stay
+     * @return array{vendor_id: string, code: string, name: string, booth: string, boothId: string, mode: string, prior: int, charged: int, paid: int, payable: int, rent: int, monthRent: int, check: int, owes: int, settled: int, adjustment: int, note: string}
+     */
+    public static function withBooth(?array $row, array $stay): array
+    {
+        if ($row === null) {
+            return [
                 'vendor_id' => $stay['vendor_id'],
                 'code' => $stay['code'],
                 'name' => $stay['name'],
@@ -55,8 +70,20 @@ final class OccupiedPack
                 'note' => '',
             ];
         }
+        $booth = $stay['booth'];
+        if ($booth !== '') {
+            $codes = $row['booth'] === '' ? [] : explode(', ', $row['booth']);
+            if (!in_array($booth, $codes, true)) {
+                $codes[] = $booth;
+                usort($codes, static fn (string $left, string $right): int => strnatcasecmp($left, $right));
+                $row['booth'] = implode(', ', $codes);
+            }
+        }
+        if ($row['boothId'] === '') {
+            $row['boothId'] = $stay['booth_id'];
+        }
 
-        return $pack;
+        return $row;
     }
 
     /**

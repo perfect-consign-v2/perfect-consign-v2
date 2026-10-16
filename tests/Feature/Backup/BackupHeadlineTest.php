@@ -15,6 +15,7 @@ final class BackupHeadlineTest extends TestCase
         $now = new DateTimeImmutable('2026-09-26 12:00:00+00');
 
         self::assertSame('No backup downloaded yet.', BackupHeadline::text(null, $now));
+        self::assertSame('UTC', BackupHeadline::now()->getTimezone()->getName());
     }
 
     public function testAgeIsCalendarDaysInUtc(): void

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Mall;
 
-use DateTimeImmutable;
 use DateTimeZone;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
@@ -13,7 +12,6 @@ use PerfectConsign\Feature\Backup\BackupStore;
 use PerfectConsign\Feature\Inventory\LabelCatalog;
 use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\Money;
 
 final class MallController
 {
@@ -26,19 +24,7 @@ final class MallController
 
     private ?string $postedStock = null;
 
-    private ?bool $postedRentals = null;
-
-    private ?int $postedCycleDay = null;
-
-    private ?bool $postedPrepaid = null;
-
-    private ?bool $postedLateFees = null;
-
-    private ?int $postedLateGrace = null;
-
-    private ?int $postedLateFirst = null;
-
-    private ?int $postedLateNext = null;
+    private MallRentDraft $rentDraft;
 
     public function __construct(
         private readonly MallApp $app,
@@ -47,6 +33,7 @@ final class MallController
         private readonly BackupStore $backups,
         private readonly LabelCatalog $stocks,
     ) {
+        $this->rentDraft = new MallRentDraft($app, $payouts);
     }
 
     public function showError(string $slug, string $error): void
@@ -103,7 +90,7 @@ final class MallController
         $basis = $this->basisPoints($storeTake);
         $taxBasis = $this->taxMillis($taxRate);
         $days = $this->wholeDays($floorRaw);
-        $rentError = $this->rentPolicy();
+        $rentError = $this->rentDraft->read();
         $error = $rentError ?? $this->refusal($basis, $taxBasis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
@@ -203,11 +190,11 @@ final class MallController
             $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
             $this->payouts->save(
                 $this->app->request()->field('operating_mode'),
-                $this->postedPrepaid ?? false,
-                $this->postedRentals ?? false,
-                $this->postedCycleDay ?? 1,
+                $this->rentDraft->prepaid ?? false,
+                $this->rentDraft->rentals ?? false,
+                $this->rentDraft->cycleDay ?? 1,
             );
-            $this->storeLateFees();
+            $this->rentDraft->save();
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
@@ -257,93 +244,6 @@ final class MallController
         }
 
         return $days;
-    }
-
-    private function rentPolicy(): ?string
-    {
-        $enabled = $this->app->request()->field('booth_rentals_enabled') === '1';
-        $this->postedRentals = $enabled;
-        $day = $this->payouts->cycleDay();
-        if ($enabled && !$this->payouts->cycleFrozen()) {
-            $raw = $this->app->request()->field('rent_cycle_day');
-            if (preg_match('/^(?:[1-9]|1[0-9]|2[0-8])$/', $raw) !== 1) {
-                return 'the rent cycle day is a whole number from 1 to 28';
-            }
-            $day = (int) $raw;
-        }
-        $this->postedCycleDay = $day;
-        $this->postedPrepaid = $enabled
-            ? $this->app->request()->field('rent_prepaid_from_prior_sales') === '1'
-            : $this->payouts->rentPrepaid();
-
-        return $this->lateFeePolicy();
-    }
-
-    private function lateFeePolicy(): ?string
-    {
-        if ($this->postedRentals !== true) {
-            return null;
-        }
-        $enabled = $this->app->request()->field('late_fees_enabled') === '1';
-        $this->postedLateFees = $enabled;
-        $graceRaw = $this->app->request()->field('late_fee_grace_days');
-        if ($graceRaw === '' && !$enabled) {
-            $graceRaw = '0';
-        }
-        if (preg_match('/^(?:0|[1-9]|1[0-9]|2[0-8])$/', $graceRaw) !== 1) {
-            return 'late fee grace is a whole number from 0 to 28';
-        }
-        $this->postedLateGrace = (int) $graceRaw;
-        $first = $this->optionalMinor('late_fee_first');
-        $next = $this->optionalMinor('late_fee_next');
-        if ($first === false || $next === false) {
-            return 'enter the late fee in dollars and cents';
-        }
-        if ($enabled && ($first < 1 || $next < 1)) {
-            return 'enter the late fee in dollars and cents';
-        }
-        $this->postedLateFirst = $first;
-        $this->postedLateNext = $next;
-
-        return null;
-    }
-
-    private function optionalMinor(string $field): int|false
-    {
-        $raw = trim($this->app->request()->field($field));
-        if ($raw === '') {
-            return 0;
-        }
-        try {
-            return Money::parseMinor($raw);
-        } catch (\InvalidArgumentException) {
-            return false;
-        }
-    }
-
-    private function storeLateFees(): void
-    {
-        if ($this->postedLateFees === null || $this->postedLateGrace === null) {
-            return;
-        }
-        if ($this->postedLateFirst === null || $this->postedLateNext === null) {
-            return;
-        }
-        $this->payouts->saveLateFees(
-            $this->postedLateFees,
-            $this->postedLateGrace,
-            $this->postedLateFirst,
-            $this->postedLateNext,
-        );
-    }
-
-    private function dollars(int $minor): string
-    {
-        if ($minor < 1) {
-            return '';
-        }
-
-        return intdiv($minor, 100) . '.' . str_pad((string) ($minor % 100), 2, '0', STR_PAD_LEFT);
     }
 
     private function dayText(?int $days): string
@@ -422,18 +322,18 @@ final class MallController
             'taxRate' => $this->postedTaxRate ?? $this->taxPercent($this->mall->taxRate()),
             'backupHeadline' => BackupHeadline::text(
                 $this->backups->latest($tenant->id),
-                new DateTimeImmutable('now', new DateTimeZone('UTC'))
+                BackupHeadline::now(),
             ),
             'operatingMode' => $this->payouts->operatingMode(),
             'payoutCadence' => $this->payouts->payoutCadence(),
-            'rentPrepaid' => $this->postedPrepaid ?? $this->payouts->rentPrepaid(),
-            'boothRentals' => $this->postedRentals ?? $this->payouts->rentalsEnabled(),
-            'cycleDay' => $this->postedCycleDay ?? $this->payouts->cycleDay(),
+            'rentPrepaid' => $this->rentDraft->prepaid ?? $this->payouts->rentPrepaid(),
+            'boothRentals' => $this->rentDraft->rentals ?? $this->payouts->rentalsEnabled(),
+            'cycleDay' => $this->rentDraft->cycleDay ?? $this->payouts->cycleDay(),
             'cycleFrozen' => $this->payouts->cycleFrozen(),
-            'lateFees' => $this->postedLateFees ?? $late['enabled'],
-            'lateGrace' => $this->postedLateGrace ?? $late['grace'],
-            'lateFirst' => $this->dollars($this->postedLateFirst ?? $late['first']),
-            'lateNext' => $this->dollars($this->postedLateNext ?? $late['next']),
+            'lateFees' => $this->rentDraft->lateFees ?? $late['enabled'],
+            'lateGrace' => $this->rentDraft->lateGrace ?? $late['grace'],
+            'lateFirst' => $this->rentDraft->dollars($this->rentDraft->lateFirst ?? $late['first']),
+            'lateNext' => $this->rentDraft->dollars($this->rentDraft->lateNext ?? $late['next']),
             'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
             'stocks' => $this->stocks->choices(),
             'catalogs' => $this->postedCatalogs ?? [

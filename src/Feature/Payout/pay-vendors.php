@@ -34,10 +34,24 @@ foreach ($pack as $row) {
     }
 }
 $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
+$paid = $savedStatus === 'paid';
+$heading = $monthName . ' payout';
+if ($paid && $savedTender === 'check' && $checks === 0) {
+    $heading = $monthName . ' is paid by check. Nobody is getting a check.';
+} elseif ($paid && $savedTender === 'check') {
+    $heading = $monthName . ' is paid by check. ' . $checks . ' ' . ($checks === 1 ? 'check' : 'checks') . ', ' . View::money($checkTotal) . '.';
+} elseif ($paid && $savedTender === 'drawer_cash') {
+    $heading = $monthName . ' is paid from the drawer. ' . View::money($checkTotal) . ' went out.';
+} elseif ($paid && $savedTender === 'safe_cash') {
+    $heading = $monthName . ' is paid from the safe. ' . View::money($checkTotal) . ' went out.';
+} elseif ($paid) {
+    $heading = $monthName . ' is paid.';
+}
 ?>
+<div class="payout-sheet">
 <div class="page-head">
     <div class="titles">
-        <h1 class="h1"><?= View::text($monthName) ?> payout</h1>
+        <h1 class="h1"><?= View::text($heading) ?></h1>
         <p class="muted"><?= View::text($displayName) ?></p>
     </div>
     <a class="btn no-print" href="/<?= View::text($slug) ?>/payouts/past">Past payouts</a>
@@ -45,13 +59,13 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
 <div class="card list-dt-wrap">
     <div class="card-body">
         <?php
-        ListTable::open(['id' => 'pay-vendors', 'export' => 'pay-vendors', 'order' => [[0, 'asc']]]);
+        ListTable::open(['id' => 'pay-vendors', 'export' => 'pay-vendors', 'order' => [[0, 'asc']], 'fit' => true]);
         ListTable::head([
             ['label' => 'Vendor', 'token' => 'id'],
             ['label' => 'Booth'],
             ['label' => 'They earned', 'sort' => 'num'],
             ['label' => 'Rent', 'sort' => 'num'],
-            ['label' => 'Pay them', 'sort' => 'num'],
+            ['label' => $paid ? 'Paid them' : 'Pay them', 'sort' => 'num'],
             ['label' => 'Owes the store', 'sort' => 'num'],
         ]);
         ?>
@@ -65,7 +79,7 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
                     <td><?= View::text($row['booth'] === '' ? '—' : $row['booth']) ?></td>
                     <td><?= View::text(View::money($row['payable'])) ?></td>
                     <td><?= View::text(View::money($row['monthRent'])) ?></td>
-                    <td style="font-size:1.35rem;font-weight:700"><?= View::text(View::money($row['check'])) ?></td>
+                    <td><?php if ($paid && $row['check'] > 0): ?>Paid <?= View::text(View::money($row['check'])) ?><?php elseif ($paid): ?>No payment<?php else: ?><span class="payout-due"><?= View::text(View::money($row['check'])) ?></span><?php endif; ?></td>
                     <td><?php if ($row['owes'] > 0): ?><a class="owe-amount" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>">(<?= View::text(View::money($row['owes'])) ?>)</a><?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>
@@ -78,19 +92,20 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
 <?php if ($excluded !== []): ?>
     <p class="muted">Left off this payout: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['name']) ?> (<?= View::text($words[$vendor['mode']] ?? $vendor['mode']) ?>) <?php endforeach; ?></p>
 <?php endif; ?>
-<?php if ($savedStatus === 'paid'): ?>
-    <p class="strong"><?= View::text($monthName) ?> is paid.</p>
-<?php elseif ($savedStatus === 'settled'): ?>
+<?php if ($savedStatus === 'settled'): ?>
     <p class="strong"><?= View::text($monthName) ?> is saved, and the payment was not recorded.</p>
 <?php endif; ?>
-<div class="stack mt-6 no-print">
-    <button class="btn" type="button" onclick="window.print()">Print this list</button>
-    <?php if ($savedRun !== ''): ?>
-        <a class="btn" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each vendor's sales</a>
-        <?php if ($savedTender === 'check' && $savedStatus === 'paid'): ?>
-            <a class="btn" href="/<?= View::text($slug) ?>/payouts/checks?run=<?= View::text($savedRun) ?>">Print checks</a>
-        <?php endif; ?>
+</div>
+<div class="stack mt-6 no-print payout-next">
+    <?php if ($savedRun !== '' && $savedTender === 'check' && $paid): ?>
+        <a class="btn btn-primary" href="/<?= View::text($slug) ?>/payouts/checks?run=<?= View::text($savedRun) ?>">Print checks</a>
+        <a class="text-link" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each vendor's sales</a>
+        <button class="text-link" type="button" onclick="window.print()">Print this list</button>
+    <?php elseif ($savedRun !== ''): ?>
+        <button class="btn" type="button" onclick="window.print()">Print this list</button>
+        <a class="text-link" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each vendor's sales</a>
     <?php else: ?>
+        <button class="btn" type="button" onclick="window.print()">Print this list</button>
         <form class="pay-vendors" method="post" action="/<?= View::text($slug) ?>/payouts/close">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="tender">Pay from</label>
@@ -104,3 +119,26 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
     <?php endif; ?>
 </div>
 <?php ListTable::assets(); ?>
+<script>
+(function () {
+    const table = document.getElementById('list-pay-vendors');
+    if (table === null) {
+        return;
+    }
+    let length = 10;
+    window.addEventListener('beforeprint', function () {
+        if (typeof DataTable === 'undefined' || table.getAttribute('data-dt-ready') !== '1') {
+            return;
+        }
+        const api = new DataTable(table);
+        length = api.page.len();
+        api.page.len(-1).draw(false);
+    });
+    window.addEventListener('afterprint', function () {
+        if (typeof DataTable === 'undefined' || table.getAttribute('data-dt-ready') !== '1') {
+            return;
+        }
+        new DataTable(table).page.len(length).draw(false);
+    });
+}());
+</script>

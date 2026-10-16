@@ -25,7 +25,10 @@ final class RentController
         private readonly JournalCash $cash,
         private readonly LateFeeDue $lateDue,
     ) {
+        $this->forms = new RentForm();
     }
+
+    private RentForm $forms;
 
     #[Route('/([a-z][a-z0-9-]{0,62})/rent', ['GET'])]
     public function form(string $slug): void
@@ -68,13 +71,13 @@ final class RentController
         $vendorId = $this->app->request()->field('vendor_id');
         $boothId = $this->app->request()->field('booth_id');
         $today = $this->rent->today();
-        $waived = $this->checked('waive');
+        $waived = $this->forms->checked($this->app->request()->post['waive'] ?? []);
         $cash = $this->app->request()->field('tender_cash');
         $card = $this->app->request()->field('tender_card');
         $checks = $this->app->request()->field('tender_checks');
         $amount = $this->app->request()->field('amount');
         $session = '';
-        if ($waived === [] || $this->filled($cash) || $this->filled($card) || $this->filled($checks) || $this->filled($amount)) {
+        if ($this->forms->needsDrawer($waived, $cash, $card, $checks, $amount)) {
             $session = $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true));
         }
         try {
@@ -124,7 +127,7 @@ final class RentController
             return;
         }
         try {
-            $count = $this->waiveChosen($figure['vendor_id'], $figure['booth_id'], $figure['owed'], $today);
+            $count = $this->waiveChosen($figure['vendor_id'], $figure['owed'], $today);
         } catch (DatabaseRefusal $refusal) {
             $this->showCollect($slug, $this->app->catchRefusal($refusal));
 
@@ -235,7 +238,7 @@ final class RentController
         ]);
     }
 
-    private function waiveChosen(string $vendorId, string $boothId, int $owed, string $today): int
+    private function waiveChosen(string $vendorId, int $owed, string $today): int
     {
         $open = [];
         foreach ($this->receipts->explain($vendorId, $owed, $today) as $line) {
@@ -258,33 +261,6 @@ final class RentController
         }
 
         return count($chosen);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function checked(string $name): array
-    {
-        $raw = $this->app->request()->post[$name] ?? [];
-        if (is_string($raw)) {
-            $raw = $raw === '' ? [] : [$raw];
-        }
-        if (!is_array($raw)) {
-            return [];
-        }
-        $ids = [];
-        foreach ($raw as $id) {
-            if (is_string($id) && trim($id) !== '') {
-                $ids[] = trim($id);
-            }
-        }
-
-        return $ids;
-    }
-
-    private function filled(string $value): bool
-    {
-        return $value !== '' && $value !== '0' && $value !== '0.0' && $value !== '0.00';
     }
 
     private function chosen(string $name): string

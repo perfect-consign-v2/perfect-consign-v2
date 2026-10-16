@@ -17,6 +17,14 @@ final class OfferFieldsTest extends TestCase
         $deal = $this->fields()->checked($this->draft(), null);
 
         self::assertSame('Spring', $deal['name']);
+        $exact = $this->draft();
+        $exact['name'] = str_repeat('a', 80);
+        $exact['threshold'] = '2';
+        $exact['ends_on'] = '2026-06-15';
+        $held = $this->fields()->checked($exact, null);
+        self::assertSame(str_repeat('a', 80), $held['name']);
+        self::assertSame(2, $held['threshold']);
+        self::assertSame('2026-06-15', $held['ends_on']);
         self::assertSame('store', $deal['scope']);
         self::assertNull($deal['scope_id']);
         self::assertSame(3, $deal['threshold']);

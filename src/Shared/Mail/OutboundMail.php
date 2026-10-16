@@ -71,7 +71,7 @@ final class OutboundMail
         $username = $this->text('STALL_SMTP_USERNAME');
         $password = $this->raw('STALL_SMTP_PASSWORD');
         $from = $this->text('STALL_SMTP_FROM');
-        if ($host === '' || $username === '' || $password === '' || $from === '') {
+        if ($username === '' || $password === '' || $from === '') {
             return null;
         }
         if (preg_match('/^[A-Za-z0-9.-]+$/', $host) !== 1 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $from) !== 1) {

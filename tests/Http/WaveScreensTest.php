@@ -57,10 +57,13 @@ final class WaveScreensTest extends WebTestCase
         self::assertSame(200, $page->status);
         $list = strpos($page->body, 'Print this list');
         $pay = strpos($page->body, 'Pay these vendors');
-        $saved = strpos($page->body, ' is paid.');
+        $saved = strpos($page->body, ' is paid');
         $earned = strpos($page->body, 'dt-column-title">They earned<');
         $rent = strpos($page->body, 'dt-column-title">Rent<');
         $payThem = strpos($page->body, 'dt-column-title">Pay them<');
+        if ($payThem === false) {
+            $payThem = strpos($page->body, 'dt-column-title">Paid them<');
+        }
         self::assertNotFalse($list);
         self::assertTrue($pay !== false || $saved !== false);
         self::assertNotFalse($earned);

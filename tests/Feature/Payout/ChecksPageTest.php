@@ -41,6 +41,8 @@ final class ChecksPageTest extends TestCase
         self::assertStringContainsString('Check 1043', $html);
         self::assertStringContainsString('Memo: October payout (GIN)', $html);
         self::assertStringContainsString('data-print', $html);
+        self::assertStringContainsString('.check-sheet:last-of-type { break-after: auto; page-break-after: auto; margin-bottom: 0; }', $html);
+        self::assertStringNotContainsString('.check-sheet:last-child', $html);
     }
 
     public function testTheFirstCheckNumberFormShowsAProblem(): void
@@ -76,7 +78,7 @@ final class ChecksPageTest extends TestCase
         $html = ob_get_clean();
 
         self::assertIsString($html);
-        self::assertStringNotContainsString('class="alert"', $html);
+        self::assertStringNotContainsString('<p class="error">', $html);
         self::assertStringContainsString('name="starting_check"', $html);
     }
 

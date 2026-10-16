@@ -9,7 +9,10 @@ use PDOException;
 use PDOStatement;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
-final class Statements
+/**
+ * Open for a test double. Production code constructs this class; it does not extend it.
+ */
+class Statements
 {
     public function __construct(private readonly PDO $pdo)
     {

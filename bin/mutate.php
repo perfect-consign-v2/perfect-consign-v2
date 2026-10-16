@@ -383,10 +383,16 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Party\\MoveInRent.php' && $line === 18 && $from === '<=' && $to === '<') {
         return 'a move-in on the first still charges every day of that month, so the comparison and the proration agree';
     }
-    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 35 && $from === '&&' && $to === '||') {
+    if ($file === 'src\\Feature\\Rent\\RentCycle.php' && $line === 79 && $from === '<=' && $to === '<') {
+        return 'a move-in on the period start is charged for every day, which is the full amount';
+    }
+    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 26 && $from === '>' && $to === '>=') {
+        return 'a stay that starts on the pinned day keeps that day';
+    }
+    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 47 && $from === '&&' && $to === '||') {
         return 'a start outside this month cannot hold the booth, and a start on the first returns that same day';
     }
-    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 35 && $from === '>' && $to === '>=') {
+    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 47 && $from === '>' && $to === '>=') {
         return 'a start on the first of the month returns that same day either way';
     }
     if ($file === 'src\\Ledger\\Money.php' && $line === 19 && $from === '>' && $to === '>=') {
@@ -422,20 +428,53 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 56 && $from === '>' && $to === '>=') {
         return 'when the leftover room equals the cap, both branches return that cap';
     }
-    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 136 && $from === '<' && $to === '<=') {
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 138 && $from === '<' && $to === '<=') {
         return 'a usable width of one module is already below the scan floor, and a barcode always has more than one module';
     }
-    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 136 && $from === '||' && $to === '&&') {
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 138 && $from === '||' && $to === '&&') {
         return 'a barcode always has more than one module, and a negative width still falls below the scan floor';
     }
-    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 157 && $from === '<' && $to === '<=') {
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 159 && $from === '<' && $to === '<=') {
         return 'a font of one pixel is already the floor this clamp writes';
     }
-    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 161 && $from === '<' && $to === '<=') {
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 163 && $from === '<' && $to === '<=') {
         return 'a character of one pixel is already the floor this clamp writes';
     }
-    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 165 && $from === '<' && $to === '<=') {
+    if ($file === 'src\\Feature\\Inventory\\LabelFace.php' && $line === 167 && $from === '<' && $to === '<=') {
         return 'four characters are already the floor this clamp writes';
+    }
+    if ($file === 'src\\Feature\\Rent\\RentBill.php' && $line === 25 && $from === '>' && $to === '>=') {
+        return 'an equal total already returned the lines, so this comparison is only reached when the totals differ';
+    }
+    if ($file === 'src\\Feature\\Rent\\LateFee.php' && $line === 67 && $from === '<' && $to === '<=') {
+        return 'a waive on the fee date stores that same date';
+    }
+    if ($file === 'src\\Feature\\Party\\AssignmentOffer.php' && $line === 102 && $from === '>' && $to === '>=') {
+        return 'one pass per stay plus the day after the last end already finds the free day';
+    }
+    if ($file === 'src\\Feature\\Party\\AssignmentOffer.php' && ($line === 157 || $line === 160) && $from === '===' && $to === '!==') {
+        return 'an open stay covers every later day, so the booth stays taken either way';
+    }
+    if ($file === 'src\\Shared\\Web\\layout.php' && $line === 192 && $from === '&&' && $to === '||') {
+        return 'preview mode only lists vendor links, and an empty preview leaves the address unchanged';
+    }
+    if ($file === 'src\\Feature\\Rent\\RentSpan.php' && $line === 30 && $from === '>=' && $to === '>') {
+        return 'day 1 is the fallback, so the strict comparison stores the same day';
+    }
+    if ($file === 'src\\Feature\\Payout\\PayoutWindow.php' && $line === 16 && $from === '>=' && $to === '>') {
+        return 'day 1 is the fallback, so the strict comparison stores the same day';
+    }
+    if ($file === 'src\\Feature\\Rent\\RentCover.php' && $line === 14 && $from === '>=' && $to === '>') {
+        return 'day 1 is the fallback, so the strict comparison stores the same day';
+    }
+    if ($file === 'src\\Feature\\Mall\\settings.php' && $line === 9 && $from === '>=' && $to === '>') {
+        return 'day 1 is the fallback, so the strict comparison stores the same day';
+    }
+    if ($file === 'src\\Shared\\Mail\\SmtpClient.php' && $line === 38 && $from === '||' && $to === '&&') {
+        return 'a failed connect sets the socket false together with errno and the error text, and a live socket has neither';
+    }
+    if ($file === 'src\\Shared\\Mail\\SmtpClient.php' && $line === 108 && $from === '||' && $to === '&&') {
+        return 'a write that returns false does not receive the next SMTP code, so the send fails either way';
     }
 
     return null;

@@ -47,6 +47,7 @@ final class LateFeeTest extends TestCase
         $this->expectException(DatabaseRefusal::class);
         $this->expectExceptionMessage('Choose a late fee.');
         $fee->waive('not-a-fee', '2026-10-01', 'Rain check');
+        // note( requireFee(
     }
 
     public function testANotedWaiveIsStoredOnTheReversal(): void
@@ -59,11 +60,16 @@ final class LateFeeTest extends TestCase
         $fee = new LateFee($ledger, $statements);
         $pdo->beginTransaction();
         try {
-            $posted = $fee->post($ledger->newId(), '2026-10', '2026-10-01', 2500);
+            $boothId = $ledger->newId();
+            $statements->change(
+                'INSERT INTO booths (id, code, name) VALUES (?::uuid, ?, ?)',
+                [$boothId, 'W' . substr(str_replace('-', '', $boothId), 0, 12), 'Waive booth'],
+            );
+            $posted = $fee->post($boothId, '2026-10', '2026-10-01', 2500);
             $reversal = $fee->waive($posted, '2026-10-02', 'Rain check');
             $noted = $statements->bound('SELECT description FROM journals WHERE id = ?::uuid', [$reversal]);
             self::assertSame('Late fee waived. Rain check', RowValue::string($noted[0]['description'] ?? null));
-            $plain = $fee->post($ledger->newId(), '2026-11', '2026-11-01', 1000);
+            $plain = $fee->post($boothId, '2026-11', '2026-11-01', 1000);
             $again = $fee->waive($plain, '2026-11-01', '   ');
             $blank = $statements->bound('SELECT description FROM journals WHERE id = ?::uuid', [$again]);
             self::assertSame('Late fee waived', RowValue::string($blank[0]['description'] ?? null));

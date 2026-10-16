@@ -11,7 +11,7 @@ use PerfectConsign\Shared\Http\View;
 ?>
 <style>
 .check-sheet { break-after: page; page-break-after: always; margin-bottom: 1.5rem; }
-.check-sheet:last-child { break-after: auto; page-break-after: auto; }
+.check-sheet:last-of-type { break-after: auto; page-break-after: auto; margin-bottom: 0; }
 .check-face {
     max-width: 7.5in;
     min-height: 2.6in;
@@ -27,7 +27,9 @@ use PerfectConsign\Shared\Http\View;
 .check-date, .check-words, .check-memo { margin: 0.55rem 0 0; }
 .check-amount { font-size: 1.15rem; }
 @media print {
+    .shell, .app { min-height: 0 !important; height: auto !important; }
     .check-face { border: 0; }
+    .check-sheet:last-of-type { break-after: auto; page-break-after: auto; }
 }
 </style>
 <div class="no-print">

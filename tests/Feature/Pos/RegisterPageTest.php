@@ -306,6 +306,67 @@ final class RegisterPageTest extends TestCase
         self::assertStringNotContainsString('data-open-modal="enter-payment"', $paid);
     }
 
+    public function testAnOfferAndAStoreDiscountComeOffTheLine(): void
+    {
+        $line = $this->line();
+        $line['offer_name'] = 'Two for one';
+        $line['offer_discount'] = 200;
+        $line['store_discount'] = 50;
+        $line['quantity'] = 2;
+        $line['line_discount'] = 100;
+        $html = $this->page([
+            'remaining' => 1650,
+            'cart' => ['ticket_id' => 'ticket-1', 'lines' => [$line]],
+        ]);
+        $quiet = $this->line();
+        $quiet['offer_name'] = '';
+        $quiet['offer_discount'] = 200;
+        $quiet['store_discount'] = 50;
+        $named = $this->line();
+        $named['offer_name'] = 'Two for one';
+        $without = $this->page(['cart' => ['ticket_id' => 'ticket-1', 'lines' => [$quiet]]]);
+        $zero = $this->page(['cart' => ['ticket_id' => 'ticket-1', 'lines' => [$named]]]);
+
+        self::assertStringContainsString('Two for one −$2.50', $html);
+        self::assertStringContainsString('$16.50', $html);
+        self::assertStringNotContainsString('−$', $without);
+        self::assertStringNotContainsString('Two for one', $zero);
+    }
+
+    public function testInstantInventoryFocusFollowsThePriceError(): void
+    {
+        $open = $this->page(['openInstant' => true, 'instantError' => '']);
+        $price = $this->page(['openInstant' => true, 'instantError' => 'Enter a price.']);
+        $closed = $this->page(['openInstant' => false]);
+        $finished = $this->page([
+            'completed' => $this->completed([
+                'lines' => [[
+                    'description' => 'Blue vase',
+                    'code' => 'TAG1',
+                    'vendor' => 'Ada',
+                    'price' => 1000,
+                    'quantity' => 2,
+                    'discount' => 100,
+                    'store_discount' => 50,
+                    'tax' => 0,
+                    'returned' => false,
+                    'item_id' => 'item-1',
+                ]],
+            ]),
+        ]);
+
+        self::assertStringContainsString('id="instant-error" role="alert" hidden', $open);
+        self::assertStringContainsString('placeholder="Name or vendor number" autofocus', $open);
+        self::assertStringContainsString('value="consignor_default" selected', $open);
+        self::assertStringNotContainsString('value="none" selected', $open);
+        self::assertStringContainsString('>Enter a price.</p>', $price);
+        self::assertStringNotContainsString('id="instant-error" role="alert" hidden', $price);
+        self::assertStringContainsString('aria-invalid="true" aria-describedby="instant-error" autofocus', $price);
+        self::assertStringNotContainsString('placeholder="Name or vendor number" autofocus', $price);
+        self::assertStringNotContainsString('placeholder="Name or vendor number" autofocus', $closed);
+        self::assertStringContainsString('$18.50', $finished);
+    }
+
     public function testAGiftNumberOpensItsBalance(): void
     {
         $missing = $this->page(['giftNumber' => 'GC1', 'giftBalance' => null]);

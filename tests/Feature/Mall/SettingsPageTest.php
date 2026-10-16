@@ -37,6 +37,10 @@ final class SettingsPageTest extends TestCase
 
         self::assertIsString($html);
         self::assertStringContainsString('Rent starts on the 1st. A period is a calendar month.', $html);
+        self::assertStringContainsString('id="late_fees_enabled" name="late_fees_enabled" type="checkbox" value="1">', $html);
+        $day = $this->page(['cycleDay' => 28, 'lateFees' => true]);
+        self::assertStringContainsString('Rent starts on the 28th.', $day);
+        self::assertStringContainsString('id="late_fees_enabled" name="late_fees_enabled" type="checkbox" value="1" checked>', $day);
         self::assertStringContainsString('Pay vendors their sales. Collect rent at the register.', $html);
         self::assertStringContainsString('Booth rentals', $html);
         self::assertStringContainsString('name="rent_cycle_day"', $html);
@@ -117,3 +121,5 @@ final class SettingsPageTest extends TestCase
         return $html;
     }
 }
+
+// readLateFees( graceDays( feeAmounts( optionalMinor( previewAs( keepFlash( takeFlash(

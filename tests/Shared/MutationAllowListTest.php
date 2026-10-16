@@ -16,15 +16,15 @@ final class MutationAllowListTest extends TestCase
 
         $linux = relative('/workspace/repo', '/workspace/repo/src/Feature/Rent/RentFigure.php');
         self::assertSame('src\\Feature\\Rent\\RentFigure.php', $linux);
-        self::assertNotNull(equivalentReason($linux, 35, '&&', '||'));
-        self::assertNotNull(equivalentReason($linux, 35, '>', '>='));
+        self::assertNotNull(equivalentReason($linux, 47, '&&', '||'));
+        self::assertNotNull(equivalentReason($linux, 47, '>', '>='));
 
         $windows = relative(
             'C:\\laragon\\www\\perfect-consign',
             'C:\\laragon\\www\\perfect-consign\\src\\Feature\\Rent\\RentFigure.php'
         );
         self::assertSame('src\\Feature\\Rent\\RentFigure.php', $windows);
-        self::assertNotNull(equivalentReason($windows, 35, '&&', '||'));
+        self::assertNotNull(equivalentReason($windows, 47, '&&', '||'));
     }
 
     public function testARunThatMutatesNothingIsRefused(): void

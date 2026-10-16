@@ -31,4 +31,9 @@ final class BackupHeadline
 
         return $completed->format('m-d-Y, g:i A') . ' UTC · ' . $age;
     }
+
+    public static function now(): DateTimeImmutable
+    {
+        return new DateTimeImmutable('now', new DateTimeZone('UTC'));
+    }
 }

@@ -6,12 +6,16 @@ namespace PerfectConsign\Shared\Mail;
 
 final class SmtpClient
 {
+    /**
+     * @param null|\Closure(mixed): bool $crypto
+     */
     public function __construct(
         private readonly string $host,
         private readonly int $port,
         private readonly string $username,
         private readonly string $password,
         private readonly string $from,
+        private readonly ?\Closure $crypto = null,
     ) {
     }
 
@@ -42,7 +46,11 @@ final class SmtpClient
             $this->expect($socket, 220);
             $this->command($socket, 'EHLO perfectconsign', 250);
             $this->command($socket, 'STARTTLS', 220);
-            if (stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT) !== true) {
+            $crypto = $this->crypto;
+            $secured = $crypto !== null
+                ? $crypto($socket)
+                : stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+            if ($secured !== true) {
                 throw new \RuntimeException('smtp send failed');
             }
             $this->command($socket, 'EHLO perfectconsign', 250);

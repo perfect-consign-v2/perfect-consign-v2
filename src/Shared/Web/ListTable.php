@@ -19,7 +19,7 @@ final class ListTable
     private static bool $stylePrinted = false;
 
     /**
-     * @param array{id: string, export: string, order?: list<array{0: int, 1: string}>, pageScroll?: bool} $table
+     * @param array{id: string, export: string, order?: list<array{0: int, 1: string}>, pageScroll?: bool, fit?: bool} $table
      */
     public static function open(array $table): void
     {
@@ -39,8 +39,9 @@ final class ListTable
             self::$selectionNeeded = true;
             $scroll = ' data-dt-page-scroll="1"';
         }
+        $fit = ($table['fit'] ?? false) === true ? ' data-dt-fit="1"' : '';
         echo '<table id="list-' . View::text($table['id']) . '" class="table list-dt" data-dt-export="'
-            . View::text($table['export']) . '"' . $order . $scroll . '>';
+            . View::text($table['export']) . '"' . $order . $scroll . $fit . '>';
     }
 
     /**

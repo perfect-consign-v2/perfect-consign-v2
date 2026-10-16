@@ -64,6 +64,14 @@ final class CompanyDraftTest extends TestCase
             'email' => '',
         ]);
         self::assertSame([null, null, null, null, null, null, null], $empty->contact());
+        $edge = $this->fields();
+        $edge['name'] = str_repeat('a', 120);
+        $edge['phone'] = str_repeat('5', 40);
+        $edge['email'] = str_repeat('a', 195) . '@b.co';
+        $accepted = CompanyDraft::parse($edge);
+        self::assertSame(str_repeat('a', 120), $accepted->name());
+        self::assertSame(str_repeat('5', 40), $accepted->contact()[5]);
+        self::assertSame(str_repeat('a', 195) . '@b.co', $accepted->contact()[6]);
         self::assertSame([], (new CompanyLines())->printed($this->shown($empty)));
     }
 

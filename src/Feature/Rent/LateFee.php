@@ -54,16 +54,8 @@ final class LateFee
 
     public function waive(string $journalId, string $date, string $note = ''): string
     {
-        $note = trim($note);
-        if (strlen($note) > 500) {
-            throw new DatabaseRefusal('Enter a shorter waive note.');
-        }
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $journalId) !== 1) {
-            throw new DatabaseRefusal('Choose a late fee.');
-        }
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
-            throw new DatabaseRefusal('Enter the date of the late fee.');
-        }
+        $note = $this->note($note);
+        $this->requireFee($journalId, $date);
         $journal = $this->ledger->journal($journalId);
         if ($journal === null || RowValue::string($journal['source_type'] ?? null) !== 'late_fee') {
             throw new DatabaseRefusal('Choose a late fee.');
@@ -109,6 +101,26 @@ final class LateFee
         }
 
         return $lines;
+    }
+
+    private function note(string $note): string
+    {
+        $note = trim($note);
+        if (strlen($note) > 500) {
+            throw new DatabaseRefusal('Enter a shorter waive note.');
+        }
+
+        return $note;
+    }
+
+    private function requireFee(string $journalId, string $date): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $journalId) !== 1) {
+            throw new DatabaseRefusal('Choose a late fee.');
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            throw new DatabaseRefusal('Enter the date of the late fee.');
+        }
     }
 
     private function flag(mixed $value): bool

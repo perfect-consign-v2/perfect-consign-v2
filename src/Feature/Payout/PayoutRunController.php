@@ -158,6 +158,7 @@ final class PayoutRunController
         if ($this->app->request()->method === 'POST') {
             $this->app->checkCsrf();
         }
+        $this->app->open($slug, true);
         $runId = $this->app->request()->query('run');
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $runId) !== 1) {
             $this->render($slug, 'That payout is missing.');

@@ -18,7 +18,11 @@ final class PrintedChecks
 
     public function present(string $slug, string $runId): ?string
     {
+        $this->app->open($slug, true);
         $run = $this->runs->run($runId);
+        if ($run['status'] === '') {
+            return 'That payout is missing.';
+        }
         if (!$this->printable($run)) {
             return 'Those checks are not ready to print.';
         }

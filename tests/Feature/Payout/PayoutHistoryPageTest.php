@@ -215,6 +215,6 @@ final class PayoutHistoryPageTest extends TestCase
         $html = ob_get_clean();
 
         self::assertIsString($html);
-        self::assertStringNotContainsString('class="alert"', $html);
+        self::assertStringNotContainsString('<p class="error">', $html);
     }
 }

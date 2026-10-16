@@ -6,7 +6,6 @@ namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
 use PerfectConsign\Feature\Mall\MallSettings;
-use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\View;
@@ -54,8 +53,8 @@ final class MallApp
         $data['nav'] = is_string($slug) && $this->sessionSlug() === $slug;
         $data['csrf'] = $this->door->token();
         $data['error'] = $data['error'] ?? null;
-        $notice = $this->takeFlash('notice');
-        $warning = $this->takeFlash('warning');
+        $notice = $this->chrome()->takeFlash('notice');
+        $warning = $this->chrome()->takeFlash('warning');
         $data['path'] = $this->request->path;
         $data['today'] = $this->roled ? $this->mall->today() : '';
         if (is_string($slug)) {
@@ -64,7 +63,7 @@ final class MallApp
         $data['notice'] = $notice;
         $data['warning'] = $warning;
         $data['actorRole'] = $this->door->actor()->role();
-        $data['previewAs'] = $this->ownerPreview(is_string($slug) ? $slug : '');
+        $data['previewAs'] = $this->chrome()->previewAs(is_string($slug) ? $slug : '');
         $data['showBrand'] = $this->roled ? $this->mall->enabled('use_brand') : true;
         $data['boothRentals'] ??= $this->roled ? $this->mall->isRentalsEnabled() : true;
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
@@ -96,30 +95,9 @@ final class MallApp
 
     public function redirect(string $path, ?string $notice = null, ?string $warning = null): never
     {
-        $this->keepFlash('notice', $notice);
-        $this->keepFlash('warning', $warning);
+        $this->chrome()->keepFlash('notice', $notice);
+        $this->chrome()->keepFlash('warning', $warning);
         $this->door->go($path);
-    }
-
-    private function keepFlash(string $key, ?string $value): void
-    {
-        if ($value === null || $value === '') {
-            return;
-        }
-        $this->session->set($key, $value);
-    }
-
-    private function takeFlash(string $key): ?string
-    {
-        $value = $this->session->get($key);
-        if ($this->session->has($key)) {
-            $this->session->delete($key);
-        }
-        if (!is_string($value) || $value === '') {
-            return null;
-        }
-
-        return $value;
     }
 
     public function open(string $slug, bool $books): TenantRecord
@@ -226,18 +204,6 @@ final class MallApp
         $this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog, extensions');
         $this->pdo->exec('SET ROLE ' . $tenant->role);
         $this->roled = true;
-    }
-
-    private function ownerPreview(string $slug): string
-    {
-        if ($slug === '' || $this->door->actor()->role() !== 'owner') {
-            return '';
-        }
-        if (!VendorPreview::onPortal($this->request->path, $slug)) {
-            return '';
-        }
-
-        return VendorPreview::token($this->request->query('as'));
     }
 
     private function sessionSlug(): ?string

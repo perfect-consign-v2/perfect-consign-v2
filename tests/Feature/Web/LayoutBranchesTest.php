@@ -50,7 +50,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('href="/demo/sizes"', $html);
         self::assertStringNotContainsString('href="/demo/conditions"', $html);
         self::assertStringContainsString('href="/demo/dashboard" aria-current="page"', $html);
-        self::assertStringContainsString('Active: Front', $html);
+        self::assertStringNotContainsString('Active: Front', $html);
         self::assertStringNotContainsString('Reset Test Data', $html);
         self::assertStringContainsString('id="flash-dialog"', $html);
         self::assertStringContainsString('data-kind="danger"', $html);
@@ -65,7 +65,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('class="pos-app"', $html);
     }
 
-    public function testTheDevOwnerSeesResetTestDataLeftOfTheActiveRegister(): void
+    public function testTheDevOwnerSeesResetTestData(): void
     {
         $html = $this->layout([
             'slug' => 'dev',
@@ -78,15 +78,10 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('class="btn btn-danger"', $html);
         self::assertStringContainsString('name="csrf" value="token"', $html);
         self::assertStringContainsString('Reset Test Data', $html);
-        self::assertStringContainsString('Active: Front', $html);
-        $resetAt = strpos($html, 'Reset Test Data');
-        $activeAt = strpos($html, 'Active: Front');
-        self::assertNotFalse($resetAt);
-        self::assertNotFalse($activeAt);
-        self::assertLessThan($activeAt, $resetAt);
+        self::assertStringNotContainsString('Active: Front', $html);
     }
 
-    public function testTheMallOwnerSeesResetTestDataLeftOfTheActiveRegister(): void
+    public function testTheMallOwnerSeesResetTestData(): void
     {
         $html = $this->layout([
             'slug' => 'mall',
@@ -98,12 +93,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('action="/mall/reset-test-data"', $html);
         self::assertStringContainsString('class="btn btn-danger"', $html);
         self::assertStringContainsString('Reset Test Data', $html);
-        self::assertStringContainsString('Active: Front', $html);
-        $resetAt = strpos($html, 'Reset Test Data');
-        $activeAt = strpos($html, 'Active: Front');
-        self::assertNotFalse($resetAt);
-        self::assertNotFalse($activeAt);
-        self::assertLessThan($activeAt, $resetAt);
+        self::assertStringNotContainsString('Active: Front', $html);
     }
 
     public function testACashierOnTheDevMallDoesNotSeeResetTestData(): void
@@ -115,7 +105,7 @@ final class LayoutBranchesTest extends TestCase
             'activeRegister' => 'Front',
         ]);
 
-        self::assertStringContainsString('Active: Front', $html);
+        self::assertStringNotContainsString('Active: Front', $html);
         self::assertStringNotContainsString('Reset Test Data', $html);
         self::assertStringNotContainsString('/dev/reset-test-data', $html);
     }
@@ -173,9 +163,48 @@ final class LayoutBranchesTest extends TestCase
             'error' => '',
         ]);
 
-        self::assertStringNotContainsString('class="alert alert-success"', $html);
-        self::assertStringNotContainsString('class="alert alert-warning"', $html);
-        self::assertStringNotContainsString('class="alert alert-danger"', $html);
+        self::assertStringNotContainsString('data-kind="success"', $html);
+        self::assertStringNotContainsString('data-kind="warning"', $html);
+        self::assertStringNotContainsString('data-kind="danger"', $html);
+    }
+
+    public function testAModalErrorAndAnInstantErrorOpenTheDangerDialog(): void
+    {
+        $modal = $this->layout(['modalError' => 'Drawer is short.']);
+        $instant = $this->layout(['instantError' => 'That price is not a price.']);
+        $blank = $this->layout(['modalError' => '', 'instantError' => '']);
+
+        self::assertStringContainsString('data-kind="danger"', $modal);
+        self::assertStringContainsString('Drawer is short.', $modal);
+        self::assertStringContainsString('data-kind="danger"', $instant);
+        self::assertStringContainsString('That price is not a price.', $instant);
+        self::assertStringNotContainsString('data-kind="danger"', $blank);
+    }
+
+    public function testPreviewLinksStayOnTheVendorAndTheRegisterStaysHidden(): void
+    {
+        $vendor = '01900000-0000-7000-8000-0000000000aa';
+        $html = $this->layout([
+            'previewAs' => $vendor,
+            'activeRegister' => 'Front',
+            'chooseRegister' => true,
+        ]);
+
+        self::assertStringContainsString('/demo/vendor?as=' . $vendor, $html);
+        self::assertStringContainsString('looking at this vendor\'s portal', $html);
+        self::assertStringNotContainsString('Active: Front', $html);
+        self::assertStringNotContainsString('Choose a register', $html);
+    }
+
+    public function testAnOpenRegisterChoiceIsShownWhenNothingIsActive(): void
+    {
+        $html = $this->layout([
+            'chooseRegister' => true,
+            'activeRegister' => '',
+        ]);
+
+        self::assertStringContainsString('Choose a register', $html);
+        self::assertStringNotContainsString('looking at this vendor\'s portal', $html);
     }
 
     public function testAModalStillShowsThePageError(): void

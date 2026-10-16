@@ -347,7 +347,7 @@
                 this.api().columns.adjust();
             },
         };
-        if (!pageScroll) {
+        if (!pageScroll && tableEl.getAttribute('data-dt-fit') !== '1') {
             options.scrollY = scrollHeight(tableEl);
             options.scrollX = true;
             options.scrollCollapse = true;

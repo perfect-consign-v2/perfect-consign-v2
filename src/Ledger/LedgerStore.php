@@ -8,7 +8,10 @@ use PDO;
 use PDOException;
 use PerfectConsign\Shared\Database\Statements;
 
-final class LedgerStore
+/**
+ * Open for a test double. Production code constructs this class; it does not extend it.
+ */
+class LedgerStore
 {
     public function __construct(
         private readonly PDO $pdo,

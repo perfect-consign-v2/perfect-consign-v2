@@ -130,7 +130,7 @@ final class PayWindowTest extends TestCase
         self::assertIsString($html);
         self::assertStringNotContainsString('id="enter-payment" class="modal" role="dialog" aria-modal="true" aria-labelledby="enter-payment-title" hidden', $html);
         self::assertStringContainsString('id="pay-error" role="alert">enter an amount in dollars and cents', $html);
-        self::assertStringContainsString('id="pay-cash" name="tender_cash" inputmode="decimal" placeholder="0.00" value="abc" aria-invalid="true"', $html);
+        self::assertStringContainsString('id="pay-cash" name="tender_cash" inputmode="decimal" placeholder="0.00" value="abc" aria-invalid="true" aria-describedby="pay-error" autofocus', $html);
         self::assertStringContainsString('id="pay-gift-error" hidden', $html);
     }
 
@@ -197,5 +197,39 @@ final class PayWindowTest extends TestCase
         self::assertIsString($html);
         self::assertStringContainsString('Choose the vendor this sale pays.', $html);
         self::assertStringContainsString('id="pay-vendor" name="tender_vendor_draw" inputmode="decimal" placeholder="0.00" value="" disabled', $html);
+    }
+
+    public function testZeroIsABlankPaymentAmount(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Pos/pay-modal', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'open' => true,
+            'remaining' => 100,
+            'cashFill' => 100,
+            'roundStep' => 1,
+            'salesAvailable' => 0,
+            'cart' => ['lines' => [], 'buyer_id' => '', 'buyer_name' => ''],
+            'openPayment' => true,
+            'payError' => 'enter an amount in dollars and cents',
+            'payCash' => '0',
+            'payCard' => '0.00',
+            'payCheck' => '',
+            'payCheckNumber' => '',
+            'payVendor' => '',
+            'payGift' => '',
+            'payGiftNumber' => '',
+            'payCredit' => '',
+            'payCreditNumber' => '',
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringContainsString('value="0"', $html);
+        self::assertStringContainsString('value="0.00"', $html);
+        self::assertStringNotContainsString('value="0" aria-invalid="true"', $html);
+        self::assertStringNotContainsString('value="0.00" aria-invalid="true"', $html);
     }
 }

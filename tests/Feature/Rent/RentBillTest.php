@@ -104,6 +104,37 @@ final class RentBillTest extends TestCase
         ], $shares);
     }
 
+    public function testACentStillComesOffTheBooth(): void
+    {
+        $charge = $this->move('rent', 'rent_charge', '2026-10-01', 'C-1', 1, 0, 'booth-1');
+        $lines = (new RentBill())->explain([$charge], 1);
+        self::assertSame([
+            ['label' => 'Rent', 'date' => '2026-10-01', 'amount' => 1, 'journal_id' => ''],
+        ], $lines);
+
+        $paid = (new RentBill())->explain([
+            $charge,
+            $this->move('pay', 'rent_payment', '2026-10-02', 'C-1', 0, 1, 'booth-1'),
+        ], 0);
+        self::assertSame([], $paid);
+
+        $loose = (new RentBill())->explain([
+            $this->move('pay', 'rent_payment', '2026-10-02', 'C-1', 0, 1, 'booth-1'),
+        ], -1);
+        self::assertSame([
+            ['label' => 'Paid', 'date' => '2026-10-02', 'amount' => -1, 'journal_id' => ''],
+        ], $loose);
+
+        self::assertSame(
+            [['booth_id' => 'booth-1', 'amount' => 1]],
+            (new RentBill())->share([$charge], 1)
+        );
+        self::assertSame(
+            [],
+            (new RentBill())->share([$this->move('rent', 'rent_charge', '2026-10-01', 'C-1', 100, 0, '')], 50)
+        );
+    }
+
     public function testRentThatIsNotChargedYetIsStillALine(): void
     {
         $lines = (new RentBill())->explain([], 40000);

@@ -34,6 +34,11 @@ final class ReceiptChangeTest extends TestCase
             ],
         ];
         self::assertSame(880, $change->owed($receipt, 'item'));
+        $receipt['lines'][1]['quantity'] = 0;
+        $receipt['lines'][1]['store_discount'] = 50;
+        self::assertSame(830, $change->owed($receipt, 'item'));
+        $receipt['lines'][1]['quantity'] = 2;
+        self::assertSame(1830, $change->owed($receipt, 'item'));
         $this->expectException(DatabaseRefusal::class);
         $change->owed($receipt, 'missing');
     }

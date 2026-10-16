@@ -74,7 +74,7 @@ final class CollectPageTest extends TestCase
             ['label' => 'Late fee', 'date' => '2026-10-01', 'amount' => 1000, 'journal_id' => '00000000-0000-7000-8000-000000000098'],
         ]);
 
-        self::assertSame(2, substr_count($html, 'name="waive[]"'));
+        self::assertSame(2, substr_count($html, 'type="checkbox" name="waive[]"'));
         self::assertSame(2, substr_count($html, '>Waive late fee <'));
         self::assertStringContainsString('id="waive-all"', $html);
         self::assertStringContainsString('Waive all late fees', $html);
@@ -137,7 +137,7 @@ final class CollectPageTest extends TestCase
         self::assertStringContainsString('name="waive_note" maxlength="500"', $html);
         self::assertStringContainsString('>Waive late fees</button>', $html);
         self::assertSame(1, substr_count($html, '<form '));
-        // checked( filled(
+        // checked( filled( needsDrawer( figurePrepaid( figureOpen(
     }
 
     public function testAFailedPaymentKeepsTheAmountsTheyTyped(): void
@@ -150,6 +150,20 @@ final class CollectPageTest extends TestCase
         self::assertStringContainsString('id="check-number" name="check_number" maxlength="40" value="44"', $html);
         self::assertStringNotContainsString('id="rent-check-box" hidden', $html);
         self::assertStringNotContainsString('name="cash_tendered"', $html);
+    }
+
+    public function testAZeroLineIsPlainAndAClosedRegisterDoesNotOfferAWaive(): void
+    {
+        $html = $this->page(0, 0, 0, true, '', '', '', '', 'C-1', [
+            ['label' => 'Rent', 'date' => '2026-10-01', 'amount' => 0, 'journal_id' => 'fee-1'],
+        ]);
+        $closed = $this->page(0, 0, 0, false);
+
+        self::assertStringContainsString('$0.00', $html);
+        self::assertStringNotContainsString('($0.00)', $html);
+        self::assertStringNotContainsString('type="checkbox" name="waive[]"', $html);
+        self::assertStringNotContainsString('id="waive-note"', $closed);
+        self::assertStringNotContainsString('Waive late fees', $closed);
     }
 
     public function testACardOnlyPaymentHidesTheCheckNumber(): void

@@ -212,6 +212,14 @@ final class PayoutRunStore
              FROM payout_runs WHERE id = ?::uuid",
             [$runId]
         );
+        if ($rows === []) {
+            return [
+                'tender' => '',
+                'status' => '',
+                'posting_date' => '',
+                'rent_month' => '',
+            ];
+        }
 
         return [
             'tender' => RowValue::string($rows[0]['tender'] ?? null),
