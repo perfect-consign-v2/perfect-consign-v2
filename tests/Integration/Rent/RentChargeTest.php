@@ -18,6 +18,7 @@ use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\RentLines;
+use PerfectConsign\Feature\Rent\RentMoves;
 use PerfectConsign\Feature\Rent\RentPayment;
 use PerfectConsign\Feature\Rent\RentPosting;
 use PerfectConsign\Feature\Rent\RentReceipt;
@@ -100,9 +101,11 @@ final class RentChargeTest extends TestCase
                 $payouts,
                 new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements)),
                 new MallPayoutSettings($statements),
+                new RentMoves($statements, new MallPayoutSettings($statements)),
             ),
             new RentSlip($statements),
             new RentPayment(),
+            new LateFee($ledger, $statements),
         );
         $rent = new RentStore($statements, $this->mall($pdo, $statements), new RentLines(), $ledger);
         $pdo->beginTransaction();
@@ -119,17 +122,17 @@ final class RentChargeTest extends TestCase
             $charged = $rent->chargeAmount($boothId, '2026-06-15');
             self::assertSame(4800, $charged);
             $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = true', []);
-            $preview = $receipts->explain($vendorId, $boothId, $charged, '2026-06-20');
+            $preview = $receipts->explain($vendorId, $charged, '2026-06-20');
             self::assertNotSame([], $preview);
             $dates = array_map(static fn (array $line): string => $line['date'], $preview);
             self::assertContains('06-15-2026 through 06-30-2026', $dates);
             $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = false', []);
             $rent->postCharge($boothId, '2026-06-15');
-            $explained = $receipts->explain($vendorId, $boothId, $charged, '2026-06-20');
+            $explained = $receipts->explain($vendorId, $charged, '2026-06-20');
             self::assertNotSame([], $explained);
             $sessionId = $this->session($statements, $ledger);
             $before = $this->expected($statements, $sessionId);
-            // packFigure( openFigure( postReceipt( credits( tenders( requireCheck( handed( debitLines( minor( dollars( rollbackOwned( party( tenderLines( tenderName( checkOn( boothOf( figures( form( rates( filled( sessionStale( older( links( ids( writeJournal( storeTendered( abortJournal( due( owed( amount( begin( lateCharged( apply( parts( cash( card( check( split(
+            // packFigure( openFigure( postReceipt( credits( tenders( requireCheck( handed( debitLines( minor( dollars( rollbackOwned( party( tenderLines( tenderName( checkOn( boothOf( figures( form( rates( filled( sessionStale( older( links( ids( writeJournal( storeTendered( abortJournal( due( owed( amount( begin( lateCharged( apply( parts( cash( card( check( split( share( charges( moves( uncovered( clearFees( unpaid( take( commitOwned( vendorOn( owedOn( vendorName( openBooths( picked( codes( booths( assigned( checked( filled(
             $figure = $receipts->figure('', $boothId, '2026-06-15');
             self::assertNotNull($figure);
             self::assertSame(4800, $figure['owed']);
@@ -242,6 +245,121 @@ final class RentChargeTest extends TestCase
         }
     }
 
+    public function testOnePaymentClearsTheOldestRentAcrossBooths(): void
+    {
+        $root = dirname(__DIR__, 3);
+        ProbeMall::ensure($root);
+        $pdo = $this->connection();
+        $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
+        $statements = new Statements($pdo);
+        $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
+        $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
+        $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
+        $settings = new MallPayoutSettings($statements);
+        $fees = new LateFee($ledger, $statements);
+        $receipts = new RentReceipt(
+            $pdo,
+            $statements,
+            $payouts,
+            $settings,
+            new RentPosting(
+                $ledger,
+                $payouts,
+                new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements)),
+                $settings,
+                new RentMoves($statements, $settings),
+            ),
+            new RentSlip($statements),
+            new RentPayment(),
+            $fees,
+        );
+        $rent = new RentStore($statements, $this->mall($pdo, $statements), new RentLines(), $ledger);
+        $pdo->beginTransaction();
+        try {
+            $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = false', []);
+            $vendorId = $ledger->newId();
+            $tag = substr(str_replace('-', '', $vendorId), 0, 6);
+            $statements->change(
+                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
+                [$vendorId, 'd' . $tag, 'Ada', 'Lane']
+            );
+            $olderBooth = $this->booth($statements, $ledger, 'a' . $tag, 15000);
+            $newerBooth = $this->booth($statements, $ledger, 'b' . $tag, 30000);
+            $this->assign($statements, $olderBooth, $vendorId, '2026-08-01', 15000);
+            $this->assign($statements, $newerBooth, $vendorId, '2026-10-01', 30000);
+            $older = $rent->chargeAmount($olderBooth, '2026-08-01');
+            $rent->postCharge($olderBooth, '2026-08-01');
+            $newer = $rent->chargeAmount($newerBooth, '2026-10-01');
+            $rent->postCharge($newerBooth, '2026-10-01');
+            self::assertGreaterThan(0, $older);
+            self::assertGreaterThan(1, $newer);
+            $feeId = $fees->post($olderBooth, '2026-09', '2026-09-15', 2500);
+            $whole = $receipts->figure($vendorId, '', '2026-10-01');
+            self::assertNotNull($whole);
+            self::assertSame($older + $newer + 2500, $whole['owed']);
+            self::assertStringContainsString(', ', $whole['booth']);
+            $fromBooth = $receipts->figure('', $newerBooth, '2026-10-01');
+            self::assertNotNull($fromBooth);
+            self::assertSame($whole['owed'], $fromBooth['owed']);
+            self::assertSame($whole['vendor_id'], $fromBooth['vendor_id']);
+            $sessionId = $this->session($statements, $ledger);
+            $extra = min(5000, $newer - 1);
+            $blank = ['way' => 'split', 'cash' => '', 'card' => '', 'checks' => '', 'tendered' => '', 'check' => ''];
+            $receipts->collect($vendorId, '', '2026-10-01', $sessionId, '', [
+                'way' => 'split',
+                'cash' => $this->dollars($older + $extra),
+                'card' => '',
+                'checks' => '',
+                'tendered' => '',
+                'check' => '',
+            ]);
+            self::assertSame(2500, $this->openOn($statements, $olderBooth));
+            self::assertSame($newer - $extra, $this->openOn($statements, $newerBooth));
+            self::assertSame('', $receipts->collect($vendorId, '', '2026-10-01', '', '', $blank, [$feeId], 'Rain check'));
+            $noted = $statements->bound(
+                "SELECT description FROM journals WHERE source_type = 'late_fee' AND description LIKE 'Late fee waived.%' ORDER BY journal_no DESC LIMIT 1",
+                []
+            );
+            self::assertSame('Late fee waived. Rain check', RowValue::string($noted[0]['description'] ?? null));
+            self::assertSame(0, $this->openOn($statements, $olderBooth));
+            try {
+                $receipts->collect($vendorId, '', '2026-10-01', '', '', $blank, ['00000000-0000-7000-8000-000000000099'], 'Nope');
+                self::fail('a fee that is not on this bill was waived');
+            } catch (DatabaseRefusal $refusal) {
+                self::assertSame('Choose a late fee.', $refusal->getMessage());
+            }
+            $rest = $newer - $extra;
+            $receipts->collect($vendorId, '', '2026-10-01', $sessionId, '', [
+                'way' => 'split',
+                'cash' => $this->dollars($rest),
+                'card' => '',
+                'checks' => '',
+                'tendered' => '',
+                'check' => '',
+            ]);
+            $partialId = $fees->post($newerBooth, '2026-11', '2026-11-01', 2500);
+            $receipts->collect($vendorId, '', '2026-11-01', $sessionId, '', [
+                'way' => 'split',
+                'cash' => '10.00',
+                'card' => '',
+                'checks' => '',
+                'tendered' => '',
+                'check' => '',
+            ]);
+            self::assertSame(1500, $this->openOn($statements, $newerBooth));
+            try {
+                $receipts->collect($vendorId, '', '2026-11-01', '', '', $blank, [$partialId], 'Too late');
+                self::fail('a partly paid late fee was waived');
+            } catch (DatabaseRefusal $refusal) {
+                self::assertSame('Choose a late fee.', $refusal->getMessage());
+            }
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        }
+    }
+
     /**
      * @param list<array{booth_id: string, code: string, vendor_name: ?string, month: string, label: string, amount_minor: int, charge_date: string}> $rows
      */
@@ -309,6 +427,26 @@ final class RentChargeTest extends TestCase
         );
 
         return $id;
+    }
+
+    private function openOn(Statements $statements, string $boothId): int
+    {
+        $rows = $statements->bound(
+            "SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0) AS open_minor
+             FROM journal_lines AS line
+             JOIN chart_roles AS role ON role.account_id = line.account_id
+             WHERE role.role = 'booth_rent_receivable'
+               AND line.subledger_type = 'booth'
+               AND line.subledger_ref = ?",
+            [$boothId]
+        );
+
+        return RowValue::integer($rows[0]['open_minor'] ?? null);
+    }
+
+    private function dollars(int $minor): string
+    {
+        return intdiv($minor, 100) . '.' . str_pad((string) ($minor % 100), 2, '0', STR_PAD_LEFT);
     }
 
     private function expected(Statements $statements, string $sessionId): int

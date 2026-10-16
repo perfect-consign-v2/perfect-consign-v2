@@ -105,7 +105,8 @@ final class PayVendorsPageTest extends TestCase
     {
         $html = $this->page('', '', '', '', null, [], 'booth-9', 49666);
 
-        self::assertStringContainsString('href="/webprobe/rent/collect?vendor=vendor-1&amp;booth=booth-9"', $html);
+        self::assertStringContainsString('href="/webprobe/rent/collect?vendor=vendor-1"', $html);
+        self::assertStringNotContainsString('rent/collect?vendor=vendor-1&amp;booth=', $html);
         self::assertStringContainsString('class="owe-amount"', $html);
         self::assertStringContainsString('>($496.66)<', $html);
     }

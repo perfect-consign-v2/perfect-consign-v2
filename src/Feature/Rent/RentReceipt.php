@@ -23,19 +23,19 @@ final class RentReceipt
         private readonly RentPosting $posting,
         private readonly RentSlip $slips,
         private readonly RentPayment $payments,
+        private readonly LateFee $fees,
     ) {
     }
 
     /**
-     * The amount the vendor page already shows. Pack owes when sales pay the rent,
-     * otherwise that booth's open receivable. A late fee still on the booth is part of it.
+     * Everything this vendor still owes, on every booth. Pack owes when sales pay the rent.
      *
      * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, rent: int, late: int, collect: string}|null
      */
     public function figure(string $vendorId, string $boothId, string $today): ?array
     {
         if ($this->settings->rentPrepaid()) {
-            return $this->packFigure($vendorId, $boothId, $today);
+            return $this->packFigure($vendorId, $today);
         }
 
         return $this->openFigure($vendorId, $boothId, $today);
@@ -43,6 +43,7 @@ final class RentReceipt
 
     /**
      * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string} $tender
+     * @param list<string> $waived
      */
     public function collect(
         string $vendorId,
@@ -51,29 +52,27 @@ final class RentReceipt
         string $sessionId,
         string $amount,
         array $tender,
+        array $waived = [],
+        string $note = '',
     ): string {
         $figure = $this->figure($vendorId, $boothId, $today);
         if ($figure === null) {
             throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
         }
-        $shaped = $this->payments->apply($tender, $amount, $figure['owed']);
-        if ($shaped['minor'] > $figure['owed']) {
-            throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
-        }
-        $lines = $this->posting->tenders($shaped['minor'], $shaped['tender']);
         $this->ownsTransaction = !$this->pdo->inTransaction();
         if ($this->ownsTransaction) {
             $this->pdo->beginTransaction();
         }
         try {
-            $journalId = $this->posting->postReceipt($figure['vendor_id'], $figure['booth_id'], $today, $sessionId, $shaped['minor'], $shaped['tender'], $lines);
-            if ($this->ownsTransaction) {
-                $this->pdo->commit();
+            $this->clearFees($figure, $today, $waived, $note);
+            $journalId = '';
+            if ($waived === [] || !$this->unpaid($tender, $amount)) {
+                $journalId = $this->take($figure['vendor_id'], $boothId, $today, $sessionId, $amount, $tender);
             }
-            $this->ownsTransaction = false;
+            $this->commitOwned();
 
             return $journalId;
-        } catch (DatabaseRefusal $error) {
+        } catch (\Throwable $error) {
             $this->rollbackOwned();
             throw $error;
         }
@@ -113,7 +112,7 @@ final class RentReceipt
     /**
      * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, rent: int, late: int, collect: string}|null
      */
-    private function packFigure(string $vendorId, string $boothId, string $today): ?array
+    private function packFigure(string $vendorId, string $today): ?array
     {
         if ($vendorId === '') {
             return null;
@@ -122,18 +121,18 @@ final class RentReceipt
         if ($quote === null || $quote['owes'] < 1) {
             return null;
         }
-        $picked = $this->boothOf($vendorId, $boothId, $today);
+        $picked = $this->boothOf($vendorId, $today);
         if ($picked === null) {
             return null;
         }
-
+        $booth = $this->booths($vendorId, $today);
         $parts = $this->payments->parts($quote['owes'], $this->lateCharged($vendorId, ''));
 
         return [
             'vendor_id' => $vendorId,
             'vendor_name' => $picked['name'],
             'booth_id' => $picked['booth_id'],
-            'booth' => $picked['booth'],
+            'booth' => $booth !== '' ? $booth : $picked['booth'],
             'owed' => $quote['owes'],
             'rent' => $parts['rent'],
             'late' => $parts['late'],
@@ -144,20 +143,16 @@ final class RentReceipt
     /**
      * @return array{name: string, booth_id: string, booth: string}|null
      */
-    private function boothOf(string $vendorId, string $boothId, string $today): ?array
+    private function boothOf(string $vendorId, string $today): ?array
     {
         foreach ($this->payouts->debtors($today) as $row) {
             if ($row['vendor_id'] !== $vendorId) {
                 continue;
             }
-            if ($boothId !== '' && $row['booth_id'] !== $boothId) {
-                continue;
-            }
-            $key = $row['booth_id'] !== '' ? $row['booth_id'] : $boothId;
 
             return [
                 'name' => $row['name'],
-                'booth_id' => $key,
+                'booth_id' => $row['booth_id'],
                 'booth' => $row['booth'],
             ];
         }
@@ -170,53 +165,25 @@ final class RentReceipt
      */
     private function openFigure(string $vendorId, string $boothId, string $today): ?array
     {
-        if ($boothId === '') {
+        if ($vendorId === '') {
+            $vendorId = $this->vendorOn($boothId, $today);
+        }
+        if ($vendorId === '') {
             return null;
         }
-        $rows = $this->statements->bound(
-            "SELECT vendor.id::text AS vendor_id, booth.code,
-                    btrim(vendor.first_name || ' ' || vendor.last_name) AS vendor_name,
-                    open.open_minor
-             FROM booths AS booth
-             JOIN booth_assignments AS assignment
-               ON assignment.booth_id = booth.id
-              AND assignment.starts_on <= ?::date
-              AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
-             JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
-             JOIN (
-                 SELECT line.subledger_ref AS booth_id, sum(line.debit_minor - line.credit_minor) AS open_minor
-                 FROM journal_lines AS line
-                 JOIN chart_roles AS role ON role.account_id = line.account_id
-                 WHERE role.role = 'booth_rent_receivable'
-                   AND line.subledger_type = 'booth'
-                 GROUP BY line.subledger_ref
-                 HAVING sum(line.debit_minor - line.credit_minor) > 0
-             ) AS open ON open.booth_id::uuid = booth.id
-             WHERE booth.id = ?::uuid
-             ORDER BY assignment.starts_on DESC
-             LIMIT 1",
-            [$today, $today, $boothId]
-        );
-        $row = $rows[0] ?? null;
-        if (!is_array($row)) {
+        $owed = $this->owedOn($vendorId);
+        $spots = $this->openBooths($vendorId);
+        $name = $this->vendorName($vendorId);
+        if ($owed < 1 || $name === null || $spots === []) {
             return null;
         }
-        $found = RowValue::string($row['vendor_id'] ?? null);
-        if ($vendorId !== '' && $vendorId !== $found) {
-            return null;
-        }
-        $owed = RowValue::integer($row['open_minor'] ?? null);
-        if ($owed < 1) {
-            return null;
-        }
-
-        $parts = $this->payments->parts($owed, $this->lateCharged($found, $boothId));
+        $parts = $this->payments->parts($owed, $this->lateCharged($vendorId, ''));
 
         return [
-            'vendor_id' => $found,
-            'vendor_name' => RowValue::string($row['vendor_name'] ?? null),
-            'booth_id' => $boothId,
-            'booth' => RowValue::string($row['code'] ?? null),
+            'vendor_id' => $vendorId,
+            'vendor_name' => $name,
+            'booth_id' => $this->picked($spots, $boothId),
+            'booth' => $this->codes($spots),
             'owed' => $owed,
             'rent' => $parts['rent'],
             'late' => $parts['late'],
@@ -227,9 +194,256 @@ final class RentReceipt
     /**
      * @return list<array{label: string, date: string, amount: int, journal_id: string}>
      */
-    public function explain(string $vendorId, string $boothId, int $owed, string $today): array
+    public function explain(string $vendorId, int $owed, string $today): array
     {
-        return (new RentMoves($this->statements, $this->settings))->explain($vendorId, $boothId, $owed, $today);
+        return (new RentMoves($this->statements, $this->settings))->explain($vendorId, $owed, $today);
+    }
+
+    /**
+     * @param array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, rent: int, late: int, collect: string} $figure
+     * @param list<string> $waived
+     */
+    private function clearFees(array $figure, string $today, array $waived, string $note): void
+    {
+        if ($waived === []) {
+            return;
+        }
+        $open = [];
+        foreach ($this->explain($figure['vendor_id'], $figure['owed'], $today) as $line) {
+            if ($line['journal_id'] !== '') {
+                $open[$line['journal_id']] = true;
+            }
+        }
+        $chosen = [];
+        foreach ($waived as $id) {
+            if (!isset($open[$id])) {
+                throw new DatabaseRefusal('Choose a late fee.');
+            }
+            $chosen[$id] = $id;
+        }
+        foreach ($chosen as $id) {
+            $this->fees->waive($id, $today, $note);
+        }
+    }
+
+    /**
+     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string} $tender
+     */
+    private function unpaid(array $tender, string $amount): bool
+    {
+        foreach (['cash', 'card', 'checks', 'tendered'] as $key) {
+            $value = trim($tender[$key] ?? '');
+            if ($value !== '' && $value !== '0' && $value !== '0.0' && $value !== '0.00') {
+                return false;
+            }
+        }
+        $amount = trim($amount);
+
+        return $amount === '' || $amount === '0' || $amount === '0.0' || $amount === '0.00';
+    }
+
+    /**
+     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string} $tender
+     */
+    private function take(
+        string $vendorId,
+        string $boothId,
+        string $today,
+        string $sessionId,
+        string $amount,
+        array $tender,
+    ): string {
+        $figure = $this->figure($vendorId, $boothId, $today);
+        if ($figure === null) {
+            throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
+        }
+        if ($sessionId === '') {
+            throw new DatabaseRefusal('Open a register to collect');
+        }
+        $shaped = $this->payments->apply($tender, $amount, $figure['owed']);
+        if ($shaped['minor'] < 1) {
+            throw new DatabaseRefusal('a rent receipt needs a tender');
+        }
+        if ($shaped['minor'] > $figure['owed']) {
+            throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
+        }
+        $lines = $this->posting->tenders($shaped['minor'], $shaped['tender']);
+
+        return $this->posting->postReceipt(
+            $figure['vendor_id'],
+            $today,
+            $sessionId,
+            $shaped['minor'],
+            $shaped['tender'],
+            $lines,
+        );
+    }
+
+    private function commitOwned(): void
+    {
+        if (!$this->ownsTransaction) {
+            return;
+        }
+        $this->pdo->commit();
+        $this->ownsTransaction = false;
+    }
+
+    private function vendorOn(string $boothId, string $today): string
+    {
+        if ($boothId === '' || preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
+            return '';
+        }
+        $rows = $this->statements->bound(
+            "SELECT vendor.id::text AS vendor_id
+             FROM booth_assignments AS assignment
+             JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
+             WHERE assignment.booth_id = ?::uuid
+             ORDER BY (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date) DESC, assignment.starts_on DESC
+             LIMIT 1",
+            [$boothId, $today]
+        );
+        $row = $rows[0] ?? null;
+
+        return is_array($row) ? RowValue::string($row['vendor_id'] ?? null) : '';
+    }
+
+    private function owedOn(string $vendorId): int
+    {
+        $rows = $this->statements->bound(
+            "SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0) AS open_minor
+             FROM journal_lines AS line
+             JOIN journals AS journal ON journal.id = line.journal_id
+             JOIN chart_roles AS role ON role.account_id = line.account_id
+             WHERE role.role = 'booth_rent_receivable'
+               AND line.subledger_type = 'booth'
+               AND EXISTS (
+                   SELECT 1 FROM booth_assignments AS assignment
+                   WHERE assignment.vendor_id = ?::uuid
+                     AND assignment.booth_id = line.subledger_ref::uuid
+                     AND assignment.assignment_range @> journal.posting_date
+               )",
+            [$vendorId]
+        );
+        $row = $rows[0] ?? null;
+
+        return is_array($row) ? RowValue::integer($row['open_minor'] ?? null) : 0;
+    }
+
+    private function vendorName(string $vendorId): ?string
+    {
+        $rows = $this->statements->bound(
+            "SELECT btrim(first_name || ' ' || last_name) AS vendor_name FROM vendors WHERE id = ?::uuid",
+            [$vendorId]
+        );
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            return null;
+        }
+        $name = RowValue::string($row['vendor_name'] ?? null);
+
+        return $name === '' ? null : $name;
+    }
+
+    /**
+     * @return list<array{id: string, code: string}>
+     */
+    private function openBooths(string $vendorId): array
+    {
+        $rows = $this->statements->bound(
+            "SELECT booth.id::text AS id, booth.code
+             FROM (
+                 SELECT line.subledger_ref AS booth_id
+                 FROM journal_lines AS line
+                 JOIN journals AS journal ON journal.id = line.journal_id
+                 JOIN chart_roles AS role ON role.account_id = line.account_id
+                 WHERE role.role = 'booth_rent_receivable'
+                   AND line.subledger_type = 'booth'
+                   AND EXISTS (
+                       SELECT 1 FROM booth_assignments AS assignment
+                       WHERE assignment.vendor_id = ?::uuid
+                         AND assignment.booth_id = line.subledger_ref::uuid
+                         AND assignment.assignment_range @> journal.posting_date
+                   )
+                 GROUP BY line.subledger_ref
+                 HAVING sum(line.debit_minor - line.credit_minor) > 0
+             ) AS open
+             JOIN booths AS booth ON booth.id::text = open.booth_id
+             ORDER BY booth.code",
+            [$vendorId]
+        );
+        $spots = [];
+        foreach ($rows as $row) {
+            $spots[] = [
+                'id' => RowValue::string($row['id'] ?? null),
+                'code' => RowValue::string($row['code'] ?? null),
+            ];
+        }
+
+        return $spots;
+    }
+
+    /**
+     * @param list<array{id: string, code: string}> $spots
+     */
+    private function picked(array $spots, string $boothId): string
+    {
+        foreach ($spots as $spot) {
+            if ($spot['id'] === $boothId) {
+                return $boothId;
+            }
+        }
+        $first = $spots[0] ?? null;
+
+        return $first === null ? '' : $first['id'];
+    }
+
+    /**
+     * @param list<array{id: string, code: string}> $spots
+     */
+    private function codes(array $spots): string
+    {
+        $codes = [];
+        foreach ($spots as $spot) {
+            $codes[] = $spot['code'];
+        }
+
+        return implode(', ', $codes);
+    }
+
+    private function booths(string $vendorId, string $today): string
+    {
+        $open = $this->codes($this->openBooths($vendorId));
+        if ($open !== '') {
+            return $open;
+        }
+
+        return implode(', ', $this->assigned($vendorId, $today));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function assigned(string $vendorId, string $today): array
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
+            return [];
+        }
+        $rows = $this->statements->bound(
+            "SELECT booth.code
+             FROM booth_assignments AS assignment
+             JOIN booths AS booth ON booth.id = assignment.booth_id
+             WHERE assignment.vendor_id = ?::uuid
+               AND assignment.starts_on <= ?::date
+               AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
+             ORDER BY booth.code",
+            [$vendorId, $today, $today]
+        );
+        $codes = [];
+        foreach ($rows as $row) {
+            $codes[] = RowValue::string($row['code'] ?? null);
+        }
+
+        return $codes;
     }
 
     private function lateCharged(string $vendorId, string $boothId): int

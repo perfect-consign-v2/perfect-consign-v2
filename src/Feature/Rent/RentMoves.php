@@ -22,17 +22,13 @@ final class RentMoves
     /**
      * @return list<array{label: string, date: string, amount: int, journal_id: string}>
      */
-    public function explain(string $vendorId, string $boothId, int $owed, string $today): array
+    public function explain(string $vendorId, int $owed, string $today): array
     {
         if ($vendorId === '' || $owed < 1) {
             return [];
         }
-        $booth = $this->settings->rentPrepaid() ? '' : $boothId;
-        if ($booth === '' && !$this->settings->rentPrepaid()) {
-            return [];
-        }
-        $moves = $this->moves($vendorId, $booth);
-        foreach ($this->uncovered($vendorId, $booth, $today) as $move) {
+        $moves = $this->moves($vendorId);
+        foreach ($this->uncovered($vendorId, $today) as $move) {
             $moves[] = $move;
         }
 
@@ -40,13 +36,28 @@ final class RentMoves
     }
 
     /**
-     * @return list<array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int}>
+     * Posted rent and late fees for every booth this vendor has had.
+     *
+     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}>
      */
-    private function moves(string $vendorId, string $boothId): array
+    public function charges(string $vendorId): array
+    {
+        if ($vendorId === '') {
+            return [];
+        }
+
+        return $this->moves($vendorId);
+    }
+
+    /**
+     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}>
+     */
+    private function moves(string $vendorId): array
     {
         $sql = "SELECT journal.id::text AS journal_id, journal.source_type AS source,
                        to_char(journal.posting_date, 'YYYY-MM-DD') AS posted_on,
                        COALESCE(booth.code, '') AS booth,
+                       line.subledger_ref AS booth_id,
                        line.debit_minor, line.credit_minor,
                        (
                            SELECT to_char(assignment.starts_on, 'YYYY-MM-DD')
@@ -76,10 +87,6 @@ final class RentMoves
                         AND assignment.assignment_range @> journal.posting_date
                   )";
         $params = [$vendorId, $vendorId];
-        if ($boothId !== '') {
-            $sql .= ' AND line.subledger_ref = ?';
-            $params[] = $boothId;
-        }
         $sql .= ' ORDER BY journal.posting_date, journal.journal_no, line.line_no';
         $moves = [];
         $cycleDay = $this->settings->cycleDay();
@@ -92,6 +99,7 @@ final class RentMoves
                 'source' => $source,
                 'date' => $this->covered($source, $postedOn, $startsOn, $cycleDay),
                 'booth' => RowValue::string($row['booth'] ?? null),
+                'booth_id' => RowValue::string($row['booth_id'] ?? null),
                 'debit' => RowValue::integer($row['debit_minor'] ?? null),
                 'credit' => RowValue::integer($row['credit_minor'] ?? null),
             ];
@@ -101,14 +109,14 @@ final class RentMoves
     }
 
     /**
-     * @return list<array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int}>
+     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}>
      */
-    private function uncovered(string $vendorId, string $boothId, string $today): array
+    private function uncovered(string $vendorId, string $today): array
     {
         if (!$this->settings->rentPrepaid() || preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
             return [];
         }
-        $sql = "SELECT booth.code AS booth,
+        $sql = "SELECT booth.code AS booth, assignment.booth_id::text AS booth_id,
                        to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
                        rate.amount_minor,
                        to_char(series.period_start::date, 'YYYY-MM-DD') AS period_start
@@ -135,10 +143,6 @@ final class RentMoves
                         )
                   )";
         $params = [$today, $vendorId];
-        if ($boothId !== '') {
-            $sql .= ' AND assignment.booth_id = ?::uuid';
-            $params[] = $boothId;
-        }
         $sql .= ' ORDER BY series.period_start, booth.code';
         $cycle = new RentCycle($this->settings->cycleDay());
         $moves = [];
@@ -154,7 +158,7 @@ final class RentMoves
 
     /**
      * @param array<string, mixed> $row
-     * @return array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int}|null
+     * @return array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}|null
      */
     private function unposted(array $row, RentCycle $cycle): ?array
     {
@@ -175,6 +179,7 @@ final class RentMoves
             'source' => 'rent_charge',
             'date' => $partial !== '' ? $partial : $period,
             'booth' => RowValue::string($row['booth'] ?? null),
+            'booth_id' => RowValue::string($row['booth_id'] ?? null),
             'debit' => $amount,
             'credit' => 0,
         ];

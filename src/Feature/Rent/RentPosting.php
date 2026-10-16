@@ -21,6 +21,7 @@ final class RentPosting
         private readonly PayoutStore $payouts,
         private readonly PayoutSettler $settler,
         private readonly MallPayoutSettings $settings,
+        private readonly RentMoves $moves,
     ) {
     }
 
@@ -48,7 +49,6 @@ final class RentPosting
      */
     public function postReceipt(
         string $vendorId,
-        string $boothId,
         string $today,
         string $sessionId,
         int $amount,
@@ -65,7 +65,7 @@ final class RentPosting
         $id = $this->ledger->newId();
         $check = $this->minor($tender['checks']) > 0 ? trim($tender['check']) : null;
         $lines = $debits;
-        foreach ($this->credits($vendorId, $boothId, $amount) as $credit) {
+        foreach ($this->credits($vendorId, $amount) as $credit) {
             $lines[] = $credit;
         }
 
@@ -83,29 +83,21 @@ final class RentPosting
     /**
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
-    private function credits(string $vendorId, string $boothId, int $amount): array
+    private function credits(string $vendorId, int $amount): array
     {
-        $left = $amount;
+        $placed = 0;
         $lines = [];
-        $limited = !$this->settings->rentPrepaid();
-        foreach ($this->payouts->boothRent($vendorId) as $booth) {
-            if ($limited && $booth['booth_id'] !== $boothId) {
-                continue;
-            }
-            $take = min($left, $booth['open_minor']);
-            if ($take < 1) {
-                continue;
-            }
+        foreach ((new RentBill())->share($this->moves->charges($vendorId), $amount) as $share) {
+            $placed += $share['amount'];
             $lines[] = PostedLines::entry(
                 $this->ledger->roleAccount('booth_rent_receivable'),
                 0,
-                $take,
+                $share['amount'],
                 'booth',
-                $booth['booth_id']
+                $share['booth_id'],
             );
-            $left -= $take;
         }
-        if ($left !== 0 || $lines === []) {
+        if ($placed !== $amount || $lines === []) {
             throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
         }
 

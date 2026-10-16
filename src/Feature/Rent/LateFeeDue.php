@@ -22,9 +22,9 @@ final class LateFeeDue
     ) {
     }
 
-    public function waive(string $journalId, string $date): string
+    public function waive(string $journalId, string $date, string $note = ''): string
     {
-        return $this->fees->waive($journalId, $date);
+        return $this->fees->waive($journalId, $date, $note);
     }
 
     public function apply(string $today): void

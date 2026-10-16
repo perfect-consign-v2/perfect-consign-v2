@@ -90,6 +90,20 @@ final class RentBillTest extends TestCase
         self::assertSame('Rent C-2', $lines[1]['label']);
     }
 
+    public function testAPaymentClearsTheOldestRentAcrossBoothsBeforeLateFees(): void
+    {
+        $shares = (new RentBill())->share([
+            $this->move('rent-1', 'rent_charge', '2026-08-01', 'A-1', 15000, 0, 'booth-a'),
+            $this->move('fee-1', 'late_fee', '2026-09-01', 'A-1', 2500, 0, 'booth-a'),
+            $this->move('rent-2', 'rent_charge', '2026-10-01', 'A-2', 30000, 0, 'booth-b'),
+        ], 20000);
+
+        self::assertSame([
+            ['booth_id' => 'booth-a', 'amount' => 15000],
+            ['booth_id' => 'booth-b', 'amount' => 5000],
+        ], $shares);
+    }
+
     public function testRentThatIsNotChargedYetIsStillALine(): void
     {
         $lines = (new RentBill())->explain([], 40000);
@@ -100,15 +114,16 @@ final class RentBillTest extends TestCase
     }
 
     /**
-     * @return array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int}
+     * @return array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}
      */
-    private function move(string $id, string $source, string $date, string $booth, int $debit, int $credit): array
+    private function move(string $id, string $source, string $date, string $booth, int $debit, int $credit, string $boothId = ''): array
     {
         return [
             'journal_id' => $id,
             'source' => $source,
             'date' => $date,
             'booth' => $booth,
+            'booth_id' => $boothId,
             'debit' => $debit,
             'credit' => $credit,
         ];

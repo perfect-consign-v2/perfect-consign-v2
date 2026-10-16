@@ -23,6 +23,8 @@ foreach ($lines as $line) {
         $waive++;
     }
 }
+$showPay = $openRegister;
+$showForm = $showPay || $waive > 0;
 ?>
 <div class="page-head">
     <div class="titles">
@@ -35,6 +37,15 @@ foreach ($lines as $line) {
 </div>
 
 <div class="collect-sheet" style="max-width:36rem">
+<?php if ($showForm): ?>
+<form id="rent-collect" method="post" action="/<?= View::text($slug) ?>/rent/payment">
+    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+    <input type="hidden" name="vendor_id" value="<?= View::text($figure['vendor_id']) ?>">
+    <input type="hidden" name="booth_id" value="<?= View::text($figure['booth_id']) ?>">
+    <?php if ($showPay): ?>
+        <input type="hidden" name="pay_with" value="split">
+    <?php endif; ?>
+<?php endif; ?>
 <div class="card mt-6">
     <div class="card-body stack">
         <p class="slip-row"><span>Vendor</span><span><?= View::text($figure['vendor_name']) ?></span></p>
@@ -43,48 +54,38 @@ foreach ($lines as $line) {
             <?php
             $negative = $line['amount'] < 0;
             $amount = $negative ? '(' . View::money(-$line['amount']) . ')' : View::money($line['amount']);
-            $canWaive = $line['journal_id'] !== '';
+            $canWaive = $line['journal_id'] !== '' && $line['amount'] > 0;
+            $waiveLabel = 'Waive ' . lcfirst($line['label']);
             ?>
-            <?php if ($canWaive): ?>
-                <form class="slip-row" method="post" action="/<?= View::text($slug) ?>/rent/waive" onsubmit="return confirm('Waive this late fee?')">
-                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <input type="hidden" name="vendor_id" value="<?= View::text($figure['vendor_id']) ?>">
-                    <input type="hidden" name="booth_id" value="<?= View::text($figure['booth_id']) ?>">
-                    <input type="hidden" name="journal_id" value="<?= View::text($line['journal_id']) ?>">
-                    <span><?= View::text($line['label']) ?><?php if ($line['date'] !== ''): ?> <span class="muted"><?= View::date($line['date']) ?></span><?php endif; ?></span>
-                    <span><?= View::text($amount) ?> <button class="btn" type="submit">Waive</button></span>
-                </form>
-            <?php else: ?>
-                <p class="slip-row">
-                    <span><?= View::text($line['label']) ?><?php if ($line['date'] !== ''): ?> <span class="muted"><?= View::date($line['date']) ?></span><?php endif; ?></span>
-                    <span<?= $negative ? ' style="color:var(--danger);font-weight:700"' : '' ?>><?= View::text($amount) ?></span>
-                </p>
-            <?php endif; ?>
+            <p class="slip-row">
+                <span><?php if ($canWaive): ?><label><input type="checkbox" name="waive[]" value="<?= View::text($line['journal_id']) ?>" data-cents="<?= View::text((string) $line['amount']) ?>"><?= View::text($waiveLabel) ?><?php if ($line['date'] !== ''): ?> <span class="muted"><?= View::date($line['date']) ?></span><?php endif; ?></label><?php else: ?><?= View::text($line['label']) ?><?php if ($line['date'] !== ''): ?> <span class="muted"><?= View::date($line['date']) ?></span><?php endif; ?><?php endif; ?></span>
+                <span<?= $negative ? ' style="color:var(--danger);font-weight:700"' : '' ?>><?= View::text($amount) ?></span>
+            </p>
         <?php endforeach; ?>
         <?php if ($waive > 1): ?>
-            <form method="post" action="/<?= View::text($slug) ?>/rent/waive" onsubmit="return confirm('Waive every late fee?')">
-                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                <input type="hidden" name="vendor_id" value="<?= View::text($figure['vendor_id']) ?>">
-                <input type="hidden" name="booth_id" value="<?= View::text($figure['booth_id']) ?>">
-                <input type="hidden" name="all" value="1">
-                <p><button class="btn" type="submit">Waive all late fees</button></p>
-            </form>
+            <p><label><input type="checkbox" id="waive-all"> Waive all late fees</label></p>
+        <?php endif; ?>
+        <?php if ($waive > 0): ?>
+            <div class="field" id="waive-note-box" hidden>
+                <label for="waive-note">Waive note</label>
+                <input class="input" id="waive-note" name="waive_note" maxlength="500">
+                <p class="muted text-sm">Optional.</p>
+            </div>
         <?php endif; ?>
         <p class="slip-row slip-total" id="rent-owed" data-cents="<?= View::text((string) $figure['owed']) ?>">
-            <span>They owe</span><span style="font-size:1.75rem;font-weight:700"><?= View::text($owed) ?></span>
+            <span>They owe</span><span id="rent-owed-amount" style="font-size:1.75rem;font-weight:700"><?= View::text($owed) ?></span>
         </p>
     </div>
 </div>
 
-<?php if (!$openRegister): ?>
+<?php if (!$showPay): ?>
     <p class="mt-6"><a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a></p>
+    <?php if ($waive > 0): ?>
+        <p><button class="btn" type="submit">Waive late fees</button></p>
+    <?php endif; ?>
 <?php else: ?>
-    <form class="card mt-6" id="rent-collect" method="post" action="/<?= View::text($slug) ?>/rent/payment">
+    <div class="card mt-6">
         <div class="card-body stack">
-            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <input type="hidden" name="vendor_id" value="<?= View::text($figure['vendor_id']) ?>">
-            <input type="hidden" name="booth_id" value="<?= View::text($figure['booth_id']) ?>">
-            <input type="hidden" name="pay_with" value="split">
             <div class="field">
                 <label for="tender-cash">Cash</label>
                 <input class="input" id="tender-cash" name="tender_cash" inputmode="decimal" value="<?= View::text($tenderCash) ?>">
@@ -107,11 +108,15 @@ foreach ($lines as $line) {
             <p class="slip-row slip-total" id="rent-paying" hidden><span>They are paying</span><span id="rent-paying-amount"></span></p>
             <p><button class="btn btn-primary" type="submit">Collect</button></p>
         </div>
-    </form>
+    </div>
+<?php endif; ?>
+<?php if ($showForm): ?>
+</form>
     <script>
     (function () {
         var form = document.getElementById('rent-collect');
         var owed = document.getElementById('rent-owed');
+        var owedAmount = document.getElementById('rent-owed-amount');
         if (!form || !owed) {
             return;
         }
@@ -124,6 +129,9 @@ foreach ($lines as $line) {
         var checkNumber = document.getElementById('check-number');
         var paying = document.getElementById('rent-paying');
         var payingAmount = document.getElementById('rent-paying-amount');
+        var noteBox = document.getElementById('waive-note-box');
+        var all = document.getElementById('waive-all');
+        var boxes = form.querySelectorAll('input[name="waive[]"]');
         function cents(raw) {
             var cleaned = String(raw || '').replace(/[$,\s]/g, '');
             if (cleaned === '') {
@@ -135,20 +143,56 @@ foreach ($lines as $line) {
         function money(value) {
             return '$' + Math.floor(value / 100) + '.' + String(value % 100).padStart(2, '0');
         }
+        function waivedCents() {
+            var sum = 0;
+            boxes.forEach(function (box) {
+                if (box.checked) {
+                    sum += parseInt(box.getAttribute('data-cents') || '0', 10);
+                }
+            });
+            return sum;
+        }
+        function syncAll() {
+            if (!all) {
+                return;
+            }
+            boxes.forEach(function (box) {
+                box.checked = all.checked;
+            });
+        }
         function paint() {
+            var left = Math.max(0, due - waivedCents());
+            if (owedAmount) {
+                owedAmount.textContent = money(left);
+            }
+            if (noteBox) {
+                noteBox.hidden = !form.querySelector('input[name="waive[]"]:checked');
+            }
+            if (all && document.activeElement !== all) {
+                var on = boxes.length > 0;
+                boxes.forEach(function (box) {
+                    if (!box.checked) {
+                        on = false;
+                    }
+                });
+                all.checked = on;
+            }
+            if (!cash || !card || !checks || !change || !checkBox || !checkNumber || !paying || !payingAmount) {
+                return;
+            }
             var bills = cents(cash.value);
             var cardCents = cents(card.value);
             var checkCents = cents(checks.value);
             var exact = cardCents + checkCents;
             checkBox.hidden = checkCents < 1;
             checkNumber.required = checkCents > 0;
-            if (exact > due) {
+            if (exact > left) {
                 change.hidden = true;
                 paying.hidden = false;
-                payingAmount.textContent = money(exact) + '. That is ' + money(exact - due) + ' more than they owe.';
+                payingAmount.textContent = money(exact) + '. That is ' + money(exact - left) + ' more than they owe.';
                 return;
             }
-            var applied = Math.min(bills, Math.max(0, due - exact));
+            var applied = Math.min(bills, Math.max(0, left - exact));
             var sum = applied + exact;
             if (bills > applied) {
                 change.hidden = false;
@@ -161,11 +205,22 @@ foreach ($lines as $line) {
                 return;
             }
             paying.hidden = false;
-            payingAmount.textContent = sum < due
-                ? money(sum) + '. Still owed ' + money(due - sum) + '.'
+            payingAmount.textContent = sum < left
+                ? money(sum) + '. Still owed ' + money(left - sum) + '.'
                 : money(sum);
         }
-        form.addEventListener('input', paint);
+        if (all) {
+            all.addEventListener('change', function () {
+                syncAll();
+                paint();
+            });
+        }
+        form.addEventListener('input', function (event) {
+            if (event.target && event.target.id === 'waive-all') {
+                syncAll();
+            }
+            paint();
+        });
         paint();
     }());
     </script>

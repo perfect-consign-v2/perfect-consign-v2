@@ -156,12 +156,10 @@ $booths = static function (int $count): string {
                         <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($row['vendor_id']) ?>">(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></a></td>
                         <td class="num"><?= View::text(View::money($row['owes'])) ?></td>
                         <td>
-                            <?php if ($row['booth_id'] === ''): ?>
-                                <span class="muted"><?= $blank ?></span>
-                            <?php elseif ($activeSessionId === ''): ?>
+                            <?php if ($activeSessionId === ''): ?>
                                 <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>
                             <?php else: ?>
-                                <a class="btn btn-sm btn-primary" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>&amp;booth=<?= View::text($row['booth_id']) ?>">Collect</a>
+                                <a class="btn btn-sm btn-primary" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>">Collect</a>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -283,6 +281,8 @@ $booths = static function (int $count): string {
                         <td>
                             <?php if ($row['open_minor'] > 0 && $activeSessionId === ''): ?>
                                 <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>
+                            <?php elseif ($row['open_minor'] > 0 && $row['vendor_id'] !== null): ?>
+                                <a class="btn btn-sm" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>">Collect</a>
                             <?php elseif ($row['open_minor'] > 0): ?>
                                 <a class="btn btn-sm" href="/<?= View::text($slug) ?>/rent/collect?booth=<?= View::text($row['id']) ?>">Collect</a>
                             <?php else: ?>

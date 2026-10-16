@@ -10,7 +10,7 @@ final class RentBill
      * Open charges, the payments already applied to them, and a last line when sales cover part of the balance.
      * A late fee can be waived only while nothing has been paid against it.
      *
-     * @param list<array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int}> $moves
+     * @param list<array{journal_id: string, source: string, date: string, booth: string, booth_id?: string, debit: int, credit: int}> $moves
      * @return list<array{label: string, date: string, amount: int, journal_id: string}>
      */
     public function explain(array $moves, int $owed): array
@@ -32,9 +32,49 @@ final class RentBill
     }
 
     /**
-     * @param list<array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int}> $moves
+     * Oldest rent first, across booths, then late fees.
+     *
+     * @param list<array{journal_id: string, source: string, date: string, booth: string, booth_id?: string, debit: int, credit: int}> $moves
+     * @return list<array{booth_id: string, amount: int}>
+     */
+    public function share(array $moves, int $amount): array
+    {
+        $settled = $this->settle($moves);
+        $charges = $settled['charges'];
+        $left = $amount;
+        $totals = [];
+        $order = [];
+        foreach (['rent', 'late'] as $kind) {
+            foreach ($charges as $index => $charge) {
+                if ($left < 1) {
+                    break 2;
+                }
+                if ($charge['booth_id'] === '' || $charge['left'] < 1 || !$this->accepts($charge['source'], $kind)) {
+                    continue;
+                }
+                $used = min($charge['left'], $left);
+                $charges[$index]['left'] -= $used;
+                $booth = $charge['booth_id'];
+                if (!isset($totals[$booth])) {
+                    $order[] = $booth;
+                    $totals[$booth] = 0;
+                }
+                $totals[$booth] += $used;
+                $left -= $used;
+            }
+        }
+        $shares = [];
+        foreach ($order as $booth) {
+            $shares[] = ['booth_id' => $booth, 'amount' => $totals[$booth]];
+        }
+
+        return $shares;
+    }
+
+    /**
+     * @param list<array{journal_id: string, source: string, date: string, booth: string, booth_id?: string, debit: int, credit: int}> $moves
      * @return array{
-     *     charges: list<array{journal_id: string, source: string, date: string, booth: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}>,
+     *     charges: list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}>,
      *     loose: list<array{label: string, date: string, amount: int, journal_id: string, booth: string}>
      * }
      */
@@ -68,8 +108,8 @@ final class RentBill
     }
 
     /**
-     * @param array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int} $move
-     * @return array{journal_id: string, source: string, date: string, booth: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}
+     * @param array{journal_id: string, source: string, date: string, booth: string, booth_id?: string, debit: int, credit: int} $move
+     * @return array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}
      */
     private function charge(array $move): array
     {
@@ -78,6 +118,7 @@ final class RentBill
             'source' => $move['source'],
             'date' => $move['date'],
             'booth' => $move['booth'],
+            'booth_id' => $move['booth_id'] ?? '',
             'debit' => $move['debit'],
             'left' => $move['debit'],
             'credits' => [],
@@ -87,8 +128,8 @@ final class RentBill
     /**
      * Payments come off rent first, then late fees. Only charges already on the bill can take a payment.
      *
-     * @param list<array{journal_id: string, source: string, date: string, booth: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}> $charges
-     * @param array{journal_id: string, source: string, date: string, booth: string, debit: int, credit: int} $move
+     * @param list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}> $charges
+     * @param array{journal_id: string, source: string, date: string, booth: string, booth_id?: string, debit: int, credit: int} $move
      */
     private function take(array &$charges, int $amount, string $kind, array $move): int
     {
@@ -121,7 +162,7 @@ final class RentBill
     }
 
     /**
-     * @param list<array{journal_id: string, source: string, date: string, booth: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}> $charges
+     * @param list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}> $charges
      * @param list<array{label: string, date: string, amount: int, journal_id: string, booth: string}> $loose
      * @return list<array{label: string, date: string, amount: int, journal_id: string, booth: string}>
      */
@@ -139,7 +180,7 @@ final class RentBill
     }
 
     /**
-     * @param array{journal_id: string, source: string, date: string, booth: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>} $charge
+     * @param array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>} $charge
      * @return list<array{label: string, date: string, amount: int, journal_id: string, booth: string}>
      */
     private function chargeLines(array $charge): array

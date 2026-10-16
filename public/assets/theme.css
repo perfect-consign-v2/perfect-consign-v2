@@ -289,6 +289,19 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+/* The page supports both modes, so without this Windows paints native controls
+   from the system theme. An unchecked box then comes out black while the mall
+   is in light mode. */
+[data-mode="light"] {
+  color-scheme: light;
+}
+[data-mode="dark"] {
+  color-scheme: dark;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
 /* Windows paints a styled select's highlight with the option color, so the
    label vanishes on hover unless the popup colors are set explicitly. */
 [data-mode="light"] select {

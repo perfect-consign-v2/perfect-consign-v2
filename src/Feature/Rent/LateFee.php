@@ -52,8 +52,12 @@ final class LateFee
         ));
     }
 
-    public function waive(string $journalId, string $date): string
+    public function waive(string $journalId, string $date, string $note = ''): string
     {
+        $note = trim($note);
+        if (strlen($note) > 500) {
+            throw new DatabaseRefusal('Enter a shorter waive note.');
+        }
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $journalId) !== 1) {
             throw new DatabaseRefusal('Choose a late fee.');
         }
@@ -78,7 +82,7 @@ final class LateFee
             source: new JournalSource(
                 'late_fee',
                 RowValue::string($journal['source_reference'] ?? null) . ':waive',
-                'Late fee waived',
+                $note === '' ? 'Late fee waived' : 'Late fee waived. ' . $note,
             ),
             lines: $this->swapped($journalId),
             reversesJournalId: $journalId,

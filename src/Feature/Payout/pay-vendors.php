@@ -66,7 +66,7 @@ $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
                     <td><?= View::text(View::money($row['payable'])) ?></td>
                     <td><?= View::text(View::money($row['monthRent'])) ?></td>
                     <td style="font-size:1.35rem;font-weight:700"><?= View::text(View::money($row['check'])) ?></td>
-                    <td><?php if ($row['owes'] > 0): ?><a class="owe-amount" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>&amp;booth=<?= View::text($row['boothId']) ?>">(<?= View::text(View::money($row['owes'])) ?>)</a><?php endif; ?></td>
+                    <td><?php if ($row['owes'] > 0): ?><a class="owe-amount" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>">(<?= View::text(View::money($row['owes'])) ?>)</a><?php endif; ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

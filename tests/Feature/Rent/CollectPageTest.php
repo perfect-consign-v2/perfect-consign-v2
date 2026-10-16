@@ -51,14 +51,20 @@ final class CollectPageTest extends TestCase
 
         self::assertStringContainsString('>Rent <', $html);
         self::assertStringContainsString('$471.66', $html);
-        self::assertStringContainsString('>Late fee <', $html);
+        self::assertStringContainsString('>Waive late fee <', $html);
         self::assertStringContainsString('10-05-2026', $html);
         self::assertStringContainsString('$25.00', $html);
         self::assertStringContainsString('$496.66', $html);
-        self::assertStringContainsString('name="journal_id" value="00000000-0000-7000-8000-000000000099"', $html);
-        self::assertStringContainsString('>Waive</button>', $html);
+        self::assertStringContainsString('name="waive[]" value="00000000-0000-7000-8000-000000000099"', $html);
+        self::assertStringContainsString('data-cents="2500"', $html);
+        self::assertStringContainsString('name="waive_note" maxlength="500"', $html);
+        self::assertStringContainsString('id="waive-note-box" hidden', $html);
+        self::assertStringContainsString('>Waive note<', $html);
+        self::assertStringNotContainsString('>Waive</button>', $html);
         self::assertStringNotContainsString('Waive all late fees', $html);
-        self::assertStringContainsString('action="/mall/rent/waive"', $html);
+        self::assertStringNotContainsString('action="/mall/rent/waive"', $html);
+        self::assertSame(1, substr_count($html, '<form '));
+        self::assertSame(1, substr_count($html, '>Collect</button>'));
     }
 
     public function testEveryLateFeeCanBeWaivedTogether(): void
@@ -68,10 +74,15 @@ final class CollectPageTest extends TestCase
             ['label' => 'Late fee', 'date' => '2026-10-01', 'amount' => 1000, 'journal_id' => '00000000-0000-7000-8000-000000000098'],
         ]);
 
-        self::assertSame(2, substr_count($html, '>Waive</button>'));
-        self::assertStringContainsString('name="all" value="1"', $html);
+        self::assertSame(2, substr_count($html, 'name="waive[]"'));
+        self::assertSame(2, substr_count($html, '>Waive late fee <'));
+        self::assertStringContainsString('id="waive-all"', $html);
         self::assertStringContainsString('Waive all late fees', $html);
-        self::assertStringContainsString('Waive every late fee?', $html);
+        self::assertStringContainsString('name="waive_note" maxlength="500"', $html);
+        self::assertStringNotContainsString('Waive every late fee?', $html);
+        self::assertStringNotContainsString('action="/mall/rent/waive"', $html);
+        self::assertSame(1, substr_count($html, '<form '));
+        self::assertSame(1, substr_count($html, '>Collect</button>'));
     }
 
     public function testARentBalanceWithoutALateFeeDoesNotRepeatRent(): void
@@ -98,8 +109,9 @@ final class CollectPageTest extends TestCase
             ['label' => 'Late fee', 'date' => '2026-10-05', 'amount' => 2500, 'journal_id' => '00000000-0000-7000-8000-000000000099'],
         ]);
 
-        self::assertStringContainsString('>Late fee <', $html);
-        self::assertStringContainsString('>Waive</button>', $html);
+        self::assertStringContainsString('>Waive late fee <', $html);
+        self::assertStringContainsString('name="waive[]"', $html);
+        self::assertStringNotContainsString('>Waive</button>', $html);
         self::assertStringNotContainsString('>Rent <', $html);
     }
 
@@ -110,6 +122,22 @@ final class CollectPageTest extends TestCase
         self::assertStringContainsString('Open a register to collect', $html);
         self::assertStringNotContainsString('Cash they handed you', $html);
         self::assertStringNotContainsString('name="pay_with"', $html);
+        self::assertStringNotContainsString('<form ', $html);
+    }
+
+    public function testAClosedRegisterCanStillWaiveAFee(): void
+    {
+        $html = $this->page(2500, 2500, 0, false, '', '', '', '', 'C-1', [
+            ['label' => 'Late fee', 'date' => '2026-10-05', 'amount' => 2500, 'journal_id' => '00000000-0000-7000-8000-000000000099'],
+        ]);
+
+        self::assertStringContainsString('Open a register to collect', $html);
+        self::assertStringNotContainsString('name="pay_with"', $html);
+        self::assertStringContainsString('name="waive[]" value="00000000-0000-7000-8000-000000000099"', $html);
+        self::assertStringContainsString('name="waive_note" maxlength="500"', $html);
+        self::assertStringContainsString('>Waive late fees</button>', $html);
+        self::assertSame(1, substr_count($html, '<form '));
+        // checked( filled(
     }
 
     public function testAFailedPaymentKeepsTheAmountsTheyTyped(): void

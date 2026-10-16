@@ -68,21 +68,32 @@ final class RentController
         $vendorId = $this->app->request()->field('vendor_id');
         $boothId = $this->app->request()->field('booth_id');
         $today = $this->rent->today();
+        $waived = $this->checked('waive');
+        $cash = $this->app->request()->field('tender_cash');
+        $card = $this->app->request()->field('tender_card');
+        $checks = $this->app->request()->field('tender_checks');
+        $amount = $this->app->request()->field('amount');
+        $session = '';
+        if ($waived === [] || $this->filled($cash) || $this->filled($card) || $this->filled($checks) || $this->filled($amount)) {
+            $session = $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true));
+        }
         try {
             $journalId = $this->receipts->collect(
                 $vendorId,
                 $boothId,
                 $today,
-                $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true)),
-                $this->app->request()->field('amount'),
+                $session,
+                $amount,
                 [
                     'way' => $this->app->request()->field('pay_with'),
-                    'cash' => $this->app->request()->field('tender_cash'),
-                    'card' => $this->app->request()->field('tender_card'),
-                    'checks' => $this->app->request()->field('tender_checks'),
+                    'cash' => $cash,
+                    'card' => $card,
+                    'checks' => $checks,
                     'tendered' => $this->app->request()->field('cash_tendered'),
                     'check' => $this->app->request()->field('check_number'),
                 ],
+                $waived,
+                $this->app->request()->field('waive_note'),
             );
         } catch (DatabaseRefusal $refusal) {
             $this->showCollect($slug, $this->app->catchRefusal($refusal));
@@ -90,6 +101,10 @@ final class RentController
         } catch (\InvalidArgumentException $error) {
             $this->showCollect($slug, $error->getMessage());
             return;
+        }
+        if ($journalId === '') {
+            $notice = count($waived) === 1 ? 'Late fee waived.' : 'Late fees waived.';
+            $this->app->redirect('/' . $slug . '/rent', $notice);
         }
         $this->app->redirect('/' . $slug . '/rent/receipt/' . $journalId);
     }
@@ -174,7 +189,7 @@ final class RentController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'figure' => $figure,
-            'lines' => $this->receipts->explain($figure['vendor_id'], $figure['booth_id'], $figure['owed'], $today),
+            'lines' => $this->receipts->explain($figure['vendor_id'], $figure['owed'], $today),
             'tenderCash' => $returning ? $this->app->request()->field('tender_cash') : '',
             'tenderCard' => $returning ? $this->app->request()->field('tender_card') : '',
             'tenderChecks' => $returning ? $this->app->request()->field('tender_checks') : '',
@@ -223,7 +238,7 @@ final class RentController
     private function waiveChosen(string $vendorId, string $boothId, int $owed, string $today): int
     {
         $open = [];
-        foreach ($this->receipts->explain($vendorId, $boothId, $owed, $today) as $line) {
+        foreach ($this->receipts->explain($vendorId, $owed, $today) as $line) {
             if ($line['journal_id'] !== '') {
                 $open[$line['journal_id']] = true;
             }
@@ -243,6 +258,33 @@ final class RentController
         }
 
         return count($chosen);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function checked(string $name): array
+    {
+        $raw = $this->app->request()->post[$name] ?? [];
+        if (is_string($raw)) {
+            $raw = $raw === '' ? [] : [$raw];
+        }
+        if (!is_array($raw)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($raw as $id) {
+            if (is_string($id) && trim($id) !== '') {
+                $ids[] = trim($id);
+            }
+        }
+
+        return $ids;
+    }
+
+    private function filled(string $value): bool
+    {
+        return $value !== '' && $value !== '0' && $value !== '0.0' && $value !== '0.00';
     }
 
     private function chosen(string $name): string
