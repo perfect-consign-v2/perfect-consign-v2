@@ -136,7 +136,7 @@ final class RentChargeTest extends TestCase
             self::assertSame(4800, $figure['rent']);
             self::assertSame(0, $figure['late']);
             self::assertSame('48.00', $figure['collect']);
-            (new LateFee($ledger))->charge($boothId, '2026-06-15', '5.00');
+            (new LateFee($ledger, $statements))->post($boothId, '2026-06', '2026-06-15', 500);
             $withFee = $receipts->figure('', $boothId, '2026-06-15');
             self::assertNotNull($withFee);
             self::assertSame(5300, $withFee['owed']);

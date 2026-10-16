@@ -44,7 +44,8 @@ final class InventorySelectionKeyTest extends TestCase
             '/<button[^>]*data-print[^>]*data-selection-storage-key="pc\.inventorySelection\.v1\.items\.webprobe"/',
             $keptHtml,
         );
-        self::assertStringContainsString('sessionStorage.removeItem', $keptHtml);
+        self::assertStringNotContainsString('sessionStorage.removeItem', $keptHtml);
+        self::assertStringNotContainsString('afterprint', $keptHtml);
 
         $dropped = $jobs->withSelectionKey(
             ['sheet' => $sheet, 'slug' => $slug],

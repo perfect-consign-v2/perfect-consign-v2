@@ -51,6 +51,7 @@
             "@prove:obligations",
             "@prove:race",
             "@prove",
+            "@prove:tenant",
             "@test:mutate"
         ]
     },

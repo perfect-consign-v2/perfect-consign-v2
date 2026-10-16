@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $title */
@@ -31,6 +32,7 @@ $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $showBrand = ($showBrand ?? true) === true;
 $boothRentals = ($boothRentals ?? true) === true;
 $actorRole = is_string($actorRole ?? null) ? $actorRole : '';
+$previewAs = is_string($previewAs ?? null) ? $previewAs : '';
 $resetTestData = ($slug === 'dev' || $slug === 'mall') && $actorRole === 'owner';
 $groups = [];
 if ($actorRole === 'owner') {
@@ -85,6 +87,16 @@ if ($actorRole === 'cashier') {
     ];
 }
 if ($actorRole === 'vendor') {
+    $groups = [
+        'Vendor' => [
+            ['/vendor', 'Check', 'i-wallet'],
+            ['/vendor/sales', 'Sales', 'i-report'],
+            ['/vendor/inventory', 'Inventory', 'i-inventory'],
+            ['/vendor/offers', 'Deals', 'i-percent'],
+        ],
+    ];
+}
+if ($previewAs !== '') {
     $groups = [
         'Vendor' => [
             ['/vendor', 'Check', 'i-wallet'],
@@ -177,6 +189,9 @@ $roleLabel = match ($actorRole) {
                         continue;
                     }
                     $href = '/' . $slug . $navPath;
+                    if ($previewAs !== '' && str_starts_with($navPath, '/vendor')) {
+                        $href = VendorPreview::with($href, $previewAs);
+                    }
                     $active = $navPath === '/vendor'
                         ? ($path === $href || str_starts_with($path, $href . '/checks/'))
                         : ($path === $href || str_starts_with($path, $href . '/'));
@@ -202,15 +217,15 @@ $roleLabel = match ($actorRole) {
                 <svg aria-hidden="true"><use href="#i-menu"></use></svg>
             </button>
             <div class="topbar-spacer"></div>
-            <?php if ($resetTestData): ?>
+            <?php if ($previewAs === '' && $resetTestData): ?>
                 <form method="post" action="/<?= View::text($slug) ?>/reset-test-data" onsubmit="return confirm('Wipe this mall and load the test data again?');">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <button class="btn btn-danger" type="submit">Reset Test Data</button>
                 </form>
             <?php endif; ?>
-            <?php if ($chooseRegister): ?>
+            <?php if ($previewAs === '' && $chooseRegister): ?>
                 <a class="btn" href="/<?= View::text($slug) ?>/registers">Choose a register</a>
-            <?php elseif ($activeRegister !== ''): ?>
+            <?php elseif ($previewAs === '' && $activeRegister !== ''): ?>
                 <a class="btn" href="/<?= View::text($slug) ?>/registers">Active: <?= View::text($activeRegister) ?></a>
             <?php endif; ?>
             <div class="topbar-actions">
@@ -275,6 +290,9 @@ $roleLabel = match ($actorRole) {
             </div>
         </header>
         <main class="content" id="main">
+            <?php if ($previewAs !== ''): ?>
+                <p class="muted">You are signed in as the owner, looking at this vendor's portal. <a href="/<?= View::text($slug) ?>/vendors/<?= View::text($previewAs) ?>">Back to their record</a></p>
+            <?php endif; ?>
 <?php else: ?>
 <main id="main">
 <?php endif; ?>

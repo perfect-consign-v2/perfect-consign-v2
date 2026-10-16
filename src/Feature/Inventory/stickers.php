@@ -44,24 +44,3 @@ document.querySelectorAll('[data-print]').forEach(function (button) {
     });
 });
 </script>
-<?php if ($selectionStorageKey !== ''): ?>
-<script>
-(function () {
-    var button = document.querySelector('[data-print]');
-    if (button === null) {
-        return;
-    }
-    var key = button.getAttribute('data-selection-storage-key') || '';
-    if (key === '') {
-        return;
-    }
-    window.addEventListener('afterprint', function () {
-        try {
-            window.sessionStorage.removeItem(key);
-        } catch (err) {
-            return;
-        }
-    });
-})();
-</script>
-<?php endif; ?>

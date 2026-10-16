@@ -63,7 +63,7 @@ final class MigrationRecord
         }
         foreach ($this->applied($schema) as $file => $checksum) {
             if ($this->catalog->checksum($file) !== $checksum) {
-                throw new RuntimeException($file . ' changed after it was applied');
+                throw new MigrationFileChanged($file . ' changed after it was applied');
             }
         }
     }
@@ -81,7 +81,7 @@ final class MigrationRecord
                 continue;
             }
             if ($existing !== null) {
-                throw new RuntimeException($file . ' changed after it was applied');
+                throw new MigrationFileChanged($file . ' changed after it was applied');
             }
             $this->remember($schema, $file, $checksum);
         }

@@ -51,6 +51,7 @@ final class TenantProvisioner
             ));
             $createdRole = true;
         }
+        $this->pdo->exec(sprintf('GRANT %s TO CURRENT_USER', $role));
 
         try {
             $this->pdo->beginTransaction();

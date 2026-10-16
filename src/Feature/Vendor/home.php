@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
@@ -20,6 +21,11 @@ use PerfectConsign\Shared\Http\View;
  *     last: array{run_id: string, paid_on: string, amount: int, number: string}|null
  * } $page
  */
+
+$previewAs = is_string($previewAs ?? null) ? $previewAs : '';
+$checkLink = static function (string $runId) use ($slug, $previewAs): string {
+    return VendorPreview::with('/' . $slug . '/vendor/checks/' . $runId, $previewAs);
+};
 ?>
 <div class="page-head">
     <div class="titles">
@@ -54,7 +60,7 @@ use PerfectConsign\Shared\Http\View;
     <p class="muted mt-4">No check has been written.</p>
 <?php else: ?>
     <p class="mt-4">
-        <a href="/<?= View::text($slug) ?>/vendor/checks/<?= View::text($page['last']['run_id']) ?>">
+        <a href="<?= View::text($checkLink($page['last']['run_id'])) ?>">
             Last check <?= View::date($page['last']['paid_on']) ?>
             <?= View::text(View::money($page['last']['amount'])) ?>
         </a>
@@ -115,7 +121,7 @@ use PerfectConsign\Shared\Http\View;
                     <td><?= View::date($line['date']) ?></td>
                     <td>
                         <?php if ($line['run_id'] !== ''): ?>
-                            <a href="/<?= View::text($slug) ?>/vendor/checks/<?= View::text($line['run_id']) ?>"><?= View::text($line['label']) ?></a>
+                            <a href="<?= View::text($checkLink($line['run_id'])) ?>"><?= View::text($line['label']) ?></a>
                         <?php else: ?>
                             <?= View::text($line['label']) ?>
                         <?php endif; ?>

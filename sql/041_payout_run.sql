@@ -335,12 +335,14 @@ BEGIN
         RETURN NULL;
     END IF;
 
+    -- A check already written has left the payable. Counting it again lets the
+    -- settlement ask for more than the vendor is owed when rent sits between
+    -- the real payable and that inflated figure.
     SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0) INTO open_payable
     FROM public.journal_lines AS line
     JOIN public.journals AS posted ON posted.id = line.journal_id
     JOIN public.chart_roles AS role ON role.account_id = line.account_id
     WHERE line.journal_id <> NEW.id
-      AND posted.source_type NOT IN ('check_disbursement', 'cash_disbursement', 'safe_disbursement')
       AND role.role = 'vendor_payable'
       AND line.subledger_type = 'vendor'
       AND line.subledger_ref = NEW.source_reference;

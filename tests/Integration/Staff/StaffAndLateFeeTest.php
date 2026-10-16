@@ -76,8 +76,8 @@ final class StaffAndLateFeeTest extends TestCase
             $statements->change('INSERT INTO booths (code, name) VALUES (?, ?)', [$code, 'Late fee booth']);
             $booth = $statements->bound('SELECT id FROM booths WHERE code = ?', [$code]);
             $boothId = (string) ($booth[0]['id'] ?? '');
-            $fee = new LateFee(new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo)));
-            $journalId = $fee->charge($boothId, '2026-06-15', '1.50');
+            $fee = new LateFee(new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo)), $statements);
+            $journalId = $fee->post($boothId, '2026-06', '2026-06-15', 150);
             self::assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $journalId);
         } catch (DatabaseRefusal $error) {
             self::assertNotSame('', $error->getMessage());

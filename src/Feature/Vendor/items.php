@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Inventory\InventorySelectionKey;
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
 
@@ -23,6 +24,7 @@ $query = $query ?? '';
 
 $blank = '—';
 $showBrand = ($showBrand ?? true) === true;
+$previewAs = is_string($previewAs ?? null) ? $previewAs : '';
 $list = '/' . $slug . '/vendor/inventory';
 ?>
 <div class="page-head">
@@ -41,6 +43,9 @@ $list = '/' . $slug . '/vendor/inventory';
     </div>
 <?php else: ?>
     <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
+        <?php if ($previewAs !== ''): ?>
+            <input type="hidden" name="as" value="<?= View::text($previewAs) ?>">
+        <?php endif; ?>
         <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="<?= $showBrand ? 'Search tag, barcode, description, or brand' : 'Search tag, barcode, or description' ?>" aria-label="Search inventory">
         <button class="btn" type="submit">Search</button>
         <?php
@@ -48,6 +53,7 @@ $list = '/' . $slug . '/vendor/inventory';
         if ($query !== '') {
             $chip .= '&q=' . rawurlencode($query);
         }
+        $chip = VendorPreview::with($chip, $previewAs);
         ?>
         <a class="occupancy-pill" href="<?= View::text($chip) ?>"<?= $stock === 'out' ? ' aria-current="page"' : '' ?>>Not for sale (<?= View::text((string) $unsold) ?>)</a>
     </form>
@@ -56,7 +62,7 @@ $list = '/' . $slug . '/vendor/inventory';
         <?php
         $printId = '';
         $lead = 'Check your own items.';
-        $labelAction = '/' . $slug . '/vendor/labels';
+        $labelAction = VendorPreview::with('/' . $slug . '/vendor/labels', $previewAs);
         $selectionStorageKey = InventorySelectionKey::vendor($slug);
         require __DIR__ . '/../Inventory/sticker-job.php';
         ?>

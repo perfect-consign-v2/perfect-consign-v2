@@ -125,6 +125,29 @@ $rentSentence = $boothRentals ? (new RentCycle($cycleDay))->sentence(!empty($ren
                 <?php endif; ?>
                 <?php if ($boothRentals): ?>
                     <p><?= View::text($rentSentence) ?></p>
+                    <?php
+                    $lateFees = ($lateFees ?? false) === true;
+                    $lateGrace = is_int($lateGrace ?? null) ? $lateGrace : 0;
+                    $lateFirst = is_string($lateFirst ?? null) ? $lateFirst : '';
+                    $lateNext = is_string($lateNext ?? null) ? $lateNext : '';
+                    ?>
+                    <div class="catalog-switches">
+                        <label class="switch-row" for="late_fees_enabled">
+                            <span class="switch">
+                                <input id="late_fees_enabled" name="late_fees_enabled" type="checkbox" value="1"<?= $lateFees ? ' checked' : '' ?>>
+                                <span class="switch-track" aria-hidden="true"></span>
+                                <span class="switch-knob" aria-hidden="true"></span>
+                            </span>
+                            Late fees
+                        </label>
+                    </div>
+                    <label for="late_fee_grace_days">Grace days</label>
+                    <input class="input" id="late_fee_grace_days" name="late_fee_grace_days" inputmode="numeric" min="0" max="28" value="<?= View::text((string) $lateGrace) ?>">
+                    <p class="muted text-sm">Counted from the day the rent period starts. The fee posts on the day grace ends, once for each unpaid period.</p>
+                    <label for="late_fee_first">First late period</label>
+                    <input class="input" id="late_fee_first" name="late_fee_first" inputmode="decimal" value="<?= View::text($lateFirst) ?>">
+                    <label for="late_fee_next">Each later late period</label>
+                    <input class="input" id="late_fee_next" name="late_fee_next" inputmode="decimal" value="<?= View::text($lateNext) ?>">
                 <?php endif; ?>
             </div>
             <div class="field" style="grid-column:1/-1">

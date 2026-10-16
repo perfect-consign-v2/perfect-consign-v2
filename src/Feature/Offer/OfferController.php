@@ -6,8 +6,8 @@ namespace PerfectConsign\Feature\Offer;
 
 use InvalidArgumentException;
 use PerfectApp\Routing\Route;
-use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Http\Request;
@@ -18,7 +18,7 @@ class OfferController
         protected readonly MallApp $app,
         protected readonly OfferStore $offers,
         protected readonly MallSettings $mall,
-        protected readonly Actor $actor,
+        protected readonly VendorPreview $preview,
     ) {
     }
 
@@ -142,7 +142,7 @@ class OfferController
 
             return;
         }
-        $this->app->redirect($this->base($slug, $vendorId), 'Deal saved.');
+        $this->app->redirect($this->preview->url($this->base($slug, $vendorId)), 'Deal saved.');
     }
 
     /**
@@ -185,13 +185,7 @@ class OfferController
 
     protected function vendor(string $slug): string
     {
-        $this->app->open($slug, true);
-        $vendorId = $this->actor->vendor();
-        if ($vendorId === '') {
-            $this->app->notFound();
-        }
-
-        return $vendorId;
+        return $this->preview->id($slug);
     }
 
     protected function base(string $slug, ?string $vendorId): string

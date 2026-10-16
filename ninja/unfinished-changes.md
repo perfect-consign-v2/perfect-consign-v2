@@ -2,38 +2,65 @@
 
 Running list of things this repo has **started but not finished**, or has claimed to fix but hasn't. Maintained across every pull. Each item records the commit where it was first observed, the current status, and the evidence. Items are only closed when the code genuinely refutes them — not on pushback.
 
-Last updated: review of `6343ff9` (covers `2dc616a`, `856bc24`, `6343ff9`).
+Last updated: review of `9f32c16` (covers `f661a3a` … `9f32c16`, 28 commits). Previous: review of `6343ff9`.
 
-Legend: **OPEN** = still present · **PARTIAL** = partly addressed · **CLOSED** = genuinely resolved.
+Legend: **OPEN** = still present · **PARTIAL** = partly addressed · **REGRESSED** = was fixed, came back · **CLOSED** = genuinely resolved.
 
 * * *
 
 ## A. Gate integrity
 
-### A1 — Unit suite depends on an undeclared `pdo_sqlite` → `test:mutate` and `test:coverage` cannot pass off-CI
+### A1 — Unit suite depends on an undeclared `pdo_sqlite` → `test:mutate` and `test:coverage` cannot pass
 
--   **Status: OPEN** · first seen `385c5dd` (tests added), reconfirmed `6343ff9`
--   `tests/Feature/Party/VendorMoveTest.php:16` and `tests/Feature/Rent/LateFeeTest.php:20` do `new PDO('sqlite::memory:')`. The app is PostgreSQL-only; CI declares `extensions: pdo_pgsql, zip, curl` (no sqlite). CI is green **only** because `setup-php`'s default PHP 8.4 build on ubuntu-24.04 bundles `pdo_sqlite`/`sqlite3` (verified against the setup-php wiki).
--   Consequence: in any spec-conformant environment (this sandbox, a minimal container, a fresh dev box) the unit suite is **RED** (2 errors), which makes `bin/mutate.php` refuse to score (`MUTATE_EXIT=1`) and `bin/coverage-run.php` exit 2 (coverage is 90.39% ≥ floor, but tests failed).
--   **Fix:** drop SQLite from the unit suite and inject a fake `Statements` double (preferred — keep the app PostgreSQL-only), **or** declare `pdo_sqlite` in CI + dev requirements. Do not leave it implicit.
+-   **Status: REGRESSED** · first seen `385c5dd`; **fixed** in `f661a3a`; **reintroduced** in `2b74139`
+-   `f661a3a` removed `new PDO('sqlite::memory:')` from `tests/Feature/Party/VendorMoveTest.php` and `tests/Feature/Rent/LateFeeTest.php`. A **later** commit, `2b74139` (verified: `git merge-base --is-ancestor f661a3a 2b74139` → true), added `tests/Feature/Company/CompanyStoreTest.php`, which puts it straight back:
+    -   `CompanyStoreTest.php:91` — `$memory = new PDO('sqlite::memory:');`
+    -   `CompanyStoreTest.php:111` — anonymous `extends PDO` constructor: `parent::__construct('sqlite::memory:');`
+-   Evidence on `9f32c16`: `test` = 301 tests, **3 errors** (`PDOException: could not find driver`); `test:mutate` = exit 1 (`unit suite is not green, so mutants cannot be scored`); `test:coverage` = exit 2. The app is PostgreSQL-only; CI declares `extensions: pdo_pgsql, zip, curl` (no sqlite) and is green only because `setup-php`'s PHP 8.4 image happens to bundle `pdo_sqlite`.
+-   **Fix:** inject a fake `Statements` double (the pattern `f661a3a` chose), or declare `pdo_sqlite` in CI **and** the dev requirements. Do not leave it implicit.
 
 ### A2 — `prove:tenant` is outside `composer check` and outside CI
 
--   **Status: OPEN** · first seen before `385c5dd`, reconfirmed `6343ff9`
--   `composer.json:38` defines `prove:tenant`; the `check` array does **not** include it, and `.github/workflows/check.yml` never calls it. A gate that never runs is not a gate.
--   **Fix:** add it to `check` (or a workflow step), or stop implying tenant isolation is proven on push.
+-   **Status: OPEN (and now proven to matter)** · first seen before `385c5dd`
+-   `composer.json:38` defines `prove:tenant`; the `check` array omits it and `.github/workflows/check.yml` never calls it. On `9f32c16` this gate is **RED** (see A3) and nobody would have known, because it never runs. A gate that never runs is not a gate.
+-   **Fix:** add it to `check` (or a workflow step).
+
+### A3 — NEW: `056_quantity_offers.sql` disables every event-trigger guard for the rest of provisioning
+
+-   **Status: OPEN** · first seen `6ca7a18`
+-   `sql/056_quantity_offers.sql:6` — `SET LOCAL event_triggers = false;`. It needs this to replace three guard-backed functions, but `SET LOCAL` is transaction-scoped and `bin/provision-tenant.php` applies the whole ledger in one transaction — so from `056` onward, **every event trigger is off** for `057`–`060` and beyond: the append-only guard, the guard-function-replace guards, and the password-reset guards.
+-   Evidence: reproduced directly — install the ledger into a fresh schema in one transaction, then `ALTER TABLE … DISABLE TRIGGER journals_append_only` **succeeds** (guard does not fire); in a _new_ transaction it is blocked with `25006`. The minimal control (no ledger) fires the guard, so `056` is the cause. This is also why **`prove:tenant` is RED** (`owner disable trigger wiped a posted row`).
+-   **Fix:** bracket only the three `CREATE OR REPLACE FUNCTION` statements with `SET LOCAL event_triggers = false; … true;`, or `ALTER EVENT TRIGGER … DISABLE/ENABLE` around them.
+
+### A4 — NEW: eight already-applied migrations edited in place (rename); no data migration for the renamed discriminator
+
+-   **Status: OPEN** · first seen `cb2db5a`
+-   `cb2db5a` finished the `Pieces → Items` rename by editing **already-applied** files: `023_items.sql`, `029_register_posts.sql`, `031_sale_lines.sql`, `032_tickets.sql`, `037_item_quantity.sql`, `040_layaway.sql`, `041_payout_run.sql`, `053_booth_correction.sql` (`029/032/037/041` change real SQL — the `source_type` value `piece_return → item_return` and trigger bodies; the rest are comments).
+-   `MigrationRecord::verify()` hashes the raw file bytes (comments included) and throws `RuntimeException: <file> changed after it was applied` for any tenant that stamped the old bytes. Hit directly on the first integration run: `023_items.sql changed after it was applied` (`MigrationRecord.php:66` ← `TenantMigrator.php:30` ← `SchemaMigrator.php:42` ← `ProbeMall.php:63`).
+-   The team knows the rule: `8c130d0` is titled _"Leave the applied payout migration unchanged"_ and **reverts** a `041` edit into a new `054_paid_check_number.sql`. That pattern was not applied to the rename.
+-   Also: `grep -rn "piece_return" sql/ src/` now returns nothing, but **no migration `UPDATE`s existing `journals.source_type`** from `piece_return` to `item_return`. Existing tenants keep stale rows and the checksum guard blocks the file that would fix them.
+-   **Fix:** revert the in-place edits; if the discriminator rename is needed, add a forward migration that updates `journals.source_type` and re-creates the affected triggers.
+
+### A5 — NEW: line coverage below the enforced floor
+
+-   **Status: OPEN** · first seen `9f32c16`
+-   `test:coverage` = `Lines: 15699/17539 (89.51%)`, `line coverage 89.51% is below 90%`. On `6343ff9` it was 90.39% (≥ floor). The 3 sqlite errors contribute, but the report shows new code shipping under the bar: `Feature/Dev/MallTenantReset.php` 0%, `Feature/Dev/DevTenantReset.php` 0%, `Feature/Dev/DevResetController.php` 0%, `Feature/Payout/PrintedChecks.php` 2.0%, `Feature/Payout/PayoutOnce.php` 12.3%, `Feature/Party/VendorMove.php` 17.9%.
+-   **Fix:** cover the new Dev/\* and payout paths before adding more features.
+
+### A6 — NEW: the probe harness cannot recover from a checksum mismatch
+
+-   **Status: OPEN** · first seen `9f32c16`
+-   `tests/Support/ProbeMall.php` catches `TenantBaselineMismatch` and wipes/re-provisions. The checksum failure is a plain `RuntimeException` (`MigrationRecord.php:66`), which that catch does not cover — so a single edited migration bricks the integration suite with no automatic recovery. `bin/wipe-tenant.php` only defines functions (no CLI entry point), so there is no easy manual reset either.
+-   **Fix:** treat "a stamped file changed" like a baseline mismatch in `ProbeMall`; give `wipe-tenant.php` a CLI entry point.
 
 * * *
 
 ## B. Authorization / security
 
-### B1 — Residual owner-default fallbacks (the "missing role ≠ owner" fix is incomplete)
+### B1 — Owner-default fallbacks (`?? 'owner'`)
 
--   **Status: OPEN (latent, not currently exploitable)** · first seen `385c5dd`, reconfirmed `6343ff9`
--   `src/Shared/Web/layout.php:67` — `$actorRole = is_string($actorRole ?? null) ? $actorRole : 'owner';`
--   `src/Feature/Rent/rent.php:332` — `if (($actorRole ?? 'owner') === 'owner' && $rows !== []):`
--   Currently dead code: `MallApp::show()` (`MallApp.php:77`) always injects `actorRole`, so the fallback never fires today. But it is the **exact pattern `385c5dd` claimed to remove**, and it defaults an authorization input to the **most privileged** value. Any future render path outside `show()` (CLI export, mail template, template-requiring test) silently grants owner nav + owner-only late-fee form.
--   **Fix:** default to `''`, not `'owner'`, in both places.
+-   **Status: CLOSED** in `f661a3a`
+-   `src/Shared/Web/layout.php` now defaults the role to `''` (`is_string($actorRole ?? null) ? $actorRole : ''`) and builds the owner nav only inside `if ($actorRole === 'owner')`; `src/Feature/Rent/rent.php` no longer uses `($actorRole ?? 'owner')`. `grep -rn "?? 'owner'" src/` → **none**. Correct fix at the correct layer.
 
 * * *
 
@@ -42,14 +69,13 @@ Legend: **OPEN** = still present · **PARTIAL** = partly addressed · **CLOSED**
 ### C1 — `afterprint` wipes the sticker selection even on print-cancel
 
 -   **Status: OPEN** · first seen `2dc616a`
--   `src/Feature/Inventory/stickers.php:58-64` removes the `sessionStorage` selection key on `afterprint`. `afterprint` fires on cancel too, so previewing/cancelling the print dialog destroys a multi-page selection. `afterprint` is also unreliable across engines. Contradicts the "grandma-friendly" bar.
--   **Fix:** clear on an explicit action, or only on a completed print, not on `afterprint`.
+-   `src/Feature/Inventory/stickers.php:58` removes the `sessionStorage` selection key on `afterprint`. `afterprint` fires on cancel too, so previewing/cancelling the print dialog destroys a multi-page selection. Contradicts the "grandma-friendly" bar.
+-   **Fix:** clear on an explicit action, or only on a completed print.
 
-### C2 — `Items → Items` rename is half-done; the UI contradicts itself
+### C2 — `Pieces → Items` rename
 
--   **Status: OPEN** · first seen `2dc616a`
--   Headings say "Items" (`inventory.php:29`), but body copy and the whole vendor surface still say "item(s)": `inventory.php:39,58,66,141`; `Vendor/home.php:36`; `VendorStickers.php:59`; `InventoryStore.php:133,137,161,277,285`; `InventoryController.php:82`; `Code128.php:66`; `LabelRequest.php:79,88,93,102`. Class layer split too (`ItemWriter` vs `StickerItem`, `ItemForm`, `ItemEntry`, `ItemSale`, `ItemDates`, `ItemGuard`, `InstantItem`).
--   **Fix:** finish the rename end-to-end (table is `items` → use "item"), with a test asserting the old noun is gone from rendered output; or revert the headings.
+-   **Status: CLOSED (rename), but by the wrong method** · first seen `2dc616a`
+-   `grep -rin "piece"` across `src/`, `public/`, `sql/`, `tests/`, `*.js` → **zero occurrences**. The rename is complete and consistent. It was executed by editing applied migrations, though — see A4.
 
 * * *
 
@@ -58,32 +84,28 @@ Legend: **OPEN** = still present · **PARTIAL** = partly addressed · **CLOSED**
 ### D1 — `.cursor/rules/*.mdc` still committed, including `do-not-run-tests`
 
 -   **Status: OPEN** · long-standing
--   `.cursor/rules/` contains `do-not-run-tests.mdc`, `maintain-proven-level.mdc`, `prove-before-advance.mdc`, `update-demo-on-push.mdc`, `git-do-not-mention-idea-leftovers.mdc`. `do-not-run-tests` instructs the agent to skip the one thing that proves the ledger. Belongs in a personal profile, not the repo.
+-   `.cursor/rules/` still contains `do-not-run-tests.mdc`, `maintain-proven-level.mdc`, `prove-before-advance.mdc`, `update-demo-on-push.mdc`, `git-do-not-mention-idea-leftovers.mdc`. `do-not-run-tests` instructs the agent to skip `composer check`, PHPUnit, `prove-suite`, `prove:race`, `prove:obligations`, `prove:tenant`, `test:mutate`, and `sql/prove_*.sql`.
 -   **Fix:** remove `do-not-run-tests.mdc` at minimum; ideally move agent rules out of the shipped repo.
 
 * * *
 
 ## E. Performance / correctness hygiene
 
-### E1 — `VendorAccount::items()` is unbounded and sorts in PHP
+### E1 — `VendorAccount::pieces()` is unbounded and sorts in PHP
 
--   **Status: OPEN** · first seen `2dc616a`
--   `VendorAccount.php:57-79` selects all items for a vendor with no limit and `usort`/`strnatcasecmp`s in PHP. Move the natural-key sort into SQL (`ORDER BY` + collation) or bound it.
+-   **Status: OPEN** · first seen `2dc616a` · (note: method may have been renamed with the Items rename)
 
 ### E2 — `VendorAccount::numbers()` aggregates with no obvious supporting index
 
 -   **Status: OPEN** · first seen `2dc616a`
--   Two aggregates over `journal_lines` ⋈ `chart_roles` filtered on `subledger_ref`/`subledger_type`. `EXPLAIN` before this page meets a vendor with long history.
 
 ### E3 — `VendorStickers::printOwn()` opens the tenant twice
 
 -   **Status: OPEN** · first seen `2dc616a`
--   `printOwn()` calls `$this->app->open($slug, true)` at line 39, but `$this->sheet()` (line 35) already opened it via `storeName()`. Redundant `SET ROLE`/open.
 
 ### E4 — `ListTable::assetVersion()` stats the asset file every render
 
 -   **Status: OPEN (micro)** · first seen `2dc616a`
--   `ListTable.php:138-149` `filemtime()` per render. A build-time manifest is the enterprise pattern.
 
 * * *
 
@@ -91,16 +113,14 @@ Legend: **OPEN** = still present · **PARTIAL** = partly addressed · **CLOSED**
 
 ### F1 — Vendor account screens were absent from git
 
--   **Status: CLOSED** in `2dc616a`
--   Root cause: `.gitignore` unanchored `vendor/` matched every `vendor` dir, hiding `src/Feature/Vendor/`. Fixed to `/vendor/` (root-anchored). Vendor page/controller/store/view now tracked; `VendorAccountTest` passes. Fix is at the correct layer (removes the class of bug, not the instance).
+-   **Status: CLOSED** in `2dc616a` — `.gitignore` `vendor/` → `/vendor/`.
 
 ### F2 — CSS cache-busted from the JS mtime
 
--   **Status: CLOSED** in `2dc616a`
--   `ListTable::selectionStyle()` now versions `list-datatables.css` from the CSS file's own mtime; `ListTableTest` asserts it.
+-   **Status: CLOSED** in `2dc616a` — versions from the CSS file's own mtime.
 
 * * *
 
-## Snapshot of gate status on `6343ff9`
+## Snapshot of gate status on `9f32c16`
 
-GREEN: `check:max-lines`, `check:phpmd`, `phpstan` L10, `test:integration` (21/146), `test:http` (48/655), `prove:obligations`, `prove:race`, `prove` (40 proofs), `prove:tenant`. RED: `test` (unit — 2 sqlite errors), `test:mutate` (unit not green), `test:coverage` (exit 2; 90.39% ≥ floor).
+GREEN: `check:max-lines`, `check:phpmd`, `phpstan` L10 (331 files), `test:integration` (22/190), `test:http` (56/856), `prove:obligations`, `prove:race`, `prove` (suite), JS test (5/0). RED: `test` (unit — 3 sqlite errors), `prove:tenant` (exit 1 — 056 guard bypass), `test:mutate` (unit not green), `test:coverage` (exit 2; 89.51% < 90%).

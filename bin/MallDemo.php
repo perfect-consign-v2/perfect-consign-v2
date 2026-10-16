@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use PerfectConsign\Bootstrap\DatabaseRole;
+use PerfectConsign\Feature\Company\CompanyDraft;
 use PerfectConsign\Feature\Company\CompanyLines;
 use PerfectConsign\Feature\Company\CompanyStore;
+use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
@@ -26,6 +28,8 @@ use PerfectConsign\Feature\Pos\TicketPricing;
 use PerfectConsign\Feature\Pos\TicketQueue;
 use PerfectConsign\Feature\Pos\TicketStore;
 use PerfectConsign\Feature\Register\DenominationCount;
+use PerfectConsign\Feature\Rent\LateFee;
+use PerfectConsign\Feature\Rent\LateFeeDue;
 use PerfectConsign\Feature\Rent\RentLines;
 use PerfectConsign\Feature\Rent\RentStore;
 use PerfectConsign\Ledger\CashRound;
@@ -37,6 +41,7 @@ use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class MallDemo
 {
@@ -94,6 +99,8 @@ final class MallDemo
 
     private readonly RentStore $rent;
 
+    private readonly CompanyStore $company;
+
     private readonly PayoutRunStore $runs;
 
     private readonly PayoutSettler $settler;
@@ -130,8 +137,8 @@ final class MallDemo
         $pricing = new TicketPricing($this->statements);
         $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)));
         $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements));
-        $company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
-        $this->rent = new RentStore($this->statements, new MallSettings($this->statements, $company), new RentLines(), $this->ledger);
+        $this->company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
+        $this->rent = new RentStore($this->statements, new MallSettings($this->statements, $this->company), new RentLines(), $this->ledger);
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));
         $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
         $lines = new PayoutRunLines($this->statements);
@@ -142,6 +149,7 @@ final class MallDemo
     public function load(): void
     {
         $this->useMall();
+        $this->companyProfile();
         $this->statements->change(
             'UPDATE mall SET commission_bps = ?, tax_bps = ?, floor_days = ?, rent_prepaid_from_prior_sales = true',
             [2000, 8750, 90]
@@ -171,14 +179,72 @@ final class MallDemo
             $this->month($month);
         }
         $this->october();
+        $this->lateFees();
         $this->waitList();
         $this->sideDoor();
-        fwrite(STDOUT, "demo posted through 2026-10-05\n");
+        $this->note( "demo posted through 2026-10-05\n");
+    }
+
+    private function note(string $line): void
+    {
+        if (PHP_SAPI === 'cli') {
+            fwrite(STDOUT, $line);
+        }
     }
 
     private function useMall(): void
     {
         $this->pdo->exec('SET search_path TO ' . $this->schema . ', pg_catalog, extensions');
+    }
+
+    private function companyProfile(): void
+    {
+        $rows = $this->statements->bound(
+            'SELECT id, slug, schema_name, display_name FROM platform.tenants WHERE schema_name = ?',
+            [$this->schema]
+        );
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            throw new RuntimeException('the mall tenant is missing');
+        }
+        $slug = RowValue::string($row['slug'] ?? null);
+        $schema = RowValue::string($row['schema_name'] ?? null);
+        $this->company->save(new TenantRecord(
+            RowValue::string($row['id'] ?? null),
+            $slug,
+            $schema,
+            TenantRecord::roleFor($slug, $schema),
+            RowValue::string($row['display_name'] ?? null),
+        ), CompanyDraft::parse([
+            'name' => 'Harbor Antique Mall',
+            'street' => '120 Wharf Street',
+            'street2' => '',
+            'city' => 'Astoria',
+            'state' => 'OR',
+            'postal' => '97103',
+            'phone' => '503-555-0140',
+            'email' => 'desk@harbor-antique.test',
+        ]));
+        if ($this->pdo->exec('RESET ROLE') === false) {
+            throw new RuntimeException('the database role could not be reset');
+        }
+        $this->useMall();
+    }
+
+    private function lateFees(): void
+    {
+        $this->useMall();
+        $this->statements->change(
+            'UPDATE mall
+             SET late_fees_enabled = true, late_fee_grace_days = 5,
+                 late_fee_first_minor = 2500, late_fee_next_minor = 2500',
+            []
+        );
+        (new LateFeeDue(
+            $this->statements,
+            new MallPayoutSettings($this->statements),
+            new LateFee($this->ledger, $this->statements),
+        ))->apply('2026-10-05');
     }
 
     private function brands(): void
@@ -209,6 +275,7 @@ final class MallDemo
             'C-2' => [14, 16, 7500],
             'D-1' => [26, 16, 15000],
             'D-2' => [38, 16, 10000],
+            'E-1' => [50, 2, 12000],
         ];
         foreach ($places as $code => $place) {
             $id = $this->ledger->newId();
@@ -224,13 +291,13 @@ final class MallDemo
 
     private function aprilPeople(): void
     {
-        $this->vendor('ADA', 'Ada', 'Lane', '555-0140', 'ada@example.com', '14 Cedar St', 2000, '2026-04-01', '', 'Moved in April. Store keeps 20 percent.');
+        $this->vendor('ADA', 'Ada', 'Lane', '555-0140', 'ada@example.com', '14 Cedar St', 2000, '2026-04-01', '', 'Moved in April. Store keeps 20 percent. Took C-2 in June as a second booth.');
         $this->vendor('BEA', 'Bea', 'Ortiz', '555-0142', 'bea@example.com', '8 Harbor Ave', 1500, '2026-04-01', '', 'Store keeps 15 percent.');
         $this->vendor('CAL', 'Cal', 'Nguyen', '555-0144', 'cal@example.com', '31 Pine Rd', 2500, '2026-05-15', '', 'Moved in mid-May. Store keeps 25 percent.');
         $this->vendor('DAN', 'Dana', 'Shah', '555-0146', 'dana@example.com', '2 Elm Ct', 2000, '2026-04-01', '2026-07-31', 'Left at the end of July. Inactive once that payout cleared.');
-        $this->vendor('EVE', 'Eve', 'Park', '555-0148', 'eve@example.com', '19 Oak Ln', 2000, '2026-08-01', '', 'Took booth B-2 in August at the new asking rent.');
+        $this->vendor('EVE', 'Eve', 'Park', '555-0148', 'eve@example.com', '19 Oak Ln', 2000, '2026-08-01', '', 'Took booth B-2 in August at the new asking rent, and E-1 the same day.');
         $this->vendor('LEO', 'Leo', 'Marsh', '555-0150', 'leo@example.com', '7 Birch Way', 2000, '2026-04-01', '2026-05-31', 'Left in May. Inactive once the June payout cleared.');
-        $this->vendor('GIN', 'Gina', 'Holt', '555-0152', 'gina@example.com', '44 Mill St', 2000, '2026-09-20', '', 'Moved into C-1 in September. Sales do not cover the booth.');
+        $this->vendor('GIN', 'Gina', 'Holt', '555-0152', 'gina@example.com', '44 Mill St', 2000, '2026-09-20', '', 'Moved into C-1 in September. The desk collected the rest of that rent on October 1.');
         $this->vendor('IRI', 'Iris', 'Chen', '555-0154', 'iris@example.com', '3 Lake Dr', 2000, '2026-11-01', '', 'Arrives in November, after Bea leaves A-2. Resale certificate on file.');
         $this->vendor('JON', 'Jon', 'Hale', '555-0156', 'jon@example.com', '18 River Rd', 2000, '2026-11-01', '', 'Arrives in November for B-1. Payouts are on hold.');
         $this->vendor('MAX', 'Max', 'Reed', '555-0158', 'max@example.com', '9 Dock St', 2000, '2026-08-01', '', 'Took D-1 in August. August, September, and October rent was never paid.');
@@ -252,8 +319,19 @@ final class MallDemo
     private function month(string $month): void
     {
         $this->useMall();
-        fwrite(STDOUT, $month . "\n");
+        $this->note( $month . "\n");
         $session = $this->openDrawer($month . '-01');
+        if ($month === '2026-06') {
+            $this->assign('C-2', 'ADA', '2026-06-01', '', 7500);
+        }
+        if ($month >= '2026-06') {
+            $this->chargeAndCollect($session, 'C-2', $month . '-01');
+        }
+        if ($month >= '2026-08') {
+            $this->chargeAndCollect($session, 'E-1', $month . '-01');
+            $this->ensureCharge('D-1', $month . '-01');
+            $this->ensureCharge('D-2', $month . '-01');
+        }
         if ($month === '2026-04') {
             $this->chargeAndCollect($session, 'A-1', '2026-04-01');
             $this->chargeAndCollect($session, 'A-2', '2026-04-01');
@@ -312,6 +390,7 @@ final class MallDemo
             $this->parties->setAskingRent($this->booths['A-1'], 35000);
             $this->parties->setAskingRent($this->booths['B-2'], 27500);
             $this->assign('B-2', 'EVE', '2026-08-01', '', 27500);
+            $this->assign('E-1', 'EVE', '2026-08-01', '', 12000);
             $this->assign('D-1', 'MAX', '2026-08-01', '', 15000);
             $this->assign('D-2', 'NIA', '2026-08-01', '', 10000);
         }
@@ -319,7 +398,7 @@ final class MallDemo
         if ($month !== '2026-09') {
             $this->payout($next);
         } else {
-            fwrite(STDOUT, "  October payout left unpaid\n");
+            $this->note( "  October payout left unpaid\n");
         }
         if ($month === '2026-05') {
             $this->parties->setActive($this->vendors['LEO'], false);
@@ -338,12 +417,15 @@ final class MallDemo
     private function october(): void
     {
         $this->useMall();
-        fwrite(STDOUT, "2026-10\n");
+        $this->note( "2026-10\n");
         $this->roundCash = true;
         $this->statements->change('UPDATE mall SET cash_round_nickel = true', []);
         $session = $this->openDrawer('2026-10-01');
-        $this->rent->postCharge($this->booths['D-1'], '2026-10-01');
-        $this->rent->postCharge($this->booths['D-2'], '2026-10-01');
+        $this->chargeAndCollect($session, 'C-2', '2026-10-01');
+        $this->chargeAndCollect($session, 'E-1', '2026-10-01');
+        $this->ensureCharge('D-1', '2026-10-01');
+        $this->ensureCharge('D-2', '2026-10-01');
+        $this->payOpenRent($session, 'C-1', '2026-10-01');
         foreach (['ADA', 'BEA', 'CAL', 'EVE'] as $code) {
             $this->sell($session, $code, '2026-10-02', false);
             $this->sell($session, $code, '2026-10-04', $code === 'ADA');
@@ -537,8 +619,20 @@ final class MallDemo
 
     private function chargeAndCollect(string $sessionId, string $booth, string $date): void
     {
-        $this->rent->postCharge($this->booths[$booth], $date);
+        $this->ensureCharge($booth, $date);
         $this->payOpenRent($sessionId, $booth, $date);
+    }
+
+    private function ensureCharge(string $booth, string $date): void
+    {
+        $rows = $this->statements->bound(
+            'SELECT id FROM journals WHERE posting_key = ?',
+            ['rent-charge:' . $this->booths[$booth] . ':' . substr($date, 0, 7)]
+        );
+        if ($rows !== []) {
+            return;
+        }
+        $this->rent->postCharge($this->booths[$booth], $date);
     }
 
     private function payOpenRent(string $sessionId, string $booth, string $date): void
@@ -578,7 +672,7 @@ final class MallDemo
         $this->runs->review($runId);
         $this->settler->close($runId, $postingDate);
         $this->disburser->pay($runId, $postingDate);
-        fwrite(STDOUT, '  payout ' . $window['from'] . ' through ' . $window['to'] . ' posted ' . $postingDate . "\n");
+        $this->note( '  payout ' . $window['from'] . ' through ' . $window['to'] . ' posted ' . $postingDate . "\n");
     }
 
     private function opening(): void

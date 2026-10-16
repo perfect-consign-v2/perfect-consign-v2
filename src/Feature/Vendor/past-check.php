@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
@@ -23,7 +24,7 @@ use PerfectConsign\Shared\Http\View;
             <?php endif; ?>
         </p>
     </div>
-    <a class="btn" href="/<?= View::text($slug) ?>/vendor">Your check</a>
+    <a class="btn" href="<?= View::text(VendorPreview::with('/' . $slug . '/vendor', is_string($previewAs ?? null) ? $previewAs : '')) ?>">Your check</a>
 </div>
 <?php if ($check['lines'] === []): ?>
     <p class="muted mt-4">No lines on this check.</p>

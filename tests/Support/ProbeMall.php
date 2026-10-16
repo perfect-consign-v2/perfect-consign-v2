@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Support;
 
 use PDO;
+use PerfectConsign\Schema\MigrationFileChanged;
 use PerfectConsign\Schema\SchemaCatalog;
 use PerfectConsign\Schema\SchemaMigrator;
 use PerfectConsign\Schema\TenantBaselineMismatch;
@@ -61,7 +62,7 @@ final class ProbeMall
     {
         try {
             $migrator->migrateTenant(self::SLUG);
-        } catch (TenantBaselineMismatch) {
+        } catch (TenantBaselineMismatch | MigrationFileChanged) {
             require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'wipe-tenant.php';
             \wipeTenant(self::admin(), self::SLUG, self::SLUG);
             self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php', [self::SLUG, self::DISPLAY_NAME]);

@@ -51,6 +51,9 @@ foreach ($ledgerFiles as $path) {
     if (str_contains($sql, 'SET event_triggers')) {
         $failures[] = $file . ' sets event_triggers';
     }
+    if (eventTriggersLeftOff($sql)) {
+        $failures[] = $file . ' leaves event triggers off';
+    }
     if (str_contains($sql, 'ADD COLUMN IF NOT EXISTS')) {
         $failures[] = $file . ' adds a column with IF NOT EXISTS';
     }
@@ -86,6 +89,27 @@ if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath((string) $argv[0]) === rea
         fwrite(STDERR, $error->getMessage() . "\n");
         exit(1);
     }
+}
+
+function eventTriggersLeftOff(string $sql): bool
+{
+    $matched = preg_match_all('/SET LOCAL event_triggers = (true|false);/', $sql, $matches);
+    if ($matched === false || $matched === 0) {
+        return false;
+    }
+    $settings = $matches[1];
+    $off = 0;
+    $on = 0;
+    foreach ($settings as $setting) {
+        if ($setting === 'false') {
+            $off++;
+        } else {
+            $on++;
+        }
+    }
+    $last = $settings[count($settings) - 1];
+
+    return $off !== $on || $last !== 'true';
 }
 
 function symbolIsCovered(string $name, string $covered): bool

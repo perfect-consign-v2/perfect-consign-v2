@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Vendor;
 
 use PerfectApp\Routing\Route;
-use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Inventory\LabelCatalog;
 use PerfectConsign\Feature\Mall\MallSettings;
@@ -15,7 +14,7 @@ final class VendorHomeController
 {
     public function __construct(
         private readonly MallApp $app,
-        private readonly Actor $actor,
+        private readonly VendorPreview $preview,
         private readonly VendorAccount $account,
         private readonly VendorCheck $checks,
         private readonly VendorSales $sales,
@@ -84,7 +83,7 @@ final class VendorHomeController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $this->stickers->printOwn($slug, $this->actor->vendor());
+        $this->stickers->printOwn($slug, $this->preview->id($slug));
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/vendor/checks/([0-9a-fA-F-]{36})', ['GET'])]
@@ -127,12 +126,6 @@ final class VendorHomeController
 
     private function vendor(string $slug): string
     {
-        $this->app->open($slug, true);
-        $vendorId = $this->actor->vendor();
-        if ($vendorId === '') {
-            $this->app->notFound();
-        }
-
-        return $vendorId;
+        return $this->preview->id($slug);
     }
 }

@@ -70,6 +70,32 @@ final class MallPayoutSettings
         );
     }
 
+    /**
+     * @return array{enabled: bool, grace: int, first: int, next: int}
+     */
+    public function lateFee(): array
+    {
+        $days = RowValue::integer($this->row()['late_fee_grace_days'] ?? null);
+
+        return [
+            'enabled' => $this->flag('late_fees_enabled'),
+            'grace' => $days >= 0 && $days <= 28 ? $days : 0,
+            'first' => max(0, RowValue::integer($this->row()['late_fee_first_minor'] ?? null)),
+            'next' => max(0, RowValue::integer($this->row()['late_fee_next_minor'] ?? null)),
+        ];
+    }
+
+    public function saveLateFees(bool $enabled, int $grace, int $first, int $next): void
+    {
+        $days = $grace >= 0 && $grace <= 28 ? $grace : 0;
+        $this->statements->change(
+            'UPDATE mall
+             SET late_fees_enabled = ?::boolean, late_fee_grace_days = ?,
+                 late_fee_first_minor = ?, late_fee_next_minor = ?',
+            [$enabled ? 'true' : 'false', $days, max(0, $first), max(0, $next)]
+        );
+    }
+
     private function flag(string $column): bool
     {
         $value = $this->row()[$column] ?? null;
@@ -84,7 +110,8 @@ final class MallPayoutSettings
     {
         $rows = $this->statements->rows(
             'SELECT operating_mode, payout_cadence, rent_prepaid_from_prior_sales,
-                    booth_rentals_enabled, rent_cycle_day
+                    booth_rentals_enabled, rent_cycle_day, late_fees_enabled, late_fee_grace_days,
+                    late_fee_first_minor, late_fee_next_minor
              FROM mall'
         );
         $row = $rows[0] ?? null;

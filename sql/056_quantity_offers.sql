@@ -1,9 +1,7 @@
 -- Quantity deals. The tag price stays. A vendor-funded deal lowers the sold price.
 -- A store-funded deal is a mall expense and leaves the vendor's payable on the tag price.
 -- Apply after 055. The provisioner rewrites public. and stall_poster.
--- Replacing the sale, return, and ticket guards is the superuser migration path.
-
-SET LOCAL event_triggers = false;
+-- The three guard replacements below turn event triggers off only for that statement.
 
 INSERT INTO accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type)
 SELECT
@@ -411,6 +409,8 @@ BEGIN
 END;
 $$;
 
+SET LOCAL event_triggers = false;
+
 CREATE OR REPLACE FUNCTION stall_assert_ticket_line()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -515,6 +515,10 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+SET LOCAL event_triggers = true;
+
+SET LOCAL event_triggers = false;
 
 CREATE OR REPLACE FUNCTION stall_assert_sale_shape()
 RETURNS trigger
@@ -918,6 +922,10 @@ BEGIN
 END;
 $$;
 
+SET LOCAL event_triggers = true;
+
+SET LOCAL event_triggers = false;
+
 CREATE OR REPLACE FUNCTION stall_assert_item_return()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1103,3 +1111,5 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+
+SET LOCAL event_triggers = true;

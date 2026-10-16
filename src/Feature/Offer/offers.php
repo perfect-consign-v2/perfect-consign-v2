@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
@@ -28,13 +29,17 @@ $dealName = static function (string $kind, int $threshold, int $minor): string {
 
     return (string) $threshold . ' for ' . $price;
 };
+$previewAs = is_string($previewAs ?? null) ? $previewAs : '';
+$dealLink = static function (string $path) use ($previewAs): string {
+    return VendorPreview::with($path, $previewAs);
+};
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Deals</h1>
         <p class="muted">Quantity prices. The tag price stays on the item.</p>
     </div>
-    <a class="btn btn-primary" href="<?= View::text($base) ?>/new">New deal</a>
+    <a class="btn btn-primary" href="<?= View::text($dealLink($base . '/new')) ?>">New deal</a>
 </div>
 <?php if ($offers === []): ?>
     <div class="card">
@@ -59,7 +64,7 @@ $dealName = static function (string $kind, int $threshold, int $minor): string {
                 <?php foreach ($offers as $offer): ?>
                     <tr>
                         <td>
-                            <a href="<?= View::text($base) ?>/<?= View::text($offer['id']) ?>"><?= View::text($offer['name']) ?></a>
+                            <a href="<?= View::text($dealLink($base . '/' . $offer['id'])) ?>"><?= View::text($offer['name']) ?></a>
                             <?php if ($offer['ended']): ?><span class="badge">Ended</span><?php endif; ?>
                         </td>
                         <td><?= View::text($scopeName($offer['scope'], $offer['scope_label'])) ?></td>
@@ -68,7 +73,7 @@ $dealName = static function (string $kind, int $threshold, int $minor): string {
                         <td><?= View::text(View::date($offer['starts_on'])) ?><?php if ($offer['ends_on'] !== ''): ?> – <?= View::text(View::date($offer['ends_on'])) ?><?php endif; ?></td>
                         <td>
                             <?php if (!$offer['ended']): ?>
-                                <form method="post" action="<?= View::text($base) ?>/<?= View::text($offer['id']) ?>/end">
+                                <form method="post" action="<?= View::text($dealLink($base . '/' . $offer['id'] . '/end')) ?>">
                                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                     <button class="btn btn-sm" type="submit">End</button>
                                 </form>

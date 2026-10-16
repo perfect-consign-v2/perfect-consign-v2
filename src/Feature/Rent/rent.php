@@ -329,30 +329,3 @@ $booths = static function (int $count): string {
     <?php endforeach; ?>
     <?php ListTable::assets(); ?>
 <?php endif; ?>
-<?php if (($actorRole ?? '') === 'owner' && $rows !== []): ?>
-    <form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/rent/late-fee">
-        <div class="card-head"><div class="h3">Late fee</div></div>
-        <div class="card-body stack">
-            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <p class="muted">This is its own charge. It does not reduce what the store owes the vendor. Waive it from Collect rent.</p>
-            <div class="field">
-                <label for="late_booth">Booth</label>
-                <select class="select" id="late_booth" name="booth_id" required>
-                    <option value="">Choose a booth</option>
-                    <?php foreach ($rows as $row): ?>
-                        <option value="<?= View::text($row['id']) ?>"><?= View::text($row['code']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="field">
-                <label for="late_date">Date</label>
-                <input class="input" id="late_date" name="posting_date" type="date" value="<?= View::text($today) ?>" required>
-            </div>
-            <div class="field">
-                <label for="late_amount">Amount</label>
-                <input class="input" id="late_amount" name="amount" inputmode="decimal" required>
-            </div>
-            <p><button class="btn" type="submit">Post late fee</button></p>
-        </div>
-    </form>
-<?php endif; ?>

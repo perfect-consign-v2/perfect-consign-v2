@@ -13,6 +13,7 @@ use PerfectConsign\Feature\Backup\BackupStore;
 use PerfectConsign\Feature\Inventory\LabelCatalog;
 use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\Money;
 
 final class MallController
 {
@@ -30,6 +31,14 @@ final class MallController
     private ?int $postedCycleDay = null;
 
     private ?bool $postedPrepaid = null;
+
+    private ?bool $postedLateFees = null;
+
+    private ?int $postedLateGrace = null;
+
+    private ?int $postedLateFirst = null;
+
+    private ?int $postedLateNext = null;
 
     public function __construct(
         private readonly MallApp $app,
@@ -198,6 +207,7 @@ final class MallController
                 $this->postedRentals ?? false,
                 $this->postedCycleDay ?? 1,
             );
+            $this->storeLateFees();
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
@@ -266,7 +276,74 @@ final class MallController
             ? $this->app->request()->field('rent_prepaid_from_prior_sales') === '1'
             : $this->payouts->rentPrepaid();
 
+        return $this->lateFeePolicy();
+    }
+
+    private function lateFeePolicy(): ?string
+    {
+        if ($this->postedRentals !== true) {
+            return null;
+        }
+        $enabled = $this->app->request()->field('late_fees_enabled') === '1';
+        $this->postedLateFees = $enabled;
+        $graceRaw = $this->app->request()->field('late_fee_grace_days');
+        if ($graceRaw === '' && !$enabled) {
+            $graceRaw = '0';
+        }
+        if (preg_match('/^(?:0|[1-9]|1[0-9]|2[0-8])$/', $graceRaw) !== 1) {
+            return 'late fee grace is a whole number from 0 to 28';
+        }
+        $this->postedLateGrace = (int) $graceRaw;
+        $first = $this->optionalMinor('late_fee_first');
+        $next = $this->optionalMinor('late_fee_next');
+        if ($first === false || $next === false) {
+            return 'enter the late fee in dollars and cents';
+        }
+        if ($enabled && ($first < 1 || $next < 1)) {
+            return 'enter the late fee in dollars and cents';
+        }
+        $this->postedLateFirst = $first;
+        $this->postedLateNext = $next;
+
         return null;
+    }
+
+    private function optionalMinor(string $field): int|false
+    {
+        $raw = trim($this->app->request()->field($field));
+        if ($raw === '') {
+            return 0;
+        }
+        try {
+            return Money::parseMinor($raw);
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+    }
+
+    private function storeLateFees(): void
+    {
+        if ($this->postedLateFees === null || $this->postedLateGrace === null) {
+            return;
+        }
+        if ($this->postedLateFirst === null || $this->postedLateNext === null) {
+            return;
+        }
+        $this->payouts->saveLateFees(
+            $this->postedLateFees,
+            $this->postedLateGrace,
+            $this->postedLateFirst,
+            $this->postedLateNext,
+        );
+    }
+
+    private function dollars(int $minor): string
+    {
+        if ($minor < 1) {
+            return '';
+        }
+
+        return intdiv($minor, 100) . '.' . str_pad((string) ($minor % 100), 2, '0', STR_PAD_LEFT);
     }
 
     private function dayText(?int $days): string
@@ -328,6 +405,7 @@ final class MallController
         ?string $error,
     ): void {
         $tenant = $this->app->open($slug, true);
+        $late = $this->payouts->lateFee();
         $this->app->show('Feature/Mall/settings', [
             'title' => 'Settings',
             'displayName' => $tenant->displayName,
@@ -352,6 +430,10 @@ final class MallController
             'boothRentals' => $this->postedRentals ?? $this->payouts->rentalsEnabled(),
             'cycleDay' => $this->postedCycleDay ?? $this->payouts->cycleDay(),
             'cycleFrozen' => $this->payouts->cycleFrozen(),
+            'lateFees' => $this->postedLateFees ?? $late['enabled'],
+            'lateGrace' => $this->postedLateGrace ?? $late['grace'],
+            'lateFirst' => $this->dollars($this->postedLateFirst ?? $late['first']),
+            'lateNext' => $this->dollars($this->postedLateNext ?? $late['next']),
             'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
             'stocks' => $this->stocks->choices(),
             'catalogs' => $this->postedCatalogs ?? [

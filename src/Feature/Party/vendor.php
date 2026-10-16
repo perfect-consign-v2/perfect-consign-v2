@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PerfectConsign\Feature\Party\PartyRecord;
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
 
@@ -39,7 +40,10 @@ $blank = '—';
                 <?php endif; ?>
             </ul>
         </div>
-        <a class="btn" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
+        <div class="row gap-2">
+            <a class="btn" href="<?= View::text(VendorPreview::with('/' . $slug . '/vendor', $vendor['id'])) ?>" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-vendor"></use></svg> Open as vendor</a>
+            <a class="btn" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
+        </div>
     </div>
 
     <div class="vendor-layout">

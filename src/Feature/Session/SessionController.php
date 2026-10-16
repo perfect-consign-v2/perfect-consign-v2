@@ -63,7 +63,7 @@ final class SessionController
 
             return;
         }
-        $this->app->redirect($this->actor->path($slug), 'Signed in.');
+        $this->app->redirect($this->actor->path($slug));
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/logout', ['POST'])]

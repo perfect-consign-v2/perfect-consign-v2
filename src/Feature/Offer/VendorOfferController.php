@@ -59,6 +59,6 @@ final class VendorOfferController extends OfferController
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/vendor/offers', 'Deal ended.');
+        $this->app->redirect($this->preview->url('/' . $slug . '/vendor/offers'), 'Deal ended.');
     }
 }

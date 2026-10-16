@@ -18,17 +18,18 @@ final class LateFeeTest extends TestCase
     public function testALateFeeNeedsABoothAndADate(): void
     {
         $pdo = $this->createStub(PDO::class);
-        $fee = new LateFee(new LedgerStore($pdo, new Statements($pdo), new LedgerPeriods($pdo), new JournalCash($pdo)));
+        $statements = new Statements($pdo);
+        $fee = new LateFee(new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo)), $statements);
 
         try {
-            $fee->charge('booth', '2026-10-01', '1.50');
+            $fee->post('booth', '2026-10', '2026-10-01', 150);
             self::fail('a late fee without a booth was accepted');
         } catch (DatabaseRefusal $error) {
             self::assertSame('Choose a booth.', $error->getMessage());
         }
 
         try {
-            $fee->charge('00000000-0000-7000-8000-000000000004', 'October', '1.50');
+            $fee->post('00000000-0000-7000-8000-000000000004', '2026-10', 'October', 150);
             self::fail('a late fee without a date was accepted');
         } catch (DatabaseRefusal $error) {
             self::assertSame('Enter the date of the late fee.', $error->getMessage());

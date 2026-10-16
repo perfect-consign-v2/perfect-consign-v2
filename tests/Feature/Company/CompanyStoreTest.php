@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Feature\Company;
 
 use PDO;
-use PDOStatement;
 use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Feature\Company\CompanyDraft;
 use PerfectConsign\Feature\Company\CompanyLines;
@@ -30,8 +29,8 @@ final class CompanyStoreTest extends TestCase
 
     public function testACompanySaveRefusesAMissingMallRow(): void
     {
-        $pdo = $this->scripted(0, false);
-        $store = new CompanyStore(new Statements($pdo), new DatabaseRole($pdo), $pdo, new CompanyLines());
+        [$pdo, $statements] = $this->scripted(0, false);
+        $store = new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('the mall has no company row');
@@ -40,8 +39,8 @@ final class CompanyStoreTest extends TestCase
 
     public function testAMissingTenantRefusesTheRename(): void
     {
-        $pdo = $this->scripted(1, false);
-        $store = new CompanyStore(new Statements($pdo), new DatabaseRole($pdo), $pdo, new CompanyLines());
+        [$pdo, $statements] = $this->scripted(1, false);
+        $store = new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('That mall was not found.');
@@ -50,8 +49,8 @@ final class CompanyStoreTest extends TestCase
 
     public function testAFailedCompanyCommandIsRefused(): void
     {
-        $pdo = $this->scripted(1, true);
-        $store = new CompanyStore(new Statements($pdo), new DatabaseRole($pdo), $pdo, new CompanyLines());
+        [$pdo, $statements] = $this->scripted(1, true);
+        $store = new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('the company save could not finish');
@@ -86,40 +85,41 @@ final class CompanyStoreTest extends TestCase
         ];
     }
 
-    private function scripted(int $contactRows, bool $failCommand): PDO
+    /**
+     * @return array{PDO, Statements}
+     */
+    private function scripted(int $contactRows, bool $failCommand): array
     {
-        $memory = new PDO('sqlite::memory:');
-        $memory->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $memory->exec('CREATE TABLE mall (id INTEGER)');
-        if ($contactRows === 1) {
-            $memory->exec('INSERT INTO mall (id) VALUES (1)');
-        }
-        $contact = $memory->prepare(
-            'UPDATE mall SET id = id WHERE ? IS NOT NULL AND ? IS NOT NULL AND ? IS NOT NULL
-             AND ? IS NOT NULL AND ? IS NOT NULL AND ? IS NOT NULL AND ? IS NOT NULL'
-        );
-        $name = $memory->prepare('SELECT id FROM mall WHERE ? IS NOT NULL AND ? IS NOT NULL AND 0');
-        self::assertInstanceOf(PDOStatement::class, $contact);
-        self::assertInstanceOf(PDOStatement::class, $name);
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('exec')->willReturn($failCommand ? false : 0);
 
-        return new class($contact, $name, $failCommand) extends PDO {
-            public function __construct(
-                private readonly PDOStatement $contact,
-                private readonly PDOStatement $name,
-                private readonly bool $failCommand,
-            ) {
-                parent::__construct('sqlite::memory:');
-            }
-
-            public function prepare(string $query, array $options = []): PDOStatement|false
+        return [$pdo, new class($pdo, $contactRows) extends Statements {
+            public function __construct(PDO $pdo, private readonly int $contactRows)
             {
-                return str_contains($query, 'platform.tenants') ? $this->name : $this->contact;
+                parent::__construct($pdo);
             }
 
-            public function exec(string $statement): int|false
+            public function transaction(callable $work): void
             {
-                return $this->failCommand ? false : 0;
+                $work();
             }
-        };
+
+            /**
+             * @param list<mixed> $params
+             */
+            public function affected(string $sql, array $params): int
+            {
+                return $this->contactRows;
+            }
+
+            /**
+             * @param list<mixed> $params
+             * @return list<array<string, mixed>>
+             */
+            public function bound(string $sql, array $params): array
+            {
+                return [];
+            }
+        }];
     }
 }

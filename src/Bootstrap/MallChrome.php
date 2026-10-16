@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\Request;
 
 /**
@@ -35,11 +36,12 @@ final class MallChrome
         if ($vendor) {
             $this->session->delete('close_prior:' . $slug);
         }
-        $away = $vendor ? null : $this->door->priorShift($slug, $leftOpen);
+        $portal = $vendor || $this->previewing($slug);
+        $away = $portal ? null : $this->door->priorShift($slug, $leftOpen);
         $started = $this->session->get('close_prior:' . $slug) === 'yes';
         $data['priorCloseStarted'] = $started;
         $onHub = preg_match('#/registers$#', $this->request->path) === 1;
-        $data['priorPrompt'] = !$vendor && $leftOpen !== [] && $started !== true && $onHub !== true;
+        $data['priorPrompt'] = !$portal && $leftOpen !== [] && $started !== true && $onHub !== true;
 
         return $away;
     }
@@ -52,6 +54,13 @@ final class MallChrome
         $page = $this->door->actor()->role() === 'cashier' ? 'pos' : 'dashboard';
 
         return '/' . $slug . '/' . $page;
+    }
+
+    private function previewing(string $slug): bool
+    {
+        return $this->door->actor()->role() === 'owner'
+            && VendorPreview::onPortal($this->request->path, $slug)
+            && VendorPreview::token($this->request->query('as')) !== '';
     }
 
     private function rentPage(string $slug): bool

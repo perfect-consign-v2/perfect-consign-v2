@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
@@ -13,13 +14,16 @@ use PerfectConsign\Shared\Http\View;
 /** @var list<array{id: string, code: string, name: string}> $vendors */
 
 $action = $id === '' ? $base : $base . '/' . $id;
+$previewAs = is_string($previewAs ?? null) ? $previewAs : '';
+$action = VendorPreview::with($action, $previewAs);
+$back = VendorPreview::with($base, $previewAs);
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1"><?= $id === '' ? 'New deal' : 'Edit deal' ?></h1>
         <p class="muted">Three for $25 leaves one or two at the tag price. N or more reprices every unit on the line.</p>
     </div>
-    <a class="btn" href="<?= View::text($base) ?>">Back</a>
+    <a class="btn" href="<?= View::text($back) ?>">Back</a>
 </div>
 <form class="card mt-6" method="post" action="<?= View::text($action) ?>">
     <div class="card-body stack">

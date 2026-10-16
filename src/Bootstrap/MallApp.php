@@ -6,6 +6,7 @@ namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\View;
@@ -63,6 +64,7 @@ final class MallApp
         $data['notice'] = $notice;
         $data['warning'] = $warning;
         $data['actorRole'] = $this->door->actor()->role();
+        $data['previewAs'] = $this->ownerPreview(is_string($slug) ? $slug : '');
         $data['showBrand'] = $this->roled ? $this->mall->enabled('use_brand') : true;
         $data['boothRentals'] ??= $this->roled ? $this->mall->isRentalsEnabled() : true;
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
@@ -224,6 +226,18 @@ final class MallApp
         $this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog, extensions');
         $this->pdo->exec('SET ROLE ' . $tenant->role);
         $this->roled = true;
+    }
+
+    private function ownerPreview(string $slug): string
+    {
+        if ($slug === '' || $this->door->actor()->role() !== 'owner') {
+            return '';
+        }
+        if (!VendorPreview::onPortal($this->request->path, $slug)) {
+            return '';
+        }
+
+        return VendorPreview::token($this->request->query('as'));
     }
 
     private function sessionSlug(): ?string

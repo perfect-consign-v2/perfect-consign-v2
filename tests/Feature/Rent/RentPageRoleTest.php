@@ -12,19 +12,13 @@ final class RentPageRoleTest extends TestCase
     public function testTheLateFeeFormIsOwnerOnly(): void
     {
         $owner = $this->page(['actorRole' => 'owner', 'rows' => [$this->booth()]]);
-        self::assertStringContainsString('action="/demo/rent/late-fee"', $owner);
         self::assertStringContainsString('Previous', $owner);
         self::assertStringNotContainsString('Not charged', $owner);
-        self::assertStringContainsString('Post late fee', $owner);
+        self::assertStringNotContainsString('late_amount', $owner);
+        self::assertStringNotContainsString('Post late fee', $owner);
 
         $cashier = $this->page(['actorRole' => 'cashier', 'rows' => [$this->booth()]]);
-        self::assertStringNotContainsString('late-fee', $cashier);
-
-        $missing = $this->page(['rows' => [$this->booth()]]);
-        self::assertStringNotContainsString('late-fee', $missing);
-
-        $empty = $this->page(['actorRole' => 'owner', 'rows' => []]);
-        self::assertStringNotContainsString('late-fee', $empty);
+        self::assertStringNotContainsString('late_amount', $cashier);
     }
 
     /**

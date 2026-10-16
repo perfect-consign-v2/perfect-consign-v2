@@ -23,7 +23,7 @@ final class RentController
         private readonly MallPayoutSettings $settings,
         private readonly RentReceipt $receipts,
         private readonly JournalCash $cash,
-        private readonly LateFee $lateFees,
+        private readonly LateFeeDue $lateDue,
     ) {
     }
 
@@ -92,29 +92,6 @@ final class RentController
             return;
         }
         $this->app->redirect('/' . $slug . '/rent/receipt/' . $journalId);
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/rent/late-fee', ['POST'])]
-    public function lateFee(string $slug): void
-    {
-        $this->app->checkCsrf();
-        $this->app->open($slug, true);
-        try {
-            $journalId = $this->lateFees->charge(
-                $this->app->request()->field('booth_id'),
-                $this->app->request()->field('posting_date'),
-                $this->app->request()->field('amount'),
-            );
-        } catch (DatabaseRefusal $refusal) {
-            $this->render($slug, $this->app->catchRefusal($refusal));
-
-            return;
-        } catch (\InvalidArgumentException $error) {
-            $this->render($slug, $error->getMessage());
-
-            return;
-        }
-        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Late fee posted. Void that entry to reverse it.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/rent/waive', ['POST'])]
@@ -211,6 +188,11 @@ final class RentController
     {
         $tenant = $this->app->open($slug, true);
         $today = $this->rent->today();
+        try {
+            $this->lateDue->apply($today);
+        } catch (DatabaseRefusal $refusal) {
+            $error = $error ?? $this->app->catchRefusal($refusal);
+        }
         $month = $this->book->month($this->chosen('month'), $today);
         $fromSales = $this->settings->rentPrepaid();
         $book = $this->book->assemble($this->rent->facts($month), $month, $today, $this->settings->cycleDay());
@@ -257,7 +239,7 @@ final class RentController
             $chosen[] = $this->app->request()->field('journal_id');
         }
         foreach ($chosen as $journalId) {
-            $this->lateFees->waive($journalId, $today);
+            $this->lateDue->waive($journalId, $today);
         }
 
         return count($chosen);

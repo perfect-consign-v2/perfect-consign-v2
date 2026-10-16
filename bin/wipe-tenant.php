@@ -19,6 +19,13 @@ function wipeTenant(PDO $pdo, string $slug, string $expectedSlug): void
     $role = $slug === 'mall' ? 'stall_poster' : 'poster_' . substr($schema, strlen('tenant_'));
     $quotedSlug = $pdo->quote($slug);
     dropBackupTenantKey($pdo);
+    dropPasswordResetTenantKey($pdo);
+    $pdo->exec(
+        'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
+    );
+    $pdo->exec(
+        'DELETE FROM platform.password_reset_requests WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
+    );
     $pdo->exec(
         'DELETE FROM platform.owners WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
     );
@@ -40,8 +47,32 @@ function wipeTenant(PDO $pdo, string $slug, string $expectedSlug): void
     if ($member->fetchColumn() !== false) {
         $pdo->exec('REVOKE ' . $role . ' FROM stall_app');
     }
+    $pdo->exec('GRANT ' . $role . ' TO CURRENT_USER');
     $pdo->exec('DROP OWNED BY ' . $role);
     $pdo->exec('DROP ROLE ' . $role);
+}
+
+function dropPasswordResetTenantKey(PDO $pdo): void
+{
+    $present = $pdo->query("SELECT to_regclass('platform.password_resets')");
+    if ($present === false || $present->fetchColumn() === null) {
+        return;
+    }
+    $found = $pdo->query(
+        "SELECT con.conname
+         FROM pg_constraint AS con
+         WHERE con.conrelid = 'platform.password_resets'::regclass
+           AND con.contype = 'f'
+           AND con.confrelid = 'platform.tenants'::regclass"
+    );
+    if ($found === false) {
+        throw new RuntimeException('could not read password reset constraints');
+    }
+    $constraint = $found->fetchColumn();
+    if (!is_string($constraint) || preg_match('/^[a-z_][a-z0-9_]*$/', $constraint) !== 1) {
+        return;
+    }
+    $pdo->exec('ALTER TABLE platform.password_resets DROP CONSTRAINT ' . $constraint);
 }
 
 function dropBackupTenantKey(PDO $pdo): void
@@ -61,4 +92,49 @@ function dropBackupTenantKey(PDO $pdo): void
         return;
     }
     $pdo->exec('ALTER TABLE platform.owner_backups DROP CONSTRAINT ' . $constraint);
+}
+
+if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath((string) $argv[0]) === realpath(__FILE__)) {
+    require_once __DIR__ . '/load-env.php';
+    loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
+    $slug = $argv[1] ?? '';
+    if (!is_string($slug) || $slug === '' || isset($argv[2])) {
+        fwrite(STDERR, "usage: php bin/wipe-tenant.php <slug>\n");
+        exit(1);
+    }
+
+    $host = getenv('STALL_DB_HOST');
+    $port = getenv('STALL_DB_PORT');
+    $name = getenv('STALL_DB_NAME');
+    $user = getenv('STALL_DB_USER');
+    $password = getenv('STALL_DB_PASSWORD');
+    if (!is_string($host) || $host === '') {
+        $host = '127.0.0.1';
+    }
+    if (!is_string($port) || $port === '') {
+        $port = '5436';
+    }
+    if (!is_string($name) || $name === '') {
+        $name = 'consign';
+    }
+    if (!is_string($user) || $user === '') {
+        $user = 'stall';
+    }
+    if (!is_string($password) || $password === '') {
+        $password = 'stall';
+    }
+
+    $pdo = new PDO(
+        'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
+        $user,
+        $password,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    try {
+        wipeTenant($pdo, $slug, $slug);
+    } catch (Throwable $error) {
+        fwrite(STDERR, $error->getMessage() . "\n");
+        exit(1);
+    }
+    fwrite(STDOUT, $slug . "\n");
 }

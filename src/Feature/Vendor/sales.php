@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
@@ -10,6 +11,12 @@ use PerfectConsign\Shared\Http\View;
 /** @var int $total */
 
 $base = '/' . $slug . '/vendor/sales';
+$previewAs = is_string($previewAs ?? null) ? $previewAs : '';
+$salesLink = static function (string $query) use ($base, $previewAs): string {
+    $path = $query === '' ? $base : $base . '?' . $query;
+
+    return VendorPreview::with($path, $previewAs);
+};
 ?>
 <div class="page-head">
     <div class="titles">
@@ -18,13 +25,16 @@ $base = '/' . $slug . '/vendor/sales';
     </div>
 </div>
 <p class="mt-4">
-    <a href="<?= View::text($base) ?>">Since your last check</a>
-    · <a href="<?= View::text($base) ?>?range=check">This check</a>
-    · <a href="<?= View::text($base) ?>?range=week">This week</a>
-    · <a href="<?= View::text($base) ?>?range=month">This month</a>
+    <a href="<?= View::text($salesLink('')) ?>">Since your last check</a>
+    · <a href="<?= View::text($salesLink('range=check')) ?>">This check</a>
+    · <a href="<?= View::text($salesLink('range=week')) ?>">This week</a>
+    · <a href="<?= View::text($salesLink('range=month')) ?>">This month</a>
 </p>
 <form class="mt-4" method="get" action="<?= View::text($base) ?>">
     <input type="hidden" name="range" value="custom">
+    <?php if ($previewAs !== ''): ?>
+        <input type="hidden" name="as" value="<?= View::text($previewAs) ?>">
+    <?php endif; ?>
     <div class="row gap-2">
         <div class="field">
             <label for="from">From</label>
