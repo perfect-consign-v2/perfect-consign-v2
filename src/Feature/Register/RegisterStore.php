@@ -47,7 +47,8 @@ final class RegisterStore
                     session.id AS session_id, session.cashier, session.opened_at, session.opening_cash_minor,
                     CASE WHEN EXISTS (
                         SELECT 1 FROM tickets
-                        WHERE session_id = session.id AND status = 'open'
+                        JOIN ticket_lines ON ticket_lines.ticket_id = tickets.id
+                        WHERE tickets.session_id = session.id AND tickets.status = 'open'
                     ) THEN 1 ELSE 0 END AS open_ticket
              FROM registers AS register
              LEFT JOIN register_sessions AS session

@@ -75,6 +75,7 @@ final class TicketStore
      */
     public function cart(string $sessionId): array
     {
+        $this->releaseEmpty($sessionId);
         $mall = $this->mall();
         $ticketId = $this->openId($sessionId);
         $adjustment = $ticketId === null ? $this->pricing->emptyAdjustment() : $this->pricing->adjustment($ticketId);
@@ -141,13 +142,18 @@ final class TicketStore
     public function remove(string $sessionId, int $lineNo): void
     {
         $ticketId = $this->requireOpen($sessionId);
-        $this->statements->transaction(function () use ($ticketId, $lineNo): void {
+        $this->statements->transaction(function () use ($sessionId, $ticketId, $lineNo): void {
             $deleted = $this->statements->affected(
                 'DELETE FROM ticket_lines WHERE ticket_id = ?::uuid AND line_no = ?',
                 [$ticketId, $lineNo]
             );
             if ($deleted !== 1) {
                 throw new DatabaseRefusal('that item is not on the ticket');
+            }
+            if ($this->lineCount($ticketId) === 0) {
+                $this->discard($sessionId);
+
+                return;
             }
             $this->pricing->recheck($ticketId);
         });
@@ -207,6 +213,31 @@ final class TicketStore
             'tax' => RowValue::integer($row['tax_bps'] ?? null),
             'round' => self::flag($row['cash_round_nickel'] ?? null) ? '1' : '',
         ];
+    }
+
+    private function releaseEmpty(string $sessionId): void
+    {
+        $ticketId = $this->openId($sessionId);
+        if ($ticketId === null || $this->lineCount($ticketId) > 0) {
+            return;
+        }
+        $this->statements->change(
+            "DELETE FROM tickets
+             WHERE id = ?::uuid
+               AND status = 'open'
+               AND NOT EXISTS (SELECT 1 FROM ticket_lines WHERE ticket_id = tickets.id)",
+            [$ticketId]
+        );
+    }
+
+    private function lineCount(string $ticketId): int
+    {
+        $rows = $this->statements->bound(
+            'SELECT count(*) AS lines FROM ticket_lines WHERE ticket_id = ?::uuid',
+            [$ticketId]
+        );
+
+        return RowValue::integer($rows[0]['lines'] ?? null);
     }
 
     private function openId(string $sessionId): ?string

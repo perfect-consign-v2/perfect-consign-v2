@@ -637,4 +637,43 @@ EXCEPTION
         END IF;
 END $$;
 
+INSERT INTO registers (id, name)
+VALUES ('01900000-0000-7000-8000-000000000d93', 'Empty cart');
+
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d27',
+    '01900000-0000-7000-8000-000000000d93',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    0
+);
+
+INSERT INTO tickets (id, session_id, discount_kind, discount_value, discount_reason)
+VALUES (
+    '01900000-0000-7000-8000-0000000006b8',
+    '01900000-0000-7000-8000-000000000d27',
+    'percent',
+    1000,
+    'promotion'
+);
+
+UPDATE register_sessions
+SET closed_at = clock_timestamp(),
+    closing_counts = '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    counted_cash_minor = 0,
+    counted_card_minor = 0,
+    counted_checks_minor = 0
+WHERE id = '01900000-0000-7000-8000-000000000d27';
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM tickets WHERE id = '01900000-0000-7000-8000-0000000006b8') THEN
+        RAISE EXCEPTION 'an empty cart was left open';
+    END IF;
+    IF (SELECT closed_at FROM register_sessions WHERE id = '01900000-0000-7000-8000-000000000d27') IS NULL THEN
+        RAISE EXCEPTION 'an empty cart blocked the close';
+    END IF;
+END $$;
+
 ROLLBACK;

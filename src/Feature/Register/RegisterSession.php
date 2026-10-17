@@ -136,6 +136,13 @@ final class RegisterSession
 
     private function writeClose(string $sessionId, string $json, int $cash, int $card, int $checks): void
     {
+        $this->statements->change(
+            "DELETE FROM tickets
+             WHERE session_id = ?::uuid
+               AND status = 'open'
+               AND NOT EXISTS (SELECT 1 FROM ticket_lines WHERE ticket_id = tickets.id)",
+            [$sessionId]
+        );
         $updated = $this->statements->affected(
             'UPDATE register_sessions
              SET closing_counts = ?::jsonb,

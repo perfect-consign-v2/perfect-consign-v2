@@ -32,6 +32,23 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees("Today's sales", $signedIn);
     }
 
+    public function testAnEmptyCartDoesNotBlockTheRegister(): void
+    {
+        $this->settings(false);
+        $this->openRegister();
+        $this->client->post('/' . self::SLUG . '/pos/discard', []);
+        $vendor = $this->vendor();
+        $item = $this->item($vendor, '8.00');
+        $cart = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $item['code']]);
+        $lineNo = $this->match($cart->body, '/name="line_no" value="(\d+)"/');
+        $cleared = $this->client->post('/' . self::SLUG . '/pos/remove', ['line_no' => $lineNo]);
+        self::assertSees('Item removed.', $cleared);
+        self::assertSees('Cart is empty.', $cleared);
+        self::assertStringNotContainsString('Suspend Sale', $cleared->body);
+        $registers = $this->client->get('/' . self::SLUG . '/registers');
+        self::assertStringNotContainsString('A sale is still open on this register.', $registers->body);
+    }
+
     public function testTheFloorVoidsReturnsAndParks(): void
     {
         $this->settings(false);
