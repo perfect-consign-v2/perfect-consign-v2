@@ -18,6 +18,7 @@ final class SchemaCatalog
         '047_platform_schema_migrations.sql',
         '057_owner_recovery.sql',
         '060_store_name.sql',
+        '064_sign_in_address.sql',
     ];
 
     public function __construct(private readonly string $directory)
