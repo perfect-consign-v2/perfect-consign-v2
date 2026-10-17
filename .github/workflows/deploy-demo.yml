@@ -1,0 +1,43 @@
+name: deploy-demo
+
+on:
+  workflow_run:
+    workflows: ["check"]
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reset the demo to the green commit
+        env:
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
+          DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
+          DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+          DEMO_SSH_KNOWN_HOSTS: ${{ secrets.DEMO_SSH_KNOWN_HOSTS }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$DEPLOY_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "deploy-demo: refusing unexpected SHA" >&2
+            exit 1
+          fi
+          for name in DEMO_SSH_HOST DEMO_SSH_USER DEMO_SSH_KEY DEMO_SSH_KNOWN_HOSTS; do
+            if [[ -z "${!name}" ]]; then
+              echo "deploy-demo: missing ${name}" >&2
+              exit 1
+            fi
+          done
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEMO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          umask 077
+          printf '%s\n' "$DEMO_SSH_KEY" > ~/.ssh/demo_key
+          ssh -i ~/.ssh/demo_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
+            "cd \"\$HOME\" && DEPLOY_SHA='${DEPLOY_SHA}' bash bin/deploy-demo.sh"

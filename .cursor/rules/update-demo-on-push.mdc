@@ -1,29 +1,32 @@
 ---
-description: After every GitHub push of this repo, deploy that same commit to the v2 demo server.
+description: After every GitHub push of this repo, the demo server updates from that commit. Do not FTP a zip.
 alwaysApply: true
 ---
 
 # Update the demo server on every GitHub push
 
-Applies only after a **successful push to GitHub** of this repo (`perfect-consign`). A commit with no push does not deploy. A failed push does not deploy.
+Applies only after a **successful push to GitHub** of this repo (`perfect-consign`). A commit with no push does not deploy. A failed push does not deploy. A red `check` workflow does not deploy.
 
-Deploy the commit that was pushed, not uncommitted files. Leave the server `.env` in place.
+Deploy the commit that was pushed, not uncommitted files. Leave the server `.env` in place. Do not run migrations as part of deploy.
 
 ## Server
 
 - Site: `https://v2.perfectconsign.com/mall`
-- FTP home is the app root. Document root is `public/`. `index.php` reads `../.env` and `../vendor`.
-- Credentials: `.cursor/demo-server.local` (gitignored). Do not put the password in a rule, commit, or chat reply.
+- The subscription home is a git checkout. Document root is `public/`. `index.php` reads `../.env` and `../vendor`.
+- Do not put SSH keys, the deploy key, or the FTP password in a rule, commit, or chat reply.
 
 ## Deploy
 
-1. `git archive` the pushed commit into a temp directory. `composer install --no-dev --no-interaction --prefer-dist` there. Do not change this checkout's `vendor/`.
-2. Zip `bin/`, `sql/`, `src/`, `public/`, `vendor/`, `composer.json`, and `composer.lock` with forward-slash paths. `bin/migrate.php` reads `sql/`. Do not include `.env`, `.git`, `tests/`, `var/`, or `.idea/`.
-3. FTP the zip to the vhost home. Extract it there with a one-shot script in `public/`, then delete the zip and the script.
-4. Confirm `https://v2.perfectconsign.com/mall` returns 200. Report that URL with the pushed SHA.
+GitHub Actions does this. Do not archive a tree, build a zip, or upload by FTP.
+
+1. A push to `master` starts `.github/workflows/check.yml`.
+2. When that run is green and that commit is still `origin/master`, `.github/workflows/deploy-demo.yml` SSHs in and runs `bash bin/deploy-demo.sh` with `DEPLOY_SHA` set to that commit.
+3. The script fetches, runs `git reset --hard` to that SHA, runs `composer install --no-dev`, and requires GET `/mall` to return 200.
+4. Report `https://v2.perfectconsign.com/mall` with the pushed SHA. The demo matches that SHA when `deploy-demo` is green.
 
 ```text
-BAD: git push origin master, stop, demo still on the previous tree
+BAD: git push origin master, then upload a zip by FTP
 BAD: upload a new .env over the server file
-GOOD: push master at <sha>, then that tree is live at https://v2.perfectconsign.com/mall
+BAD: git pull or git clean on the server
+GOOD: push master at <sha>, check is green, deploy-demo resets the server to that SHA
 ```
