@@ -948,7 +948,7 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     font-weight: 700;
     letter-spacing: 0.08em;
 }
-.slip-thanks { margin: var(--space-5) 0 0; text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
+.slip-thanks { margin: var(--space-5) 0 0; text-align: center; letter-spacing: 0.08em; text-transform: uppercase; white-space: pre-line; }
 .print-only { display: none; }
 .z-tape { max-width: 28rem; }
 @media print {

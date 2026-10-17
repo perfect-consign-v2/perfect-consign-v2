@@ -99,13 +99,13 @@ $showForm = $showPay || $waive > 0;
                 <label for="tender-checks">Check</label>
                 <input class="input" id="tender-checks" name="tender_checks" inputmode="decimal" value="<?= View::text($tenderChecks) ?>">
             </div>
-            <p class="slip-row" id="rent-change" hidden></p>
             <div class="field" id="rent-check-box"<?= $checkOn ? '' : ' hidden' ?>>
                 <label for="check-number">Check number</label>
                 <input class="input" id="check-number" name="check_number" maxlength="40" value="<?= View::text($checkNumber) ?>" autocomplete="off"<?= $checkOn ? ' required' : '' ?>>
                 <p class="muted text-sm">The number on their check.</p>
             </div>
             <p class="slip-row slip-total" id="rent-paying" hidden><span>They are paying</span><span id="rent-paying-amount"></span></p>
+            <p class="slip-row" id="rent-change" hidden></p>
             <p><button class="btn btn-primary" type="submit">Collect</button></p>
         </div>
     </div>

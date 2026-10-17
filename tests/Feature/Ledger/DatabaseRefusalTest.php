@@ -19,6 +19,24 @@ final class DatabaseRefusalTest extends TestCase
         self::assertSame('That tag is already used.', DatabaseRefusal::fromPdo($error)->getMessage());
     }
 
+    public function testABlankColorNameIsASentence(): void
+    {
+        $error = new PDOException(
+            'SQLSTATE[23514]: Check violation: 7 ERROR:  new row for relation "colors" violates check constraint "colors_name_chk"'
+        );
+
+        self::assertSame('Enter a color name.', DatabaseRefusal::fromPdo($error)->getMessage());
+    }
+
+    public function testABlankBrandNameIsASentence(): void
+    {
+        $error = new PDOException(
+            'SQLSTATE[23514]: Check violation: 7 ERROR:  new row for relation "brands" violates check constraint "brands_name_chk"'
+        );
+
+        self::assertSame('Enter a brand name.', DatabaseRefusal::fromPdo($error)->getMessage());
+    }
+
     public function testAnUnmappedDatabaseLineIsHidden(): void
     {
         $error = new PDOException(

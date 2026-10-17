@@ -20,6 +20,7 @@ use PerfectConsign\Shared\Http\View;
 
 $sold = ($sold ?? false) === true;
 $showBrand = ($showBrand ?? true) === true;
+$photoRule = is_string($photoRule ?? null) && $photoRule !== '' ? $photoRule : 'JPEG, PNG, or WebP. 2 MB or smaller.';
 
 $editing = $item['id'] !== '';
 $action = $editing ? '/' . $slug . '/inventory/' . $item['id'] : '/' . $slug . '/inventory';
@@ -52,7 +53,7 @@ if ($printId !== '') {
 }
 ?>
 
-<form method="post" action="<?= View::text($action) ?>" id="item-form" class="grid form-split"
+<form method="post" action="<?= View::text($action) ?>" id="item-form" class="grid form-split" enctype="multipart/form-data"
     data-vendors="<?= View::text($vendorsUrl) ?>"
     data-brands="<?= View::text($brandsUrl) ?>"
     data-brand-create="<?= View::text($brandCreateUrl) ?>"
@@ -135,6 +136,13 @@ if ($printId !== '') {
                 <input class="input" id="expires_on" name="expires_on" type="date" value="<?= View::text($item['expires_on']) ?>"<?= $item['intake_on'] !== '' ? ' min="' . View::text($item['intake_on']) . '"' : '' ?>>
                 <p class="muted text-sm"><?= View::text($expireHint) ?></p>
             </div>
+            <?php if (!$editing): ?>
+            <div class="field" style="grid-column: 1 / -1">
+                <label for="photo">Photo</label>
+                <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
+                <p class="muted text-sm">Optional. <?= View::text($photoRule) ?> It shows on this item and on the consignor's sale line.</p>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
     <div class="card">
@@ -161,7 +169,7 @@ if ($printId !== '') {
         <div class="field">
             <label for="photo">One photo</label>
             <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required>
-            <p class="muted text-sm">JPEG, PNG, or WebP. Stored with this mall. It shows on this item and on the consignor's sale line.</p>
+            <p class="muted text-sm"><?= View::text($photoRule) ?> Stored with this mall. It shows on this item and on the consignor's sale line.</p>
         </div>
     </div>
     <div class="card-foot">

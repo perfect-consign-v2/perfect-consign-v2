@@ -84,10 +84,11 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees($description, $paid);
         self::assertSees('id="cash-round">+$0.02', $paid);
         self::assertSees('id="change">Change due $9.95', $paid);
-        self::assertSame(1, preg_match('/sale:[0-9a-f-]{36}/', $paid->body, $key));
-        self::assertSees($key[0], $this->client->get('/' . ProbeMall::SLUG . '/journals'));
         self::assertSame(1, preg_match('#/pos/receipt/([0-9a-f-]{36})#', $paid->body, $journalId));
+        self::assertSees('/journals/' . $journalId[1], $this->client->get('/' . ProbeMall::SLUG . '/journals'));
         $journal = $this->client->get('/' . ProbeMall::SLUG . '/journals/' . $journalId[1]);
+        self::assertSame(1, preg_match('/sale:[0-9a-f-]{36}/', $journal->body, $key));
+        self::assertSees($key[0], $journal);
         self::assertSees('<p>Sale</p>', $journal);
         $list = $this->client->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
         $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $description);

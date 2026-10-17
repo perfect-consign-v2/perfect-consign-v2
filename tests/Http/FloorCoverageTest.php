@@ -431,7 +431,7 @@ final class FloorCoverageTest extends WebTestCase
             'name' => $booth,
         ]);
         self::assertSees($booth, $made);
-        $booths = $this->client->get('/' . self::SLUG . '/booths');
+        $booths = $this->client->get('/' . self::SLUG . '/booths?q=' . rawurlencode($booth));
         $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
         $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
             'booth_id' => $boothId,

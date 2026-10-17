@@ -5,12 +5,14 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $displayName */
+/** @var string $slug */
 /** @var list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, quantity: int, commission: int, rent: int, check: int, owes: int, check_number: string}> $rows */
 
 $css = file_get_contents(__DIR__ . '/envelope.css');
 if ($css === false) {
     throw new RuntimeException('the envelope stylesheet is missing');
 }
+$mallSlug = isset($slug) && is_string($slug) ? $slug : '';
 $vendors = [];
 $storedReport = false;
 foreach ($rows as $row) {
@@ -19,11 +21,26 @@ foreach ($rows as $row) {
         $storedReport = true;
     }
 }
+uasort($vendors, static function (array $left, array $right): int {
+    $leftCode = '';
+    $rightCode = '';
+    if (isset($left[0]) && is_array($left[0]) && is_string($left[0]['code'] ?? null)) {
+        $leftCode = $left[0]['code'];
+    }
+    if (isset($right[0]) && is_array($right[0]) && is_string($right[0]['code'] ?? null)) {
+        $rightCode = $right[0]['code'];
+    }
+
+    return strnatcasecmp($leftCode, $rightCode);
+});
 ?>
 <style><?= $css ?></style>
 <div class="no-print">
     <p>One page for each vendor, with what they sold and the check.</p>
     <button class="btn btn-primary" type="button" data-print>Print</button>
+    <?php if ($mallSlug !== ''): ?>
+        <a class="btn" href="/<?= View::text($mallSlug) ?>/payouts">Back</a>
+    <?php endif; ?>
 </div>
 <?php if ($vendors === []): ?>
     <p>This payout has no vendor sheets.</p>
@@ -32,7 +49,7 @@ foreach ($rows as $row) {
     <?php $head = $lines[0]; ?>
     <section class="envelope">
         <h1><?= View::text($displayName) ?></h1>
-        <h2><?= View::text($head['name']) ?> <span><?= View::text($head['code']) ?></span></h2>
+        <h2>(<?= View::text($head['code']) ?>) <?= View::text($head['name']) ?> <span><?= View::text($head['code']) ?></span></h2>
         <?php if ($head['booth'] !== ''): ?>
             <p>Booth <?= View::text($head['booth']) ?></p>
         <?php endif; ?>

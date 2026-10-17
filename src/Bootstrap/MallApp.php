@@ -145,6 +145,11 @@ final class MallApp
         return $this->mall->getCompanyLines();
     }
 
+    public function getReceiptFooter(): string
+    {
+        return $this->mall->getReceiptFooter();
+    }
+
     private function refuseClosedRentals(string $slug): void
     {
         if (!$this->roled) {

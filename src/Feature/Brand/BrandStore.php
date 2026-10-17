@@ -54,11 +54,13 @@ final class BrandStore
 
     public function add(string $name): void
     {
+        $this->requireName($name);
         $this->statements->change('INSERT INTO brands (name) VALUES (?)', [$name]);
     }
 
     public function rename(string $id, string $name): void
     {
+        $this->requireName($name);
         $count = $this->statements->affected(
             'UPDATE brands SET name = ? WHERE id = ?::uuid',
             [$name, $id]
@@ -87,5 +89,12 @@ final class BrandStore
     public function referenced(): array
     {
         return $this->links->referenced('brands');
+    }
+
+    private function requireName(string $name): void
+    {
+        if (trim($name) === '') {
+            throw new \InvalidArgumentException('Enter a brand name.');
+        }
     }
 }

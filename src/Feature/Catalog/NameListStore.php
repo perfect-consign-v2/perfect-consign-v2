@@ -55,6 +55,7 @@ final class NameListStore
 
     public function add(NameList $list, string $name): string
     {
+        $this->requireName($list, $name);
         $rows = $this->statements->bound(
             'INSERT INTO ' . $list->table . ' (name) VALUES (?) RETURNING id::text AS id',
             [$name]
@@ -65,6 +66,7 @@ final class NameListStore
 
     public function rename(NameList $list, string $id, string $name): void
     {
+        $this->requireName($list, $name);
         $count = $this->statements->affected(
             'UPDATE ' . $list->table . ' SET name = ? WHERE id = ?::uuid',
             [$name, $id]
@@ -137,5 +139,12 @@ final class NameListStore
         }
 
         return $id;
+    }
+
+    private function requireName(NameList $list, string $name): void
+    {
+        if (trim($name) === '') {
+            throw new \InvalidArgumentException('Enter a ' . $list->singular . ' name.');
+        }
     }
 }

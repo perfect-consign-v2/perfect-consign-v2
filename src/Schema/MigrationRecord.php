@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Schema;
 
 use PDO;
+use PDOException;
 use RuntimeException;
 
 final class MigrationRecord
@@ -28,7 +29,11 @@ final class MigrationRecord
 
     public function releaseMigration(): void
     {
-        $this->pdo->query('SELECT pg_advisory_unlock(' . self::LOCK . ')');
+        $this->clearAbortedTransaction();
+        $query = $this->pdo->query('SELECT pg_advisory_unlock(' . self::LOCK . ')');
+        if ($query === false) {
+            throw new RuntimeException('the migration lock could not be released');
+        }
     }
 
     public function requireBaseline(string $slug, string $schema): void
@@ -112,6 +117,21 @@ final class MigrationRecord
         }
 
         return $rows;
+    }
+
+    private function clearAbortedTransaction(): void
+    {
+        if (!$this->pdo->inTransaction()) {
+            return;
+        }
+        try {
+            $probe = $this->pdo->query('SELECT 1');
+            if ($probe === false) {
+                $this->pdo->rollBack();
+            }
+        } catch (PDOException) {
+            $this->pdo->rollBack();
+        }
     }
 
     private function remember(string $schema, string $file, string $checksum): void

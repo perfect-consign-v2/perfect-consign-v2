@@ -1,0 +1,19 @@
+name: Delete Old Workflow Runs
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight UTC
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  delete-runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # Required to delete workflow runs
+      contents: read
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Delete workflow runs
+        uses: iamazeem/delete-workflow-runs-action@v1
+        with:
+          keep: 3 # Keeps the last 3 runs, deletes all others

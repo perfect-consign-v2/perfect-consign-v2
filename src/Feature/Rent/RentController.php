@@ -163,6 +163,7 @@ final class RentController
             'title' => 'Rent receipt',
             'displayName' => $tenant->displayName,
             'companyLines' => $this->app->getCompanyLines(),
+            'receiptFooter' => $this->app->getReceiptFooter(),
             'slug' => $tenant->slug,
             'slip' => $slip,
             'change' => $this->receipts->change($this->cash->tendered($journalId), $slip['cash']),

@@ -110,21 +110,31 @@ final class PayoutRunSheets
                        COALESCE(sale.commission_minor, 0) AS commission_minor,
                        COALESCE(NULLIF(line.settled_minor, 0), (
                            SELECT journal.debit_total_minor
+                           FROM journals AS journal
+                           WHERE journal.id = line.settlement_journal_id
+                             AND NOT journal.is_reversal
+                       ), (
+                           SELECT journal.debit_total_minor
                            FROM payout_run_journals AS link
                            JOIN journals AS journal ON journal.id = link.journal_id
                            WHERE link.run_id = line.run_id
                              AND link.role = 'settlement'
                              AND NOT journal.is_reversal
-                           LIMIT 1
+                             AND journal.posting_key = 'settlement:' || line.run_id::text || ':' || line.vendor_id::text
                        ), 0) AS settled_minor,
                        COALESCE(NULLIF(line.check_minor, 0), (
+                           SELECT journal.debit_total_minor
+                           FROM journals AS journal
+                           WHERE journal.id = line.disbursement_journal_id
+                             AND NOT journal.is_reversal
+                       ), (
                            SELECT journal.debit_total_minor
                            FROM payout_run_journals AS link
                            JOIN journals AS journal ON journal.id = link.journal_id
                            WHERE link.run_id = line.run_id
                              AND link.role = 'disbursement'
                              AND NOT journal.is_reversal
-                           LIMIT 1
+                             AND journal.posting_key = 'disbursement:' || line.run_id::text || ':' || line.vendor_id::text
                        ), 0) AS check_minor,
                        line.owes_minor, COALESCE(line.check_number, '') AS check_number
                 FROM payout_run_lines AS line

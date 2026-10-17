@@ -23,6 +23,8 @@ final class MallController
 
     private ?string $postedStock = null;
 
+    private ?string $postedFooter = null;
+
     private MallRentDraft $rentDraft;
 
     public function __construct(
@@ -80,12 +82,32 @@ final class MallController
         $this->app->open($slug, true);
         $part = $this->app->request()->field('settings_part');
         if ($part === 'money') {
-            $this->saveMoney($slug);
+            $outcome = $this->rentDraft->money($this->mall)->apply($slug);
+            $this->postedCashRound = $outcome->cashRound;
+            $this->postedTaxRate = $outcome->taxRate;
+            $booth = $this->mall->boothSize();
+            $floor = $this->mall->floorSize();
+            $this->form(
+                $slug,
+                $this->mall->timeZone(),
+                $booth['width'],
+                $booth['depth'],
+                $floor['width'],
+                $floor['depth'],
+                $outcome->storeTake,
+                MallMeasure::dayText($this->mall->floorDays()),
+                $outcome->error,
+            );
 
             return;
         }
         if ($part === 'building') {
             $this->saveBuilding($slug);
+
+            return;
+        }
+        if ($part === 'receipt') {
+            $this->saveReceipt($slug);
 
             return;
         }
@@ -119,40 +141,22 @@ final class MallController
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
     }
 
-    private function saveMoney(string $slug): void
+    private function saveReceipt(string $slug): void
     {
-        $storeTake = $this->app->request()->field('default_store_take');
-        $taxRate = $this->app->request()->field('tax_rate');
-        $basis = MallMeasure::basisPoints($storeTake);
-        $taxBasis = MallMeasure::taxMillis($taxRate);
-        $error = $this->rentDraft->read();
-        if ($error === null && $basis === null) {
-            $error = 'store take is a percent from 0 to 100';
+        $footer = $this->app->request()->field('receipt_footer');
+        $this->postedFooter = $footer;
+        try {
+            $this->mall->setReceiptFooter($footer);
+        } catch (DatabaseRefusal $refusal) {
+            $this->showError($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        } catch (\InvalidArgumentException $error) {
+            $this->showError($slug, $error->getMessage());
+
+            return;
         }
-        if ($error === null && $taxBasis === null) {
-            $error = 'tax rate is a percent from 0 to 100';
-        }
-        if ($error === null && is_int($basis) && is_int($taxBasis)) {
-            $error = $this->writeMoney($basis, $taxBasis);
-        }
-        if ($error === null) {
-            $this->app->redirect('/' . $slug . '/settings', 'Money saved.');
-        }
-        $this->postedCashRound = $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '';
-        $this->postedTaxRate = $taxRate;
-        $booth = $this->mall->boothSize();
-        $floor = $this->mall->floorSize();
-        $this->form(
-            $slug,
-            $this->mall->timeZone(),
-            $booth['width'],
-            $booth['depth'],
-            $floor['width'],
-            $floor['depth'],
-            $storeTake,
-            MallMeasure::dayText($this->mall->floorDays()),
-            $error,
-        );
+        $this->app->redirect('/' . $slug . '/settings', 'Receipt saved.');
     }
 
     private function saveBuilding(string $slug): void
@@ -183,35 +187,6 @@ final class MallController
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, MallMeasure::percent($this->mall->storeTake()), $floorRaw, $error);
     }
 
-    private function writeMoney(int $basis, int $taxBasis): ?string
-    {
-        $booth = $this->mall->boothSize();
-        $floor = $this->mall->floorSize();
-        try {
-            $this->mall->save(
-                $this->mall->timeZone(),
-                MallWrite::posted($booth['width'], $booth['depth'], $floor['width'], $floor['depth'], $this->storedFlags()),
-                $basis,
-                $this->mall->floorDays(),
-                $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
-                $taxBasis,
-            );
-            $this->payouts->save(
-                $this->app->request()->field('operating_mode'),
-                $this->rentDraft->prepaid ?? false,
-                $this->rentDraft->rentals ?? false,
-                $this->rentDraft->cycleDay ?? 1,
-            );
-            $this->rentDraft->save();
-        } catch (DatabaseRefusal $refusal) {
-            return $this->app->catchRefusal($refusal);
-        } catch (\InvalidArgumentException $errorValue) {
-            return $errorValue->getMessage();
-        }
-
-        return null;
-    }
-
     private function writeBuilding(
         string $timeZone,
         int $width,
@@ -237,21 +212,6 @@ final class MallController
         }
 
         return null;
-    }
-
-    /**
-     * @return array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool}
-     */
-    private function storedFlags(): array
-    {
-        return [
-            'color' => $this->mall->enabled('use_color'),
-            'category' => $this->mall->enabled('use_category'),
-            'size' => $this->mall->enabled('use_size'),
-            'condition' => $this->mall->enabled('use_condition'),
-            'department' => $this->mall->enabled('use_department'),
-            'brand' => $this->mall->enabled('use_brand'),
-        ];
     }
 
     /**
@@ -423,6 +383,7 @@ final class MallController
             'lateFirst' => $this->rentDraft->dollars($this->rentDraft->lateFirst ?? $late['first']),
             'lateNext' => $this->rentDraft->dollars($this->rentDraft->lateNext ?? $late['next']),
             'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
+            'receiptFooter' => $this->postedFooter ?? $this->mall->getReceiptFooter(),
             'stocks' => $this->stocks->choices(),
             'catalogs' => $this->postedCatalogs ?? [
                 'use_color' => $this->mall->enabled('use_color'),

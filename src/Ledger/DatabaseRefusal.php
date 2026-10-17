@@ -40,7 +40,7 @@ final class DatabaseRefusal extends RuntimeException
 
     private static function shown(string $first, string $raw): string
     {
-        $named = self::uniqueName($raw);
+        $named = self::uniqueName($raw) ?? self::requiredName($raw);
         if ($named !== null) {
             return $named;
         }
@@ -63,6 +63,25 @@ final class DatabaseRefusal extends RuntimeException
         }
         if (str_contains($lower, 'too large') || str_contains($lower, 'out of range') || str_contains($lower, 'overflow')) {
             return 'That amount is too big.';
+        }
+
+        return null;
+    }
+
+    private static function requiredName(string $raw): ?string
+    {
+        $names = [
+            'brands_name_chk' => 'Enter a brand name.',
+            'colors_name_chk' => 'Enter a color name.',
+            'categories_name_chk' => 'Enter a category name.',
+            'sizes_name_chk' => 'Enter a size name.',
+            'conditions_name_chk' => 'Enter a condition name.',
+            'departments_name_chk' => 'Enter a department name.',
+        ];
+        foreach ($names as $key => $sentence) {
+            if (str_contains($raw, $key)) {
+                return $sentence;
+            }
         }
 
         return null;

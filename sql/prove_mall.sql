@@ -235,4 +235,68 @@ BEGIN
     END IF;
 END $$;
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'mall'
+          AND column_name = 'receipt_footer'
+          AND data_type = 'text'
+          AND is_nullable = 'NO'
+          AND column_default LIKE '%Thank you%'
+    ) THEN
+        RAISE EXCEPTION 'the receipt footer does not default to Thank you';
+    END IF;
+    IF (SELECT receipt_footer FROM mall) <> 'Thank you' THEN
+        RAISE EXCEPTION 'the receipt footer does not default to Thank you';
+    END IF;
+END $$;
+
+UPDATE mall SET receipt_footer = '';
+UPDATE mall SET receipt_footer = E'All sales final\nThank you';
+
+DO $$
+BEGIN
+    IF (SELECT receipt_footer FROM mall) <> E'All sales final\nThank you' THEN
+        RAISE EXCEPTION 'a receipt footer with a line break was not stored';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE mall SET receipt_footer = ' Thank you';
+    RAISE EXCEPTION 'a padded receipt footer was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%mall_receipt_footer_chk%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE mall SET receipt_footer = E'Thank you\n';
+    RAISE EXCEPTION 'a receipt footer with a trailing line break was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%mall_receipt_footer_chk%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE mall SET receipt_footer = repeat('x', 401);
+    RAISE EXCEPTION 'a long receipt footer was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%mall_receipt_footer_chk%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+UPDATE mall SET receipt_footer = 'Thank you';
+
 ROLLBACK;

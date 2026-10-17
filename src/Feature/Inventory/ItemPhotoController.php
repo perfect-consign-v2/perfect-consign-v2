@@ -19,6 +19,7 @@ final class ItemPhotoController
         private readonly Statements $statements,
         private readonly Actor $actor,
         private readonly LoggerInterface $logger,
+        private readonly ItemPhotoIntake $intake,
     ) {
     }
 
@@ -34,7 +35,7 @@ final class ItemPhotoController
         if ($bytes === false) {
             $this->app->notFound();
         }
-        $kind = $this->kind($bytes);
+        $kind = $this->intake->media($bytes);
         if ($kind === null) {
             $this->app->notFound();
         }
@@ -53,22 +54,52 @@ final class ItemPhotoController
         if ($this->ownerId($id) === null) {
             $this->app->notFound();
         }
-        $file = $this->app->request()->upload('photo');
-        if ($file === null || $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
-            $this->app->redirect('/' . $slug . '/inventory/' . $id . '/edit', '', 'Choose a photo.');
+        $back = '/' . $slug . '/inventory/' . $id . '/edit';
+        try {
+            $hex = $this->intake->hex($this->app->request()->upload('photo'), true);
+        } catch (\InvalidArgumentException $error) {
+            $this->app->redirect($back, '', $error->getMessage());
         }
-        if ($file['size'] < 1 || $file['size'] > 2000000) {
-            $this->app->redirect('/' . $slug . '/inventory/' . $id . '/edit', '', 'Use a photo under 2 MB.');
+        if ($hex === null) {
+            $this->app->redirect($back, '', 'Choose a photo.');
         }
-        $bytes = file_get_contents($file['tmp_name']);
-        if ($bytes === false) {
-            $this->logger->error('item photo could not be read', ['item' => $id, 'error' => error_get_last()]);
-            $this->app->redirect('/' . $slug . '/inventory/' . $id . '/edit', '', 'That photo could not be read.');
+        if (!$this->keep($id, $hex)) {
+            $this->app->redirect($back, '', 'The photo was not saved.');
         }
-        if ($this->kind($bytes) === null) {
-            $this->app->redirect('/' . $slug . '/inventory/' . $id . '/edit', '', 'Use a JPEG, PNG, or WebP photo.');
+        $this->app->redirect($back, 'Photo saved.');
+    }
+
+    public function rule(): string
+    {
+        return $this->intake->rule();
+    }
+
+    /**
+     * @param array{tmp_name: string, error: int, size: int, name: string}|null $file
+     */
+    public function accepted(?array $file): ?string
+    {
+        return $this->intake->hex($file, false);
+    }
+
+    public function keep(string $id, string $hex): bool
+    {
+        try {
+            $this->store($id, $hex);
+        } catch (\Throwable $error) {
+            $this->logger->error('item photo was not stored', [
+                'item' => $id,
+                'message' => $error->getMessage(),
+            ]);
+
+            return false;
         }
-        $hex = bin2hex($bytes);
+
+        return true;
+    }
+
+    private function store(string $id, string $hex): void
+    {
         $this->statements->transaction(function () use ($id, $hex): void {
             $this->statements->change(
                 'INSERT INTO item_photos (item_id, photo) VALUES (?::uuid, decode(?, \'hex\'))
@@ -80,7 +111,6 @@ final class ItemPhotoController
                 [$id]
             );
         });
-        $this->app->redirect('/' . $slug . '/inventory/' . $id . '/edit', 'Photo saved.');
     }
 
     public function has(string $id): bool
@@ -141,18 +171,4 @@ final class ItemPhotoController
         return $this->actor->vendor() === $vendorId;
     }
 
-    private function kind(string $bytes): ?string
-    {
-        if (str_starts_with($bytes, "\xFF\xD8\xFF")) {
-            return 'image/jpeg';
-        }
-        if (str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) {
-            return 'image/png';
-        }
-        if (strlen($bytes) >= 12 && str_starts_with($bytes, 'RIFF') && substr($bytes, 8, 4) === 'WEBP') {
-            return 'image/webp';
-        }
-
-        return null;
-    }
 }

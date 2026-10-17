@@ -42,7 +42,10 @@ final class EnvelopePageTest extends TestCase
         self::assertStringContainsString('Booth 12', $html);
         self::assertStringContainsString('what they sold and the check', $html);
         self::assertStringNotContainsString("vendor's envelope", $html);
+        self::assertStringContainsString('(A1) Ada', $html);
+        self::assertStringContainsString('<span>A1</span>', $html);
         self::assertStringContainsString('>Print<', $html);
+        self::assertStringNotContainsString('>Back<', $html);
         self::assertStringContainsString('window.print()', $html);
         self::assertStringContainsString('reprinted from the stored record', $html);
         self::assertStringNotContainsString('no vendor sheets', $html);
@@ -89,6 +92,35 @@ final class EnvelopePageTest extends TestCase
         self::assertStringNotContainsString('>Rent<', $html);
         self::assertStringNotContainsString('Check number 99', $html);
         self::assertStringNotContainsString('Amount owed to store', $html);
+    }
+
+    public function testSheetsFollowCustomIdOrderAndLinkBack(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/envelope', [
+            'displayName' => 'Web Probe',
+            'slug' => 'webprobe',
+            'rows' => [
+                $this->line('vendor-c', 'Cy', 'C3', 'BC-3', 'Mug', 200, 40, 1, 0, '', 0, 0),
+                $this->line('vendor-a10', 'Ada', 'A10', 'BC-10', 'Coat', 1000, 200, 1, 0, '', 0, 0),
+                $this->line('vendor-a2', 'Bea', 'A2', 'BC-2', 'Lamp', 500, 100, 1, 0, '', 0, 0),
+            ],
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        $second = strpos($html, '(A2) Bea');
+        $tenth = strpos($html, '(A10) Ada');
+        $third = strpos($html, '(C3) Cy');
+        self::assertNotFalse($second);
+        self::assertNotFalse($tenth);
+        self::assertNotFalse($third);
+        self::assertLessThan($tenth, $second);
+        self::assertLessThan($third, $tenth);
+        self::assertStringContainsString('<span>A2</span>', $html);
+        self::assertStringContainsString('href="/webprobe/payouts"', $html);
+        self::assertStringContainsString('>Back<', $html);
     }
 
     public function testAnEmptyPayoutHasNoVendorSheets(): void

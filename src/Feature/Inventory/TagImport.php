@@ -104,6 +104,13 @@ final class TagImport
         return $rows;
     }
 
+    private function requireCells(int $number, string $code, string $vendorCode, string $description, string $price): void
+    {
+        if ($code === '' || $vendorCode === '' || $description === '' || $price === '') {
+            throw new \InvalidArgumentException('Row ' . $number . ' needs a code, a vendor, a description, and a price.');
+        }
+    }
+
     /**
      * @param array<int, string|null> $line
      */
@@ -146,9 +153,7 @@ final class TagImport
         $price = trim((string) ($line[3] ?? ''));
         $barcode = trim((string) ($line[4] ?? ''));
         $quantity = trim((string) ($line[5] ?? ''));
-        if ($code === '' || $vendorCode === '' || $description === '' || $price === '') {
-            throw new \InvalidArgumentException('Row ' . $number . ' needs a code, a vendor, a description, and a price.');
-        }
+        $this->requireCells($number, $code, $vendorCode, $description, $price);
         $vendor = $this->catalog->vendorByCode($vendorCode);
         $vendorId = is_array($vendor) && is_string($vendor['id'] ?? null) ? $vendor['id'] : '';
         if ($vendorId === '') {

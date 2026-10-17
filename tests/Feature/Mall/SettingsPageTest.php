@@ -55,6 +55,17 @@ final class SettingsPageTest extends TestCase
         self::assertStringContainsString('name="use_brand" type="checkbox" value="1"', $html);
         self::assertStringContainsString('Brand', $html);
         self::assertStringContainsString('switch-knob', $html);
+        self::assertStringContainsString('name="receipt_footer"', $html);
+        self::assertStringContainsString('name="settings_part" value="receipt"', $html);
+    }
+
+    public function testTheReceiptFooterIsShownInTheField(): void
+    {
+        $html = $this->page(['receiptFooter' => "All sales final\nThank you"]);
+
+        self::assertStringContainsString('id="receipt_footer"', $html);
+        self::assertStringContainsString("All sales final\nThank you", $html);
+        self::assertStringContainsString('maxlength="400"', $html);
     }
 
     public function testAFrozenCycleDayHasNoInput(): void

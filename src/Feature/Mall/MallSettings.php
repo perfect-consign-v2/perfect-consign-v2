@@ -98,6 +98,16 @@ final class MallSettings
         $this->statements->change('UPDATE mall SET label_stock = ?', [$stock]);
     }
 
+    public function getReceiptFooter(): string
+    {
+        return RowValue::string($this->row()['receipt_footer'] ?? null);
+    }
+
+    public function setReceiptFooter(string $footer): void
+    {
+        $this->statements->change('UPDATE mall SET receipt_footer = ?', [ReceiptFooter::text($footer)]);
+    }
+
     public function isRentalsEnabled(): bool
     {
         return MallGuard::flag($this->row()['booth_rentals_enabled'] ?? null);
@@ -186,7 +196,7 @@ final class MallSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps, use_color, use_category, use_size, use_condition, use_department, use_brand, label_stock, booth_rentals_enabled, rent_cycle_day FROM mall'
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps, use_color, use_category, use_size, use_condition, use_department, use_brand, label_stock, booth_rentals_enabled, rent_cycle_day, receipt_footer FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

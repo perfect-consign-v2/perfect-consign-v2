@@ -12,6 +12,7 @@ use PerfectConsign\Feature\Payout\PayoutDisburser;
 use PerfectConsign\Feature\Payout\PayoutReverser;
 use PerfectConsign\Feature\Payout\PayoutRunChecks;
 use PerfectConsign\Feature\Payout\PayoutRunLines;
+use PerfectConsign\Feature\Payout\PayoutRunSheets;
 use PerfectConsign\Feature\Payout\PayoutSingle;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
@@ -25,6 +26,7 @@ use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
 
@@ -118,12 +120,18 @@ final class PayoutRunTest extends TestCase
             ));
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             self::assertSame(1000, $payouts->boothRent($vendorId)[0]['open_minor'] ?? 0);
+            $quiet = $ledger->newId();
+            $statements->change(
+                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
+                [$quiet, 'qz' . substr($quiet, 0, 6), 'Nia', 'Cole']
+            );
             $runs->review($runId);
             $settler->close($runId, $date);
             $lines->remember($runId, $vendorId);
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             self::assertSame('', $disburser->disburse($runId, $vendorId, $date, 0, null));
             $disburser->pay($runId, $date);
+            $this->assertZeroSheetsStayZero($statements, $runId);
             $check = $statements->bound(
                 'SELECT disbursement_journal_id FROM payout_run_lines WHERE run_id = ?::uuid AND vendor_id = ?::uuid',
                 [$runId, $vendorId]
@@ -235,6 +243,34 @@ final class PayoutRunTest extends TestCase
                 $pdo->rollBack();
             }
         }
+    }
+
+    private function assertZeroSheetsStayZero(Statements $statements, string $runId): void
+    {
+        $printed = [];
+        foreach ((new PayoutRunSheets($statements))->envelopes($runId) as $row) {
+            $printed[$row['vendor_id']] = $row;
+        }
+        $zeroChecks = 0;
+        foreach ($statements->bound(
+            'SELECT vendor_id::text AS vendor_id, check_minor, settled_minor
+             FROM payout_run_lines WHERE run_id = ?::uuid',
+            [$runId]
+        ) as $stored) {
+            $vendorId = $stored['vendor_id'] ?? null;
+            if (!is_string($vendorId) || !isset($printed[$vendorId])) {
+                continue;
+            }
+            $sheet = $printed[$vendorId];
+            if (RowValue::integer($stored['check_minor'] ?? null) === 0) {
+                $zeroChecks++;
+                self::assertSame(0, $sheet['check']);
+            }
+            if (RowValue::integer($stored['settled_minor'] ?? null) === 0) {
+                self::assertSame(0, $sheet['rent']);
+            }
+        }
+        self::assertGreaterThan(0, $zeroChecks);
     }
 
     private function openDate(Statements $statements): string

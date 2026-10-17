@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
-use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
@@ -132,17 +131,6 @@ final class OwnerGate
             'showSearch' => false,
         ]);
         throw new ResponseSent('csrf');
-    }
-
-    public function catchRefusal(\Throwable $error): string
-    {
-        $detail = $error->getPrevious();
-        $this->logger->info('ledger refused a post', [
-            'message' => $error->getMessage(),
-            'database' => $detail instanceof \Throwable ? $detail->getMessage() : null,
-        ]);
-
-        return DatabaseRefusal::phrase($error->getMessage());
     }
 
     public function token(): string

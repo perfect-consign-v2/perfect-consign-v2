@@ -211,7 +211,7 @@ final class TicketStore
 
         return [
             'tax' => RowValue::integer($row['tax_bps'] ?? null),
-            'round' => self::flag($row['cash_round_nickel'] ?? null) ? '1' : '',
+            'round' => TicketFlag::on($row['cash_round_nickel'] ?? null) ? '1' : '',
         ];
     }
 
@@ -369,10 +369,5 @@ final class TicketStore
         $rows = $this->statements->rows('SELECT uuidv7() AS id');
 
         return RowValue::string($rows[0]['id'] ?? null);
-    }
-
-    private static function flag(mixed $value): bool
-    {
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 }

@@ -8,7 +8,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $slug */
 /** @var string $range */
 /** @var string $label */
-/** @var list<array{id: string, number: string, time: string, tenders: list<string>, total: string}> $rows */
+/** @var list<array{id: string, number: string, time: string, date: string, tenders: list<string>, total: string}> $rows */
 
 $list = '/' . $slug . '/sales';
 ?>
@@ -37,7 +37,7 @@ $list = '/' . $slug . '/sales';
         ListTable::open(['id' => 'sales', 'export' => 'sales']);
         ListTable::head([
             ['label' => 'Receipt'],
-            ['label' => 'Time'],
+            ['label' => 'Date'],
             ['label' => 'Tender'],
             ['label' => 'Total', 'sort' => 'num'],
         ]);
@@ -46,7 +46,7 @@ $list = '/' . $slug . '/sales';
             <?php foreach ($rows as $sale): ?>
                 <tr>
                     <td class="mono strong"><a href="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($sale['id']) ?>"><?= View::text($sale['number']) ?></a></td>
-                    <td class="muted"><?= View::text($sale['time']) ?></td>
+                    <td class="muted"><?= View::text($sale['date']) ?></td>
                     <td>
                         <?php foreach ($sale['tenders'] as $tender): ?>
                             <span class="badge"><?= View::text($tender) ?></span>

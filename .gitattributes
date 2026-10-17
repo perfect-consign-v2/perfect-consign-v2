@@ -1,2 +1,3 @@
 bin/deploy-demo.sh text eol=lf
 .github/workflows/deploy-demo.yml text eol=lf
+.github/workflows/delete-old-workflow-runs.yml text eol=lf

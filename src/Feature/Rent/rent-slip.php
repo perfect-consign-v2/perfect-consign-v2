@@ -53,7 +53,7 @@ $booth = $slip['booth'] === '' ? '—' : $slip['booth'];
         <?php if (is_int($change)): ?>
             <p class="slip-row slip-total"><span>Change</span><span id="change"><?= View::text(View::money($change)) ?></span></p>
         <?php endif; ?>
-        <p class="slip-thanks">Thank you</p>
+        <?php require $templateDirectory . '/Shared/Web/partials/slip-foot.php'; ?>
     </article>
 </div>
 <script>

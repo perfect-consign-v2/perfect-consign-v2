@@ -19,7 +19,7 @@ final class DashboardStore
     private const TENDERS = [
         'cash' => 'Cash',
         'card' => 'Card',
-        'checks' => 'Checks',
+        'checks' => 'Check',
         'gift_certificate' => 'Gift certificate',
         'gift_card' => 'Gift card',
         'store_credit' => 'Store credit',
@@ -48,7 +48,7 @@ final class DashboardStore
      *   payables: array{amount: string, caption: string},
      *   trend: list<array{day: string, title: string, height: int, today: bool, amount: string}>,
      *   today_badge: string,
-     *   sales_list: list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>,
+     *   sales_list: list<array{id: string, number: string, time: string, date: string, tenders: list<string>, total: string}>,
      *   occupancy: array{percent: int, caption: string, rows: list<array{label: string, count: int, badge: string}>},
      *   shelf: array{value: string, unsold: int}
      * }
@@ -175,7 +175,7 @@ final class DashboardStore
     }
 
     /**
-     * @return list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>
+     * @return list<array{id: string, number: string, time: string, date: string, tenders: list<string>, total: string}>
      */
     public function sales(string $day, int $limit): array
     {
@@ -215,6 +215,7 @@ final class DashboardStore
                 'id' => RowValue::string($row['id'] ?? null),
                 'number' => RowValue::string($row['journal_no'] ?? null),
                 'time' => $this->clock($row['occurred_at'] ?? null),
+                'date' => $this->clock($row['occurred_at'] ?? null, 'm-d-Y g:i A'),
                 'tenders' => $this->tenderLabels(RowValue::string($row['tenders'] ?? null)),
                 'total' => $this->money(RowValue::integer($row['total'] ?? 0)),
             ];
@@ -224,7 +225,7 @@ final class DashboardStore
     }
 
     /**
-     * @return list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>
+     * @return list<array{id: string, number: string, time: string, date: string, tenders: list<string>, total: string}>
      */
     private function recent(): array
     {
@@ -328,7 +329,7 @@ final class DashboardStore
         return $sign . '$' . number_format(abs($minor) / 100, 2);
     }
 
-    private function clock(mixed $value): string
+    private function clock(mixed $value, string $format = 'g:i A'): string
     {
         if (!is_string($value) || $value === '') {
             return '';
@@ -339,6 +340,6 @@ final class DashboardStore
         }
         $time->setTimezone(new DateTimeZone($this->mall->timeZone()));
 
-        return $time->format('H:i');
+        return $time->format($format);
     }
 }

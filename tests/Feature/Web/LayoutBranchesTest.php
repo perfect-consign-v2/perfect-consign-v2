@@ -42,7 +42,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('<title>Demo · Demo Mall</title>', $html);
         self::assertStringContainsString('>D</span>', $html);
         self::assertStringContainsString('content="noindex"', $html);
-        self::assertStringContainsString('Month', $html);
+        self::assertStringContainsString('This month', $html);
         self::assertStringContainsString('Cashiers', $html);
         self::assertStringContainsString('href="/demo/brands"', $html);
         self::assertStringContainsString('Owner', $html);
@@ -157,7 +157,7 @@ final class LayoutBranchesTest extends TestCase
         $html = $this->shell([]);
 
         self::assertStringNotContainsString('nav-label">Sell', $html);
-        self::assertStringNotContainsString('Month', $html);
+        self::assertStringNotContainsString('This month', $html);
         self::assertStringNotContainsString('Cashiers', $html);
         self::assertStringNotContainsString('Close the year', $html);
         self::assertStringNotContainsString('>Owner<', $html);

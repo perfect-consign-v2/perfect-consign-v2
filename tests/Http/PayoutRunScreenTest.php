@@ -37,7 +37,7 @@ final class PayoutRunScreenTest extends WebTestCase
         self::assertStringNotContainsString('First check number', $page->body);
         self::assertStringNotContainsString('Their share', $page->body);
         self::assertStringNotContainsString('Owed before', $page->body);
-        self::assertStringNotContainsString('This month', $page->body);
+        self::assertStringNotContainsString('dt-column-title">This month<', $page->body);
         self::assertStringNotContainsString('Paid since', $page->body);
         self::assertSees('—', $page);
         self::assertDoesNotMatchRegularExpression('/name="from"|name="to"|name="scope"|name="minimum"/', $page->body);

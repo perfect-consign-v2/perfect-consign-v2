@@ -8,17 +8,15 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Shared\Scalar\RowValue;
 
 final class InventoryController
 {
     public function __construct(
         private readonly MallApp $app,
         private readonly InventoryStore $items,
-        private readonly IntakeCatalog $catalog,
         private readonly ItemForm $forms,
         private readonly ItemWriter $writer,
-        private readonly StoreTake $take,
+        private readonly ItemListRows $rows,
         private readonly MallSettings $mall,
         private readonly LabelCatalog $stocks,
         private readonly ItemPhotoController $photos,
@@ -91,7 +89,11 @@ final class InventoryController
         $draft = $this->draft($id);
         $error = null;
         $saved = '';
+        $photo = null;
         try {
+            if ($id === null) {
+                $photo = $this->photos->accepted($this->app->request()->upload('photo'));
+            }
             $saved = $this->write($id, $this->writer->entry($draft));
         } catch (DatabaseRefusal $refusal) {
             $error = $this->itemError($this->app->catchRefusal($refusal));
@@ -104,6 +106,9 @@ final class InventoryController
             return;
         }
         if ($id === null) {
+            $warning = $photo !== null && !$this->photos->keep($saved, $photo)
+                ? 'The item was created. The photo was not saved.'
+                : null;
             $intake = $this->forms->date($draft['intake_on']) ?? $this->mall->today();
             $this->app->redirect(
                 '/' . $slug . '/inventory/new?' . http_build_query([
@@ -111,7 +116,8 @@ final class InventoryController
                     'intake' => $intake,
                     'print' => $saved,
                 ]),
-                'Item created.'
+                'Item created.',
+                $warning
             );
         }
         $this->app->redirect('/' . $slug . '/inventory/' . $saved . '/edit', 'Item saved.');
@@ -184,7 +190,7 @@ final class InventoryController
         $tenant = $this->app->open($slug, true);
         $query = trim($this->app->request()->query('q'));
         $stock = $this->app->request()->query('stock') === 'out' ? 'out' : '';
-        $items = $this->withUse($this->items->items($query, $stock));
+        $items = $this->rows->mark($this->items->items($query, $stock), $this->items->referenced());
         $this->app->show('Feature/Inventory/inventory', [
             'title' => 'Items',
             'displayName' => $tenant->displayName,
@@ -239,38 +245,9 @@ final class InventoryController
             'printId' => $printId,
             'sold' => $sold,
             'hasPhoto' => $item['id'] !== '' && $this->photos->has($item['id']),
+            'photoRule' => $this->photos->rule(),
             'error' => $error,
         ]);
-    }
-
-    /**
-     * @param list<array<string, mixed>> $items
-     * @return list<array<string, mixed>>
-     */
-    private function withUse(array $items): array
-    {
-        $held = $this->items->referenced();
-        $marked = [];
-        foreach ($items as $item) {
-            $id = $item['id'] ?? null;
-            $expires = $item['expires_on'] ?? null;
-            $brand = $item['brand_name'] ?? null;
-            $item['deletable'] = is_string($id) && !isset($held[$id]);
-            $item['vendor_label'] = $this->catalog->label(
-                RowValue::string($item['vendor_code'] ?? null),
-                RowValue::string($item['vendor_name'] ?? null),
-            );
-            $item['barcode'] = RowValue::string($item['barcode'] ?? null);
-            $item['quantity'] = RowValue::integer($item['quantity'] ?? null);
-            $item['intake_on'] = RowValue::string($item['intake_on'] ?? null);
-            $item['expires_on'] = is_string($expires) ? $expires : '';
-            $item['take_label'] = $this->take->format(RowValue::integer($item['take_bps'] ?? null));
-            $item['overridden'] = ($item['commission_bps'] ?? null) !== null;
-            $item['brand_name'] = is_string($brand) ? $brand : '';
-            $marked[] = $this->forms->fillNames($item);
-        }
-
-        return $marked;
     }
 
     /**

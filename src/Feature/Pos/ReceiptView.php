@@ -35,6 +35,7 @@ final class ReceiptView
             'title' => 'Receipt',
             'displayName' => $tenant->displayName,
             'companyLines' => $this->app->getCompanyLines(),
+            'receiptFooter' => $this->app->getReceiptFooter(),
             'slug' => $tenant->slug,
             'receipt' => $receipt,
             'change' => $this->change->due($this->cash->tendered($id), $receipt['cash']),

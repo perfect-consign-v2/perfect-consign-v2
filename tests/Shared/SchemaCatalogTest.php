@@ -45,6 +45,9 @@ final class SchemaCatalogTest extends TestCase
         $stock = $catalog->fileObjects('049_label_stock.sql');
         self::assertContains(['mall', 'label_stock'], $stock['columns']);
         self::assertContains('mall_label_stock_chk', $stock['constraints']);
+        $footer = $catalog->fileObjects('065_receipt_footer.sql');
+        self::assertContains(['mall', 'receipt_footer'], $footer['columns']);
+        self::assertContains('mall_receipt_footer_chk', $footer['constraints']);
         $qualified = (new SqlObjects())->from(
             "CREATE TABLE public.kept (id int);\n"
             . "CREATE TABLE other.skipped (id int);\n"

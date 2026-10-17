@@ -39,7 +39,8 @@ final class WaveScreensTest extends WebTestCase
         self::assertSees('Tax collected', $page);
         self::assertSees('Rent still owed', $page);
         self::assertSees('Checks written', $page);
-        self::assertSees('does not post', $page);
+        self::assertSees('/' . ProbeMall::SLUG . '/rent', $page);
+        self::assertSees('/' . ProbeMall::SLUG . '/payouts', $page);
     }
 
     public function testSalesTaxComesFromTheBank(): void

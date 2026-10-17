@@ -26,6 +26,7 @@ $rentSentence = $boothRentals ? (new RentCycle($cycleDay))->sentence(!empty($ren
 /** @var string $backupHeadline */
 /** @var string $nightlyHeadline */
 $nightlyHeadline = is_string($nightlyHeadline ?? null) ? $nightlyHeadline : '';
+$receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
 /** @var array<string, bool> $catalogs */
 /** @var list<array{key: string, label: string}> $stocks */
 /** @var string $labelStock */
@@ -33,7 +34,7 @@ $nightlyHeadline = is_string($nightlyHeadline ?? null) ? $nightlyHeadline : '';
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, the stickers, how long items stay out, and a copy of the mall.</p>
+        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, the stickers, how long items stay out, the receipt footer, and a copy of the mall.</p>
     </div>
 </div>
 
@@ -220,5 +221,21 @@ $nightlyHeadline = is_string($nightlyHeadline ?? null) ? $nightlyHeadline : '';
     </div>
     <div class="card-foot">
         <button class="btn btn-primary" type="submit">Save building</button>
+    </div>
+</form>
+
+<form method="post" action="/<?= View::text($slug) ?>/settings" class="card mt-6">
+    <div class="card-head"><div class="h3">Receipt</div></div>
+    <div class="card-body stack">
+        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+        <input type="hidden" name="settings_part" value="receipt">
+        <div class="field">
+            <label for="receipt_footer">Footer</label>
+            <textarea class="textarea" id="receipt_footer" name="receipt_footer" maxlength="400" rows="3"><?= View::text($receiptFooter) ?></textarea>
+            <p class="muted text-sm">Printed at the bottom of a sale receipt and a rent receipt. Leave this empty and those receipts have no footer.</p>
+        </div>
+    </div>
+    <div class="card-foot">
+        <button class="btn btn-primary" type="submit">Save receipt</button>
     </div>
 </form>

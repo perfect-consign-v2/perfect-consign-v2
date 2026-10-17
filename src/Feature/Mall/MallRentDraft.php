@@ -29,6 +29,11 @@ final class MallRentDraft
     ) {
     }
 
+    public function money(MallSettings $mall): MallMoneyForm
+    {
+        return new MallMoneyForm($this->app, $mall, $this->payouts, $this);
+    }
+
     public function read(): ?string
     {
         $enabled = $this->app->request()->field('booth_rentals_enabled') === '1';

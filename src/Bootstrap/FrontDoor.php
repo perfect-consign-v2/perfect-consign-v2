@@ -13,6 +13,7 @@ final class FrontDoor
         private readonly MissingPage $missing,
         private readonly PriorClose $prior,
         private readonly OwnerGate $owner,
+        private readonly PostedRefusal $refusals,
         private readonly Actor $actor,
         private readonly CredentialStamp $credentials,
     ) {
@@ -58,7 +59,7 @@ final class FrontDoor
 
     public function catchRefusal(\Throwable $error): string
     {
-        return $this->owner->catchRefusal($error);
+        return $this->refusals->phrase($error);
     }
 
     public function actor(): Actor

@@ -13,7 +13,7 @@ use PerfectConsign\Shared\Web\ListTable;
  *   payables: array{amount: string, caption: string},
  *   trend: list<array{day: string, title: string, height: int, today: bool, amount: string}>,
  *   today_badge: string,
- *   sales_list: list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>,
+ *   sales_list: list<array{id: string, number: string, time: string, date: string, tenders: list<string>, total: string}>,
  *   occupancy: array{percent: int, caption: string, rows: list<array{label: string, count: int, badge: string}>},
  *   shelf: array{value: string, unsold: int}
  * } $picture */

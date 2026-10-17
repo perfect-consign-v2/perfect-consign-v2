@@ -27,6 +27,26 @@ final class VendorSales
         ?string $lastCheck,
         array $window,
     ): array {
+        $preset = $this->preset($today, $range, $window);
+        if ($preset !== null) {
+            return $preset;
+        }
+        if ($range === 'custom') {
+            $chosen = $this->chosen($from, $to);
+            if ($chosen !== null) {
+                return $chosen;
+            }
+        }
+
+        return $this->since($today, $lastCheck, $window);
+    }
+
+    /**
+     * @param array{from: string, to: string, rent: string} $window
+     * @return array{from: string, to: string, label: string}|null
+     */
+    private function preset(string $today, string $range, array $window): ?array
+    {
         if ($range === 'today') {
             return ['from' => $today, 'to' => $today, 'label' => 'Today'];
         }
@@ -47,12 +67,16 @@ final class VendorSales
         if ($range === 'month') {
             return ['from' => substr($today, 0, 7) . '-01', 'to' => $today, 'label' => 'This month'];
         }
-        if ($range === 'custom') {
-            $chosen = $this->chosen($from, $to);
-            if ($chosen !== null) {
-                return $chosen;
-            }
-        }
+
+        return null;
+    }
+
+    /**
+     * @param array{from: string, to: string, rent: string} $window
+     * @return array{from: string, to: string, label: string}
+     */
+    private function since(string $today, ?string $lastCheck, array $window): array
+    {
         $start = $window['from'];
         if ($lastCheck !== null) {
             $start = (new DateTimeImmutable($lastCheck))->modify('+1 day')->format('Y-m-d');
