@@ -70,7 +70,7 @@ final class TicketStore
      *     rounding: string,
      *     buyer_id: string,
      *     buyer_name: string,
-     *     parked: list<array{id: string, items: int, sold: int, status: string}>
+     *     parked: list<array{id: string, items: int, sold: int, status: string, label: string}>
      * }
      */
     public function cart(string $sessionId): array
@@ -169,9 +169,9 @@ final class TicketStore
         $this->pricing->waive($this->requireOpen($sessionId), $reason);
     }
 
-    public function park(string $sessionId): void
+    public function park(string $sessionId, string $label): void
     {
-        $this->queue->park($sessionId);
+        $this->queue->park($sessionId, $label);
     }
 
     /**
@@ -337,17 +337,17 @@ final class TicketStore
     }
 
     /**
-     * @return list<array{id: string, items: int, sold: int, status: string}>
+     * @return list<array{id: string, items: int, sold: int, status: string, label: string}>
      */
     private function parked(): array
     {
         $rows = $this->statements->rows(
-            'SELECT ticket.id, ticket.status, count(line.line_no) AS items,
+            'SELECT ticket.id, ticket.status, ticket.park_label, count(line.line_no) AS items,
                     COALESCE(sum(line.price_minor * line.quantity), 0) AS sold
              FROM tickets AS ticket
              LEFT JOIN ticket_lines AS line ON line.ticket_id = ticket.id
              WHERE ticket.status IN (\'parked\', \'layaway\')
-             GROUP BY ticket.id, ticket.status
+             GROUP BY ticket.id, ticket.status, ticket.park_label
              ORDER BY ticket.id'
         );
         $parked = [];
@@ -357,6 +357,7 @@ final class TicketStore
                 'items' => RowValue::integer($row['items'] ?? null),
                 'sold' => RowValue::integer($row['sold'] ?? null),
                 'status' => RowValue::string($row['status'] ?? null),
+                'label' => RowValue::optionalString($row['park_label'] ?? null) ?? '',
             ];
         }
 

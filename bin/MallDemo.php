@@ -772,7 +772,7 @@ final class MallDemo
             'cash' => 2000,
         ]);
         $this->tickets->scan($sessionId, $this->shelfBarcode('ADA'));
-        $this->tickets->park($sessionId);
+        $this->tickets->park($sessionId, '');
         (new GiftIssue($this->statements, $this->ledger))->issue($sessionId, '2026-10-03', 'GC-K7NP4R2WXM', 2500, 'cash', null);
         $drop = $this->ledger->newId();
         $this->ledger->post(new JournalDraft(

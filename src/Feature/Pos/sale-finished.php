@@ -10,6 +10,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
 /** @var int|null $change */
 /** @var ?array{
  *     journal_id: string,
+ *     sale_number: int,
  *     posting_key: string,
  *     voided: bool,
  *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, tax: int, discount: int, returned: bool}>,
@@ -47,10 +48,13 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
         <button class="modal-x" type="submit" form="sale-new" aria-label="Close">
             <svg aria-hidden="true"><use href="#i-x"></use></svg>
         </button>
-        <h2 class="h3" id="sale-completed-title">Sale completed</h2>
+        <h2 class="h1" id="sale-completed-title"><?php if (is_int($change)): ?>Change due <?= View::text(View::money($change)) ?><?php else: ?>Receipt <?= View::text((string) $completed['sale_number']) ?><?php endif; ?></h2>
     </div>
     <div class="card-body stack">
-        <p><?= View::text($completed['posting_key']) ?></p>
+        <?php if (is_int($change)): ?>
+            <p class="h3">Receipt <?= View::text((string) $completed['sale_number']) ?></p>
+        <?php endif; ?>
+        <p>Review the change with the customer, then start a new sale.</p>
         <p>Scan and Instant inventory stay locked until you start a new sale.</p>
         <div class="table-wrap">
             <table class="table">
@@ -118,14 +122,14 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
             </div>
         </div>
         <?php if (is_int($change)): ?>
-            <p class="h1" id="change">Change due <?= View::text(View::money($change)) ?></p>
+            <p class="change-due" id="change">Change due <?= View::text(View::money($change)) ?></p>
         <?php endif; ?>
         <div class="row wrap gap-2">
             <form id="sale-new" method="post" action="/<?= View::text($slug) ?>/pos/new">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                 <button class="btn btn-primary" type="submit" autofocus>New sale</button>
             </form>
-            <a class="btn" href="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($completed['journal_id']) ?>">View receipt</a>
+            <a class="btn" href="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($completed['journal_id']) ?>?print=1">View receipt</a>
             <?php if ($completed['voided'] !== true): ?>
                 <button class="btn" type="button" data-open-modal="void-ticket">Void ticket</button>
             <?php endif; ?>

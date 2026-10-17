@@ -27,14 +27,29 @@ final class SaleHold
         return is_string($tendered) ? $tendered : '';
     }
 
+    public function last(string $slug): string
+    {
+        $last = $this->session->get('last_sale:' . $slug);
+        if (!is_string($last) || preg_match('/^[0-9a-fA-F-]{36}$/', $last) !== 1) {
+            return '';
+        }
+
+        return $last;
+    }
+
     public function keep(string $slug, string $journalId, string $tendered): void
     {
         $this->session->set('sale:' . $slug, $journalId);
         $this->session->set('sale_tendered:' . $slug, $tendered);
+        $this->session->set('last_sale:' . $slug, $journalId);
     }
 
     public function clear(string $slug): void
     {
+        $held = $this->id($slug);
+        if ($held !== '') {
+            $this->session->set('last_sale:' . $slug, $held);
+        }
         $this->session->delete('sale:' . $slug);
         $this->session->delete('sale_tendered:' . $slug);
     }

@@ -107,16 +107,17 @@ declare(strict_types=1);
         el.textContent = show ? text : '';
         el.dataset.kind = show ? kind : '';
     }
-    function note(el, sum, settled) {
+    function note(el, sum, settled, cashCents) {
+        const handed = cashCents > 0 ? 'Cash handed: ' + money(cashCents) + '. ' : '';
         if (sum > settled) {
-            paint(el, 'Change due: ' + money(sum - settled), true, 'change');
+            paint(el, handed + 'Change due: ' + money(sum - settled), true, 'change');
             return;
         }
         if (sum > 0 && sum < settled) {
-            paint(el, 'Amount due: ' + money(settled - sum), true, 'short');
+            paint(el, handed + 'Amount due: ' + money(settled - sum), true, 'short');
             return;
         }
-        paint(el, '', false, '');
+        paint(el, handed, handed !== '', 'change');
     }
     function salesCap() {
         const raw = parseInt(form.getAttribute('data-sales') || '0', 10);
@@ -164,8 +165,8 @@ declare(strict_types=1);
         if (settledAmount) {
             settledAmount.textContent = showRound ? money(due + adjustment) : '';
         }
-        note(changeLine, sum, settled);
-        note(shellChange, sum, settled);
+        note(changeLine, sum, settled, cashCents);
+        note(shellChange, sum, settled, cashCents);
         const checkMissing = cents(check && check.value) > 0 && String(checkNumber && checkNumber.value || '').trim() === '';
         if (checkError) {
             checkError.hidden = !checkMissing;

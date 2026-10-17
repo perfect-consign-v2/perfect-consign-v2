@@ -7,6 +7,8 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $displayName */
 /** @var array{parked: list<array{status: string}>} $cart */
+/** @var string $lastSale */
+$lastSale = is_string($lastSale ?? null) ? $lastSale : '';
 /** @var string $giftNumber */
 /** @var ?int $giftBalance */
 
@@ -28,7 +30,10 @@ foreach ($cart['parked'] as $held) {
         <p class="muted">Point of Sale</p>
     </div>
     <nav class="register-nav" aria-label="Register">
-        <a class="btn" href="/<?= View::text($slug) ?>/journals">Sales</a>
+        <a class="btn" href="/<?= View::text($slug) ?>/sales">Sales</a>
+        <?php if ($lastSale !== ''): ?>
+            <a class="btn" href="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($lastSale) ?>?print=1">Last sale</a>
+        <?php endif; ?>
         <a class="btn" href="/<?= View::text($slug) ?>/pos/layaways">Layaways (<?= View::text((string) $layawayCount) ?>)</a>
         <a class="btn" href="/<?= View::text($slug) ?>/pos/suspended">Suspended Sales (<?= View::text((string) $parkedCount) ?>)</a>
         <button class="btn" type="button" data-open-modal="gift-balance">Gift Certificate Balance</button>

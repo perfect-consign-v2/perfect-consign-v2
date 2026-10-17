@@ -30,7 +30,7 @@ $showBrand = ($showBrand ?? true) === true;
  *     rounding: string,
  *     buyer_id: string,
  *     buyer_name: string,
- *     parked: list<array{id: string, items: int, sold: int, status: string}>
+ *     parked: list<array{id: string, items: int, sold: int, status: string, label: string}>
  * } $cart
  */
 /** @var list<array{role: string, amount: int, reference: string}> $tenders */
@@ -119,8 +119,8 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <form class="row gap-2 register-scan" method="post" action="/<?= View::text($slug) ?>/pos/scan">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <div class="combo register-scan-field">
-                        <label for="scan">Barcode</label>
-                        <input class="input" id="scan" name="scan" autocomplete="off" <?= ($locked || $openGift || $openPayment) ? '' : 'autofocus' ?> placeholder="Scan or type to search">
+                        <label for="scan">Scan or type</label>
+                        <input class="input" id="scan" name="scan" autocomplete="off" <?= ($locked || $openGift || $openPayment) ? '' : 'autofocus' ?> placeholder="Scan or type">
                         <div class="suggest" id="scan-suggest" data-url="/<?= View::text($slug) ?>/pos/suggest.json" hidden></div>
                     </div>
                     <button class="btn btn-primary" type="submit">Add</button>
@@ -134,8 +134,9 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <button class="btn btn-primary" type="button" data-open-modal="instant-add">Instant Inventory</button>
                     <button class="btn" type="button" data-open-modal="gift-sell">Gift Certificate</button>
                     <?php if ($open): ?>
-                        <form method="post" action="/<?= View::text($slug) ?>/pos/park">
+                        <form class="row gap-2" method="post" action="/<?= View::text($slug) ?>/pos/park">
                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                            <input class="input" name="park_label" maxlength="40" placeholder="red hat" aria-label="Name for this suspended sale">
                             <button class="btn" type="submit">Suspend Sale (<?= View::text((string) $parkedCount) ?>)</button>
                         </form>
                         <button class="btn btn-danger" type="button" data-open-modal="clear-cart">Clear cart</button>

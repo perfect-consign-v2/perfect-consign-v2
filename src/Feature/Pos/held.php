@@ -11,7 +11,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $templateDirectory */
 /** @var string $heldStatus */
 /** @var array{
- *     parked: list<array{id: string, items: int, sold: int, status: string}>
+ *     parked: list<array{id: string, items: int, sold: int, status: string, label: string}>
  * } $cart */
 /** @var list<array{id: string, customer: string, items: int, deposits: int, balance: int, last: string}> $layaways */
 
@@ -33,7 +33,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         <?php if ($layaway && $layaways === []): ?>
             <p class="muted">No layaways.</p>
         <?php elseif (!$layaway && $rows === []): ?>
-            <p class="muted">No suspended sales.</p>
+            <p class="muted">No suspended sales. Suspend a sale from the register when a shopper steps away.</p>
         <?php elseif ($layaway): ?>
             <div class="table-wrap list-dt-wrap">
                 <?php
@@ -80,6 +80,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <?php
                 ListTable::open(['id' => 'suspended', 'export' => 'suspended']);
                 ListTable::head([
+                    ['label' => 'Name'],
                     ['label' => 'Items', 'sort' => 'num'],
                     ['label' => 'Sold', 'sort' => 'num'],
                     ['label' => '', 'actions' => true],
@@ -88,6 +89,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <tbody>
                         <?php foreach ($rows as $held): ?>
                             <tr>
+                                <td><?= View::text($held['label']) ?></td>
                                 <td><?= View::text((string) $held['items']) ?></td>
                                 <td><?= View::text(View::money(RowValue::integer($held['sold']))) ?></td>
                                 <td>

@@ -212,7 +212,7 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
                     <?php endif; ?>
                     <?php if ($confirmVariance && $modal === 'close-' . $id): ?>
                         <input type="hidden" name="confirm_variance" value="yes">
-                        <p>Post the cash difference to over/short. Card and check differences stay on the tape.</p>
+                        <p>Counted cash, recorded card, and checks. The difference is how much the drawer is over or short.</p>
                     <?php endif; ?>
                     <div class="row gap-2">
                         <button class="btn btn-primary" type="submit"><?= $confirmVariance && $modal === 'close-' . $id ? 'Confirm and close' : 'Close register' ?></button>

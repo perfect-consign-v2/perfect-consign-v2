@@ -63,7 +63,7 @@ final class PosController
     public function park(string $slug): void
     {
         $this->act($slug, function (string $session): void {
-            $this->tickets->park($session);
+            $this->tickets->park($session, $this->app->request()->field('park_label'));
         }, 'Ticket parked.');
     }
 

@@ -75,6 +75,7 @@ final class PosPage
             'giftNumber' => $giftNumber,
             'giftBalance' => $giftNumber === '' ? null : $this->gifts->balance($giftNumber),
             'completed' => $held === '' ? null : $this->poster->receipt($held),
+            'lastSale' => $this->sales->last($slug),
             'change' => $this->change($slug, $held),
             'error' => $error,
             'openInstant' => $gift['openInstant'],
@@ -261,6 +262,7 @@ final class PosPage
             'showSearch' => false,
             'cart' => $this->tickets->cart($this->gate->session($slug)),
             'heldStatus' => $status,
+            'lastSale' => $this->sales->last($slug),
             'layaways' => $status === 'layaway' ? $this->tickets->layaways() : [],
         ]);
     }

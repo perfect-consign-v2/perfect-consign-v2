@@ -16,11 +16,15 @@ final class TicketQueue
     ) {
     }
 
-    public function park(string $sessionId): void
+    public function park(string $sessionId, string $label): void
     {
+        $name = trim($label);
+        if (strlen($name) > 40) {
+            throw new \InvalidArgumentException('Use a shorter name.');
+        }
         $updated = $this->statements->affected(
-            'UPDATE tickets SET status = ? WHERE session_id = ?::uuid AND status = ?',
-            ['parked', $sessionId, 'open']
+            'UPDATE tickets SET status = ?, park_label = NULLIF(?, \'\') WHERE session_id = ?::uuid AND status = ?',
+            ['parked', $name, $sessionId, 'open']
         );
         if ($updated !== 1) {
             throw new DatabaseRefusal('there is no open ticket');

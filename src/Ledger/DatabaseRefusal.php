@@ -25,22 +25,63 @@ final class DatabaseRefusal extends RuntimeException
         return new self('That could not be saved.', 0, $error);
     }
 
+    public static function phrase(string $message): string
+    {
+        $named = self::cashier($message);
+        if ($named !== null) {
+            return $named;
+        }
+        if (self::databaseShaped($message)) {
+            return 'That could not be saved.';
+        }
+
+        return $message;
+    }
+
     private static function shown(string $first, string $raw): string
     {
         $named = self::uniqueName($raw);
         if ($named !== null) {
             return $named;
         }
-        if (self::databaseShaped($first)) {
-            return 'That could not be saved.';
+
+        return self::phrase($first);
+    }
+
+    private static function cashier(string $line): ?string
+    {
+        $lower = strtolower($line);
+        $known = [
+            'there are not enough on hand' => 'That tag is already sold.',
+            'there is no open ticket' => 'Start a sale, then try again.',
+            'a layaway deposit cannot pass the amount due' => 'That amount is too big.',
+        ];
+        foreach ($known as $needle => $sentence) {
+            if (str_contains($lower, $needle)) {
+                return $sentence;
+            }
+        }
+        if (str_contains($lower, 'too large') || str_contains($lower, 'out of range') || str_contains($lower, 'overflow')) {
+            return 'That amount is too big.';
         }
 
-        return $first;
+        return null;
     }
 
     private static function databaseShaped(string $line): bool
     {
-        return str_contains($line, 'duplicate key');
+        $lower = strtolower($line);
+        if (str_contains($lower, 'duplicate key') || str_contains($lower, 'violates') || str_contains($lower, 'sqlstate')) {
+            return true;
+        }
+        if (preg_match('/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i', $line) === 1) {
+            return true;
+        }
+        if (preg_match('/\b[a-z0-9_]+_(?:chk|key|pkey|fkey|idx)\b/i', $line) === 1) {
+            return true;
+        }
+
+        return preg_match('/\b[a-z0-9_]+:[0-9a-f-]{8,}/i', $line) === 1;
     }
 
     private static function uniqueName(string $raw): ?string

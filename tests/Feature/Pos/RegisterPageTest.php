@@ -528,6 +528,7 @@ final class RegisterPageTest extends TestCase
     {
         return $overrides + [
             'journal_id' => 'journal-1',
+            'sale_number' => 1,
             'posting_key' => 'S-1',
             'description' => '',
             'voided' => false,
