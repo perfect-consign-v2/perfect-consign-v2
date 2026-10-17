@@ -44,8 +44,10 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
 <div id="sale-completed" class="modal" role="dialog" aria-modal="true" aria-labelledby="sale-completed-title" data-lock>
     <div class="modal-panel card register-finished">
     <div class="card-head">
+        <button class="modal-x" type="submit" form="sale-new" aria-label="Close">
+            <svg aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
         <h2 class="h3" id="sale-completed-title">Sale completed</h2>
-        <button class="btn btn-sm" type="submit" form="sale-new">Close</button>
     </div>
     <div class="card-body stack">
         <p><?= View::text($completed['posting_key']) ?></p>

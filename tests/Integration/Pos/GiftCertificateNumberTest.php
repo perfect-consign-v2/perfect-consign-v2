@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 
 final class GiftCertificateNumberTest extends TestCase
 {
-    public function testALowercaseNumberDoesNotWedgeTheNextCertificate(): void
+    public function testABlankNumberIsNotTheNextCount(): void
     {
         $root = dirname(__DIR__, 3);
         ProbeMall::ensure($root);
@@ -46,7 +46,10 @@ final class GiftCertificateNumberTest extends TestCase
             $journalId = $gifts->issue($sessionId, $this->openDate($statements), '', 100, 'cash', null);
             $journal = $ledger->journal($journalId);
             self::assertNotNull($journal);
-            self::assertSame($expected, $journal['source_reference'] ?? null);
+            $assigned = $journal['source_reference'] ?? null;
+            self::assertIsString($assigned);
+            self::assertMatchesRegularExpression('/^GC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{10}$/', $assigned);
+            self::assertNotSame($expected, $assigned);
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

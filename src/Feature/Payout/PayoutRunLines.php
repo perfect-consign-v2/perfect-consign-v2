@@ -6,7 +6,6 @@ namespace PerfectConsign\Feature\Payout;
 
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
-use PerfectConsign\Shared\Scalar\RowValue;
 
 final class PayoutRunLines
 {
@@ -71,6 +70,33 @@ final class PayoutRunLines
         );
     }
 
+    public function carryPack(string $runId, string $sourceRunId, string $vendorId): void
+    {
+        $this->statements->change(
+            'INSERT INTO payout_run_lines (
+                run_id, vendor_id, mode, sales_minor, commission_minor, tax_minor, discount_minor,
+                return_minor, void_minor, draw_minor, check_paid_minor, settlement_applied_minor,
+                rent_minor, rent_charged_minor, rent_brought_forward_minor, rent_paid_since_minor,
+                adjustment_minor, brought_forward_minor, carried_payable_minor, carried_rent_minor,
+                settled_minor, check_minor, owes_minor, net_minor
+             )
+             SELECT ?::uuid, vendor_id, mode, sales_minor, commission_minor, tax_minor, discount_minor,
+                    return_minor, void_minor, draw_minor, check_paid_minor, settlement_applied_minor,
+                    rent_minor, rent_charged_minor, rent_brought_forward_minor, rent_paid_since_minor,
+                    adjustment_minor, brought_forward_minor, carried_payable_minor, carried_rent_minor,
+                    settled_minor, check_minor, owes_minor, net_minor
+             FROM payout_pack
+             WHERE run_id = ?::uuid AND vendor_id = ?::uuid
+               AND NOT EXISTS (
+                   SELECT 1 FROM payout_run_lines AS existing
+                   WHERE existing.run_id = ?::uuid AND existing.vendor_id = payout_pack.vendor_id
+               )',
+            [$runId, $sourceRunId, $vendorId, $runId]
+        );
+        $this->vendorLine($runId, $vendorId);
+        $this->copyVendorSales($runId, $sourceRunId, $vendorId);
+    }
+
     public function vendorLine(string $runId, string $vendorId): void
     {
         $this->statements->change(
@@ -110,67 +136,6 @@ final class PayoutRunLines
         );
     }
 
-    /**
-     * @return list<array{vendor_id: string, check_minor: int, mode: string}>
-     */
-    public function checks(string $runId): array
-    {
-        $rows = $this->statements->bound(
-            "SELECT vendor_id, check_minor, mode FROM payout_run_lines
-             WHERE run_id = ?::uuid AND mode = 'pay' AND check_minor > 0
-             ORDER BY vendor_id",
-            [$runId]
-        );
-        $checks = [];
-        foreach ($rows as $row) {
-            $checks[] = [
-                'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
-                'check_minor' => RowValue::integer($row['check_minor'] ?? null),
-                'mode' => RowValue::string($row['mode'] ?? null),
-            ];
-        }
-
-        return $checks;
-    }
-
-    public function assignNumbers(string $runId, int $start): void
-    {
-        if ($start <= 0) {
-            throw new DatabaseRefusal('Type the number on the first check.');
-        }
-        $this->statements->transaction(function () use ($runId, $start): void {
-            $rows = $this->statements->bound(
-                "SELECT line.vendor_id, line.disbursement_journal_id
-                 FROM payout_run_lines AS line
-                 JOIN vendors AS vendor ON vendor.id = line.vendor_id
-                 WHERE line.run_id = ?::uuid AND line.mode = 'pay' AND line.check_minor > 0
-                   AND line.check_number IS NULL
-                   AND line.disbursement_journal_id IS NOT NULL
-                 ORDER BY vendor.code",
-                [$runId]
-            );
-            foreach ($rows as $row) {
-                $vendorId = RowValue::string($row['vendor_id'] ?? null);
-                $journalId = RowValue::string($row['disbursement_journal_id'] ?? null);
-                $number = (string) $start;
-                $written = $this->statements->affected(
-                    'UPDATE payout_run_lines
-                     SET check_number = ?
-                     WHERE run_id = ?::uuid AND vendor_id = ?::uuid AND check_number IS NULL',
-                    [$number, $runId, $vendorId]
-                );
-                if ($written !== 1) {
-                    continue;
-                }
-                $this->statements->change(
-                    'INSERT INTO register_checks (journal_id, check_number) VALUES (?::uuid, ?)',
-                    [$journalId, $number]
-                );
-                $start++;
-            }
-        });
-    }
-
     public function mark(string $runId, string $status): void
     {
         if ($status === 'settled') {
@@ -192,6 +157,27 @@ final class PayoutRunLines
             return;
         }
         throw new DatabaseRefusal('a payout run status cannot skip');
+    }
+
+    private function copyVendorSales(string $runId, string $sourceRunId, string $vendorId): void
+    {
+        $this->statements->change(
+            'INSERT INTO payout_run_sales (
+                run_id, vendor_id, journal_id, line_no, item_id, sold_on, item_code, description,
+                price_minor, commission_minor, tax_minor, discount_minor, quantity
+             )
+             SELECT ?::uuid, vendor_id, journal_id, line_no, item_id, sold_on, item_code, description,
+                    price_minor, commission_minor, tax_minor, discount_minor, quantity
+             FROM payout_pack_sales
+             WHERE run_id = ?::uuid AND vendor_id = ?::uuid
+               AND NOT EXISTS (
+                   SELECT 1 FROM payout_run_sales AS existing
+                   WHERE existing.run_id = ?::uuid
+                     AND existing.journal_id = payout_pack_sales.journal_id
+                     AND existing.line_no = payout_pack_sales.line_no
+               )',
+            [$runId, $sourceRunId, $vendorId, $runId]
+        );
     }
 
     private function copySales(string $runId): void

@@ -12,6 +12,7 @@ final class PrintedChecks
     public function __construct(
         private readonly MallApp $app,
         private readonly PayoutRunStore $runs,
+        private readonly PayoutRunSheets $sheets,
         private readonly PayoutOnce $once,
     ) {
     }
@@ -22,6 +23,9 @@ final class PrintedChecks
         $run = $this->runs->run($runId);
         if ($run['status'] === '') {
             return 'That payout is missing.';
+        }
+        if ($this->runs->checksVoided($runId)) {
+            return 'That check was voided.';
         }
         if (!$this->printable($run)) {
             return 'Those checks are not ready to print.';
@@ -71,7 +75,7 @@ final class PrintedChecks
 
     private function blankChecks(string $runId): bool
     {
-        foreach ($this->runs->envelopes($runId) as $row) {
+        foreach ($this->sheets->envelopes($runId) as $row) {
             if ($row['check'] > 0 && $row['check_number'] === '') {
                 return true;
             }

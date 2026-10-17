@@ -53,7 +53,7 @@ final class PosAddController
             return;
         }
         $stay = $request->field('instant_action') === 'save_and_new';
-        $this->app->redirect('/' . $slug . '/pos' . ($stay ? '?instant=1' : ''), 'Item added.');
+        $this->app->redirect('/' . $slug . '/pos' . ($stay ? '?instant=1&added=1' : '?instant_added=1'));
     }
 
     /**

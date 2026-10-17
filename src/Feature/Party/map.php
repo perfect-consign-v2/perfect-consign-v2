@@ -99,8 +99,10 @@ foreach ($tiles as $tile) {
 <div class="modal" id="booth-detail" hidden>
     <div class="modal-panel card" role="dialog" aria-labelledby="booth-detail-title">
         <div class="card-head">
+            <button class="modal-x" type="button" id="booth-detail-close" aria-label="Close">
+                <svg aria-hidden="true"><use href="#i-x"></use></svg>
+            </button>
             <div class="h3" id="booth-detail-title">Booth details</div>
-            <button class="btn btn-sm" type="button" id="booth-detail-close">Close</button>
         </div>
         <div class="card-body" id="booth-detail-body">
             <div class="h2 mono" id="bd-code"></div>

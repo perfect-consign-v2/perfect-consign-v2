@@ -39,9 +39,12 @@ final class PayoutRunController
         $today = $this->mall->today();
         $window = $this->window->window($today, $this->mall->getCycleDay());
         $requested = $this->app->request()->query('run');
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $requested) === 1 && $this->runs->checksVoided($requested)) {
+            $this->app->redirect('/' . $slug . '/payouts/past', 'That check was voided.');
+        }
         $rows = preg_match('/^[0-9a-fA-F-]{36}$/', $requested) === 1
-            ? $this->runs->envelopes($requested)
-            : $this->runs->envelopes('', $window['from'], $window['to'], $window['rent'], $today);
+            ? $this->once->envelopes($requested)
+            : $this->once->envelopes('', $window['from'], $window['to'], $window['rent'], $today);
         $this->app->show('Feature/Payout/envelope', [
             'title' => 'Each vendor\'s sales',
             'displayName' => $tenant->displayName,
@@ -74,6 +77,11 @@ final class PayoutRunController
         $actor = $this->register->ownerName();
         if ($actor === '' || $reason === '') {
             $this->pastWith($slug, 'a payout reversal needs the operator and a reason');
+
+            return;
+        }
+        if ($this->runs->checksVoided($runId)) {
+            $this->pastWith($slug, 'That check was voided.');
 
             return;
         }

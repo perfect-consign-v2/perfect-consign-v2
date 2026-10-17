@@ -470,11 +470,8 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Mall\\settings.php' && $line === 9 && $from === '>=' && $to === '>') {
         return 'day 1 is the fallback, so the strict comparison stores the same day';
     }
-    if ($file === 'src\\Shared\\Mail\\SmtpClient.php' && $line === 38 && $from === '||' && $to === '&&') {
+    if ($file === 'src\\Shared\\Mail\\SmtpClient.php' && $line === 41 && $from === '||' && $to === '&&') {
         return 'a failed connect sets the socket false together with errno and the error text, and a live socket has neither';
-    }
-    if ($file === 'src\\Shared\\Mail\\SmtpClient.php' && $line === 108 && $from === '||' && $to === '&&') {
-        return 'a write that returns false does not receive the next SMTP code, so the send fails either way';
     }
 
     return null;

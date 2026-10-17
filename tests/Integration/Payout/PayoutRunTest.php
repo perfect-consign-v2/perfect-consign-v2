@@ -10,6 +10,7 @@ use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Payout\OccupiedPack;
 use PerfectConsign\Feature\Payout\PayoutDisburser;
 use PerfectConsign\Feature\Payout\PayoutReverser;
+use PerfectConsign\Feature\Payout\PayoutRunChecks;
 use PerfectConsign\Feature\Payout\PayoutRunLines;
 use PerfectConsign\Feature\Payout\PayoutSingle;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
@@ -41,7 +42,7 @@ final class PayoutRunTest extends TestCase
         $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $lines = new PayoutRunLines($statements);
         $settler = new PayoutSettler($ledger, $payouts, $runs, $lines);
-        $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines);
+        $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines, new PayoutRunChecks($statements));
         $reverser = new PayoutReverser($ledger, $statements);
         $purchases = new StorePurchase($ledger);
         $mall = new MallPayoutSettings($statements);
@@ -179,7 +180,7 @@ final class PayoutRunTest extends TestCase
             self::assertSame('', $disburser->disburse($runId, $backdated, $date, $owedRow['check'], null));
             self::assertNotSame('', $reversed);
             self::assertNotSame([], $pack);
-            // stored( guard( materialize( link( attachSettlement( attachDisbursement( checks( assignNumbers( numberChecks( run( envelopes( copySales( source( report( mark( sheets( storedSheets( openSheets( previewSheets( day( tender( stamp( begin( finishedRun( savedChecks( savedPack( openPack(
+            // stored( guard( materialize( carryPack( link( attachSettlement( attachDisbursement( checks( assignNumbers( numberChecks( run( envelopes( copySales( copyVendorSales( checksVoided( voidedChecks( source( report( mark( sheets( storedSheets( openSheets( previewSheets( day( tender( stamp( begin( finishedRun( savedChecks( savedPack( openPack(
             self::assertSame([], $payouts->missingCharges($runId, $vendorId));
             self::assertIsArray($runs->excluded());
             self::assertNotSame([], $runs->history());

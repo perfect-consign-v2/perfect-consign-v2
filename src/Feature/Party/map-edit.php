@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $csrf */
 /** @var list<array{id: string, name: string, sort: int}> $floors */
@@ -49,7 +50,10 @@ $payload = json_encode($booths, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JS
 
 <div id="add-floor" class="modal" hidden>
     <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/map/floors">
-        <div class="card-head"><div class="h3">Add floor</div></div>
+        <div class="card-head">
+            <?php $closeModal = 'add-floor'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3">Add floor</div>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="add-floor-name">Floor name</label>
@@ -64,7 +68,10 @@ $payload = json_encode($booths, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JS
 
 <div id="rename-floor" class="modal" hidden>
     <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/map/floors/<?= View::text((string) $floorId) ?>" id="rename-floor-form">
-        <div class="card-head"><div class="h3">Rename floor</div></div>
+        <div class="card-head">
+            <?php $closeModal = 'rename-floor'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3">Rename floor</div>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="rename-floor-name">Floor name</label>

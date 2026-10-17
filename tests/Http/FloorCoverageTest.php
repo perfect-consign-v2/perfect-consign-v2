@@ -435,9 +435,10 @@ final class FloorCoverageTest extends WebTestCase
             'description' => 'Instant ' . $code,
             'price' => '12.00',
         ]);
-        self::assertSees('Item added.', $added);
+        self::assertSees('Item added to cart.', $added);
         self::assertSees('Instant ' . $code, $added);
         self::assertSees('Clear cart', $added);
+        // act(
         $cleared = $this->client->post('/' . self::SLUG . '/pos/discard', []);
         self::assertSees('Ticket discarded.', $cleared);
         self::assertStringNotContainsString('Clear cart', $cleared->body);
@@ -733,7 +734,7 @@ final class FloorCoverageTest extends WebTestCase
     private function slip(PageResponse $page): void
     {
         $this->certificate($page, '', '10.00');
-        self::assertMatchesRegularExpression('/GC-\d+/', $page->body);
+        self::assertMatchesRegularExpression('/GC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{10}/', $page->body);
     }
 
     /**

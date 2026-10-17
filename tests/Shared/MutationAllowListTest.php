@@ -18,6 +18,7 @@ final class MutationAllowListTest extends TestCase
         self::assertSame('src\\Feature\\Rent\\RentFigure.php', $linux);
         self::assertNotNull(equivalentReason($linux, 47, '&&', '||'));
         self::assertNotNull(equivalentReason($linux, 47, '>', '>='));
+        self::assertNotNull(equivalentReason('src\\Shared\\Mail\\SmtpClient.php', 41, '||', '&&'));
 
         $windows = relative(
             'C:\\laragon\\www\\perfect-consign',

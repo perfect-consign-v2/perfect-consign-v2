@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Feature\Register\DenominationCount;
 use PerfectConsign\Shared\Http\View;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $cashier */
@@ -90,7 +91,7 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
                 <?php else: ?>
                     <button class="btn btn-primary" type="button" data-open-modal="register-open" data-brand-action="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/open">Open register</button>
                 <?php endif; ?>
-                <a class="btn" href="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/shifts">Shifts</a>
+                <a class="btn" href="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/shifts">Shift reports</a>
                 <?php if (!$open && ($register['shifts'] ?? 0) === 0 && count($registers) > 1): ?>
                     <button class="btn" type="button" data-open-modal="delete-<?= View::text($id) ?>">Delete</button>
                 <?php endif; ?>
@@ -102,7 +103,10 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
     <?php if (!$open && ($register['shifts'] ?? 0) === 0 && count($registers) > 1): ?>
         <div id="delete-<?= View::text($id) ?>" class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-title-<?= View::text($id) ?>"<?= $modal === 'delete-' . $id ? '' : ' hidden' ?>>
             <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/delete">
-                <div class="card-head"><div class="h3" id="delete-title-<?= View::text($id) ?>">Delete <?= View::text($name) ?></div></div>
+                <div class="card-head">
+                    <?php $closeModal = 'delete-' . $id; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+                    <div class="h3" id="delete-title-<?= View::text($id) ?>">Delete <?= View::text($name) ?></div>
+                </div>
                 <div class="card-body stack">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <p><?= View::text($name) ?> has never been opened.</p>
@@ -131,7 +135,16 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
     <?php if ($open): ?>
         <div id="close-<?= View::text($id) ?>" class="modal" role="dialog" aria-modal="true" aria-labelledby="close-title-<?= View::text($id) ?>"<?= $mustClose ? ' data-lock' : '' ?><?= $modal === 'close-' . $id ? '' : ' hidden' ?>>
             <form id="close-form-<?= View::text($id) ?>" class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/close" data-close-sheet data-expected-cash="<?= View::text((string) $expectedCash) ?>" data-expected-card="<?= View::text((string) $expectedCard) ?>" data-expected-checks="<?= View::text((string) $expectedChecks) ?>">
-                <div class="card-head"><div class="h3" id="close-title-<?= View::text($id) ?>">Close <?= View::text($name) ?></div></div>
+                <div class="card-head">
+                    <?php if ($mustClose): ?>
+                        <button class="modal-x" type="submit" formnovalidate formaction="/<?= View::text($slug) ?>/registers/close-cancel" aria-label="Close">
+                            <svg aria-hidden="true"><use href="#i-x"></use></svg>
+                        </button>
+                    <?php else: ?>
+                        <?php $closeModal = 'close-' . $id; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+                    <?php endif; ?>
+                    <div class="h3" id="close-title-<?= View::text($id) ?>">Close <?= View::text($name) ?></div>
+                </div>
                 <div class="card-body stack">
                     <?php if (($register['open_ticket'] ?? false) === true): ?>
                         <div class="alert alert-danger" role="alert">
@@ -214,7 +227,10 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
         </div>
         <div id="drop-<?= View::text($id) ?>" class="modal" role="dialog" aria-modal="true" aria-labelledby="drop-title-<?= View::text($id) ?>"<?= $modal === 'drop-' . $id ? '' : ' hidden' ?>>
             <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/registers/<?= View::text($id) ?>/drop">
-                <div class="card-head"><div class="h3" id="drop-title-<?= View::text($id) ?>">Drop cash</div></div>
+                <div class="card-head">
+                    <?php $closeModal = 'drop-' . $id; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+                    <div class="h3" id="drop-title-<?= View::text($id) ?>">Drop cash</div>
+                </div>
                 <div class="card-body stack">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <label for="drop-amount-<?= View::text($id) ?>">Amount</label>
@@ -235,7 +251,10 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
 
 <div id="register-open" class="modal" role="dialog" aria-modal="true" aria-labelledby="register-open-title"<?= $modal === 'register-open' ? '' : ' hidden' ?>>
     <form id="open-form" class="modal-panel card" method="post" action="<?= View::text($openAction) ?>">
-        <div class="card-head"><div class="h3" id="register-open-title">Open register</div></div>
+        <div class="card-head">
+            <?php $closeModal = 'register-open'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3" id="register-open-title">Open register</div>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <?php foreach (DenominationCount::KEYS as $key): ?>
@@ -258,7 +277,10 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
 
 <div id="register-rename" class="modal" role="dialog" aria-modal="true" aria-labelledby="register-rename-title"<?= $modal === 'register-rename' ? '' : ' hidden' ?>>
     <form class="modal-panel card" method="post" action="<?= View::text($renameAction) ?>">
-        <div class="card-head"><div class="h3" id="register-rename-title">Rename register</div></div>
+        <div class="card-head">
+            <?php $closeModal = 'register-rename'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3" id="register-rename-title">Rename register</div>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="register-name">Name</label>
@@ -273,7 +295,10 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
 
 <div id="register-count" class="modal" role="dialog" aria-modal="true" aria-labelledby="register-count-title" hidden>
     <div class="modal-panel card count-panel">
-        <div class="card-head"><div class="h3" id="register-count-title">Count cash</div></div>
+        <div class="card-head">
+            <?php $closeModal = 'register-count'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3" id="register-count-title">Count cash</div>
+        </div>
         <div class="card-body stack">
             <div class="count-columns">
                 <div class="count-card">

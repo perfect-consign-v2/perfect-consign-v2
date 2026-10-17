@@ -42,7 +42,8 @@ final class PayWindowTest extends TestCase
             '/<button class="btn btn-primary" id="pay-finish" type="submit"[^>]*>Finish sale<\\/button>/',
             $html
         );
-        self::assertStringContainsString('data-close-modal="enter-payment">Close</button>', $html);
+        self::assertStringContainsString('data-close-modal="enter-payment"', $html);
+        self::assertStringContainsString('class="modal-x"', $html);
         self::assertStringNotContainsString('>Done</button>', $html);
         self::assertStringNotContainsString('Exact change', $html);
         $cash = strpos($html, 'Full Amount Cash');

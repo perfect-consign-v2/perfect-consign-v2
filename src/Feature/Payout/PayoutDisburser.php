@@ -17,6 +17,7 @@ final class PayoutDisburser
         private readonly PayoutStore $payouts,
         private readonly PayoutRunStore $runs,
         private readonly PayoutRunLines $lines,
+        private readonly PayoutRunChecks $checks,
     ) {
     }
 
@@ -27,7 +28,7 @@ final class PayoutDisburser
             throw new DatabaseRefusal('a check is written only while the run is settled');
         }
         $this->lines->guard($runId, true);
-        foreach ($this->lines->checks($runId) as $line) {
+        foreach ($this->checks->checks($runId) as $line) {
             $open = $this->payouts->openPayout($line['vendor_id'])['payable'];
             if ($open !== $line['check_minor']) {
                 throw new DatabaseRefusal('the open payable changed after review');
@@ -56,7 +57,7 @@ final class PayoutDisburser
         if ($run['status'] !== 'paid' || $run['tender'] !== 'check') {
             throw new DatabaseRefusal('Those checks are not ready to print.');
         }
-        $this->lines->assignNumbers($runId, $start);
+        $this->checks->assignNumbers($runId, $start);
     }
 
     /**

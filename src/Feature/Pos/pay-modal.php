@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Shared\Http\View;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $csrf */
 /** @var bool $open */
@@ -68,8 +69,8 @@ $amountAttrs = static function (string $value) use (&$amountFocus, $amountInvali
 <div id="enter-payment" class="modal" role="dialog" aria-modal="true" aria-labelledby="enter-payment-title"<?= $openPayment ? '' : ' hidden' ?>>
     <div class="modal-panel card register-pay-modal">
         <div class="card-head">
+            <?php $closeModal = 'enter-payment'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
             <div class="h3" id="enter-payment-title">Payment</div>
-            <button class="btn btn-sm" type="button" data-close-modal="enter-payment">Close</button>
         </div>
         <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-shopper="<?= View::text(is_string($shopperId ?? null) ? $shopperId : '') ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json" data-gift-over="<?= View::text(RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) ?>">
             <p class="error" id="pay-error" role="alert"<?= $modalError === '' ? ' hidden' : '' ?>><?= View::text($modalError) ?></p>

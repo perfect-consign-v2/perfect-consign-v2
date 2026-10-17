@@ -32,7 +32,7 @@ final class PosController
     {
         $this->act($slug, function (string $session): void {
             $this->tickets->scan($session, $this->app->request()->field('scan'));
-        }, 'Item added.');
+        });
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/price', ['POST'])]
@@ -105,7 +105,7 @@ final class PosController
     /**
      * @param callable(string): void $work
      */
-    private function act(string $slug, callable $work, string $notice): void
+    private function act(string $slug, callable $work, ?string $notice = null): void
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);

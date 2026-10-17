@@ -42,7 +42,7 @@ foreach ($cart['parked'] as $held) {
             <input class="input" id="gift" name="gift" value="<?= View::text($giftNumber) ?>" autocomplete="off">
             <button class="btn btn-primary" type="submit">Look up</button>
             <?php if ($giftNumber !== ''): ?>
-                <p><?php if ($giftBalance === null): ?>That certificate is not on file.<?php else: ?>Balance left <?= View::text(View::money($giftBalance)) ?><?php endif; ?></p>
+                <p class="gift-lookup"><?php if ($giftBalance === null): ?>That certificate is not on file.<?php else: ?>Balance left <?= View::text(View::money($giftBalance)) ?><?php endif; ?></p>
             <?php endif; ?>
             <button class="btn" type="button" data-close-modal="gift-balance">Close</button>
         </div>

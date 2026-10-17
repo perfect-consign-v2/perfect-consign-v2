@@ -201,6 +201,111 @@ final class PayoutHistoryPageTest extends TestCase
         self::assertStringNotContainsString('>paid<', $html);
     }
 
+    public function testAVoidedCheckIsNotPaidAndCannotBePrinted(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/history', [
+            'slug' => 'webprobe',
+            'csrf' => 'token',
+            'error' => null,
+            'excluded' => [],
+            'runs' => [
+                [
+                    'id' => '00000000-0000-7000-8000-000000000030',
+                    'run_no' => 7,
+                    'sales_from' => '2026-10-16',
+                    'sales_to' => '2026-10-16',
+                    'rent_month' => '',
+                    'tender' => 'check',
+                    'status' => 'paid',
+                    'check_void' => 'voided',
+                    'reverses_run_id' => '',
+                    'undone_by' => '',
+                    'undone_reason' => '',
+                    'undone_at' => '',
+                ],
+            ],
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringContainsString('Voided', $html);
+        self::assertStringNotContainsString('Paid', $html);
+        self::assertStringNotContainsString('Print checks', $html);
+        self::assertStringNotContainsString('Undo this payout', $html);
+        self::assertStringNotContainsString('Print each vendor\'s sales', $html);
+    }
+
+    public function testAVendorAndACheckAmountStayOnTheirOwnCells(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/history', [
+            'slug' => 'webprobe',
+            'csrf' => 'token',
+            'error' => null,
+            'excluded' => [],
+            'runs' => [
+                [
+                    'id' => '00000000-0000-7000-8000-000000000040',
+                    'run_no' => 11,
+                    'sales_from' => '2026-10-01',
+                    'sales_to' => '2026-10-31',
+                    'vendor_name' => 'Ada',
+                    'check_minor' => 100,
+                    'rent_month' => '2026-10-01',
+                    'tender' => 'check',
+                    'status' => 'paid',
+                    'reverses_run_id' => '',
+                    'undone_by' => '',
+                    'undone_reason' => '',
+                    'undone_at' => '',
+                ],
+                [
+                    'id' => '00000000-0000-7000-8000-000000000041',
+                    'run_no' => 12,
+                    'sales_from' => '2026-01-15',
+                    'sales_to' => '2026-01-15',
+                    'vendor_name' => '',
+                    'check_minor' => '250',
+                    'rent_month' => '2026-11-01',
+                    'tender' => 'check',
+                    'status' => 'draft',
+                    'reverses_run_id' => '',
+                    'undone_by' => '',
+                    'undone_reason' => '',
+                    'undone_at' => '',
+                ],
+                [
+                    'id' => '00000000-0000-7000-8000-000000000042',
+                    'run_no' => 13,
+                    'sales_from' => '2026-02-02',
+                    'sales_to' => '2026-02-02',
+                    'vendor_name' => 'Bea',
+                    'check_minor' => 50,
+                    'rent_month' => '',
+                    'tender' => 'safe_cash',
+                    'status' => 'draft',
+                    'reverses_run_id' => '',
+                    'undone_by' => '',
+                    'undone_reason' => '',
+                    'undone_at' => '',
+                ],
+            ],
+        ]);
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringContainsString('>Ada</td>', $html);
+        self::assertStringContainsString('$1.00', $html);
+        self::assertStringContainsString('$2.50', $html);
+        self::assertStringContainsString('$0.50', $html);
+        self::assertStringContainsString('Cash from the safe', $html);
+        self::assertMatchesRegularExpression('/01-15-2026<\/td>\s*<td>—<\/td>/', $html);
+        self::assertMatchesRegularExpression('/>\$0\.50<\/td>\s*<td>—<\/td>/', $html);
+    }
+
     public function testABlankErrorIsNotAnAlert(): void
     {
         $view = new View(dirname(__DIR__, 3) . '/src');

@@ -52,6 +52,38 @@ final class MigrationBoundaryTest extends TestCase
         $this->record($broken, $catalog)->applied('platform');
     }
 
+    public function testAMatchingChecksumIsLeftAlone(): void
+    {
+        $catalog = $this->catalog();
+        $file = '000_platform.sql';
+        $rows = $this->rows([['filename' => $file, 'checksum' => $catalog->checksum($file)]]);
+
+        $this->readyRecord($rows, $catalog)->stamp('platform', [$file]);
+
+        self::assertTrue($this->readyRecord($rows, $catalog)->ready('platform'));
+    }
+
+    public function testAnOpenTransactionIsLeftToItsCaller(): void
+    {
+        $catalog = $this->catalog();
+        $applied = [];
+        $pending = '';
+        foreach ($catalog->tenantFiles() as $file) {
+            if ($pending === '') {
+                $pending = $file;
+                continue;
+            }
+            $applied[$file] = $catalog->checksum($file);
+        }
+        $regclass = 0;
+        $sql = [];
+        $pdo = $this->tenantPdo(self::SCHEMA, $applied, $regclass, $sql, true);
+
+        (new SchemaMigrator($pdo, $catalog))->migrateTenant('webprobe');
+
+        self::assertNotSame('', $pending);
+    }
+
     public function testAReadyPlatformDoesNotInstallAgain(): void
     {
         $catalog = $this->catalog();
@@ -191,15 +223,18 @@ final class MigrationBoundaryTest extends TestCase
      * @param array<string, string> $applied
      * @param list<string> $sql
      */
-    private function tenantPdo(string $schema, array $applied, int &$regclass, array &$sql = []): PDO
+    private function tenantPdo(string $schema, array $applied, int &$regclass, array &$sql = [], bool $inside = false): PDO
     {
         $rows = [];
         foreach ($applied as $file => $checksum) {
             $rows[] = ['filename' => $file, 'checksum' => $checksum];
         }
-        $pdo = $this->createStub(PDO::class);
+        $pdo = $inside ? $this->createMock(PDO::class) : $this->createStub(PDO::class);
+        if ($inside) {
+            $pdo->expects($this->never())->method('beginTransaction');
+        }
         $pdo->method('quote')->willReturnCallback(static fn (string $value): string => "'" . $value . "'");
-        $pdo->method('inTransaction')->willReturn(false);
+        $pdo->method('inTransaction')->willReturn($inside);
         $pdo->method('exec')->willReturnCallback(static function (string $statement) use (&$sql): int {
             $sql[] = $statement;
 

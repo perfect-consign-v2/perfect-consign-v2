@@ -107,14 +107,43 @@ final class PayoutRunStore
         return $excluded;
     }
 
+    public function checksVoided(string $runId): bool
+    {
+        $rows = $this->statements->bound(
+            'SELECT ' . $this->voidedChecks('?::uuid') . ' AS check_void',
+            [$runId]
+        );
+
+        return RowValue::string($rows[0]['check_void'] ?? '') === 'voided';
+    }
+
+    private function voidedChecks(string $runIdSql): string
+    {
+        return "CASE WHEN (
+            SELECT count(*) FILTER (WHERE NOT journal.is_reversal) > 0
+               AND count(*) FILTER (
+                   WHERE NOT journal.is_reversal
+                     AND NOT EXISTS (
+                         SELECT 1 FROM journals AS reversal
+                         WHERE reversal.reverses_journal_id = journal.id
+                     )
+               ) = 0
+            FROM payout_run_journals AS link
+            JOIN journals AS journal ON journal.id = link.journal_id
+            WHERE link.run_id = {$runIdSql} AND link.role = 'disbursement'
+        ) THEN 'voided' ELSE '' END";
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
     public function history(): array
     {
         return $this->statements->rows(
-            'SELECT run.id, run.run_no, run.sales_from, run.sales_to, run.rent_month, run.tender, run.status,
-                    run.reversed_at, reversal.reversed_by AS undone_by, reversal.reversal_reason AS undone_reason
+            'SELECT run.id, run.run_no, run.kind, run.sales_from, run.sales_to, run.rent_month, run.tender, run.status,
+                    run.reversed_at, reversal.reversed_by AS undone_by, reversal.reversal_reason AS undone_reason,
+                    COALESCE(one.vendor_name, \'\') AS vendor_name,
+                    one.check_minor, ' . $this->voidedChecks('run.id') . ' AS check_void
              FROM payout_runs AS run
              LEFT JOIN LATERAL (
                  SELECT reversed_by, reversal_reason
@@ -123,6 +152,26 @@ final class PayoutRunStore
                  ORDER BY run_no DESC
                  LIMIT 1
              ) AS reversal ON true
+             LEFT JOIN LATERAL (
+                 SELECT btrim(vendor.first_name || \' \' || vendor.last_name) AS vendor_name,
+                        CASE
+                            WHEN line.check_minor <> 0 THEN line.check_minor
+                            ELSE COALESCE((
+                                SELECT journal.debit_total_minor
+                                FROM payout_run_journals AS link
+                                JOIN journals AS journal ON journal.id = link.journal_id
+                                WHERE link.run_id = run.id
+                                  AND link.role = \'disbursement\'
+                                  AND NOT journal.is_reversal
+                                LIMIT 1
+                            ), line.check_minor)
+                        END AS check_minor
+                 FROM payout_run_lines AS line
+                 JOIN vendors AS vendor ON vendor.id = line.vendor_id
+                 WHERE line.run_id = run.id AND run.kind = \'single\'
+                 ORDER BY vendor.code
+                 LIMIT 1
+             ) AS one ON true
              WHERE run.reverses_run_id IS NULL
              ORDER BY run.run_no DESC'
         );
@@ -227,138 +276,6 @@ final class PayoutRunStore
             'posting_date' => RowValue::string($rows[0]['posting_date'] ?? null),
             'rent_month' => RowValue::string($rows[0]['rent_month'] ?? null),
         ];
-    }
-
-    /**
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, quantity: int, commission: int, rent: int, check: int, owes: int, check_number: string}>
-     */
-    public function envelopes(
-        string $runId,
-        string $salesFrom = '',
-        string $salesTo = '',
-        string $rentMonth = '',
-        string $postingDate = '',
-    ): array {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $runId) === 1) {
-            $stored = $this->sheets($this->storedSheets(), [$runId]);
-            if ($stored !== []) {
-                return $stored;
-            }
-
-            return $this->sheets($this->openSheets(), [$runId]);
-        }
-        if ($this->day($salesFrom) === '' || $this->day($salesTo) === '' || $this->day($rentMonth) === '' || $this->day($postingDate) === '') {
-            return [];
-        }
-
-        return $this->sheets($this->previewSheets(), [$salesFrom, $salesTo, $rentMonth, $postingDate, $salesFrom, $salesTo]);
-    }
-
-    /**
-     * @param list<mixed> $params
-     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, quantity: int, commission: int, rent: int, check: int, owes: int, check_number: string}>
-     */
-    private function sheets(string $sql, array $params): array
-    {
-        $sheets = [];
-        foreach ($this->statements->bound($sql, $params) as $row) {
-            $number = $row['check_number'] ?? null;
-            $sheets[] = [
-                'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
-                'code' => RowValue::string($row['code'] ?? null),
-                'name' => RowValue::string($row['name'] ?? null),
-                'booth' => RowValue::string($row['booth'] ?? null),
-                'sold_on' => RowValue::string($row['sold_on'] ?? null),
-                'item_code' => RowValue::string($row['item_code'] ?? null),
-                'description' => RowValue::string($row['description'] ?? null),
-                'price' => RowValue::integer($row['price_minor'] ?? 0),
-                'quantity' => RowValue::integer($row['quantity'] ?? 0),
-                'commission' => RowValue::integer($row['commission_minor'] ?? 0),
-                'rent' => RowValue::integer($row['settled_minor'] ?? 0),
-                'check' => RowValue::integer($row['check_minor'] ?? null),
-                'owes' => RowValue::integer($row['owes_minor'] ?? null),
-                'check_number' => is_string($number) ? $number : '',
-            ];
-        }
-
-        return $sheets;
-    }
-
-    private function storedSheets(): string
-    {
-        return "SELECT line.vendor_id::text AS vendor_id, vendor.code,
-                       btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
-                       COALESCE(spot.booth, '') AS booth,
-                       COALESCE(to_char(sale.sold_on, 'YYYY-MM-DD'), '') AS sold_on,
-                       COALESCE(sale.item_code, '') AS item_code,
-                       COALESCE(sale.description, '') AS description,
-                       COALESCE(sale.price_minor, 0) AS price_minor,
-                       COALESCE(sale.quantity, 0) AS quantity,
-                       COALESCE(sale.commission_minor, 0) AS commission_minor,
-                       line.settled_minor, line.check_minor, line.owes_minor, COALESCE(line.check_number, '') AS check_number
-                FROM payout_run_lines AS line
-                JOIN vendors AS vendor ON vendor.id = line.vendor_id
-                LEFT JOIN payout_run_sales AS sale ON sale.run_id = line.run_id AND sale.vendor_id = line.vendor_id
-                LEFT JOIN LATERAL (
-                    SELECT booth.code AS booth
-                    FROM payout_runs AS run
-                    JOIN booth_assignments AS assignment
-                      ON assignment.vendor_id = line.vendor_id
-                     AND assignment.assignment_range @> run.posting_date
-                    JOIN booths AS booth ON booth.id = assignment.booth_id
-                    WHERE run.id = line.run_id
-                    ORDER BY booth.code
-                    LIMIT 1
-                ) AS spot ON true
-                WHERE line.run_id = ?::uuid AND line.mode = 'pay'
-                ORDER BY vendor.code, sale.sold_on, sale.line_no";
-    }
-
-    private function openSheets(): string
-    {
-        return "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth,
-                       COALESCE(to_char(sale.sold_on, 'YYYY-MM-DD'), '') AS sold_on,
-                       COALESCE(sale.item_code, '') AS item_code,
-                       COALESCE(sale.description, '') AS description,
-                       COALESCE(sale.price_minor, 0) AS price_minor,
-                       COALESCE(sale.quantity, 0) AS quantity,
-                       COALESCE(sale.commission_minor, 0) AS commission_minor,
-                       pack.settled_minor, pack.check_minor, pack.owes_minor, '' AS check_number
-                FROM payout_pack AS pack
-                LEFT JOIN payout_pack_sales AS sale
-                  ON sale.run_id = pack.run_id AND sale.vendor_id = pack.vendor_id
-                WHERE pack.run_id = ?::uuid AND pack.mode = 'pay'
-                ORDER BY pack.code, sale.sold_on, sale.line_no";
-    }
-
-    private function previewSheets(): string
-    {
-        return "SELECT pack.vendor_id::text AS vendor_id, pack.code, pack.name, pack.booth,
-                       COALESCE(to_char(sale.sold_on, 'YYYY-MM-DD'), '') AS sold_on,
-                       COALESCE(sale.item_code, '') AS item_code,
-                       COALESCE(sale.description, '') AS description,
-                       COALESCE(sale.price_minor, 0) AS price_minor,
-                       COALESCE(sale.quantity, 0) AS quantity,
-                       COALESCE(sale.commission_minor, 0) AS commission_minor,
-                       pack.settled_minor, pack.check_minor, pack.owes_minor, '' AS check_number
-                FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date) AS pack
-                LEFT JOIN LATERAL (
-                    SELECT journal.posting_date AS sold_on, item.code AS item_code, item.description,
-                           sale.price_minor, sale.quantity, sale.commission_minor, sale.line_no
-                    FROM journals AS journal
-                    JOIN sale_lines AS sale ON sale.journal_id = journal.id
-                    JOIN items AS item ON item.id = sale.item_id AND item.vendor_id = pack.vendor_id
-                    WHERE journal.posting_date BETWEEN ?::date AND ?::date
-                      AND journal.source_type = 'sale'
-                      AND NOT journal.is_reversal
-                ) AS sale ON true
-                WHERE pack.mode = 'pay'
-                ORDER BY pack.code, sale.sold_on, sale.line_no";
-    }
-
-    private function day(string $value): string
-    {
-        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
     }
 
     private function tender(string $tender): string

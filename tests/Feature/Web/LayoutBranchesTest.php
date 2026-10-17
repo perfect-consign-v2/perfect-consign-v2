@@ -17,6 +17,7 @@ final class LayoutBranchesTest extends TestCase
 
         self::assertStringNotContainsString('href="/demo/brands"', $html);
         self::assertStringContainsString('Cashiers', $html);
+        self::assertStringNotContainsString('Active:', $html);
     }
 
     public function testTheOwnerShellShowsTheNoticeAndTheCurrentPage(): void
@@ -50,7 +51,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('href="/demo/sizes"', $html);
         self::assertStringNotContainsString('href="/demo/conditions"', $html);
         self::assertStringContainsString('href="/demo/dashboard" aria-current="page"', $html);
-        self::assertStringNotContainsString('Active: Front', $html);
+        self::assertStringContainsString('href="/demo/registers">Active: Front</a>', $html);
         self::assertStringNotContainsString('Reset Test Data', $html);
         self::assertStringContainsString('id="flash-dialog"', $html);
         self::assertStringContainsString('data-kind="danger"', $html);
@@ -78,7 +79,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('class="btn btn-danger"', $html);
         self::assertStringContainsString('name="csrf" value="token"', $html);
         self::assertStringContainsString('Reset Test Data', $html);
-        self::assertStringNotContainsString('Active: Front', $html);
+        self::assertStringContainsString('href="/dev/registers">Active: Front</a>', $html);
     }
 
     public function testTheMallOwnerSeesResetTestData(): void
@@ -93,7 +94,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('action="/mall/reset-test-data"', $html);
         self::assertStringContainsString('class="btn btn-danger"', $html);
         self::assertStringContainsString('Reset Test Data', $html);
-        self::assertStringNotContainsString('Active: Front', $html);
+        self::assertStringContainsString('href="/mall/registers">Active: Front</a>', $html);
     }
 
     public function testACashierOnTheDevMallDoesNotSeeResetTestData(): void
@@ -105,9 +106,38 @@ final class LayoutBranchesTest extends TestCase
             'activeRegister' => 'Front',
         ]);
 
-        self::assertStringNotContainsString('Active: Front', $html);
+        self::assertStringContainsString('href="/dev/registers">Active: Front</a>', $html);
         self::assertStringNotContainsString('Reset Test Data', $html);
         self::assertStringNotContainsString('/dev/reset-test-data', $html);
+    }
+
+    public function testTheVendorCheckAndAChildInventoryPageStayCurrent(): void
+    {
+        $vendor = $this->layout([
+            'actorRole' => 'vendor',
+            'path' => '/demo/vendor',
+        ]);
+        $checks = $this->layout([
+            'actorRole' => 'vendor',
+            'path' => '/demo/vendor/checks/1',
+        ]);
+        $sales = $this->layout([
+            'actorRole' => 'vendor',
+            'path' => '/demo/vendor/sales',
+        ]);
+        $inventory = $this->layout([
+            'actorRole' => 'owner',
+            'path' => '/demo/inventory/items',
+        ]);
+
+        self::assertStringContainsString('href="/demo/vendor" aria-current="page"', $vendor);
+        self::assertStringNotContainsString('href="/demo/vendor/sales" aria-current="page"', $vendor);
+        self::assertStringContainsString('href="/demo/vendor" aria-current="page"', $checks);
+        self::assertStringNotContainsString('href="/demo/vendor/sales" aria-current="page"', $checks);
+        self::assertStringContainsString('href="/demo/vendor/sales" aria-current="page"', $sales);
+        self::assertStringNotContainsString('href="/demo/vendor" aria-current="page"', $sales);
+        self::assertStringContainsString('href="/demo/inventory" aria-current="page"', $inventory);
+        self::assertStringNotContainsString('href="/demo/dashboard" aria-current="page"', $inventory);
     }
 
     public function testANestedCatalogPageStaysInThatSection(): void

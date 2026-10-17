@@ -21,6 +21,7 @@ use PerfectConsign\Shared\Http\View;
 $path = $path ?? '';
 $robots = $robots ?? '';
 $posShell = ($posShell ?? false) === true;
+$activeRegister = $activeRegister ?? '';
 $chooseRegister = $chooseRegister ?? false;
 $leftOpen = is_array($leftOpen ?? null) ? $leftOpen : [];
 $priorCloseStarted = ($priorCloseStarted ?? false) === true;
@@ -224,6 +225,8 @@ $roleLabel = match ($actorRole) {
             <?php endif; ?>
             <?php if ($previewAs === '' && $chooseRegister): ?>
                 <a class="btn" href="/<?= View::text($slug) ?>/registers">Choose a register</a>
+            <?php elseif ($previewAs === '' && $activeRegister !== ''): ?>
+                <a class="btn" href="/<?= View::text($slug) ?>/registers">Active: <?= View::text($activeRegister) ?></a>
             <?php endif; ?>
             <div class="topbar-actions">
                 <div class="account" data-menu>

@@ -150,31 +150,14 @@ final class GiftIssue
 
     private function allocate(string $kind): string
     {
-        $prefix = $this->prefix($kind);
-        $rows = $this->statements->bound(
-            'SELECT upper(number) AS number FROM stored_values
-             WHERE kind = ? AND number ~* ?
-             ORDER BY char_length(number) DESC, upper(number) DESC
-             LIMIT 1',
-            [$kind, '^' . $prefix . '-[0-9]+$']
-        );
-        $last = $rows[0]['number'] ?? null;
-        $sequence = 1001;
-        if (is_string($last) && preg_match('/^' . $prefix . '-(\d+)$/i', $last, $parts) === 1) {
-            if (strlen($parts[1]) > 12) {
-                throw new DatabaseRefusal('a stored value number is required');
-            }
-            $sequence = ((int) $parts[1]) + 1;
-        }
-        if ($sequence < 1001) {
-            $sequence = 1001;
-        }
-        $number = $prefix . '-' . $sequence;
-        if (strlen($number) > 40) {
-            throw new DatabaseRefusal('a stored value number is required');
+        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $bytes = random_bytes(10);
+        $body = '';
+        for ($i = 0; $i < 10; $i++) {
+            $body .= $alphabet[ord($bytes[$i]) % 32];
         }
 
-        return $number;
+        return $this->prefix($kind) . '-' . $body;
     }
 
     private function number(string $number): string

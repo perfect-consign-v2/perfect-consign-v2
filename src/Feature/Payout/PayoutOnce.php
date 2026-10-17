@@ -12,6 +12,7 @@ final class PayoutOnce
 {
     public function __construct(
         private readonly PayoutRunStore $runs,
+        private readonly PayoutRunSheets $sheets,
         private readonly PayoutSettler $settler,
         private readonly PayoutDisburser $disburser,
         private readonly Statements $statements,
@@ -91,12 +92,25 @@ final class PayoutOnce
     }
 
     /**
+     * @return list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, quantity: int, commission: int, rent: int, check: int, owes: int, check_number: string}>
+     */
+    public function envelopes(
+        string $runId,
+        string $salesFrom = '',
+        string $salesTo = '',
+        string $rentMonth = '',
+        string $postingDate = '',
+    ): array {
+        return $this->sheets->envelopes($runId, $salesFrom, $salesTo, $rentMonth, $postingDate);
+    }
+
+    /**
      * @return list<array{number: string, name: string, code: string, booth: string, amount: int, words: string}>
      */
     public function savedChecks(string $runId): array
     {
         $checks = [];
-        foreach ($this->runs->envelopes($runId) as $row) {
+        foreach ($this->sheets->envelopes($runId) as $row) {
             if ($row['check'] <= 0 || $row['check_number'] === '' || isset($checks[$row['vendor_id']])) {
                 continue;
             }

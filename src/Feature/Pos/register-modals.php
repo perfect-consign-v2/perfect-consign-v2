@@ -2,10 +2,30 @@
 
 declare(strict_types=1);
 ?>
+function blankGiftBalance() {
+    const field = document.getElementById('gift');
+    const result = document.querySelector('#gift-balance .gift-lookup');
+    const url = new URL(window.location.href);
+    if (field) {
+        field.value = '';
+    }
+    if (result) {
+        result.remove();
+    }
+    if (!url.searchParams.has('gift')) {
+        return;
+    }
+    url.searchParams.delete('gift');
+    const search = url.searchParams.toString();
+    history.replaceState(null, '', url.pathname + (search === '' ? '' : '?' + search) + url.hash);
+}
 document.querySelectorAll('[data-open-modal]').forEach(function (button) {
     button.addEventListener('click', function () {
         const modal = document.getElementById(button.getAttribute('data-open-modal'));
         if (modal) {
+            if (modal.id === 'gift-balance') {
+                blankGiftBalance();
+            }
             modal.hidden = false;
             if (modal.id === 'instant-add') {
                 const consignor = document.getElementById('instant_vendor');
@@ -17,6 +37,12 @@ document.querySelectorAll('[data-open-modal]').forEach(function (button) {
                 const cash = document.getElementById('pay-cash');
                 if (cash) {
                     cash.focus();
+                }
+            }
+            if (modal.id === 'gift-balance') {
+                const number = document.getElementById('gift');
+                if (number) {
+                    number.focus();
                 }
             }
             if (modal.id === 'customer') {
@@ -109,6 +135,9 @@ document.querySelectorAll('[data-close-modal]').forEach(function (button) {
     button.addEventListener('click', function () {
         const modal = document.getElementById(button.getAttribute('data-close-modal'));
         if (modal) {
+            if (modal.id === 'gift-balance') {
+                blankGiftBalance();
+            }
             modal.hidden = true;
         }
     });
@@ -116,6 +145,9 @@ document.querySelectorAll('[data-close-modal]').forEach(function (button) {
 document.querySelectorAll('.modal').forEach(function (modal) {
     modal.addEventListener('click', function (event) {
         if (event.target === modal && !modal.hasAttribute('data-lock')) {
+            if (modal.id === 'gift-balance') {
+                blankGiftBalance();
+            }
             modal.hidden = true;
         }
     });

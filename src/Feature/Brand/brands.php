@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $query */
@@ -91,7 +92,10 @@ $renameAction = $renaming ? '/' . $slug . '/brands/' . $modal : $list;
 
 <div id="brand-new" class="modal" role="dialog" aria-modal="true" aria-labelledby="brand-new-title"<?= $modal === 'new' ? '' : ' hidden' ?>>
     <form class="modal-panel card" method="post" action="<?= View::text($list) ?>">
-        <div class="card-head"><div class="h3" id="brand-new-title">New brand</div></div>
+        <div class="card-head">
+            <?php $closeModal = 'brand-new'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3" id="brand-new-title">New brand</div>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="brand-new-name">Name</label>
@@ -106,7 +110,10 @@ $renameAction = $renaming ? '/' . $slug . '/brands/' . $modal : $list;
 
 <div id="brand-rename" class="modal" role="dialog" aria-modal="true" aria-labelledby="brand-rename-title"<?= $renaming ? '' : ' hidden' ?>>
     <form class="modal-panel card" method="post" action="<?= View::text($renameAction) ?>">
-        <div class="card-head"><div class="h3" id="brand-rename-title">Rename brand</div></div>
+        <div class="card-head">
+            <?php $closeModal = 'brand-rename'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3" id="brand-rename-title">Rename brand</div>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="brand-rename-name">Name</label>

@@ -134,7 +134,7 @@ final class VendorPlacement
     private function keeps(array $assignment, string $today, string $kind): bool
     {
         $ends = $assignment['ends_on'];
-        $covers = $assignment['starts_on'] <= $today || ($ends === '' || $ends >= $today);
+        $covers = $assignment['starts_on'] <= $today && ($ends === '' || $ends >= $today);
         if ($kind === 'covering') {
             return $covers;
         }

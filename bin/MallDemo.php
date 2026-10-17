@@ -12,6 +12,7 @@ use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
 use PerfectConsign\Feature\Payout\OccupiedPack;
 use PerfectConsign\Feature\Payout\PayoutDisburser;
+use PerfectConsign\Feature\Payout\PayoutRunChecks;
 use PerfectConsign\Feature\Payout\PayoutRunLines;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
@@ -143,7 +144,7 @@ final class MallDemo
         $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
         $lines = new PayoutRunLines($this->statements);
         $this->settler = new PayoutSettler($this->ledger, $payouts, $this->runs, $lines);
-        $this->disburser = new PayoutDisburser($this->ledger, $payouts, $this->runs, $lines);
+        $this->disburser = new PayoutDisburser($this->ledger, $payouts, $this->runs, $lines, new PayoutRunChecks($this->statements));
     }
 
     public function load(): void
@@ -772,7 +773,7 @@ final class MallDemo
         ]);
         $this->tickets->scan($sessionId, $this->shelfBarcode('ADA'));
         $this->tickets->park($sessionId);
-        (new GiftIssue($this->statements, $this->ledger))->issue($sessionId, '2026-10-03', 'GC-1001', 2500, 'cash', null);
+        (new GiftIssue($this->statements, $this->ledger))->issue($sessionId, '2026-10-03', 'GC-K7NP4R2WXM', 2500, 'cash', null);
         $drop = $this->ledger->newId();
         $this->ledger->post(new JournalDraft(
             postingKey: 'cash-drop:' . $drop,

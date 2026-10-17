@@ -394,6 +394,7 @@ $instantBrandId = is_string($instantBrandId ?? null) ? $instantBrandId : '';
 $instantBrandLabel = is_string($instantBrandLabel ?? null) ? $instantBrandLabel : '';
 $instantAttributes = is_array($instantAttributes ?? null) ? $instantAttributes : [];
 $instantPriceError = in_array($instantError, ['Enter a price.', 'enter an amount in dollars and cents', 'the amount is too large', 'the amount must be greater than zero'], true);
+$instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false) === true;
 ?>
 <div id="instant-add" class="modal" role="dialog" aria-modal="true" aria-labelledby="instant-add-title"<?= $openInstant ? '' : ' hidden' ?>>
     <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" data-brands="/<?= View::text($slug) ?>/inventory/brands.json" data-brand-create="/<?= View::text($slug) ?>/inventory/brands">
@@ -404,6 +405,9 @@ $instantPriceError = in_array($instantError, ['Enter a price.', 'enter an amount
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <p class="error" id="instant-error" role="alert"<?= $instantError === '' ? ' hidden' : '' ?>><?= View::text($instantError) ?></p>
+            <?php if ($instantAdded): ?>
+                <p class="alert alert-success" role="status">Item added to cart.</p>
+            <?php endif; ?>
             <div class="field combo">
                 <label for="instant_vendor">Consignor</label>
                 <input class="input" id="instant_vendor" name="vendor_label" value="<?= View::text($instantVendorLabel) ?>" autocomplete="off" required placeholder="Name or vendor number"<?= ($openInstant && !$instantPriceError) ? ' autofocus' : '' ?>>

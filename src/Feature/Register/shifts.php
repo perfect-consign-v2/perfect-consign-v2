@@ -63,7 +63,7 @@ use PerfectConsign\Shared\Web\ListTable;
                     <td class="<?= View::text($cashMark) ?>"><?= View::text($cashDiff) ?></td>
                     <td><?= View::text($cardCount) ?></td>
                     <td><?= View::text($checksCount) ?></td>
-                    <td><?php if ($closed): ?><a href="/<?= View::text($slug) ?>/registers/sessions/<?= View::text($id) ?>">Z-tape</a><?php endif; ?></td>
+                    <td><a href="/<?= View::text($slug) ?>/registers/sessions/<?= View::text($id) ?>">Z-tape</a></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

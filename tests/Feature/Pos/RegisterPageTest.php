@@ -315,7 +315,7 @@ final class RegisterPageTest extends TestCase
         $line['quantity'] = 2;
         $line['line_discount'] = 100;
         $html = $this->page([
-            'remaining' => 1650,
+            'remaining' => 1,
             'cart' => ['ticket_id' => 'ticket-1', 'lines' => [$line]],
         ]);
         $quiet = $this->line();
@@ -328,7 +328,9 @@ final class RegisterPageTest extends TestCase
         $zero = $this->page(['cart' => ['ticket_id' => 'ticket-1', 'lines' => [$named]]]);
 
         self::assertStringContainsString('Two for one −$2.50', $html);
-        self::assertStringContainsString('$16.50', $html);
+        self::assertStringContainsString('>$16.50</td>', $html);
+        self::assertStringNotContainsString('>$18.50</td>', $html);
+        self::assertStringNotContainsString('>$21.50</td>', $html);
         self::assertStringNotContainsString('−$', $without);
         self::assertStringNotContainsString('Two for one', $zero);
     }
@@ -355,7 +357,13 @@ final class RegisterPageTest extends TestCase
             ]),
         ]);
 
+        $added = $this->page(['openInstant' => true, 'instantAdded' => true]);
+        $addedPage = $this->page(['instantAddedPage' => true]);
+
         self::assertStringContainsString('id="instant-error" role="alert" hidden', $open);
+        self::assertStringContainsString('class="alert alert-success" role="status">Item added to cart.', $added);
+        self::assertStringContainsString('class="alert alert-success" role="status">Item added to cart.', $addedPage);
+        self::assertStringNotContainsString('Item added to cart.', $open);
         self::assertStringContainsString('placeholder="Name or vendor number" autofocus', $open);
         self::assertStringContainsString('value="consignor_default" selected', $open);
         self::assertStringNotContainsString('value="none" selected', $open);
@@ -365,6 +373,29 @@ final class RegisterPageTest extends TestCase
         self::assertStringNotContainsString('placeholder="Name or vendor number" autofocus', $price);
         self::assertStringNotContainsString('placeholder="Name or vendor number" autofocus', $closed);
         self::assertStringContainsString('$18.50', $finished);
+        self::assertStringContainsString('>Return</button>', $finished);
+        self::assertStringNotContainsString('id="discount"', $finished);
+        self::assertStringNotContainsString('id="tax-waived"', $finished);
+        $voided = $this->page([
+            'completed' => $this->completed([
+                'voided' => true,
+                'discount' => 0,
+                'waiver' => 'Friend',
+                'lines' => [[
+                    'description' => 'Blue vase',
+                    'code' => 'TAG1',
+                    'vendor' => 'Ada',
+                    'price' => 1000,
+                    'quantity' => 1,
+                    'discount' => 0,
+                    'tax' => 0,
+                    'returned' => false,
+                    'item_id' => 'item-1',
+                ]],
+            ]),
+        ]);
+        self::assertStringNotContainsString('>Return</button>', $voided);
+        self::assertStringContainsString('id="tax-waived"', $voided);
     }
 
     public function testAGiftNumberOpensItsBalance(): void
@@ -374,7 +405,9 @@ final class RegisterPageTest extends TestCase
 
         self::assertStringNotContainsString('gift-balance-title" hidden', $missing);
         self::assertStringContainsString('That certificate is not on file.', $missing);
-        self::assertStringContainsString('Balance left $5.00', $balance);
+        self::assertStringContainsString('Balance left', $balance);
+        self::assertStringContainsString('$5.00', $balance);
+        self::assertStringContainsString('class="gift-lookup"', $balance);
     }
 
     /**

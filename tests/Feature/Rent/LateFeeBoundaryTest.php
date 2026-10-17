@@ -51,7 +51,20 @@ final class LateFeeBoundaryTest extends TestCase
 
     public function testARentJournalIsNotALateFee(): void
     {
-        $fee = $this->waiver(['source_type' => 'rent_charge', 'is_reversal' => false], false);
+        $ledger = $this->createMock(LedgerStore::class);
+        $ledger->method('journal')->willReturn([
+            'source_type' => 'rent_charge',
+            'is_reversal' => false,
+            'posting_date' => '2026-10-16',
+            'source_reference' => self::BOOTH . ':2026-10',
+        ]);
+        $ledger->method('reversed')->willReturn(false);
+        $ledger->method('lines')->willReturn([
+            ['account_id' => 'a', 'credit_minor' => 1, 'debit_minor' => 0, 'subledger_type' => 'booth', 'subledger_ref' => self::BOOTH],
+            ['account_id' => 'b', 'credit_minor' => 0, 'debit_minor' => 1, 'subledger_type' => null, 'subledger_ref' => null],
+        ]);
+        $ledger->expects($this->never())->method('post');
+        $fee = new LateFee($ledger, $this->createStub(Statements::class));
 
         $this->expectException(DatabaseRefusal::class);
         $this->expectExceptionMessage('Choose a late fee.');

@@ -108,6 +108,8 @@ final class PosPage
             'instantBrandId' => $instant['instantBrandId'],
             'instantBrandLabel' => $instant['instantBrandLabel'],
             'instantAttributes' => $instant['instantAttributes'],
+            'instantAdded' => $request->query('added') === '1',
+            'instantAddedPage' => $request->query('instant_added') === '1',
         ]);
     }
 

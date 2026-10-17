@@ -6,6 +6,7 @@ use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
 
+/** @var string $templateDirectory */
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $query */
@@ -94,7 +95,10 @@ $noun = $list->singular;
 
 <div id="name-new" class="modal" role="dialog" aria-modal="true" aria-labelledby="name-new-title"<?= $modal === 'new' ? '' : ' hidden' ?>>
     <form class="modal-panel card" method="post" action="<?= View::text($base) ?>">
-        <div class="card-head"><div class="h3" id="name-new-title">New <?= View::text($noun) ?></div></div>
+        <div class="card-head">
+            <?php $closeModal = 'name-new'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3" id="name-new-title">New <?= View::text($noun) ?></div>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="name-new-name">Name</label>
@@ -109,7 +113,10 @@ $noun = $list->singular;
 
 <div id="name-rename" class="modal" role="dialog" aria-modal="true" aria-labelledby="name-rename-title"<?= $renaming ? '' : ' hidden' ?>>
     <form class="modal-panel card" method="post" action="<?= View::text($renameAction) ?>">
-        <div class="card-head"><div class="h3" id="name-rename-title">Rename <?= View::text($noun) ?></div></div>
+        <div class="card-head">
+            <?php $closeModal = 'name-rename'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+            <div class="h3" id="name-rename-title">Rename <?= View::text($noun) ?></div>
+        </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="name-rename-name">Name</label>

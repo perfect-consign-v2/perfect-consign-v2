@@ -52,7 +52,7 @@
     border-radius: var(--radius);
     background: var(--surface);
 }
-.content form button:not(.btn):not(.menu-item):not(.icon-btn) {
+.content form button:not(.btn):not(.menu-item):not(.icon-btn):not(.modal-x) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -641,6 +641,25 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 @media (min-width: 40rem) {
     .pos-main { padding: var(--space-6); }
 }
+.modal-panel.gift-balance-panel { max-width: 24rem; }
+.gift-lookup {
+    margin: 0;
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+}
+.gift-lookup p { margin: 0; }
+.gift-lookup-label {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+.gift-lookup-amount {
+    font-size: 1.75rem;
+    font-weight: 650;
+    line-height: 1.2;
+}
+.gift-balance-panel .card-foot { display: flex; justify-content: flex-end; }
 .modal-panel.register-finished {
     max-width: 40rem;
     max-height: calc(100dvh - 1.5rem);

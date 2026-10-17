@@ -77,7 +77,7 @@ final class PosTenderController
             }
             $check = $request->field('check_number');
             $kind = $request->field('gift_kind');
-            if (!in_array($kind, ['gift_certificate', 'gift_card', 'store_credit'], true)) {
+            if (!in_array($kind, ['gift_certificate', 'gift_card'], true)) {
                 $kind = 'gift_certificate';
             }
             $journalId = $this->gifts->issue(

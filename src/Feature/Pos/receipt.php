@@ -164,7 +164,10 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
             </section>
         <div id="void-ticket" class="modal no-print" role="dialog" aria-modal="true" aria-labelledby="void-ticket-title" hidden>
             <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/void">
-                <div class="card-head"><div class="h3" id="void-ticket-title">Void ticket</div></div>
+                <div class="card-head">
+                    <?php $closeModal = 'void-ticket'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
+                    <div class="h3" id="void-ticket-title">Void ticket</div>
+                </div>
                 <div class="card-body stack">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <p>Voiding reverses this sale and frees every item.</p>

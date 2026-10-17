@@ -16,7 +16,11 @@ final class GiftSellPageTest extends TestCase
 
         self::assertStringContainsString('value="gift_certificate" selected', $html);
         self::assertStringNotContainsString('value="gift_card" selected', $html);
-        self::assertStringNotContainsString('value="store_credit" selected', $html);
+        $card = $this->sell(['giftFormKind' => 'gift_card']);
+        self::assertStringContainsString('value="gift_card" selected', $card);
+        self::assertStringNotContainsString('value="gift_certificate" selected', $card);
+        self::assertStringNotContainsString('value="store_credit"', $html);
+        self::assertStringContainsString('Sell a gift certificate or gift card', $html);
         self::assertStringContainsString('id="gift-sell-error" hidden', $html);
         self::assertStringContainsString('id="gift-number-field" hidden', $html);
         self::assertStringContainsString('id="gift-check-field" hidden', $html);
@@ -35,8 +39,12 @@ final class GiftSellPageTest extends TestCase
 
         self::assertStringContainsString('placeholder="0.00" value="" autofocus', $open);
         self::assertStringContainsString('id="gift-number-field">', $numbered);
+        self::assertStringNotContainsString('autofocus', $numbered);
         self::assertStringNotContainsString('maxlength="40" autofocus', $open);
         self::assertStringContainsString('maxlength="40" autofocus', $custom);
+        self::assertStringNotContainsString('placeholder="0.00" value="" autofocus', $custom);
+        $check = $this->sell(['openGift' => true, 'giftError' => GiftIssue::CHECK_REQUIRED, 'giftFormTender' => 'checks']);
+        self::assertStringNotContainsString('placeholder="0.00" value="" autofocus', $check);
     }
 
     public function testACheckAndANumberErrorStayOnTheirOwnFields(): void

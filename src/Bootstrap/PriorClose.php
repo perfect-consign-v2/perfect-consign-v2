@@ -30,6 +30,9 @@ final class PriorClose
         if (preg_match('#/pos(/|$)#', $this->request->path) === 1) {
             return null;
         }
+        if (preg_match('#/registers/([0-9a-fA-F-]{36}/shifts|sessions/[0-9a-fA-F-]{36})$#', $this->request->path) === 1) {
+            return null;
+        }
         if ($this->closing($leftOpen) !== null) {
             $this->session->set($key, 'yes');
 

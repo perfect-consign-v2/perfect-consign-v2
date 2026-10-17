@@ -28,11 +28,11 @@ final class PayoutSingle
             if ($quoted === null || ($quoted['settled'] <= 0 && $quoted['check'] <= 0)) {
                 throw new DatabaseRefusal('a payout clears a positive open payable or open rent receivable');
             }
-            $runId = $this->beginSingle($postingDate);
+            $runId = $this->beginSingle($postingDate, $quoted['run_id']);
             foreach ($this->settler->chargeMissing($quoted['run_id'], $vendorId) as $rentId) {
                 $this->lines->link($runId, $rentId, 'rent_charge');
             }
-            $this->lines->vendorLine($runId, $vendorId);
+            $this->lines->carryPack($runId, $quoted['run_id'], $vendorId);
             $journalId = $this->settler->settle($runId, $vendorId, $postingDate, $quoted['settled']);
             if ($journalId !== '') {
                 $this->lines->link($runId, $journalId, 'settlement');
@@ -115,17 +115,33 @@ final class PayoutSingle
         return ['by' => $by, 'reason' => $reason, 'at' => $at];
     }
 
-    public function beginSingle(string $postingDate): string
+    public function beginSingle(string $postingDate, string $sourceRunId = ''): string
     {
+        if ($sourceRunId === '') {
+            $rows = $this->statements->bound(
+                "INSERT INTO payout_runs (
+                    book_id, kind, cadence, sales_from, sales_to, tender, status, posting_date
+                 )
+                 SELECT id, 'single', 'ad_hoc', ?::date, ?::date, 'check', 'draft', ?::date
+                 FROM ledger_books
+                 WHERE is_default
+                 RETURNING id",
+                [$postingDate, $postingDate, $postingDate]
+            );
+
+            return RowValue::string($rows[0]['id'] ?? null);
+        }
         $rows = $this->statements->bound(
             "INSERT INTO payout_runs (
-                book_id, kind, cadence, sales_from, sales_to, tender, status, posting_date
+                book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
              )
-             SELECT id, 'single', 'ad_hoc', ?::date, ?::date, 'check', 'draft', ?::date
-             FROM ledger_books
-             WHERE is_default
+             SELECT book.id, 'single', 'ad_hoc', source.sales_from, source.sales_to, source.rent_month,
+                    'check', 'draft', ?::date
+             FROM ledger_books AS book
+             JOIN payout_runs AS source ON source.id = ?::uuid
+             WHERE book.is_default
              RETURNING id",
-            [$postingDate, $postingDate, $postingDate]
+            [$postingDate, $sourceRunId]
         );
 
         return RowValue::string($rows[0]['id'] ?? null);
