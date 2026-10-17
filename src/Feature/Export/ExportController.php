@@ -21,7 +21,7 @@ final class ExportController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Export/export', [
-            'title' => 'Download books',
+            'title' => 'Download records',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
         ]);
@@ -46,7 +46,7 @@ final class ExportController
             $statement = $this->exports->exportCsv($system, $from, $to, $taxRate);
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Export/export', [
-                'title' => 'Download books',
+                'title' => 'Download records',
                 'displayName' => $tenant->displayName,
                 'slug' => $tenant->slug,
                 'error' => $this->app->catchRefusal($refusal),

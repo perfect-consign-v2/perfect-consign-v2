@@ -11,7 +11,7 @@ use PerfectConsign\Shared\Http\View;
 $from = $from ?? '';
 $to = $to ?? '';
 ?>
-<h1>Download books</h1>
+<h1>Download records</h1>
 <form method="post" action="/<?= View::text($slug) ?>/export">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
     <label for="from">From</label>

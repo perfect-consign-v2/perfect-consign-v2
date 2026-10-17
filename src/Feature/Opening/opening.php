@@ -11,7 +11,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $templateDirectory */
 /** @var string $today */
 ?>
-<h1>Starting balances</h1>
+<h1>Opening amounts</h1>
 <?php if (!$allowed): ?>
     <p>An opening balance is hidden once any other journal exists.</p>
 <?php else: ?>

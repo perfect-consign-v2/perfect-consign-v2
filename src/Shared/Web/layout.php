@@ -37,44 +37,60 @@ $resetTestData = ($slug === 'dev' || $slug === 'mall') && $actorRole === 'owner'
 $groups = [];
 if ($actorRole === 'owner') {
     $groups = [
-        'Overview' => [
-            ['/dashboard', 'Dashboard', 'i-dashboard'],
-            ['/month', 'Month', 'i-report'],
-        ],
-        'Operations' => [
+        'Counter' => [
+            ['/dashboard', 'Home', 'i-dashboard'],
             ['/pos', 'Sell', 'i-cart'],
+            ['/registers', 'Registers', 'i-pos'],
+            ['/customers', 'Customers', 'i-vendor'],
+        ],
+        'Floor' => [
             ['/parties', 'Vendors', 'i-vendor'],
             ['/inventory', 'Inventory', 'i-inventory'],
-            ['/offers', 'Deals', 'i-percent'],
             ['/booths', 'Booths', 'i-booth'],
-            ['/registers', 'Registers', 'i-pos'],
+            ['/map', 'Map', 'i-map'],
+        ],
+        'Money' => [
             ['/rent', 'Rent', 'i-booth'],
             ['/payouts', 'Pay vendors', 'i-wallet'],
+            ['/month', 'This month', 'i-report'],
+        ],
+        'Setup' => [
+            ['/offers', 'Deals', 'i-percent'],
             ['/wait-list', 'Wait list', 'i-clock'],
-            ['/map', 'Booths Map', 'i-map'],
         ],
     ];
     if ($showBrand) {
-        $groups['Operations'][] = ['/brands', 'Brands', 'i-tag'];
+        $groups['Setup'][] = ['/brands', 'Brands', 'i-tag'];
     }
     $catalogNav = is_array($catalogNav ?? null) ? $catalogNav : [];
     foreach ($catalogNav as $link) {
         if (is_array($link)) {
-            $groups['Operations'][] = $link;
+            $groups['Setup'][] = $link;
         }
     }
-    $groups['Operations'][] = ['/company', 'Company', 'i-settings'];
-    $groups['Operations'][] = ['/settings', 'Settings', 'i-settings'];
-    $groups['Operations'][] = ['/staff', 'Cashiers', 'i-vendor'];
+    $groups['Setup'][] = ['/company', 'Company', 'i-settings'];
+    $groups['Setup'][] = ['/settings', 'Settings', 'i-settings'];
+    $groups['Setup'][] = ['/staff', 'Cashiers', 'i-vendor'];
     $groups['Books'] = [
         ['/adjustment', 'Fix a mistake', 'i-edit'],
         ['/tax', 'Sales tax', 'i-percent'],
         ['/book', 'Accounts', 'i-report'],
         ['/gift-certificates', 'Gift certificates', 'i-receipt'],
-        ['/journals', 'Posted entries', 'i-receipt'],
-        ['/opening', 'Starting balances', 'i-plus'],
+        ['/journals', 'Money record', 'i-receipt'],
+        ['/opening', 'Opening amounts', 'i-plus'],
         ['/close', 'Close the year', 'i-lock'],
-        ['/export', 'Download books', 'i-arrow-down'],
+        ['/export', 'Download records', 'i-arrow-down'],
+    ];
+}
+if ($actorRole === 'books') {
+    $groups = [
+        'Books' => [
+            ['/sales', 'Sales', 'i-report'],
+            ['/month', 'This month', 'i-report'],
+            ['/rent', 'Rent', 'i-booth'],
+            ['/payouts', 'Pay vendors', 'i-wallet'],
+            ['/journals', 'Money record', 'i-receipt'],
+        ],
     ];
 }
 if ($actorRole === 'cashier') {
@@ -122,6 +138,7 @@ $roleLabel = match ($actorRole) {
     'owner' => 'Owner',
     'cashier' => 'Cashier',
     'vendor' => 'Vendor',
+    'books' => 'Books',
     default => '',
 };
 ?>
@@ -135,19 +152,24 @@ $roleLabel = match ($actorRole) {
     <?php if ($robots === 'noindex'): ?>
         <meta name="robots" content="noindex">
     <?php endif; ?>
-    <link rel="preconnect" href="https://rsms.me/">
-    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <link rel="stylesheet" href="/assets/inter.css">
     <link rel="stylesheet" href="/assets/theme.css">
     <link rel="stylesheet" href="/assets/app.css">
     <link rel="stylesheet" href="/assets/mall.css">
     <script>
         (function () {
             try {
-                var theme = localStorage.getItem('nem-theme');
-                var mode = localStorage.getItem('nem-mode');
+                var theme = localStorage.getItem('pc-theme') || localStorage.getItem('nem-theme');
+                var mode = localStorage.getItem('pc-mode') || localStorage.getItem('nem-mode');
                 var root = document.documentElement;
-                if (theme) root.setAttribute('data-theme', theme);
-                if (mode) root.setAttribute('data-mode', mode);
+                if (theme) {
+                    root.setAttribute('data-theme', theme);
+                    localStorage.setItem('pc-theme', theme);
+                }
+                if (mode) {
+                    root.setAttribute('data-mode', mode);
+                    localStorage.setItem('pc-mode', mode);
+                }
             } catch (e) {}
         })();
     </script>
@@ -179,7 +201,13 @@ $roleLabel = match ($actorRole) {
             <?php if ($leftOpen === [] || !$priorCloseStarted): ?>
             <?php foreach ($groups as $group => $links): ?>
                 <?php if ($links === []) { continue; } ?>
-                <div class="nav-group-label"><?= View::text($group) ?></div>
+                <?php $foldBooks = $group === 'Books' && $actorRole === 'owner'; ?>
+                <?php if ($foldBooks): ?><details class="nav-books"><?php endif; ?>
+                <?php if ($foldBooks): ?>
+                    <summary class="nav-group-label">Books</summary>
+                <?php else: ?>
+                    <div class="nav-group-label"><?= View::text($group) ?></div>
+                <?php endif; ?>
                 <?php foreach ($links as $link): ?>
                     <?php
                     $navPath = is_string($link[0] ?? null) ? $link[0] : '';
@@ -201,6 +229,7 @@ $roleLabel = match ($actorRole) {
                         <span class="nav-label"><?= View::text($navLabel) ?></span>
                     </a>
                 <?php endforeach; ?>
+                <?php if ($foldBooks): ?></details><?php endif; ?>
             <?php endforeach; ?>
             <?php endif; ?>
         </nav>

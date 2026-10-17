@@ -37,7 +37,13 @@ $checkLink = static function (string $runId) use ($slug, $previewAs): string {
     <p class="mt-4">The store is not writing a check. Pay rent at the desk.</p>
 <?php endif; ?>
 <?php if (!$page['open']): ?>
-    <p class="mt-4">No check is open.</p>
+    <?php
+    $cycleDay = is_int($cycleDay ?? null) ? $cycleDay : 1;
+    $when = $cycleDay === 1
+        ? 'The mall writes checks on the first day of the month.'
+        : 'The mall writes checks on day ' . (string) $cycleDay . ' of the rent cycle.';
+    ?>
+    <p class="mt-4"><?= View::text($when) ?> Your share of sales is what you have earned and not been paid. Rent is what is still held for the booth. Your check is the share after that rent.</p>
 <?php endif; ?>
 <div class="payout-figures">
     <div class="stat">

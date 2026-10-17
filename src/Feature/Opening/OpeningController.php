@@ -58,7 +58,7 @@ final class OpeningController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Opening/opening', [
-            'title' => 'Starting balances',
+            'title' => 'Opening amounts',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'allowed' => $this->openings->openingAllowed(),

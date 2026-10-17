@@ -46,7 +46,7 @@ final class DashboardStore
      * @return array{
      *   sales: array{amount: string, delta: ?array{direction: string, text: string}},
      *   payables: array{amount: string, caption: string},
-     *   trend: list<array{day: string, title: string, height: int, today: bool}>,
+     *   trend: list<array{day: string, title: string, height: int, today: bool, amount: string}>,
      *   today_badge: string,
      *   sales_list: list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>,
      *   occupancy: array{percent: int, caption: string, rows: list<array{label: string, count: int, badge: string}>},
@@ -118,7 +118,7 @@ final class DashboardStore
     /**
      * @param list<string> $days
      * @param array<string, int> $totals
-     * @return list<array{day: string, title: string, height: int, today: bool}>
+     * @return list<array{day: string, title: string, height: int, today: bool, amount: string}>
      */
     private function trend(array $days, array $totals, string $today): array
     {
@@ -135,6 +135,7 @@ final class DashboardStore
                 'title' => $date->format('m-d-Y') . ': ' . $this->money($minor),
                 'height' => $peak === 0 ? 0 : (int) round($minor * 100 / $peak),
                 'today' => $day === $today,
+                'amount' => $this->money($minor),
             ];
         }
 
@@ -176,10 +177,19 @@ final class DashboardStore
     /**
      * @return list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>
      */
-    private function recent(): array
+    public function sales(string $day, int $limit): array
     {
+        if ($day !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) !== 1) {
+            return [];
+        }
+        $cap = $limit === 5 ? 5 : 200;
         $roles = array_keys(self::TENDERS);
         $marks = implode(', ', array_fill(0, count($roles), '?'));
+        $daySql = $day === '' ? '' : ' AND journal.posting_date = ?::date';
+        $params = ['sale'];
+        if ($day !== '') {
+            $params[] = $day;
+        }
         $rows = $this->statements->bound(
             'SELECT journal.id::text AS id, journal.journal_no::text AS journal_no, journal.occurred_at,
                     COALESCE(sum(line.debit_minor - line.credit_minor), 0) AS total,
@@ -192,12 +202,12 @@ final class DashboardStore
                AND NOT EXISTS (
                    SELECT 1 FROM journals AS reversal
                    WHERE reversal.reverses_journal_id = journal.id
-               )
+               )' . $daySql . '
                AND role.role IN (' . $marks . ')
              GROUP BY journal.id
              ORDER BY journal.occurred_at DESC
-             LIMIT 5',
-            ['sale', ...$roles]
+             LIMIT ' . $cap,
+            [...$params, ...$roles]
         );
         $sales = [];
         foreach ($rows as $row) {
@@ -211,6 +221,14 @@ final class DashboardStore
         }
 
         return $sales;
+    }
+
+    /**
+     * @return list<array{id: string, number: string, time: string, tenders: list<string>, total: string}>
+     */
+    private function recent(): array
+    {
+        return $this->sales('', 5);
     }
 
     /**

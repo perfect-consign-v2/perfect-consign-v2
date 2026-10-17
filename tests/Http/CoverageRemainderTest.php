@@ -382,7 +382,7 @@ final class CoverageRemainderTest extends WebTestCase
             'line_no' => $lineNo,
             'quantity' => '99',
         ]);
-        self::assertSees('there are not enough on hand', $tooMany);
+        self::assertSees('That tag is already sold.', $tooMany);
         $single = $this->client->post('/' . self::SLUG . '/pos/quantity', [
             'line_no' => $lineNo,
             'quantity' => '1',
@@ -449,7 +449,7 @@ final class CoverageRemainderTest extends WebTestCase
     public function testTheBookExportAndCatalogEdges(): void
     {
         $journals = $this->client->get('/' . self::SLUG . '/journals');
-        self::assertSees('Posted entries', $journals);
+        self::assertSees('Money record', $journals);
         $journalId = $this->match($journals->body, '#/journals/([0-9a-fA-F-]{36})#');
         $journal = $this->client->get('/' . self::SLUG . '/journals/' . $journalId);
         self::assertSees('Posted entry', $journal);

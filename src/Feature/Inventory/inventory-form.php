@@ -149,4 +149,24 @@ if ($printId !== '') {
     </div>
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
 </form>
+<?php if ($item['id'] !== ''): ?>
+<?php $hasPhoto = ($hasPhoto ?? false) === true; ?>
+<form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/photo" enctype="multipart/form-data">
+    <div class="card-head"><div class="h3">Photo</div></div>
+    <div class="card-body stack">
+        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+        <?php if ($hasPhoto): ?>
+            <img src="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/photo" alt="" width="160" height="160">
+        <?php endif; ?>
+        <div class="field">
+            <label for="photo">One photo</label>
+            <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required>
+            <p class="muted text-sm">JPEG, PNG, or WebP. Stored with this mall. It shows on this item and on the consignor's sale line.</p>
+        </div>
+    </div>
+    <div class="card-foot">
+        <button class="btn btn-primary" type="submit">Save photo</button>
+    </div>
+</form>
+<?php endif; ?>
 <script src="/assets/js/inventory-intake.js" defer></script>

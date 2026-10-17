@@ -369,7 +369,7 @@ final class FloorCoverageTest extends WebTestCase
         );
 
         $opening = $this->client->get('/' . self::SLUG . '/opening');
-        self::assertSees('Starting balances', $opening);
+        self::assertSees('Opening amounts', $opening);
         $refused = $this->client->post('/' . self::SLUG . '/opening', ['posting_date' => $today]);
         self::assertSees('an opening is available only while the book has no other journal', $refused);
 

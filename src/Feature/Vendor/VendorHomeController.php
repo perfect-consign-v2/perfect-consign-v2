@@ -36,6 +36,7 @@ final class VendorHomeController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'page' => $page,
+            'cycleDay' => $this->mall->getCycleDay(),
         ]);
     }
 

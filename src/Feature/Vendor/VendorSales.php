@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Vendor;
 
 use DateTimeImmutable;
+use PerfectConsign\Feature\Mall\MallGuard;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -26,6 +27,14 @@ final class VendorSales
         ?string $lastCheck,
         array $window,
     ): array {
+        if ($range === 'today') {
+            return ['from' => $today, 'to' => $today, 'label' => 'Today'];
+        }
+        if ($range === 'yesterday') {
+            $day = (new DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+
+            return ['from' => $day, 'to' => $day, 'label' => 'Yesterday'];
+        }
         if ($range === 'check') {
             return ['from' => $window['from'], 'to' => $window['to'], 'label' => 'This check'];
         }
@@ -73,7 +82,7 @@ final class VendorSales
     }
 
     /**
-     * @return array{rows: list<array{date: string, code: string, description: string, price: int, discount: int, sold: int, take: int, share: int}>, total: int}
+     * @return array{rows: list<array{date: string, code: string, description: string, price: int, discount: int, sold: int, take: int, share: int, item_id: string, has_photo: bool}>, total: int}
      */
     public function lines(string $vendorId, string $from, string $to): array
     {
@@ -101,14 +110,14 @@ final class VendorSales
     }
 
     /**
-     * @return list<array{date: string, code: string, description: string, price: int, discount: int, sold: int, take: int, share: int}>
+     * @return list<array{date: string, code: string, description: string, price: int, discount: int, sold: int, take: int, share: int, item_id: string, has_photo: bool}>
      */
     private function posted(string $vendorId, string $from, string $to): array
     {
         $sales = $this->statements->bound(
             "SELECT to_char(journal.posting_date, 'YYYY-MM-DD') AS posted_on,
-                    item.code, item.description, sale.price_minor, sale.discount_minor,
-                    sale.commission_minor, sale.quantity
+                    item.id::text AS item_id, item.has_photo, item.code, item.description,
+                    sale.price_minor, sale.discount_minor, sale.commission_minor, sale.quantity
              FROM sale_lines AS sale
              JOIN journals AS journal ON journal.id = sale.journal_id
              JOIN items AS item ON item.id = sale.item_id
@@ -123,8 +132,8 @@ final class VendorSales
         );
         $returns = $this->statements->bound(
             "SELECT to_char(journal.posting_date, 'YYYY-MM-DD') AS posted_on,
-                    item.code, item.description, returned.price_minor, returned.discount_minor,
-                    returned.commission_minor, returned.quantity
+                    item.id::text AS item_id, item.has_photo, item.code, item.description,
+                    returned.price_minor, returned.discount_minor, returned.commission_minor, returned.quantity
              FROM item_returns AS returned
              JOIN journals AS journal ON journal.id = returned.journal_id
              JOIN items AS item ON item.id = returned.item_id
@@ -149,7 +158,7 @@ final class VendorSales
 
     /**
      * @param array<string, mixed> $row
-     * @return array{date: string, code: string, description: string, price: int, discount: int, sold: int, take: int, share: int}
+     * @return array{date: string, code: string, description: string, price: int, discount: int, sold: int, take: int, share: int, item_id: string, has_photo: bool}
      */
     private function line(array $row, int $sign): array
     {
@@ -169,6 +178,8 @@ final class VendorSales
             'sold' => $sign * $sold,
             'take' => $sign * $take,
             'share' => $share,
+            'item_id' => RowValue::string($row['item_id'] ?? null),
+            'has_photo' => MallGuard::flag($row['has_photo'] ?? null),
         ];
     }
 

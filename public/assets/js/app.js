@@ -36,14 +36,14 @@
   /* ---- Theme + mode ----------------------------------------------------- */
   function setTheme(theme) {
     root.setAttribute('data-theme', theme);
-    try { localStorage.setItem('nem-theme', theme); } catch (e) {}
+    try { localStorage.setItem('pc-theme', theme); } catch (e) {}
     document.querySelectorAll('[data-set-theme]').forEach(function (b) {
       b.setAttribute('aria-checked', b.getAttribute('data-set-theme') === theme ? 'true' : 'false');
     });
   }
   function setMode(mode) {
     root.setAttribute('data-mode', mode);
-    try { localStorage.setItem('nem-mode', mode); } catch (e) {}
+    try { localStorage.setItem('pc-mode', mode); } catch (e) {}
     document.querySelectorAll('[data-set-mode]').forEach(function (b) {
       b.setAttribute('aria-checked', b.getAttribute('data-set-mode') === mode ? 'true' : 'false');
     });

@@ -16,6 +16,7 @@ final class DashboardController
         private readonly MallApp $app,
         private readonly DashboardStore $dashboard,
         private readonly MallSettings $mall,
+        private readonly RentDue $rentDue,
     ) {
     }
 
@@ -31,12 +32,15 @@ final class DashboardController
         } elseif ($hour < 17) {
             $part = 'afternoon';
         }
+        $due = $this->rentDue->open();
         $this->app->show('Feature/Dashboard/dashboard', [
             'title' => 'Dashboard',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'greeting' => 'Good ' . $part . ', ' . $tenant->displayName,
             'picture' => $this->dashboard->picture($today),
+            'rentRows' => $due['rows'],
+            'rentMonth' => $due['month'],
         ]);
     }
 }

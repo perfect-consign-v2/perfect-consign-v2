@@ -30,7 +30,7 @@ final class JournalController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Book/journals', [
-            'title' => 'Posted entries',
+            'title' => 'Money record',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'journals' => $this->ledger->journals(),

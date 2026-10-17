@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Mall;
 
-use DateTimeZone;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Backup\BackupHeadline;
 use PerfectConsign\Feature\Backup\BackupStore;
+use PerfectConsign\Feature\Backup\NightlyCopy;
 use PerfectConsign\Feature\Inventory\LabelCatalog;
-use PerfectConsign\Ledger\BasisPoints;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class MallController
@@ -31,6 +30,7 @@ final class MallController
         private readonly MallSettings $mall,
         private readonly MallPayoutSettings $payouts,
         private readonly BackupStore $backups,
+        private readonly NightlyCopy $nightly,
         private readonly LabelCatalog $stocks,
     ) {
         $this->rentDraft = new MallRentDraft($app, $payouts);
@@ -48,8 +48,8 @@ final class MallController
             $booth['depth'],
             $floor['width'],
             $floor['depth'],
-            $this->percent($this->mall->storeTake()),
-            $this->dayText($this->mall->floorDays()),
+            MallMeasure::percent($this->mall->storeTake()),
+            MallMeasure::dayText($this->mall->floorDays()),
             $error
         );
     }
@@ -67,8 +67,8 @@ final class MallController
             $booth['depth'],
             $floor['width'],
             $floor['depth'],
-            $this->percent($this->mall->storeTake()),
-            $this->dayText($this->mall->floorDays()),
+            MallMeasure::percent($this->mall->storeTake()),
+            MallMeasure::dayText($this->mall->floorDays()),
             null
         );
     }
@@ -78,18 +78,29 @@ final class MallController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
+        $part = $this->app->request()->field('settings_part');
+        if ($part === 'money') {
+            $this->saveMoney($slug);
+
+            return;
+        }
+        if ($part === 'building') {
+            $this->saveBuilding($slug);
+
+            return;
+        }
         $this->postedStock = $this->app->request()->field('label_stock');
         $timeZone = $this->app->request()->field('time_zone');
-        $width = $this->feet($this->app->request()->field('booth_width_ft'));
-        $depth = $this->feet($this->app->request()->field('booth_depth_ft'));
-        $floorWidth = $this->feet($this->app->request()->field('floor_width_ft'));
-        $floorDepth = $this->feet($this->app->request()->field('floor_depth_ft'));
+        $width = MallMeasure::feet($this->app->request()->field('booth_width_ft'));
+        $depth = MallMeasure::feet($this->app->request()->field('booth_depth_ft'));
+        $floorWidth = MallMeasure::feet($this->app->request()->field('floor_width_ft'));
+        $floorDepth = MallMeasure::feet($this->app->request()->field('floor_depth_ft'));
         $storeTake = $this->app->request()->field('default_store_take');
         $taxRate = $this->app->request()->field('tax_rate');
         $floorRaw = $this->app->request()->field('floor_days');
-        $basis = $this->basisPoints($storeTake);
-        $taxBasis = $this->taxMillis($taxRate);
-        $days = $this->wholeDays($floorRaw);
+        $basis = MallMeasure::basisPoints($storeTake);
+        $taxBasis = MallMeasure::taxMillis($taxRate);
+        $days = MallMeasure::wholeDays($floorRaw);
         $rentError = $this->rentDraft->read();
         $error = $rentError ?? $this->refusal($basis, $taxBasis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
         if ($error === null) {
@@ -106,6 +117,171 @@ final class MallController
             'use_brand' => $this->app->request()->field('use_brand') === '1',
         ];
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
+    }
+
+    private function saveMoney(string $slug): void
+    {
+        $storeTake = $this->app->request()->field('default_store_take');
+        $taxRate = $this->app->request()->field('tax_rate');
+        $basis = MallMeasure::basisPoints($storeTake);
+        $taxBasis = MallMeasure::taxMillis($taxRate);
+        $error = $this->rentDraft->read();
+        if ($error === null && $basis === null) {
+            $error = 'store take is a percent from 0 to 100';
+        }
+        if ($error === null && $taxBasis === null) {
+            $error = 'tax rate is a percent from 0 to 100';
+        }
+        if ($error === null && is_int($basis) && is_int($taxBasis)) {
+            $error = $this->writeMoney($basis, $taxBasis);
+        }
+        if ($error === null) {
+            $this->app->redirect('/' . $slug . '/settings', 'Money saved.');
+        }
+        $this->postedCashRound = $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '';
+        $this->postedTaxRate = $taxRate;
+        $booth = $this->mall->boothSize();
+        $floor = $this->mall->floorSize();
+        $this->form(
+            $slug,
+            $this->mall->timeZone(),
+            $booth['width'],
+            $booth['depth'],
+            $floor['width'],
+            $floor['depth'],
+            $storeTake,
+            MallMeasure::dayText($this->mall->floorDays()),
+            $error,
+        );
+    }
+
+    private function saveBuilding(string $slug): void
+    {
+        $this->postedStock = $this->app->request()->field('label_stock');
+        $timeZone = $this->app->request()->field('time_zone');
+        $width = MallMeasure::feet($this->app->request()->field('booth_width_ft'));
+        $depth = MallMeasure::feet($this->app->request()->field('booth_depth_ft'));
+        $floorWidth = MallMeasure::feet($this->app->request()->field('floor_width_ft'));
+        $floorDepth = MallMeasure::feet($this->app->request()->field('floor_depth_ft'));
+        $floorRaw = $this->app->request()->field('floor_days');
+        $days = MallMeasure::wholeDays($floorRaw);
+        $error = $this->buildingError($width, $depth, $floorWidth, $floorDepth, $days);
+        if ($error === null && is_int($width) && is_int($depth) && is_int($floorWidth) && is_int($floorDepth) && $days !== false) {
+            $error = $this->writeBuilding($timeZone, $width, $depth, $floorWidth, $floorDepth, $days);
+        }
+        if ($error === null) {
+            $this->app->redirect('/' . $slug . '/settings', 'Building saved.');
+        }
+        $this->postedCatalogs = [
+            'use_color' => $this->app->request()->field('use_color') === '1',
+            'use_category' => $this->app->request()->field('use_category') === '1',
+            'use_size' => $this->app->request()->field('use_size') === '1',
+            'use_condition' => $this->app->request()->field('use_condition') === '1',
+            'use_department' => $this->app->request()->field('use_department') === '1',
+            'use_brand' => $this->app->request()->field('use_brand') === '1',
+        ];
+        $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, MallMeasure::percent($this->mall->storeTake()), $floorRaw, $error);
+    }
+
+    private function writeMoney(int $basis, int $taxBasis): ?string
+    {
+        $booth = $this->mall->boothSize();
+        $floor = $this->mall->floorSize();
+        try {
+            $this->mall->save(
+                $this->mall->timeZone(),
+                MallWrite::posted($booth['width'], $booth['depth'], $floor['width'], $floor['depth'], $this->storedFlags()),
+                $basis,
+                $this->mall->floorDays(),
+                $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
+                $taxBasis,
+            );
+            $this->payouts->save(
+                $this->app->request()->field('operating_mode'),
+                $this->rentDraft->prepaid ?? false,
+                $this->rentDraft->rentals ?? false,
+                $this->rentDraft->cycleDay ?? 1,
+            );
+            $this->rentDraft->save();
+        } catch (DatabaseRefusal $refusal) {
+            return $this->app->catchRefusal($refusal);
+        } catch (\InvalidArgumentException $errorValue) {
+            return $errorValue->getMessage();
+        }
+
+        return null;
+    }
+
+    private function writeBuilding(
+        string $timeZone,
+        int $width,
+        int $depth,
+        int $floorWidth,
+        int $floorDepth,
+        ?int $days,
+    ): ?string {
+        try {
+            $this->mall->save(
+                $timeZone,
+                MallWrite::posted($width, $depth, $floorWidth, $floorDepth, $this->requestFlags()),
+                $this->mall->storeTake(),
+                $days,
+                $this->mall->cashRoundNickel() ? '1' : '',
+                $this->mall->taxRate(),
+            );
+            $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
+        } catch (DatabaseRefusal $refusal) {
+            return $this->app->catchRefusal($refusal);
+        } catch (\InvalidArgumentException $errorValue) {
+            return $errorValue->getMessage();
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool}
+     */
+    private function storedFlags(): array
+    {
+        return [
+            'color' => $this->mall->enabled('use_color'),
+            'category' => $this->mall->enabled('use_category'),
+            'size' => $this->mall->enabled('use_size'),
+            'condition' => $this->mall->enabled('use_condition'),
+            'department' => $this->mall->enabled('use_department'),
+            'brand' => $this->mall->enabled('use_brand'),
+        ];
+    }
+
+    /**
+     * @return array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool}
+     */
+    private function requestFlags(): array
+    {
+        return [
+            'color' => $this->app->request()->field('use_color') === '1',
+            'category' => $this->app->request()->field('use_category') === '1',
+            'size' => $this->app->request()->field('use_size') === '1',
+            'condition' => $this->app->request()->field('use_condition') === '1',
+            'department' => $this->app->request()->field('use_department') === '1',
+            'brand' => $this->app->request()->field('use_brand') === '1',
+        ];
+    }
+
+    private function buildingError(?int $width, ?int $depth, ?int $floorWidth, ?int $floorDepth, int|false|null $days): ?string
+    {
+        if ($width === null || $depth === null) {
+            return 'booth size is whole feet';
+        }
+        if ($floorWidth === null || $floorDepth === null) {
+            return 'floor size is whole feet';
+        }
+        if ($days === false) {
+            return 'days on the floor is a whole number from 1 to 365, or empty';
+        }
+
+        return $this->stickers();
     }
 
     private function refusal(
@@ -204,95 +380,6 @@ final class MallController
         return null;
     }
 
-    /**
-     * @return list<string>
-     */
-    private function timeZoneChoices(string $current): array
-    {
-        $zones = array_values(array_unique([
-            ...timezone_identifiers_list(\DateTimeZone::PER_COUNTRY, 'US'),
-            ...timezone_identifiers_list(\DateTimeZone::PER_COUNTRY, 'CA'),
-        ]));
-        sort($zones, SORT_STRING);
-        if ($current !== '' && !in_array($current, $zones, true)) {
-            array_unshift($zones, $current);
-        }
-
-        return $zones;
-    }
-
-    private function feet(string $value): ?int
-    {
-        if (preg_match('/^[1-9][0-9]{0,3}$/', $value) !== 1) {
-            return null;
-        }
-
-        return (int) $value;
-    }
-
-    private function wholeDays(string $value): int|false|null
-    {
-        if ($value === '') {
-            return null;
-        }
-        if (preg_match('/^[1-9][0-9]{0,2}$/', $value) !== 1) {
-            return false;
-        }
-        $days = (int) $value;
-        if ($days > 365) {
-            return false;
-        }
-
-        return $days;
-    }
-
-    private function dayText(?int $days): string
-    {
-        return $days === null ? '' : (string) $days;
-    }
-
-    private function basisPoints(string $percent): ?int
-    {
-        if ($percent === '') {
-            return 0;
-        }
-
-        return BasisPoints::percent($percent);
-    }
-
-    private function taxMillis(string $percent): ?int
-    {
-        if ($percent === '') {
-            return 0;
-        }
-        return BasisPoints::taxRate($percent);
-    }
-
-    private function taxPercent(int $millis): string
-    {
-        $whole = intdiv($millis, 1000);
-        $fraction = $millis % 1000;
-        if ($fraction === 0) {
-            return (string) $whole;
-        }
-
-        return $whole . '.' . rtrim(str_pad((string) $fraction, 3, '0', STR_PAD_LEFT), '0');
-    }
-
-    private function percent(int $basis): string
-    {
-        $whole = intdiv($basis, 100);
-        $fraction = $basis % 100;
-        if ($fraction === 0) {
-            return (string) $whole;
-        }
-        if ($fraction % 10 === 0) {
-            return $whole . '.' . (string) intdiv($fraction, 10);
-        }
-
-        return $whole . '.' . str_pad((string) $fraction, 2, '0', STR_PAD_LEFT);
-    }
-
     private function form(
         string $slug,
         string $timeZone,
@@ -311,7 +398,7 @@ final class MallController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'timeZone' => $timeZone,
-            'timeZones' => $this->timeZoneChoices($timeZone),
+            'timeZones' => MallMeasure::timeZones($timeZone),
             'boothWidth' => $width,
             'boothDepth' => $depth,
             'floorWidth' => $floorWidth,
@@ -319,11 +406,12 @@ final class MallController
             'storeTake' => $storeTake,
             'floorDays' => $floorDays,
             'cashRound' => $this->postedCashRound ?? ($this->mall->cashRoundNickel() ? '1' : ''),
-            'taxRate' => $this->postedTaxRate ?? $this->taxPercent($this->mall->taxRate()),
+            'taxRate' => $this->postedTaxRate ?? MallMeasure::taxPercent($this->mall->taxRate()),
             'backupHeadline' => BackupHeadline::text(
                 $this->backups->latest($tenant->id),
                 BackupHeadline::now(),
             ),
+            'nightlyHeadline' => $this->nightly->headline($tenant->schema),
             'operatingMode' => $this->payouts->operatingMode(),
             'payoutCadence' => $this->payouts->payoutCadence(),
             'rentPrepaid' => $this->rentDraft->prepaid ?? $this->payouts->rentPrepaid(),

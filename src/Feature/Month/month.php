@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
 
+/** @var string $slug */
 /** @var string $monthName */
 /** @var array{sales: int, tax: int, rent: int, checks: int} $figures */
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1"><?= View::text($monthName) ?></h1>
-        <p class="muted">These are the same cents as the books. This page does not post.</p>
+        <p class="muted">Rent still owed is on <a href="/<?= View::text($slug) ?>/rent">Rent</a>. Checks are on <a href="/<?= View::text($slug) ?>/payouts">Pay vendors</a>.</p>
     </div>
 </div>
 <div class="grid cols-4 mt-6">

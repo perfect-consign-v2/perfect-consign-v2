@@ -7,7 +7,7 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var array{from: string, to: string, label: string} $span */
-/** @var list<array{date: string, code: string, description: string, price: int, discount: int, sold: int, take: int, share: int}> $rows */
+/** @var list<array{date: string, code: string, description: string, price: int, discount: int, sold: int, take: int, share: int, item_id: string, has_photo: bool}> $rows */
 /** @var int $total */
 
 $base = '/' . $slug . '/vendor/sales';
@@ -25,7 +25,9 @@ $salesLink = static function (string $query) use ($base, $previewAs): string {
     </div>
 </div>
 <p class="mt-4">
-    <a href="<?= View::text($salesLink('')) ?>">Since your last check</a>
+    <a href="<?= View::text($salesLink('range=today')) ?>">Today</a>
+    · <a href="<?= View::text($salesLink('range=yesterday')) ?>">Yesterday</a>
+    · <a href="<?= View::text($salesLink('')) ?>">Since your last check</a>
     · <a href="<?= View::text($salesLink('range=check')) ?>">This check</a>
     · <a href="<?= View::text($salesLink('range=week')) ?>">This week</a>
     · <a href="<?= View::text($salesLink('range=month')) ?>">This month</a>
@@ -49,7 +51,7 @@ $salesLink = static function (string $query) use ($base, $previewAs): string {
 </form>
 <p class="h3 mt-6" id="sales-share">Your share <?= View::text(View::money($total)) ?></p>
 <?php if ($rows === []): ?>
-    <p class="muted mt-4">No sales in this range.</p>
+    <p class="muted mt-4">No sales in this range. Choose Today, Yesterday, This week, or This month.</p>
 <?php else: ?>
     <div class="card table-wrap mt-4">
         <table>
@@ -69,7 +71,12 @@ $salesLink = static function (string $query) use ($base, $previewAs): string {
             <?php foreach ($rows as $row): ?>
                 <tr>
                     <td><?= View::date($row['date']) ?></td>
-                    <td><?= View::text($row['code']) ?></td>
+                    <td>
+                        <?php if ($row['has_photo']): ?>
+                            <img src="/<?= View::text($slug) ?>/inventory/<?= View::text($row['item_id']) ?>/photo" alt="" width="40" height="40">
+                        <?php endif; ?>
+                        <?= View::text($row['code']) ?>
+                    </td>
                     <td><?= View::text($row['description']) ?></td>
                     <td><?= View::text(View::money($row['price'])) ?></td>
                     <td><?= View::text(View::money($row['discount'])) ?></td>

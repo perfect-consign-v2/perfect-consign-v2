@@ -21,6 +21,7 @@ final class InventoryController
         private readonly StoreTake $take,
         private readonly MallSettings $mall,
         private readonly LabelCatalog $stocks,
+        private readonly ItemPhotoController $photos,
     ) {
     }
 
@@ -237,6 +238,7 @@ final class InventoryController
             'stocks' => $this->stocks->choices(),
             'printId' => $printId,
             'sold' => $sold,
+            'hasPhoto' => $item['id'] !== '' && $this->photos->has($item['id']),
             'error' => $error,
         ]);
     }

@@ -30,14 +30,18 @@ $list = '/' . $slug . '/inventory';
         <h1 class="h1">Items</h1>
         <p class="muted">One row is one item on the floor.</p>
     </div>
-    <a class="btn btn-primary" href="/<?= View::text($slug) ?>/inventory/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New item</a>
+    <div class="row gap-2">
+        <a class="btn" href="/<?= View::text($slug) ?>/inventory/import">Bring in tags</a>
+        <a class="btn btn-primary" href="/<?= View::text($slug) ?>/inventory/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New item</a>
+    </div>
 </div>
 
 <?php if ($total === 0): ?>
     <div class="card">
         <div class="empty">
             <svg aria-hidden="true"><use href="#i-inventory"></use></svg>
-            <p>No items yet.</p>
+            <p>No items yet. Add one item, or bring in a list of tags.</p>
+            <p><a class="btn btn-primary" href="/<?= View::text($slug) ?>/inventory/import">Bring in tags</a></p>
         </div>
     </div>
 <?php else: ?>
