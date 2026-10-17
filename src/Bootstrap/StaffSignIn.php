@@ -17,11 +17,11 @@ final class StaffSignIn
     ) {
     }
 
-    public function attempt(TenantRecord $tenant, string $username, string $password): bool
+    public function attempt(TenantRecord $tenant, string $username, string $password, string $address): bool
     {
         $row = $this->lookup($tenant, $username);
         if ($row === null || !$this->passwordMatches($row, $password) || !$this->knownRole($row)) {
-            $this->refuse($tenant, $username);
+            $this->refuse($tenant, $username, $address);
 
             return false;
         }
@@ -111,7 +111,7 @@ final class StaffSignIn
      */
     private function knownRole(array $row): bool
     {
-        return $row['role'] === 'cashier' || $row['role'] === 'vendor';
+        return $row['role'] === 'cashier' || $row['role'] === 'vendor' || $row['role'] === 'books';
     }
 
     /**
@@ -136,12 +136,12 @@ final class StaffSignIn
         );
     }
 
-    private function refuse(TenantRecord $tenant, string $username): void
+    private function refuse(TenantRecord $tenant, string $username, string $address): void
     {
         $failed = $this->pdo->prepare(
-            'INSERT INTO platform.owner_sign_in_failures (tenant_id, username) VALUES (?::uuid, ?)'
+            'INSERT INTO platform.owner_sign_in_failures (tenant_id, username, client_address) VALUES (?::uuid, ?, ?)'
         );
-        $failed->execute([$tenant->id, $username]);
+        $failed->execute([$tenant->id, $username, $address]);
         $this->logger->info('staff sign-in refused', ['slug' => $tenant->slug, 'username' => $username]);
     }
 

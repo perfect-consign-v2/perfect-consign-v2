@@ -279,7 +279,9 @@ $booths = static function (int $count): string {
                         </td>
                         <td class="num"><?= View::text(View::money($row['open_minor'])) ?></td>
                         <td>
-                            <?php if ($row['open_minor'] > 0 && $activeSessionId === ''): ?>
+                            <?php if (($actorRole ?? '') === 'books'): ?>
+                                <span class="muted"><?= $blank ?></span>
+                            <?php elseif ($row['open_minor'] > 0 && $activeSessionId === ''): ?>
                                 <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>
                             <?php elseif ($row['open_minor'] > 0 && $row['vendor_id'] !== null): ?>
                                 <a class="btn btn-sm" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>">Collect</a>

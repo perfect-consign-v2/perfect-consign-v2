@@ -34,7 +34,7 @@ final class Actor
     public function role(): string
     {
         $role = $this->session->get('actor_role');
-        if ($role === 'cashier' || $role === 'vendor' || $role === 'owner') {
+        if ($role === 'cashier' || $role === 'vendor' || $role === 'owner' || $role === 'books') {
             return $role;
         }
 
@@ -66,6 +66,7 @@ final class Actor
         return match ($this->role()) {
             'cashier' => '/' . $slug . '/pos',
             'vendor' => '/' . $slug . '/vendor',
+            'books' => '/' . $slug . '/sales',
             default => '/' . $slug . '/dashboard',
         };
     }

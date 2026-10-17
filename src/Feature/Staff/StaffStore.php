@@ -23,11 +23,28 @@ final class StaffStore
      */
     public function cashiers(): array
     {
-        $rows = $this->statements->rows(
+        return $this->people('cashier');
+    }
+
+    /**
+     * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
+     */
+    public function books(): array
+    {
+        return $this->people('books');
+    }
+
+    /**
+     * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
+     */
+    private function people(string $role): array
+    {
+        $rows = $this->statements->bound(
             "SELECT id, username, display_name, role, email
              FROM staff
-             WHERE role = 'cashier'
-             ORDER BY lower(display_name), username"
+             WHERE role = ?
+             ORDER BY lower(display_name), username",
+            [$role]
         );
         $people = [];
         foreach ($rows as $row) {
@@ -48,6 +65,11 @@ final class StaffStore
         $this->add($username, $displayName, $password, $this->addresses->parse($email), 'cashier', null);
     }
 
+    public function addBooks(string $username, string $displayName, string $password, string $email): void
+    {
+        $this->add($username, $displayName, $password, $this->addresses->parse($email), 'books', null);
+    }
+
     public function replaceCashier(string $id, string $password, string $email): void
     {
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
@@ -61,6 +83,22 @@ final class StaffStore
         );
         if ($saved < 1) {
             throw new \InvalidArgumentException('Choose a cashier.');
+        }
+    }
+
+    public function replaceBooks(string $id, string $password, string $email): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            throw new \InvalidArgumentException('Choose a books login.');
+        }
+        $saved = $this->statements->affected(
+            "UPDATE staff
+             SET password_hash = ?, email = ?, credentials_version = credentials_version + 1
+             WHERE id = ?::uuid AND role = 'books'",
+            [$this->passwords->hash($password), $this->addresses->parse($email), $id]
+        );
+        if ($saved < 1) {
+            throw new \InvalidArgumentException('Choose a books login.');
         }
     }
 

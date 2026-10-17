@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
@@ -43,22 +44,23 @@ final class OwnerGate
              FROM platform.owner_sign_in_failures
              WHERE tenant_id = ?::uuid
                AND username = ?
+               AND client_address = ?
                AND failed_at > clock_timestamp() - interval '15 minutes'"
         );
-        $recent->execute([$tenant->id, $username]);
+        $recent->execute([$tenant->id, $username, $this->request->address]);
         if ((int) $recent->fetchColumn() >= 5) {
             $this->logger->info('owner sign-in locked', ['slug' => $slug, 'username' => $username]);
             throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
         }
         $owner = $this->owner($tenant->id, $username);
         if ($owner === null) {
-            return $this->staff->attempt($tenant, $username, $password);
+            return $this->staff->attempt($tenant, $username, $password, $this->request->address);
         }
         if (!password_verify($password, $owner['hash'])) {
             $failed = $this->pdo->prepare(
-                'INSERT INTO platform.owner_sign_in_failures (tenant_id, username) VALUES (?::uuid, ?)'
+                'INSERT INTO platform.owner_sign_in_failures (tenant_id, username, client_address) VALUES (?::uuid, ?, ?)'
             );
-            $failed->execute([$tenant->id, $username]);
+            $failed->execute([$tenant->id, $username, $this->request->address]);
             $this->logger->info('owner sign-in refused', ['slug' => $slug]);
 
             return false;
@@ -140,7 +142,7 @@ final class OwnerGate
             'database' => $detail instanceof \Throwable ? $detail->getMessage() : null,
         ]);
 
-        return $error->getMessage();
+        return DatabaseRefusal::phrase($error->getMessage());
     }
 
     public function token(): string

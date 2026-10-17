@@ -230,7 +230,58 @@ function requestFromGlobals(): Request
         $path = rtrim($path, '/');
     }
 
-    return new Request($method, $path, $_GET, $_POST, sameHostPath(refererHeader(), hostHeader()), requestOrigin());
+    return new Request(
+        $method,
+        $path,
+        $_GET,
+        $_POST,
+        sameHostPath(refererHeader(), hostHeader()),
+        requestOrigin(),
+        clientAddress(),
+        requestUploads(),
+    );
+}
+
+function clientAddress(): string
+{
+    $address = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (!is_string($address)) {
+        return '';
+    }
+    $address = trim($address);
+    if (preg_match('/^[A-Za-z0-9:.]{1,64}$/', $address) !== 1) {
+        return '';
+    }
+
+    return $address;
+}
+
+/**
+ * @return array<string, array{tmp_name: string, error: int, size: int, name: string}>
+ */
+function requestUploads(): array
+{
+    $uploads = [];
+    foreach ($_FILES as $key => $file) {
+        if (!is_string($key) || !is_array($file)) {
+            continue;
+        }
+        $tmp = $file['tmp_name'] ?? '';
+        $error = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+        $size = $file['size'] ?? 0;
+        $name = $file['name'] ?? '';
+        if (!is_string($tmp) || !is_int($error) || !is_int($size) || !is_string($name)) {
+            continue;
+        }
+        $uploads[$key] = [
+            'tmp_name' => $tmp,
+            'error' => $error,
+            'size' => $size,
+            'name' => $name,
+        ];
+    }
+
+    return $uploads;
 }
 
 function requestOrigin(): string

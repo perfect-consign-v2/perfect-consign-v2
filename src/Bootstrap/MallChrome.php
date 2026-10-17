@@ -51,7 +51,12 @@ final class MallChrome
         if (!$open || $enabled || !$this->rentPage($slug)) {
             return null;
         }
-        $page = $this->door->actor()->role() === 'cashier' ? 'pos' : 'dashboard';
+        $role = $this->door->actor()->role();
+        $page = match ($role) {
+            'cashier' => 'pos',
+            'books' => 'sales',
+            default => 'dashboard',
+        };
 
         return '/' . $slug . '/' . $page;
     }

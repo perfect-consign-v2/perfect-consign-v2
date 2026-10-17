@@ -9,6 +9,7 @@ final class Request
     /**
      * @param array<string, mixed> $query
      * @param array<string, mixed> $post
+     * @param array<string, array{tmp_name: string, error: int, size: int, name: string}> $uploads
      */
     public function __construct(
         public readonly string $method,
@@ -17,7 +18,22 @@ final class Request
         public readonly array $post,
         public readonly string $referer = '',
         public readonly string $origin = '',
+        public readonly string $address = '',
+        public readonly array $uploads = [],
     ) {
+    }
+
+    /**
+     * @return array{tmp_name: string, error: int, size: int, name: string}|null
+     */
+    public function upload(string $name): ?array
+    {
+        $file = $this->uploads[$name] ?? null;
+        if (!is_array($file)) {
+            return null;
+        }
+
+        return $file;
     }
 
     public function field(string $name): string

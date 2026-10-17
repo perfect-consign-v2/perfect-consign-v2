@@ -15,7 +15,10 @@ final class RoleGate
             return self::cashier($rest, $method);
         }
         if ($role === 'vendor') {
-            return self::vendor($rest);
+            return self::vendor($rest, $method);
+        }
+        if ($role === 'books') {
+            return self::books($rest, $method);
         }
 
         return false;
@@ -32,7 +35,7 @@ final class RoleGate
 
     private static function counter(string $rest): bool
     {
-        if (in_array($rest, ['/dashboard', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
+        if (in_array($rest, ['/dashboard', '/sales', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
             return true;
         }
 
@@ -75,8 +78,11 @@ final class RoleGate
         return preg_match('#^/registers/[0-9a-fA-F-]{36}$#', $rest) === 1;
     }
 
-    private static function vendor(string $rest): bool
+    private static function vendor(string $rest, string $method): bool
     {
+        if ($method === 'GET' && preg_match('#^/inventory/[0-9a-fA-F-]{36}/photo$#', $rest) === 1) {
+            return true;
+        }
         if (in_array($rest, ['/vendor', '/vendor/labels', '/vendor/sales', '/vendor/inventory', '/vendor/offers', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
             return true;
         }
@@ -85,5 +91,29 @@ final class RoleGate
         }
 
         return preg_match('#^/vendor/checks/[0-9a-fA-F-]{36}$#', $rest) === 1;
+    }
+
+    private static function books(string $rest, string $method): bool
+    {
+        if ($method === 'POST') {
+            return in_array($rest, ['/logout', '/logout/confirm', '/password', '/password/email'], true);
+        }
+        if ($method !== 'GET') {
+            return false;
+        }
+        if (in_array($rest, ['/sales', '/month', '/rent', '/payouts', '/journals', '/password', '/dashboard'], true)) {
+            return true;
+        }
+        if (preg_match('#^/journals/[0-9a-fA-F-]{36}$#', $rest) === 1) {
+            return true;
+        }
+        if (str_starts_with($rest, '/rent/receipt/')) {
+            return true;
+        }
+        if (str_starts_with($rest, '/payouts/')) {
+            return true;
+        }
+
+        return str_starts_with($rest, '/pos/receipt/');
     }
 }
