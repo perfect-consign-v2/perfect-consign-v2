@@ -17,7 +17,7 @@ jobs:
       STALL_OWNER_PASSWORD: ci-owner-password
       STALL_BACKUP_PASSWORD: ci-backup-password
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 2
       - name: Obligation base
@@ -35,7 +35,7 @@ jobs:
           fi
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           extensions: pdo_pgsql, zip, curl
           coverage: xdebug
       - run: composer install --no-interaction --prefer-dist

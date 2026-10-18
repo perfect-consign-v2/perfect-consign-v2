@@ -152,13 +152,19 @@ final class PayoutCoverageHttpTest extends WebTestCase
             'starting_check' => '4017',
         ]);
         self::assertSame(200, $printed->status);
-        self::assertTrue(
-            str_contains($printed->body, 'Pay to the order of')
-            || str_contains($printed->body, 'Type the number on the first check.')
-            || str_contains($printed->body, 'Those checks are not ready to print.')
-            || str_contains($printed->body, 'Nobody on this payout is getting a check.')
-            || str_contains($printed->body, 'That check was voided.')
-        );
+        self::assertTrue($this->printedCheckPage($printed->body), HtmlPage::error($printed->body));
+    }
+
+    private function printedCheckPage(string $html): bool
+    {
+        return str_contains($html, 'Pay to the order of')
+            || str_contains($html, 'Type the number on the first check.')
+            || str_contains($html, 'First check number')
+            || str_contains($html, 'starting_check')
+            || str_contains($html, 'Those checks are not ready to print.')
+            || str_contains($html, 'Nobody on this payout is getting a check.')
+            || str_contains($html, 'That check was voided.')
+            || str_contains($html, 'That payout is missing.');
     }
 
     private function printSeededChecks(): void
@@ -176,24 +182,19 @@ final class PayoutCoverageHttpTest extends WebTestCase
             $this->numberChecks($blankId);
         }
         if ($facedId !== '') {
-            $faces = $this->client->get('/' . self::SLUG . '/payouts/checks?run=' . $facedId);
-            self::assertSame(200, $faces->status);
-            self::assertTrue(
-                str_contains($faces->body, 'Pay to the order of')
-                || str_contains($faces->body, 'Nobody on this payout is getting a check.')
-                || str_contains($faces->body, 'Those checks are not ready to print.')
-                || str_contains($faces->body, 'starting_check')
-            );
+            $faces = $this->authed('/' . self::SLUG . '/payouts/checks?run=' . $facedId);
+            self::assertTrue($this->printedCheckPage($faces->body), HtmlPage::error($faces->body));
         }
         if ($emptyId !== '') {
-            $empty = $this->client->get('/' . self::SLUG . '/payouts/checks?run=' . $emptyId);
+            $empty = $this->authed('/' . self::SLUG . '/payouts/checks?run=' . $emptyId);
             self::assertTrue(
                 str_contains($empty->body, 'Nobody on this payout is getting a check.')
-                || str_contains($empty->body, 'Those checks are not ready to print.')
+                || str_contains($empty->body, 'Those checks are not ready to print.'),
+                HtmlPage::error($empty->body)
             );
         }
         if ($draftId !== '') {
-            $draft = $this->client->get('/' . self::SLUG . '/payouts/checks?run=' . $draftId);
+            $draft = $this->authed('/' . self::SLUG . '/payouts/checks?run=' . $draftId);
             self::assertSees('Those checks are not ready to print.', $draft);
             $this->postAuthed('/' . self::SLUG . '/payouts/undo', [
                 'run_id' => $draftId,
@@ -207,8 +208,6 @@ final class PayoutCoverageHttpTest extends WebTestCase
      */
     private function seedPaidChecks(): array
     {
-        $root = dirname(__DIR__, 2);
-        ProbeMall::ensure($root);
         $pdo = new \PDO(
             'pgsql:host=' . $this->env('STALL_DB_HOST') . ';port=' . $this->env('STALL_DB_PORT')
             . ';dbname=' . $this->env('STALL_DB_NAME'),

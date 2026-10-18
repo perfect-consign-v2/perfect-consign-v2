@@ -6,7 +6,7 @@ No hacks, no shortcuts, no workarounds, and no patches. Fix the design that is w
 
 ## Database
 
-Postgres `18.6`. Host port **5436**. Database `consign`. User `stall`. Volume `perfect_consign_pg`. Container `perfect-consign-postgres`. Do not use ports 5432, 5433, 5434, or 5435, and do not use volume `stall_pg`.
+PHP `8.5`. Postgres `18.6`. Host port **5436**. Database `consign`. User `stall`. Volume `perfect_consign_pg`. Container `perfect-consign-postgres`. Do not use ports 5432, 5433, 5434, or 5435, and do not use volume `stall_pg`.
 
 `stall_poster` inserts journals and lines. It cannot turn triggers off, drop them, or set replica mode. Append-only triggers fire in replica mode too, so that session still cannot update, delete, or truncate them.
 

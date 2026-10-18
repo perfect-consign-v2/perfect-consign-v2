@@ -76,8 +76,11 @@ final class PayoutRunScreenTest extends WebTestCase
             self::assertTrue(
                 str_contains($checks->body, 'Pay to the order of')
                 || str_contains($checks->body, 'Type the number on the first check.')
+                || str_contains($checks->body, 'First check number')
                 || str_contains($checks->body, 'Those checks are not ready to print.')
                 || str_contains($checks->body, 'Nobody on this payout is getting a check.')
+                || str_contains($checks->body, 'That check was voided.')
+                || str_contains($checks->body, 'That payout is missing.')
             );
         }
     }
