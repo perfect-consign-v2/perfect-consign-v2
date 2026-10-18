@@ -30,7 +30,7 @@ final class SqlObjects
 
     private function definitions(string $sql): string
     {
-        $stripped = preg_replace('/\$([A-Za-z0-9_]*)\$(.*?)\$\1\$/s', '', $sql);
+        $stripped = preg_replace('/\$\$(.*?)\$\$/s', '', $sql);
 
         return is_string($stripped) ? $stripped : $sql;
     }
