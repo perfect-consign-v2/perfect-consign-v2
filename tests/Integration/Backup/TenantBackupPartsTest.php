@@ -108,6 +108,49 @@ final class TenantBackupPartsTest extends TestCase
         self::assertSame('zip-bytes', $body);
     }
 
+    public function testAMissingMallAbortsTheBackupTransaction(): void
+    {
+        ProbeMall::ensure(dirname(__DIR__, 3));
+        $this->expectException(BackupException::class);
+        $this->expectExceptionMessage('That mall has no backup.');
+        $this->backup()->create($this->connectionValue(), 'no-such-mall');
+    }
+
+    public function testSnapshotGuardsRefuseABlankQuery(): void
+    {
+        $backup = $this->backup();
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('query')->willReturn(false);
+        try {
+            $this->call($backup, 'snapshot', $pdo);
+            self::fail('a blank snapshot was accepted');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+        }
+        try {
+            $this->call($backup, 'backupId', $pdo);
+            self::fail('a blank backup id was accepted');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+        }
+        try {
+            $this->call($backup, 'version', $pdo);
+            self::fail('a blank version was accepted');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+        }
+        $broken = $this->createStub(\PDOStatement::class);
+        $broken->method('fetchColumn')->willReturn("16.1\nextra");
+        $versionPdo = $this->createStub(PDO::class);
+        $versionPdo->method('query')->willReturn($broken);
+        try {
+            $this->call($backup, 'version', $versionPdo);
+            self::fail('a broken version was accepted');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+        }
+    }
+
     private function backup(): TenantBackup
     {
         return new TenantBackup(

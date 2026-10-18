@@ -56,6 +56,9 @@ fi
 
 "$php_bin" "$composer" --working-dir="$root" install --no-dev --no-interaction --prefer-dist
 
+"$php_bin" "${root}/bin/migrate.php" platform
+"$php_bin" "${root}/bin/migrate.php" tenant-all
+
 code=$(curl -sS -o /dev/null -w '%{http_code}' https://v2.perfectconsign.com/mall)
 if [[ "$code" != "200" ]]; then
     echo "deploy-demo: https://v2.perfectconsign.com/mall returned ${code}" >&2

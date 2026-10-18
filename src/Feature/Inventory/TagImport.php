@@ -29,7 +29,7 @@ final class TagImport
             throw new \InvalidArgumentException('That file could not be read.');
         }
         try {
-            $header = fgetcsv($handle);
+            $header = fgetcsv($handle, null, ',', '"', '\\');
             if (!is_array($header)) {
                 throw new \InvalidArgumentException('That file has no tags.');
             }
@@ -90,7 +90,7 @@ final class TagImport
     {
         $rows = [];
         $number = 1;
-        while (($line = fgetcsv($handle)) !== false) {
+        while (($line = fgetcsv($handle, null, ',', '"', '\\')) !== false) {
             $number++;
             if ($this->blank($line)) {
                 continue;

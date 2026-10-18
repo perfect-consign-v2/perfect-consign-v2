@@ -313,6 +313,9 @@ final class FloorCoverageTest extends WebTestCase
             'layout' => $layout,
         ]);
         self::assertSees('Map saved.', $saved);
+        $placed = $this->client->get('/' . self::SLUG . '/map?floor=' . $floorId);
+        self::assertSees('Booth map', $placed);
+        self::assertSees($code, $placed);
         $cleared = $this->client->post('/' . self::SLUG . '/map/edit', [
             'floor' => $floorId,
             'layout' => '[]',
@@ -373,6 +376,16 @@ final class FloorCoverageTest extends WebTestCase
         $refused = $this->client->post('/' . self::SLUG . '/opening', ['posting_date' => $today]);
         self::assertSees('an opening is available only while the book has no other journal', $refused);
 
+        $this->client->post('/' . self::SLUG . '/tax', [
+            'source_reference' => 'tax' . bin2hex(random_bytes(3)),
+            'amount' => '0.01',
+            'credit' => 'bank',
+            'posting_date' => '2017-06-15',
+        ]);
+        $this->client->post('/' . self::SLUG . '/periods', [
+            'starts_on' => '2017-01-01',
+            'ends_on' => '2017-12-31',
+        ]);
         $this->client->post('/' . self::SLUG . '/periods', [
             'starts_on' => '2019-01-01',
             'ends_on' => '2019-12-31',
@@ -399,6 +412,9 @@ final class FloorCoverageTest extends WebTestCase
         $backup = $this->client->post('/' . self::SLUG . '/backup', ['return' => 'settings'], 90);
         self::assertSame(200, $backup->status);
         self::assertNotSame('', $backup->body);
+        $signedOut = $this->client->post('/' . self::SLUG . '/backup', ['return' => 'sign-out'], 90);
+        self::assertSame(200, $signedOut->status);
+        self::assertNotSame('', $signedOut->body);
     }
 
     public function testTheCartSplitsACertificateAndAVendorDraw(): void

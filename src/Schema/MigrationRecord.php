@@ -5,46 +5,41 @@ declare(strict_types=1);
 namespace PerfectConsign\Schema;
 
 use PDO;
-use PDOException;
 use RuntimeException;
 
 final class MigrationRecord
 {
-    private const LOCK = 814202615;
+    private readonly MigrationLock $lock;
+
+    private readonly SchemaBaseline $baseline;
 
     public function __construct(
         private readonly PDO $pdo,
         private readonly SchemaCatalog $catalog,
     ) {
+        $this->lock = new MigrationLock($pdo);
+        $this->baseline = new SchemaBaseline($pdo);
     }
 
     public function holdMigration(): void
     {
-        $query = $this->pdo->query('SELECT pg_try_advisory_lock(' . self::LOCK . ')');
-        $value = $query === false ? false : $query->fetchColumn();
-        if ($value !== true && $value !== 't' && $value !== 1 && $value !== '1') {
-            throw new RuntimeException('a migration is already running');
-        }
+        $this->lock->hold();
     }
 
     public function releaseMigration(): void
     {
-        $this->clearAbortedTransaction();
-        $query = $this->pdo->query('SELECT pg_advisory_unlock(' . self::LOCK . ')');
-        if ($query === false) {
-            throw new RuntimeException('the migration lock could not be released');
-        }
+        $this->lock->release();
     }
 
     public function requireBaseline(string $slug, string $schema): void
     {
-        if (!$this->window($schema)) {
+        if (!$this->baseline->window($schema)) {
             throw new TenantBaselineMismatch(
                 'tenant ' . $slug . ' does not match the closed payout window and was not stamped'
             );
         }
         $objects = $this->catalog->baselineObjects();
-        $missing = $this->absent($schema, $objects['tables'], $objects['routines']);
+        $missing = $this->baseline->absent($schema, $objects['tables'], $objects['routines']);
         if ($missing !== null) {
             throw new TenantBaselineMismatch('tenant ' . $slug . ' is missing ' . $missing . ' and was not stamped');
         }
@@ -119,21 +114,6 @@ final class MigrationRecord
         return $rows;
     }
 
-    private function clearAbortedTransaction(): void
-    {
-        if (!$this->pdo->inTransaction()) {
-            return;
-        }
-        try {
-            $probe = $this->pdo->query('SELECT 1');
-            if ($probe === false) {
-                $this->pdo->rollBack();
-            }
-        } catch (PDOException) {
-            $this->pdo->rollBack();
-        }
-    }
-
     private function remember(string $schema, string $file, string $checksum): void
     {
         $statement = $this->pdo->prepare(
@@ -152,78 +132,5 @@ final class MigrationRecord
         }
 
         return $schema . '.schema_migrations';
-    }
-
-    /**
-     * @param list<string> $tables
-     * @param list<string> $routines
-     */
-    private function absent(string $schema, array $tables, array $routines): ?string
-    {
-        foreach ($tables as $table) {
-            if (!$this->regclass($schema, $table)) {
-                return $table;
-            }
-        }
-        foreach ($routines as $routine) {
-            if (!$this->routine($schema, $routine)) {
-                return $routine;
-            }
-        }
-
-        return null;
-    }
-
-    private function regclass(string $schema, string $name): bool
-    {
-        $query = $this->pdo->query(
-            'SELECT to_regclass(' . $this->pdo->quote($schema . '.' . $this->identifier($name)) . ')'
-        );
-        if ($query === false) {
-            return false;
-        }
-        $found = $query->fetchColumn();
-
-        return is_string($found) && $found !== '';
-    }
-
-    private function routine(string $schema, string $name): bool
-    {
-        $statement = $this->pdo->prepare(
-            'SELECT 1
-             FROM pg_proc
-             JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
-             WHERE pg_namespace.nspname = ? AND pg_proc.proname = ?'
-        );
-        $statement->execute([$schema, $this->identifier($name)]);
-
-        return $statement->fetchColumn() !== false;
-    }
-
-    private function identifier(string $name): string
-    {
-        if (preg_match('/^[a-z_][a-z0-9_]*$/', $name) !== 1) {
-            throw new RuntimeException('schema object name is invalid');
-        }
-
-        return $name;
-    }
-
-    private function window(string $schema): bool
-    {
-        $statement = $this->pdo->prepare(
-            'SELECT pg_trigger.tgconstraint = 0 AND NOT pg_trigger.tgdeferrable
-             FROM pg_trigger
-             JOIN pg_class ON pg_class.oid = pg_trigger.tgrelid
-             JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
-             WHERE pg_namespace.nspname = ?
-               AND pg_class.relname = \'journals\'
-               AND pg_trigger.tgname = \'journals_closed_payout_window\'
-               AND NOT pg_trigger.tgisinternal'
-        );
-        $statement->execute([$schema]);
-        $value = $statement->fetchColumn();
-
-        return $value === true || $value === 't' || $value === '1' || $value === 1;
     }
 }

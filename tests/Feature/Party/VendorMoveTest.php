@@ -4,38 +4,29 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Party;
 
-use PDO;
 use PerfectConsign\Feature\Party\VendorMove;
 use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
 
 final class VendorMoveTest extends TestCase
 {
-    public function testAMoveNeedsADateAndABooth(): void
+    public function testAMoveNeedsADateAndTheNextBooth(): void
     {
-        $move = new VendorMove(new Statements($this->createStub(PDO::class)));
-
+        $move = new VendorMove($this->createStub(Statements::class));
+        $vendor = '01900000-0000-7000-8000-0000000000a1';
+        $stay = '01900000-0000-7000-8000-0000000000b1';
+        $booth = '01900000-0000-7000-8000-0000000000c1';
         try {
-            $move->move(
-                '00000000-0000-7000-8000-000000000001',
-                '00000000-0000-7000-8000-000000000002',
-                '00000000-0000-7000-8000-000000000003',
-                'tomorrow',
-                1000,
-            );
-            self::fail('a move without a date was accepted');
+            $move->move($vendor, $stay, $booth, 'soon', 1000);
+            self::fail('a blank date was accepted');
         } catch (\InvalidArgumentException $error) {
             self::assertSame('Enter the move-out date.', $error->getMessage());
         }
-
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Choose the next booth.');
-        $move->move(
-            '00000000-0000-7000-8000-000000000001',
-            '00000000-0000-7000-8000-000000000002',
-            'booth',
-            '2026-10-01',
-            1000,
-        );
+        try {
+            $move->move($vendor, $stay, 'next-booth', '2026-09-30', 1000);
+            self::fail('a missing booth was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose the next booth.', $error->getMessage());
+        }
     }
 }

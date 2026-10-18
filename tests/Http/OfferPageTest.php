@@ -157,6 +157,19 @@ final class OfferPageTest extends WebTestCase
             'item_code' => 'no-such-' . $item['code'],
         ]));
         self::assertSees('That item is not on the floor.', $notMine);
+        $other = $this->vendor($owner);
+        $otherItem = $this->item($owner, $other['id']);
+        $theirs = $client->post('/' . self::SLUG . '/vendor/offers', $this->deal($starts, [
+            'name' => 'Theirs ' . $otherItem['code'],
+            'scope' => 'item',
+            'item_code' => $otherItem['code'],
+        ]));
+        self::assertSees('That item is not yours.', $theirs);
+        $missingSave = $client->post('/' . self::SLUG . '/vendor/offers/01900000-0000-7000-8000-00000000abcd', $this->deal($starts, [
+            'name' => 'Gone ' . $vendor['code'],
+            'scope' => 'vendor',
+        ]));
+        self::assertSees('That deal is not yours.', $missingSave);
     }
 
     /**

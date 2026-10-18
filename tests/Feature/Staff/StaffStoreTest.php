@@ -1,0 +1,88 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PerfectConsign\Tests\Feature\Staff;
+
+use PDO;
+use PerfectConsign\Feature\Password\PasswordChoice;
+use PerfectConsign\Feature\Password\RecoveryAddress;
+use PerfectConsign\Feature\Staff\StaffStore;
+use PerfectConsign\Shared\Database\Statements;
+use PHPUnit\Framework\TestCase;
+
+final class StaffStoreTest extends TestCase
+{
+    public function testABooksLoginNeedsAValidId(): void
+    {
+        $store = $this->store(0);
+        try {
+            $store->replaceBooks('not-an-id', 'password1', 'books@example.com');
+            self::fail('a blank books id was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a books login.', $error->getMessage());
+        }
+        try {
+            $store->replaceBooks('01900000-0000-7000-8000-0000000000b1', 'password1', 'books@example.com');
+            self::fail('a missing books login was updated');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a books login.', $error->getMessage());
+        }
+        $store->addBooks('books-one', 'Books One', 'password1', 'books@example.com');
+        self::assertSame('books', $this->lastRole);
+    }
+
+    public function testACashierReplaceNeedsAMatchingRow(): void
+    {
+        $store = $this->store(0);
+        try {
+            $store->replaceCashier('not-an-id', 'password1', 'c@example.com');
+            self::fail('a blank cashier id was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a cashier.', $error->getMessage());
+        }
+        try {
+            $store->replaceCashier('01900000-0000-7000-8000-0000000000c1', 'password1', 'c@example.com');
+            self::fail('a missing cashier was updated');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a cashier.', $error->getMessage());
+        }
+    }
+
+    private string $lastRole = '';
+
+    private function store(int $affected): StaffStore
+    {
+        $statements = new class ($this->createStub(PDO::class), $affected, $this) extends Statements {
+            public function __construct(PDO $pdo, private readonly int $rows, private readonly StaffStoreTest $test)
+            {
+                parent::__construct($pdo);
+            }
+
+            public function affected(string $sql, array $params): int
+            {
+                return $this->rows;
+            }
+
+            public function change(string $sql, array $params): void
+            {
+                $role = $params[3] ?? '';
+                if (is_string($role)) {
+                    $this->test->rememberRole($role);
+                }
+            }
+
+            public function bound(string $sql, array $params): array
+            {
+                return [];
+            }
+        };
+
+        return new StaffStore($statements, new RecoveryAddress(), new PasswordChoice());
+    }
+
+    public function rememberRole(string $role): void
+    {
+        $this->lastRole = $role;
+    }
+}

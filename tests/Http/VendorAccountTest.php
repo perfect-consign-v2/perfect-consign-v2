@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Tests\Support\HtmlPage;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 
@@ -43,6 +44,19 @@ final class VendorAccountTest extends WebTestCase
             'email' => 'ada@example.com',
         ]);
         self::assertSees('Vendor sign-in saved.', $saved);
+        $itemCode = 't' . bin2hex(random_bytes(3));
+        $intake = $owner->post('/' . ProbeMall::SLUG . '/inventory', [
+            'code' => $itemCode,
+            'description' => 'Coat ' . $itemCode,
+            'vendor_id' => $vendorId,
+            'brand_id' => '',
+            'price' => '12.00',
+            'barcode' => '',
+            'intake_on' => '2026-09-01',
+        ]);
+        self::assertSees('Item created.', $intake);
+        $list = $owner->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($itemCode));
+        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', 'Coat ' . $itemCode);
 
         $vendor = self::client();
         $stale = $vendor->signIn(ProbeMall::SLUG, $username, 'vendor-pass');
@@ -65,6 +79,24 @@ final class VendorAccountTest extends WebTestCase
         self::assertLessThan(500, $printed->status);
         self::assertSees('Your items', $printed);
         self::assertSees('That item is not yours.', $printed);
+        $own = $vendor->post('/' . ProbeMall::SLUG . '/vendor/labels', [
+            'item' => $itemId,
+            'copies' => '1',
+            'stock' => 'avery_8160',
+            'start_row' => '1',
+            'start_column' => '1',
+        ]);
+        self::assertSame(200, $own->status);
+        self::assertSees('Print stickers', $own);
+        self::assertTrue(
+            str_contains($own->body, '09-01-2026')
+            || str_contains($own->body, '2026-09-01')
+            || str_contains($own->body, $itemCode),
+            'own item stickers did not show the intake date or tag',
+        );
+        self::assertSees($itemCode, $own);
+        $listed = $vendor->get('/' . ProbeMall::SLUG . '/vendor/inventory?q=' . rawurlencode($itemCode) . '&stock=out');
+        self::assertSees('Your items', $listed);
         self::assertStringNotContainsString('Close the register from an earlier day', $home->body);
         self::assertStringNotContainsString('Last backup you downloaded', $home->body);
         $left = $vendor->post('/' . ProbeMall::SLUG . '/logout', []);

@@ -12,7 +12,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var array{available: int, occupied: int, ending: int, incoming: int} $counts */
 /** @var string $confirm */
 /** @var int $total */
-/** @var list<array{id: string, code: string, name: string, width: int, depth: int, status: string, status_label: string, vendor_id: ?string, vendor_name: ?string, rent_minor: ?int, open_minor: ?int, placed: bool, deletable: bool}> $booths */
+/** @var list<array{id: string, code: string, name: string, width: int, depth: int, status: string, status_label: string, vendor_id: ?string, vendor_name: ?string, status_tip: ?string, incoming_vendor_id: ?string, incoming_vendor_code: ?string, incoming_tip: ?string, rent_minor: ?int, open_minor: ?int, placed: bool, deletable: bool}> $booths */
 
 $blank = '—';
 $list = '/' . $slug . '/booths';
@@ -48,6 +48,7 @@ $legend = [
     </form>
 
     <p class="occupancy-summary" aria-label="Booth standing">
+        <a class="occupancy-pill all" href="<?= View::text($list) ?>"<?= $standing === '' && $query === '' ? ' aria-current="page"' : '' ?>>All (<?= View::text($total) ?>)</a>
         <?php foreach ($legend as $status => $label): ?>
             <?php
             $count = $counts[$status];
@@ -76,10 +77,10 @@ $legend = [
             <?php
             ListTable::open(['id' => 'booths', 'export' => 'booths']);
             ListTable::head([
-                ['label' => 'Code'],
+                ['label' => 'Custom ID'],
                 ['label' => 'Name'],
                 ['label' => 'Size'],
-                ['label' => 'Standing'],
+                ['label' => 'Status'],
                 ['label' => 'Vendor'],
                 ['label' => 'Monthly rent', 'sort' => 'num'],
                 ['label' => 'Open rent', 'sort' => 'num'],
@@ -109,7 +110,28 @@ $legend = [
                         <td><a class="strong" href="/<?= View::text($slug) ?>/booths/<?= View::text($booth['id']) ?>/edit"><?= View::text($booth['code']) ?></a></td>
                         <td><?= View::text($booth['name']) ?></td>
                         <td class="tnum"><?= View::text($booth['width']) ?> × <?= View::text($booth['depth']) ?> ft</td>
-                        <td><span class="occupancy-pill <?= View::text($booth['status']) ?>"><?= View::text($booth['status_label']) ?></span></td>
+                        <td>
+                            <?php
+                            $statusTip = is_string($booth['status_tip'] ?? null) ? $booth['status_tip'] : null;
+                            $statusAttrs = $statusTip === null || $statusTip === ''
+                                ? ''
+                                : ' data-tip="' . View::text($statusTip) . '" aria-label="' . View::text($booth['status_label'] . ': ' . $statusTip) . '"';
+                            ?>
+                            <?php if ($booth['status'] === 'incoming' && $booth['vendor_id'] !== null): ?>
+                                <a class="occupancy-pill incoming" href="/<?= View::text($slug) ?>/vendors/<?= View::text($booth['vendor_id']) ?>"<?= $statusAttrs ?>><?= View::text($booth['status_label']) ?></a>
+                            <?php else: ?>
+                                <span class="occupancy-pill <?= View::text($booth['status']) ?>"<?= $statusAttrs ?>><?= View::text($booth['status_label']) ?></span>
+                            <?php endif; ?>
+                            <?php if ($booth['incoming_vendor_id'] !== null && $booth['incoming_vendor_code'] !== null): ?>
+                                <?php
+                                $incomingTip = is_string($booth['incoming_tip'] ?? null) ? $booth['incoming_tip'] : null;
+                                $incomingAttrs = $incomingTip === null || $incomingTip === ''
+                                    ? ''
+                                    : ' data-tip="' . View::text($incomingTip) . '" aria-label="Incoming: ' . View::text($incomingTip) . '"';
+                                ?>
+                                <a class="occupancy-pill incoming" href="/<?= View::text($slug) ?>/vendors/<?= View::text($booth['incoming_vendor_id']) ?>"<?= $incomingAttrs ?>>Incoming (<?= View::text($booth['incoming_vendor_code']) ?>)</a>
+                            <?php endif; ?>
+                        </td>
                         <td>
                             <?php if ($booth['vendor_id'] === null || $booth['vendor_name'] === null): ?>
                                 <span class="muted"><?= $blank ?></span>

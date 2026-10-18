@@ -35,11 +35,20 @@ final class MallTenantReset
         if (defined('STDOUT')) {
             return;
         }
+        define('STDOUT', $this->progressStream());
+    }
+
+    /**
+     * @return resource
+     */
+    public function progressStream()
+    {
         $stream = fopen('php://temp', 'w');
         if ($stream === false) {
             throw new RuntimeException('could not open a progress stream');
         }
-        define('STDOUT', $stream);
+
+        return $stream;
     }
 
     /**

@@ -87,15 +87,6 @@
         return prefix + '-' + now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
     }
 
-    function scrollHeight(tableEl) {
-        var wrap = tableEl.closest('.list-dt-wrap');
-        if (wrap === null) {
-            return '400px';
-        }
-        var height = window.innerHeight - wrap.getBoundingClientRect().top - 130;
-        return Math.max(220, Math.floor(height)) + 'px';
-    }
-
     function debounce(fn, wait) {
         var timer = 0;
         return function () {
@@ -302,12 +293,9 @@
         }
         registerTypes(DataTable);
         tableEl.setAttribute('data-dt-ready', '1');
-        var pageScroll = tableEl.getAttribute('data-dt-page-scroll') === '1';
-        if (pageScroll) {
-            var scrollWrap = tableEl.closest('.list-dt-wrap');
-            if (scrollWrap !== null) {
-                scrollWrap.classList.add('list-dt-page-scroll');
-            }
+        var scrollWrap = tableEl.closest('.list-dt-wrap');
+        if (scrollWrap !== null) {
+            scrollWrap.classList.add('list-dt-page-scroll');
         }
         var selectionUi = openInventorySelection(tableEl);
         var name = exportName(tableEl);
@@ -347,11 +335,6 @@
                 this.api().columns.adjust();
             },
         };
-        if (!pageScroll && tableEl.getAttribute('data-dt-fit') !== '1') {
-            options.scrollY = scrollHeight(tableEl);
-            options.scrollX = true;
-            options.scrollCollapse = true;
-        }
         if (selectionUi !== null) {
             options.drawCallback = function () {
                 selectionUi.draw();
@@ -399,13 +382,6 @@
             window.clearTimeout(timer);
             timer = window.setTimeout(function () {
                 instances.forEach(function (entry) {
-                    var settings = entry.api.settings()[0];
-                    if (!settings) {
-                        return;
-                    }
-                    if (entry.tableEl.getAttribute('data-dt-page-scroll') !== '1' && settings.oScroll) {
-                        settings.oScroll.sY = scrollHeight(entry.tableEl);
-                    }
                     entry.api.columns.adjust();
                 });
             }, 150);

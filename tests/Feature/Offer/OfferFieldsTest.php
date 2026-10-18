@@ -60,6 +60,7 @@ final class OfferFieldsTest extends TestCase
         $this->refused($fields, ['funded_by' => 'mall'], 'Choose who pays for the deal.');
         $this->refused($fields, ['vendor_id' => 'vendor'], 'Choose the vendor.');
         $this->refused($fields, ['starts_on' => '2026-02-31'], 'The start needs a date.');
+        $this->refused($fields, ['ends_on' => 'not-a-day'], 'The end needs a date.');
         $this->refused($fields, ['ends_on' => '2026-06-01'], 'The end date is before the start date.');
     }
 

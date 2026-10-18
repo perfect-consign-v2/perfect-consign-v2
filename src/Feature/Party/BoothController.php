@@ -17,6 +17,7 @@ final class BoothController
         private readonly PartyStore $booths,
         private readonly MallSettings $mall,
         private readonly BoothRoster $roster,
+        private readonly BoothListFilter $filter,
         private readonly BoothListStore $lists,
         private readonly BoothFields $fields,
     ) {
@@ -189,23 +190,12 @@ final class BoothController
             $this->mall->boothSize()['depth'],
         );
         $query = $this->app->request()->query('q');
-        $matched = $this->roster->matching($rows, $query);
+        $matched = $this->filter->matching($rows, $query);
         $standing = $this->standing($this->app->request()->query('standing'));
-        $counts = ['available' => 0, 'occupied' => 0, 'ending' => 0, 'incoming' => 0];
-        foreach ($matched as $row) {
-            $status = $row['status'];
-            if (isset($counts[$status])) {
-                $counts[$status]++;
-            }
-        }
+        $counts = $this->filter->legend($matched);
         $visible = $matched;
         if ($standing !== '' && ($counts[$standing] ?? 0) > 0) {
-            $visible = [];
-            foreach ($matched as $row) {
-                if ($row['status'] === $standing) {
-                    $visible[] = $row;
-                }
-            }
+            $visible = $this->filter->narrow($matched, $standing);
         } else {
             $standing = '';
         }
@@ -218,7 +208,7 @@ final class BoothController
             'query' => $query,
             'standing' => $standing,
             'counts' => $counts,
-            'confirm' => $this->roster->confirming($visible, $this->app->request()->query('confirm')),
+            'confirm' => $this->filter->confirming($visible, $this->app->request()->query('confirm')),
             'error' => $error,
         ]);
     }

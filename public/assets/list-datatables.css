@@ -6,8 +6,9 @@
 }
 
 .list-dt-wrap .dt-scroll-body {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
+    max-height: none;
+    height: auto;
 }
 
 .list-dt-wrap .dt-container {

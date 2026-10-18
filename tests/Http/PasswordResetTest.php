@@ -78,6 +78,11 @@ final class PasswordResetTest extends WebTestCase
         $cashier = self::client();
         $cashier->signIn($slug, $username, 'cashier-next');
         $cashier->get('/' . $slug . '/password');
+        $staffEmail = $cashier->post('/' . $slug . '/password/email', [
+            'current_password' => 'cashier-next',
+            'email' => $username . '-new@example.com',
+        ]);
+        self::assertSees('Recovery email saved.', $staffEmail);
         $refused = $cashier->post('/' . $slug . '/password', [
             'current_password' => 'not-the-password',
             'password' => 'cashier-other',

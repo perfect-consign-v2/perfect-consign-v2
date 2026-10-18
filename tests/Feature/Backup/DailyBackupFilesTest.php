@@ -91,6 +91,41 @@ final class DailyBackupFilesTest extends TestCase
         new DailyBackupFiles('C:\\data\\perfect_consign_pg\\backups');
     }
 
+    public function testAPathThatIsNotADirectoryIsRefused(): void
+    {
+        $file = $this->root . DIRECTORY_SEPARATOR . 'not-dir';
+        if (file_put_contents($file, 'x') === false) {
+            self::fail('could not write a stand-in path');
+        }
+        $this->expectException(BackupException::class);
+        new DailyBackupFiles($file);
+    }
+
+    public function testABadSchemaAndDateAndSourceAreRefused(): void
+    {
+        $files = new DailyBackupFiles($this->root);
+        $source = $this->source('ok');
+        try {
+            $files->replace('public', '2026-09-26', $source);
+            self::fail('a public schema was stored');
+        } catch (BackupException $error) {
+            self::assertSame('schema name is not a tenant schema', $error->getMessage());
+        }
+        try {
+            $files->replace('tenant_' . str_repeat('e', 32), '26-09-2026', $source);
+            self::fail('a bad date was stored');
+        } catch (BackupException $error) {
+            self::assertSame('a backup date is required', $error->getMessage());
+        }
+        try {
+            $files->replace('tenant_' . str_repeat('e', 32), '2026-09-26', $this->root . DIRECTORY_SEPARATOR . 'missing.zip');
+            self::fail('a missing source was stored');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be stored.', $error->getMessage());
+        }
+        unlink($source);
+    }
+
     public function testAnEmptyDirectoryIsRefused(): void
     {
         try {

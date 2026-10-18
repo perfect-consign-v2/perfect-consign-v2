@@ -324,6 +324,31 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('id="prior-register"', $html);
     }
 
+    public function testBooksNavigationAndAPosShellCloseTheLayout(): void
+    {
+        $books = $this->layout([
+            'actorRole' => 'books',
+            'path' => '/demo/sales',
+        ]);
+        $pos = $this->layout([
+            'posShell' => true,
+            'path' => '/demo/pos',
+        ]);
+        $oddPrior = $this->layout([
+            'leftOpen' => ['not-a-row', ['id' => 'reg-1', 'name' => 'Front', 'opened' => 'Oct 5']],
+            'priorPrompt' => true,
+        ]);
+
+        self::assertStringContainsString('>Books<', $books);
+        self::assertStringContainsString('href="/demo/sales"', $books);
+        self::assertStringContainsString('href="/demo/journals"', $books);
+        self::assertStringNotContainsString('Cashiers', $books);
+        self::assertStringContainsString('class="pos-app"', $pos);
+        self::assertStringContainsString('class="pos-main"', $pos);
+        self::assertStringContainsString('id="prior-register"', $oddPrior);
+        self::assertStringContainsString('Front', $oddPrior);
+    }
+
     public function testTheRegisterPageDoesNotRepeatTheNoticeAboveTheSale(): void
     {
         $html = $this->layout([

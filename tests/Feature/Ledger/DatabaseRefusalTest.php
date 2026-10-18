@@ -61,4 +61,22 @@ final class DatabaseRefusalTest extends TestCase
 
         self::assertSame('a check sale needs a check number', DatabaseRefusal::fromPdo($error)->getMessage());
     }
+
+    public function testAMessageWithoutAnErrorLineIsHidden(): void
+    {
+        $error = new PDOException('SQLSTATE[08006] connection failed');
+
+        self::assertSame('That could not be saved.', DatabaseRefusal::fromPdo($error)->getMessage());
+    }
+
+    public function testAnOverflowAndAUuidAreHiddenSentences(): void
+    {
+        self::assertSame('That amount is too big.', DatabaseRefusal::phrase('numeric field overflow'));
+        self::assertSame(
+            'That could not be saved.',
+            DatabaseRefusal::phrase('journal 01900000-0000-7000-8000-000000000001'),
+        );
+        self::assertSame('That could not be saved.', DatabaseRefusal::phrase('sale:01900000-aaaa'));
+        self::assertSame('That could not be saved.', DatabaseRefusal::phrase('mall_clock_chk'));
+    }
 }

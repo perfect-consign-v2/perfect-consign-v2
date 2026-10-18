@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Feature\Mall;
 
 use InvalidArgumentException;
 use PerfectConsign\Feature\Mall\MallGuard;
+use PerfectConsign\Feature\Mall\MallMeasure;
 use PerfectConsign\Feature\Mall\MallWrite;
 use PHPUnit\Framework\TestCase;
 
@@ -64,6 +65,13 @@ final class MallGuardTest extends TestCase
         $this->refused(static fn (): mixed => MallGuard::requireTax(100001), 'tax rate is a percent from 0 to 100');
         $this->refused(static fn (): mixed => MallGuard::guardDays(0), 'days on the floor is a whole number from 1 to 365, or empty');
         $this->refused(static fn (): mixed => MallGuard::guardDays(366), 'days on the floor is a whole number from 1 to 365, or empty');
+    }
+
+    public function testATakePercentKeepsOneDecimalWhenItIsATenth(): void
+    {
+        self::assertSame('10', MallMeasure::percent(1000));
+        self::assertSame('10.5', MallMeasure::percent(1050));
+        self::assertSame('10.05', MallMeasure::percent(1005));
     }
 
     private function refused(callable $call, string $message): void

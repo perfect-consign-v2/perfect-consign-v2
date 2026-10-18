@@ -81,6 +81,44 @@ final class PostgresToolsTest extends TestCase
         }
     }
 
+    public function testPsqlUsesTheConfiguredSiblingBinary(): void
+    {
+        $previousDump = getenv('STALL_PG_DUMP');
+        $previousPsql = getenv('STALL_PSQL');
+        putenv('STALL_PG_DUMP=' . PHP_BINARY);
+        putenv('STALL_PSQL=' . PHP_BINARY);
+        $log = new ToolLog();
+        try {
+            $tools = new PostgresTools(new CommandProcess($log));
+            $sql = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-psql-' . bin2hex(random_bytes(4)) . '.sql';
+            if (file_put_contents($sql, 'select 1;') === false) {
+                self::fail('could not write a psql input');
+            }
+            try {
+                $tools->psql(new BackupConnection('127.0.0.1', '5436', 'consign', 'stall', 'secret'), $sql);
+            } finally {
+                if (is_file($sql)) {
+                    unlink($sql);
+                }
+            }
+            self::fail('php was accepted as psql');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be taken.', $error->getMessage());
+            self::assertSame(PHP_BINARY, $log->tool);
+        } finally {
+            if (is_string($previousDump) && $previousDump !== '') {
+                putenv('STALL_PG_DUMP=' . $previousDump);
+            } else {
+                putenv('STALL_PG_DUMP');
+            }
+            if (is_string($previousPsql) && $previousPsql !== '') {
+                putenv('STALL_PSQL=' . $previousPsql);
+            } else {
+                putenv('STALL_PSQL');
+            }
+        }
+    }
+
     public function testALocalBinaryIsNotTreatedAsDocker(): void
     {
         $previous = getenv('STALL_PG_DUMP');

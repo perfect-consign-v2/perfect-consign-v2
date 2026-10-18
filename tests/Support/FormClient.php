@@ -40,12 +40,12 @@ final class FormClient
 
     public function get(string $path): PageResponse
     {
-        return $this->send('GET', $path, null, true, 60);
+        return $this->send('GET', $path, null, true, 60, false);
     }
 
     public function getWithoutRedirect(string $path): PageResponse
     {
-        return $this->send('GET', $path, null, false, 60);
+        return $this->send('GET', $path, null, false, 60, false);
     }
 
     /**
@@ -53,18 +53,37 @@ final class FormClient
      */
     public function postUnsigned(string $path, array $fields): PageResponse
     {
-        return $this->send('POST', $path, $fields, false, 60);
+        return $this->send('POST', $path, $fields, false, 60, false);
     }
 
     public function post(string $path, array $fields, int $timeoutSeconds = 60): PageResponse
     {
         $fields['csrf'] = $this->csrf;
-        $response = $this->send('POST', $path, $fields, false, $timeoutSeconds);
+        $response = $this->send('POST', $path, $fields, false, $timeoutSeconds, false);
         if (!in_array($response->status, [301, 302, 303], true) || $response->location === '') {
             return $response;
         }
 
-        return $this->send('GET', $this->locationPath($response->location), null, true, $timeoutSeconds);
+        return $this->send('GET', $this->locationPath($response->location), null, true, $timeoutSeconds, false);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param array<string, string> $files
+     */
+    public function upload(string $path, array $fields, array $files, int $timeoutSeconds = 60): PageResponse
+    {
+        $payload = $fields;
+        $payload['csrf'] = $this->csrf;
+        foreach ($files as $name => $file) {
+            $payload[$name] = new \CURLFile($file);
+        }
+        $response = $this->send('POST', $path, $payload, false, $timeoutSeconds, true);
+        if (!in_array($response->status, [301, 302, 303], true) || $response->location === '') {
+            return $response;
+        }
+
+        return $this->send('GET', $this->locationPath($response->location), null, true, $timeoutSeconds, false);
     }
 
     public function signIn(string $slug, string $username, string $password): PageResponse
@@ -93,10 +112,16 @@ final class FormClient
     }
 
     /**
-     * @param array<string, string>|null $fields
+     * @param array<string, string|\CURLFile>|null $fields
      */
-    private function send(string $method, string $path, ?array $fields, bool $follow, int $timeoutSeconds): PageResponse
-    {
+    private function send(
+        string $method,
+        string $path,
+        ?array $fields,
+        bool $follow,
+        int $timeoutSeconds,
+        bool $multipart,
+    ): PageResponse {
         curl_reset($this->curl);
         $options = [
             CURLOPT_URL => $this->baseUrl . $path,
@@ -110,7 +135,7 @@ final class FormClient
             CURLOPT_TIMEOUT => $timeoutSeconds,
         ];
         if ($fields !== null) {
-            $options[CURLOPT_POSTFIELDS] = http_build_query($fields);
+            $options[CURLOPT_POSTFIELDS] = $multipart ? $fields : http_build_query($this->textFields($fields));
         }
         curl_setopt_array($this->curl, $options);
         $raw = curl_exec($this->curl);
@@ -130,6 +155,23 @@ final class FormClient
         }
 
         return new PageResponse($status, $body, $this->location($headers));
+    }
+
+    /**
+     * @param array<string, string|\CURLFile> $fields
+     * @return array<string, string>
+     */
+    private function textFields(array $fields): array
+    {
+        $encoded = [];
+        foreach ($fields as $name => $value) {
+            if (!is_string($value)) {
+                throw new RuntimeException('a form field was not text');
+            }
+            $encoded[$name] = $value;
+        }
+
+        return $encoded;
     }
 
     private function locationPath(string $location): string

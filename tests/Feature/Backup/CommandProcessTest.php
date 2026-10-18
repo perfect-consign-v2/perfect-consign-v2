@@ -155,6 +155,44 @@ final class CommandProcessTest extends TestCase
         }
     }
 
+    public function testAMissingInputFileIsRefused(): void
+    {
+        set_error_handler(static fn (int $severity, string $message): bool => true);
+        try {
+            (new CommandProcess(new NullLogger()))->run(
+                [PHP_BINARY, '-r', 'exit(0);'],
+                [],
+                sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-missing-in-' . bin2hex(random_bytes(4)),
+                null,
+                ''
+            );
+            self::fail('a missing input file was accepted');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be read.', $error->getMessage());
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function testADirectoryAsOutputIsRefused(): void
+    {
+        set_error_handler(static fn (int $severity, string $message): bool => true);
+        try {
+            (new CommandProcess(new NullLogger()))->run(
+                [PHP_BINARY, '-r', 'fwrite(STDOUT, "x");'],
+                [],
+                null,
+                sys_get_temp_dir(),
+                ''
+            );
+            self::fail('a directory was accepted as output');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be written.', $error->getMessage());
+        } finally {
+            restore_error_handler();
+        }
+    }
+
     public function testAFileThatCannotRunIsRefused(): void
     {
         $path = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-note-' . bin2hex(random_bytes(4)) . '.txt';

@@ -57,4 +57,27 @@ final class RoleGateTest extends TestCase
         self::assertFalse(RoleGate::allows('vendor', '/book', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/vendors/01900000-0000-7000-8000-000000000d10', 'GET'));
     }
+
+    public function testABooksLoginReadsTheBooksAndMaySignOut(): void
+    {
+        self::assertTrue(RoleGate::allows('books', '/sales', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/month', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/rent', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/payouts', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/payouts/past', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/journals', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/journals/01900000-0000-7000-8000-000000000d10', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/rent/receipt/01900000-0000-7000-8000-000000000d10', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/pos/receipt/01900000-0000-7000-8000-000000000d10', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/dashboard', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/password', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/logout', 'POST'));
+        self::assertTrue(RoleGate::allows('books', '/logout/confirm', 'POST'));
+        self::assertTrue(RoleGate::allows('books', '/password', 'POST'));
+        self::assertTrue(RoleGate::allows('books', '/password/email', 'POST'));
+        self::assertFalse(RoleGate::allows('books', '/pos', 'GET'));
+        self::assertFalse(RoleGate::allows('books', '/staff', 'PUT'));
+        self::assertFalse(RoleGate::allows('books', '/settings', 'GET'));
+        self::assertFalse(RoleGate::allows('', '/sales', 'GET'));
+    }
 }

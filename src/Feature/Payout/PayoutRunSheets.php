@@ -99,6 +99,16 @@ final class PayoutRunSheets
 
     private function storedSheets(): string
     {
+        return $this->storedSelect()
+            . $this->storedFrom()
+            . $this->storedSalesJoin()
+            . $this->storedBoothJoin()
+            . ' WHERE line.run_id = ?::uuid AND line.mode = \'pay\''
+            . ' ORDER BY vendor.code, sale.sold_on, sale.line_no';
+    }
+
+    private function storedSelect(): string
+    {
         return "SELECT line.vendor_id::text AS vendor_id, vendor.code,
                        btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
                        COALESCE(spot.booth, '') AS booth,
@@ -108,7 +118,14 @@ final class PayoutRunSheets
                        COALESCE(sale.price_minor, 0) AS price_minor,
                        COALESCE(sale.quantity, 0) AS quantity,
                        COALESCE(sale.commission_minor, 0) AS commission_minor,
-                       COALESCE(NULLIF(line.settled_minor, 0), (
+                       " . $this->storedSettled() . ' AS settled_minor,
+                       ' . $this->storedCheck() . " AS check_minor,
+                       line.owes_minor, COALESCE(line.check_number, '') AS check_number";
+    }
+
+    private function storedSettled(): string
+    {
+        return "COALESCE(NULLIF(line.settled_minor, 0), (
                            SELECT journal.debit_total_minor
                            FROM journals AS journal
                            WHERE journal.id = line.settlement_journal_id
@@ -121,8 +138,12 @@ final class PayoutRunSheets
                              AND link.role = 'settlement'
                              AND NOT journal.is_reversal
                              AND journal.posting_key = 'settlement:' || line.run_id::text || ':' || line.vendor_id::text
-                       ), 0) AS settled_minor,
-                       COALESCE(NULLIF(line.check_minor, 0), (
+                       ), 0)";
+    }
+
+    private function storedCheck(): string
+    {
+        return "COALESCE(NULLIF(line.check_minor, 0), (
                            SELECT journal.debit_total_minor
                            FROM journals AS journal
                            WHERE journal.id = line.disbursement_journal_id
@@ -135,11 +156,18 @@ final class PayoutRunSheets
                              AND link.role = 'disbursement'
                              AND NOT journal.is_reversal
                              AND journal.posting_key = 'disbursement:' || line.run_id::text || ':' || line.vendor_id::text
-                       ), 0) AS check_minor,
-                       line.owes_minor, COALESCE(line.check_number, '') AS check_number
-                FROM payout_run_lines AS line
-                JOIN vendors AS vendor ON vendor.id = line.vendor_id
-                LEFT JOIN LATERAL (
+                       ), 0)";
+    }
+
+    private function storedFrom(): string
+    {
+        return ' FROM payout_run_lines AS line
+                JOIN vendors AS vendor ON vendor.id = line.vendor_id';
+    }
+
+    private function storedSalesJoin(): string
+    {
+        return " LEFT JOIN LATERAL (
                     SELECT stored.sold_on, stored.item_code, stored.description, stored.price_minor,
                            stored.quantity, stored.commission_minor, stored.line_no
                     FROM payout_run_sales AS stored
@@ -165,8 +193,12 @@ final class PayoutRunSheets
                           ORDER BY batch.run_no DESC
                           LIMIT 1
                       )
-                ) AS sale ON true
-                LEFT JOIN LATERAL (
+                ) AS sale ON true";
+    }
+
+    private function storedBoothJoin(): string
+    {
+        return ' LEFT JOIN LATERAL (
                     SELECT booth.code AS booth
                     FROM payout_runs AS run
                     JOIN booth_assignments AS assignment
@@ -176,9 +208,7 @@ final class PayoutRunSheets
                     WHERE run.id = line.run_id
                     ORDER BY booth.code
                     LIMIT 1
-                ) AS spot ON true
-                WHERE line.run_id = ?::uuid AND line.mode = 'pay'
-                ORDER BY vendor.code, sale.sold_on, sale.line_no";
+                ) AS spot ON true';
     }
 
     private function openSheets(): string

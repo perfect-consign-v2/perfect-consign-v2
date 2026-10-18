@@ -103,6 +103,26 @@ final class MailDeliveryTest extends TestCase
         }
     }
 
+    public function testAFailedStartTlsIsRefused(): void
+    {
+        $server = $this->server('accept');
+        $client = new SmtpClient(
+            '127.0.0.1',
+            $server['port'],
+            'user',
+            'secret',
+            'mall@example.com',
+            static fn (mixed $socket): bool => false
+        );
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('smtp send failed');
+            $client->send('ada@example.com', 'Hello', 'Body');
+        } finally {
+            $this->stop($server);
+        }
+    }
+
     public function testACompletedDialogueIsAccepted(): void
     {
         $server = $this->server('accept');

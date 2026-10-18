@@ -14,7 +14,7 @@ final class BoothMeasures
 {
     /**
      * @param list<array<string, mixed>> $rows
-     * @return list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}>
+     * @return list<array{boothId: string, vendorId: string, vendorName: string, vendorCode: string, startsOn: string, endsOn: ?string}>
      */
     public function stays(array $rows): array
     {
@@ -24,6 +24,7 @@ final class BoothMeasures
                 'boothId' => $this->text($row['booth_id'] ?? null),
                 'vendorId' => $this->text($row['vendor_id'] ?? null),
                 'vendorName' => $this->text($row['vendor_name'] ?? null),
+                'vendorCode' => $this->text($row['vendor_code'] ?? null),
                 'startsOn' => $this->day($row['starts_on'] ?? null),
                 'endsOn' => $this->optionalDay($row['ends_on'] ?? null),
             ];

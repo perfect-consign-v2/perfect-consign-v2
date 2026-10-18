@@ -60,6 +60,12 @@ final class TicketAdjustmentTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertSame('enter a percent from 0 to 100', $error->getMessage());
         }
+        try {
+            TicketAdjustment::discount('apply', 'percent', '10.123', 'promotion');
+            self::fail('a percent with extra digits was accepted');
+        } catch (InvalidArgumentException $error) {
+            self::assertSame('enter a percent from 0 to 100', $error->getMessage());
+        }
         $this->expectException(InvalidArgumentException::class);
         TicketAdjustment::discount('apply', 'percent', '10', 'because');
     }

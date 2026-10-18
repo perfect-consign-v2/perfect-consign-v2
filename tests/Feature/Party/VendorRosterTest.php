@@ -147,6 +147,15 @@ final class VendorRosterTest extends TestCase
         ], '2026-09-27');
     }
 
+    public function testAnAssignmentNeedsAStartDate(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('an assignment needs a start date');
+        $this->roster()->assemble([
+            $this->vendor('v1', 'ada', 'Ada', 'a1', 'b1', 'North', null, null),
+        ], '2026-09-27');
+    }
+
     public function testABadAssignmentDateIsRefused(): void
     {
         $this->expectException(InvalidArgumentException::class);

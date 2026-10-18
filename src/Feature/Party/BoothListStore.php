@@ -40,7 +40,7 @@ final class BoothListStore
         return [
             'stays' => $this->statements->rows(
                 'SELECT assignment.booth_id, assignment.vendor_id, vendor.name AS vendor_name,
-                        assignment.starts_on, assignment.ends_on
+                        vendor.code AS vendor_code, assignment.starts_on, assignment.ends_on
                  FROM booth_assignments AS assignment
                  JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
                  ORDER BY assignment.starts_on'

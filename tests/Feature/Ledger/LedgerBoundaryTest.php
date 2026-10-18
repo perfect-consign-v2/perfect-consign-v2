@@ -49,6 +49,26 @@ final class LedgerBoundaryTest extends TestCase
         $this->ledger($pdo)->roleAccount('cash');
     }
 
+    public function testAMissingUuidQueryIsRefused(): void
+    {
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('query')->willReturn(false);
+        $this->expectException(DatabaseRefusal::class);
+        $this->expectExceptionMessage('could not create an id');
+        $this->ledger($pdo)->newId();
+    }
+
+    public function testABlankUuidIsRefused(): void
+    {
+        $statement = $this->createStub(PDOStatement::class);
+        $statement->method('fetchColumn')->willReturn(1);
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('query')->willReturn($statement);
+        $this->expectException(DatabaseRefusal::class);
+        $this->expectExceptionMessage('could not create an id');
+        $this->ledger($pdo)->newId();
+    }
+
     public function testAnEmptyBookIdIsRefused(): void
     {
         $statement = $this->createStub(PDOStatement::class);
