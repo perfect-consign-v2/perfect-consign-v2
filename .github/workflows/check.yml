@@ -49,5 +49,7 @@ jobs:
           exit 1
       - name: Apply the platform schema
         run: php bin/provision-platform.php
+      - name: Enable stall_app and stall_backup logins
+        run: php bin/enable-stall-app.php
       - run: composer check
       - run: composer test:coverage
