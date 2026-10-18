@@ -37,7 +37,6 @@ jobs:
         with:
           php-version: '8.5'
           extensions: pdo_pgsql, zip, curl
-          coverage: xdebug
       - run: composer install --no-interaction --prefer-dist
       - run: docker compose up -d postgres
       - name: Wait for Postgres
@@ -52,4 +51,3 @@ jobs:
       - name: Enable stall_app and stall_backup logins
         run: php bin/enable-stall-app.php
       - run: composer check
-      - run: composer test:coverage

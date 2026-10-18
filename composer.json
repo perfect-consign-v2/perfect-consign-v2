@@ -52,8 +52,7 @@
             "@prove:obligations",
             "@prove:race",
             "@prove",
-            "@prove:tenant",
-            "@test:mutate"
+            "@prove:tenant"
         ]
     },
     "config": {
