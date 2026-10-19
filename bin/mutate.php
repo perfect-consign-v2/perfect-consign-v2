@@ -30,6 +30,9 @@ if (!is_dir($outDir) && !mkdir($outDir, 0755, true) && !is_dir($outDir)) {
     fwrite(STDERR, "mutation directory could not be created\n");
     exit(1);
 }
+if (getenv('PC_MUTATE_MERGE') === '1') {
+    exit(mergeShards($outDir));
+}
 
 $php = PHP_BINARY;
 $phpunit = $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'phpunit';
@@ -37,6 +40,12 @@ $env = getenv();
 if (!is_array($env)) {
     $env = [];
 }
+/** @var list<array{file: string, line: int, from: string, to: string, offset: int, length: int}> $mutants */
+$mutants = [];
+$fromFile = getenv('PC_MUTATE_FROM');
+if (is_string($fromFile) && $fromFile !== '') {
+    $mutants = loadMutantList($root, $fromFile);
+} else {
 $env['XDEBUG_MODE'] = 'coverage';
 $env['PC_COVERAGE'] = $coverageDir;
 $coverage = proc_open(
@@ -109,8 +118,6 @@ $replacements = [
     '!' => '',
 ];
 
-/** @var list<array{file: string, line: int, from: string, to: string, offset: int, length: int}> $mutants */
-$mutants = [];
 foreach ($hits as $file => $lines) {
     $code = file_get_contents($file);
     if ($code === false) {
@@ -169,11 +176,47 @@ foreach ($hits as $file => $lines) {
         $offset += $length;
     }
 }
+}
 
 $short = tooFewMutants(count($mutants));
 if ($short !== null) {
     fwrite(STDERR, $short . "\n");
     exit(1);
+}
+
+$listed = mutantList($root, $mutants);
+if (getenv('PC_MUTATE_LIST') === '1') {
+    $encodedList = json_encode($listed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encodedList === false || file_put_contents($outDir . DIRECTORY_SEPARATOR . 'mutants.json', $encodedList . "\n") === false) {
+        fwrite(STDERR, "mutant list could not be written\n");
+        exit(1);
+    }
+    echo 'Mutants ' . count($listed) . "\n";
+    exit(0);
+}
+
+$shardCount = getenv('PC_MUTATE_SHARDS');
+$shardIndex = getenv('PC_MUTATE_SHARD');
+$shard = null;
+if (is_string($shardCount) && $shardCount !== '') {
+    if (!is_string($shardIndex) || preg_match('/^[0-9]+$/', $shardCount) !== 1 || preg_match('/^[0-9]+$/', $shardIndex) !== 1) {
+        fwrite(STDERR, "PC_MUTATE_SHARD and PC_MUTATE_SHARDS must be whole numbers\n");
+        exit(1);
+    }
+    $count = (int) $shardCount;
+    $index = (int) $shardIndex;
+    if ($count < 1 || $index < 0 || $index >= $count) {
+        fwrite(STDERR, "PC_MUTATE_SHARD is outside PC_MUTATE_SHARDS\n");
+        exit(1);
+    }
+    $slice = [];
+    foreach ($mutants as $at => $mutant) {
+        if ($at % $count === $index) {
+            $slice[] = $mutant;
+        }
+    }
+    $mutants = $slice;
+    $shard = $index;
 }
 
 $originals = [];
@@ -265,7 +308,8 @@ $summary = [
     'errors' => $escaped,
 ];
 $encoded = json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-if ($encoded === false || file_put_contents($outDir . DIRECTORY_SEPARATOR . 'baseline.json', $encoded . "\n") === false) {
+$resultName = $shard === null ? 'baseline.json' : 'shard-' . $shard . '.json';
+if ($encoded === false || file_put_contents($outDir . DIRECTORY_SEPARATOR . $resultName, $encoded . "\n") === false) {
     fwrite(STDERR, "baseline could not be written\n");
     exit(1);
 }
@@ -278,6 +322,137 @@ echo sprintf(
     count($escaped)
 );
 exit($survived === [] && $escaped === [] ? 0 : 1);
+
+/**
+ * @param list<array{file: string, line: int, from: string, to: string, offset: int, length: int}> $mutants
+ * @return list<array{file: string, line: int, from: string, to: string, offset: int, length: int}>
+ */
+function mutantList(string $root, array $mutants): array
+{
+    $listed = [];
+    foreach ($mutants as $mutant) {
+        $mutant['file'] = relative($root, $mutant['file']);
+        $listed[] = $mutant;
+    }
+
+    return $listed;
+}
+
+/**
+ * @return list<array{file: string, line: int, from: string, to: string, offset: int, length: int}>
+ */
+function loadMutantList(string $root, string $path): array
+{
+    $raw = file_get_contents($path);
+    $decoded = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($decoded)) {
+        fwrite(STDERR, "mutant list could not be read\n");
+        exit(1);
+    }
+    $mutants = [];
+    foreach ($decoded as $row) {
+        if (
+            !is_array($row)
+            || !is_string($row['file'] ?? null)
+            || !is_int($row['line'] ?? null)
+            || !is_string($row['from'] ?? null)
+            || !is_string($row['to'] ?? null)
+            || !is_int($row['offset'] ?? null)
+            || !is_int($row['length'] ?? null)
+        ) {
+            fwrite(STDERR, "mutant list is not usable\n");
+            exit(1);
+        }
+        $file = $root . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $row['file']);
+        $mutants[] = [
+            'file' => $file,
+            'line' => $row['line'],
+            'from' => $row['from'],
+            'to' => $row['to'],
+            'offset' => $row['offset'],
+            'length' => $row['length'],
+        ];
+    }
+
+    return $mutants;
+}
+
+function mergeShards(string $outDir): int
+{
+    $countRaw = getenv('PC_MUTATE_SHARDS');
+    if (!is_string($countRaw) || preg_match('/^[0-9]+$/', $countRaw) !== 1 || (int) $countRaw < 1) {
+        fwrite(STDERR, "PC_MUTATE_SHARDS is required to merge\n");
+
+        return 1;
+    }
+    $count = (int) $countRaw;
+    $mutants = 0;
+    $killed = 0;
+    $equivalent = 0;
+    $survived = [];
+    $errors = [];
+    for ($index = 0; $index < $count; $index++) {
+        $raw = file_get_contents($outDir . DIRECTORY_SEPARATOR . 'shard-' . $index . '.json');
+        $decoded = is_string($raw) ? json_decode($raw, true) : null;
+        if (
+            !is_array($decoded)
+            || !is_int($decoded['mutants'] ?? null)
+            || !is_int($decoded['killed'] ?? null)
+            || !is_int($decoded['equivalent'] ?? null)
+            || !is_array($decoded['survived'] ?? null)
+            || !is_array($decoded['errors'] ?? null)
+        ) {
+            fwrite(STDERR, "shard {$index} is missing\n");
+
+            return 1;
+        }
+        $mutants += $decoded['mutants'];
+        $killed += $decoded['killed'];
+        $equivalent += $decoded['equivalent'];
+        foreach ($decoded['survived'] as $label) {
+            if (is_string($label)) {
+                $survived[] = $label;
+            }
+        }
+        foreach ($decoded['errors'] as $label) {
+            if (is_string($label)) {
+                $errors[] = $label;
+            }
+        }
+    }
+    $short = tooFewMutants($mutants);
+    if ($short !== null) {
+        fwrite(STDERR, $short . "\n");
+
+        return 1;
+    }
+    $summary = [
+        'mutants' => $mutants,
+        'killed' => $killed,
+        'equivalent' => $equivalent,
+        'survived' => $survived,
+        'errors' => $errors,
+    ];
+    $encoded = json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false || file_put_contents($outDir . DIRECTORY_SEPARATOR . 'baseline.json', $encoded . "\n") === false) {
+        fwrite(STDERR, "baseline could not be written\n");
+
+        return 1;
+    }
+    echo sprintf(
+        "Mutants %d, killed %d, equivalent %d, survived %d, errors %d\n",
+        $mutants,
+        $killed,
+        $equivalent,
+        count($survived),
+        count($errors)
+    );
+    foreach ($survived as $label) {
+        echo "SURVIVED {$label}\n";
+    }
+
+    return $survived === [] && $errors === [] ? 0 : 1;
+}
 
 function lineAt(string $code, int $offset): int
 {

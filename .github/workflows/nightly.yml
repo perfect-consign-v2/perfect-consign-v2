@@ -5,8 +5,12 @@ on:
     - cron: '0 6 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: nightly-mutate
+  cancel-in-progress: false
+
 jobs:
-  mutate-and-coverage:
+  list:
     runs-on: ubuntu-latest
     env:
       STALL_DB_HOST: 127.0.0.1
@@ -37,5 +41,81 @@ jobs:
         run: php bin/provision-platform.php
       - name: Enable stall_app and stall_backup logins
         run: php bin/enable-stall-app.php
-      - run: composer test:mutate
+      - run: php bin/mutate.php
+        env:
+          PC_MUTATE_LIST: '1'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mutants
+          path: var/mutation/mutants.json
+
+  score:
+    needs: list
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      STALL_DB_HOST: 127.0.0.1
+      STALL_DB_PORT: '5436'
+      STALL_DB_NAME: consign
+      STALL_DB_USER: stall
+      STALL_DB_PASSWORD: stall
+      STALL_APP_PASSWORD: ci-app-password
+      STALL_OWNER_PASSWORD: ci-owner-password
+      STALL_BACKUP_PASSWORD: ci-backup-password
+      PC_MUTATE_FROM: var/mutation/mutants.json
+      PC_MUTATE_SHARDS: '8'
+      PC_MUTATE_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql, zip, curl
+      - run: composer install --no-interaction --prefer-dist
+      - run: docker compose up -d postgres
+      - name: Wait for Postgres
+        run: |
+          for _ in $(seq 1 30); do
+            docker exec perfect-consign-postgres pg_isready -U stall -d consign && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Apply the platform schema
+        run: php bin/provision-platform.php
+      - name: Enable stall_app and stall_backup logins
+        run: php bin/enable-stall-app.php
+      - uses: actions/download-artifact@v4
+        with:
+          name: mutants
+          path: var/mutation
+      - run: php bin/mutate.php
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shard-${{ matrix.shard }}
+          path: var/mutation/shard-${{ matrix.shard }}.json
+
+  merge:
+    needs: score
+    if: always() && needs.score.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql, zip, curl
+      - run: composer install --no-interaction --prefer-dist
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: var/mutation/parts
+      - name: Merge the shard scores
+        run: |
+          mkdir -p var/mutation
+          find var/mutation/parts -name 'shard-*.json' -exec cp {} var/mutation/ \;
+          PC_MUTATE_MERGE=1 PC_MUTATE_SHARDS=8 php bin/mutate.php
       - run: composer test:coverage
