@@ -230,6 +230,16 @@
 .booth-cell.occupied, .map-chip.occupied { color: #991b1b; }
 .booth-cell.ending, .map-chip.ending { color: #b45309; }
 .booth-cell.incoming, .map-chip.incoming { color: #1d4ed8; }
+.booth-cell.has-incoming { position: absolute; }
+.booth-incoming {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-top: 14px solid #1d4ed8;
+    border-left: 14px solid transparent;
+}
 .map-toolbar {
     display: flex;
     flex-wrap: wrap;

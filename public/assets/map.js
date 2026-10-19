@@ -6,6 +6,8 @@
     var codeEl = document.getElementById('bd-code');
     var statusEl = document.getElementById('bd-status');
     var vendorEl = document.getElementById('bd-vendor');
+    var incomingRow = document.getElementById('bd-incoming-row');
+    var incomingEl = document.getElementById('bd-incoming');
     var sizeEl = document.getElementById('bd-size');
     var editEl = document.getElementById('bd-edit');
     var closeEl = document.getElementById('booth-detail-close');
@@ -29,6 +31,11 @@
         badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
         statusEl.appendChild(badge);
         vendorEl.textContent = cell.getAttribute('data-vendor') || '';
+        var incoming = cell.getAttribute('data-incoming') || '';
+        if (incomingRow && incomingEl) {
+            incomingEl.textContent = incoming;
+            incomingRow.hidden = incoming === '';
+        }
         sizeEl.textContent = cell.getAttribute('data-size') || '';
         editEl.setAttribute('href', cell.getAttribute('href') || '#');
         modal.hidden = false;

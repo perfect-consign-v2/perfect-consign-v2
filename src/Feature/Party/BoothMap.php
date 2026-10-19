@@ -8,23 +8,27 @@ final class BoothMap
 {
     /**
      * @param list<array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
-     * @return array{status: string, vendor: ?string}
+     * @return array{status: string, vendor: ?string, incoming: ?string}
      */
     public static function occupancy(array $stays, string $boothId, string $today): array
     {
         $covering = self::covering($stays, $boothId, $today);
         if ($covering !== null) {
+            $ending = $covering['endsOn'] !== null;
+            $next = $ending ? self::incoming($stays, $boothId, $today) : null;
+
             return [
-                'status' => $covering['endsOn'] !== null ? 'ending' : 'occupied',
+                'status' => $ending ? 'ending' : 'occupied',
                 'vendor' => $covering['vendorName'],
+                'incoming' => $next === null ? null : $next['vendorName'],
             ];
         }
         $next = self::incoming($stays, $boothId, $today);
         if ($next !== null) {
-            return ['status' => 'incoming', 'vendor' => $next['vendorName']];
+            return ['status' => 'incoming', 'vendor' => $next['vendorName'], 'incoming' => null];
         }
 
-        return ['status' => 'available', 'vendor' => null];
+        return ['status' => 'available', 'vendor' => null, 'incoming' => null];
     }
 
     /**
@@ -69,7 +73,7 @@ final class BoothMap
     /**
      * @param list<array{id: string, code: string, name: string, width?: int|null, depth?: int|null, x?: int|null, z?: int|null}> $booths
      * @param list<array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
-     * @return list<array{id: string, code: string, name: string, x: int, z: int, width: int, depth: int, status: string, vendor: ?string, label: string}>
+     * @return list<array{id: string, code: string, name: string, x: int, z: int, width: int, depth: int, status: string, vendor: ?string, incoming: ?string, label: string}>
      */
     public static function tiles(array $booths, array $stays, string $today, int $defaultWidth = 10, int $defaultDepth = 10): array
     {
@@ -92,6 +96,7 @@ final class BoothMap
                 'depth' => self::feet($booth['depth'] ?? null, $defaultDepth),
                 'status' => $spot['status'],
                 'vendor' => $vendor,
+                'incoming' => $spot['incoming'],
                 'label' => $vendor === null ? $booth['code'] : $booth['code'] . ' — ' . $vendor,
             ];
         }

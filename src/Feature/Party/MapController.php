@@ -162,7 +162,7 @@ final class MapController
     }
 
     /**
-     * @return list<array{id: string, code: string, name: string, x: int, z: int, width: int, depth: int, status: string, vendor: ?string, label: string}>
+     * @return list<array{id: string, code: string, name: string, x: int, z: int, width: int, depth: int, status: string, vendor: ?string, incoming: ?string, label: string}>
      */
     private function tiles(?string $floorId): array
     {

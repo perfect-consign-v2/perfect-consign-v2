@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
-/** @var list<array{id: string, code: string, name: string, x: int, z: int, width: int, depth: int, status: string, vendor: ?string, label: string}> $tiles */
+/** @var list<array{id: string, code: string, name: string, x: int, z: int, width: int, depth: int, status: string, vendor: ?string, incoming: ?string, label: string}> $tiles */
 /** @var list<array{id: string, name: string, sort: int}> $floors */
 /** @var ?string $floorId */
 /** @var int $floorWidth */
@@ -19,6 +19,9 @@ $counts = ['available' => 0, 'occupied' => 0, 'ending' => 0, 'incoming' => 0];
 foreach ($tiles as $tile) {
     if (isset($counts[$tile['status']])) {
         $counts[$tile['status']]++;
+    }
+    if ($tile['status'] === 'ending' && ($tile['incoming'] ?? null) !== null) {
+        $counts['incoming']++;
     }
 }
 ?>
@@ -75,9 +78,14 @@ foreach ($tiles as $tile) {
                 <?php foreach ($placed as $tile): ?>
                     <?php
                     $vendor = $tile['vendor'] ?? 'Unassigned';
+                    $incoming = $tile['incoming'] ?? null;
                     $size = $tile['width'] . ' × ' . $tile['depth'] . ' ft';
+                    $title = $tile['code'] . ' · ' . ucfirst($tile['status']) . ' · ' . $vendor;
+                    if (is_string($incoming) && $incoming !== '') {
+                        $title .= ' · Incoming ' . $incoming;
+                    }
                     ?>
-                    <a class="booth-cell <?= View::text($tile['status']) ?>"
+                    <a class="booth-cell <?= View::text($tile['status']) ?><?= is_string($incoming) && $incoming !== '' ? ' has-incoming' : '' ?>"
                        id="booth-<?= View::text($tile['id']) ?>"
                        href="/<?= View::text($slug) ?>/booths/<?= View::text($tile['id']) ?>/edit"
                        style="left:<?= View::text($tile['left']) ?>px;top:<?= View::text($tile['top']) ?>px;width:<?= View::text($tile['boxWidth']) ?>px;height:<?= View::text($tile['boxHeight']) ?>px"
@@ -85,9 +93,13 @@ foreach ($tiles as $tile) {
                        data-code="<?= View::text($tile['code']) ?>"
                        data-status="<?= View::text($tile['status']) ?>"
                        data-vendor="<?= View::text($vendor) ?>"
+                       data-incoming="<?= View::text(is_string($incoming) ? $incoming : '') ?>"
                        data-size="<?= View::text($size) ?>"
-                       title="<?= View::text($tile['code'] . ' · ' . ucfirst($tile['status']) . ' · ' . $vendor) ?>">
+                       title="<?= View::text($title) ?>">
                         <span class="booth-code"><?= View::text($tile['code']) ?></span>
+                        <?php if (is_string($incoming) && $incoming !== ''): ?>
+                            <span class="booth-incoming" aria-hidden="true"></span>
+                        <?php endif; ?>
                     </a>
                 <?php endforeach; ?>
             </div>
@@ -109,6 +121,7 @@ foreach ($tiles as $tile) {
             <div class="mt-4 grid" style="gap:var(--space-3)">
                 <div class="row between"><span class="muted">Status</span><span id="bd-status"></span></div>
                 <div class="row between"><span class="muted">Vendor</span><span class="strong" id="bd-vendor"></span></div>
+                <div class="row between" id="bd-incoming-row" hidden><span class="muted">Incoming</span><span class="strong" id="bd-incoming"></span></div>
                 <div class="row between"><span class="muted">Size</span><span class="strong tnum" id="bd-size"></span></div>
             </div>
             <a class="btn btn-primary btn-block mt-6" id="bd-edit" href="#"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit booth</a>
