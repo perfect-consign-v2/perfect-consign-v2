@@ -77,6 +77,23 @@ final class VendorDraftTest extends TestCase
         }
     }
 
+    public function testTheLimitItselfIsAccepted(): void
+    {
+        $email = str_repeat('a', 195) . '@b.co';
+        $values = $this->draft([
+            'phone' => str_repeat('5', 40),
+            'email' => $email,
+            'address' => str_repeat('a', 400),
+            'tax_id' => str_repeat('t', 40),
+        ])->values();
+
+        self::assertSame(str_repeat('5', 40), $values[3]);
+        self::assertSame($email, $values[4]);
+        self::assertSame(str_repeat('a', 400), $values[5]);
+        self::assertSame(str_repeat('t', 40), $values[9]);
+        self::assertSame('1 Main', $this->draft(['address' => '1 Main'])->values()[5]);
+    }
+
     /**
      * @param array<string, string> $overrides
      */

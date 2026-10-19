@@ -524,13 +524,25 @@ function previousCode(array $tokens, int $index): string
 function equivalentReason(string $file, int $line, string $from, string $to): ?string
 {
     $slash = str_replace('\\', '/', $file);
-    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 96 && $from === '<' && $to === '<=') {
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 97 && $from === '<' && $to === '<=') {
         return 'a cap equal to the ceiling stores that same ceiling';
     }
-    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 126 && (($from === '===' && $to === '!==') || ($from === '||' && $to === '&&'))) {
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 127 && (($from === '===' && $to === '!==') || ($from === '||' && $to === '&&'))) {
         return 'an empty or unlimited ini value and every other zero parse as no cap';
     }
-    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 138 && $from === '>' && $to === '>=') {
+    if ($slash === 'src/Feature/Backup/NightlyCopy.php' && $line === 73 && $from === '===' && $to === '!==') {
+        return 'dated zip names sort in the same order as their dates, so the last file is the newest either way';
+    }
+    if ($slash === 'src/Feature/Vendor/VendorSales.php' && $line === 101 && $from === '<' && $to === '<=') {
+        return 'an end equal to the start is stored as that same day';
+    }
+    if ($slash === 'src/Feature/Vendor/VendorCheck.php' && $line === 65 && $from === '>' && $to === '>=') {
+        return 'zero rent and a negative rent both leave the desk at zero';
+    }
+    if ($slash === 'src/Feature/Register/RegisterActivity.php' && $line === 136 && $from === '||' && $to === '&&') {
+        return 'the clock already returns a blank for a blank or a non-text value';
+    }
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 139 && $from === '>' && $to === '>=') {
         return 'zero bytes and a negative parse both mean no cap';
     }
     if ($file === 'src\\Feature\\Backup\\BackupHeadline.php' && $line === 22 && $from === '<=' && $to === '<') {

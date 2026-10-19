@@ -200,7 +200,26 @@ final class SurvivorPinsTest extends TestCase
             'width' => null,
             'depth' => null,
         ]]);
-        self::assertStringNotContainsString('width_ft', $updates[0] ?? '');
+        $store->savePlacements([
+            [
+                'id' => '01900000-0000-7000-8000-0000000000bb',
+                'floorId' => '01900000-0000-7000-8000-0000000000aa',
+                'x' => 1,
+                'z' => 2,
+                'width' => null,
+                'depth' => 4,
+            ],
+            [
+                'id' => '01900000-0000-7000-8000-0000000000cc',
+                'floorId' => '01900000-0000-7000-8000-0000000000aa',
+                'x' => 3,
+                'z' => 4,
+                'width' => 4,
+                'depth' => null,
+            ],
+        ]);
+        $placement = implode("\n", $updates);
+        self::assertStringNotContainsString('width_ft', $placement);
         try {
             $store->addFloor(str_repeat('a', 41));
             self::fail('a padded floor name was accepted');
@@ -299,5 +318,123 @@ final class SurvivorPinsTest extends TestCase
         self::assertSame('', $activity->local(4));
         self::assertStringContainsString('2026', $activity->local('2026-01-02 17:00:00'));
         self::assertStringNotContainsString('17:00:00', $activity->local('2026-01-02 17:00:00'));
+    }
+
+    public function testAPaidChargeDoesNotBecomeAShortfall(): void
+    {
+        $note = $this->shortfall([
+            ['vendor_id' => 'v', 'booth' => 'A', 'month' => '2026-05', 'paid' => 100],
+        ], [
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'monthly' => 100, 'charged' => 100],
+        ], 200);
+
+        self::assertStringContainsString('earlier month', $note);
+    }
+
+    public function testAZeroBalanceDoesNotJoinTheUnpaidStory(): void
+    {
+        $note = $this->shortfall([
+            ['vendor_id' => 'v', 'booth' => 'A', 'month' => '2026-05', 'paid' => 100],
+        ], [
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'monthly' => 100, 'charged' => 100],
+            ['vendor_id' => 'v', 'booth' => 'B', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'monthly' => 50, 'charged' => 50],
+        ], 50);
+
+        self::assertStringNotContainsString('$0.00', $note);
+        self::assertStringContainsString('$0.50', $note);
+    }
+
+    public function testASecondChargeUsesOnlyTheUnspentPayment(): void
+    {
+        $note = $this->shortfall([
+            ['vendor_id' => 'v', 'booth' => 'A', 'month' => '2026-05', 'paid' => 40],
+        ], [
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-10', 'starts_on' => '2026-05-10', 'monthly' => 40, 'charged' => 40],
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-20', 'starts_on' => '2026-05-20', 'monthly' => 100, 'charged' => 100],
+        ], 100);
+
+        self::assertStringContainsString('$1.00', $note);
+        self::assertStringNotContainsString('earlier month', $note);
+    }
+
+    public function testCashDoesNotNeedACheckNumber(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('isolated')->willReturnCallback(static function (callable $work): void {
+            $work();
+        });
+        $statements->method('bound')->willReturn([['id' => '01900000-0000-7000-8000-0000000000aa']]);
+        $ledger = $this->createStub(LedgerStore::class);
+        $ledger->method('roleAccount')->willReturn('acct');
+        $ledger->method('post')->willReturn('journal');
+
+        $id = (new GiftIssue($statements, $ledger))->issue('session', '2026-06-01', '1001', 100, 'cash', null);
+
+        self::assertSame('journal', $id);
+    }
+
+    public function testADrawOfTheOpenPayableIsAllowed(): void
+    {
+        $statement = $this->createStub(\PDOStatement::class);
+        $statement->method('fetchColumn')->willReturn(100);
+        $pdo = $this->createStub(\PDO::class);
+        $pdo->method('prepare')->willReturn($statement);
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([]);
+        $statements->method('change');
+        $payouts = new PayoutStore(
+            $pdo,
+            $statements,
+            (new ReflectionClass(PayoutRunStore::class))->newInstanceWithoutConstructor(),
+            new PayoutWindow(),
+        );
+        $tenders = new TicketTenders(
+            $statements,
+            $this->createStub(LedgerStore::class),
+            (new ReflectionClass(\PerfectConsign\Feature\Register\RegisterStore::class))->newInstanceWithoutConstructor(),
+            $payouts,
+        );
+
+        $tenders->apply('01900000-0000-7000-8000-0000000000aa', 'vendor_draw', 100, '01900000-0000-7000-8000-0000000000bb', 100);
+        self::assertTrue(true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $payments
+     * @param list<array<string, mixed>> $charges
+     */
+    private function shortfall(array $payments, array $charges, int $owes): string
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturnCallback(static function (string $sql) use ($payments, $charges): array {
+            if (str_contains($sql, 'rent_payment')) {
+                return $payments;
+            }
+            if (str_contains($sql, 'rent_charge')) {
+                return $charges;
+            }
+
+            return [];
+        });
+        $noted = (new RentShortfall($statements))->attach([[
+            'vendor_id' => 'v',
+            'code' => 'A',
+            'name' => 'Ada',
+            'booth' => 'A',
+            'boothId' => 'b',
+            'mode' => 'pay',
+            'prior' => 0,
+            'charged' => 0,
+            'paid' => 0,
+            'payable' => 0,
+            'rent' => 0,
+            'monthRent' => 0,
+            'check' => 0,
+            'owes' => $owes,
+            'settled' => 0,
+            'adjustment' => 0,
+        ]], '2026-06-01');
+
+        return $noted[0]['note'];
     }
 }

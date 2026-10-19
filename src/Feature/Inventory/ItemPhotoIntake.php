@@ -13,6 +13,7 @@ final class ItemPhotoIntake
     public function __construct(
         private readonly LoggerInterface $logger,
         private readonly ?\Closure $uploaded = null,
+        private readonly ?\Closure $ini = null,
     ) {
     }
 
@@ -118,7 +119,7 @@ final class ItemPhotoIntake
 
     private function iniBytes(string $key): int
     {
-        $value = ini_get($key);
+        $value = $this->ini instanceof \Closure ? ($this->ini)($key) : ini_get($key);
         if (!is_string($value)) {
             return 0;
         }

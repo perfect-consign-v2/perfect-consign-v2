@@ -175,6 +175,30 @@ final class ItemPhotoIntakeTest extends TestCase
         }
     }
 
+    public function testAOneByteUploadAndASmallerIniCapAreRead(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pic');
+        if ($path === false || file_put_contents($path, "\xFF\xD8\xFF") === false) {
+            self::fail('could not write a photo');
+        }
+        $ini = static fn (string $key): string => $key === 'upload_max_filesize' ? '10k' : '2G';
+        $intake = new ItemPhotoIntake(new NullLogger(), static fn (string $file): bool => $file === $path, $ini);
+        try {
+            self::assertSame(10 * 1024, $intake->bytes());
+            self::assertSame('ffd8ff', $intake->hex([
+                'tmp_name' => $path,
+                'error' => UPLOAD_ERR_OK,
+                'size' => 1,
+                'name' => 'a.jpg',
+            ], false));
+        } finally {
+            unlink($path);
+        }
+        $zero = new ItemPhotoIntake(new NullLogger(), null, static fn (string $key): string => $key === 'upload_max_filesize' ? '0' : '2G');
+        self::assertSame(ItemPhotoIntake::MAX_BYTES, $zero->bytes());
+        self::assertNull($this->intake()->media("XXXX\x00\x00\x00\x00WEBP"));
+    }
+
     private function intake(): ItemPhotoIntake
     {
         return new ItemPhotoIntake(new NullLogger());
