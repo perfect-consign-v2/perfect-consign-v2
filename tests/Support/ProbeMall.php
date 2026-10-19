@@ -42,6 +42,10 @@ final class ProbeMall
             self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php', [self::SLUG, self::DISPLAY_NAME]);
         } else {
             self::current($root, $migrator);
+            self::admin()->prepare('UPDATE platform.tenants SET display_name = ? WHERE slug = ?')->execute([
+                self::DISPLAY_NAME,
+                self::SLUG,
+            ]);
         }
         putenv('STALL_OWNER_PASSWORD=' . self::PASSWORD);
         $_ENV['STALL_OWNER_PASSWORD'] = self::PASSWORD;

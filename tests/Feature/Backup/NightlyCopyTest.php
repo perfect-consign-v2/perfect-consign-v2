@@ -91,9 +91,7 @@ final class NightlyCopyTest extends TestCase
         if (file_put_contents($dir . DIRECTORY_SEPARATOR . '2026-07-04.zip', 'zip') === false) {
             self::fail('could not write a zip');
         }
-        $command = 'cmd /c mklink /J ' . escapeshellarg($link) . ' ' . escapeshellarg($target);
-        exec($command, $output, $code);
-        if ($code !== 0 || !is_dir($link)) {
+        if (!self::linkDirectory($target, $link)) {
             self::fail('could not link the backup directory');
         }
         putenv('STALL_BACKUP_DIR=' . $link);
@@ -109,5 +107,16 @@ final class NightlyCopyTest extends TestCase
         putenv('STALL_BACKUP_DIR=C:\\data\\perfect_consign_pg\\backups');
 
         self::assertStringContainsString('No nightly copy', (new NightlyCopy())->headline('tenant_' . str_repeat('c', 32)));
+    }
+
+    private static function linkDirectory(string $target, string $link): bool
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            exec('cmd /c mklink /J ' . escapeshellarg($link) . ' ' . escapeshellarg($target), $output, $code);
+
+            return $code === 0 && is_dir($link);
+        }
+
+        return symlink($target, $link);
     }
 }
