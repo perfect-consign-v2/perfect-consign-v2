@@ -121,4 +121,15 @@ final class BoothMapTest extends TestCase
         self::assertSame('incoming', $next['status']);
         self::assertSame('Soon', $next['vendor']);
     }
+
+    public function testAStayThatStartsTodayIsNotIncoming(): void
+    {
+        $spot = BoothMap::occupancy([
+            ['boothId' => 'a', 'vendorName' => 'Today', 'startsOn' => '2026-09-26', 'endsOn' => null],
+            ['boothId' => 'a', 'vendorName' => 'Pat', 'startsOn' => '2026-09-01', 'endsOn' => '2026-09-26'],
+        ], 'a', '2026-09-26');
+
+        self::assertSame('ending', $spot['status']);
+        self::assertNull($spot['incoming']);
+    }
 }

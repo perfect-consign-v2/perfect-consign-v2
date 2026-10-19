@@ -149,6 +149,19 @@ final class TicketPricingTest extends TestCase
         ], (new TicketPricing($statements))->adjustment('ticket-1'));
     }
 
+    public function testABlankDiscountKindIsNotAKind(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([[
+            'discount_kind' => '',
+            'discount_value' => 500,
+            'discount_reason' => '',
+            'tax_waiver_reason' => '',
+        ]]);
+
+        self::assertNull((new TicketPricing($statements))->adjustment('ticket-1')['kind']);
+    }
+
     public function testAMissingKindOrAZeroValueClearsTheDiscount(): void
     {
         $clears = 0;
