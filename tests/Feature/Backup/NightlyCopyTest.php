@@ -97,7 +97,11 @@ final class NightlyCopyTest extends TestCase
         putenv('STALL_BACKUP_DIR=' . $link);
 
         self::assertStringContainsString('No nightly copy', (new NightlyCopy())->headline($schema));
-        if (is_dir($link) && !rmdir($link)) {
+        if (is_link($link)) {
+            if (!unlink($link)) {
+                self::fail('could not remove the backup link');
+            }
+        } elseif (is_dir($link) && !rmdir($link)) {
             self::fail('could not remove the backup link');
         }
     }
