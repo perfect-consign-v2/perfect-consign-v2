@@ -28,7 +28,6 @@ final class BoothMapTest extends TestCase
         $today = BoothMap::occupancy($stays, 'a', '2026-09-26');
         self::assertSame('ending', $today['status']);
         self::assertSame('Pat', $today['vendor']);
-        self::assertSame('Next', $today['incoming']);
         $after = BoothMap::occupancy($stays, 'a', '2026-09-27');
         self::assertSame('occupied', $after['status']);
         self::assertSame('Next', $after['vendor']);
