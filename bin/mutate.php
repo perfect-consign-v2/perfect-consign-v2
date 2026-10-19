@@ -542,6 +542,9 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($slash === 'src/Feature/Register/RegisterActivity.php' && $line === 136 && $from === '||' && $to === '&&') {
         return 'the clock already returns a blank for a blank or a non-text value';
     }
+    if ($slash === 'src/Bootstrap/ActiveRegister.php' && $line === 80 && $from === '>' && $to === '>=') {
+        return 'one open drawer is chosen before this count, so zero and two-or-more agree';
+    }
     if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 139 && $from === '>' && $to === '>=') {
         return 'zero bytes and a negative parse both mean no cap';
     }

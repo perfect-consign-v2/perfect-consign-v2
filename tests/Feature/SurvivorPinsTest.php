@@ -113,7 +113,7 @@ final class SurvivorPinsTest extends TestCase
     {
         $gifts = new GiftIssue($this->createStub(Statements::class), $this->createStub(LedgerStore::class));
         try {
-            $gifts->issue('session', '2026-06-01', 'GC-1', 100, 'checks', '');
+            $gifts->issue('session', '2026-06-01', 'GC-1', 100, 'checks', null);
             self::fail('a blank check was accepted');
         } catch (DatabaseRefusal $error) {
             self::assertSame('a check sale needs a check number', $error->getMessage());
@@ -318,6 +318,17 @@ final class SurvivorPinsTest extends TestCase
         self::assertSame('', $activity->local(4));
         self::assertStringContainsString('2026', $activity->local('2026-01-02 17:00:00'));
         self::assertStringNotContainsString('17:00:00', $activity->local('2026-01-02 17:00:00'));
+    }
+
+    public function testAPartialStoryStaysOnTheEarlierMonthLine(): void
+    {
+        $note = $this->shortfall([
+            ['vendor_id' => 'v', 'booth' => 'A', 'month' => '2026-05', 'paid' => 0],
+        ], [
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'monthly' => 50, 'charged' => 50],
+        ], 80);
+
+        self::assertStringContainsString('earlier month', $note);
     }
 
     public function testAPaidChargeDoesNotBecomeAShortfall(): void

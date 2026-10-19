@@ -16,6 +16,9 @@ use PHPUnit\Framework\TestCase;
 
 final class ActiveRegisterTest extends TestCase
 {
+    /** @var array<string, mixed> */
+    private array $bag = [];
+
     public function testTheOnlyOpenDrawerIsTheRegister(): void
     {
         $register = $this->register([['id' => 'drawer-1', 'name' => 'Front']]);
@@ -42,6 +45,17 @@ final class ActiveRegisterTest extends TestCase
         $register = $this->register([['id' => 'drawer-1', 'name' => 4]]);
 
         self::assertSame('', $register->chosen('demo', true)['id']);
+    }
+
+    public function testAClosedDrawerIsDroppedFromTheSession(): void
+    {
+        $register = $this->register([
+            ['id' => 'drawer-1', 'name' => 'Front'],
+            ['id' => 'drawer-2', 'name' => 'Back'],
+        ], ['register:demo' => 'gone']);
+
+        self::assertSame('', $register->chosen('demo', true)['id']);
+        self::assertArrayNotHasKey('register:demo', $this->bag);
     }
 
     public function testADrawerOpenedTodayIsNotLeftFromYesterday(): void
@@ -76,15 +90,16 @@ final class ActiveRegisterTest extends TestCase
             $pdo,
             new CompanyLines(),
         ));
+        $this->bag = $bag;
         $session = $this->createStub(Session::class);
-        $session->method('get')->willReturnCallback(static function (string $key) use (&$bag): mixed {
-            return $bag[$key] ?? null;
+        $session->method('get')->willReturnCallback(function (string $key): mixed {
+            return $this->bag[$key] ?? null;
         });
-        $session->method('set')->willReturnCallback(static function (string $key, mixed $value) use (&$bag): void {
-            $bag[$key] = $value;
+        $session->method('set')->willReturnCallback(function (string $key, mixed $value): void {
+            $this->bag[$key] = $value;
         });
-        $session->method('delete')->willReturnCallback(static function (string $key) use (&$bag): void {
-            unset($bag[$key]);
+        $session->method('delete')->willReturnCallback(function (string $key): void {
+            unset($this->bag[$key]);
         });
 
         return new ActiveRegister($pdo, $session, $mall, new MallClock($mall));
