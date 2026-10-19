@@ -123,6 +123,23 @@ final class EnvelopePageTest extends TestCase
         self::assertStringContainsString('>Back<', $html);
     }
 
+    public function testANonStringCodeSortsAsBlank(): void
+    {
+        $mark = new class {
+            public function __toString(): string
+            {
+                return 'Z9';
+            }
+        };
+        $zed = $this->line('vendor-z', 'Zed', 'A1', 'BC', 'Coat', 100, 0, 1, 0, '', 0, 0);
+        $zed['code'] = $mark;
+        $ada = $this->line('vendor-a', 'Ada', 'A2', 'BC', 'Lamp', 100, 0, 1, 0, '', 0, 0);
+        $zedFirst = $this->sorted([$zed, $ada]);
+        self::assertLessThan(strpos($zedFirst, '(A2) Ada') ?: 0, strpos($zedFirst, '() Zed') ?: 0);
+        $adaFirst = $this->sorted([$ada, $zed]);
+        self::assertLessThan(strpos($adaFirst, '(A2) Ada') ?: 0, strpos($adaFirst, '() Zed') ?: 0);
+    }
+
     public function testAnEmptyPayoutHasNoVendorSheets(): void
     {
         $view = new View(dirname(__DIR__, 3) . '/src');
@@ -135,6 +152,23 @@ final class EnvelopePageTest extends TestCase
 
         self::assertIsString($html);
         self::assertStringContainsString('This payout has no vendor sheets.', $html);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function sorted(array $rows): string
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Payout/envelope', [
+            'displayName' => 'Web Probe',
+            'rows' => $rows,
+        ]);
+        $html = ob_get_clean();
+        self::assertIsString($html);
+
+        return $html;
     }
 
     /**

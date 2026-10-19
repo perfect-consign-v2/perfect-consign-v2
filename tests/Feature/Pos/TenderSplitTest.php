@@ -64,6 +64,50 @@ final class TenderSplitTest extends TestCase
         }
     }
 
+    public function testCashIsRecordedAndAZeroTenderIsSkipped(): void
+    {
+        $paid = $this->split()->read(new Request('POST', '/pos/pay', [], [
+            'tender_cash' => '0',
+            'tender_card' => '0.00',
+            'tender_checks' => '1.00',
+            'check_number' => str_repeat('4', 40),
+        ]));
+
+        self::assertSame(0, $paid['cash']);
+        self::assertSame(100, $paid['sum']);
+        self::assertSame(str_repeat('4', 40), $paid['check']);
+    }
+
+    public function testABlankCheckNumberIsRefused(): void
+    {
+        try {
+            $this->split()->read(new Request('POST', '/pos/pay', [], [
+                'tender_checks' => '1.00',
+                'check_number' => '',
+            ]));
+            self::fail('a blank check number was accepted');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('a check sale needs a check number', $error->getMessage());
+        }
+    }
+
+    public function testAVendorDrawCanTakeTheWholeOpenPayable(): void
+    {
+        $payouts = (new ReflectionClass(PayoutStore::class))->newInstanceWithoutConstructor();
+        $pdo = $this->createStub(\PDO::class);
+        $statement = $this->createStub(\PDOStatement::class);
+        $statement->method('fetchColumn')->willReturn(100);
+        $pdo->method('prepare')->willReturn($statement);
+        (new ReflectionProperty(PayoutStore::class, 'pdo'))->setValue($payouts, $pdo);
+        $paid = $this->split($payouts)->read(new Request('POST', '/pos/pay', [], [
+            'tender_vendor_draw' => '1.00',
+            'vendor_id' => '00000000-0000-7000-8000-000000000001',
+        ]));
+
+        self::assertSame(100, $paid['sum']);
+        self::assertSame(0, $paid['cash']);
+    }
+
     public function testAVendorDrawCannotExceedTheOpenPayable(): void
     {
         $payouts = (new ReflectionClass(PayoutStore::class))->newInstanceWithoutConstructor();

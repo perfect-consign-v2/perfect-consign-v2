@@ -26,6 +26,19 @@ final class ActorPathTest extends TestCase
             'last_seen_at' => (string) time(),
         ]);
         self::assertNull($stale->slug());
+        self::assertNull($this->actor([
+            'owner_slug' => '',
+            'actor_role' => 'owner',
+            'signed_in_at' => (string) time(),
+            'last_seen_at' => (string) time(),
+        ])->slug());
+        $now = time();
+        self::assertNull($this->actor([
+            'owner_slug' => 'demo',
+            'actor_role' => 'owner',
+            'signed_in_at' => (string) ($now - 86400),
+            'last_seen_at' => (string) $now,
+        ])->slug());
     }
 
     public function testAPriorCloseOnTheRegisterPageStaysPut(): void

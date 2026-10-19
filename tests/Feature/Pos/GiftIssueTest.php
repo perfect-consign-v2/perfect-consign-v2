@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Feature\Pos;
 
 use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
@@ -259,5 +260,116 @@ final class GiftIssueTest extends TestCase
         $slip = $gifts->slip('00000000-0000-7000-8000-0000000000cc');
         self::assertSame('Gift card', $slip['label']);
         self::assertSame(500, $slip['balance']);
+    }
+
+    public function testAnAllocatedNumberIsTriedFiveTimes(): void
+    {
+        $tries = 0;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('isolated')->willReturnCallback(static function () use (&$tries): void {
+            $tries++;
+            throw new DatabaseRefusal(DatabaseRefusal::CERTIFICATE_NUMBER_USED);
+        });
+        $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
+        try {
+            $gifts->issue('sess', '2026-10-01', '', 100, 'cash', null);
+            self::fail('five collisions were accepted');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame(DatabaseRefusal::CERTIFICATE_NUMBER_USED, $error->getMessage());
+        }
+        self::assertSame(5, $tries);
+    }
+
+    public function testAChosenNumberIsNotAllocated(): void
+    {
+        $number = str_repeat('A', 40);
+        $stored = null;
+        $draft = null;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('isolated')->willReturnCallback(static function (callable $work): void {
+            $work();
+        });
+        $statements->method('bound')->willReturnCallback(static function (string $sql, array $params) use (&$stored): array {
+            $stored = $params;
+
+            return [['id' => '00000000-0000-7000-8000-0000000000aa']];
+        });
+        $ledger = $this->createStub(LedgerStore::class);
+        $ledger->method('roleAccount')->willReturn('acct-cash');
+        $ledger->method('post')->willReturnCallback(static function (JournalDraft $posted) use (&$draft): string {
+            $draft = $posted;
+
+            return '00000000-0000-7000-8000-0000000000j1';
+        });
+        $gifts = new GiftIssue($statements, $ledger);
+
+        self::assertSame(
+            '00000000-0000-7000-8000-0000000000j1',
+            $gifts->issue('sess', '2026-10-01', $number, 1, 'cash', '999'),
+        );
+        self::assertIsArray($stored);
+        self::assertSame('gift_certificate', $stored[0]);
+        self::assertSame($number, $stored[1]);
+        self::assertInstanceOf(JournalDraft::class, $draft);
+        self::assertNull($draft->checkNumber);
+        self::assertSame(1, $draft->lines[0]['debit']);
+    }
+
+    public function testAChosenNumberStopsOnTheFirstCollision(): void
+    {
+        $tries = 0;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('isolated')->willReturnCallback(static function () use (&$tries): void {
+            $tries++;
+            throw new DatabaseRefusal(DatabaseRefusal::CERTIFICATE_NUMBER_USED);
+        });
+        $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
+        try {
+            $gifts->issue('sess', '2026-10-01', 'GC-used', 100, 'cash', null);
+            self::fail('a used certificate number was retried');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame(DatabaseRefusal::CERTIFICATE_NUMBER_USED, $error->getMessage());
+        }
+        self::assertSame(1, $tries);
+    }
+
+    public function testAnAllocatedNumberDoesNotSwallowAnotherRefusal(): void
+    {
+        $tries = 0;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('isolated')->willReturnCallback(static function () use (&$tries): void {
+            $tries++;
+            throw new DatabaseRefusal('the mall has no clock');
+        });
+        $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
+        try {
+            $gifts->issue('sess', '2026-10-01', '', 100, 'cash', null);
+            self::fail('a mall refusal was retried');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('the mall has no clock', $error->getMessage());
+        }
+        self::assertSame(1, $tries);
+    }
+
+    public function testOneCentIsEnoughToShowTheSlip(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([['balance' => 1]]);
+        $ledger = $this->createStub(LedgerStore::class);
+        $ledger->method('journal')->willReturn([
+            'source_reference' => 'GC-1',
+            'source_type' => 'gift_certificate_issue',
+            'is_reversal' => false,
+            'posting_date' => '2026-10-01',
+        ]);
+        $ledger->method('lines')->willReturn([
+            ['subledger_type' => 'gift_certificate', 'credit_minor' => 0],
+            ['subledger_type' => 'gift_certificate', 'credit_minor' => 1],
+        ]);
+        $ledger->method('reversed')->willReturn(false);
+        $slip = (new GiftIssue($statements, $ledger))->slip('00000000-0000-7000-8000-0000000000cc');
+
+        self::assertSame(1, $slip['amount']);
+        self::assertSame(1, $slip['balance']);
     }
 }

@@ -78,5 +78,8 @@ final class DatabaseRefusalTest extends TestCase
         );
         self::assertSame('That could not be saved.', DatabaseRefusal::phrase('sale:01900000-aaaa'));
         self::assertSame('That could not be saved.', DatabaseRefusal::phrase('mall_clock_chk'));
+        self::assertSame('That amount is too big.', DatabaseRefusal::phrase('value too large for the column'));
+        self::assertSame('That could not be saved.', DatabaseRefusal::phrase('duplicate key value'));
+        self::assertSame('That could not be saved.', DatabaseRefusal::phrase('violates check constraint colors_name'));
     }
 }

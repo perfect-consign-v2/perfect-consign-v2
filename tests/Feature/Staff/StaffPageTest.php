@@ -42,4 +42,27 @@ final class StaffPageTest extends TestCase
         self::assertIsString($empty);
         self::assertStringContainsString('No books login yet', $empty);
     }
+
+    public function testACashierIsListedWhenTheMallHasOne(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Feature/Staff/staff', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'cashiers' => [[
+                'id' => '01900000-0000-7000-8000-0000000000c1',
+                'username' => 'ada',
+                'display_name' => 'Ada Lane',
+                'role' => 'cashier',
+                'email' => 'ada@example.com',
+            ]],
+            'readers' => [],
+            'error' => null,
+        ]);
+        $html = ob_get_clean();
+        self::assertIsString($html);
+        self::assertStringContainsString('Ada Lane', $html);
+        self::assertStringNotContainsString('No cashiers yet', $html);
+    }
 }

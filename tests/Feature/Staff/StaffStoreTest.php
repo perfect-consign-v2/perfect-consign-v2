@@ -30,6 +30,22 @@ final class StaffStoreTest extends TestCase
         }
         $store->addBooks('books-one', 'Books One', 'password1', 'books@example.com');
         self::assertSame('books', $this->lastRole);
+        $saved = $this->store(1);
+        $saved->replaceBooks('01900000-0000-7000-8000-0000000000b1', 'password1', 'books@example.com');
+        $saved->replaceCashier('01900000-0000-7000-8000-0000000000c1', 'password1', 'c@example.com');
+        $saved->addCashier('cashier-one', str_repeat('A', 80), 'password1', 'c@example.com');
+        try {
+            $saved->addCashier('cashier-two', '', 'password1', 'c@example.com');
+            self::fail('a blank display name was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Enter the name people will see.', $error->getMessage());
+        }
+        try {
+            $saved->addCashier('cashier-two', str_repeat('A', 81), 'password1', 'c@example.com');
+            self::fail('an 81 character display name was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Enter the name people will see.', $error->getMessage());
+        }
     }
 
     public function testACashierReplaceNeedsAMatchingRow(): void

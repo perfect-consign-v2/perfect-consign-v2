@@ -113,6 +113,82 @@ final class TicketTendersTest extends TestCase
         }
     }
 
+    public function testAOneCentTenderFitsAtTheNickelCeiling(): void
+    {
+        $saved = false;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([
+            ['role' => 'card', 'amount_minor' => 100, 'reference' => ''],
+        ]);
+        $statements->method('change')->willReturnCallback(static function () use (&$saved): void {
+            $saved = true;
+        });
+        $this->tenders($statements)->apply('ticket', 'cash', 1, '', 99);
+
+        self::assertTrue($saved);
+    }
+
+    public function testAnUnknownRoleOnAnOpenTicketIsRefused(): void
+    {
+        try {
+            $this->tenders($this->createStub(Statements::class))->apply('ticket', 'points', 1, '', 100);
+            self::fail('an unknown tender was applied');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('a sale debits each tender once', $error->getMessage());
+        }
+    }
+
+    public function testAZeroAmountIsRefused(): void
+    {
+        try {
+            $this->tenders($this->createStub(Statements::class))->apply('ticket', 'cash', 0, '', 100);
+            self::fail('a zero tender was applied');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('a sale debits each tender once', $error->getMessage());
+        }
+    }
+
+    public function testAFortyCharacterCheckNumberIsKept(): void
+    {
+        $saved = false;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([]);
+        $statements->method('change')->willReturnCallback(static function () use (&$saved): void {
+            $saved = true;
+        });
+        $this->tenders($statements)->apply('ticket', 'checks', 100, str_repeat('8', 40), 100);
+
+        self::assertTrue($saved);
+    }
+
+    public function testCashAndACheckAreSplitApart(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([
+            ['role' => 'cash', 'amount_minor' => 60, 'reference' => ''],
+            ['role' => 'checks', 'amount_minor' => 40, 'reference' => '42'],
+        ]);
+        $split = $this->tenders($statements, $this->accounts())->split('ticket', 140, 40);
+
+        self::assertNotNull($split);
+        self::assertSame(60, $split['cash']);
+        self::assertSame('42', $split['check']);
+        self::assertSame(100, $split['sum']);
+    }
+
+    public function testAVendorDrawDebitsThePayable(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([
+            ['role' => 'vendor_draw', 'amount_minor' => 100, 'reference' => '00000000-0000-7000-8000-000000000001'],
+        ]);
+        $split = $this->tenders($statements, $this->accounts())->split('ticket', 100);
+
+        self::assertNotNull($split);
+        self::assertSame('acct-vendor_payable', $split['lines'][0]['account_id']);
+        self::assertSame(0, $split['cash']);
+    }
+
     public function testCashMustMatchTheRemainder(): void
     {
         $statements = $this->createStub(Statements::class);
@@ -140,5 +216,13 @@ final class TicketTendersTest extends TestCase
         );
 
         return $held;
+    }
+
+    private function accounts(): LedgerStore
+    {
+        $ledger = $this->createStub(LedgerStore::class);
+        $ledger->method('roleAccount')->willReturnCallback(static fn (string $role): string => 'acct-' . $role);
+
+        return $ledger;
     }
 }

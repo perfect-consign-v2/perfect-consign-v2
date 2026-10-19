@@ -100,6 +100,32 @@ final class TicketStoreTest extends TestCase
         self::assertTrue($deleted);
     }
 
+    public function testAMissingTicketIsLeftAlone(): void
+    {
+        $deleted = false;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([]);
+        $statements->method('change')->willReturnCallback(static function () use (&$deleted): void {
+            $deleted = true;
+        });
+        $release = new ReflectionMethod(TicketStore::class, 'releaseEmpty');
+        $release->invoke($this->store($statements), 'sess');
+        self::assertFalse($deleted);
+    }
+
+    public function testOneMatchingItemIsTheScannedItem(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([
+            ['id' => 'item-1', 'price_minor' => 250],
+        ]);
+        $item = new ReflectionMethod(TicketStore::class, 'item');
+        $found = $item->invoke($this->store($statements), 'TAG-1');
+        self::assertIsArray($found);
+        self::assertSame('item-1', $found['id']);
+        self::assertSame(250, $found['price']);
+    }
+
     public function testADuplicateScanIsRefused(): void
     {
         $statements = $this->createStub(Statements::class);

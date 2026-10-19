@@ -470,6 +470,57 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Mall\\settings.php' && $line === 9 && $from === '>=' && $to === '>') {
         return 'day 1 is the fallback, so the strict comparison stores the same day';
     }
+    if ($file === 'src\\Feature\\Pos\\SaleJournal.php' && ($line === 98 || $line === 115) && $from === '>' && $to === '>=') {
+        return 'a zero cash difference is not posted, and both branches would post a zero line';
+    }
+    if ($file === 'src\\Feature\\Pos\\TicketTenders.php' && $line === 169 && $from === '<' && $to === '<=') {
+        return 'a zero remainder already returned, so this comparison only sees a remainder that is not zero';
+    }
+    if ($file === 'src\\Feature\\Pos\\LayawayBook.php' && $line === 244 && $from === '||' && $to === '&&') {
+        return 'hold already refused an empty ticket, a zero amount, and an unknown tender, so this guard is never true';
+    }
+    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 52 && $from === '<' && $to === '<=') {
+        return 'the third failed insert throws before the loop condition is tested again';
+    }
+    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 87 && $from === '>' && $to === '>=') {
+        return 'the day after the previous period is already the start, so assigning it changes nothing';
+    }
+    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 100 && $from === '<' && $to === '<=') {
+        return 'the day before the next period is already the end, so assigning it changes nothing';
+    }
+    if ($file === 'src\\Shared\\Web\\layout.php' && $line === 220 && $from === '&&' && $to === '||') {
+        return 'a vendor preview only lists vendor links, and an empty preview leaves the address unchanged';
+    }
+    if ($file === 'src\\Feature\\Register\\RegisterSession.php' && $line === 112 && $from === '>' && $to === '>=') {
+        return 'a zero difference returns before the variance lines are chosen';
+    }
+    if ($file === 'src\\Feature\\Backup\\NightlyCopy.php' && $line === 73 && $from === '>' && $to === '>=') {
+        return 'two backup names cannot be the same day, so the equal case does not exist';
+    }
+    if ($file === 'src\\Feature\\Payout\\PayoutRunController.php' && $line === 107 && $from === '&&' && $to === '||') {
+        return 'a missing or blank reversal time formats as an empty local time either way';
+    }
+    if ($file === 'src\\Feature\\Payout\\envelope.php' && $line === 27 && $from === '&&' && $to === '||') {
+        return 'a missing vendor row is not an array, so both operators skip the code';
+    }
+    if ($file === 'src\\Feature\\Vendor\\VendorSales.php' && $line === 84 && $from === '>' && $to === '>=') {
+        return 'a start of today is already today, so assigning it changes nothing';
+    }
+    if ($file === 'src\\Feature\\Vendor\\VendorCheck.php' && $line === 115 && $from === '>' && $to === '>=') {
+        return 'nothing owed is already zero, so the equal case stores the same desk amount';
+    }
+    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 253 && $from === '>=' && $to === '>') {
+        return 'day 1 is the fallback, and the payout window clamps that same day again';
+    }
+    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 253 && $from === '&&' && $to === '||') {
+        return 'a day outside 1 through 28 is clamped to day 1 again by the payout window';
+    }
+    if ($file === 'src\\Feature\\Mall\\MallPayoutSettings.php' && $line === 82 && $from === '>=' && $to === '>') {
+        return 'a grace of zero is the fallback, so the strict comparison stores the same grace';
+    }
+    if ($file === 'src\\Feature\\Mall\\settings.php' && $line === 10 && $from === '>=' && $to === '>') {
+        return 'day 1 is the fallback, so the strict comparison stores the same day';
+    }
     if ($file === 'src\\Shared\\Mail\\SmtpClient.php' && $line === 41 && $from === '||' && $to === '&&') {
         return 'a failed connect sets the socket false together with errno and the error text, and a live socket has neither';
     }

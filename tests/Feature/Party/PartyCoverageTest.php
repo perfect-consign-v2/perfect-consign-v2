@@ -255,6 +255,83 @@ final class PartyCoverageTest extends TestCase
         );
     }
 
+    public function testPartyWritesKeepStringIdsAndOpenEndedAssignments(): void
+    {
+        $usedTransaction = false;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('transaction')->willReturnCallback(static function (callable $work) use (&$usedTransaction): mixed {
+            $usedTransaction = true;
+
+            return $work();
+        });
+        $seen = ['sql' => '', 'count' => 0, 'id' => 4];
+        $statements->method('bound')->willReturnCallback(static function (string $sql, array $params) use (&$seen): array {
+            $seen = ['sql' => $sql, 'count' => count($params), 'id' => $seen['id']];
+
+            return [['id' => $seen['id']]];
+        });
+        $store = new PartyStore($statements);
+        try {
+            $store->addVendor(new VendorDraft($this->fields([]), null));
+            self::fail('a numeric vendor id was accepted');
+        } catch (InvalidArgumentException $error) {
+            self::assertSame('the vendor was not saved', $error->getMessage());
+        }
+        try {
+            $store->addBooth('A1', 'North', 10, 10, null);
+            self::fail('a numeric booth id was accepted');
+        } catch (InvalidArgumentException $error) {
+            self::assertSame('that booth was not created', $error->getMessage());
+        }
+        self::assertFalse($usedTransaction);
+        $seen['id'] = '00000000-0000-7000-8000-0000000000aa';
+        $store->addAssignment(
+            '00000000-0000-7000-8000-0000000000b1',
+            '00000000-0000-7000-8000-0000000000a1',
+            '2026-10-01',
+            '',
+            1000
+        );
+        self::assertStringNotContainsString('ends_on', $seen['sql']);
+        self::assertSame(3, $seen['count']);
+        $store->addAssignment(
+            '00000000-0000-7000-8000-0000000000b1',
+            '00000000-0000-7000-8000-0000000000a1',
+            '2026-10-01',
+            '2026-10-31',
+            1000
+        );
+        self::assertStringContainsString('ends_on', $seen['sql']);
+        self::assertSame(4, $seen['count']);
+    }
+
+    public function testAStayEndMustBeADate(): void
+    {
+        $measures = new BoothMeasures();
+        try {
+            $measures->stays([[
+                'booth_id' => 'b1',
+                'vendor_id' => 'v1',
+                'vendor_name' => 'Ada',
+                'vendor_code' => 'ada',
+                'starts_on' => '2026-10-01',
+                'ends_on' => 'not-a-date',
+            ]]);
+            self::fail('a stay end that is not a date was accepted');
+        } catch (InvalidArgumentException $error) {
+            self::assertSame('a booth date is YYYY-MM-DD', $error->getMessage());
+        }
+        $open = $measures->stays([[
+            'booth_id' => 'b1',
+            'vendor_id' => 'v1',
+            'vendor_name' => 'Ada',
+            'vendor_code' => 'ada',
+            'starts_on' => '2026-10-01',
+            'ends_on' => '',
+        ]]);
+        self::assertNull($open[0]['endsOn']);
+    }
+
     /**
      * @param array<string, string> $override
      */

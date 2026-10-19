@@ -105,6 +105,13 @@ final class ItemWriterTest extends TestCase
         }
     }
 
+    public function testExpireOnTheIntakeDayIsKept(): void
+    {
+        $entry = $this->writer()->entry($this->draft(['expires_on' => '2026-09-01']));
+
+        self::assertSame('2026-09-01', $entry->dates->expiresOn);
+    }
+
     public function testExpireCannotBeBeforeIntake(): void
     {
         try {

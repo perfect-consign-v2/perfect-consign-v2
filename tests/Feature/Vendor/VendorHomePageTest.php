@@ -49,8 +49,32 @@ final class VendorHomePageTest extends TestCase
         self::assertStringContainsString('No. 12', $html);
         self::assertStringContainsString('Corner', $html);
         self::assertStringContainsString('B2', $html);
-        self::assertStringContainsString('draw-amount', $html);
+        self::assertStringContainsString('class="draw-amount">-$1.00', $html);
+        self::assertStringNotContainsString('class="draw-amount">$8.00', $html);
+        self::assertMatchesRegularExpression('/<a[^>]*>\\s*Check<\\/a>/', $html);
+        self::assertDoesNotMatchRegularExpression('/<a[^>]*>\\s*Bought at the store/', $html);
+        self::assertStringContainsString(' to ', $html);
+        self::assertStringContainsString('$25.00', $html);
         self::assertStringContainsString('as=', $html);
+        $quiet = $page;
+        $quiet['desk'] = 0;
+        $quiet['booth'] = ['code' => 'A1', 'rent' => null, 'note' => ''];
+        $quiet['others'] = [['code' => 'B2', 'starts_on' => '2026-09-01', 'ends_on' => '', 'rent' => null]];
+        $quiet['last'] = null;
+        $quiet['activity'] = [];
+        ob_start();
+        $view->render('Feature/Vendor/home', [
+            'slug' => 'demo',
+            'page' => $quiet,
+            'cycleDay' => 1,
+            'previewAs' => '',
+        ]);
+        $plain = ob_get_clean();
+        self::assertIsString($plain);
+        self::assertStringNotContainsString('You still owe', $plain);
+        self::assertStringNotContainsString('$25.00', $plain);
+        self::assertStringNotContainsString(' to ', $plain);
+        self::assertStringContainsString('No check has been written.', $plain);
     }
 
     public function testInventorySearchAndEmptyBrandRender(): void
@@ -70,10 +94,14 @@ final class VendorHomePageTest extends TestCase
             'condition_name' => '',
             'department_name' => '',
             'intake_on' => '2026-09-01',
-            'expires_on' => '',
+            'expires_on' => '2026-12-01',
             'take_label' => '0',
             'overridden' => true,
         ];
+        $named = $item;
+        $named['id'] = '01900000-0000-7000-8000-0000000000i2';
+        $named['brand_name'] = 'Wool';
+        $named['code'] = 't2';
         ob_start();
         $view->render('Feature/Vendor/items', [
             'slug' => 'demo',
@@ -82,7 +110,7 @@ final class VendorHomePageTest extends TestCase
             'stock' => 'out',
             'unsold' => 1,
             'total' => 2,
-            'items' => [$item],
+            'items' => [$item, $named],
             'attributeLists' => [],
             'labelStock' => 'avery_5160',
             'stocks' => [['key' => 'avery_5160', 'label' => '5160']],
@@ -92,8 +120,56 @@ final class VendorHomePageTest extends TestCase
         $html = ob_get_clean();
         self::assertIsString($html);
         self::assertStringContainsString('aria-current="page"', $html);
+        self::assertStringContainsString('Search tag, barcode, description, or brand', $html);
+        self::assertStringContainsString('&amp;q=Coat', $html);
+        self::assertStringContainsString('>Brand<', $html);
+        self::assertStringContainsString('class="muted">—', $html);
+        self::assertStringContainsString('Wool', $html);
+        self::assertStringContainsString('12-01-2026', $html);
+        self::assertStringContainsString('id="stickers"', $html);
+        self::assertStringContainsString('inventory-selection-bar', $html);
         self::assertStringContainsString('Overridden', $html);
         self::assertStringContainsString('name="as"', $html);
+        ob_start();
+        $view->render('Feature/Vendor/items', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'query' => '',
+            'stock' => 'out',
+            'unsold' => 1,
+            'total' => 1,
+            'items' => [$named],
+            'attributeLists' => [],
+            'labelStock' => 'avery_5160',
+            'stocks' => [['key' => 'avery_5160', 'label' => '5160']],
+            'showBrand' => false,
+            'previewAs' => '',
+        ]);
+        $plain = ob_get_clean();
+        self::assertIsString($plain);
+        self::assertStringContainsString('Search tag, barcode, or description', $plain);
+        self::assertStringNotContainsString('&amp;q=', $plain);
+        self::assertStringNotContainsString('>Brand<', $plain);
+        ob_start();
+        $view->render('Feature/Vendor/items', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'query' => 'Coat',
+            'stock' => 'out',
+            'unsold' => 1,
+            'total' => 1,
+            'items' => [],
+            'attributeLists' => [],
+            'labelStock' => 'avery_5160',
+            'stocks' => [['key' => 'avery_5160', 'label' => '5160']],
+            'showBrand' => true,
+            'previewAs' => '',
+        ]);
+        $empty = ob_get_clean();
+        self::assertIsString($empty);
+        self::assertStringContainsString('No items match.', $empty);
+        self::assertStringNotContainsString('id="stickers"', $empty);
+        self::assertStringNotContainsString('inventory-selection-bar', $empty);
         ob_start();
         $view->render('Feature/Vendor/sales', [
             'slug' => 'demo',

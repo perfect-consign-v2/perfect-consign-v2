@@ -98,6 +98,14 @@ final class SettingsPageTest extends TestCase
         self::assertStringNotContainsString('name="rent_prepaid_from_prior_sales"', $html);
     }
 
+    public function testAnEmptyNightlyLineStaysHidden(): void
+    {
+        $empty = $this->page(['nightlyHeadline' => '']);
+        self::assertDoesNotMatchRegularExpression('/Last backup you downloaded:.*<\\/p>\\s*<p><\\/p>/s', $empty);
+        $shown = $this->page(['nightlyHeadline' => 'Copied last night']);
+        self::assertStringContainsString('Copied last night', $shown);
+    }
+
     /**
      * @param array<string, mixed> $extra
      */

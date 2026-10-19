@@ -54,6 +54,14 @@ final class BrandControllerTest extends TestCase
             new BrandStore($empty, new CatalogLinks($empty)),
         );
         self::assertSame('', $draft->invoke($blank, [], 'b1'));
+        $numeric = $this->createStub(Statements::class);
+        $numeric->method('bound')->willReturn([['id' => 'b1', 'name' => 12]]);
+        $numbers = (new ReflectionClass(BrandController::class))->newInstanceWithoutConstructor();
+        (new ReflectionProperty(BrandController::class, 'brands'))->setValue(
+            $numbers,
+            new BrandStore($numeric, new CatalogLinks($numeric)),
+        );
+        self::assertSame('', $draft->invoke($numbers, [], 'b1'));
     }
 
     public function testReferencedBrandsAreNotDeletable(): void

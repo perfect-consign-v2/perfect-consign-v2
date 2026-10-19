@@ -34,6 +34,7 @@ final class MallClockTest extends TestCase
         $draft = (new ReflectionClass(MallRentDraft::class))->newInstanceWithoutConstructor();
 
         self::assertSame('', $draft->dollars(0));
+        self::assertSame('0.01', $draft->dollars(1));
         self::assertSame('1.05', $draft->dollars(105));
     }
 }

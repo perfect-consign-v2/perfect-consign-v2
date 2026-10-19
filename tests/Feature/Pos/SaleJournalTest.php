@@ -112,4 +112,110 @@ final class SaleJournalTest extends TestCase
         self::assertSame(850, $lines[3]['debit']);
         self::assertSame($credit, $lines[4]);
     }
+
+    public function testRoundingStaysOffWhenTheMallDoesNotRound(): void
+    {
+        $ledger = $this->ledger();
+        $lines = SaleJournal::sale(
+            $ledger,
+            [],
+            [['account_id' => 'acct-cash', 'debit' => 103, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null]],
+            103,
+            0,
+            103,
+        );
+
+        self::assertSame(103, $lines[0]['debit']);
+        self::assertCount(1, $lines);
+    }
+
+    public function testAZeroPromoAndAZeroOwedAddNoCreditLines(): void
+    {
+        $ledger = $this->ledger();
+        $tender = ['account_id' => 'acct-card', 'debit' => 100, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null];
+        $lines = SaleJournal::sale(
+            $ledger,
+            [[
+                'vendor_id' => 'v1',
+                'price' => 100,
+                'quantity' => 1,
+                'commission' => 0,
+                'tax' => 0,
+                'discount' => 100,
+                'store_discount' => 0,
+            ]],
+            [$tender],
+            0,
+            0,
+            100,
+        );
+
+        self::assertSame([$tender], $lines);
+    }
+
+    public function testQuantityAndDiscountChangeWhatTheVendorIsOwed(): void
+    {
+        $ledger = $this->ledger();
+        $lines = SaleJournal::sale(
+            $ledger,
+            [[
+                'vendor_id' => 'v1',
+                'price' => 1000,
+                'quantity' => 2,
+                'commission' => 50,
+                'tax' => 0,
+                'discount' => 100,
+                'store_discount' => 0,
+            ]],
+            [['account_id' => 'acct-card', 'debit' => 1850, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null]],
+            0,
+            0,
+            1850,
+        );
+
+        self::assertSame(50, $lines[1]['credit']);
+        self::assertSame(1850, $lines[2]['credit']);
+    }
+
+    public function testAReturnWithNothingToGiveBackPostsOnlyTheCredit(): void
+    {
+        $ledger = $this->ledger();
+        $credit = ['account_id' => 'acct-cash', 'debit' => 0, 'credit' => 100, 'subledger_type' => null, 'subledger_ref' => null];
+
+        self::assertSame([$credit], SaleJournal::giveBack($ledger, 100, 0, 0, 100, 0, 'v1', $credit));
+    }
+
+    public function testZeroCashDoesNotRoundAnEmptyTender(): void
+    {
+        $lines = SaleJournal::sale($this->ledger(), [], [], 0, 1, 103);
+
+        self::assertSame([], $lines);
+    }
+
+    public function testOnlyTheCashLineThatMatchesTheTenderIsRounded(): void
+    {
+        $lines = SaleJournal::sale(
+            $this->ledger(),
+            [],
+            [
+                ['account_id' => 'acct-cash', 'debit' => 50, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null],
+                ['account_id' => 'acct-card', 'debit' => 53, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null],
+            ],
+            103,
+            1,
+            103,
+        );
+
+        self::assertSame(50, $lines[0]['debit']);
+        self::assertSame(53, $lines[1]['debit']);
+        self::assertSame(2, $lines[2]['credit']);
+    }
+
+    private function ledger(): LedgerStore
+    {
+        $ledger = $this->createStub(LedgerStore::class);
+        $ledger->method('roleAccount')->willReturnCallback(static fn (string $role): string => 'acct-' . $role);
+
+        return $ledger;
+    }
 }

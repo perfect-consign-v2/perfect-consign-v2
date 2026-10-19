@@ -38,5 +38,16 @@ final class DenominationCountTest extends TestCase
         }
         self::assertSame(0, DenominationCount::counted(''));
         self::assertSame(125, DenominationCount::counted('1.25'));
+        $zeros = [];
+        foreach (DenominationCount::KEYS as $key) {
+            $zeros['count_' . $key] = '0';
+        }
+        self::assertSame(0, DenominationCount::fromRequest(new Request('POST', '/registers', [], $zeros))[1]);
+        self::assertSame(0, DenominationCount::money('0', true));
+        self::assertSame(1, DenominationCount::money('0.01', false));
+        self::assertSame(100, DenominationCount::money('1.00', false));
+        self::assertSame('$0.00', DenominationCount::dollars(0));
+        self::assertSame('$2.50', DenominationCount::dollars(250));
+        self::assertSame('-$0.50', DenominationCount::dollars(-50));
     }
 }

@@ -59,6 +59,51 @@ final class NightlyCopyTest extends TestCase
         self::assertStringContainsString('September 15, 2026', (new NightlyCopy())->headline($schema));
     }
 
+    public function testABadSchemaDoesNotReadADirectoryOfThatName(): void
+    {
+        $this->root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-nightly-' . bin2hex(random_bytes(4));
+        $schema = 'not-a-schema';
+        $dir = $this->root . DIRECTORY_SEPARATOR . $schema;
+        if (!mkdir($dir, 0700, true) && !is_dir($dir)) {
+            self::fail('could not create a backup directory');
+        }
+        if (file_put_contents($dir . DIRECTORY_SEPARATOR . '2026-08-01.zip', 'old') === false) {
+            self::fail('could not write a zip');
+        }
+        putenv('STALL_BACKUP_DIR=' . $this->root);
+
+        self::assertStringContainsString('No nightly copy', (new NightlyCopy())->headline($schema));
+    }
+
+    public function testAResolvedDatabaseVolumeIsNotUsed(): void
+    {
+        $this->root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-nightly-' . bin2hex(random_bytes(4));
+        $target = $this->root . DIRECTORY_SEPARATOR . 'perfect_consign_pg';
+        $link = $this->root . DIRECTORY_SEPARATOR . 'alias';
+        if (!mkdir($target, 0700, true) && !is_dir($target)) {
+            self::fail('could not create a volume directory');
+        }
+        $schema = 'tenant_' . str_repeat('d', 32);
+        $dir = $target . DIRECTORY_SEPARATOR . $schema;
+        if (!mkdir($dir, 0700, true) && !is_dir($dir)) {
+            self::fail('could not create a tenant directory');
+        }
+        if (file_put_contents($dir . DIRECTORY_SEPARATOR . '2026-07-04.zip', 'zip') === false) {
+            self::fail('could not write a zip');
+        }
+        $command = 'cmd /c mklink /J ' . escapeshellarg($link) . ' ' . escapeshellarg($target);
+        exec($command, $output, $code);
+        if ($code !== 0 || !is_dir($link)) {
+            self::fail('could not link the backup directory');
+        }
+        putenv('STALL_BACKUP_DIR=' . $link);
+
+        self::assertStringContainsString('No nightly copy', (new NightlyCopy())->headline($schema));
+        if (is_dir($link) && !rmdir($link)) {
+            self::fail('could not remove the backup link');
+        }
+    }
+
     public function testTheDatabaseVolumeIsNotUsed(): void
     {
         putenv('STALL_BACKUP_DIR=C:\\data\\perfect_consign_pg\\backups');

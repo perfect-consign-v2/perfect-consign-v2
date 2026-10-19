@@ -56,6 +56,9 @@ final class RoleGateTest extends TestCase
         self::assertFalse(RoleGate::allows('vendor', '/pos', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/book', 'GET'));
         self::assertFalse(RoleGate::allows('vendor', '/vendors/01900000-0000-7000-8000-000000000d10', 'GET'));
+        $photo = '/inventory/01900000-0000-7000-8000-000000000d10/photo';
+        self::assertTrue(RoleGate::allows('vendor', $photo, 'GET'));
+        self::assertFalse(RoleGate::allows('vendor', $photo, 'POST'));
     }
 
     public function testABooksLoginReadsTheBooksAndMaySignOut(): void

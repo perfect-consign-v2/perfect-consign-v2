@@ -9,6 +9,7 @@ use PerfectConsign\Feature\Backup\BackupException;
 use PerfectConsign\Feature\Backup\CommandProcess;
 use PerfectConsign\Feature\Backup\PostgresTools;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use Psr\Log\AbstractLogger;
 use Psr\Log\NullLogger;
 
@@ -35,6 +36,23 @@ final class PostgresToolsTest extends TestCase
             }
         }
         self::assertSame($before, $this->passwordFiles());
+    }
+
+    public function testAnEmptyPsqlSettingUsesTheSiblingName(): void
+    {
+        $previous = getenv('STALL_PSQL');
+        putenv('STALL_PSQL=');
+        try {
+            $binary = new ReflectionMethod(PostgresTools::class, 'psqlBinary');
+            $tools = new PostgresTools(new CommandProcess(new NullLogger()));
+            self::assertSame('psql', $binary->invoke($tools, 'C:\\missing\\pg_dump'));
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_PSQL=' . $previous);
+            } else {
+                putenv('STALL_PSQL');
+            }
+        }
     }
 
     public function testAMissingContainerStillRemovesThePasswordFile(): void
