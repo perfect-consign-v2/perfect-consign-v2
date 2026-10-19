@@ -60,11 +60,12 @@ if (!is_resource($coverage)) {
     exit(1);
 }
 fclose($pipes[0]);
-stream_get_contents($pipes[1]);
+$coverageOutput = stream_get_contents($pipes[1]);
 $coverageError = stream_get_contents($pipes[2]);
 $coverageCode = proc_close($coverage);
 if ($coverageCode !== 0) {
     fwrite(STDERR, "unit suite is not green, so mutants cannot be scored\n");
+    fwrite(STDERR, is_string($coverageOutput) ? $coverageOutput : '');
     fwrite(STDERR, is_string($coverageError) ? $coverageError : '');
     exit(1);
 }
