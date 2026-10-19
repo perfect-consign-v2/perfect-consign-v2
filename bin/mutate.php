@@ -523,6 +523,16 @@ function previousCode(array $tokens, int $index): string
 
 function equivalentReason(string $file, int $line, string $from, string $to): ?string
 {
+    $slash = str_replace('\\', '/', $file);
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 96 && $from === '<' && $to === '<=') {
+        return 'a cap equal to the ceiling stores that same ceiling';
+    }
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 126 && (($from === '===' && $to === '!==') || ($from === '||' && $to === '&&'))) {
+        return 'an empty or unlimited ini value and every other zero parse as no cap';
+    }
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 138 && $from === '>' && $to === '>=') {
+        return 'zero bytes and a negative parse both mean no cap';
+    }
     if ($file === 'src\\Feature\\Backup\\BackupHeadline.php' && $line === 22 && $from === '<=' && $to === '<') {
         return 'a future backup and today both say today, because the day count starts at zero';
     }

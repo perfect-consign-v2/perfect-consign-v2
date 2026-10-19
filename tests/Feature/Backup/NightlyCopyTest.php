@@ -106,6 +106,21 @@ final class NightlyCopyTest extends TestCase
         }
     }
 
+    public function testTheNewerCopyIsTheHeadline(): void
+    {
+        $this->root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-nightly-' . bin2hex(random_bytes(4));
+        $schema = 'tenant_' . str_repeat('e', 32);
+        $dir = $this->root . DIRECTORY_SEPARATOR . $schema;
+        if (!mkdir($dir, 0700, true) && !is_dir($dir)) {
+            self::fail('could not create a backup directory');
+        }
+        file_put_contents($dir . DIRECTORY_SEPARATOR . '2026-08-01.zip', 'new');
+        file_put_contents($dir . DIRECTORY_SEPARATOR . '2026-07-01.zip', 'old');
+        putenv('STALL_BACKUP_DIR=' . $this->root);
+
+        self::assertStringContainsString('August 1, 2026', (new NightlyCopy())->headline($schema));
+    }
+
     public function testTheDatabaseVolumeIsNotUsed(): void
     {
         putenv('STALL_BACKUP_DIR=C:\\data\\perfect_consign_pg\\backups');

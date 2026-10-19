@@ -8,8 +8,14 @@ use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\FrontDoor;
+use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Bootstrap\MallChrome;
 use PerfectConsign\Bootstrap\PriorClose;
+use PerfectConsign\Feature\Company\CompanyLines;
+use PerfectConsign\Feature\Company\CompanyStore;
+use PerfectConsign\Feature\Mall\MallClock;
+use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Http\Request;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -100,6 +106,85 @@ final class MallChromeTest extends TestCase
         $chrome->away($data, 'demo', false);
         self::assertFalse($data['priorPrompt']);
         self::assertFalse($data['priorCloseStarted']);
+    }
+
+    public function testADrawerLeftOpenPromptsUntilTheCloseStarts(): void
+    {
+        $open = $this->openDrawers($this->role('owner'), '/demo/dashboard');
+        $data = [];
+        $open->away($data, 'demo', true);
+        self::assertTrue($data['priorPrompt']);
+
+        $started = $this->openDrawers($this->role('owner'), '/demo/dashboard', 'yes');
+        $data = [];
+        $started->away($data, 'demo', true);
+        self::assertFalse($data['priorPrompt']);
+
+        $hub = $this->openDrawers($this->role('owner'), '/demo/registers');
+        $data = [];
+        $hub->away($data, 'demo', true);
+        self::assertFalse($data['priorPrompt']);
+
+        $vendor = $this->openDrawers($this->role('vendor'), '/demo/dashboard');
+        $data = [];
+        self::assertNull($vendor->away($data, 'demo', true));
+        self::assertFalse($data['priorPrompt']);
+
+        $preview = $this->openDrawers($this->role('owner'), '/demo/vendor', as: '01900000-0000-7000-8000-0000000000aa');
+        $data = [];
+        self::assertNull($preview->away($data, 'demo', true));
+        self::assertFalse($data['priorPrompt']);
+
+        $cashier = $this->openDrawers($this->role('cashier'), '/demo/vendor', as: '01900000-0000-7000-8000-0000000000aa');
+        $data = [];
+        $cashier->away($data, 'demo', true);
+        self::assertTrue($data['priorPrompt']);
+    }
+
+    private function openDrawers(Session $session, string $path, ?string $started = null, string $as = ''): MallChrome
+    {
+        $statement = $this->createStub(\PDOStatement::class);
+        $statement->method('fetchAll')->willReturn([[
+            'id' => '01900000-0000-7000-8000-0000000000aa',
+            'name' => 'Front',
+            'opened_at' => '2000-01-01 00:00:00',
+        ]]);
+        $pdo = $this->createStub(\PDO::class);
+        $pdo->method('prepare')->willReturn($statement);
+        $rows = $this->createStub(Statements::class);
+        $rows->method('rows')->willReturn([['time_zone' => 'UTC']]);
+        $mall = new MallSettings($rows, new CompanyStore(
+            $this->createStub(Statements::class),
+            new DatabaseRole($pdo),
+            $pdo,
+            new CompanyLines(),
+        ));
+        $bag = $started === null ? [] : ['close_prior:demo' => $started];
+        $sessionLive = $this->createStub(Session::class);
+        $sessionLive->method('get')->willReturnCallback(static function (string $key) use (&$bag, $session): mixed {
+            if ($key === 'actor_role') {
+                return $session->get($key);
+            }
+
+            return $bag[$key] ?? null;
+        });
+        $sessionLive->method('set')->willReturnCallback(static function (string $key, mixed $value) use (&$bag): void {
+            $bag[$key] = $value;
+        });
+        $sessionLive->method('has')->willReturnCallback(static function (string $key) use (&$bag): bool {
+            return array_key_exists($key, $bag);
+        });
+        $sessionLive->method('delete')->willReturnCallback(static function (string $key) use (&$bag): void {
+            unset($bag[$key]);
+        });
+        $query = $as === '' ? [] : ['as' => $as];
+        $request = new Request('GET', $path, $query, []);
+        $actor = new Actor($sessionLive);
+        $front = (new ReflectionClass(FrontDoor::class))->newInstanceWithoutConstructor();
+        (new ReflectionProperty(FrontDoor::class, 'actor'))->setValue($front, $actor);
+        (new ReflectionProperty(FrontDoor::class, 'prior'))->setValue($front, new PriorClose($sessionLive, $request));
+
+        return new MallChrome(new ActiveRegister($pdo, $sessionLive, $mall, new MallClock($mall)), $sessionLive, $front, $request);
     }
 
     private function role(string $role): Session

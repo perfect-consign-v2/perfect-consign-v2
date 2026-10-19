@@ -120,6 +120,61 @@ final class ItemPhotoIntakeTest extends TestCase
         self::assertNotSame('', $label);
     }
 
+    public function testTheByteCapLabelUsesTheSmallerIniLimit(): void
+    {
+        $previousUpload = ini_get('upload_max_filesize');
+        $previousPost = ini_get('post_max_size');
+        ini_set('upload_max_filesize', '0');
+        ini_set('post_max_size', '8M');
+        try {
+            self::assertSame('2 MB', $this->intake()->label());
+            ini_set('upload_max_filesize', '10k');
+            self::assertSame(2000000, $this->intake()->bytes());
+        } finally {
+            if (is_string($previousUpload)) {
+                ini_set('upload_max_filesize', $previousUpload);
+            }
+            if (is_string($previousPost)) {
+                ini_set('post_max_size', $previousPost);
+            }
+        }
+        $intake = $this->intake();
+        self::assertSame('2 MB', $intake->label());
+        self::assertSame('image/webp', $intake->media('RIFF' . "\x00\x00\x00\x00" . 'WEBP'));
+        self::assertNull($intake->media('RIFF' . 'WEBP'));
+    }
+
+    public function testAFileOfTheExactCapIsReadWhenItWasUploaded(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pic');
+        if ($path === false || file_put_contents($path, "\xFF\xD8\xFF") === false) {
+            self::fail('could not write a photo');
+        }
+        $intake = new ItemPhotoIntake(new NullLogger(), static fn (string $file): bool => $file === $path);
+        $size = $intake->bytes();
+        try {
+            self::assertSame('ffd8ff', $intake->hex([
+                'tmp_name' => $path,
+                'error' => UPLOAD_ERR_OK,
+                'size' => $size,
+                'name' => 'a.jpg',
+            ], false));
+            try {
+                $intake->hex([
+                    'tmp_name' => $path,
+                    'error' => UPLOAD_ERR_OK,
+                    'size' => 0,
+                    'name' => 'a.jpg',
+                ], false);
+                self::fail('an empty upload was accepted');
+            } catch (\InvalidArgumentException $error) {
+                self::assertSame('That photo could not be read.', $error->getMessage());
+            }
+        } finally {
+            unlink($path);
+        }
+    }
+
     private function intake(): ItemPhotoIntake
     {
         return new ItemPhotoIntake(new NullLogger());

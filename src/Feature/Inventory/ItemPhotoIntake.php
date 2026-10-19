@@ -10,8 +10,10 @@ final class ItemPhotoIntake
 {
     public const int MAX_BYTES = 2000000;
 
-    public function __construct(private readonly LoggerInterface $logger)
-    {
+    public function __construct(
+        private readonly LoggerInterface $logger,
+        private readonly ?\Closure $uploaded = null,
+    ) {
     }
 
     public function rule(): string
@@ -56,7 +58,7 @@ final class ItemPhotoIntake
         if ($file['error'] === UPLOAD_ERR_PARTIAL) {
             throw new \InvalidArgumentException('That photo did not finish uploading. Try again.');
         }
-        if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] < 1 || !is_uploaded_file($file['tmp_name'])) {
+        if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] < 1 || !$this->uploaded($file['tmp_name'])) {
             $this->logger->error('item photo upload was refused', ['error' => $file['error'], 'size' => $file['size']]);
 
             throw new \InvalidArgumentException('That photo could not be read.');
@@ -134,5 +136,14 @@ final class ItemPhotoIntake
         };
 
         return $bytes > 0 ? $bytes : 0;
+    }
+
+    private function uploaded(string $path): bool
+    {
+        if ($this->uploaded instanceof \Closure) {
+            return ($this->uploaded)($path) === true;
+        }
+
+        return is_uploaded_file($path);
     }
 }
