@@ -9,11 +9,50 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write # Required to delete workflow runs
-      contents: read
     steps:
-      - uses: actions/checkout@v6.0.2
-
       - name: Delete workflow runs
-        uses: iamazeem/delete-workflow-runs-action@v1
-        with:
-          keep: 3 # Keeps the last 3 runs, deletes all others
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: "3"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t rows < <(
+            gh api --paginate \
+              "/repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100" \
+              --jq '.workflow_runs[] | [.id, .status] | @tsv'
+          )
+
+          deleted=0
+          index=0
+          for row in "${rows[@]}"; do
+            index=$((index + 1))
+            id="${row%%$'\t'*}"
+            status="${row#*$'\t'}"
+            if (( index <= KEEP )) || [[ "$id" == "$GITHUB_RUN_ID" ]]; then
+              continue
+            fi
+            if [[ "$status" == "queued" || "$status" == "in_progress" || "$status" == "waiting" || "$status" == "pending" ]]; then
+              echo "Skipping ${id} (${status})"
+              continue
+            fi
+
+            echo "Deleting ${id}"
+            attempt=1
+            while (( attempt <= 5 )); do
+              if gh run delete "$id"; then
+                deleted=$((deleted + 1))
+                break
+              fi
+              echo "Delete ${id} failed (attempt ${attempt}); waiting"
+              sleep $((attempt * 5))
+              attempt=$((attempt + 1))
+            done
+            if (( attempt > 5 )); then
+              echo "Could not delete ${id}" >&2
+              exit 1
+            fi
+          done
+
+          echo "Deleted ${deleted} workflow run(s)."
