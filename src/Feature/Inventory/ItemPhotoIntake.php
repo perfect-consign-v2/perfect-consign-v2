@@ -12,8 +12,8 @@ final class ItemPhotoIntake
 
     public function __construct(
         private readonly LoggerInterface $logger,
-        private readonly ?\Closure $uploaded = null,
-        private readonly ?\Closure $ini = null,
+        private readonly mixed $uploaded = null,
+        private readonly mixed $ini = null,
     ) {
     }
 
