@@ -38,7 +38,6 @@ final class MallController
         private readonly BackupStore $backups,
         private readonly NightlyCopy $nightly,
         private readonly LabelCatalog $stocks,
-        private readonly ReceiptMailSettings $receiptMail,
     ) {
         $this->rentDraft = new MallRentDraft($app, $payouts);
     }
@@ -154,7 +153,7 @@ final class MallController
         $this->postedGmail = $this->app->request()->field('gmail_address');
         try {
             $this->mall->setReceiptFooter($footer);
-            $this->receiptMail->save(
+            $this->mall->setReceiptMail(
                 $this->postedMailVia,
                 $this->postedGmail,
                 $this->app->request()->raw('gmail_app_password'),
@@ -207,9 +206,7 @@ final class MallController
         int $floorDepth,
         ?int $days,
     ): ?string {
-        if (!$this->payouts->consignmentEnabled() && $this->app->request()->field('consignment_enabled') !== '1') {
-            $days = null;
-        }
+        $days = $this->payouts->getDaysWhenConsigned($days, $this->app->request()->field('consignment_enabled'));
         try {
             $this->mall->save(
                 $timeZone,
@@ -317,9 +314,7 @@ final class MallController
         int $taxRate,
     ): ?string {
         $consignment = $this->app->request()->field('consignment_enabled') === '1';
-        if (!$consignment) {
-            $floorDays = null;
-        }
+        $floorDays = $this->payouts->getDaysWhenConsigned($floorDays, $consignment ? '1' : '');
         try {
             $this->mall->save(
                 $timeZone,
@@ -386,7 +381,7 @@ final class MallController
             'floorDepth' => $floorDepth,
             'storeTake' => $storeTake,
             'floorDays' => $floorDays,
-            'cashRound' => $this->postedCashRound ?? ($this->mall->cashRoundNickel() ? '1' : ''),
+            'cashRound' => $this->postedCashRound ?? $this->mall->getCashRoundText(),
             'taxRate' => $this->postedTaxRate ?? MallMeasure::taxPercent($this->mall->taxRate()),
             'backupHeadline' => BackupHeadline::text(
                 $this->backups->latest($tenant->id),
@@ -397,8 +392,8 @@ final class MallController
             'payoutCadence' => $this->payouts->payoutCadence(),
             'rentPrepaid' => $this->rentDraft->prepaid ?? $this->payouts->rentPrepaid(),
             'boothRentals' => $this->rentDraft->rentals ?? $this->payouts->rentalsEnabled(),
-            'consignmentEnabled' => $this->payouts->consignmentEnabled(),
-            'storeStockEnabled' => $this->payouts->storeStockEnabled(),
+            'consignmentEnabled' => $this->payouts->getShop()['consignment'],
+            'storeStockEnabled' => $this->payouts->getShop()['store'],
             'cycleDay' => $this->rentDraft->cycleDay ?? $this->payouts->cycleDay(),
             'cycleFrozen' => $this->payouts->cycleFrozen(),
             'lateFees' => $this->rentDraft->lateFees ?? $late['enabled'],
@@ -407,9 +402,9 @@ final class MallController
             'lateNext' => $this->rentDraft->dollars($this->rentDraft->lateNext ?? $late['next']),
             'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
             'receiptFooter' => $this->postedFooter ?? $this->mall->getReceiptFooter(),
-            'receiptMailVia' => $this->postedMailVia ?? $this->receiptMail->via(),
-            'gmailAddress' => $this->postedGmail ?? $this->receiptMail->gmailAddress(),
-            'gmailPasswordSaved' => $this->receiptMail->hasGmailPassword(),
+            'receiptMailVia' => $this->postedMailVia ?? $this->mall->getReceiptMailVia(),
+            'gmailAddress' => $this->postedGmail ?? $this->mall->getGmailAddress(),
+            'gmailPasswordSaved' => $this->mall->hasGmailPassword(),
             'stocks' => $this->stocks->choices(),
             'catalogs' => $this->postedCatalogs ?? [
                 'use_color' => $this->mall->enabled('use_color'),

@@ -100,7 +100,13 @@ final class SaleJournalTest extends TestCase
         $ledger = $this->createStub(LedgerStore::class);
         $ledger->method('roleAccount')->willReturnCallback(static fn (string $role): string => 'acct-' . $role);
         $credit = ['account_id' => 'acct-cash', 'debit' => 0, 'credit' => 800, 'subledger_type' => null, 'subledger_ref' => null];
-        $lines = SaleJournal::giveBack($ledger, 1000, 100, 80, 50, 25, 'v1', $credit);
+        $lines = SaleJournal::giveBack($ledger, [
+            'price' => 1000,
+            'commission' => 100,
+            'tax' => 80,
+            'discount' => 50,
+            'store_discount' => 25,
+        ], 'v1', $credit);
 
         self::assertSame('acct-commission_revenue', $lines[0]['account_id']);
         self::assertSame(100, $lines[0]['debit']);
@@ -182,7 +188,13 @@ final class SaleJournalTest extends TestCase
         $ledger = $this->ledger();
         $credit = ['account_id' => 'acct-cash', 'debit' => 0, 'credit' => 100, 'subledger_type' => null, 'subledger_ref' => null];
 
-        self::assertSame([$credit], SaleJournal::giveBack($ledger, 100, 0, 0, 100, 0, 'v1', $credit));
+        self::assertSame([$credit], SaleJournal::giveBack($ledger, [
+            'price' => 100,
+            'commission' => 0,
+            'tax' => 0,
+            'discount' => 100,
+            'store_discount' => 0,
+        ], 'v1', $credit));
     }
 
     public function testZeroCashDoesNotRoundAnEmptyTender(): void

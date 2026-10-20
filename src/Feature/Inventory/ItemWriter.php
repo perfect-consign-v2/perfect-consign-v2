@@ -36,7 +36,8 @@ final class ItemWriter
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     placement?: string
      * } $draft
      */
     public function entry(array $draft): ItemEntry

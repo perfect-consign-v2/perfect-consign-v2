@@ -88,6 +88,12 @@ final class MallSettings
         return MallGuard::flag($this->row()['cash_round_nickel'] ?? null);
     }
 
+    public function getCashRoundText(): string
+    {
+        return $this->cashRoundNickel() ? '1' : '';
+    }
+
+
     public function getLabelStock(): string
     {
         return RowValue::string($this->row()['label_stock'] ?? null);
@@ -106,6 +112,46 @@ final class MallSettings
     public function setReceiptFooter(string $footer): void
     {
         $this->statements->change('UPDATE mall SET receipt_footer = ?', [ReceiptFooter::text($footer)]);
+    }
+
+    public function getReceiptMailVia(): string
+    {
+        $via = RowValue::string($this->mailRow()['receipt_mail_via'] ?? null);
+
+        return $via === 'gmail' ? 'gmail' : 'server';
+    }
+
+    public function getGmailAddress(): string
+    {
+        $address = $this->mailRow()['gmail_address'] ?? null;
+
+        return is_string($address) ? $address : '';
+    }
+
+    public function hasGmailPassword(): bool
+    {
+        $password = $this->mailRow()['gmail_app_password'] ?? null;
+
+        return is_string($password) && $password !== '';
+    }
+
+    public function setReceiptMail(string $via, string $address, string $password): void
+    {
+        (new ReceiptMailSettings($this->statements))->save($via, $address, $password);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mailRow(): array
+    {
+        $rows = $this->statements->rows('SELECT receipt_mail_via, gmail_address, gmail_app_password FROM mall');
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            throw new \RuntimeException('the mall has no clock');
+        }
+
+        return $row;
     }
 
     public function isRentalsEnabled(): bool

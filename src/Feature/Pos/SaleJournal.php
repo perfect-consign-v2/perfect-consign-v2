@@ -35,31 +35,26 @@ final class SaleJournal
     }
 
     /**
+     * @param array{price: int, commission: int, tax: int, discount: int, store_discount: int, placement?: string, cost?: int} $item
      * @param array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string} $credit
      * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
      */
     public static function giveBack(
         LedgerStore $ledger,
-        int $price,
-        int $commission,
-        int $tax,
-        int $discount,
-        int $storeDiscount,
+        array $item,
         string $vendorId,
         array $credit,
-        string $placement = 'consigned',
-        int $cost = 0,
     ): array {
+        $price = $item['price'];
+        $commission = $item['commission'];
+        $tax = $item['tax'];
+        $discount = $item['discount'];
+        $storeDiscount = $item['store_discount'];
+        $placement = $item['placement'] ?? 'consigned';
+        $cost = $item['cost'] ?? 0;
         $lines = [];
         if ($placement === 'store') {
-            $net = $price - $discount;
-            if ($net > 0) {
-                $lines[] = PostedLines::entry($ledger->roleAccount('store_sales'), $net, 0, null, null);
-            }
-            if ($cost > 0) {
-                $lines[] = PostedLines::entry($ledger->roleAccount('inventory'), $cost, 0, null, null);
-                $lines[] = PostedLines::entry($ledger->roleAccount('cost_of_goods'), 0, $cost, null, null);
-            }
+            $lines = self::storeReturn($ledger, $price, $discount, $cost);
         } elseif ($commission > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('commission_revenue'), $commission, 0, null, null);
         }
@@ -74,6 +69,24 @@ final class SaleJournal
             $lines[] = PostedLines::entry($ledger->roleAccount('vendor_payable'), $owed, 0, 'vendor', $vendorId);
         }
         $lines[] = $credit;
+
+        return $lines;
+    }
+
+    /**
+     * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
+     */
+    private static function storeReturn(LedgerStore $ledger, int $price, int $discount, int $cost): array
+    {
+        $lines = [];
+        $net = $price - $discount;
+        if ($net > 0) {
+            $lines[] = PostedLines::entry($ledger->roleAccount('store_sales'), $net, 0, null, null);
+        }
+        if ($cost > 0) {
+            $lines[] = PostedLines::entry($ledger->roleAccount('inventory'), $cost, 0, null, null);
+            $lines[] = PostedLines::entry($ledger->roleAccount('cost_of_goods'), 0, $cost, null, null);
+        }
 
         return $lines;
     }
@@ -145,13 +158,8 @@ final class SaleJournal
         $payable = [];
         foreach ($items as $item) {
             $tax += $item['tax'];
-            $placement = $item['placement'] ?? 'consigned';
-            if ($placement === 'store') {
-                $storeSales += $item['price'] * $item['quantity'] - $item['discount'];
-                $cost = $item['cost'] ?? 0;
-                if ($cost > 0) {
-                    $cogs += $cost * $item['quantity'];
-                }
+            if (($item['placement'] ?? 'consigned') === 'store') {
+                [$storeSales, $cogs] = self::storeCredit($item, $storeSales, $cogs);
                 continue;
             }
             $commission += $item['commission'];
@@ -161,6 +169,21 @@ final class SaleJournal
                 $payable[$vendor] = ($payable[$vendor] ?? 0) + $owed;
             }
         }
+        return self::creditLines($ledger, $commission, $storeSales, $cogs, $tax, $payable);
+    }
+
+    /**
+     * @param array<string, int> $payable
+     * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
+     */
+    private static function creditLines(
+        LedgerStore $ledger,
+        int $commission,
+        int $storeSales,
+        int $cogs,
+        int $tax,
+        array $payable,
+    ): array {
         $lines = [];
         if ($commission > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('commission_revenue'), 0, $commission, null, null);
@@ -180,5 +203,20 @@ final class SaleJournal
         }
 
         return $lines;
+    }
+
+    /**
+     * @param array{price: int, quantity: int, discount: int, cost?: int} $item
+     * @return array{0: int, 1: int}
+     */
+    private static function storeCredit(array $item, int $storeSales, int $cogs): array
+    {
+        $storeSales += $item['price'] * $item['quantity'] - $item['discount'];
+        $cost = $item['cost'] ?? 0;
+        if ($cost > 0) {
+            $cogs += $cost * $item['quantity'];
+        }
+
+        return [$storeSales, $cogs];
     }
 }

@@ -64,13 +64,21 @@ final class MallApp
         $data['warning'] = $warning;
         $data['actorRole'] = $this->door->actor()->role();
         $data['previewAs'] = $this->chrome()->previewAs(is_string($slug) ? $slug : '');
+        $this->shopFlags($data);
+        $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function shopFlags(array &$data): void
+    {
         $data['showBrand'] = $this->roled ? $this->mall->enabled('use_brand') : true;
         $data['boothRentals'] ??= $this->roled ? $this->mall->isRentalsEnabled() : true;
         $data['consignmentEnabled'] ??= $this->roled ? $this->mall->isConsignmentEnabled() : true;
         $data['storeStockEnabled'] ??= $this->roled ? $this->mall->isStoreStockEnabled() : false;
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
         $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
-        $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
 
     /**

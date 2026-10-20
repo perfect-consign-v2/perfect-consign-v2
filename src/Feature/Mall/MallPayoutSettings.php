@@ -33,14 +33,24 @@ final class MallPayoutSettings
         return $this->flag('booth_rentals_enabled');
     }
 
-    public function consignmentEnabled(): bool
+    /**
+     * @return array{consignment: bool, store: bool}
+     */
+    public function getShop(): array
     {
-        return $this->flag('consignment_enabled');
+        return [
+            'consignment' => $this->flag('consignment_enabled'),
+            'store' => $this->flag('store_stock_enabled'),
+        ];
     }
 
-    public function storeStockEnabled(): bool
+    public function getDaysWhenConsigned(?int $days, string $posted): ?int
     {
-        return $this->flag('store_stock_enabled');
+        if (!$this->flag('consignment_enabled') && $posted !== '1') {
+            return null;
+        }
+
+        return $days;
     }
 
     public function cycleDay(): int
