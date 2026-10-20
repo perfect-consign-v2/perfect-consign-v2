@@ -132,10 +132,26 @@ if ($printId !== '') {
                 <input class="input" id="intake_on" name="intake_on" type="date" value="<?= View::text($item['intake_on']) ?>" required>
             </div>
             <div class="field">
+                <label for="placement">Where it sits</label>
+                <select class="input" id="placement" name="placement">
+                    <?php if (!empty($boothRentals)): ?>
+                        <option value="booth"<?= ($item['placement'] ?? '') === 'booth' ? ' selected' : '' ?>>Booth</option>
+                    <?php endif; ?>
+                    <?php if (!empty($consignmentEnabled)): ?>
+                        <option value="consigned"<?= ($item['placement'] ?? 'consigned') === 'consigned' ? ' selected' : '' ?>>Consigned</option>
+                    <?php endif; ?>
+                    <?php if (!empty($storeStockEnabled)): ?>
+                        <option value="store"<?= ($item['placement'] ?? '') === 'store' ? ' selected' : '' ?>>Store</option>
+                    <?php endif; ?>
+                </select>
+            </div>
+            <?php if (!empty($consignmentEnabled)): ?>
+            <div class="field">
                 <label for="expires_on">Expire date</label>
                 <input class="input" id="expires_on" name="expires_on" type="date" value="<?= View::text($item['expires_on']) ?>"<?= $item['intake_on'] !== '' ? ' min="' . View::text($item['intake_on']) . '"' : '' ?>>
                 <p class="muted text-sm"><?= View::text($expireHint) ?></p>
             </div>
+            <?php endif; ?>
             <?php if (!$editing): ?>
             <div class="field" style="grid-column: 1 / -1">
                 <label for="photo">Photo</label>

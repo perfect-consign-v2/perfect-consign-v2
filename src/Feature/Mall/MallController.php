@@ -25,6 +25,10 @@ final class MallController
 
     private ?string $postedFooter = null;
 
+    private ?string $postedMailVia = null;
+
+    private ?string $postedGmail = null;
+
     private MallRentDraft $rentDraft;
 
     public function __construct(
@@ -34,6 +38,7 @@ final class MallController
         private readonly BackupStore $backups,
         private readonly NightlyCopy $nightly,
         private readonly LabelCatalog $stocks,
+        private readonly ReceiptMailSettings $receiptMail,
     ) {
         $this->rentDraft = new MallRentDraft($app, $payouts);
     }
@@ -145,8 +150,15 @@ final class MallController
     {
         $footer = $this->app->request()->field('receipt_footer');
         $this->postedFooter = $footer;
+        $this->postedMailVia = $this->app->request()->field('receipt_mail_via');
+        $this->postedGmail = $this->app->request()->field('gmail_address');
         try {
             $this->mall->setReceiptFooter($footer);
+            $this->receiptMail->save(
+                $this->postedMailVia,
+                $this->postedGmail,
+                $this->app->request()->raw('gmail_app_password'),
+            );
         } catch (DatabaseRefusal $refusal) {
             $this->showError($slug, $this->app->catchRefusal($refusal));
 
@@ -195,6 +207,9 @@ final class MallController
         int $floorDepth,
         ?int $days,
     ): ?string {
+        if (!$this->payouts->consignmentEnabled() && $this->app->request()->field('consignment_enabled') !== '1') {
+            $days = null;
+        }
         try {
             $this->mall->save(
                 $timeZone,
@@ -301,6 +316,10 @@ final class MallController
         ?int $floorDays,
         int $taxRate,
     ): ?string {
+        $consignment = $this->app->request()->field('consignment_enabled') === '1';
+        if (!$consignment) {
+            $floorDays = null;
+        }
         try {
             $this->mall->save(
                 $timeZone,
@@ -329,6 +348,8 @@ final class MallController
                 $this->rentDraft->prepaid ?? false,
                 $this->rentDraft->rentals ?? false,
                 $this->rentDraft->cycleDay ?? 1,
+                $consignment,
+                $this->app->request()->field('store_stock_enabled') === '1',
             );
             $this->rentDraft->save();
         } catch (DatabaseRefusal $refusal) {
@@ -376,6 +397,8 @@ final class MallController
             'payoutCadence' => $this->payouts->payoutCadence(),
             'rentPrepaid' => $this->rentDraft->prepaid ?? $this->payouts->rentPrepaid(),
             'boothRentals' => $this->rentDraft->rentals ?? $this->payouts->rentalsEnabled(),
+            'consignmentEnabled' => $this->payouts->consignmentEnabled(),
+            'storeStockEnabled' => $this->payouts->storeStockEnabled(),
             'cycleDay' => $this->rentDraft->cycleDay ?? $this->payouts->cycleDay(),
             'cycleFrozen' => $this->payouts->cycleFrozen(),
             'lateFees' => $this->rentDraft->lateFees ?? $late['enabled'],
@@ -384,6 +407,9 @@ final class MallController
             'lateNext' => $this->rentDraft->dollars($this->rentDraft->lateNext ?? $late['next']),
             'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
             'receiptFooter' => $this->postedFooter ?? $this->mall->getReceiptFooter(),
+            'receiptMailVia' => $this->postedMailVia ?? $this->receiptMail->via(),
+            'gmailAddress' => $this->postedGmail ?? $this->receiptMail->gmailAddress(),
+            'gmailPasswordSaved' => $this->receiptMail->hasGmailPassword(),
             'stocks' => $this->stocks->choices(),
             'catalogs' => $this->postedCatalogs ?? [
                 'use_color' => $this->mall->enabled('use_color'),

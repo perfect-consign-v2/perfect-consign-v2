@@ -377,6 +377,7 @@ final class PartyCoverageTest extends TestCase
             'notes' => '',
             'tax_exempt' => '',
             'tax_exempt_number' => '',
+            'business_name' => '',
         ], $override);
     }
 }

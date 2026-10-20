@@ -32,13 +32,16 @@ final class TicketPricing
         $rows = $this->statements->bound(
             'SELECT line.line_no, line.item_id, line.price_minor, line.quantity, line.line_discount_minor,
                     line.offer_discount_minor, line.store_discount_minor, COALESCE(offer.name, \'\') AS offer_name,
-                    item.code, item.description, item.vendor_id,
+                    item.code, item.description, item.vendor_id, item.placement, item.cost_minor,
                     vendor.name AS vendor_name, vendor.tax_exempt,
                     line.line_discount_kind, line.line_discount_value, line.line_discount_reason,
-                    COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) AS commission_bps
+                    CASE
+                        WHEN item.placement = \'store\' THEN 0
+                        ELSE COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps)
+                    END AS commission_bps
              FROM ticket_lines AS line
              JOIN items AS item ON item.id = line.item_id
-             JOIN vendors AS vendor ON vendor.id = item.vendor_id
+             LEFT JOIN vendors AS vendor ON vendor.id = item.vendor_id
              CROSS JOIN mall
              LEFT JOIN offers AS offer ON offer.id = line.offer_id
              WHERE line.ticket_id = ?::uuid
@@ -162,6 +165,8 @@ final class TicketPricing
             'description' => RowValue::string($row['description'] ?? null),
             'vendor' => RowValue::string($row['vendor_name'] ?? null),
             'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
+            'placement' => RowValue::string($row['placement'] ?? null),
+            'cost' => $row['cost_minor'] === null ? 0 : RowValue::integer($row['cost_minor']),
             'price' => $price,
             'quantity' => $quantity,
             'commission' => TicketQuote::halfUp($extended - $taken, RowValue::integer($row['commission_bps'] ?? null)),

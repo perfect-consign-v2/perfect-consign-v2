@@ -110,7 +110,9 @@ final class SalePoster
                 $item['discount'],
                 $item['store_discount'],
                 $item['vendor_id'],
-                $credit
+                $credit,
+                $item['placement'],
+                $item['cost'],
             ),
             sessionId: $sessionId,
             checkNumber: $check,
@@ -232,13 +234,13 @@ final class SalePoster
     }
 
     /**
-     * @return array{price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, vendor_id: string}
+     * @return array{price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, vendor_id: string, placement: string, cost: int}
      */
     private function item(string $saleId, string $itemId): array
     {
         $rows = $this->statements->bound(
             'SELECT sale.price_minor, sale.quantity, sale.commission_minor, sale.tax_minor, sale.discount_minor,
-                    sale.store_discount_minor, item.vendor_id
+                    sale.store_discount_minor, item.vendor_id, item.placement, item.cost_minor
              FROM sale_lines AS sale
              JOIN items AS item ON item.id = sale.item_id
              JOIN journals AS journal ON journal.id = sale.journal_id
@@ -263,6 +265,8 @@ final class SalePoster
             'discount' => RowValue::integer($row['discount_minor'] ?? null),
             'store_discount' => RowValue::integer($row['store_discount_minor'] ?? null),
             'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
+            'placement' => RowValue::string($row['placement'] ?? null),
+            'cost' => ($row['cost_minor'] === null ? 0 : RowValue::integer($row['cost_minor'])) * $quantity,
         ];
     }
 

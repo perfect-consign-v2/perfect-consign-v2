@@ -196,7 +196,7 @@ final class PayoutRunTest extends TestCase
             $settler->chargeMissing($runId, $vendorId);
             $parties->setPayoutMode($vendorId, 'nope');
         // assignments( row(
-            $mall->save('nope', true, true, 1);
+            $mall->save('nope', true, true, 1, true, false);
             self::assertSame('both', $mall->operatingMode());
             self::assertSame('monthly', $mall->payoutCadence());
             self::assertTrue($mall->rentPrepaid());

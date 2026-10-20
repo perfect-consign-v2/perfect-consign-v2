@@ -47,9 +47,20 @@ final class SaleJournal
         int $storeDiscount,
         string $vendorId,
         array $credit,
+        string $placement = 'consigned',
+        int $cost = 0,
     ): array {
         $lines = [];
-        if ($commission > 0) {
+        if ($placement === 'store') {
+            $net = $price - $discount;
+            if ($net > 0) {
+                $lines[] = PostedLines::entry($ledger->roleAccount('store_sales'), $net, 0, null, null);
+            }
+            if ($cost > 0) {
+                $lines[] = PostedLines::entry($ledger->roleAccount('inventory'), $cost, 0, null, null);
+                $lines[] = PostedLines::entry($ledger->roleAccount('cost_of_goods'), 0, $cost, null, null);
+            }
+        } elseif ($commission > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('commission_revenue'), $commission, 0, null, null);
         }
         if ($tax > 0) {
@@ -59,7 +70,7 @@ final class SaleJournal
             $lines[] = PostedLines::entry($ledger->roleAccount('promotion_expense'), 0, $storeDiscount, null, null);
         }
         $owed = $price - $discount - $commission;
-        if ($owed > 0) {
+        if ($placement !== 'store' && $owed > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('vendor_payable'), $owed, 0, 'vendor', $vendorId);
         }
         $lines[] = $credit;
@@ -129,10 +140,21 @@ final class SaleJournal
     {
         $commission = 0;
         $tax = 0;
+        $storeSales = 0;
+        $cogs = 0;
         $payable = [];
         foreach ($items as $item) {
-            $commission += $item['commission'];
             $tax += $item['tax'];
+            $placement = $item['placement'] ?? 'consigned';
+            if ($placement === 'store') {
+                $storeSales += $item['price'] * $item['quantity'] - $item['discount'];
+                $cost = $item['cost'] ?? 0;
+                if ($cost > 0) {
+                    $cogs += $cost * $item['quantity'];
+                }
+                continue;
+            }
+            $commission += $item['commission'];
             $owed = $item['price'] * $item['quantity'] - $item['discount'] - $item['commission'];
             if ($owed > 0) {
                 $vendor = $item['vendor_id'];
@@ -142,6 +164,13 @@ final class SaleJournal
         $lines = [];
         if ($commission > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('commission_revenue'), 0, $commission, null, null);
+        }
+        if ($storeSales > 0) {
+            $lines[] = PostedLines::entry($ledger->roleAccount('store_sales'), 0, $storeSales, null, null);
+        }
+        if ($cogs > 0) {
+            $lines[] = PostedLines::entry($ledger->roleAccount('cost_of_goods'), $cogs, 0, null, null);
+            $lines[] = PostedLines::entry($ledger->roleAccount('inventory'), 0, $cogs, null, null);
         }
         if ($tax > 0) {
             $lines[] = PostedLines::entry($ledger->roleAccount('sales_tax_payable'), 0, $tax, null, null);

@@ -18,7 +18,9 @@ use PerfectConsign\Shared\Http\View;
  *     booth: array{code: string, rent: int|null, note: string}|null,
  *     others: list<array{code: string, starts_on: string, ends_on: string, rent: int|null}>,
  *     activity: list<array{date: string, label: string, amount: int, run_id: string}>,
- *     last: array{run_id: string, paid_on: string, amount: int, number: string}|null
+ *     last: array{run_id: string, paid_on: string, amount: int, number: string}|null,
+ *     consignor: array{sold: int, take: int, owed: int, expired: int},
+ *     dealer: array{sold: int, owed: int, rent: int, settled: int}
  * } $page
  */
 
@@ -27,6 +29,12 @@ $checkLink = static function (string $runId) use ($slug, $previewAs): string {
     return VendorPreview::with('/' . $slug . '/vendor/checks/' . $runId, $previewAs);
 };
 ?>
+<?php if ($page['consignor']['sold'] > 0 || $page['consignor']['expired'] > 0): ?>
+    <p class="mt-4">Consignment: sold <?= View::text(View::money($page['consignor']['sold'])) ?>, store take <?= View::text(View::money($page['consignor']['take'])) ?>, owed <?= View::text(View::money($page['consignor']['owed'])) ?>, expired still out <?= View::text((string) $page['consignor']['expired']) ?>.</p>
+<?php endif; ?>
+<?php if ($page['dealer']['sold'] > 0 || $page['dealer']['rent'] !== 0): ?>
+    <p>Booth: sold <?= View::text(View::money($page['dealer']['sold'])) ?>, owed <?= View::text(View::money($page['dealer']['owed'])) ?>, rent <?= View::text(View::money($page['dealer']['rent'])) ?>.</p>
+<?php endif; ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Your check</h1>

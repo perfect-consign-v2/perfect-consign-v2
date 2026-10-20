@@ -88,6 +88,22 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
                     </span>
                     Booth rentals
                 </label>
+                <label class="switch-row" for="consignment_enabled">
+                    <span class="switch">
+                        <input id="consignment_enabled" name="consignment_enabled" type="checkbox" value="1"<?= !empty($consignmentEnabled) ? ' checked' : '' ?>>
+                        <span class="switch-track" aria-hidden="true"></span>
+                        <span class="switch-knob" aria-hidden="true"></span>
+                    </span>
+                    Consignment
+                </label>
+                <label class="switch-row" for="store_stock_enabled">
+                    <span class="switch">
+                        <input id="store_stock_enabled" name="store_stock_enabled" type="checkbox" value="1"<?= !empty($storeStockEnabled) ? ' checked' : '' ?>>
+                        <span class="switch-track" aria-hidden="true"></span>
+                        <span class="switch-knob" aria-hidden="true"></span>
+                    </span>
+                    Store stock
+                </label>
                 <?php if ($boothRentals): ?>
                     <label class="switch-row" for="rent_prepaid_from_prior_sales">
                         <span class="switch">
@@ -213,11 +229,13 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             <?php endforeach; ?>
             </div>
         </div>
+        <?php if (!empty($consignmentEnabled)): ?>
         <div class="field">
             <label for="floor_days">Days on the floor</label>
             <input class="input" id="floor_days" name="floor_days" inputmode="numeric" value="<?= View::text($floorDays) ?>">
-            <p class="muted text-sm">How long a new item stays before it expires. Leave this empty and items do not expire. A consignment store sets it. A vendor mall leaves it empty.</p>
+            <p class="muted text-sm">How long a new consigned item stays before it expires. Leave this empty and consigned items do not expire.</p>
         </div>
+        <?php endif; ?>
     </div>
     <div class="card-foot">
         <button class="btn btn-primary" type="submit">Save building</button>
@@ -233,6 +251,24 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             <label for="receipt_footer">Footer</label>
             <textarea class="textarea" id="receipt_footer" name="receipt_footer" maxlength="400" rows="3"><?= View::text($receiptFooter) ?></textarea>
             <p class="muted text-sm">Printed at the bottom of a sale receipt and a rent receipt. Leave this empty and those receipts have no footer.</p>
+        </div>
+        <div class="field">
+            <label for="receipt_mail_via">Email receipts from</label>
+            <select class="input" id="receipt_mail_via" name="receipt_mail_via">
+                <?php foreach (['server' => 'This server', 'gmail' => 'This mall\'s Gmail'] as $value => $label): ?>
+                    <option value="<?= View::text($value) ?>"<?= ($receiptMailVia ?? 'server') === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <p class="muted text-sm">The server uses the mailbox configured for this site. Gmail sends through smtp.gmail.com as a @gmail.com or @googlemail.com address, with an app password.</p>
+        </div>
+        <div class="field">
+            <label for="gmail_address">Gmail address</label>
+            <input class="input" id="gmail_address" name="gmail_address" type="email" maxlength="200" value="<?= View::text(is_string($gmailAddress ?? null) ? $gmailAddress : '') ?>">
+        </div>
+        <div class="field">
+            <label for="gmail_app_password">Gmail app password</label>
+            <input class="input" id="gmail_app_password" name="gmail_app_password" type="password" autocomplete="new-password" value="">
+            <p class="muted text-sm"><?= !empty($gmailPasswordSaved) ? 'An app password is saved. Leave this blank to keep it.' : 'Create an app password in the Google account. Spaces are ignored.' ?></p>
         </div>
     </div>
     <div class="card-foot">

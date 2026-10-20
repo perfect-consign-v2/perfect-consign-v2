@@ -1,5 +1,10 @@
 -- Dev mall rows. Not part of provisioning. php bin/seed-dev-tenant.php loads this into slug dev.
 
+UPDATE public.mall
+SET receipt_mail_via = 'gmail',
+    gmail_address = 'benanamen@gmail.com',
+    gmail_app_password = 'rtxlnmaxtzfjvjno';
+
 INSERT INTO public.vendors (id, code, first_name, last_name, email, phone, commission_bps)
 VALUES (
     '01900000-0000-7000-8000-000000000e01',

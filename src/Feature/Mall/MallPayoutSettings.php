@@ -33,6 +33,16 @@ final class MallPayoutSettings
         return $this->flag('booth_rentals_enabled');
     }
 
+    public function consignmentEnabled(): bool
+    {
+        return $this->flag('consignment_enabled');
+    }
+
+    public function storeStockEnabled(): bool
+    {
+        return $this->flag('store_stock_enabled');
+    }
+
     public function cycleDay(): int
     {
         $day = RowValue::integer($this->row()['rent_cycle_day'] ?? null);
@@ -58,15 +68,30 @@ final class MallPayoutSettings
         return $rows !== [];
     }
 
-    public function save(string $operatingMode, bool $rentPrepaid, bool $rentalsEnabled, int $cycleDay): void
-    {
+    public function save(
+        string $operatingMode,
+        bool $rentPrepaid,
+        bool $rentalsEnabled,
+        int $cycleDay,
+        bool $consignmentEnabled,
+        bool $storeStockEnabled,
+    ): void {
         $mode = in_array($operatingMode, ['consignor', 'booth_mall', 'both'], true) ? $operatingMode : 'both';
         $day = $cycleDay >= 1 && $cycleDay <= 28 ? $cycleDay : 1;
         $this->statements->change(
             'UPDATE mall
              SET operating_mode = ?, payout_cadence = ?, rent_prepaid_from_prior_sales = ?::boolean,
-                 booth_rentals_enabled = ?::boolean, rent_cycle_day = ?',
-            [$mode, 'monthly', $rentPrepaid ? 'true' : 'false', $rentalsEnabled ? 'true' : 'false', $day]
+                 booth_rentals_enabled = ?::boolean, rent_cycle_day = ?,
+                 consignment_enabled = ?::boolean, store_stock_enabled = ?::boolean',
+            [
+                $mode,
+                'monthly',
+                $rentPrepaid ? 'true' : 'false',
+                $rentalsEnabled ? 'true' : 'false',
+                $day,
+                $consignmentEnabled ? 'true' : 'false',
+                $storeStockEnabled ? 'true' : 'false',
+            ]
         );
     }
 
@@ -110,8 +135,8 @@ final class MallPayoutSettings
     {
         $rows = $this->statements->rows(
             'SELECT operating_mode, payout_cadence, rent_prepaid_from_prior_sales,
-                    booth_rentals_enabled, rent_cycle_day, late_fees_enabled, late_fee_grace_days,
-                    late_fee_first_minor, late_fee_next_minor
+                    booth_rentals_enabled, rent_cycle_day, consignment_enabled, store_stock_enabled,
+                    late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor
              FROM mall'
         );
         $row = $rows[0] ?? null;

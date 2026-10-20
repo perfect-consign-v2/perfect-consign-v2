@@ -8,7 +8,7 @@ A vendor is Active or Inactive. That is the vendor's own standing. It is not the
 
 A vendor with no booth is still Active. The booth column says Unassigned.
 
-A vendor's name is a first name and a last name. The list shows them together.
+A vendor's name is a first name and a last name. A business name may be empty. When it is present, the list and the receipt show the business name. The payable id does not change.
 
 Phone, email, and address are the vendor's contact. Each one may be empty. An email that is present has to be an email address.
 
@@ -19,6 +19,16 @@ A vendor is tax exempt only with a resale or tax exempt number on file. That num
 A vendor with open rent cannot be made Inactive. Open rent is a positive rent receivable on a booth that vendor held. A positive vendor payable means the store owes the vendor, and that balance does not by itself block Inactive.
 
 Booth rent can be turned off. While it is off, the mall does not post a rent charge, pay-vendors does not take rent from the check, and the booth, rent, wait list, and map pages stay closed. Turning it off is refused while a booth still owes rent.
+
+Consignment and store stock are separate switches. At least one of booth rent, consignment, and store stock stays on. Turning consignment off is refused while a consigned item is still on hand. Turning store stock off is refused while a store item is still on hand. Days on the floor save only while consignment is on. Empty days still mean consigned items do not expire.
+
+An item sits in a booth, on consignment, or in store stock. A booth piece and a consigned piece name a vendor. A store piece does not. A new booth piece needs booth rent on and an open assignment, and it does not expire. A consigned piece needs consignment on. A store piece needs store stock on, has no store-take override, and does not expire. A sale of a store piece credits store sales for the full net and posts no vendor payable. Tax still follows the mall rate. A cost, when present, posts cost of goods and relieves inventory in that same sale.
+
+Buying a consigned piece is one store purchase. The item becomes store stock, the expire date clears, and the cost is the amount paid. A second buy, a buy of a booth piece, a buy of a store piece, and a buy after the item has sold are refused.
+
+A markdown schedule is days on the floor and a percent off the original asking price. Percents increase as the days increase. Applying a step writes the prior price and the new price, then updates the asking price. Skipping a step, repeating a step, or applying a step before its day is refused. The schedule is for consigned items.
+
+An expired consigned item that is still on hand cannot be sold until it is returned, donated, or bought. A return sets quantity to zero. A donation makes it store stock with no cost. A booth piece does not reach that gate.
 
 The rent period starts on the cycle day, a whole number from 1 to 28. Day 1 is a calendar month. Any other day runs from that day through the day before it next month. The cycle day cannot change after a rent charge is posted.
 
@@ -44,7 +54,7 @@ The asking price is the price on the item. It is not a journal. A sale still pos
 
 The store take on an item follows the vendor. Saving the vendor's percent, or leaving the field empty, stores no override. A different percent is stored on the item and marked overridden.
 
-The expire date is empty, or on or after the intake date. Settings can set days on the floor, from 1 to 365. A new item then expires that many days after intake. An empty setting means items do not expire. That setting is for a consignment store. A vendor mall leaves it empty.
+The expire date is empty, or on or after the intake date. Settings can set days on the floor, from 1 to 365, while consignment is on. A new consigned item then expires that many days after intake. An empty setting means consigned items do not expire. A booth piece and a store piece do not expire.
 
 After an item is created, the add form stays open with the same vendor and the same intake date. The next item gets a fresh expire date from days on the floor.
 

@@ -155,6 +155,10 @@ final class MallDemo
             'UPDATE mall SET commission_bps = ?, tax_bps = ?, floor_days = ?, rent_prepaid_from_prior_sales = true',
             [2000, 8750, 90]
         );
+        $this->statements->change(
+            'UPDATE mall SET receipt_mail_via = ?, gmail_address = ?, gmail_app_password = ?',
+            ['gmail', 'benanamen@gmail.com', 'rtxlnmaxtzfjvjno']
+        );
         $this->statements->change('UPDATE registers SET name = ? WHERE id = ?::uuid', ['Front desk', self::REGISTER]);
         $this->statements->change(
             "INSERT INTO map_floors (name, sort_order) VALUES ('Annex', 1)",

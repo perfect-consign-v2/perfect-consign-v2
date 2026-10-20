@@ -182,6 +182,7 @@ final class InventoryController
             'intake_on' => $this->app->request()->field('intake_on'),
             'expires_on' => $this->app->request()->field('expires_on'),
             'fill_expire' => '',
+            'placement' => $this->app->request()->field('placement'),
         ];
     }
 

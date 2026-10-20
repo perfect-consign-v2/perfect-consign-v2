@@ -163,6 +163,7 @@ final class VendorForm
         $vendor['notes'] = $this->plain($stored['notes'] ?? null);
         $vendor['tax_exempt'] = $this->enabled($stored['tax_exempt'] ?? false);
         $vendor['tax_exempt_number'] = $this->plain($stored['tax_exempt_number'] ?? null);
+        $vendor['business_name'] = $this->plain($stored['business_name'] ?? null);
         $vendor['first_name'] = $this->plain($stored['first_name'] ?? null);
         $vendor['last_name'] = $this->plain($stored['last_name'] ?? null);
         $vendor['default_store_take'] = $this->percent($mallBasis);

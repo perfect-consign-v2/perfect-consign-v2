@@ -22,7 +22,7 @@ final class InventoryStore
                        size.name AS size_name, condition.name AS condition_name,
                        department.name AS department_name
                 FROM items AS item
-                JOIN vendors AS vendor ON vendor.id = item.vendor_id
+                LEFT JOIN vendors AS vendor ON vendor.id = item.vendor_id
                 CROSS JOIN mall
                 LEFT JOIN brands AS brand ON brand.id = item.brand_id
                 LEFT JOIN colors AS color ON color.id = item.color_id
@@ -106,7 +106,7 @@ final class InventoryStore
                     department.name AS department_name,
                     stall_sticker_deal(item.id) AS deal_name
              FROM items AS item
-             JOIN vendors AS vendor ON vendor.id = item.vendor_id
+             LEFT JOIN vendors AS vendor ON vendor.id = item.vendor_id
              CROSS JOIN mall
              LEFT JOIN brands AS brand ON brand.id = item.brand_id
              LEFT JOIN colors AS color ON color.id = item.color_id
@@ -211,12 +211,13 @@ final class InventoryStore
 
     private function store(?string $id, ItemEntry $item, string $barcode): string
     {
-        $columns = ['code', 'barcode', 'vendor_id'];
-        $casts = ['?', '?', '?::uuid'];
+        $columns = ['code', 'barcode', 'vendor_id', 'placement'];
+        $casts = ['?', '?', '?::uuid', '?'];
         $params = [
             $item->code,
             $barcode,
-            $item->vendorId,
+            $item->vendorId === '' ? null : $item->vendorId,
+            $item->placement,
         ];
         if ($this->mall->enabled('use_brand')) {
             $columns[] = 'brand_id';

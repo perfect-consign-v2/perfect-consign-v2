@@ -70,6 +70,8 @@ final class MallMoneyForm
                 $this->rentDraft->prepaid ?? false,
                 $this->rentDraft->rentals ?? false,
                 $this->rentDraft->cycleDay ?? 1,
+                $this->app->request()->field('consignment_enabled') === '1',
+                $this->app->request()->field('store_stock_enabled') === '1',
             );
             $this->rentDraft->save();
         } catch (DatabaseRefusal $refusal) {

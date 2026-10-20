@@ -71,8 +71,8 @@ class PartyStore
             'INSERT INTO vendors (
                 code, first_name, last_name, phone, email, address,
                 commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
-                tax_exempt, tax_exempt_number
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?::date, ?::date, ?, ?, ?::boolean, ?) RETURNING id',
+                tax_exempt, tax_exempt_number, business_name
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?::date, ?::date, ?, ?, ?::boolean, ?, ?) RETURNING id',
             $vendor->values()
         );
         $id = $rows[0]['id'] ?? null;
@@ -89,7 +89,7 @@ class PartyStore
     public function findVendor(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, first_name, last_name, name, phone, email, address, active,
+            'SELECT id, code, first_name, last_name, name, business_name, phone, email, address, active,
                     commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
                     tax_exempt, tax_exempt_number, payout_mode
              FROM vendors WHERE id = ?::uuid',
@@ -105,7 +105,7 @@ class PartyStore
             'UPDATE vendors
              SET code = ?, first_name = ?, last_name = ?, phone = ?, email = ?, address = ?,
                  commission_bps = ?, agreement_starts_on = ?::date, agreement_ends_on = ?::date,
-                 tax_id = ?, notes = ?, tax_exempt = ?::boolean, tax_exempt_number = ?
+                 tax_id = ?, notes = ?, tax_exempt = ?::boolean, tax_exempt_number = ?, business_name = ?
              WHERE id = ?::uuid',
             [...$vendor->values(), $id]
         );

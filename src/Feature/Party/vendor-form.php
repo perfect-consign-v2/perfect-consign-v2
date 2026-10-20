@@ -73,6 +73,11 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
                     <input class="input" id="code" name="code" value="<?= View::text($codeText) ?>" required>
                     <p class="muted text-sm">The code is how this mall finds the vendor.</p>
                 </div>
+                <div class="field">
+                    <label for="business_name">Business name</label>
+                    <input class="input" id="business_name" name="business_name" value="<?= View::text(is_string($vendor['business_name'] ?? null) ? $vendor['business_name'] : '') ?>">
+                    <p class="muted text-sm">Shown on the list and the receipt when this vendor is a shop or a couple.</p>
+                </div>
                 <div class="vendor-pair">
                     <div class="field">
                         <label for="first_name">First name</label>

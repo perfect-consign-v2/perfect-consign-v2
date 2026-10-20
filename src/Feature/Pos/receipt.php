@@ -48,6 +48,11 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
         <button class="btn btn-primary" type="button" data-print>Print receipt</button>
         <a class="btn" href="/<?= View::text($slug) ?>/pos">Back to register</a>
     </div>
+    <form class="no-print row wrap gap-2 mt-4" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/email">
+        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+        <input class="input" type="email" name="email" required maxlength="200" placeholder="Customer email" aria-label="Customer email">
+        <button class="btn" type="submit">Email receipt</button>
+    </form>
 
     <article class="slip">
         <?php

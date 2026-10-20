@@ -66,6 +66,8 @@ final class MallApp
         $data['previewAs'] = $this->chrome()->previewAs(is_string($slug) ? $slug : '');
         $data['showBrand'] = $this->roled ? $this->mall->enabled('use_brand') : true;
         $data['boothRentals'] ??= $this->roled ? $this->mall->isRentalsEnabled() : true;
+        $data['consignmentEnabled'] ??= $this->roled ? $this->mall->isConsignmentEnabled() : true;
+        $data['storeStockEnabled'] ??= $this->roled ? $this->mall->isStoreStockEnabled() : false;
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
         $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);

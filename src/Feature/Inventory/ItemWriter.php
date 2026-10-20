@@ -45,20 +45,27 @@ final class ItemWriter
         if ($intake === null) {
             throw new \InvalidArgumentException('Enter an intake date.');
         }
+        $placement = $draft['placement'] ?? 'consigned';
+        if (!in_array($placement, ['booth', 'consigned', 'store'], true)) {
+            throw new \InvalidArgumentException('Choose where this piece sits.');
+        }
+        $vendorId = $placement === 'store' ? '' : $draft['vendor_id'];
+        $expires = $placement === 'consigned' ? $this->expires($draft['expires_on'], $intake) : null;
 
         return new ItemEntry(
             $draft['code'],
             $draft['barcode'],
-            $draft['vendor_id'],
+            $vendorId,
             $this->brandOf($draft['brand_id'], $draft['brand_label']),
             $this->attributesOf($draft['attributes']),
             $draft['description'],
             new ItemSale(
                 Money::parseMinor($draft['price']),
                 $this->quantity($draft['quantity'], $draft['id'] === ''),
-                $this->takeOf($draft['vendor_id'], $draft['store_take']),
+                $placement === 'store' ? null : $this->takeOf($vendorId, $draft['store_take']),
             ),
-            new ItemDates($intake, $this->expires($draft['expires_on'], $intake)),
+            new ItemDates($intake, $expires),
+            $placement,
         );
     }
 

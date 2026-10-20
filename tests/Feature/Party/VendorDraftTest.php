@@ -112,6 +112,7 @@ final class VendorDraftTest extends TestCase
             'notes' => '',
             'tax_exempt' => '',
             'tax_exempt_number' => '',
+            'business_name' => '',
         ];
 
         return new VendorDraft($overrides + $fields, null);

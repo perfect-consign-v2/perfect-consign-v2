@@ -14,10 +14,19 @@ final class OutboundMail
 
     public function send(string $to, string $subject, string $body): void
     {
-        if ($this->unsafe($to) || $this->unsafe($subject) || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $to) !== 1) {
+        try {
+            $this->deliver($to, $subject, $body);
+        } catch (\InvalidArgumentException) {
             $this->logger->error('mail was refused');
+        } catch (\RuntimeException $error) {
+            $this->logger->error($error->getMessage());
+        }
+    }
 
-            return;
+    public function deliver(string $to, string $subject, string $body): void
+    {
+        if ($this->unsafe($to) || $this->unsafe($subject) || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $to) !== 1) {
+            throw new \InvalidArgumentException('mail was refused');
         }
         $file = getenv('STALL_MAIL_FILE');
         if (is_string($file) && $file !== '') {
@@ -31,13 +40,11 @@ final class OutboundMail
     private function file(string $path, string $to, string $subject, string $body): void
     {
         if (is_dir($path)) {
-            $this->logger->error('mail file write failed', ['path' => $path]);
-
-            return;
+            throw new \RuntimeException('mail file write failed');
         }
         $written = file_put_contents($path, 'To: ' . $to . "\nSubject: " . $subject . "\n\n" . $body . "\n", FILE_APPEND);
         if ($written === false) {
-            $this->logger->error('mail file write failed', ['path' => $path, 'error' => error_get_last()]);
+            throw new \RuntimeException('mail file write failed');
         }
     }
 
@@ -45,9 +52,7 @@ final class OutboundMail
     {
         $settings = $this->settings();
         if ($settings === null) {
-            $this->logger->error('smtp is not configured');
-
-            return;
+            throw new \RuntimeException('smtp is not configured');
         }
         try {
             (new SmtpClient(
@@ -57,8 +62,8 @@ final class OutboundMail
                 $settings['password'],
                 $settings['from'],
             ))->send($to, $subject, $body);
-        } catch (\Throwable $error) {
-            $this->logger->error('smtp send failed', ['host' => $settings['host'], 'error' => $error->getMessage()]);
+        } catch (\Throwable) {
+            throw new \RuntimeException('smtp send failed');
         }
     }
 

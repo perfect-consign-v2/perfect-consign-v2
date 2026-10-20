@@ -16,6 +16,7 @@ final class ItemEntry
         public readonly string $description,
         public readonly ItemSale $sale,
         public readonly ItemDates $dates,
+        public readonly string $placement,
     ) {
     }
 }

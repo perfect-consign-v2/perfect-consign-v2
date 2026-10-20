@@ -19,7 +19,8 @@ final class VendorDraft
      *     tax_id: string,
      *     notes: string,
      *     tax_exempt: string,
-     *     tax_exempt_number: string
+     *     tax_exempt_number: string,
+     *     business_name: string
      * } $fields
      */
     public function __construct(
@@ -49,6 +50,7 @@ final class VendorDraft
             $facts[4],
             $facts[5] ? 'true' : 'false',
             $facts[6],
+            $this->optionalText($this->fields['business_name'] ?? '', 120, 'that business name is too long'),
         ];
     }
 
