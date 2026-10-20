@@ -9,6 +9,8 @@ use PerfectApp\Routing\Router;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\RegisterFeatures;
+use PerfectConsign\Feature\Inventory\PhotoFacts;
+use PerfectConsign\Feature\Inventory\ServerPhotoFacts;
 use PerfectConsign\Shared\Database\AppDatabase;
 use PerfectConsign\Shared\Http\ErrorHandling;
 use PerfectConsign\Shared\Http\Request;
@@ -76,6 +78,7 @@ try {
     $container = new Container();
     $container->set(PDO::class, $pdo);
     $container->set(LoggerInterface::class, $logger);
+    $container->set(PhotoFacts::class, ServerPhotoFacts::class);
     $container->set(Session::class, new Session());
     $container->set(Request::class, $request);
     $container->set(View::class, new View(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src'));

@@ -12,8 +12,7 @@ final class ItemPhotoIntake
 
     public function __construct(
         private readonly LoggerInterface $logger,
-        private readonly mixed $uploaded = null,
-        private readonly mixed $ini = null,
+        private readonly PhotoFacts $facts,
     ) {
     }
 
@@ -59,7 +58,7 @@ final class ItemPhotoIntake
         if ($file['error'] === UPLOAD_ERR_PARTIAL) {
             throw new \InvalidArgumentException('That photo did not finish uploading. Try again.');
         }
-        if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] < 1 || !$this->uploaded($file['tmp_name'])) {
+        if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] < 1 || !$this->facts->uploaded($file['tmp_name'])) {
             $this->logger->error('item photo upload was refused', ['error' => $file['error'], 'size' => $file['size']]);
 
             throw new \InvalidArgumentException('That photo could not be read.');
@@ -119,11 +118,7 @@ final class ItemPhotoIntake
 
     private function iniBytes(string $key): int
     {
-        $value = $this->ini instanceof \Closure ? ($this->ini)($key) : ini_get($key);
-        if (!is_string($value)) {
-            return 0;
-        }
-        $value = trim($value);
+        $value = trim($this->facts->ini($key));
         if ($value === '' || $value === '-1') {
             return 0;
         }
@@ -137,14 +132,5 @@ final class ItemPhotoIntake
         };
 
         return $bytes > 0 ? $bytes : 0;
-    }
-
-    private function uploaded(string $path): bool
-    {
-        if ($this->uploaded instanceof \Closure) {
-            return ($this->uploaded)($path) === true;
-        }
-
-        return is_uploaded_file($path);
     }
 }

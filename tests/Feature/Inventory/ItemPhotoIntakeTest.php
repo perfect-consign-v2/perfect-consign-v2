@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Feature\Inventory;
 
 use PerfectConsign\Feature\Inventory\ItemPhotoIntake;
+use PerfectConsign\Feature\Inventory\PhotoFacts;
+use PerfectConsign\Feature\Inventory\ServerPhotoFacts;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use ReflectionMethod;
@@ -150,7 +152,7 @@ final class ItemPhotoIntakeTest extends TestCase
         if ($path === false || file_put_contents($path, "\xFF\xD8\xFF") === false) {
             self::fail('could not write a photo');
         }
-        $intake = new ItemPhotoIntake(new NullLogger(), static fn (string $file): bool => $file === $path);
+        $intake = new ItemPhotoIntake(new NullLogger(), $this->facts(static fn (string $file): bool => $file === $path));
         $size = $intake->bytes();
         try {
             self::assertSame('ffd8ff', $intake->hex([
@@ -182,7 +184,10 @@ final class ItemPhotoIntakeTest extends TestCase
             self::fail('could not write a photo');
         }
         $ini = static fn (string $key): string => $key === 'upload_max_filesize' ? '10k' : '2G';
-        $intake = new ItemPhotoIntake(new NullLogger(), static fn (string $file): bool => $file === $path, $ini);
+        $intake = new ItemPhotoIntake(
+            new NullLogger(),
+            $this->facts(static fn (string $file): bool => $file === $path, $ini),
+        );
         try {
             self::assertSame(10 * 1024, $intake->bytes());
             self::assertSame('ffd8ff', $intake->hex([
@@ -194,13 +199,48 @@ final class ItemPhotoIntakeTest extends TestCase
         } finally {
             unlink($path);
         }
-        $zero = new ItemPhotoIntake(new NullLogger(), null, static fn (string $key): string => $key === 'upload_max_filesize' ? '0' : '2G');
+        $zero = new ItemPhotoIntake(new NullLogger(), $this->facts(null, static fn (string $key): string => $key === 'upload_max_filesize' ? '0' : '2G'));
         self::assertSame(ItemPhotoIntake::MAX_BYTES, $zero->bytes());
         self::assertNull($this->intake()->media("XXXX\x00\x00\x00\x00WEBP"));
     }
 
     private function intake(): ItemPhotoIntake
     {
-        return new ItemPhotoIntake(new NullLogger());
+        return new ItemPhotoIntake(new NullLogger(), new ServerPhotoFacts());
+    }
+
+    private function facts(?\Closure $uploaded, ?\Closure $ini = null): PhotoFacts
+    {
+        return new FixedPhotoFacts($uploaded, $ini);
+    }
+}
+
+final class FixedPhotoFacts implements PhotoFacts
+{
+    public function __construct(
+        private readonly ?\Closure $uploaded = null,
+        private readonly ?\Closure $ini = null,
+    ) {
+    }
+
+    public function uploaded(string $path): bool
+    {
+        if (!$this->uploaded instanceof \Closure) {
+            return false;
+        }
+
+        return ($this->uploaded)($path) === true;
+    }
+
+    public function ini(string $key): string
+    {
+        if ($this->ini instanceof \Closure) {
+            $value = ($this->ini)($key);
+
+            return is_string($value) ? $value : '';
+        }
+        $value = ini_get($key);
+
+        return is_string($value) ? $value : '';
     }
 }

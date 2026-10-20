@@ -524,10 +524,10 @@ function previousCode(array $tokens, int $index): string
 function equivalentReason(string $file, int $line, string $from, string $to): ?string
 {
     $slash = str_replace('\\', '/', $file);
-    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 97 && $from === '<' && $to === '<=') {
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 96 && $from === '<' && $to === '<=') {
         return 'a cap equal to the ceiling stores that same ceiling';
     }
-    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 127 && (($from === '===' && $to === '!==') || ($from === '||' && $to === '&&'))) {
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 122 && (($from === '===' && $to === '!==') || ($from === '||' && $to === '&&'))) {
         return 'an empty or unlimited ini value and every other zero parse as no cap';
     }
     if ($slash === 'src/Feature/Backup/NightlyCopy.php' && $line === 73 && $from === '===' && $to === '!==') {
@@ -545,7 +545,7 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($slash === 'src/Bootstrap/ActiveRegister.php' && $line === 80 && $from === '>' && $to === '>=') {
         return 'one open drawer is chosen before this count, so zero and two-or-more agree';
     }
-    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 139 && $from === '>' && $to === '>=') {
+    if ($slash === 'src/Feature/Inventory/ItemPhotoIntake.php' && $line === 134 && $from === '>' && $to === '>=') {
         return 'zero bytes and a negative parse both mean no cap';
     }
     if ($file === 'src\\Feature\\Backup\\BackupHeadline.php' && $line === 22 && $from === '<=' && $to === '<') {
