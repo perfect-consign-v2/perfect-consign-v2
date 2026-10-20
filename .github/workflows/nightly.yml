@@ -102,13 +102,35 @@ jobs:
     needs: score
     if: always() && needs.score.result != 'skipped'
     runs-on: ubuntu-latest
+    env:
+      STALL_DB_HOST: 127.0.0.1
+      STALL_DB_PORT: '5436'
+      STALL_DB_NAME: consign
+      STALL_DB_USER: stall
+      STALL_DB_PASSWORD: stall
+      STALL_APP_PASSWORD: ci-app-password
+      STALL_OWNER_PASSWORD: ci-owner-password
+      STALL_BACKUP_PASSWORD: ci-backup-password
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
           extensions: pdo_pgsql, zip, curl
+          coverage: xdebug
       - run: composer install --no-interaction --prefer-dist
+      - run: docker compose up -d postgres
+      - name: Wait for Postgres
+        run: |
+          for _ in $(seq 1 30); do
+            docker exec perfect-consign-postgres pg_isready -U stall -d consign && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Apply the platform schema
+        run: php bin/provision-platform.php
+      - name: Enable stall_app and stall_backup logins
+        run: php bin/enable-stall-app.php
       - uses: actions/download-artifact@v4
         with:
           pattern: shard-*
