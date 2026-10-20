@@ -44,7 +44,7 @@ jobs:
       - run: php bin/mutate.php
         env:
           PC_MUTATE_LIST: '1'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: mutants
           path: var/mutation/mutants.json
@@ -87,12 +87,12 @@ jobs:
         run: php bin/provision-platform.php
       - name: Enable stall_app and stall_backup logins
         run: php bin/enable-stall-app.php
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: mutants
           path: var/mutation
       - run: php bin/mutate.php
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: shard-${{ matrix.shard }}
@@ -131,7 +131,7 @@ jobs:
         run: php bin/provision-platform.php
       - name: Enable stall_app and stall_backup logins
         run: php bin/enable-stall-app.php
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: shard-*
           path: var/mutation/parts
