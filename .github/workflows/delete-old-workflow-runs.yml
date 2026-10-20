@@ -13,6 +13,7 @@ jobs:
       - name: Delete workflow runs
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           KEEP: "3"
         shell: bash
         run: |
@@ -41,7 +42,7 @@ jobs:
             echo "Deleting ${id}"
             attempt=1
             while (( attempt <= 5 )); do
-              if gh run delete "$id"; then
+              if gh run delete --repo "$GH_REPO" "$id"; then
                 deleted=$((deleted + 1))
                 break
               fi
