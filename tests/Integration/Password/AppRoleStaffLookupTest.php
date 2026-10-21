@@ -83,12 +83,13 @@ final class AppRoleStaffLookupTest extends TestCase
             self::assertTrue(password_verify('cashier-next', $this->hash($admin, $tenant, $cashier)));
             self::assertFalse(password_verify('cashier-pass', $this->hash($admin, $tenant, $cashier)));
             self::assertSame('stall_app', $this->currentUser($app));
+            $this->assertOwnerResetUsesTheCompanyEmail($admin, $app, $recovery, $tenant, $mail);
         } finally {
             $this->restoreMail($previous);
             if (is_file($mail)) {
                 unlink($mail);
             }
-            $this->remove($admin, $tenant, [$cashier, $quiet], [$username, $silent, 'missing-user']);
+            $this->remove($admin, $tenant, [$cashier, $quiet], [$username, $silent, 'missing-user', ProbeMall::USERNAME]);
         }
     }
 
@@ -144,6 +145,67 @@ final class AppRoleStaffLookupTest extends TestCase
                 };
             }
         };
+    }
+
+    private function assertOwnerResetUsesTheCompanyEmail(
+        PDO $admin,
+        PDO $app,
+        PasswordRecovery $recovery,
+        TenantRecord $tenant,
+        string $mail,
+    ): void {
+        $company = 'owner-reset@example.com';
+        $ownerEmail = $this->storedEmail(
+            $admin,
+            'SELECT email FROM platform.owners WHERE tenant_id = ?::uuid AND username = ?',
+            [$tenant->id, ProbeMall::USERNAME],
+        );
+        $companyEmail = $this->storedEmail($admin, 'SELECT email FROM ' . $tenant->schema . '.mall', []);
+        $this->change(
+            $admin,
+            'UPDATE platform.owners SET email = NULL WHERE tenant_id = ?::uuid AND username = ?',
+            [$tenant->id, ProbeMall::USERNAME],
+        );
+        $this->change($admin, 'UPDATE ' . $tenant->schema . '.mall SET email = ?', [$company]);
+        try {
+            $recovery->request($tenant, ProbeMall::USERNAME, 'http://127.0.0.1:8097');
+            self::assertStringContainsString('To: ' . $company . "\n", $this->text($mail));
+            self::assertSame('stall_app', $this->currentUser($app));
+        } finally {
+            $this->change(
+                $admin,
+                'UPDATE platform.owners SET email = ? WHERE tenant_id = ?::uuid AND username = ?',
+                [$ownerEmail, $tenant->id, ProbeMall::USERNAME],
+            );
+            $this->change($admin, 'UPDATE ' . $tenant->schema . '.mall SET email = ?', [$companyEmail]);
+        }
+    }
+
+    /**
+     * @param list<mixed> $params
+     */
+    private function storedEmail(PDO $pdo, string $sql, array $params): ?string
+    {
+        $statement = $pdo->prepare($sql);
+        $statement->execute($params);
+        $value = $statement->fetchColumn();
+        if ($value === false || $value === null) {
+            return null;
+        }
+        if (!is_string($value)) {
+            self::fail('the email could not be read');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<mixed> $params
+     */
+    private function change(PDO $pdo, string $sql, array $params): void
+    {
+        $statement = $pdo->prepare($sql);
+        $statement->execute($params);
     }
 
     private function token(string $mail): string

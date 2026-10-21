@@ -28,10 +28,18 @@ final class PasswordRecovery
             return;
         }
         $account = $this->accounts->find($tenant, $username);
-        if ($account === null || $account->email === '') {
+        if ($account === null) {
             return;
         }
-        $this->letters->deliver($tenant, $account, $origin);
+        $mailbox = $this->mailbox($tenant);
+        $email = $this->destination($account, $mailbox['email']);
+        if ($email === '') {
+            return;
+        }
+        if ($email !== $account->email) {
+            $account = new LoginAccount($account->kind, $account->id, $account->username, $email);
+        }
+        $this->letters->deliver($tenant, $account, $origin, $mailbox['gmail']);
     }
 
     public function available(TenantRecord $tenant, string $token): bool
@@ -144,6 +152,92 @@ final class PasswordRecovery
         $statement->execute([$tenantId, $username]);
     }
 
+    private function destination(LoginAccount $account, string $company): string
+    {
+        if ($account->email !== '') {
+            return $account->email;
+        }
+        if ($account->kind !== 'owner') {
+            return '';
+        }
+
+        return $company;
+    }
+
+    /**
+     * @return array{email: string, gmail: array{host: string, port: int, username: string, password: string, from: string}|null}
+     */
+    private function mailbox(TenantRecord $tenant): array
+    {
+        $schema = $this->schemaName($tenant->schema);
+        $this->roles->assume($tenant->role);
+        try {
+            return $this->readMailbox($schema);
+        } finally {
+            $this->roles->reset();
+        }
+    }
+
+    /**
+     * @return array{email: string, gmail: array{host: string, port: int, username: string, password: string, from: string}|null}
+     */
+    private function readMailbox(string $schema): array
+    {
+        $query = $this->pdo->query(
+            'SELECT email, receipt_mail_via, gmail_address, gmail_app_password FROM ' . $schema . '.mall'
+        );
+        if ($query === false) {
+            throw new \RuntimeException('the company email could not be read');
+        }
+        $row = $query->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return ['email' => '', 'gmail' => null];
+        }
+        /** @var array<string, mixed> $row */
+
+        return [
+            'email' => $this->address($row['email'] ?? null),
+            'gmail' => $this->gmail($row),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{host: string, port: int, username: string, password: string, from: string}|null
+     */
+    private function gmail(array $row): ?array
+    {
+        if (($row['receipt_mail_via'] ?? null) !== 'gmail') {
+            return null;
+        }
+        $address = $this->address($row['gmail_address'] ?? null);
+        $password = $row['gmail_app_password'] ?? null;
+        if ($address === '' || !is_string($password) || $password === '') {
+            return null;
+        }
+
+        return [
+            'host' => 'smtp.gmail.com',
+            'port' => 587,
+            'username' => $address,
+            'password' => $password,
+            'from' => $address,
+        ];
+    }
+
+    private function address(mixed $value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+        $email = trim($value);
+        if ($email === '' || strlen($email) > 200 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1) {
+            return '';
+        }
+
+        return $email;
+    }
+
     private function username(string $username): string
     {
         $username = strtolower(trim($username));
@@ -156,11 +250,16 @@ final class PasswordRecovery
 
     private function table(string $schema): string
     {
+        return $this->schemaName($schema) . '.staff';
+    }
+
+    private function schemaName(string $schema): string
+    {
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
             throw new \RuntimeException('the mall schema is not usable');
         }
 
-        return $schema . '.staff';
+        return $schema;
     }
 
     private function rollback(): void

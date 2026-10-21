@@ -74,6 +74,81 @@ final class PasswordBoundaryTest extends TestCase
         self::assertSame('reset link origin is missing', $log->message);
     }
 
+    public function testAnOwnerWithoutARecoveryEmailUsesTheCompanyAddress(): void
+    {
+        $recovery = (new \ReflectionClass(PasswordRecovery::class))->newInstanceWithoutConstructor();
+        $destination = new ReflectionMethod(PasswordRecovery::class, 'destination');
+        $owner = new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', '');
+        self::assertSame('store@example.com', $destination->invoke($recovery, $owner, 'store@example.com'));
+        $staff = new LoginAccount('staff', '01900000-0000-7000-8000-0000000000c1', 'cashier', '');
+        self::assertSame('', $destination->invoke($recovery, $staff, 'store@example.com'));
+        $saved = new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', 'owner@example.com');
+        self::assertSame('owner@example.com', $destination->invoke($recovery, $saved, 'store@example.com'));
+
+        $gmail = new ReflectionMethod(PasswordRecovery::class, 'gmail');
+        self::assertNull($gmail->invoke($recovery, [
+            'receipt_mail_via' => 'server',
+            'gmail_address' => 'shop@gmail.com',
+            'gmail_app_password' => 'abcdefghijklmnop',
+        ]));
+        $account = $gmail->invoke($recovery, [
+            'receipt_mail_via' => 'gmail',
+            'gmail_address' => 'shop@gmail.com',
+            'gmail_app_password' => 'abcdefghijklmnop',
+        ]);
+        self::assertIsArray($account);
+        self::assertSame('smtp.gmail.com', $account['host']);
+        self::assertSame(587, $account['port']);
+        self::assertSame('shop@gmail.com', $account['from']);
+        self::assertNull($gmail->invoke($recovery, [
+            'receipt_mail_via' => 'gmail',
+            'gmail_address' => 'not-an-email',
+            'gmail_app_password' => 'abcdefghijklmnop',
+        ]));
+    }
+
+    public function testARecordedResetSkipsGmail(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pc-reset-');
+        if ($path === false) {
+            self::fail('the mail file could not be created');
+        }
+        $previous = getenv('STALL_MAIL_FILE');
+        putenv('STALL_MAIL_FILE=' . $path);
+        $log = new class extends AbstractLogger {
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+            }
+        };
+        $letter = new ResetLetter(
+            new ResetTokens($this->createStub(PDO::class)),
+            new OutboundMail($log),
+            $log,
+        );
+        $send = new ReflectionMethod(ResetLetter::class, 'send');
+        try {
+            $send->invoke($letter, 'owner-reset@example.com', 'Reset your password', "Open this link\n", [
+                'host' => 'smtp.gmail.com',
+                'port' => 587,
+                'username' => 'shop@gmail.com',
+                'password' => 'abcdefghijklmnop',
+                'from' => 'shop@gmail.com',
+            ]);
+            $text = file_get_contents($path);
+            self::assertIsString($text);
+            self::assertStringContainsString('To: owner-reset@example.com', $text);
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_MAIL_FILE=' . $previous);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
     public function testAClosedResetLinkAsksForANewOne(): void
     {
         $view = new View(dirname(__DIR__, 3) . '/src');

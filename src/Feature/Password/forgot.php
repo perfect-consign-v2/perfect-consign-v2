@@ -22,7 +22,7 @@ use PerfectConsign\Shared\Http\View;
             <form method="post" action="/<?= View::text($slug) ?>/forgot">
                 <div class="card-body grid" style="gap:var(--space-4)">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <p class="muted">Enter the sign-in name. If it has a recovery email, a link is sent there.</p>
+                    <p class="muted">Enter the sign-in name. A link goes to that sign-in's recovery email. The owner link uses the company email when the owner has none.</p>
                     <div class="field">
                         <label for="username">Username</label>
                         <input class="input" id="username" name="username" autocomplete="username" required>

@@ -11,7 +11,7 @@ use PerfectConsign\Shared\Http\View;
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Password</h1>
-        <p class="muted">A recovery email is where a reset link is sent.</p>
+        <p class="muted">A recovery email is where a reset link is sent. The company email is used for the owner when this is blank.</p>
     </div>
 </div>
 <div class="card mt-6">
