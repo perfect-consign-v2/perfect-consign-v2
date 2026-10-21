@@ -1,26 +1,28 @@
 name: deploy-demo
 
 on:
-  workflow_run:
-    workflows: ["check"]
-    types: [completed]
+  push:
     branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: false
+
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Reset the demo to the green commit
+      - name: Reset the demo to this commit
         env:
           DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
           DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
           DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
           DEMO_SSH_KNOWN_HOSTS: ${{ secrets.DEMO_SSH_KNOWN_HOSTS }}
-          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEPLOY_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if ! printf '%s' "$DEPLOY_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
