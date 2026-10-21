@@ -228,6 +228,12 @@ BEGIN
         DROP CONSTRAINT journal_cash_tendered_journal_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.item_buys
         DROP CONSTRAINT item_buys_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.missed_sales
+        DROP CONSTRAINT missed_sales_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.store_uses
+        DROP CONSTRAINT store_uses_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.vendor_memos
+        DROP CONSTRAINT vendor_memos_journal_id_fkey;
     TRUNCATE
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_lines,
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journals;

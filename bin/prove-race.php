@@ -110,6 +110,16 @@ execSql($schema, "INSERT INTO items (id, code, vendor_id, description, price_min
 execSql($schema, "INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-0000000009b2', '01900000-0000-7000-8000-000000000001', '2094-05-01', '2094-05-31', 'open')");
 race($schema, $sql, 'prove_race_on_hand_a.sql', 'prove_race_on_hand_b.sql', false, null, true);
 execSql($schema, "DELETE FROM items WHERE id = '01900000-0000-7000-8000-0000000009b1'");
+execSql($schema, "INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-0000000009c0', 'race-miss', 'Race', 'Miss'); INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps, quantity) VALUES ('01900000-0000-7000-8000-0000000009c3', 'Race miss', '01900000-0000-7000-8000-0000000009c0', 'Race piece', 1000, 'BC-RACE-MISS', DATE '2098-04-01', 0, 1); INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-0000000009c2', '01900000-0000-7000-8000-000000000001', '2098-04-01', '2098-04-30', 'open')");
+race($schema, $sql, 'prove_race_missed_a.sql', 'prove_race_missed_b.sql', false, null, true);
+execSql($schema, "DELETE FROM items WHERE id = '01900000-0000-7000-8000-0000000009c3'");
+execSql($schema, "DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-0000000009c0'");
+execSql($schema, "DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-0000000009c2'");
+execSql($schema, "INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-0000000009e0', 'race-use', 'Race', 'Use'); INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity) VALUES ('01900000-0000-7000-8000-0000000009e3', 'Race use', '01900000-0000-7000-8000-0000000009e0', 'Race sign', 1000, 'BC-RACE-USE', DATE '2099-05-01', 1); INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-0000000009e2', '01900000-0000-7000-8000-000000000001', '2099-05-01', '2099-05-31', 'open')");
+race($schema, $sql, 'prove_race_use_a.sql', 'prove_race_use_b.sql', false, null, true);
+execSql($schema, "DELETE FROM items WHERE id = '01900000-0000-7000-8000-0000000009e3'");
+execSql($schema, "DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-0000000009e0'");
+execSql($schema, "DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-0000000009e2'");
 execSql($schema, "DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-0000000009b0'");
 execSql($schema, "DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-0000000009b2'");
 

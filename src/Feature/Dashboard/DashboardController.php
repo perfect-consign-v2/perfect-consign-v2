@@ -9,6 +9,8 @@ use DateTimeZone;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Shared\Jobs\JobQueue;
+use PDO;
 
 final class DashboardController
 {
@@ -17,6 +19,8 @@ final class DashboardController
         private readonly DashboardStore $dashboard,
         private readonly MallSettings $mall,
         private readonly RentDue $rentDue,
+        private readonly JobQueue $jobs,
+        private readonly PDO $pdo,
     ) {
     }
 
@@ -41,6 +45,7 @@ final class DashboardController
             'picture' => $this->dashboard->picture($today),
             'rentRows' => $due['rows'],
             'rentMonth' => $due['month'],
+            'overdueJobs' => $this->jobs->overdue($this->pdo),
         ]);
     }
 }

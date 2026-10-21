@@ -19,6 +19,7 @@ final class SalePoster
         private readonly LedgerStore $ledger,
         private readonly Statements $statements,
         private readonly SaleReceipt $receipts,
+        private readonly ReceiptChange $change,
     ) {
     }
 
@@ -137,6 +138,11 @@ final class SalePoster
         $journal = $this->sale($journalId);
 
         return $this->receipts->read($journalId, $journal);
+    }
+
+    public function refundAmount(string $journalId, string $itemId): int
+    {
+        return $this->change->owed($this->receipt($journalId), $itemId);
     }
 
     /**

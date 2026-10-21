@@ -20,6 +20,8 @@ final class VendorCheck
         'cash_disbursement' => 'Cash',
         'safe_disbursement' => 'Paid from the safe',
         'store_purchase' => 'Store purchase',
+        'missed_sale' => 'Missed sale',
+        'vendor_memo' => 'Vendor memo',
         'late_fee' => 'Late fee',
         'booth_correction' => 'Booth correction',
     ];

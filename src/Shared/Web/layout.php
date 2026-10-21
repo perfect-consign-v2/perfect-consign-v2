@@ -40,6 +40,7 @@ if ($actorRole === 'owner') {
         'Counter' => [
             ['/dashboard', 'Home', 'i-dashboard'],
             ['/pos', 'Sell', 'i-cart'],
+            ['/pos/desk', 'Fast sell', 'i-cart'],
             ['/registers', 'Registers', 'i-pos'],
             ['/customers', 'Customers', 'i-vendor'],
         ],
@@ -73,10 +74,14 @@ if ($actorRole === 'owner') {
     $groups['Setup'][] = ['/staff', 'Cashiers', 'i-vendor'];
     $groups['Books'] = [
         ['/adjustment', 'Fix a mistake', 'i-edit'],
+        ['/missed-sale', 'Missed sale', 'i-edit'],
+        ['/store-use', 'Buy for the store', 'i-edit'],
+        ['/vendor-memo', 'Vendor memo', 'i-edit'],
         ['/tax', 'Sales tax', 'i-percent'],
         ['/book', 'Accounts', 'i-report'],
         ['/gift-certificates', 'Gift certificates', 'i-receipt'],
         ['/journals', 'Money record', 'i-receipt'],
+        ['/reports', 'Reports', 'i-report'],
         ['/opening', 'Opening amounts', 'i-plus'],
         ['/close', 'Close the year', 'i-lock'],
         ['/export', 'Download records', 'i-arrow-down'],
@@ -90,6 +95,7 @@ if ($actorRole === 'books') {
             ['/rent', 'Rent', 'i-booth'],
             ['/payouts', 'Pay vendors', 'i-wallet'],
             ['/journals', 'Money record', 'i-receipt'],
+            ['/reports', 'Reports', 'i-report'],
         ],
     ];
 }
@@ -97,6 +103,7 @@ if ($actorRole === 'cashier') {
     $groups = [
         'Counter' => [
             ['/pos', 'Sell', 'i-cart'],
+            ['/pos/desk', 'Fast sell', 'i-cart'],
             ['/rent', 'Rent', 'i-booth'],
             ['/registers', 'Register', 'i-pos'],
         ],

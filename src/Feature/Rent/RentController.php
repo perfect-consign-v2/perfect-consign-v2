@@ -36,6 +36,22 @@ final class RentController
         $this->render($slug, null);
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/rent/late-fees', ['POST'])]
+    public function assess(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $today = $this->rent->today();
+        try {
+            $this->lateDue->apply($today);
+        } catch (DatabaseRefusal $refusal) {
+            $this->render($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        }
+        $this->saved($slug, $today, 'Late fees assessed.');
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/rent/charge', ['POST'])]
     public function charge(string $slug): void
     {
@@ -207,11 +223,6 @@ final class RentController
     {
         $tenant = $this->app->open($slug, true);
         $today = $this->rent->today();
-        try {
-            $this->lateDue->apply($today);
-        } catch (DatabaseRefusal $refusal) {
-            $error = $error ?? $this->app->catchRefusal($refusal);
-        }
         $month = $this->book->month($this->chosen('month'), $today);
         $fromSales = $this->settings->rentPrepaid();
         $book = $this->book->assemble($this->rent->facts($month), $month, $today, $this->settings->cycleDay());

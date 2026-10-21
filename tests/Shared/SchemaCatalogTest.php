@@ -16,9 +16,16 @@ final class SchemaCatalogTest extends TestCase
         $catalog = new SchemaCatalog(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'sql');
         $tenant = $catalog->tenantFiles();
         $platform = $catalog->platformFiles();
-        self::assertSame(['001_tenant.sql'], $tenant);
+        self::assertContains('001_tenant.sql', $tenant);
+        self::assertContains('003_audit_events.sql', $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
-        self::assertSame(['000_platform.sql'], $platform);
+        self::assertNotContains('002_platform_jobs.sql', $tenant);
+        self::assertNotContains('004_job_grants.sql', $tenant);
+        self::assertNotContains('005_job_kinds.sql', $tenant);
+        self::assertSame(
+            ['000_platform.sql', '002_platform_jobs.sql', '004_job_grants.sql', '005_job_kinds.sql'],
+            $platform
+        );
         $checksum = $catalog->checksum('001_tenant.sql');
         self::assertSame(64, strlen($checksum));
         $mall = $catalog->read('001_tenant.sql');

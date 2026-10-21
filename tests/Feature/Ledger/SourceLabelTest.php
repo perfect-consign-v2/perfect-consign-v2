@@ -14,5 +14,7 @@ final class SourceLabelTest extends TestCase
         self::assertSame('Entry', SourceLabel::text(''));
         self::assertSame('Mystery Source', SourceLabel::text('mystery_source'));
         self::assertSame('Sale', SourceLabel::text('sale'));
+        self::assertSame('Missed sale', SourceLabel::text('missed_sale'));
+        self::assertSame('Vendor memo', SourceLabel::text('vendor_memo'));
     }
 }

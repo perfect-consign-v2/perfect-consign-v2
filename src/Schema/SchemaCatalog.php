@@ -12,6 +12,9 @@ final class SchemaCatalog
     /** @var list<string> */
     public const PLATFORM = [
         '000_platform.sql',
+        '002_platform_jobs.sql',
+        '004_job_grants.sql',
+        '005_job_kinds.sql',
     ];
 
     public function __construct(private readonly string $directory)

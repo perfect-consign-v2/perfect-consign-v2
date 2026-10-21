@@ -8,6 +8,7 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Shared\Http\ResponseSent;
 
 final class PosPayController
 {
@@ -19,7 +20,6 @@ final class PosPayController
         private readonly SalePoster $poster,
         private readonly MallSettings $mall,
         private readonly SaleCheckout $checkout,
-        private readonly ReceiptChange $change,
         private readonly ReceiptView $receipts,
     ) {
     }
@@ -33,13 +33,16 @@ final class PosPayController
         try {
             $next = $this->checkout->pay($slug, $session, $this->app->request());
         } catch (DatabaseRefusal $refusal) {
-            $this->page->payment($slug, $this->app->catchRefusal($refusal));
+            $this->fail($slug, $this->app->catchRefusal($refusal));
 
             return;
         } catch (\InvalidArgumentException $error) {
-            $this->page->payment($slug, $error->getMessage());
+            $this->fail($slug, $error->getMessage());
 
             return;
+        }
+        if ($this->app->request()->wantsJson()) {
+            $this->sendJson(['notice' => $next['notice'], 'path' => $next['path']]);
         }
         $this->app->redirect($next['path'], $next['notice']);
     }
@@ -73,7 +76,7 @@ final class PosPayController
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         try {
-            $credit = $this->tenders->credit($this->app->request(), $this->change->owed($this->poster->receipt($id), $this->itemId()));
+            $credit = $this->tenders->credit($this->app->request(), $this->poster->refundAmount($id, $this->itemId()));
             $this->poster->returnItem($session, $this->mall->today(), $id, $this->itemId(), $credit['line'], $credit['check']);
         } catch (DatabaseRefusal $refusal) {
             $this->receipts->show($slug, $id, $this->app->catchRefusal($refusal));
@@ -83,6 +86,30 @@ final class PosPayController
             return;
         }
         $this->app->redirect('/' . $slug . '/pos/receipt/' . $id, 'Item returned.');
+    }
+
+    private function fail(string $slug, string $message): void
+    {
+        if ($this->app->request()->wantsJson()) {
+            $this->sendJson(['error' => $message], 422);
+        }
+        $this->page->payment($slug, $message);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function sendJson(array $payload, int $status = 200): never
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            echo json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            http_response_code(500);
+            echo '{"error":"The ticket could not be sent."}';
+        }
+        throw new ResponseSent('json');
     }
 
     private function itemId(): string

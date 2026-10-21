@@ -42,6 +42,8 @@ A settled or paid run refuses a new journal dated inside its sales window. A rev
 
 A vendor is pay, credit only, or hold. Credit only and hold are left out of a run. Rent for a credit-only vendor is paid at the desk.
 
+A vendor memo adds to what the mall owes that vendor, or subtracts from it, with a reason. It is dated before the next payout and shows on the statement. A debit may leave the payable below zero. Later sales pay that balance down before a check. While it is below zero the check is zero. The memo does not charge or pay booth rent. A draw, a check, and any other journal still cannot leave the payable below zero.
+
 ## Inventory
 
 An item is one item. It has a tag, a barcode, a vendor, a description, an asking price, a quantity, and an intake date. The brand may be empty. The expire date may be empty. Quantity is how many are on hand. A new item defaults to 1. An edit may be 0, and then it cannot be sold.

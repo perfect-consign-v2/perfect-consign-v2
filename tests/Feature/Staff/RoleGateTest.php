@@ -34,6 +34,9 @@ final class RoleGateTest extends TestCase
         self::assertFalse(RoleGate::allows('cashier', '/close', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/rent/charge', 'POST'));
         self::assertFalse(RoleGate::allows('cashier', '/rent/late-fee', 'POST'));
+        self::assertFalse(RoleGate::allows('cashier', '/rent/late-fees', 'POST'));
+        self::assertFalse(RoleGate::allows('cashier', '/reports', 'GET'));
+        self::assertTrue(RoleGate::allows('cashier', '/pos/desk', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/registers/new', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/registers', 'POST'));
     }
@@ -73,6 +76,9 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('books', '/rent/receipt/01900000-0000-7000-8000-000000000d10', 'GET'));
         self::assertTrue(RoleGate::allows('books', '/pos/receipt/01900000-0000-7000-8000-000000000d10', 'GET'));
         self::assertTrue(RoleGate::allows('books', '/dashboard', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/reports', 'GET'));
+        self::assertTrue(RoleGate::allows('books', '/reports.csv', 'GET'));
+        self::assertFalse(RoleGate::allows('books', '/reports', 'POST'));
         self::assertTrue(RoleGate::allows('books', '/password', 'GET'));
         self::assertTrue(RoleGate::allows('books', '/logout', 'POST'));
         self::assertTrue(RoleGate::allows('books', '/logout/confirm', 'POST'));

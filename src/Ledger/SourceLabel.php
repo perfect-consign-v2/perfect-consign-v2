@@ -23,6 +23,8 @@ final class SourceLabel
         'register_variance' => 'Drawer difference',
         'booth_correction' => 'Wrong booth',
         'store_purchase' => 'Store purchase',
+        'missed_sale' => 'Missed sale',
+        'vendor_memo' => 'Vendor memo',
         'layaway_deposit' => 'Layaway deposit',
         'layaway_refund' => 'Layaway refund',
         'gift_certificate_issue' => 'Gift certificate',

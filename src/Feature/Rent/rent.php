@@ -28,6 +28,7 @@ $activeSessionId = $activeSessionId ?? '';
 $fromSales = $fromSales ?? false;
 $debtors = $debtors ?? [];
 $blank = '—';
+$actorRole = is_string($actorRole ?? null) ? $actorRole : '';
 $list = '/' . $slug . '/rent';
 $monthQuery = ['month' => $month];
 $filters = [
@@ -43,6 +44,12 @@ $booths = static function (int $count): string {
     return $count . ' booths';
 };
 ?>
+<?php if ($actorRole === 'owner'): ?>
+<form method="post" action="/<?= View::text($slug) ?>/rent/late-fees">
+    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+    <button type="submit">Assess late fees now</button>
+</form>
+<?php endif; ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Rent</h1>
@@ -279,7 +286,7 @@ $booths = static function (int $count): string {
                         </td>
                         <td class="num"><?= View::text(View::money($row['open_minor'])) ?></td>
                         <td>
-                            <?php if (($actorRole ?? '') === 'books'): ?>
+                            <?php if ($actorRole === 'books'): ?>
                                 <span class="muted"><?= $blank ?></span>
                             <?php elseif ($row['open_minor'] > 0 && $activeSessionId === ''): ?>
                                 <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>

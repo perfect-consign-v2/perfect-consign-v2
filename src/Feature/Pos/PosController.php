@@ -8,6 +8,8 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\Money;
+use PerfectConsign\Shared\Http\ResponseSent;
+use Psr\Log\LoggerInterface;
 
 final class PosController
 {
@@ -17,6 +19,7 @@ final class PosController
         private readonly TicketStore $tickets,
         private readonly RegisterGate $gate,
         private readonly SaleHold $sales,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -25,6 +28,25 @@ final class PosController
     {
         $this->app->open($slug, true);
         $this->page->cart($slug, null);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/pos/desk', ['GET'])]
+    public function desk(string $slug): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $this->app->show('Feature/Pos/desk', [
+            'title' => 'Sell',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+        ]);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/pos/ticket\.json', ['GET'])]
+    public function ticket(string $slug): void
+    {
+        $this->app->open($slug, true);
+        $session = $this->gate->session($slug);
+        $this->sendJson(['ticket' => $this->tickets->cart($session)]);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/pos/scan', ['POST'])]
@@ -114,13 +136,41 @@ final class PosController
             $this->sales->refuse($slug);
             $work($session);
         } catch (DatabaseRefusal $refusal) {
-            $this->page->cart($slug, $this->app->catchRefusal($refusal));
+            $message = $this->app->catchRefusal($refusal);
+            $this->logger->error('sale post failed', ['slug' => $slug, 'message' => $message]);
+            if ($this->app->request()->wantsJson()) {
+                $this->sendJson(['error' => $message, 'ticket' => $this->tickets->cart($session)], 422);
+            }
+            $this->page->cart($slug, $message);
             return;
         } catch (\InvalidArgumentException $error) {
+            $this->logger->error('sale post failed', ['slug' => $slug, 'message' => $error->getMessage()]);
+            if ($this->app->request()->wantsJson()) {
+                $this->sendJson(['error' => $error->getMessage()], 422);
+            }
             $this->page->cart($slug, $error->getMessage());
             return;
         }
+        if ($this->app->request()->wantsJson()) {
+            $this->sendJson(['notice' => $notice, 'ticket' => $this->tickets->cart($session)]);
+        }
         $this->app->redirect('/' . $slug . '/pos', $notice);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function sendJson(array $payload, int $status = 200): never
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            echo json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            http_response_code(500);
+            echo '{"error":"The ticket could not be sent."}';
+        }
+        throw new ResponseSent('json');
     }
 
     private function lineNo(): int

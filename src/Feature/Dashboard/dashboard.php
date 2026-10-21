@@ -23,6 +23,9 @@ use PerfectConsign\Shared\Web\ListTable;
 $activeSessionId = is_string($activeSessionId ?? null) ? $activeSessionId : '';
 $blank = '—';
 ?>
+<?php if (($overdueJobs ?? 0) > 0): ?>
+<p>A background job is waiting. Check the worker.</p>
+<?php endif; ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1"><?= View::text($greeting) ?></h1>

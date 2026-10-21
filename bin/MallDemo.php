@@ -20,6 +20,7 @@ use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Feature\Pos\LayawayBook;
+use PerfectConsign\Feature\Pos\ReceiptChange;
 use PerfectConsign\Feature\Pos\SalePoster;
 use PerfectConsign\Feature\Pos\SaleReceipt;
 use PerfectConsign\Feature\Pos\CustomerStore;
@@ -137,7 +138,7 @@ final class MallDemo
         $this->parties = new PartyStore($this->statements);
         $pricing = new TicketPricing($this->statements);
         $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)));
-        $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements));
+        $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements), new ReceiptChange());
         $this->company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
         $this->rent = new RentStore($this->statements, new MallSettings($this->statements, $this->company), new RentLines(), $this->ledger);
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));

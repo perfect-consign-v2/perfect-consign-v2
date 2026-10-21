@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Company;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
@@ -13,6 +15,8 @@ final class CompanyController
     public function __construct(
         private readonly MallApp $app,
         private readonly CompanyStore $company,
+        private readonly AuditLog $audit,
+        private readonly Actor $actor,
     ) {
     }
 
@@ -31,6 +35,8 @@ final class CompanyController
         $posted = $this->posted();
         try {
             $this->company->save($tenant, CompanyDraft::parse($posted));
+            $actor = $this->actor->account();
+            $this->audit->record($actor !== '' ? $actor : $this->actor->role(), $this->actor->role(), 'settings.edit', 'company', $tenant->id);
         } catch (DatabaseRefusal $refusal) {
             $this->form($slug, $posted, $this->app->catchRefusal($refusal));
 

@@ -242,7 +242,18 @@ function requestFromGlobals(): Request
         requestOrigin(),
         clientAddress(),
         requestUploads(),
+        acceptHeader(),
     );
+}
+
+function acceptHeader(): string
+{
+    $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+    if (!is_string($accept)) {
+        return '';
+    }
+
+    return $accept;
 }
 
 function clientAddress(): string

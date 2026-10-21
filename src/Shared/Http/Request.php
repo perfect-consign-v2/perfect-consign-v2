@@ -20,7 +20,13 @@ final class Request
         public readonly string $origin = '',
         public readonly string $address = '',
         public readonly array $uploads = [],
+        public readonly string $accept = '',
     ) {
+    }
+
+    public function wantsJson(): bool
+    {
+        return str_contains(strtolower($this->accept), 'application/json');
     }
 
     /**
