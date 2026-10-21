@@ -18,7 +18,7 @@ No feature flags on posting rules. One schema, one meaning.
 
 Weeks 1–3, one engineer.
 
-`GET /rent` becomes a read. Late fees move to a Postgres queue: a `platform.jobs` table claimed with `FOR UPDATE SKIP LOCKED`, and `bin/work.php` running as its own process. The job runs in the mall’s `time_zone`, which already lives on `mall`. The owner keeps one POST, “Assess late fees now,” with the same posting key the job uses (`late-fee:{booth}:{period}`), so the two callers cannot double-post.
+`GET /rent` becomes a read. Late fees move to a Postgres queue: a `platform.jobs` table claimed with `FOR UPDATE SKIP LOCKED`, and `bin/work.php` running as its own process. The job runs in the mall’s `time_zone`, which already lives on `mall`. There is no button. The worker is the only caller, and the posting key `late-fee:{booth}:{period}` keeps a second run from double-posting.
 
 `ProbeMall` stops catching `MigrationFileChanged`. A checksum mismatch fails the suite.
 

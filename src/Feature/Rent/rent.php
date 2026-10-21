@@ -44,12 +44,6 @@ $booths = static function (int $count): string {
     return $count . ' booths';
 };
 ?>
-<?php if ($actorRole === 'owner'): ?>
-<form method="post" action="/<?= View::text($slug) ?>/rent/late-fees">
-    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-    <button type="submit">Assess late fees now</button>
-</form>
-<?php endif; ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Rent</h1>
