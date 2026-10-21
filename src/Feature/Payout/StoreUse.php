@@ -6,13 +6,17 @@ namespace PerfectConsign\Feature\Payout;
 
 use InvalidArgumentException;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\JournalDraft;
+use PerfectConsign\Ledger\JournalSource;
+use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class StoreUse
 {
     public function __construct(
-        private readonly StorePurchase $purchases,
+        private readonly LedgerStore $ledger,
         private readonly Statements $statements,
     ) {
     }
@@ -24,22 +28,28 @@ final class StoreUse
         if ($trimmedDescription === '' || $trimmedMemo === '') {
             throw new InvalidArgumentException('a store use names the piece');
         }
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('a store use is a positive amount');
+        }
         $itemId = $this->itemId($vendorId, $itemCode);
         $reference = bin2hex(random_bytes(16));
 
-        return $this->purchases->record(
-            $vendorId,
-            $postingDate,
-            $amount,
-            $reference,
-            function (string $journalId) use ($vendorId, $itemId, $amount, $trimmedDescription, $trimmedMemo): void {
+        return $this->ledger->post(new JournalDraft(
+            postingKey: 'store-use:' . $reference,
+            postingDate: $postingDate,
+            source: new JournalSource('store_use', $reference, 'Store use'),
+            lines: [
+                PostedLines::entry($this->ledger->roleAccount('store_purchases'), $amount, 0, null, null),
+                PostedLines::entry($this->ledger->roleAccount('vendor_payable'), 0, $amount, 'vendor', $vendorId),
+            ],
+            beforeCommit: function (string $journalId) use ($vendorId, $itemId, $amount, $trimmedDescription, $trimmedMemo): void {
                 $this->statements->change(
                     'INSERT INTO store_uses (journal_id, vendor_id, item_id, amount_minor, description, memo)
                      VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?)',
                     [$journalId, $vendorId, $itemId, $amount, $trimmedDescription, $trimmedMemo]
                 );
             },
-        );
+        ));
     }
 
     /**

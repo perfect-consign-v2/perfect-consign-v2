@@ -13,6 +13,7 @@ final class SchemaCatalog
     public const PLATFORM = [
         '000_platform.sql',
         '002_platform_jobs.sql',
+        '003_poster_jobs.sql',
         '004_job_grants.sql',
         '005_job_kinds.sql',
     ];

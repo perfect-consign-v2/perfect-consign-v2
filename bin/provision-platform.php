@@ -36,15 +36,6 @@ $pdo = new PDO(
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
-$poster = $pdo->query("SELECT 1 FROM pg_roles WHERE rolname = 'stall_poster'");
-if ($poster === false) {
-    fwrite(STDERR, "could not read roles\n");
-    exit(1);
-}
-if ($poster->fetchColumn() === false) {
-    $pdo->exec('CREATE ROLE stall_poster NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE');
-}
-
 try {
     (new \PerfectConsign\Schema\SchemaMigrator(
         $pdo,

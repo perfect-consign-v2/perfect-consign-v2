@@ -29,10 +29,10 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-00000000f801',
     '01900000-0000-7000-8000-000000000001',
-    'store-purchase:sign',
+    'store-use:sign',
     '2042-04-02', '2042-04-02 12:00:00+00',
     '01900000-0000-7000-8000-00000000f021',
-    'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 2500, 2500
+    'USD', 'store_use', 'sign', 'Store use', 2500, 2500
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES ('01900000-0000-7000-8000-00000000f801', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
@@ -77,7 +77,7 @@ INSERT INTO journals (
     'reversal:01900000-0000-7000-8000-00000000f801',
     '2042-04-02', '2042-04-02 12:00:00+00',
     '01900000-0000-7000-8000-00000000f021',
-    'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101:void', 'Void of store-purchase:sign',
+    'USD', 'store_use', '01900000-0000-7000-8000-00000000f101:void', 'Void of store-use:sign',
     2500, 2500, true, '01900000-0000-7000-8000-00000000f801'
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref)
@@ -98,10 +98,10 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-00000000f803',
     '01900000-0000-7000-8000-000000000001',
-    'store-purchase:again',
+    'store-use:again',
     '2042-04-03', '2042-04-03 12:00:00+00',
     '01900000-0000-7000-8000-00000000f021',
-    'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 2500, 2500
+    'USD', 'store_use', 'again', 'Store use', 2500, 2500
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES ('01900000-0000-7000-8000-00000000f803', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
@@ -114,6 +114,33 @@ DO $$
 BEGIN
     INSERT INTO item_buys (journal_id, item_id, vendor_id, amount_minor)
     VALUES ('01900000-0000-7000-8000-00000000f803', '01900000-0000-7000-8000-00000000f201', '01900000-0000-7000-8000-00000000f101', 2500);
+    RAISE EXCEPTION 'a use became inventory';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%a buy belongs on a store purchase%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-00000000f813',
+        '01900000-0000-7000-8000-000000000001',
+        'store-purchase:used',
+        '2042-04-03', '2042-04-03 12:00:00+00',
+        '01900000-0000-7000-8000-00000000f021',
+        'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 2500, 2500
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES ('01900000-0000-7000-8000-00000000f813', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref)
+    VALUES ('01900000-0000-7000-8000-00000000f813', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 0, 2500, 'vendor', '01900000-0000-7000-8000-00000000f101');
+    INSERT INTO item_buys (journal_id, item_id, vendor_id, amount_minor)
+    VALUES ('01900000-0000-7000-8000-00000000f813', '01900000-0000-7000-8000-00000000f201', '01900000-0000-7000-8000-00000000f101', 2500);
     RAISE EXCEPTION 'a use became inventory';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -142,8 +169,23 @@ VALUES ('01900000-0000-7000-8000-00000000f804', '01900000-0000-7000-8000-0000000
 
 DO $$
 BEGIN
+    INSERT INTO journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        '01900000-0000-7000-8000-00000000f812',
+        '01900000-0000-7000-8000-000000000001',
+        'store-use:stock',
+        '2042-04-03', '2042-04-03 12:00:00+00',
+        '01900000-0000-7000-8000-00000000f021',
+        'USD', 'store_use', 'stock', 'Store use', 2500, 2500
+    );
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+    VALUES ('01900000-0000-7000-8000-00000000f812', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
+    INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref)
+    VALUES ('01900000-0000-7000-8000-00000000f812', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 0, 2500, 'vendor', '01900000-0000-7000-8000-00000000f101');
     INSERT INTO store_uses (journal_id, vendor_id, item_id, amount_minor, description, memo)
-    VALUES ('01900000-0000-7000-8000-00000000f804', '01900000-0000-7000-8000-00000000f101', '01900000-0000-7000-8000-00000000f204', 2500, 'Stock sign', 'Bought for the business, not for resale');
+    VALUES ('01900000-0000-7000-8000-00000000f812', '01900000-0000-7000-8000-00000000f101', '01900000-0000-7000-8000-00000000f204', 2500, 'Stock sign', 'Bought for the business, not for resale');
     RAISE EXCEPTION 'inventory was accepted as a use';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -160,10 +202,10 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-00000000f805',
         '01900000-0000-7000-8000-000000000001',
-        'store-purchase:wrong',
+        'store-use:wrong',
         '2042-04-03', '2042-04-03 12:00:00+00',
         '01900000-0000-7000-8000-00000000f021',
-        'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 1000, 1000
+        'USD', 'store_use', 'wrong', 'Store use', 1000, 1000
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES ('01900000-0000-7000-8000-00000000f805', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 1000, 0);
@@ -187,10 +229,10 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-00000000f806',
         '01900000-0000-7000-8000-000000000001',
-        'store-purchase:mismatch',
+        'store-use:mismatch',
         '2042-04-03', '2042-04-03 12:00:00+00',
         '01900000-0000-7000-8000-00000000f021',
-        'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 2500, 2500
+        'USD', 'store_use', 'mismatch', 'Store use', 2500, 2500
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES ('01900000-0000-7000-8000-00000000f806', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
@@ -242,9 +284,9 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-00000000f808',
         '01900000-0000-7000-8000-000000000001',
-        'store-purchase:sold', '2042-04-03', '2042-04-03 12:00:00+00',
+        'store-use:sold', '2042-04-03', '2042-04-03 12:00:00+00',
         '01900000-0000-7000-8000-00000000f021',
-        'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 2500, 2500
+        'USD', 'store_use', 'sold', 'Store use', 2500, 2500
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES ('01900000-0000-7000-8000-00000000f808', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
@@ -266,9 +308,9 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-00000000f809',
     '01900000-0000-7000-8000-000000000001',
-    'store-purchase:untagged', '2042-04-03', '2042-04-03 12:00:00+00',
+    'store-use:untagged', '2042-04-03', '2042-04-03 12:00:00+00',
     '01900000-0000-7000-8000-00000000f021',
-    'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 2500, 2500
+    'USD', 'store_use', 'untagged', 'Store use', 2500, 2500
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES ('01900000-0000-7000-8000-00000000f809', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
@@ -285,9 +327,9 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-00000000f810',
         '01900000-0000-7000-8000-000000000001',
-        'store-purchase:twice', '2042-04-03', '2042-04-03 12:00:00+00',
+        'store-use:twice', '2042-04-03', '2042-04-03 12:00:00+00',
         '01900000-0000-7000-8000-00000000f021',
-        'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 2500, 2500
+        'USD', 'store_use', 'twice', 'Store use', 2500, 2500
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES ('01900000-0000-7000-8000-00000000f810', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
@@ -311,9 +353,9 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-00000000f811',
         '01900000-0000-7000-8000-000000000001',
-        'store-purchase:again', '2042-04-03', '2042-04-03 12:00:00+00',
+        'store-use:again', '2042-04-03', '2042-04-03 12:00:00+00',
         '01900000-0000-7000-8000-00000000f021',
-        'USD', 'store_purchase', 'again-2', 'Store purchase', 2500, 2500
+        'USD', 'store_use', 'again-2', 'Store purchase', 2500, 2500
     );
     RAISE EXCEPTION 'duplicate posting key was accepted';
 EXCEPTION

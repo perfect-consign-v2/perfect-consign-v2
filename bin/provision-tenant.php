@@ -45,10 +45,8 @@ final class TenantProvisioner
 
         $createdRole = false;
         if (!$this->roleExists($role)) {
-            $this->pdo->exec(sprintf(
-                'CREATE ROLE %s NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE',
-                $role
-            ));
+            $create = $this->pdo->prepare('SELECT platform.create_poster(?)');
+            $create->execute([$role]);
             $createdRole = true;
         }
         $this->pdo->exec(sprintf('GRANT %s TO CURRENT_USER', $role));
@@ -110,19 +108,8 @@ final class TenantProvisioner
             throw new RuntimeException('stall_app is missing. Apply sql/000_platform.sql first.');
         }
         $this->pdo->exec(sprintf('GRANT %s TO stall_app', $role));
-        $this->grantPosterJobs($role);
-    }
-
-    private function grantPosterJobs(string $role): void
-    {
-        if ($role !== 'stall_poster') {
-            return;
-        }
-        $jobs = $this->pdo->query("SELECT to_regclass('platform.jobs')");
-        if ($jobs === false || $jobs->fetchColumn() === null) {
-            return;
-        }
-        $this->pdo->exec('GRANT SELECT ON TABLE platform.jobs TO stall_poster');
+        $jobs = $this->pdo->prepare('SELECT platform.grant_poster_jobs(?)');
+        $jobs->execute([$role]);
     }
 
     public function grantBackup(string $schema, string $role): void

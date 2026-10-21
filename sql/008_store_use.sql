@@ -1,66 +1,4 @@
--- A store use buys a vendor piece for the business. It is not inventory.
-
-CREATE OR REPLACE FUNCTION public.stall_apply_item_buy() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'pg_catalog'
-    AS $$
-DECLARE
-    expense bigint;
-    payable bigint;
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM public.journals
-        WHERE id = NEW.journal_id AND source_type = 'store_purchase' AND is_reversal = false
-    ) THEN
-        RAISE EXCEPTION 'a buy belongs on a store purchase'
-            USING ERRCODE = '23514';
-    END IF;
-    IF EXISTS (
-        SELECT 1 FROM public.store_uses
-        WHERE journal_id = NEW.journal_id OR item_id = NEW.item_id
-    ) THEN
-        RAISE EXCEPTION 'a use is not inventory'
-            USING ERRCODE = '23514';
-    END IF;
-    SELECT COALESCE(sum(line.debit_minor), 0)
-    INTO expense
-    FROM public.journal_lines AS line
-    JOIN public.chart_roles AS role ON role.account_id = line.account_id
-    WHERE line.journal_id = NEW.journal_id AND role.role = 'store_purchases' AND line.debit_minor > 0;
-    SELECT COALESCE(sum(line.credit_minor), 0)
-    INTO payable
-    FROM public.journal_lines AS line
-    JOIN public.chart_roles AS role ON role.account_id = line.account_id
-    WHERE line.journal_id = NEW.journal_id
-      AND role.role = 'vendor_payable'
-      AND line.credit_minor > 0
-      AND line.subledger_type = 'vendor'
-      AND line.subledger_ref = NEW.vendor_id::text;
-    IF expense <> NEW.amount_minor OR payable <> NEW.amount_minor THEN
-        RAISE EXCEPTION 'a buy pays the consignor'
-            USING ERRCODE = '23514';
-    END IF;
-    IF EXISTS (SELECT 1 FROM public.sale_lines WHERE item_id = NEW.item_id) THEN
-        RAISE EXCEPTION 'a sold piece cannot be bought'
-            USING ERRCODE = '23514';
-    END IF;
-    UPDATE public.items
-    SET placement = 'store',
-        vendor_id = NULL,
-        expires_on = NULL,
-        commission_bps = NULL,
-        cost_minor = NEW.amount_minor
-    WHERE id = NEW.item_id
-      AND placement = 'consigned'
-      AND vendor_id = NEW.vendor_id
-      AND quantity > 0;
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'a buy takes a consigned piece'
-            USING ERRCODE = '23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
+-- A store use buys a vendor piece for the business. It is its own journal, not inventory.
 
 CREATE FUNCTION public.stall_reject_store_use_write() RETURNS trigger
     LANGUAGE plpgsql
@@ -85,9 +23,9 @@ DECLARE
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM public.journals
-        WHERE id = NEW.journal_id AND source_type = 'store_purchase' AND is_reversal = false
+        WHERE id = NEW.journal_id AND source_type = 'store_use' AND is_reversal = false
     ) THEN
-        RAISE EXCEPTION 'a use belongs on a store purchase'
+        RAISE EXCEPTION 'a use belongs on a store use'
             USING ERRCODE = '23514';
     END IF;
     IF EXISTS (
@@ -185,7 +123,7 @@ CREATE FUNCTION public.stall_restore_store_use() RETURNS trigger
     AS $$
 BEGIN
     IF NEW.is_reversal IS DISTINCT FROM true
-        OR NEW.source_type <> 'store_purchase'
+        OR NEW.source_type <> 'store_use'
         OR NEW.reverses_journal_id IS NULL THEN
         RETURN NEW;
     END IF;
@@ -213,19 +151,39 @@ CREATE FUNCTION public.stall_assert_store_use() RETURNS trigger
     SET search_path TO 'pg_catalog'
     AS $$
 BEGIN
-    IF NEW.source_type <> 'store_purchase' OR NEW.is_reversal THEN
+    IF NEW.source_type <> 'store_use' OR NEW.is_reversal THEN
         RETURN NULL;
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM public.store_uses WHERE journal_id = NEW.id) THEN
-        RETURN NULL;
+    IF NEW.posting_key <> 'store-use:' || NEW.source_reference THEN
+        RAISE EXCEPTION 'a store use posting key is its source reference'
+            USING ERRCODE = '23514';
     END IF;
-    IF left(NEW.posting_key, 15) <> 'store-purchase:' OR (
+    IF NOT EXISTS (
+        SELECT 1 FROM public.store_uses WHERE journal_id = NEW.id
+    ) OR (
         SELECT count(*) FROM public.journal_lines WHERE journal_id = NEW.id
     ) <> 2 THEN
         RAISE EXCEPTION 'a store use names the piece'
             USING ERRCODE = '23514';
     END IF;
     RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION public.stall_reject_buy_of_store_use() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM public.store_uses
+        WHERE journal_id = NEW.journal_id OR item_id = NEW.item_id
+    ) THEN
+        RAISE EXCEPTION 'a use is not inventory'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -243,6 +201,12 @@ CREATE TABLE public.store_uses (
     CONSTRAINT store_uses_description_chk CHECK (((description = btrim(description)) AND (description <> '') AND (char_length(description) <= 200))),
     CONSTRAINT store_uses_memo_chk CHECK (((memo = btrim(memo)) AND (memo <> '') AND (char_length(memo) <= 200)))
 );
+
+CREATE TRIGGER item_buys_store_use_no_delete
+    BEFORE INSERT ON public.item_buys
+    FOR EACH ROW EXECUTE FUNCTION public.stall_reject_buy_of_store_use();
+
+ALTER TABLE public.item_buys ENABLE ALWAYS TRIGGER item_buys_store_use_no_delete;
 
 CREATE TRIGGER store_uses_apply_no_delete
     BEFORE INSERT ON public.store_uses
@@ -280,5 +244,8 @@ ALTER TABLE ONLY public.store_uses
     ADD CONSTRAINT store_uses_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
 ALTER TABLE ONLY public.store_uses
     ADD CONSTRAINT store_uses_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
+
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_purchases', 'store_use');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'store_use');
 
 GRANT SELECT, INSERT ON TABLE public.store_uses TO stall_poster;

@@ -15,7 +15,7 @@ final class StorePurchase
     {
     }
 
-    public function record(string $vendorId, string $postingDate, int $amount, string $reference, ?\Closure $beforeCommit = null): string
+    public function record(string $vendorId, string $postingDate, int $amount, string $reference): string
     {
         if ($amount <= 0) {
             throw new \InvalidArgumentException('a store purchase is a positive amount');
@@ -33,7 +33,6 @@ final class StorePurchase
                 PostedLines::entry($this->ledger->roleAccount('store_purchases'), $amount, 0, null, null),
                 PostedLines::entry($this->ledger->roleAccount('vendor_payable'), 0, $amount, 'vendor', $vendorId),
             ],
-            beforeCommit: $beforeCommit,
         ));
     }
 }

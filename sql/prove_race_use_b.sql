@@ -6,9 +6,9 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-0000000009e4',
     '01900000-0000-7000-8000-000000000001',
-    'store-purchase:race-b', '2099-05-02', '2099-05-02 12:00:00+00',
+    'store-use:race-b', '2099-05-02', '2099-05-02 12:00:00+00',
     '01900000-0000-7000-8000-0000000009e2',
-    'USD', 'store_purchase', '01900000-0000-7000-8000-0000000009e0', 'Store purchase', 1000, 1000
+    'USD', 'store_use', 'race-b', 'Store use', 1000, 1000
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES (

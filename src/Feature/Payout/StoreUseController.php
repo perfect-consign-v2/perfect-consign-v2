@@ -38,7 +38,7 @@ final class StoreUseController
         try {
             $amount = Money::parseMinor($this->app->request()->field('amount'));
             $journalId = $this->uses->record($vendorId, $itemCode, $amount, $date, $description, $memo);
-            $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Store purchase posted.');
+            $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Store use posted.');
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Payout/store-use', $this->page($tenant->displayName, $tenant->slug, $this->app->catchRefusal($refusal)));
         } catch (InvalidArgumentException $error) {
