@@ -62,9 +62,14 @@ final class MigrationRecord
             return;
         }
         foreach ($this->applied($schema) as $file => $checksum) {
-            if ($this->catalog->checksum($file) !== $checksum) {
+            $current = $this->catalog->checksum($file);
+            if ($current === $checksum) {
+                continue;
+            }
+            if (!$this->sameAsideFromNewlines($file, $checksum)) {
                 throw new MigrationFileChanged($file . ' changed after it was applied');
             }
+            $this->replace($schema, $file, $current);
         }
     }
 
@@ -112,6 +117,25 @@ final class MigrationRecord
         }
 
         return $rows;
+    }
+
+    private function sameAsideFromNewlines(string $file, string $stored): bool
+    {
+        $lf = str_replace("\r\n", "\n", $this->catalog->read($file));
+        $crlf = str_replace("\n", "\r\n", $lf);
+
+        return hash('sha256', $lf) === $stored || hash('sha256', $crlf) === $stored;
+    }
+
+    private function replace(string $schema, string $file, string $checksum): void
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE ' . $this->relation($schema) . ' SET checksum = ? WHERE filename = ?'
+        );
+        if ($statement === false) {
+            throw new RuntimeException('could not record ' . $file);
+        }
+        $statement->execute([$checksum, $file]);
     }
 
     private function remember(string $schema, string $file, string $checksum): void

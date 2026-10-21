@@ -46,6 +46,37 @@ final class MigrationBoundaryTest extends TestCase
             self::assertStringContainsString('000_platform.sql', $error->getMessage());
         }
 
+        $catalog = $this->catalog();
+        $file = '000_platform.sql';
+        $lf = str_replace("\r\n", "\n", $catalog->read($file));
+        $stored = hash('sha256', $lf);
+        if ($stored === $catalog->checksum($file)) {
+            $stored = hash('sha256', str_replace("\n", "\r\n", $lf));
+        }
+        $applied = $this->rows([['filename' => $file, 'checksum' => $stored]]);
+        $saved = null;
+        $update = $this->createMock(PDOStatement::class);
+        $update->expects($this->once())->method('execute')->willReturnCallback(
+            static function (array $values) use (&$saved): bool {
+                $saved = $values;
+
+                return true;
+            }
+        );
+        $pdo = $this->createMock(PDO::class);
+        $pdo->method('quote')->willReturnCallback(static fn (string $value): string => "'" . $value . "'");
+        $named = $this->column('platform.schema_migrations');
+        $pdo->method('query')->willReturnCallback(static function (string $sql) use ($named, $applied): PDOStatement {
+            if (str_contains($sql, 'to_regclass')) {
+                return $named;
+            }
+
+            return $applied;
+        });
+        $pdo->expects($this->once())->method('prepare')->willReturn($update);
+        (new MigrationRecord($pdo, $catalog))->verify('platform');
+        self::assertSame([$catalog->checksum($file), $file], $saved);
+
         $broken = $this->rows([['filename' => '000_platform.sql', 'checksum' => 12]]);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('could not read schema migrations');
