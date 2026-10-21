@@ -44,6 +44,24 @@ final class MallPayoutSettings
         ];
     }
 
+    /**
+     * @return array{consignment: bool, store: bool, days?: int|null}
+     */
+    public function getPostedShop(string $flag, string $consignment, string $store, ?int $days = null): array
+    {
+        $current = $this->getShop();
+        if ($flag !== '1') {
+            return $current + ['days' => $days];
+        }
+        $enabled = $consignment === '1';
+
+        return [
+            'consignment' => $enabled,
+            'store' => $store === '1',
+            'days' => $this->getDaysWhenConsigned($days, $enabled ? '1' : ''),
+        ];
+    }
+
     public function getDaysWhenConsigned(?int $days, string $posted): ?int
     {
         if (!$this->flag('consignment_enabled') && $posted !== '1') {

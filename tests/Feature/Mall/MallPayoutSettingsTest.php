@@ -27,6 +27,22 @@ final class MallPayoutSettingsTest extends TestCase
         self::assertFalse($this->settings($this->row(0, 0))->rentPrepaid());
     }
 
+    public function testAPostedShopKeepsTheStoredFlagsUntilTheFormSendsThem(): void
+    {
+        $settings = $this->settings($this->row(0, false) + [
+            'consignment_enabled' => true,
+            'store_stock_enabled' => false,
+        ]);
+        self::assertSame(
+            ['consignment' => true, 'store' => false, 'days' => 4],
+            $settings->getPostedShop('', '0', '1', 4)
+        );
+        self::assertSame(
+            ['consignment' => false, 'store' => true, 'days' => 4],
+            $settings->getPostedShop('1', '0', '1', 4)
+        );
+    }
+
     /**
      * @param array<string, mixed> $row
      */

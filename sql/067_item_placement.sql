@@ -47,6 +47,8 @@ FROM (
 ) AS seed(role, account_id)
 WHERE NOT EXISTS (SELECT 1 FROM chart_roles WHERE role = seed.role);
 
+SELECT stall_seed_export_accounts();
+
 INSERT INTO chart_source_rules (role, source_type)
 SELECT seed.role, seed.source_type
 FROM (

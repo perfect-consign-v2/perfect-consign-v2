@@ -20,7 +20,7 @@ final class LateFee
     ) {
     }
 
-    public function post(string $boothId, string $period, string $date, int $minor): string
+    public function post(string $boothId, string $period, string $date, int $minor, int $ordinal = 1): string
     {
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $boothId) !== 1) {
             throw new DatabaseRefusal('Choose a booth.');
@@ -31,10 +31,10 @@ final class LateFee
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
             throw new DatabaseRefusal('Enter the date of the late fee.');
         }
-        if ($minor < 1) {
+        if ($minor < 1 || $ordinal < 1) {
             throw new DatabaseRefusal('Enter the late fee.');
         }
-        $key = 'late-fee:' . $boothId . ':' . $period;
+        $key = 'late-fee:' . $boothId . ':' . $period . ':' . $ordinal;
         $existing = $this->statements->bound('SELECT id FROM journals WHERE posting_key = ?', [$key]);
         $id = $existing[0]['id'] ?? null;
         if (is_string($id) && $id !== '') {
@@ -44,7 +44,7 @@ final class LateFee
         return $this->ledger->post(new JournalDraft(
             $key,
             $date,
-            new JournalSource('late_fee', $boothId . ':' . $period, 'Late fee'),
+            new JournalSource('late_fee', $boothId . ':' . $period . ':' . $ordinal, 'Late fee'),
             [
                 PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), $minor, 0, 'booth', $boothId),
                 PostedLines::entry($this->ledger->roleAccount('late_fee_income'), 0, $minor, null, null),

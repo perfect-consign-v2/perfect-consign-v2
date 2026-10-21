@@ -153,11 +153,13 @@ final class MallController
         $this->postedGmail = $this->app->request()->field('gmail_address');
         try {
             $this->mall->setReceiptFooter($footer);
-            $this->mall->setReceiptMail(
-                $this->postedMailVia,
-                $this->postedGmail,
-                $this->app->request()->raw('gmail_app_password'),
-            );
+            if ($this->postedMailVia !== '') {
+                $this->mall->setReceiptMail(
+                    $this->postedMailVia,
+                    $this->postedGmail,
+                    $this->app->request()->raw('gmail_app_password'),
+                );
+            }
         } catch (DatabaseRefusal $refusal) {
             $this->showError($slug, $this->app->catchRefusal($refusal));
 
@@ -313,8 +315,14 @@ final class MallController
         ?int $floorDays,
         int $taxRate,
     ): ?string {
-        $consignment = $this->app->request()->field('consignment_enabled') === '1';
-        $floorDays = $this->payouts->getDaysWhenConsigned($floorDays, $consignment ? '1' : '');
+        $shop = $this->payouts->getPostedShop(
+            $this->app->request()->field('shop_flags'),
+            $this->app->request()->field('consignment_enabled'),
+            $this->app->request()->field('store_stock_enabled'),
+        );
+        $consignment = $shop['consignment'];
+        $storeStock = $shop['store'];
+        $floorDays = $shop['days'] ?? $floorDays;
         try {
             $this->mall->save(
                 $timeZone,
@@ -344,7 +352,7 @@ final class MallController
                 $this->rentDraft->rentals ?? false,
                 $this->rentDraft->cycleDay ?? 1,
                 $consignment,
-                $this->app->request()->field('store_stock_enabled') === '1',
+                $storeStock,
             );
             $this->rentDraft->save();
         } catch (DatabaseRefusal $refusal) {

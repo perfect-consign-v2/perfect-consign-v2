@@ -313,6 +313,9 @@ BEGIN
     ALTER TABLE item_returns DROP CONSTRAINT item_returns_item_id_fkey;
     ALTER TABLE payout_run_sales DROP CONSTRAINT payout_run_sales_item_id_fkey;
     ALTER TABLE item_photos DROP CONSTRAINT item_photos_item_id_fkey;
+    ALTER TABLE item_buys DROP CONSTRAINT item_buys_item_id_fkey;
+    ALTER TABLE item_dispositions DROP CONSTRAINT item_dispositions_item_id_fkey;
+    ALTER TABLE item_price_events DROP CONSTRAINT item_price_events_item_id_fkey;
     TRUNCATE items;
     RAISE EXCEPTION 'replica item truncate was accepted';
 EXCEPTION
@@ -376,6 +379,9 @@ BEGIN
     ALTER TABLE item_returns DROP CONSTRAINT item_returns_item_id_fkey;
     ALTER TABLE payout_run_sales DROP CONSTRAINT payout_run_sales_item_id_fkey;
     ALTER TABLE item_photos DROP CONSTRAINT item_photos_item_id_fkey;
+    ALTER TABLE item_buys DROP CONSTRAINT item_buys_item_id_fkey;
+    ALTER TABLE item_dispositions DROP CONSTRAINT item_dispositions_item_id_fkey;
+    ALTER TABLE item_price_events DROP CONSTRAINT item_price_events_item_id_fkey;
     TRUNCATE items;
     RAISE EXCEPTION 'item truncate was accepted after the guard held';
 EXCEPTION

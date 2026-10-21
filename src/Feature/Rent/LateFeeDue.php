@@ -10,8 +10,9 @@ use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 /**
- * One late fee for each unpaid rent period whose grace has ended.
- * The earliest such period uses the first amount. Each later one uses the next amount.
+ * An unpaid rent period can take a late fee each time grace passes.
+ * The first fee in that period uses the first amount. Each later fee uses the next amount.
+ * Grace of 0 posts a fee each day through the end of the period.
  */
 final class LateFeeDue
 {
@@ -42,27 +43,31 @@ final class LateFeeDue
             return;
         }
         foreach ($this->due($today, $policy['grace']) as $fee) {
-            $amount = $fee['ordinal'] === 0 ? $first : $next;
-            $this->fees->post($fee['booth'], $fee['period'], $today, $amount);
+            $amount = $fee['ordinal'] === 1 ? $first : $next;
+            $this->fees->post($fee['booth'], $fee['period'], $today, $amount, $fee['ordinal']);
         }
     }
 
     /**
-     * @return list<array{booth: string, period: string, ordinal: int}>
+     * @return list<array{booth: string, period: string, ordinal: int, date: string}>
      */
     private function due(string $today, int $grace): array
     {
         $posted = $this->postedKeys();
         $due = [];
         foreach ($this->byBooth() as $booth => $book) {
-            $open = $this->unpaid($book['charges'], $book['credit']);
-            $late = $this->latePeriods($open, $posted, $booth, $today, $grace);
-            foreach ($late as $ordinal => $period) {
-                $key = 'late-fee:' . $booth . ':' . $period['period'];
-                if (isset($posted[$key]) || $period['left'] < 1) {
+            foreach ($this->unpaid($book['charges'], $book['credit']) as $period) {
+                if ($period['left'] < 1) {
                     continue;
                 }
-                $due[] = ['booth' => $booth, 'period' => $period['period'], 'ordinal' => $ordinal];
+                foreach ($this->slots($period['start'], $today, $grace) as $index => $date) {
+                    $ordinal = $index + 1;
+                    $key = 'late-fee:' . $booth . ':' . $period['period'] . ':' . $ordinal;
+                    if (isset($posted[$key])) {
+                        continue;
+                    }
+                    $due[] = ['booth' => $booth, 'period' => $period['period'], 'ordinal' => $ordinal, 'date' => $date];
+                }
             }
         }
 
@@ -70,23 +75,25 @@ final class LateFeeDue
     }
 
     /**
-     * @param list<array{period: string, start: string, left: int}> $open
-     * @param array<string, true> $posted
-     * @return list<array{period: string, start: string, left: int}>
+     * @return list<string>
      */
-    private function latePeriods(array $open, array $posted, string $booth, string $today, int $grace): array
+    private function slots(string $start, string $today, int $grace): array
     {
-        $late = [];
-        foreach ($open as $period) {
-            $key = 'late-fee:' . $booth . ':' . $period['period'];
-            $overdue = $today >= $this->lateOn($period['start'], $grace);
-            if ($overdue && ($period['left'] > 0 || isset($posted[$key]))) {
-                $late[] = $period;
-            }
+        $end = $this->periodEnd($start);
+        $step = $grace < 1 ? 1 : $grace;
+        $date = $this->lateOn($start, $grace);
+        $slots = [];
+        while ($date <= $today && $date <= $end) {
+            $slots[] = $date;
+            $date = (new DateTimeImmutable($date))->modify('+' . $step . ' days')->format('Y-m-d');
         }
-        usort($late, static fn (array $left, array $right): int => $left['start'] <=> $right['start']);
 
-        return $late;
+        return $slots;
+    }
+
+    private function periodEnd(string $start): string
+    {
+        return (new DateTimeImmutable($start))->modify('+1 month')->modify('-1 day')->format('Y-m-d');
     }
 
     /**

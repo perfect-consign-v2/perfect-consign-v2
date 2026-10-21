@@ -65,13 +65,18 @@ final class MallMoneyForm
                 $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
                 $taxBasis,
             );
+            $shop = $this->payouts->getPostedShop(
+                $this->app->request()->field('shop_flags'),
+                $this->app->request()->field('consignment_enabled'),
+                $this->app->request()->field('store_stock_enabled'),
+            );
             $this->payouts->save(
                 $this->app->request()->field('operating_mode'),
                 $this->rentDraft->prepaid ?? false,
                 $this->rentDraft->rentals ?? false,
                 $this->rentDraft->cycleDay ?? 1,
-                $this->app->request()->field('consignment_enabled') === '1',
-                $this->app->request()->field('store_stock_enabled') === '1',
+                $shop['consignment'],
+                $shop['store'],
             );
             $this->rentDraft->save();
         } catch (DatabaseRefusal $refusal) {

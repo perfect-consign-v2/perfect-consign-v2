@@ -142,7 +142,7 @@ final class TicketPricing
 
     /**
      * @param array<string, mixed> $row
-     * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}
+     * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, placement: string, cost: int, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}
      */
     private function quote(array $row, int $taxBps, int $discount, string $waiver): array
     {
@@ -165,8 +165,8 @@ final class TicketPricing
             'description' => RowValue::string($row['description'] ?? null),
             'vendor' => RowValue::string($row['vendor_name'] ?? null),
             'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
-            'placement' => RowValue::string($row['placement'] ?? null),
-            'cost' => $row['cost_minor'] === null ? 0 : RowValue::integer($row['cost_minor']),
+            'placement' => is_string($row['placement'] ?? null) ? $row['placement'] : 'consigned',
+            'cost' => isset($row['cost_minor']) ? RowValue::integer($row['cost_minor']) : 0,
             'price' => $price,
             'quantity' => $quantity,
             'commission' => TicketQuote::halfUp($extended - $taken, RowValue::integer($row['commission_bps'] ?? null)),

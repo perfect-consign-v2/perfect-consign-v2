@@ -46,7 +46,10 @@ final class ItemWriter
         if ($intake === null) {
             throw new \InvalidArgumentException('Enter an intake date.');
         }
-        $placement = $draft['placement'] ?? 'consigned';
+        $placement = $draft['placement'] ?? '';
+        if ($placement === '') {
+            $placement = 'consigned';
+        }
         if (!in_array($placement, ['booth', 'consigned', 'store'], true)) {
             throw new \InvalidArgumentException('Choose where this piece sits.');
         }

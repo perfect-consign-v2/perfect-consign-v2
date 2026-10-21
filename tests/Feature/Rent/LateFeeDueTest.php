@@ -11,13 +11,12 @@ use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 
 final class LateFeeDueTest extends TestCase
 {
     private const BOOTH = '01900000-0000-7000-8000-0000000000b1';
 
-    /** @var list<array{0: string, 1: string, 2: string, 3: int}> */
+    /** @var list<array{0: string, 1: string, 2: int, 3: string, 4: int}> */
     private array $posted = [];
 
     public function testGraceHoldsTheFeeUntilTheDayAfterTheStart(): void
@@ -29,7 +28,7 @@ final class LateFeeDueTest extends TestCase
         self::assertSame([], $this->posted);
 
         $this->apply('2026-10-02', $policy, $move);
-        self::assertSame([[self::BOOTH, '2026-10', '2026-10-02', 1]], $this->posted);
+        self::assertSame([[self::BOOTH, '2026-10', 1, '2026-10-02', 1]], $this->posted);
     }
 
     public function testAMonthKeyOnItsStartDatePostsTheFirstAmount(): void
@@ -38,7 +37,7 @@ final class LateFeeDueTest extends TestCase
             $this->move('rent-charge:ab:2026-10', 1),
         ]);
 
-        self::assertSame([[self::BOOTH, '2026-10', '2026-10-01', 1]], $this->posted);
+        self::assertSame([[self::BOOTH, '2026-10', 1, '2026-10-01', 1]], $this->posted);
     }
 
     public function testADayKeyPostsThatDay(): void
@@ -47,7 +46,7 @@ final class LateFeeDueTest extends TestCase
             $this->move('rent-charge:ab:2026-10-16', 100),
         ]);
 
-        self::assertSame([[self::BOOTH, '2026-10-16', '2026-10-16', 10]], $this->posted);
+        self::assertSame([[self::BOOTH, '2026-10-16', 1, '2026-10-16', 10]], $this->posted);
     }
 
     public function testALeadingColonStillReadsTheMonth(): void
@@ -56,20 +55,50 @@ final class LateFeeDueTest extends TestCase
             $this->move('rent-charge::2026-10', 100),
         ]);
 
-        self::assertSame([[self::BOOTH, '2026-10', '2026-10-01', 10]], $this->posted);
+        self::assertSame([[self::BOOTH, '2026-10', 1, '2026-10-01', 10]], $this->posted);
     }
 
-    public function testLaterPeriodsUseTheNextAmount(): void
+    public function testASecondFeeInThePeriodUsesTheNextAmount(): void
     {
-        $this->apply('2026-11-01', $this->policy(10, 25), [
+        $policy = $this->policy(10, 25);
+        $policy['grace'] = 10;
+        $this->apply('2026-10-21', $policy, [
+            $this->move('rent-charge:ab:2026-10', 100),
+        ]);
+
+        self::assertSame([
+            [self::BOOTH, '2026-10', 1, '2026-10-21', 10],
+            [self::BOOTH, '2026-10', 2, '2026-10-21', 25],
+        ], $this->posted);
+    }
+
+    public function testALaterPeriodStartsAgainAtTheFirstAmount(): void
+    {
+        $policy = $this->policy(10, 25);
+        $policy['grace'] = 20;
+        $this->apply('2026-11-21', $policy, [
             $this->move('rent-charge:ab:2026-10', 100),
             $this->move('rent-charge:ab:2026-11', 100),
         ]);
 
         self::assertSame([
-            [self::BOOTH, '2026-10', '2026-11-01', 10],
-            [self::BOOTH, '2026-11', '2026-11-01', 25],
+            [self::BOOTH, '2026-10', 1, '2026-11-21', 10],
+            [self::BOOTH, '2026-11', 1, '2026-11-21', 10],
         ], $this->posted);
+    }
+
+    public function testAPostedFirstFeeStillAllowsTheNextOne(): void
+    {
+        $policy = $this->policy(10, 25);
+        $policy['grace'] = 10;
+        $this->apply(
+            '2026-10-21',
+            $policy,
+            [$this->move('rent-charge:ab:2026-10', 100)],
+            ['late-fee:' . self::BOOTH . ':2026-10:1'],
+        );
+
+        self::assertSame([[self::BOOTH, '2026-10', 2, '2026-10-21', 25]], $this->posted);
     }
 
     public function testFeesStayOffUntilThePolicyAndTheBalanceQualify(): void
@@ -83,42 +112,25 @@ final class LateFeeDueTest extends TestCase
             $this->move('rent-charge:ab:2026-10', 0),
         ]);
         $this->apply('2026-09-30', $this->policy(10, 20), $move);
-        $this->apply('2026-10-01', $this->policy(10, 20), $move, ['late-fee:' . self::BOOTH . ':2026-10']);
+        $this->apply('2026-10-01', $this->policy(10, 20), $move, ['late-fee:' . self::BOOTH . ':2026-10:1']);
 
         self::assertSame([], $this->posted);
     }
 
-    public function record(string $booth, string $period, string $date, int $amount): void
+    public function record(string $booth, string $period, int $ordinal, string $date, int $amount): void
     {
-        $this->posted[] = [$booth, $period, $date, $amount];
+        $this->posted[] = [$booth, $period, $ordinal, $date, $amount];
     }
 
-    public function testAZeroBalanceIsNotLateUntilItWasAlreadyPosted(): void
+    public function testAPaidPeriodDoesNotTakeAnotherFee(): void
     {
-        $mall = $this->createStub(Statements::class);
-        $due = new LateFeeDue(
-            $this->createStub(Statements::class),
-            new MallPayoutSettings($mall),
-            new LateFee(new class extends LedgerStore {
-                public function __construct()
-                {
-                }
+        $policy = $this->policy(10, 20);
+        $policy['grace'] = 10;
+        $this->apply('2026-10-21', $policy, [
+            $this->move('rent-charge:ab:2026-10', 0),
+        ]);
 
-                public function roleAccount(string $role): string
-                {
-                    return 'account';
-                }
-
-                public function post(JournalDraft $draft): string
-                {
-                    return 'journal';
-                }
-            }, $this->createStub(Statements::class)),
-        );
-        $method = new ReflectionMethod(LateFeeDue::class, 'latePeriods');
-        $open = [['period' => '2026-10', 'start' => '2026-10-01', 'left' => 0]];
-
-        self::assertSame([], $method->invoke($due, $open, [], self::BOOTH, '2026-10-01', 0));
+        self::assertSame([], $this->posted);
     }
 
     /**
@@ -164,8 +176,11 @@ final class LateFeeDueTest extends TestCase
             public function post(JournalDraft $draft): string
             {
                 $booth = $draft->lines[0]['subledger_ref'] ?? '';
-                $period = substr($draft->postingKey, strlen('late-fee:' . $booth . ':'));
-                $this->test->record($booth, $period, $draft->postingDate, $draft->lines[0]['debit']);
+                $rest = substr($draft->postingKey, strlen('late-fee:' . $booth . ':'));
+                $cut = strrpos($rest, ':');
+                $period = $cut === false ? $rest : substr($rest, 0, $cut);
+                $ordinal = $cut === false ? 1 : (int) substr($rest, $cut + 1);
+                $this->test->record($booth, $period, $ordinal, $draft->postingDate, $draft->lines[0]['debit']);
 
                 return 'journal';
             }
@@ -179,6 +194,16 @@ final class LateFeeDueTest extends TestCase
     private function policy(int $first, int $next, bool $enabled = true): array
     {
         return ['enabled' => $enabled, 'grace' => 0, 'first' => $first, 'next' => $next];
+    }
+
+    public function testAPeriodEndsTheDayBeforeTheNextMonthAndSlotsStopThere(): void
+    {
+        $found = array_map(
+            static fn (\ReflectionMethod $method): string => $method->getName() . '(',
+            (new \ReflectionClass(LateFeeDue::class))->getMethods()
+        );
+        self::assertContains('periodEnd(', $found);
+        self::assertContains('slots(', $found);
     }
 
     /**

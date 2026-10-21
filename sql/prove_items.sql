@@ -16,6 +16,7 @@ BEGIN
       AND column_name <> 'price_minor'
       AND column_name <> 'commission_bps'
       AND column_name <> 'quantity'
+      AND column_name <> 'cost_minor'
       AND (
           data_type IN ('numeric', 'money', 'bigint', 'integer', 'smallint')
           OR column_name ~* '(amount|balance|minor|rate|price|total)'
@@ -206,8 +207,10 @@ BEGIN
     VALUES ('Tag', NULL, 'Vase', 100, 'BC-TRY', DATE '2026-09-27');
     RAISE EXCEPTION 'missing vendor was accepted';
 EXCEPTION
-    WHEN SQLSTATE '23502' THEN
-        NULL;
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%items_store_owner_chk%' THEN
+            RAISE;
+        END IF;
 END $$;
 
 DO $$
@@ -534,6 +537,9 @@ ALTER TABLE sale_lines DROP CONSTRAINT sale_lines_item_id_fkey;
 ALTER TABLE item_returns DROP CONSTRAINT item_returns_item_id_fkey;
 ALTER TABLE payout_run_sales DROP CONSTRAINT payout_run_sales_item_id_fkey;
 ALTER TABLE item_photos DROP CONSTRAINT item_photos_item_id_fkey;
+ALTER TABLE item_buys DROP CONSTRAINT item_buys_item_id_fkey;
+ALTER TABLE item_dispositions DROP CONSTRAINT item_dispositions_item_id_fkey;
+ALTER TABLE item_price_events DROP CONSTRAINT item_price_events_item_id_fkey;
 
 DO $$
 BEGIN

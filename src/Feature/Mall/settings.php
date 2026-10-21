@@ -68,8 +68,8 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             <input class="input" id="tax_rate" name="tax_rate" inputmode="decimal" value="<?= View::text($taxRate) ?>">
             <p class="muted text-sm">Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A vendor marked tax exempt is charged no tax.</p>
         </div>
+        <input type="hidden" name="shop_flags" value="1">
         <div class="field">
-            <label for="operating_mode">How this mall pays</label>
             <select class="input" id="operating_mode" name="operating_mode">
                 <?php foreach (['both' => 'Consignment and booths', 'consignor' => 'Consignment', 'booth_mall' => 'Booth mall'] as $value => $label): ?>
                     <option value="<?= View::text($value) ?>"<?= ($operatingMode ?? '') === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
@@ -143,10 +143,10 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
                 </div>
                 <label for="late_fee_grace_days">Grace days</label>
                 <input class="input" id="late_fee_grace_days" name="late_fee_grace_days" inputmode="numeric" min="0" max="28" value="<?= View::text((string) $lateGrace) ?>">
-                <p class="muted text-sm">Counted from the day the rent period starts. The fee posts on the day grace ends, once for each unpaid period.</p>
-                <label for="late_fee_first">First late period</label>
+                <p class="muted text-sm">The first fee posts when grace ends. Another fee posts after each further grace period, through the last day of that rent period. Grace of 0 posts a fee each day.</p>
+                <label for="late_fee_first">First late fee</label>
                 <input class="input" id="late_fee_first" name="late_fee_first" inputmode="decimal" value="<?= View::text($lateFirst) ?>">
-                <label for="late_fee_next">Each later late period</label>
+                <label for="late_fee_next">Each later late fee</label>
                 <input class="input" id="late_fee_next" name="late_fee_next" inputmode="decimal" value="<?= View::text($lateNext) ?>">
             <?php endif; ?>
         </div>

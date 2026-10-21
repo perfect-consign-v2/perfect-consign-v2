@@ -226,6 +226,8 @@ BEGIN
         DROP CONSTRAINT payout_run_journals_journal_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_cash_tendered
         DROP CONSTRAINT journal_cash_tendered_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.item_buys
+        DROP CONSTRAINT item_buys_journal_id_fkey;
     TRUNCATE
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_lines,
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journals;
