@@ -113,12 +113,110 @@ final class LoginAccounts
         return is_string($value) ? $value : '';
     }
 
-    private function table(string $schema): string
+    public function forReset(?LoginAccount $account, string $company): ?LoginAccount
+    {
+        if ($account === null) {
+            return null;
+        }
+        $email = $account->email;
+        if ($email === '' && $account->kind === 'owner') {
+            $email = $company;
+        }
+        if ($email === '') {
+            return null;
+        }
+        if ($email === $account->email) {
+            return $account;
+        }
+
+        return new LoginAccount($account->kind, $account->id, $account->username, $email);
+    }
+
+    /**
+     * @return array{email: string, gmail: array{host: string, port: int, username: string, password: string, from: string}|null}
+     */
+    public function companyMail(TenantRecord $tenant): array
+    {
+        $schema = $this->schema($tenant->schema);
+        $this->roles->assume($tenant->role);
+        try {
+            return $this->readMailbox($schema);
+        } finally {
+            $this->roles->reset();
+        }
+    }
+
+    public function table(string $schema): string
+    {
+        return $this->schema($schema) . '.staff';
+    }
+
+    /**
+     * @return array{email: string, gmail: array{host: string, port: int, username: string, password: string, from: string}|null}
+     */
+    private function readMailbox(string $schema): array
+    {
+        $query = $this->pdo->query(
+            'SELECT email, receipt_mail_via, gmail_address, gmail_app_password FROM ' . $schema . '.mall'
+        );
+        if ($query === false) {
+            throw new \RuntimeException('the company email could not be read');
+        }
+        $row = $query->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return ['email' => '', 'gmail' => null];
+        }
+        /** @var array<string, mixed> $row */
+
+        return [
+            'email' => $this->mailAddress($row['email'] ?? null),
+            'gmail' => $this->gmail($row),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{host: string, port: int, username: string, password: string, from: string}|null
+     */
+    private function gmail(array $row): ?array
+    {
+        if (($row['receipt_mail_via'] ?? null) !== 'gmail') {
+            return null;
+        }
+        $address = $this->mailAddress($row['gmail_address'] ?? null);
+        $password = $row['gmail_app_password'] ?? null;
+        if ($address === '' || !is_string($password) || $password === '') {
+            return null;
+        }
+
+        return [
+            'host' => 'smtp.gmail.com',
+            'port' => 587,
+            'username' => $address,
+            'password' => $password,
+            'from' => $address,
+        ];
+    }
+
+    private function mailAddress(mixed $value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+        $email = trim($value);
+        if ($email === '' || strlen($email) > 200 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1) {
+            return '';
+        }
+
+        return $email;
+    }
+
+    private function schema(string $schema): string
     {
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
             throw new \RuntimeException('the mall schema is not usable');
         }
 
-        return $schema . '.staff';
+        return $schema;
     }
 }

@@ -45,14 +45,6 @@ final class PasswordBoundaryTest extends TestCase
             self::assertSame('the mall schema is not usable', $error->getMessage());
         }
 
-        $recovery = (new \ReflectionClass(PasswordRecovery::class))->newInstanceWithoutConstructor();
-        $recoveryTable = new ReflectionMethod(PasswordRecovery::class, 'table');
-        try {
-            $recoveryTable->invoke($recovery, 'public');
-            self::fail('a public schema was accepted');
-        } catch (\RuntimeException $error) {
-            self::assertSame('the mall schema is not usable', $error->getMessage());
-        }
     }
 
     public function testAMissingOriginDoesNotIssueAReset(): void
@@ -76,22 +68,23 @@ final class PasswordBoundaryTest extends TestCase
 
     public function testAnOwnerWithoutARecoveryEmailUsesTheCompanyAddress(): void
     {
-        $recovery = (new \ReflectionClass(PasswordRecovery::class))->newInstanceWithoutConstructor();
-        $destination = new ReflectionMethod(PasswordRecovery::class, 'destination');
+        $accounts = (new \ReflectionClass(LoginAccounts::class))->newInstanceWithoutConstructor();
         $owner = new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', '');
-        self::assertSame('store@example.com', $destination->invoke($recovery, $owner, 'store@example.com'));
-        $staff = new LoginAccount('staff', '01900000-0000-7000-8000-0000000000c1', 'cashier', '');
-        self::assertSame('', $destination->invoke($recovery, $staff, 'store@example.com'));
-        $saved = new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', 'owner@example.com');
-        self::assertSame('owner@example.com', $destination->invoke($recovery, $saved, 'store@example.com'));
+        $ownerReset = $accounts->forReset($owner, 'store@example.com');
+        self::assertNotNull($ownerReset);
+        self::assertSame('store@example.com', $ownerReset->email);
+        self::assertNull($accounts->forReset(new LoginAccount('staff', '01900000-0000-7000-8000-0000000000c1', 'cashier', ''), 'store@example.com'));
+        $saved = $accounts->forReset(new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', 'owner@example.com'), 'store@example.com');
+        self::assertNotNull($saved);
+        self::assertSame('owner@example.com', $saved->email);
 
-        $gmail = new ReflectionMethod(PasswordRecovery::class, 'gmail');
-        self::assertNull($gmail->invoke($recovery, [
+        $gmail = new ReflectionMethod(LoginAccounts::class, 'gmail');
+        self::assertNull($gmail->invoke($accounts, [
             'receipt_mail_via' => 'server',
             'gmail_address' => 'shop@gmail.com',
             'gmail_app_password' => 'abcdefghijklmnop',
         ]));
-        $account = $gmail->invoke($recovery, [
+        $account = $gmail->invoke($accounts, [
             'receipt_mail_via' => 'gmail',
             'gmail_address' => 'shop@gmail.com',
             'gmail_app_password' => 'abcdefghijklmnop',
@@ -100,7 +93,7 @@ final class PasswordBoundaryTest extends TestCase
         self::assertSame('smtp.gmail.com', $account['host']);
         self::assertSame(587, $account['port']);
         self::assertSame('shop@gmail.com', $account['from']);
-        self::assertNull($gmail->invoke($recovery, [
+        self::assertNull($gmail->invoke($accounts, [
             'receipt_mail_via' => 'gmail',
             'gmail_address' => 'not-an-email',
             'gmail_app_password' => 'abcdefghijklmnop',
