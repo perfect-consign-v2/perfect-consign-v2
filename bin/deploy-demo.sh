@@ -57,7 +57,11 @@ fi
 "$php_bin" "$composer" --working-dir="$root" install --no-dev --no-interaction --prefer-dist
 
 "$php_bin" "${root}/bin/migrate.php" platform
-if ! "$php_bin" "${root}/bin/migrate.php" tenant mall; then
+if ! tenant_err=$("$php_bin" "${root}/bin/migrate.php" tenant mall 2>&1); then
+    printf '%s\n' "$tenant_err" >&2
+    if [[ "$tenant_err" == *"changed after it was applied"* ]]; then
+        "$php_bin" "${root}/bin/wipe-tenant.php" mall
+    fi
     "$php_bin" "${root}/bin/provision-tenant.php" mall "Harbor Antique Mall"
     "$php_bin" "${root}/bin/set-owner.php" mall owner
 fi
