@@ -6,9 +6,15 @@ if (PHP_SAPI !== 'cli' || !isset($argv[0]) || realpath($argv[0]) !== realpath(__
     return;
 }
 
+require_once __DIR__ . '/load-env.php';
+loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
+
 $slug = $argv[1] ?? '';
 $username = $argv[2] ?? '';
 $password = getenv('STALL_OWNER_PASSWORD');
+if (!is_string($password) || $password === '') {
+    $password = 'mall-demo';
+}
 $email = ownerEmail(getenv('STALL_OWNER_EMAIL'));
 $host = getenv('STALL_DB_HOST');
 $port = getenv('STALL_DB_PORT');
@@ -18,14 +24,13 @@ $adminPassword = getenv('STALL_DB_PASSWORD');
 if (
     !is_string($slug) || $slug === ''
     || !is_string($username) || $username === ''
-    || !is_string($password) || $password === ''
     || !is_string($host) || $host === ''
     || !is_string($port) || $port === ''
     || !is_string($name) || $name === ''
     || !is_string($user) || $user === ''
     || !is_string($adminPassword) || $adminPassword === ''
 ) {
-    fwrite(STDERR, "usage: php bin/set-owner.php <slug> <username>\nSTALL_OWNER_PASSWORD, STALL_DB_HOST, STALL_DB_PORT, STALL_DB_NAME, STALL_DB_USER, and STALL_DB_PASSWORD are required\n");
+    fwrite(STDERR, "usage: php bin/set-owner.php <slug> <username>\nSTALL_DB_HOST, STALL_DB_PORT, STALL_DB_NAME, STALL_DB_USER, and STALL_DB_PASSWORD are required\n");
     exit(1);
 }
 

@@ -8,7 +8,6 @@ use PDO;
 use PerfectConsign\Schema\MigrationRecord;
 use PerfectConsign\Schema\SchemaCatalog;
 use PerfectConsign\Schema\SchemaMigrator;
-use PerfectConsign\Schema\TenantBaselineMismatch;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -31,29 +30,23 @@ final class SchemaMigratorTest extends TestCase
         $record->verify('platform');
         $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $record->verify($schema);
-        $record->stamp($schema, ['044_schema_migrations.sql']);
         $applied = $record->applied($schema);
-        self::assertArrayHasKey('044_schema_migrations.sql', $applied);
-        self::assertArrayHasKey('001_kernel.sql', $applied);
+        self::assertArrayHasKey('001_tenant.sql', $applied);
         self::assertArrayNotHasKey('000_platform.sql', $applied);
-        self::assertArrayHasKey('047_platform_schema_migrations.sql', $record->applied('platform'));
-        $pdo->exec("DELETE FROM schema_migrations WHERE filename = '044_schema_migrations.sql'");
-        $migrator->migrateTenant(ProbeMall::SLUG);
-        $restored = $record->applied($schema);
-        self::assertArrayHasKey('044_schema_migrations.sql', $restored);
-        $checksum = $restored['001_kernel.sql'];
-        $pdo->prepare('UPDATE schema_migrations SET checksum = ? WHERE filename = ?')->execute([str_repeat('ab', 32), '001_kernel.sql']);
+        self::assertArrayHasKey('000_platform.sql', $record->applied('platform'));
+        $checksum = $applied['001_tenant.sql'];
+        $pdo->prepare('UPDATE schema_migrations SET checksum = ? WHERE filename = ?')->execute([str_repeat('ab', 32), '001_tenant.sql']);
         try {
             $migrator->migrateTenant(ProbeMall::SLUG);
             self::fail('a changed migration was accepted');
         } catch (RuntimeException $error) {
-            self::assertStringContainsString('001_kernel.sql changed after it was applied', $error->getMessage());
+            self::assertStringContainsString('001_tenant.sql changed after it was applied', $error->getMessage());
         } finally {
-            $pdo->prepare('UPDATE schema_migrations SET checksum = ? WHERE filename = ?')->execute([$checksum, '001_kernel.sql']);
+            $pdo->prepare('UPDATE schema_migrations SET checksum = ? WHERE filename = ?')->execute([$checksum, '001_tenant.sql']);
         }
     }
 
-    public function testAPlatformInstallRollsBackAndATenantBaselineStamps(): void
+    public function testAnInstalledDatabaseIsNotRebuilt(): void
     {
         $root = dirname(__DIR__, 3);
         ProbeMall::ensure($root);
@@ -64,11 +57,11 @@ final class SchemaMigratorTest extends TestCase
         $schema = $this->schema($pdo);
         $pdo->beginTransaction();
         try {
-            $pdo->exec('DROP EVENT TRIGGER platform_reject_guard_function_replace');
-            $pdo->exec('DROP EVENT TRIGGER platform_reject_guard_function_again');
             $pdo->exec('DROP TABLE platform.schema_migrations');
             $migrator->migratePlatform();
-            self::assertTrue($record->ready('platform'));
+            self::fail('an installed platform was rebuilt');
+        } catch (RuntimeException $error) {
+            self::assertStringContainsString('older schema', $error->getMessage());
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -79,22 +72,20 @@ final class SchemaMigratorTest extends TestCase
         );
         self::assertNotFalse($guard);
         self::assertNotFalse($guard->fetchColumn());
-        $pdo->exec('DROP TABLE platform.schema_migrations');
-        $migrator->migratePlatform();
-        self::assertArrayHasKey('047_platform_schema_migrations.sql', $record->applied('platform'));
-        $pdo->exec("DELETE FROM platform.schema_migrations WHERE filename = '047_platform_schema_migrations.sql'");
-        $migrator->migratePlatform();
-        self::assertArrayHasKey('047_platform_schema_migrations.sql', $record->applied('platform'));
-        $pdo->exec('DROP TABLE ' . $schema . '.schema_migrations');
-        $migrator->migrateTenant(ProbeMall::SLUG);
-        $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
-        $applied = $record->applied($schema);
-        self::assertArrayHasKey('001_kernel.sql', $applied);
-        self::assertArrayHasKey('044_schema_migrations.sql', $applied);
-        self::assertArrayHasKey('048_item_attributes.sql', $applied);
-        self::assertArrayHasKey('049_label_stock.sql', $applied);
-        $pdo->exec('SET search_path TO pg_catalog');
-        self::assertArrayHasKey('001_kernel.sql', $record->applied($schema));
+        self::assertArrayHasKey('000_platform.sql', $record->applied('platform'));
+        $pdo->beginTransaction();
+        try {
+            $pdo->exec('DROP TABLE ' . $schema . '.schema_migrations');
+            $migrator->migrateTenant(ProbeMall::SLUG);
+            self::fail('an installed tenant was rebuilt');
+        } catch (RuntimeException $error) {
+            self::assertStringContainsString('older schema', $error->getMessage());
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        }
+        self::assertArrayHasKey('001_tenant.sql', $record->applied($schema));
         try {
             $migrator->migrateTenant('Not Slug');
             self::fail('an invalid slug was accepted');
@@ -115,51 +106,7 @@ final class SchemaMigratorTest extends TestCase
         }
     }
 
-    public function testAMissingBaselineObjectIsNotStamped(): void
-    {
-        $root = dirname(__DIR__, 3);
-        ProbeMall::ensure($root);
-        $pdo = $this->connection();
-        $migrator = new SchemaMigrator($pdo, new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql'));
-        $schema = $this->schema($pdo);
-        $pdo->beginTransaction();
-        try {
-            $pdo->exec('DROP TABLE ' . $schema . '.schema_migrations');
-            $pdo->exec('DROP TABLE ' . $schema . '.journal_cash_tendered');
-            $migrator->migrateTenant(ProbeMall::SLUG);
-            self::fail('a tenant missing journal_cash_tendered was stamped');
-        } catch (TenantBaselineMismatch $error) {
-            self::assertStringContainsString('journal_cash_tendered', $error->getMessage());
-        } finally {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-        }
-    }
-
-    public function testAPartialLaterMigrationIsNotReplayed(): void
-    {
-        $root = dirname(__DIR__, 3);
-        ProbeMall::ensure($root);
-        $pdo = $this->connection();
-        $migrator = new SchemaMigrator($pdo, new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql'));
-        $schema = $this->schema($pdo);
-        $pdo->beginTransaction();
-        try {
-            $pdo->exec('ALTER TABLE ' . $schema . '.mall DROP CONSTRAINT mall_label_stock_chk');
-            $pdo->exec('DROP TABLE ' . $schema . '.schema_migrations');
-            $migrator->migrateTenant(ProbeMall::SLUG);
-            self::fail('a tenant missing mall_label_stock_chk was replayed');
-        } catch (TenantBaselineMismatch $error) {
-            self::assertStringContainsString('mall_label_stock_chk', $error->getMessage());
-        } finally {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-        }
-    }
-
-    public function testALaterFileThatIsAlreadyPresentIsStamped(): void
+    public function testACurrentTenantIsLeftStamped(): void
     {
         $root = dirname(__DIR__, 3);
         ProbeMall::ensure($root);
@@ -168,20 +115,8 @@ final class SchemaMigratorTest extends TestCase
         $migrator = new SchemaMigrator($pdo, $catalog);
         $record = new MigrationRecord($pdo, $catalog);
         $schema = $this->schema($pdo);
-        $pdo->beginTransaction();
-        try {
-            $pdo->exec(
-                'DELETE FROM ' . $schema . ".schema_migrations WHERE filename IN ('048_item_attributes.sql', '049_label_stock.sql')"
-            );
-            $migrator->migrateTenant(ProbeMall::SLUG);
-            $applied = $record->applied($schema);
-            self::assertArrayHasKey('048_item_attributes.sql', $applied);
-            self::assertArrayHasKey('049_label_stock.sql', $applied);
-        } finally {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-        }
+        $migrator->migrateTenant(ProbeMall::SLUG);
+        self::assertArrayHasKey('001_tenant.sql', $record->applied($schema));
     }
 
     public function testASecondMigrationIsRefused(): void

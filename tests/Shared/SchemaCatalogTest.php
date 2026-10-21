@@ -16,38 +16,33 @@ final class SchemaCatalogTest extends TestCase
         $catalog = new SchemaCatalog(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'sql');
         $tenant = $catalog->tenantFiles();
         $platform = $catalog->platformFiles();
-        self::assertContains('001_kernel.sql', $tenant);
-        self::assertContains('044_schema_migrations.sql', $tenant);
+        self::assertSame(['001_tenant.sql'], $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
-        self::assertNotContains('047_platform_schema_migrations.sql', $tenant);
-        self::assertContains('000_platform.sql', $platform);
-        self::assertContains('047_platform_schema_migrations.sql', $platform);
-        self::assertNotContains('044_schema_migrations.sql', $platform);
-        $checksum = $catalog->checksum('001_kernel.sql');
+        self::assertSame(['000_platform.sql'], $platform);
+        $checksum = $catalog->checksum('001_tenant.sql');
         self::assertSame(64, strlen($checksum));
-        self::assertNotSame('', $catalog->read('044_schema_migrations.sql'));
+        $mall = $catalog->read('001_tenant.sql');
+        self::assertStringContainsString('color_id', $mall);
+        self::assertStringContainsString('label_stock', $mall);
+        self::assertStringContainsString('receipt_footer', $mall);
+        self::assertStringContainsString('mall_receipt_footer_chk', $mall);
+        self::assertStringContainsString("E' \\t\\n\\r'", $mall);
         $rewritten = $catalog->rewrite(
-            'SELECT public.vendors FROM stall_poster',
+            "SELECT public.vendors FROM stall_poster WHERE search_path = 'public'",
             'tenant_0123456789abcdef0123456789abcdef',
             'poster_0123456789abcdef0123456789abcdef'
         );
         self::assertStringContainsString('tenant_0123456789abcdef0123456789abcdef.vendors', $rewritten);
         self::assertStringContainsString('poster_0123456789abcdef0123456789abcdef', $rewritten);
+        self::assertStringContainsString("'tenant_0123456789abcdef0123456789abcdef'", $rewritten);
         $objects = $catalog->baselineObjects();
         self::assertContains('journal_cash_tendered', $objects['tables']);
         self::assertContains('stall_reverse_payout_run', $objects['routines']);
-        self::assertNotContains('schema_migrations', $objects['tables']);
-        $attributes = $catalog->fileObjects('048_item_attributes.sql');
+        self::assertContains('schema_migrations', $objects['tables']);
+        $attributes = $catalog->fileObjects('001_tenant.sql');
         self::assertContains('colors', $attributes['tables']);
-        self::assertContains(['items', 'color_id'], $attributes['columns']);
         self::assertContains('items_reject_disabled_attribute', $attributes['routines']);
         self::assertContains('items_disabled_attribute', $attributes['triggers']);
-        $stock = $catalog->fileObjects('049_label_stock.sql');
-        self::assertContains(['mall', 'label_stock'], $stock['columns']);
-        self::assertContains('mall_label_stock_chk', $stock['constraints']);
-        $footer = $catalog->fileObjects('065_receipt_footer.sql');
-        self::assertContains(['mall', 'receipt_footer'], $footer['columns']);
-        self::assertContains('mall_receipt_footer_chk', $footer['constraints']);
         $qualified = (new SqlObjects())->from(
             "CREATE TABLE public.kept (id int);\n"
             . "CREATE TABLE other.skipped (id int);\n"

@@ -107,7 +107,7 @@ final class TenantProvisioner
         $this->assertRole($role);
         $exists = $this->pdo->query("SELECT 1 FROM pg_roles WHERE rolname = 'stall_app'");
         if ($exists === false || $exists->fetchColumn() === false) {
-            throw new RuntimeException('stall_app is missing. Apply sql/015_stall_app.sql first.');
+            throw new RuntimeException('stall_app is missing. Apply sql/000_platform.sql first.');
         }
         $this->pdo->exec(sprintf('GRANT %s TO stall_app', $role));
     }
@@ -176,12 +176,14 @@ final class TenantProvisioner
     {
         $exists = $this->pdo->query("SELECT 1 FROM pg_roles WHERE rolname = 'stall_backup'");
         if ($exists === false || $exists->fetchColumn() === false) {
-            throw new RuntimeException('stall_backup is missing. Apply sql/018_owner_backup.sql first.');
+            throw new RuntimeException('stall_backup is missing. Apply sql/000_platform.sql first.');
         }
     }
 }
 
 if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === realpath(__FILE__)) {
+    require_once __DIR__ . '/load-env.php';
+    loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
     $slug = $argv[1] ?? '';
     $displayName = $argv[2] ?? '';
     if (!is_string($slug) || $slug === '' || !is_string($displayName) || $displayName === '') {

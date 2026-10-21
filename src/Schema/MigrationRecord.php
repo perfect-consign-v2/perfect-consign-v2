@@ -62,7 +62,11 @@ final class MigrationRecord
             return;
         }
         foreach ($this->applied($schema) as $file => $checksum) {
-            $current = $this->catalog->checksum($file);
+            try {
+                $current = $this->catalog->checksum($file);
+            } catch (RuntimeException) {
+                throw new RuntimeException($file . ' is from an older schema; create a new database');
+            }
             if ($current === $checksum) {
                 continue;
             }

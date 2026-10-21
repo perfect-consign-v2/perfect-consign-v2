@@ -16,7 +16,7 @@ The boundary is `stall_poster` and `stall_app`. A superuser can `DROP EVENT TRIG
 
 ## Load
 
-`php bin/provision-platform.php` is the fresh install. It applies `sql/000_platform.sql`, `sql/015_stall_app.sql`, `sql/016_owners.sql`, and `sql/018_owner_backup.sql` only when `platform_reject_guard_function_replace` does not exist yet. A second run exits 0 and does not re-apply those files. After that guard exists, replacing `platform.reject_append_only_trigger_change` is refused. `000` creates schema `extensions` and installs `btree_gist` there. Then provision a mall. `TenantProvisioner::ledgerFiles()` is the list, from `sql/001_kernel.sql` through `sql/043_rent_receipt.sql`. Each table and each function is created once. A schema change is a new file under `sql/`. `SchemaMigrator` applies it. `php bin/migrate.php platform` updates the platform schema. `php bin/migrate.php tenant-all` updates every mall. `php bin/migrate.php tenant <slug>` updates one mall. A tenant session path is `tenant_x, pg_catalog, extensions`. `public` is not a mall.
+`php bin/provision-platform.php` is the fresh install. It applies `sql/000_platform.sql` once, on an empty database. That file creates `stall_app`, `stall_backup`, the platform tables, schema `extensions`, and `btree_gist`. A second run exits 0 and does not re-apply the file. After `platform_reject_guard_function_replace` exists, replacing `platform.reject_append_only_trigger_change` is refused. Then provision a mall. `sql/001_tenant.sql` is the whole mall schema. `public` in that file is rewritten to the mall schema. An existing database is not upgraded: `php bin/migrate.php` refuses a database whose stamps name an older file, or whose objects exist without `schema_migrations`. Create a new database and provision it. `php bin/migrate.php platform`, `php bin/migrate.php tenant <slug>`, and `php bin/migrate.php tenant-all` apply a file that has not been stamped yet. A tenant session path is `tenant_x, pg_catalog, extensions`. `public` is not a mall.
 
 `STALL_DB_HOST`, `STALL_DB_PORT`, `STALL_DB_NAME`, `STALL_DB_USER`, and `STALL_DB_PASSWORD` are required.
 
@@ -31,7 +31,7 @@ php bin/seed-dev-tenant.php
 
 ## Application
 
-`sql/015_stall_app.sql` creates the `stall_app` login role. `sql/016_owners.sql` stores one owner per mall. `sql/017_poster_grants.sql` is applied inside each mall schema by the provisioner. `sql/018_owner_backup.sql` stores owner download times and creates the `stall_backup` login. `php bin/provision-platform.php` applies it once, after `016`.
+`sql/000_platform.sql` creates the `stall_app` and `stall_backup` login roles, stores one owner per mall, and stores owner download times. The poster grants live in `sql/001_tenant.sql` and are applied inside each mall schema by the provisioner. `php bin/provision-platform.php` applies the platform file once.
 
 The web app connects as `stall_app`. Set `STALL_APP_PASSWORD` and `STALL_BACKUP_PASSWORD` in the environment or in `.env`. That file stays out of git. `STALL_PG_DUMP` is `pg_dump` on `PATH`, a path to the Postgres 18 client, or `docker:perfect-consign-postgres` to use the client in that container. The host client must be 18. A Postgres 17 client cannot dump this server.
 

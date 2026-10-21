@@ -12,13 +12,6 @@ final class SchemaCatalog
     /** @var list<string> */
     public const PLATFORM = [
         '000_platform.sql',
-        '015_stall_app.sql',
-        '016_owners.sql',
-        '018_owner_backup.sql',
-        '047_platform_schema_migrations.sql',
-        '057_owner_recovery.sql',
-        '060_store_name.sql',
-        '064_sign_in_address.sql',
     ];
 
     public function __construct(private readonly string $directory)
@@ -63,9 +56,6 @@ final class SchemaCatalog
         $tables = [];
         $routines = [];
         foreach ($this->tenantFiles() as $file) {
-            if ($file >= '044_schema_migrations.sql') {
-                continue;
-            }
             $objects = $this->fileObjects($file);
             foreach ($objects['tables'] as $name) {
                 $tables[$name] = $name;
@@ -106,7 +96,11 @@ final class SchemaCatalog
         if (preg_match('/^[0-9]{3}_[a-z0-9_]+\.sql$/', $file) !== 1) {
             throw new InvalidArgumentException('schema file name is invalid');
         }
-        $bytes = file_get_contents($this->directory . DIRECTORY_SEPARATOR . $file);
+        $path = $this->directory . DIRECTORY_SEPARATOR . $file;
+        if (!is_file($path)) {
+            throw new RuntimeException('could not read ' . $file);
+        }
+        $bytes = file_get_contents($path);
         if ($bytes === false) {
             throw new RuntimeException('could not read ' . $file);
         }
@@ -124,8 +118,8 @@ final class SchemaCatalog
         }
 
         return str_replace(
-            ['public.', 'SCHEMA public', 'stall_poster'],
-            [$schema . '.', 'SCHEMA ' . $schema, $role],
+            ["'public'", 'public.', 'SCHEMA public', 'stall_poster'],
+            ["'" . $schema . "'", $schema . '.', 'SCHEMA ' . $schema, $role],
             $sql
         );
     }

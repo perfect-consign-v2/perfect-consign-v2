@@ -14,8 +14,8 @@ The finished kernel in `C:\laragon\www\double-entry` stays where it is. Stall do
 
 - Folder: `C:\laragon\www\perfect-consign`. Workspace file `perfect-consign.code-workspace`. Copied from Stall `27e5e88a740e676024268fdf2ebf2e09ba3bad87`.
 - Docker Compose in `C:\laragon\www\perfect-consign`. Volume `perfect_consign_pg`. Database name `consign`. User `stall`. Host port **5436**. Container `perfect-consign-postgres`. Image `postgres:18.6`. Do not use 5432, 5433, 5434, or 5435. Do not use volume `stall_pg`. Do not touch database `emp`, `emp_pos`, `double-entry`, or `stall`.
-- The kernel file `sql/001_kernel.sql` stays generic. Mall rules do not go in it.
-- Each later fact is its own SQL file plus a `prove_*.sql` that runs in one transaction and rolls back. Do not start the next fact until that proof is clean.
+- The schema is `sql/000_platform.sql` and `sql/001_tenant.sql`. Apply both to an empty database. An existing database is not upgraded.
+- Each behavior has a `prove_*.sql` that runs in one transaction and rolls back. Do not start the next fact until that proof is clean.
 - No hash column. No stored balance column. A balance is the sum of `journal_lines`.
 - A mistake is a reversal. Posted rows are not edited or deleted.
 - One posting key cannot be inserted twice.

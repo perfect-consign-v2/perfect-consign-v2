@@ -146,40 +146,36 @@ final class MigrationBoundaryTest extends TestCase
         (new SchemaMigrator($pdo, $catalog))->migratePlatform();
     }
 
-    public function testAnOldTenantFileIsNotStampedAgain(): void
+    public function testAStampedTenantFileIsNotRunAgain(): void
     {
         $catalog = $this->catalog();
         $applied = [];
         foreach ($catalog->tenantFiles() as $file) {
-            if ($file <= '044_schema_migrations.sql') {
-                continue;
-            }
             $applied[$file] = $catalog->checksum($file);
         }
         $regclass = 0;
-        $pdo = $this->tenantPdo(self::SCHEMA, $applied, $regclass);
+        $sql = [];
+        $pdo = $this->tenantPdo(self::SCHEMA, $applied, $regclass, $sql);
 
         (new SchemaMigrator($pdo, $catalog))->migrateTenant('webprobe');
 
-        self::assertSame(2, $regclass);
+        self::assertSame(['SET search_path TO ' . self::SCHEMA . ', pg_catalog, extensions'], $sql);
+    }
+
+    public function testARetiredMigrationFileIsRefused(): void
+    {
+        $catalog = $this->catalog();
+        $rows = $this->rows([['filename' => '001_kernel.sql', 'checksum' => str_repeat('ab', 32)]]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('001_kernel.sql is from an older schema; create a new database');
+        $this->readyRecord($rows, $catalog)->verify('platform');
     }
 
     public function testAMallTenantGrantsThePosterRole(): void
     {
         $catalog = $this->catalog();
         $applied = [];
-        $pending = '';
-        foreach ($catalog->tenantFiles() as $file) {
-            if ($file <= '044_schema_migrations.sql') {
-                $applied[$file] = $catalog->checksum($file);
-                continue;
-            }
-            if ($pending === '') {
-                $pending = $file;
-                continue;
-            }
-            $applied[$file] = $catalog->checksum($file);
-        }
         $regclass = 0;
         $sql = [];
         $pdo = $this->tenantPdo(self::SCHEMA, $applied, $regclass, $sql);

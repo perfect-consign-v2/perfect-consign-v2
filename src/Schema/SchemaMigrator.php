@@ -25,10 +25,9 @@ final class SchemaMigrator
         try {
             if (!$this->record->ready('platform')) {
                 if ($this->installed()) {
-                    $this->finishPlatform();
-                } else {
-                    $this->installPlatform();
+                    throw new RuntimeException('this database was built by an older schema; create a new database');
                 }
+                $this->installPlatform();
             }
             $this->record->verify('platform');
             $this->pendingPlatform();
@@ -61,14 +60,6 @@ final class SchemaMigrator
         return $query !== false && $query->fetchColumn() !== false;
     }
 
-    private function finishPlatform(): void
-    {
-        $this->transaction(function (): void {
-            $this->pdo->exec($this->catalog->read('047_platform_schema_migrations.sql'));
-            $this->record->stamp('platform', $this->platformBaseline());
-        }, '047_platform_schema_migrations.sql');
-    }
-
     private function installPlatform(): void
     {
         $applied = [];
@@ -92,22 +83,6 @@ final class SchemaMigrator
             }
             $this->runPlatform($file);
         }
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function platformBaseline(): array
-    {
-        $files = [];
-        foreach ($this->catalog->platformFiles() as $file) {
-            if ($file > '047_platform_schema_migrations.sql') {
-                continue;
-            }
-            $files[] = $file;
-        }
-
-        return $files;
     }
 
     private function runPlatform(string $file): void

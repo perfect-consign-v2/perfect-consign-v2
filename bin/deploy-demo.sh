@@ -57,6 +57,10 @@ fi
 "$php_bin" "$composer" --working-dir="$root" install --no-dev --no-interaction --prefer-dist
 
 "$php_bin" "${root}/bin/migrate.php" platform
+if ! "$php_bin" "${root}/bin/migrate.php" tenant mall; then
+    "$php_bin" "${root}/bin/provision-tenant.php" mall "Harbor Antique Mall"
+    "$php_bin" "${root}/bin/set-owner.php" mall owner
+fi
 "$php_bin" "${root}/bin/migrate.php" tenant-all
 
 code=$(curl -sS -o /dev/null -w '%{http_code}' https://v2.perfectconsign.com/mall)

@@ -24,10 +24,14 @@ final class TenantMigrator
             $schema = $this->tenantSchema($slug);
             $this->searchPath($schema);
             if (!$this->record->ready($schema)) {
-                $this->baselineTenant($slug, $schema);
+                $found = $this->pdo->query('SELECT to_regclass(' . $this->pdo->quote($schema . '.journals') . ')');
+                $journals = $found === false ? false : $found->fetchColumn();
+                if (is_string($journals) && $journals !== '') {
+                    throw new RuntimeException('tenant ' . $slug . ' was built by an older schema; create a new database');
+                }
+            } else {
+                $this->record->verify($schema);
             }
-            $this->stampPresent($slug, $schema);
-            $this->record->verify($schema);
             $this->pendingTenant($slug, $schema);
         } finally {
             $this->record->releaseMigration();
@@ -42,30 +46,6 @@ final class TenantMigrator
             $this->record->stamp($schema, $this->catalog->tenantFiles());
         } finally {
             $this->record->releaseMigration();
-        }
-    }
-
-    private function stampPresent(string $slug, string $schema): void
-    {
-        $applied = $this->record->applied($schema);
-        $presence = new SchemaPresence($this->pdo);
-        foreach ($this->catalog->tenantFiles() as $file) {
-            if ($file <= '044_schema_migrations.sql' || isset($applied[$file])) {
-                continue;
-            }
-            $objects = $this->catalog->fileObjects($file);
-            $covered = $presence->coverage($schema, $objects);
-            if ($covered['missing'] === null) {
-                $this->record->stamp($schema, [$file]);
-                continue;
-            }
-            $objects['routines'] = [];
-            $started = $presence->coverage($schema, $objects);
-            if ($started['present'] > 0) {
-                throw new TenantBaselineMismatch(
-                    'tenant ' . $slug . ' is missing ' . $covered['missing'] . ' and was not stamped'
-                );
-            }
         }
     }
 
@@ -94,7 +74,7 @@ final class TenantMigrator
 
     private function pendingTenant(string $slug, string $schema): void
     {
-        $applied = $this->record->applied($schema);
+        $applied = $this->record->ready($schema) ? $this->record->applied($schema) : [];
         $role = $this->roleName($slug, $schema);
         foreach ($this->catalog->tenantFiles() as $file) {
             if (isset($applied[$file])) {
@@ -102,34 +82,6 @@ final class TenantMigrator
             }
             $this->runTenant($file, $schema, $role);
         }
-    }
-
-    private function baselineTenant(string $slug, string $schema): void
-    {
-        $this->record->requireBaseline($slug, $schema);
-        $role = $this->roleName($slug, $schema);
-        $this->transaction(function () use ($schema, $role): void {
-            $sql = $this->catalog->rewrite($this->catalog->read('044_schema_migrations.sql'), $schema, $role);
-            $this->pdo->exec($sql);
-            $this->record->stamp($schema, $this->tenantBaseline());
-            $this->grantRead($schema, $role);
-        }, '044_schema_migrations.sql');
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function tenantBaseline(): array
-    {
-        $files = [];
-        foreach ($this->catalog->tenantFiles() as $file) {
-            if ($file > '044_schema_migrations.sql') {
-                continue;
-            }
-            $files[] = $file;
-        }
-
-        return $files;
     }
 
     private function runTenant(string $file, string $schema, string $role): void

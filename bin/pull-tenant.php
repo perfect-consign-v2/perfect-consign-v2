@@ -117,12 +117,15 @@ try {
         $pdo->quote($role),
         $role
     ));
-    $grants = file_get_contents(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql' . DIRECTORY_SEPARATOR . '017_poster_grants.sql');
-    if ($grants === false) {
-        throw new BackupException('could not read 017_poster_grants.sql');
+    $schemaSql = file_get_contents(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql' . DIRECTORY_SEPARATOR . '001_tenant.sql');
+    if ($schemaSql === false) {
+        throw new BackupException('could not read 001_tenant.sql');
+    }
+    if (preg_match_all('/^(?:GRANT|REVOKE)\b.+;$/m', $schemaSql, $grants) === false || $grants[0] === []) {
+        throw new BackupException('001_tenant.sql has no grants');
     }
     $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
-    $pdo->exec($provisioner->rewrite($grants, $schema, $role));
+    $pdo->exec($provisioner->rewrite(implode("\n", $grants[0]), $schema, $role));
     $provisioner->grantApp($role);
     $provisioner->grantBackup($schema, $role);
 } catch (Throwable $error) {

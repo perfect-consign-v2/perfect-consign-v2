@@ -67,10 +67,20 @@ final class ProbeMall
         try {
             $migrator->migrateTenant(self::SLUG);
         } catch (TenantBaselineMismatch | MigrationFileChanged) {
-            require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'wipe-tenant.php';
-            \wipeTenant(self::admin(), self::SLUG, self::SLUG);
-            self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php', [self::SLUG, self::DISPLAY_NAME]);
+            self::replace($root);
+        } catch (RuntimeException $error) {
+            if (!str_contains($error->getMessage(), 'older schema')) {
+                throw $error;
+            }
+            self::replace($root);
         }
+    }
+
+    private static function replace(string $root): void
+    {
+        require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'wipe-tenant.php';
+        \wipeTenant(self::admin(), self::SLUG, self::SLUG);
+        self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php', [self::SLUG, self::DISPLAY_NAME]);
     }
 
     private static function fill(string $name, string $value): void

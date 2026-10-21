@@ -34,7 +34,7 @@ $pdo = new PDO(
 );
 $backupRole = $pdo->query("SELECT 1 FROM pg_roles WHERE rolname = 'stall_backup'");
 if ($backupRole === false || $backupRole->fetchColumn() === false) {
-    fwrite(STDERR, "stall_backup is missing. Apply sql/018_owner_backup.sql first.\n");
+    fwrite(STDERR, "stall_backup is missing. Apply sql/000_platform.sql first.\n");
     exit(1);
 }
 $pdo->exec('ALTER ROLE stall_app LOGIN PASSWORD ' . $pdo->quote($password));

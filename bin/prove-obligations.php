@@ -35,7 +35,7 @@ foreach ($ledgerFiles as $path) {
             $failures[] = $file . ' adds chart role ' . $role . ' and prove_chart.sql does not list it';
         }
     }
-    if ($file > '012_export.sql' && chartRoles($sql) !== [] && !str_contains($sql, 'stall_seed_export_accounts')) {
+    if ($file > '001_tenant.sql' && chartRoles($sql) !== [] && !str_contains($sql, 'stall_seed_export_accounts')) {
         $failures[] = $file . ' adds a chart role and does not call stall_seed_export_accounts()';
     }
     foreach (referenceConstraints($sql, 'items') as $constraint) {
@@ -225,7 +225,7 @@ function chartRoles(string $sql): array
 {
     $bare = stripComments($sql);
     $roles = [];
-    if (preg_match_all('/INSERT INTO chart_roles\\b.*?;/s', $bare, $inserts) === false) {
+    if (preg_match_all('/INSERT INTO\\s+(?:public\\.)?chart_roles\\b.*?;/s', $bare, $inserts) === false) {
         return [];
     }
     foreach ($inserts[0] as $insert) {
@@ -247,7 +247,7 @@ function referenceConstraints(string $sql, string $target): array
 {
     $bare = stripComments($sql);
     $names = [];
-    if (preg_match_all('/CREATE TABLE(?: IF NOT EXISTS)?\\s+([a-z_]+)\\s*\\(/i', $bare, $tables, PREG_OFFSET_CAPTURE) !== false) {
+    if (preg_match_all('/CREATE TABLE(?: IF NOT EXISTS)?\\s+(?:public\\.)?([a-z_]+)\\s*\\(/i', $bare, $tables, PREG_OFFSET_CAPTURE) !== false) {
         foreach ($tables[1] as $index => $table) {
             $open = $tables[0][$index][1] + strlen($tables[0][$index][0]) - 1;
             $body = parentBody($bare, $open);
@@ -259,7 +259,7 @@ function referenceConstraints(string $sql, string $target): array
             }
         }
     }
-    if (preg_match_all('/ALTER TABLE\\s+([a-z_]+)\\b[^;]*;/is', $bare, $alters) !== false) {
+    if (preg_match_all('/ALTER TABLE(?:\\s+ONLY)?\\s+(?:public\\.)?([a-z_]+)\\b[^;]*;/is', $bare, $alters) !== false) {
         foreach ($alters[0] as $index => $statement) {
             foreach (columnReferences($statement, $alters[1][$index], $target) as $name) {
                 $names[] = $name;
@@ -277,7 +277,7 @@ function columnReferences(string $body, string $table, string $target): array
 {
     $names = [];
     if (preg_match_all(
-        '/CONSTRAINT\\s+([a-z0-9_]+)\\s+FOREIGN KEY\\s*\\(([^)]+)\\)\\s+REFERENCES\\s+' . $target . '\\b/i',
+        '/CONSTRAINT\\s+([a-z0-9_]+)\\s+FOREIGN KEY\\s*\\(([^)]+)\\)\\s+REFERENCES\\s+(?:public\\.)?' . $target . '\\b/i',
         $body,
         $named
     ) !== false) {
@@ -286,7 +286,7 @@ function columnReferences(string $body, string $table, string $target): array
         }
     }
     if (preg_match_all(
-        '/\\b([a-z_][a-z0-9_]*)\\s+uuid\\b[^,;]*REFERENCES\\s+' . $target . '\\b/i',
+        '/\\b([a-z_][a-z0-9_]*)\\s+uuid\\b[^,;]*REFERENCES\\s+(?:public\\.)?' . $target . '\\b/i',
         $body,
         $columns
     ) !== false) {
