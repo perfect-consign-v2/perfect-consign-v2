@@ -253,13 +253,13 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             <p class="muted text-sm">Printed at the bottom of a sale receipt and a rent receipt. Leave this empty and those receipts have no footer.</p>
         </div>
         <div class="field">
-            <label for="receipt_mail_via">Email receipts from</label>
+            <label for="receipt_mail_via">Mail Server</label>
             <select class="input" id="receipt_mail_via" name="receipt_mail_via">
-                <?php foreach (['server' => 'This server', 'gmail' => 'This mall\'s Gmail'] as $value => $label): ?>
+                <?php foreach (['server' => 'Mail Server', 'gmail' => 'This mall\'s Gmail'] as $value => $label): ?>
                     <option value="<?= View::text($value) ?>"<?= ($receiptMailVia ?? 'server') === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
                 <?php endforeach; ?>
             </select>
-            <p class="muted text-sm">The server uses the mailbox configured for this site. Gmail sends through smtp.gmail.com as a @gmail.com or @googlemail.com address, with an app password.</p>
+            <p class="muted text-sm">This setting is used for receipts, password resets, and other system email. Mail Server uses the mailbox configured for this site. Gmail sends through smtp.gmail.com as a @gmail.com or @googlemail.com address, with an app password.</p>
         </div>
         <div class="field">
             <label for="gmail_address">Gmail address</label>
