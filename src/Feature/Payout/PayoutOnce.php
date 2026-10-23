@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Payout;
 
+use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PDOException;
@@ -18,6 +19,7 @@ final class PayoutOnce
         private readonly Statements $statements,
         private readonly CheckWords $words,
         private readonly RentShortfall $shortfall,
+        private readonly SaleCeiling $ceiling,
     ) {
     }
 
@@ -28,6 +30,8 @@ final class PayoutOnce
         string $today,
         string $tender,
         ?string $sessionId,
+        string $overrideUser = '',
+        string $overridePassword = '',
     ): void {
         try {
             $this->statements->transaction(function () use ($from, $to, $rent, $today, $tender, $sessionId): void {
@@ -39,6 +43,7 @@ final class PayoutOnce
         } catch (PDOException $error) {
             throw DatabaseRefusal::fromPdo($error);
         }
+        $this->ceiling->second('payout.close', $rent, $overrideUser, $overridePassword);
     }
 
     /**

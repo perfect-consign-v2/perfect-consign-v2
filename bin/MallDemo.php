@@ -137,8 +137,13 @@ final class MallDemo
         $this->ledger = new LedgerStore($pdo, $this->statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $this->parties = new PartyStore($this->statements);
         $pricing = new TicketPricing($this->statements);
-        $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)));
-        $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements), new ReceiptChange());
+        $ceiling = new \PerfectConsign\Bootstrap\SaleCeiling(
+            $this->statements,
+            new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
+            new \PerfectConsign\Bootstrap\AuditLog($this->statements),
+        );
+        $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)), $ceiling);
+        $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements), new ReceiptChange(), $ceiling);
         $this->company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
         $this->rent = new RentStore($this->statements, new MallSettings($this->statements, $this->company), new RentLines(), $this->ledger);
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
@@ -18,6 +19,7 @@ final class TicketStore
         private readonly TicketBuyer $buyers,
         private readonly TicketQueue $queue,
         private readonly TicketCustomer $customers,
+        private readonly SaleCeiling $ceiling,
     ) {
     }
 
@@ -159,13 +161,21 @@ final class TicketStore
         });
     }
 
-    public function discount(string $sessionId, ?string $kind, ?int $value, ?string $reason): void
-    {
+    public function discount(
+        string $sessionId,
+        ?string $kind,
+        ?int $value,
+        ?string $reason,
+        string $overrideUser = '',
+        string $overridePassword = '',
+    ): void {
+        $this->ceiling->priced($kind, $value, $overrideUser, $overridePassword, $sessionId);
         $this->pricing->discount($this->requireOpen($sessionId), $kind, $value, $reason);
     }
 
-    public function waive(string $sessionId, ?string $reason): void
+    public function waive(string $sessionId, ?string $reason, string $overrideUser = '', string $overridePassword = ''): void
     {
+        $this->ceiling->waived($reason, $overrideUser, $overridePassword, $sessionId);
         $this->pricing->waive($this->requireOpen($sessionId), $reason);
     }
 

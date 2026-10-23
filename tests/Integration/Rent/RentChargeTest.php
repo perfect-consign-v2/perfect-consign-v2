@@ -106,6 +106,7 @@ final class RentChargeTest extends TestCase
             new RentSlip($statements),
             new RentPayment(),
             new LateFee($ledger, $statements),
+            $this->createStub(\PerfectConsign\Bootstrap\SaleCeiling::class),
         );
         $rent = new RentStore($statements, $this->mall($pdo, $statements), new RentLines(), $ledger);
         $pdo->beginTransaction();
@@ -272,6 +273,7 @@ final class RentChargeTest extends TestCase
             new RentSlip($statements),
             new RentPayment(),
             $fees,
+            $this->createStub(\PerfectConsign\Bootstrap\SaleCeiling::class),
         );
         $rent = new RentStore($statements, $this->mall($pdo, $statements), new RentLines(), $ledger);
         $pdo->beginTransaction();

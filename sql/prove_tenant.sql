@@ -234,6 +234,10 @@ BEGIN
         DROP CONSTRAINT store_uses_journal_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.vendor_memos
         DROP CONSTRAINT vendor_memos_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.floor_findings
+        DROP CONSTRAINT floor_findings_item_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pickups
+        DROP CONSTRAINT pickups_item_id_fkey;
     TRUNCATE
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_lines,
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journals;

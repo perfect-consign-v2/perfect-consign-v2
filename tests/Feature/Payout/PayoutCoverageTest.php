@@ -543,6 +543,7 @@ final class PayoutCoverageTest extends TestCase
             $runs,
             new CheckWords(),
             new RentShortfall($runs),
+            $this->createStub(\PerfectConsign\Bootstrap\SaleCeiling::class),
         );
     }
 }

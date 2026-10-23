@@ -66,9 +66,7 @@ final class ProbeMall
     {
         try {
             $migrator->migrateTenant(self::SLUG);
-        } catch (MigrationFileChanged $changed) {
-            throw $changed;
-        } catch (TenantBaselineMismatch) {
+        } catch (MigrationFileChanged | TenantBaselineMismatch) {
             self::replace($root);
         } catch (RuntimeException $error) {
             if (!str_contains($error->getMessage(), 'older schema')) {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
-use PerfectConsign\Ledger\CashRound;
+use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -20,6 +20,7 @@ final class SalePoster
         private readonly Statements $statements,
         private readonly SaleReceipt $receipts,
         private readonly ReceiptChange $change,
+        private readonly SaleCeiling $ceiling,
     ) {
     }
 
@@ -42,12 +43,7 @@ final class SalePoster
         if ($items === []) {
             throw new DatabaseRefusal('a ticket needs an item');
         }
-        $cashOnly = $tender['cash'] > 0 && $tender['cash'] === $tender['sum'];
-        $settled = $roundOn === 1 && $cashOnly ? CashRound::rounded($cart['due']) : $cart['due'];
-        if ($tender['sum'] !== $cart['due'] && $tender['sum'] !== $settled) {
-            throw new DatabaseRefusal('the tenders must add up to the amount due');
-        }
-        $this->guardCash($tender['cash'], $roundOn, $handed);
+        $this->change->accept($cart['due'], $tender['sum'], $tender['cash'], $roundOn, $handed);
         $ticketId = $cart['ticket_id'];
 
         return $this->ledger->post(new JournalDraft(
@@ -65,14 +61,20 @@ final class SalePoster
         ));
     }
 
-    public function voidSale(string $sessionId, string $date, string $journalId): string
+    public function voidSale(
+        string $sessionId,
+        string $date,
+        string $journalId,
+        string $overrideUser = '',
+        string $overridePassword = '',
+    ): string
     {
         $journal = $this->sale($journalId);
         if ($this->ledger->reversed($journalId) || self::flag($journal['is_reversal'] ?? null)) {
             throw new DatabaseRefusal('a second void is refused');
         }
 
-        return $this->ledger->post(new JournalDraft(
+        $posted = $this->ledger->post(new JournalDraft(
             postingKey: 'reversal:' . $journalId,
             postingDate: $date,
             source: new JournalSource(
@@ -84,6 +86,9 @@ final class SalePoster
             reversesJournalId: $journalId,
             sessionId: $sessionId,
         ));
+        $this->ceiling->second('sale.void', $posted, $overrideUser, $overridePassword);
+
+        return $posted;
     }
 
     /**
@@ -201,17 +206,6 @@ final class SalePoster
             || RowValue::integer($row['price_minor'] ?? null) !== $item['price']
             || RowValue::integer($row['quantity'] ?? null) !== $item['quantity']) {
             throw new DatabaseRefusal('the ticket changed before pay');
-        }
-    }
-
-    private function guardCash(int $cash, int $roundOn, ?int $handed): void
-    {
-        if ($handed === null || $cash < 1) {
-            return;
-        }
-        $due = $roundOn === 1 ? $cash + CashRound::adjustment($cash) : $cash;
-        if ($handed < $due) {
-            throw new DatabaseRefusal('the cash received is less than the cash due');
         }
     }
 

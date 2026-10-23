@@ -100,7 +100,14 @@ final class PosController
                 $request->field('discount_value'),
                 $request->field('discount_reason'),
             );
-            $this->tickets->discount($session, $posted['kind'], $posted['value'], $posted['reason']);
+            $this->tickets->discount(
+                $session,
+                $posted['kind'],
+                $posted['value'],
+                $posted['reason'],
+                $request->field('override_user'),
+                $request->field('override_password'),
+            );
         }, 'Discount saved.');
     }
 
@@ -109,10 +116,11 @@ final class PosController
     {
         $this->act($slug, function (string $session): void {
             $request = $this->app->request();
-            $this->tickets->waive($session, TicketAdjustment::waiver(
+            $waiver = TicketAdjustment::waiver(
                 $request->field('waiver_action'),
                 $request->field('waiver_reason'),
-            ));
+            );
+            $this->tickets->waive($session, $waiver, $request->field('override_user'), $request->field('override_password'));
         }, 'Tax updated.');
     }
 

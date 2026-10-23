@@ -78,6 +78,7 @@ final class TaxController
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Tax/tax', [
             'title' => 'Sales tax',
+            'amount' => $this->app->request()->query('amount'),
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'openTax' => $this->tax->openTax(),

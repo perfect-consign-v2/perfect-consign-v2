@@ -140,6 +140,10 @@ $blank = '—';
                             ['label' => 'Starts', 'value' => $vendor['agreement_starts_on'], 'href' => ''],
                             ['label' => 'Ends', 'value' => $vendor['agreement_ends_on'], 'href' => ''],
                             ['label' => 'Tax id', 'value' => $vendor['tax_id'], 'href' => ''],
+                            ['label' => 'Paid this year', 'value' => View::money(is_int($vendor['year_paid_minor'] ?? null) ? $vendor['year_paid_minor'] : 0), 'href' => ''],
+                            ['label' => 'Who may discount', 'value' => is_string($vendor['discount_by'] ?? null) ? $vendor['discount_by'] : '', 'href' => ''],
+                            ['label' => 'Days goods stay', 'value' => is_string($vendor['keep_days'] ?? null) ? $vendor['keep_days'] : '', 'href' => ''],
+                            ['label' => 'At expiry', 'value' => is_string($vendor['expiry_action'] ?? null) ? $vendor['expiry_action'] : '', 'href' => ''],
                             ['label' => 'Tax exempt', 'value' => $vendor['tax_exempt'] ? 'Yes' : 'No', 'href' => ''],
                             ['label' => 'Resale number', 'value' => $vendor['tax_exempt'] ? $vendor['tax_exempt_number'] : '', 'href' => ''],
                         ], $blank); ?>

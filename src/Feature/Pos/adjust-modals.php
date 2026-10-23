@@ -84,6 +84,14 @@ $lines = $cart['lines'];
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="field">
+                <label for="override_user">Second person</label>
+                <input class="input" id="override_user" name="override_user" autocomplete="off">
+            </div>
+            <div class="field">
+                <label for="override_password">Their password</label>
+                <input class="input" id="override_password" name="override_password" type="password" autocomplete="off">
+            </div>
             <div class="row between">
                 <button class="btn" type="submit" name="discount_action" value="remove" formnovalidate>Remove discount</button>
                 <button class="btn btn-primary" type="submit" name="discount_action" value="apply">Apply</button>
@@ -108,6 +116,14 @@ $lines = $cart['lines'];
                         <option value="<?= View::text($reason) ?>"<?= $cart['waiver'] === $reason ? ' selected' : '' ?>><?= View::text($reason) ?></option>
                     <?php endforeach; ?>
                 </select>
+            </div>
+            <div class="field">
+                <label for="tax_override_user">Second person</label>
+                <input class="input" id="tax_override_user" name="override_user" autocomplete="off">
+            </div>
+            <div class="field">
+                <label for="tax_override_password">Their password</label>
+                <input class="input" id="tax_override_password" name="override_password" type="password" autocomplete="off">
             </div>
             <div class="row between">
                 <button class="btn" type="submit" name="waiver_action" value="restore" formnovalidate>Restore tax</button>

@@ -16,7 +16,7 @@ use PerfectConsign\Shared\Http\View;
     <label for="source_reference">Source reference</label>
     <input id="source_reference" name="source_reference" required>
     <label for="amount">Amount</label>
-    <input id="amount" name="amount" inputmode="decimal" required>
+    <input id="amount" name="amount" inputmode="decimal" required value="<?= View::text($amount ?? '') ?>">
     <input type="hidden" name="credit" value="bank">
     <p>This payment comes from the bank. It does not come out of the drawer.</p>
     <label for="posting_date">Posting date</label>

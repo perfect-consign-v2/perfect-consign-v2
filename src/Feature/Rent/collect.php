@@ -69,6 +69,10 @@ $showForm = $showPay || $waive > 0;
             <div class="field" id="waive-note-box" hidden>
                 <label for="waive-note">Waive note</label>
                 <input class="input" id="waive-note" name="waive_note" maxlength="500">
+                <label for="override_user">Second person</label>
+                <input class="input" id="override_user" name="override_user" autocomplete="off">
+                <label for="override_password">Their password</label>
+                <input class="input" id="override_password" name="override_password" type="password" autocomplete="off">
                 <p class="muted text-sm">Optional.</p>
             </div>
         <?php endif; ?>

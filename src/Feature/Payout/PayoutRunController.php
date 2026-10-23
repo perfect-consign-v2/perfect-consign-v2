@@ -150,7 +150,17 @@ final class PayoutRunController
         }
         try {
             $session = $tender === 'drawer_cash' ? $sessionId : null;
-            $this->once->pay($window['from'], $window['to'], $window['rent'], $today, $tender, $session);
+            $request = $this->app->request();
+            $this->once->pay(
+                $window['from'],
+                $window['to'],
+                $window['rent'],
+                $today,
+                $tender,
+                $session,
+                $request->field('override_user'),
+                $request->field('override_password'),
+            );
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 

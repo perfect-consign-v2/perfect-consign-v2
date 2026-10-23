@@ -89,7 +89,10 @@ final class VendorForm
      *     tax_id: string,
      *     notes: string,
      *     tax_exempt: string,
-     *     tax_exempt_number: string
+     *     tax_exempt_number: string,
+     *     discount_by: string,
+     *     keep_days: string,
+     *     expiry_action: string
      * }
      */
     public function postedFacts(): array
@@ -102,6 +105,9 @@ final class VendorForm
             'notes' => $this->app->request()->field('notes'),
             'tax_exempt' => $this->app->request()->field('tax_exempt'),
             'tax_exempt_number' => $this->app->request()->field('tax_exempt_number'),
+            'discount_by' => $this->app->request()->field('discount_by'),
+            'keep_days' => $this->app->request()->field('keep_days'),
+            'expiry_action' => $this->app->request()->field('expiry_action'),
         ];
     }
 
@@ -164,6 +170,10 @@ final class VendorForm
         $vendor['tax_exempt'] = $this->enabled($stored['tax_exempt'] ?? false);
         $vendor['tax_exempt_number'] = $this->plain($stored['tax_exempt_number'] ?? null);
         $vendor['business_name'] = $this->plain($stored['business_name'] ?? null);
+        $vendor['discount_by'] = $this->plain($stored['discount_by'] ?? 'staff');
+        $kept = $stored['keep_days'] ?? null;
+        $vendor['keep_days'] = is_int($kept) ? (string) $kept : (is_string($kept) ? $kept : '');
+        $vendor['expiry_action'] = $this->plain($stored['expiry_action'] ?? 'return');
         $vendor['first_name'] = $this->plain($stored['first_name'] ?? null);
         $vendor['last_name'] = $this->plain($stored['last_name'] ?? null);
         $vendor['default_store_take'] = $this->percent($mallBasis);

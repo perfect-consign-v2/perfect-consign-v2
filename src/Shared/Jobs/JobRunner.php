@@ -18,6 +18,7 @@ final class JobRunner
         private readonly LateFeeJob $lateFees,
         private readonly DigestJob $digest,
         private readonly ReconcileJob $reconcile,
+        private readonly SaleNoticeJob $notices,
     ) {
     }
 
@@ -65,7 +66,13 @@ final class JobRunner
             return;
         }
         if ($job['kind'] === 'reconcile-reports') {
+            $this->reconcile->tie($date);
             $this->reconcile->reconcile();
+
+            return;
+        }
+        if ($job['kind'] === 'sale-notice') {
+            $this->notices->notice($date);
 
             return;
         }

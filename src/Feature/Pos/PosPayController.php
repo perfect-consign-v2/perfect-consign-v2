@@ -61,7 +61,14 @@ final class PosPayController
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         try {
-            $this->poster->voidSale($session, $this->mall->today(), $id);
+            $request = $this->app->request();
+            $this->poster->voidSale(
+                $session,
+                $this->mall->today(),
+                $id,
+                $request->field('override_user'),
+                $request->field('override_password'),
+            );
         } catch (DatabaseRefusal $refusal) {
             $this->receipts->show($slug, $id, $this->app->catchRefusal($refusal));
             return;

@@ -175,7 +175,15 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
                 </div>
                 <div class="card-body stack">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <p>Voiding reverses this sale and frees every item.</p>
+                    <p>Voiding reverses this sale and frees every item. A cashier needs a second person.</p>
+                    <div class="field">
+                        <label for="void_override_user">Second person</label>
+                        <input class="input" id="void_override_user" name="override_user" autocomplete="off">
+                    </div>
+                    <div class="field">
+                        <label for="void_override_password">Their password</label>
+                        <input class="input" id="void_override_password" name="override_password" type="password" autocomplete="off">
+                    </div>
                     <div class="row wrap gap-2">
                         <button class="btn btn-primary" type="submit">Confirm void</button>
                         <button class="btn" type="button" data-close-modal="void-ticket">Cancel</button>

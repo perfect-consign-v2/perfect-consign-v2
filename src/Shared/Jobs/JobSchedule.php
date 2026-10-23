@@ -35,6 +35,7 @@ final class JobSchedule
             }
             $this->queue->enqueue($this->pdo, $slug, 'assess-late-fees', $clock['date']);
             $this->queue->enqueue($this->pdo, $slug, 'reconcile-reports', $clock['date']);
+            $this->queue->enqueue($this->pdo, $slug, 'sale-notice', $clock['date']);
             if ($clock['sunday']) {
                 $this->queue->enqueue($this->pdo, $slug, 'vendor-digest', $clock['date']);
             }

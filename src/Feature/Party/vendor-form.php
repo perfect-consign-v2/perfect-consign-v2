@@ -32,6 +32,9 @@ $heading = $editing && $display !== '' ? $display : ($editing ? 'Edit vendor' : 
 $agreementStart = is_array($vendor) && is_string($vendor['agreement_starts_on'] ?? null) ? $vendor['agreement_starts_on'] : '';
 $agreementEnd = is_array($vendor) && is_string($vendor['agreement_ends_on'] ?? null) ? $vendor['agreement_ends_on'] : '';
 $taxId = is_array($vendor) && is_string($vendor['tax_id'] ?? null) ? $vendor['tax_id'] : '';
+$discountBy = is_array($vendor) && is_string($vendor['discount_by'] ?? null) ? $vendor['discount_by'] : 'staff';
+$keepDays = is_array($vendor) && (is_string($vendor['keep_days'] ?? null) || is_int($vendor['keep_days'] ?? null)) ? (string) $vendor['keep_days'] : '';
+$expiryAction = is_array($vendor) && is_string($vendor['expiry_action'] ?? null) ? $vendor['expiry_action'] : 'return';
 $notes = is_array($vendor) && is_string($vendor['notes'] ?? null) ? $vendor['notes'] : '';
 $taxExemptNumber = is_array($vendor) && is_string($vendor['tax_exempt_number'] ?? null) ? $vendor['tax_exempt_number'] : '';
 $taxFlag = is_array($vendor) ? ($vendor['tax_exempt'] ?? false) : false;
@@ -138,6 +141,25 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
                 <div class="field">
                     <label for="tax_id">Tax id</label>
                     <input class="input" id="tax_id" name="tax_id" maxlength="40" value="<?= View::text($taxId) ?>">
+                </div>
+                <div class="field">
+                    <label for="discount_by">Who may discount</label>
+                    <select class="select" id="discount_by" name="discount_by">
+                        <option value="staff"<?= $discountBy === 'staff' ? ' selected' : '' ?>>Staff</option>
+                        <option value="owner"<?= $discountBy === 'owner' ? ' selected' : '' ?>>Owner</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="keep_days">How long goods stay (days)</label>
+                    <input class="input" id="keep_days" name="keep_days" inputmode="numeric" value="<?= View::text($keepDays) ?>">
+                </div>
+                <div class="field">
+                    <label for="expiry_action">At expiry</label>
+                    <select class="select" id="expiry_action" name="expiry_action">
+                        <option value="return"<?= $expiryAction === 'return' ? ' selected' : '' ?>>Return</option>
+                        <option value="donate"<?= $expiryAction === 'donate' ? ' selected' : '' ?>>Donate</option>
+                        <option value="buy"<?= $expiryAction === 'buy' ? ' selected' : '' ?>>Buy</option>
+                    </select>
                 </div>
                 <div class="field">
                     <label class="row gap-2" for="tax_exempt">

@@ -101,7 +101,10 @@ final class RoleGate
         if ($method !== 'GET') {
             return false;
         }
-        if (in_array($rest, ['/sales', '/month', '/rent', '/payouts', '/journals', '/password', '/dashboard', '/reports', '/reports.csv'], true)) {
+        if (in_array($rest, ['/sales', '/month', '/rent', '/payouts', '/journals', '/password', '/dashboard'], true)) {
+            return true;
+        }
+        if (str_starts_with($rest, '/reports')) {
             return true;
         }
         if (preg_match('#^/journals/[0-9a-fA-F-]{36}$#', $rest) === 1) {

@@ -94,6 +94,8 @@ final class RentController
                     'checks' => $checks,
                     'tendered' => $this->app->request()->field('cash_tendered'),
                     'check' => $this->app->request()->field('check_number'),
+                    'override_user' => $this->app->request()->field('override_user'),
+                    'override_password' => $this->app->request()->field('override_password'),
                 ],
                 $waived,
                 $this->app->request()->field('waive_note'),
@@ -127,6 +129,8 @@ final class RentController
             return;
         }
         try {
+            $request = $this->app->request();
+            $this->receipts->signOff($figure['vendor_id'], $request->field('override_user'), $request->field('override_password'));
             $count = $this->waiveChosen($figure['vendor_id'], $figure['owed'], $today);
         } catch (DatabaseRefusal $refusal) {
             $this->showCollect($slug, $this->app->catchRefusal($refusal));

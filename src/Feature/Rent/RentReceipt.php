@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Rent;
 
 use PDO;
+use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -25,6 +26,7 @@ final class RentReceipt
         private readonly RentSlip $slips,
         private readonly RentPayment $payments,
         private readonly LateFee $fees,
+        private readonly SaleCeiling $ceiling,
     ) {
         $this->owed = new RentOwed($statements, $payouts, $settings, $payments);
     }
@@ -40,7 +42,7 @@ final class RentReceipt
     }
 
     /**
-     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string} $tender
+     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string, override_user?: string, override_password?: string} $tender
      * @param list<string> $waived
      */
     public function collect(
@@ -53,6 +55,9 @@ final class RentReceipt
         array $waived = [],
         string $note = '',
     ): string {
+        if ($waived !== []) {
+            $this->signOff($vendorId, $tender['override_user'] ?? '', $tender['override_password'] ?? '');
+        }
         $figure = $this->figure($vendorId, $boothId, $today);
         if ($figure === null) {
             throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
@@ -74,6 +79,11 @@ final class RentReceipt
             $this->rollbackOwned();
             throw $error;
         }
+    }
+
+    public function signOff(string $vendorId, string $overrideUser, string $overridePassword): void
+    {
+        $this->ceiling->second('rent.waive', $vendorId, $overrideUser, $overridePassword);
     }
 
     /**
@@ -112,7 +122,7 @@ final class RentReceipt
      */
     public function explain(string $vendorId, int $owed, string $today): array
     {
-        return (new RentMoves($this->statements, $this->settings))->explain($vendorId, $owed, $today);
+        return $this->owed->explain($vendorId, $owed, $today);
     }
 
     /**
@@ -143,7 +153,7 @@ final class RentReceipt
     }
 
     /**
-     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string} $tender
+     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string, override_user?: string, override_password?: string} $tender
      */
     private function unpaid(array $tender, string $amount): bool
     {
@@ -159,7 +169,7 @@ final class RentReceipt
     }
 
     /**
-     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string} $tender
+     * @param array{cash: string, card: string, checks: string, tendered: string, check: string, way?: string, override_user?: string, override_password?: string} $tender
      */
     private function take(
         string $vendorId,

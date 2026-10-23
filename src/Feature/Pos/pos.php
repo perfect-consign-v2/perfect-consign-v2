@@ -302,7 +302,11 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         <div class="card-head"><div class="h3" id="void-ticket-title">Void ticket</div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <p>Voiding reverses this sale and frees every item.</p>
+            <p>Voiding reverses this sale and frees every item. A cashier needs a second person.</p>
+            <label for="void_override_user">Second person</label>
+            <input id="void_override_user" name="override_user" autocomplete="off">
+            <label for="void_override_password">Their password</label>
+            <input id="void_override_password" name="override_password" type="password" autocomplete="off">
             <button class="btn btn-primary" type="submit">Confirm void</button>
             <button class="btn" type="button" data-close-modal="void-ticket">Cancel</button>
         </div>

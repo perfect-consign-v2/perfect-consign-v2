@@ -114,6 +114,10 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
                 <option value="drawer_cash">Cash from the drawer</option>
                 <option value="safe_cash">Cash from the safe</option>
             </select>
+            <label for="override_user">Second person</label>
+            <input class="input" id="override_user" name="override_user" autocomplete="off">
+            <label for="override_password">Their password</label>
+            <input class="input" id="override_password" name="override_password" type="password" autocomplete="off">
             <button class="btn btn-primary" type="submit">Pay these vendors</button>
         </form>
     <?php endif; ?>

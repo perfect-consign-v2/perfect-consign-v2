@@ -32,6 +32,14 @@ final class RentOwed
     }
 
     /**
+     * @return list<array{label: string, date: string, amount: int, journal_id: string}>
+     */
+    public function explain(string $vendorId, int $owed, string $today): array
+    {
+        return (new RentMoves($this->statements, $this->settings))->explain($vendorId, $owed, $today);
+    }
+
+    /**
      * @return array{vendor_id: string, vendor_name: string, booth_id: string, booth: string, owed: int, rent: int, late: int, collect: string}|null
      */
     private function figurePrepaid(string $vendorId, string $today): ?array

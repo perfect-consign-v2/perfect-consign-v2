@@ -60,7 +60,7 @@ BEGIN
         AND expected.is_control = account.is_control
         AND expected.subledger_type IS NOT DISTINCT FROM account.subledger_type;
 
-    IF role_count <> 26 OR (SELECT count(*) FROM chart_roles) <> 26 THEN
+    IF role_count <> 29 OR (SELECT count(*) FROM chart_roles) <> 29 THEN
         RAISE EXCEPTION 'chart roles do not match the mall chart';
     END IF;
 END $$;
@@ -142,7 +142,8 @@ DECLARE
     role_count integer;
 BEGIN
     SELECT count(*) INTO role_count FROM chart_roles;
-    IF role_count <> 26 THEN
+    IF role_count <> 29 THEN
+        -- ('returned_checks', ('booth_other_revenue', ('booth_deposits',
         RAISE EXCEPTION 'chart roles changed after rollback';
     END IF;
 END $$;

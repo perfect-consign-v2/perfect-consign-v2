@@ -8,6 +8,7 @@ use PDO;
 use PerfectConsign\Feature\Vendor\VendorFigures;
 use PerfectConsign\Feature\Vendor\VendorLetter;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Mail\MailBounce;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -16,6 +17,7 @@ final class DigestJob
     public function __construct(
         private readonly PDO $pdo,
         private readonly OutboundMail $mail,
+        private readonly MailBounce $bounce,
     ) {
     }
 
@@ -45,11 +47,15 @@ final class DigestJob
             if ($numbers['rent'] < $minimumRent) {
                 continue;
             }
-            $this->mail->deliver(
-                $email,
-                $subject,
-                VendorLetter::body(RowValue::string($vendor['name'] ?? null), $numbers['payable'], $numbers['rent'])
-            );
+            try {
+                $this->mail->deliver(
+                    $email,
+                    $subject,
+                    VendorLetter::body(RowValue::string($vendor['name'] ?? null), $numbers['payable'], $numbers['rent'])
+                );
+            } catch (\Throwable) {
+                $this->bounce->mark($email);
+            }
         }
     }
 }

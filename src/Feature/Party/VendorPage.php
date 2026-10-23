@@ -20,6 +20,7 @@ final class VendorPage
         private readonly AssignmentOffer $offers,
         private readonly VendorForm $forms,
         private readonly StaffStore $staff,
+        private readonly VendorYearPaid $paid,
     ) {
     }
 
@@ -40,6 +41,7 @@ final class VendorPage
         $vendor = $this->forms->filled($vendor, $stored, $this->mall->storeTake());
         $quoted = $this->payouts->quote($id, $this->mall->today());
         $vendor = $this->forms->figures($vendor, $quoted);
+        $vendor['year_paid_minor'] = $this->paid->yearPaid($id);
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Party/vendor', [
             'title' => $vendor['name'],

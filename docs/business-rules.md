@@ -119,3 +119,31 @@ When the mall rounds cash to the nearest nickel, that round happens only when th
 Void from the receipt reverses the whole sale and frees every item. A second void is refused. A return is its own journal for one item. It reverses that item's discount share, store take, tax, and vendor payable, and credits one tender. That item can be sold again. The rest of the ticket stays sold.
 
 Park takes the open ticket off the shift so close can finish. Recall puts it on the active shift. A parked ticket is not drawer cash. Two shifts cannot hold the same item. A parked ticket can be discarded. Its lines cannot be changed until it is recalled.
+
+## Sales tax and reports
+
+The monthly sales-tax worksheet reads journals and sale lines for a calendar month in the mall time zone, using posting date. Exempt sales follow the waiver stored on the ticket and a vendor who is tax exempt. Returns and voids posted in the month are subtracted. Booth rent collected, and gift certificates, gift cards, and store credit issued, are listed as non-taxable. Redemptions stay inside the sale they paid. The filing strip is gross, exempt, returns, taxable base, and tax collected. Each posted rate in the month is shown with its base. The liability strip is the opening balance, the tax collected, the tax paid, and the closing balance of sales tax payable. The worksheet is refused when collected tax disagrees with that account by one cent. The screen, the print view, and the CSV use that same query.
+
+Sales by day, tender, vendor, and cashier, the rent roll, the payout register, and stored-value liability are named queries. Each CSV is that same query. A nightly job compares those money totals with the account balances and fails when they differ by one cent.
+
+A saved report is a name plus a catalog choice: columns come from sales, rent, payouts, or stored value, with filters, a date range, and one grouping. It does not accept SQL. The name sales tax is reserved. A saved report cannot replace the worksheet or the nightly tie-out.
+
+## Floor, sales, and checks
+
+The day an item sells, the vendor gets a notice from the same net as the vendor check. The Sunday letter stays a summary. A bounce marks that email address.
+
+A mall-wide sale has a start, an end, a percent, and who absorbs it. The register applies the event that covers today. Mall adds a store discount. Vendor adds a discount that reduces the vendor's price.
+
+A floor finding is a missing tag or an item that is not where the system says. A pickup records the person and the day the goods went back to the vendor.
+
+A booth charge beyond rent debits booth rent receivable and credits booth extras. A deposit collected at the desk debits cash and credits booth deposits. Year-to-date disbursements sit next to the vendor's tax id. The 1099 file waits for an accountant's field list.
+
+The vendor's accepted terms are who may discount, how long goods stay, and what happens at expiry.
+
+A cashier's discount cannot pass the stored percent ceiling, and a tax-free sale cannot pass the stored tax-free ceiling, unless a second staff member signs as themselves and their ceiling covers it. A cashier void, waive, or payout needs that second signature. The audit row names that person. An owner does not need the second signature.
+
+A bounced check is a dated journal that debits returned checks and credits checks.
+
+## Loyalty
+
+Loyalty is not scheduled. Points, an earn rate, and a redemption journal stay unbuilt until the tenant says whether the mall, the vendor, or a split absorbs a redemption. Customers can already be named on a ticket.

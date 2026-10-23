@@ -11,7 +11,10 @@ use PerfectConsign\Shared\Jobs\JobQueue;
 use PerfectConsign\Shared\Jobs\JobRunner;
 use PerfectConsign\Shared\Jobs\JobSchedule;
 use PerfectConsign\Shared\Jobs\LateFeeJob;
+use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
+use PerfectConsign\Shared\Jobs\SaleNoticeJob;
+use PerfectConsign\Shared\Mail\MailBounce;
 use PerfectConsign\Shared\Mail\OutboundMail;
 
 loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
@@ -45,8 +48,9 @@ $runner = new JobRunner(
     $logger,
     new JobSchedule($pdo, $queue),
     new LateFeeJob($pdo),
-    new DigestJob($pdo, new OutboundMail($logger)),
+    new DigestJob($pdo, new OutboundMail($logger), new MailBounce(new Statements($pdo))),
     new ReconcileJob($pdo),
+    new SaleNoticeJob(new Statements($pdo), new OutboundMail($logger), new MailBounce(new Statements($pdo))),
 );
 $forever = in_array('--forever', $argv, true);
 do {

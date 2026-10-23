@@ -66,6 +66,9 @@ final class PartyController
                 'tax_exempt' => $facts['tax_exempt'],
                 'tax_exempt_number' => $facts['tax_exempt_number'],
                 'business_name' => $this->app->request()->field('business_name'),
+                'discount_by' => $facts['discount_by'],
+                'keep_days' => $facts['keep_days'],
+                'expiry_action' => $facts['expiry_action'],
             ], $this->forms->storedTake($facts['store_take'])));
         } catch (DatabaseRefusal $refusal) {
             $error = $this->forms->vendorError($this->app->catchRefusal($refusal));
@@ -90,6 +93,9 @@ final class PartyController
             'notes' => $facts['notes'],
             'tax_exempt' => $facts['tax_exempt'],
             'tax_exempt_number' => $facts['tax_exempt_number'],
+            'discount_by' => $facts['discount_by'],
+            'keep_days' => $facts['keep_days'],
+            'expiry_action' => $facts['expiry_action'],
         ], $error);
     }
 
@@ -139,6 +145,9 @@ final class PartyController
                 'tax_exempt' => $facts['tax_exempt'],
                 'tax_exempt_number' => $facts['tax_exempt_number'],
                 'business_name' => $this->app->request()->field('business_name'),
+                'discount_by' => $facts['discount_by'],
+                'keep_days' => $facts['keep_days'],
+                'expiry_action' => $facts['expiry_action'],
             ], $this->forms->storedTake($facts['store_take'])));
         } catch (DatabaseRefusal $refusal) {
             $error = $this->forms->vendorError($this->app->catchRefusal($refusal));
@@ -164,6 +173,9 @@ final class PartyController
             'notes' => $facts['notes'],
             'tax_exempt' => $facts['tax_exempt'],
             'tax_exempt_number' => $facts['tax_exempt_number'],
+            'discount_by' => $facts['discount_by'],
+            'keep_days' => $facts['keep_days'],
+            'expiry_action' => $facts['expiry_action'],
         ], $error);
     }
 

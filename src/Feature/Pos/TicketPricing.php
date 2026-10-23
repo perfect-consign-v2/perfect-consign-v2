@@ -48,13 +48,16 @@ final class TicketPricing
              ORDER BY line.line_no',
             [$ticketId]
         );
+        $event = $this->mallSale();
         $lines = [];
         foreach ($rows as $row) {
             $lines[] = $this->quote(
                 $row,
                 $taxBps,
                 $this->share($ticketId, RowValue::string($row['item_id'] ?? null), $adjustment),
-                $adjustment['waiver']
+                $adjustment['waiver'],
+                $event['percent_bps'],
+                $event['absorbed_by']
             );
         }
 
@@ -141,10 +144,34 @@ final class TicketPricing
     }
 
     /**
+     * @return array{percent_bps: int, absorbed_by: string}
+     */
+    private function mallSale(): array
+    {
+        $rows = $this->statements->rows(
+            "SELECT percent_bps, absorbed_by
+             FROM mall_sales
+             WHERE starts_on <= (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date
+               AND ends_on >= (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date
+             ORDER BY starts_on DESC
+             LIMIT 1"
+        );
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            return ['percent_bps' => 0, 'absorbed_by' => 'vendor'];
+        }
+
+        return [
+            'percent_bps' => RowValue::integer($row['percent_bps'] ?? null),
+            'absorbed_by' => RowValue::string($row['absorbed_by'] ?? null) === 'mall' ? 'mall' : 'vendor',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $row
      * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, placement: string, cost: int, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}
      */
-    private function quote(array $row, int $taxBps, int $discount, string $waiver): array
+    private function quote(array $row, int $taxBps, int $discount, string $waiver, int $mallBps, string $absorbed): array
     {
         $price = RowValue::integer($row['price_minor'] ?? null);
         $quantity = RowValue::integer($row['quantity'] ?? null);
@@ -152,7 +179,9 @@ final class TicketPricing
         $lineDiscount = RowValue::integer($row['line_discount_minor'] ?? null);
         $offerDiscount = RowValue::integer($row['offer_discount_minor'] ?? null);
         $storeDiscount = RowValue::integer($row['store_discount_minor'] ?? null);
-        $taken = $lineDiscount + $discount + $offerDiscount;
+        $mallOff = $mallBps > 0 ? intdiv($extended * $mallBps + 5000, 10000) : 0;
+        $taken = $lineDiscount + $discount + $offerDiscount + ($absorbed === 'mall' ? 0 : $mallOff);
+        $storeDiscount += $absorbed === 'mall' ? $mallOff : 0;
         $exempt = self::flag($row['tax_exempt'] ?? null);
         $kind = RowValue::optionalString($row['line_discount_kind'] ?? null) ?? '';
         $stored = $row['line_discount_value'] ?? null;

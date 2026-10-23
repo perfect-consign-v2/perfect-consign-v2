@@ -540,6 +540,8 @@ ALTER TABLE item_photos DROP CONSTRAINT item_photos_item_id_fkey;
 ALTER TABLE item_buys DROP CONSTRAINT item_buys_item_id_fkey;
 ALTER TABLE missed_sales DROP CONSTRAINT missed_sales_item_id_fkey;
 ALTER TABLE store_uses DROP CONSTRAINT store_uses_item_id_fkey;
+ALTER TABLE floor_findings DROP CONSTRAINT floor_findings_item_id_fkey;
+ALTER TABLE pickups DROP CONSTRAINT pickups_item_id_fkey;
 ALTER TABLE item_dispositions DROP CONSTRAINT item_dispositions_item_id_fkey;
 ALTER TABLE item_price_events DROP CONSTRAINT item_price_events_item_id_fkey;
 

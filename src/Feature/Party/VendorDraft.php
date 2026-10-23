@@ -20,7 +20,10 @@ final class VendorDraft
      *     notes: string,
      *     tax_exempt: string,
      *     tax_exempt_number: string,
-     *     business_name: string
+     *     business_name: string,
+     *     discount_by?: string,
+     *     keep_days?: string,
+     *     expiry_action?: string
      * } $fields
      */
     public function __construct(
@@ -51,6 +54,7 @@ final class VendorDraft
             $facts[5] ? 'true' : 'false',
             $facts[6],
             $this->optionalText($this->fields['business_name'] ?? '', 120, 'that business name is too long'),
+            ...$this->terms(),
         ];
     }
 
@@ -79,6 +83,51 @@ final class VendorDraft
             $exempt,
             $number,
         ];
+    }
+
+    /**
+     * @return array{0: string, 1: ?int, 2: string}
+     */
+    private function terms(): array
+    {
+        return [
+            $this->choice('discount_by', 'staff', ['staff', 'owner'], 'who may discount is staff or owner'),
+            $this->keepDays(),
+            $this->choice('expiry_action', 'return', ['return', 'donate', 'buy'], 'expiry is return, donate, or buy'),
+        ];
+    }
+
+    /**
+     * @param list<string> $allowed
+     */
+    private function choice(string $key, string $fallback, array $allowed, string $message): string
+    {
+        $value = $this->fields[$key] ?? $fallback;
+        if ($value === '') {
+            $value = $fallback;
+        }
+        if (!in_array($value, $allowed, true)) {
+            throw new \InvalidArgumentException($message);
+        }
+
+        return $value;
+    }
+
+    private function keepDays(): ?int
+    {
+        $days = trim($this->fields['keep_days'] ?? '');
+        if ($days === '') {
+            return null;
+        }
+        if (preg_match('/^\d+$/', $days) !== 1) {
+            throw new \InvalidArgumentException('how long goods stay is a number of days');
+        }
+        $kept = (int) $days;
+        if ($kept < 1 || $kept > 3650) {
+            throw new \InvalidArgumentException('how long goods stay is a number of days');
+        }
+
+        return $kept;
     }
 
     private function day(string $value): ?string
