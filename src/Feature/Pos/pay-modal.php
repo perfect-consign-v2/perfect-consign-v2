@@ -12,6 +12,8 @@ use PerfectConsign\Shared\Http\View;
 /** @var int $remaining */
 /** @var int $cashFill */
 /** @var int $roundStep */
+/** @var bool $showCashDue */
+/** @var string $cashRoundText */
 /** @var int $salesAvailable */
 /** @var array{lines: list<mixed>, buyer_id: string, buyer_name: string} $cart */
 /** @var bool $openPayment */
@@ -72,7 +74,7 @@ $amountAttrs = static function (string $value) use (&$amountFocus, $amountInvali
             <?php $closeModal = 'enter-payment'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
             <div class="h3" id="enter-payment-title">Payment</div>
         </div>
-        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-shopper="<?= View::text(is_string($shopperId ?? null) ? $shopperId : '') ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json" data-gift-over="<?= View::text(RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) ?>">
+        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-cash-quote="<?= $showCashDue ? '1' : '0' ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-shopper="<?= View::text(is_string($shopperId ?? null) ? $shopperId : '') ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json" data-gift-over="<?= View::text(RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) ?>">
             <p class="error" id="pay-error" role="alert"<?= $modalError === '' ? ' hidden' : '' ?>><?= View::text($modalError) ?></p>
             <div class="card-body stack">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -146,8 +148,8 @@ $amountAttrs = static function (string $value) use (&$amountFocus, $amountInvali
             <div class="pay-rail">
                 <div class="pay-math">
                     <p class="register-summary"><span>Subtotal</span><strong><?= View::text(View::money($due)) ?></strong></p>
-                    <p class="register-summary" id="pay-round" hidden><span>Cash rounding</span><strong id="pay-round-amount"></strong></p>
-                    <p class="register-summary" id="pay-settled" hidden><span>Amount due</span><strong id="pay-settled-amount"></strong></p>
+                    <p class="register-summary" id="pay-round"<?= $showCashDue ? '' : ' hidden' ?>><span>Cash rounding</span><strong id="pay-round-amount"><?= $showCashDue ? View::text($cashRoundText) : '' ?></strong></p>
+                    <p class="register-summary" id="pay-settled"<?= $showCashDue ? '' : ' hidden' ?>><span>Cash due</span><strong id="pay-settled-amount"><?= $showCashDue ? View::text(View::money($cashFill)) : '' ?></strong></p>
                 </div>
                 <div class="pay-collected">
                     <p class="register-summary"><span>Total tendered</span><strong id="pay-tendered"><?= View::text(View::money(0)) ?></strong></p>

@@ -78,19 +78,19 @@ $showBrand = ($showBrand ?? true) === true;
 $open = $cart['ticket_id'] !== '' && $completed === null;
 $locked = $completed !== null;
 $lines = $cart['lines'];
-$used = [];
-$hasCash = false;
-$cashPaid = 0;
+$nonCashTender = false;
 foreach ($tenders as $tender) {
-    $used[$tender['role']] = true;
-    if ($tender['role'] === 'cash') {
-        $hasCash = true;
-        $cashPaid += RowValue::integer($tender['amount']);
+    if ($tender['role'] !== 'cash') {
+        $nonCashTender = true;
+        break;
     }
 }
-$allCash = $cart['rounding'] === '1' && $hasCash && count($used) === 1 && $deposits === 0 && $cashPaid === $cart['due'];
+$owed = max(0, $remaining);
 $roundStep = $cart['rounding'] === '1' && $deposits === 0 ? 5 : 1;
-$cashFill = $roundStep === 5 ? CashRound::rounded(max(0, $remaining)) : max(0, $remaining);
+$cashFill = $roundStep === 5 ? CashRound::rounded($owed) : $owed;
+$cashAdjustment = $roundStep === 5 ? CashRound::adjustment($owed) : 0;
+$showCashDue = $open && !$nonCashTender && $cashAdjustment !== 0;
+$cashRoundText = $cashAdjustment > 0 ? '+' . View::money($cashAdjustment) : View::money($cashAdjustment);
 $ask = [
     'checks' => 'Check',
     'gift_certificate' => 'Gift certificate',
@@ -234,14 +234,18 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php else: ?>
                 <p class="register-summary"><span>Tax</span><span><?= View::text(View::money(RowValue::integer($cart['tax']))) ?></span></p>
             <?php endif; ?>
-            <?php if ($allCash && !$locked): ?>
-                <p class="register-summary">
+            <p class="register-summary"><span>Total</span><span class="register-due"><?= View::text(View::money(RowValue::integer($cart['due']))) ?></span></p>
+            <p>Still due <strong><?= View::text(View::money($owed)) ?></strong></p>
+            <?php if ($showCashDue): ?>
+                <p class="register-summary" id="summary-cash-round">
                     <span>Cash round</span>
-                    <span id="cash-round"><?= View::text(View::money(RowValue::integer($cart['cash_round']))) ?></span>
+                    <span id="summary-cash-round-amount"><?= View::text($cashRoundText) ?></span>
+                </p>
+                <p class="register-summary" id="summary-cash-due">
+                    <span>Cash due</span>
+                    <span class="register-cash-due" id="summary-cash-due-amount"><?= View::text(View::money($cashFill)) ?></span>
                 </p>
             <?php endif; ?>
-            <p class="register-summary"><span>Total</span><span class="register-due"><?= View::text(View::money(RowValue::integer($cart['due']))) ?></span></p>
-            <p>Still due <strong><?= View::text(View::money(max(0, $remaining))) ?></strong></p>
             <p class="register-summary"><span>Total tendered</span><strong id="shell-tendered"><?= View::text(View::money(0)) ?></strong></p>
             <p id="shell-change" class="pay-note" hidden></p>
             <?php if ($deposits > 0): ?>

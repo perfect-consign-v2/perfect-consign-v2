@@ -14,6 +14,10 @@ declare(strict_types=1);
     const roundAmount = document.getElementById('pay-round-amount');
     const settledLine = document.getElementById('pay-settled');
     const settledAmount = document.getElementById('pay-settled-amount');
+    const summaryRound = document.getElementById('summary-cash-round');
+    const summaryRoundAmount = document.getElementById('summary-cash-round-amount');
+    const summaryDue = document.getElementById('summary-cash-due');
+    const summaryDueAmount = document.getElementById('summary-cash-due-amount');
     const changeLine = document.getElementById('pay-change');
     const shellChange = document.getElementById('shell-change');
     const process = document.querySelector('button.register-complete[form="pos-pay"]');
@@ -142,8 +146,8 @@ declare(strict_types=1);
         const due = cents(form.getAttribute('data-due'));
         const nonCash = Math.max(0, sum - cashCents);
         const residual = Math.max(0, due - nonCash);
-        const allCash = cashCents > 0 && nonCash === 0;
-        const cashDue = allCash ? nickel(residual) : residual;
+        const cashPriced = form.getAttribute('data-round') === '5' && nonCash === 0;
+        const cashDue = cashPriced ? nickel(residual) : residual;
         const settled = due + (cashDue - residual);
         if (tendered) {
             tendered.textContent = money(sum);
@@ -152,18 +156,32 @@ declare(strict_types=1);
             shellTendered.textContent = money(sum);
         }
         const adjustment = cashDue - residual;
-        const showRound = adjustment !== 0;
+        const showRound = form.getAttribute('data-cash-quote') === '1' && nonCash === 0 && adjustment !== 0 && residual > 0;
+        const roundText = showRound ? (adjustment > 0 ? '+' : '-') + money(Math.abs(adjustment)) : '';
+        const dueText = showRound ? money(due + adjustment) : '';
         if (roundLine) {
             roundLine.hidden = !showRound;
         }
         if (roundAmount) {
-            roundAmount.textContent = showRound ? (adjustment > 0 ? '+' : '−') + money(Math.abs(adjustment)) : '';
+            roundAmount.textContent = roundText;
         }
         if (settledLine) {
             settledLine.hidden = !showRound;
         }
         if (settledAmount) {
-            settledAmount.textContent = showRound ? money(due + adjustment) : '';
+            settledAmount.textContent = dueText;
+        }
+        if (summaryRound) {
+            summaryRound.hidden = !showRound;
+        }
+        if (summaryRoundAmount) {
+            summaryRoundAmount.textContent = roundText;
+        }
+        if (summaryDue) {
+            summaryDue.hidden = !showRound;
+        }
+        if (summaryDueAmount) {
+            summaryDueAmount.textContent = dueText;
         }
         note(changeLine, sum, settled, cashCents);
         note(shellChange, sum, settled, cashCents);

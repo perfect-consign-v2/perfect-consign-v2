@@ -177,52 +177,56 @@ final class RegisterPageTest extends TestCase
         self::assertStringContainsString('form="pos-pay">Finish sale', $ready);
     }
 
-    public function testCashRoundingAppearsOnlyWhenCashPaysTheWholeSale(): void
+    public function testCashDueShowsBeforeATenderWhenTheRemainderIsNotANickel(): void
     {
-        $paid = $this->page([
-            'cart' => [
-                'rounding' => '1',
-                'due' => 1000,
-                'cash_round' => 3,
-            ],
-            'tenders' => [['role' => 'cash', 'amount' => 1000, 'reference' => '']],
+        $open = [
+            'ticket_id' => 'ticket-1',
+            'rounding' => '1',
+            'due' => 103,
+        ];
+        $owing = $this->page([
+            'remaining' => 103,
+            'cart' => $open,
         ]);
-        $otherTender = $this->page([
-            'cart' => ['rounding' => '1', 'due' => 1000, 'cash_round' => 3],
-            'tenders' => [
-                ['role' => 'cash', 'amount' => 1000, 'reference' => ''],
-                ['role' => 'card', 'amount' => 0, 'reference' => ''],
-            ],
+        $partialCash = $this->page([
+            'remaining' => 103,
+            'cart' => $open,
+            'tenders' => [['role' => 'cash', 'amount' => 100, 'reference' => '']],
         ]);
-        $short = $this->page([
-            'cart' => ['rounding' => '1', 'due' => 1000, 'cash_round' => 3],
-            'tenders' => [['role' => 'cash', 'amount' => 900, 'reference' => '']],
+        $card = $this->page([
+            'remaining' => 103,
+            'cart' => $open,
+            'tenders' => [['role' => 'card', 'amount' => 100, 'reference' => '']],
         ]);
-        $noCash = $this->page([
-            'cart' => ['rounding' => '1', 'due' => 1000, 'cash_round' => 3],
+        $nickel = $this->page([
+            'remaining' => 105,
+            'cart' => $open,
         ]);
-        $notRounded = $this->page([
-            'cart' => ['due' => 1000, 'cash_round' => 3],
-            'tenders' => [['role' => 'cash', 'amount' => 1000, 'reference' => '']],
+        $off = $this->page([
+            'remaining' => 103,
+            'cart' => ['ticket_id' => 'ticket-1', 'due' => 103],
         ]);
         $deposit = $this->page([
+            'remaining' => 103,
             'deposits' => 100,
-            'cart' => ['rounding' => '1', 'due' => 1000, 'cash_round' => 3],
-            'tenders' => [['role' => 'cash', 'amount' => 1000, 'reference' => '']],
+            'cart' => $open,
         ]);
-        $locked = $this->page([
+        $finished = $this->page([
+            'remaining' => 103,
             'completed' => $this->completed(),
-            'cart' => ['rounding' => '1', 'due' => 1000, 'cash_round' => 3],
-            'tenders' => [['role' => 'cash', 'amount' => 1000, 'reference' => '']],
+            'cart' => $open,
         ]);
 
-        self::assertStringContainsString('id="cash-round">$0.03', $paid);
-        self::assertStringNotContainsString('$0.03', $otherTender);
-        self::assertStringNotContainsString('$0.03', $short);
-        self::assertStringNotContainsString('$0.03', $noCash);
-        self::assertStringNotContainsString('$0.03', $notRounded);
-        self::assertStringNotContainsString('$0.03', $deposit);
-        self::assertStringNotContainsString('$0.03', $locked);
+        self::assertStringContainsString('id="summary-cash-round-amount">+$0.02', $owing);
+        self::assertStringContainsString('id="summary-cash-due-amount">$1.05', $owing);
+        self::assertStringContainsString('register-due">$1.03', $owing);
+        self::assertStringContainsString('data-cash-quote="1"', $owing);
+        self::assertStringContainsString('id="summary-cash-due-amount">$1.05', $partialCash);
+        self::assertStringNotContainsString('id="summary-cash-due"', $card);
+        self::assertStringNotContainsString('id="summary-cash-due"', $nickel);
+        self::assertStringNotContainsString('id="summary-cash-due"', $off);
+        self::assertStringNotContainsString('id="summary-cash-due"', $deposit);
+        self::assertStringNotContainsString('id="summary-cash-due"', $finished);
     }
 
     public function testNickelRoundingFillsThePayWindowOnlyBeforeADeposit(): void
@@ -239,8 +243,12 @@ final class RegisterPageTest extends TestCase
 
         self::assertStringContainsString('data-round="5"', $nickel);
         self::assertStringContainsString('data-cash="1.05"', $nickel);
+        self::assertStringContainsString('id="pay-settled"><span>Cash due</span><strong id="pay-settled-amount">$1.05', $nickel);
+        self::assertStringContainsString('id="pay-round-amount">+$0.02', $nickel);
         self::assertStringContainsString('data-round="1"', $deposit);
         self::assertStringContainsString('data-cash="1.03"', $deposit);
+        self::assertStringContainsString('id="pay-settled" hidden', $deposit);
+        self::assertStringNotContainsString('id="summary-cash-due"', $deposit);
     }
 
     public function testADiscountAndAWaiverReplaceThePlainTaxLine(): void
