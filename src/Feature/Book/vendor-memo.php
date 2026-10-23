@@ -18,14 +18,16 @@ use PerfectConsign\Shared\Http\View;
 $dateValue = $postingDate !== '' ? $postingDate : $today;
 $directionValue = $direction !== '' ? $direction : 'credit';
 ?>
-<h1>Vendor memo</h1>
-<p class="muted">Add or subtract what the mall owes this vendor before the next check. Rent is a separate bill.</p>
+<h1><?= !empty($consignmentOnly) ? 'Consignor memo' : 'Vendor memo' ?></h1>
+<p class="muted"><?= !empty($consignmentOnly)
+    ? 'Add or subtract what the store owes this consignor before the next check.'
+    : 'Add or subtract what the mall owes this vendor before the next check. Rent is a separate bill.' ?></p>
 <?php if ($error !== null && $error !== '') { ?>
     <p class="error"><?= View::text($error) ?></p>
 <?php } ?>
 <form method="post" action="/<?= View::text($slug) ?>/vendor-memo">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-    <label for="vendor_id">Vendor</label>
+    <label for="vendor_id"><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?></label>
     <select id="vendor_id" name="vendor_id" required>
         <option value="">Choose</option>
         <?php foreach ($vendors as $vendor) { ?>

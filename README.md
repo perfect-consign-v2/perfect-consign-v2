@@ -25,7 +25,7 @@ php bin/seed-mall.php
 php bin/seed-dev-tenant.php
 ```
 
-`php bin/seed-mall.php` removes slug `mall`, provisions it again, and posts six months of booths, sales, rent, and payouts through the same posting paths the register uses. Sign in as `owner`. The password is `STALL_OWNER_PASSWORD`. The test suite still builds an empty `webprobe` when that slug is missing.
+`php bin/seed-mall.php` removes slug `mall`, provisions it again, and posts six months of booths, sales, rent, and payouts through the same posting paths the register uses. It also removes slug `shop` and provisions that store as consignment only: two consignors, a few consigned items, and no booths or rent. Sign in as `owner` at `/mall` or `/shop`. The password is `STALL_OWNER_PASSWORD`. The test suite still builds an empty `webprobe` when that slug is missing.
 
 `php bin/seed-dev-tenant.php` wipes slug `dev` and no other mall, provisions it, and loads `sql/dev_tenant.sql`: one vendor, one booth on Main Floor, one open assignment, and three items. It does not post a journal. The owner is still `php bin/set-owner.php dev owner`.
 

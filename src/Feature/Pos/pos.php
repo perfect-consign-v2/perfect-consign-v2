@@ -374,8 +374,8 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/buyer" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" id="buyer-form">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                 <div class="field combo">
-                    <label for="buyer">Vendor</label>
-                    <input class="input" id="buyer" value="<?= View::text($cart['buyer_name']) ?>" autocomplete="off" placeholder="Name or vendor number">
+                    <label for="buyer"><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?></label>
+                    <input class="input" id="buyer" value="<?= View::text($cart['buyer_name']) ?>" autocomplete="off" placeholder="<?= !empty($consignmentOnly) ? 'Name or consignor number' : 'Name or vendor number' ?>">
                     <input type="hidden" id="buyer_id" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
                     <div class="suggest" id="buyer-suggest" hidden></div>
                 </div>
@@ -384,7 +384,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php if ($cart['buyer_id'] !== ''): ?>
                 <form method="post" action="/<?= View::text($slug) ?>/pos/buyer">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <button class="btn" type="submit">Clear vendor</button>
+                    <button class="btn" type="submit">Clear <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?></button>
                 </form>
             <?php endif; ?>
         </div>
@@ -419,7 +419,7 @@ $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false
             <?php endif; ?>
             <div class="field combo">
                 <label for="instant_vendor">Consignor</label>
-                <input class="input" id="instant_vendor" name="vendor_label" value="<?= View::text($instantVendorLabel) ?>" autocomplete="off" required placeholder="Name or vendor number"<?= ($openInstant && !$instantPriceError) ? ' autofocus' : '' ?>>
+                <input class="input" id="instant_vendor" name="vendor_label" value="<?= View::text($instantVendorLabel) ?>" autocomplete="off" required placeholder="<?= !empty($consignmentOnly) ? 'Name or consignor number' : 'Name or vendor number' ?>"<?= ($openInstant && !$instantPriceError) ? ' autofocus' : '' ?>>
                 <input type="hidden" id="instant_vendor_id" name="vendor_id" value="<?= View::text($instantVendorId) ?>">
                 <div class="suggest" id="instant-vendor-suggest" hidden></div>
                 <p class="muted text-sm" id="instant-vendor-hint" hidden></p>
@@ -443,7 +443,9 @@ $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false
                     </select>
                     <input class="input" id="instant_discount_value" name="discount_value" value="<?= View::text($instantDiscountValue) ?>" inputmode="decimal" placeholder="0" aria-label="Line discount value" hidden disabled>
                 </div>
-                <p class="muted text-sm">Consignor default applies the vendor’s default POS line discount when set. Choose None for no discount, or enter a percent or flat amount.</p>
+                <p class="muted text-sm"><?= !empty($consignmentOnly)
+                    ? 'Consignor default applies the consignor’s default POS line discount when set. Choose None for no discount, or enter a percent or flat amount.'
+                    : 'Consignor default applies the vendor’s default POS line discount when set. Choose None for no discount, or enter a percent or flat amount.' ?></p>
             </div>
             <?php if ($showBrand): ?>
             <div class="field combo">

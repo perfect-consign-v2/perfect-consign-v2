@@ -20,13 +20,15 @@ $memoValue = $memo !== '' ? $memo : 'The sale was never rung';
 $dateValue = $postingDate !== '' ? $postingDate : $today;
 ?>
 <h1>Missed sale</h1>
-<p class="muted">The customer took a piece that was never rung up. The vendor is paid their usual share. The store records that share as a loss. No money goes in the drawer.</p>
+<p class="muted"><?= !empty($consignmentOnly)
+    ? 'The customer took a piece that was never rung up. The consignor is paid their usual share. The store records that share as a loss. No money goes in the drawer.'
+    : 'The customer took a piece that was never rung up. The vendor is paid their usual share. The store records that share as a loss. No money goes in the drawer.' ?></p>
 <?php if ($error !== null && $error !== '') { ?>
     <p class="error"><?= View::text($error) ?></p>
 <?php } ?>
 <form method="post" action="/<?= View::text($slug) ?>/missed-sale">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-    <label for="vendor_id">Vendor</label>
+    <label for="vendor_id"><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?></label>
     <select id="vendor_id" name="vendor_id" required>
         <option value="">Choose</option>
         <?php foreach ($vendors as $vendor) { ?>

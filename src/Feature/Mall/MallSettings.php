@@ -164,6 +164,20 @@ final class MallSettings
         return MallGuard::flag($this->row()['consignment_enabled'] ?? null);
     }
 
+    public function isConsignmentOnly(): bool
+    {
+        return RowValue::string($this->row()['operating_mode'] ?? null) === 'consignor';
+    }
+
+    public function getPartyLabel(string $vendor, string $consignor): string
+    {
+        if ($this->isConsignmentOnly()) {
+            return $consignor;
+        }
+
+        return $vendor;
+    }
+
     public function isStoreStockEnabled(): bool
     {
         return MallGuard::flag($this->row()['store_stock_enabled'] ?? null);
@@ -252,7 +266,7 @@ final class MallSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps, use_color, use_category, use_size, use_condition, use_department, use_brand, label_stock, booth_rentals_enabled, rent_cycle_day, consignment_enabled, store_stock_enabled, receipt_footer FROM mall'
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps, use_color, use_category, use_size, use_condition, use_department, use_brand, label_stock, booth_rentals_enabled, rent_cycle_day, consignment_enabled, store_stock_enabled, receipt_footer, operating_mode FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

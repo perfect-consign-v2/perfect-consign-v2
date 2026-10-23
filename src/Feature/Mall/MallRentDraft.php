@@ -36,15 +36,21 @@ final class MallRentDraft
 
     public function read(): ?string
     {
-        $enabled = $this->app->request()->field('booth_rentals_enabled') === '1';
+        $mode = $this->app->request()->field('operating_mode');
+        $enabled = $mode === ''
+            ? $this->app->request()->field('booth_rentals_enabled') === '1'
+            : MallPayoutSettings::capabilities($mode)['rentals'];
         $this->rentals = $enabled;
         $day = $this->payouts->cycleDay();
         if ($enabled && !$this->payouts->cycleFrozen()) {
             $raw = $this->app->request()->field('rent_cycle_day');
-            if (preg_match('/^(?:[1-9]|1[0-9]|2[0-8])$/', $raw) !== 1) {
+            if ($raw === '') {
+                $day = $this->payouts->cycleDay();
+            } elseif (preg_match('/^(?:[1-9]|1[0-9]|2[0-8])$/', $raw) !== 1) {
                 return 'the rent cycle day is a whole number from 1 to 28';
+            } else {
+                $day = (int) $raw;
             }
-            $day = (int) $raw;
         }
         $this->cycleDay = $day;
         $this->prepaid = $enabled
@@ -82,6 +88,13 @@ final class MallRentDraft
     private function readLateFees(): ?string
     {
         if ($this->rentals !== true) {
+            return null;
+        }
+        if ($this->app->request()->field('late_fee_grace_days') === ''
+            && $this->app->request()->field('late_fees_enabled') !== '1'
+            && $this->app->request()->field('late_fee_first') === ''
+            && $this->app->request()->field('late_fee_next') === ''
+        ) {
             return null;
         }
         $enabled = $this->app->request()->field('late_fees_enabled') === '1';

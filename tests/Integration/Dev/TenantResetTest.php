@@ -7,6 +7,7 @@ namespace PerfectConsign\Tests\Integration\Dev;
 use PerfectConsign\Feature\Dev\DevTenantReset;
 use PerfectConsign\Feature\Dev\LocalAdmin;
 use PerfectConsign\Feature\Dev\MallTenantReset;
+use PerfectConsign\Feature\Dev\ShopTenantReset;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -65,5 +66,33 @@ final class TenantResetTest extends TestCase
         ProbeMall::ensure(dirname(__DIR__, 3));
         $schema = (new MallTenantReset())->load();
         self::assertMatchesRegularExpression('/^tenant_[0-9a-f]{32}$/', $schema);
+        $this->assertShopIsConsignmentOnly();
+    }
+
+    private function assertShopIsConsignmentOnly(): void
+    {
+        $pdo = LocalAdmin::open()->pdo();
+        $schema = $pdo->query("SELECT schema_name FROM platform.tenants WHERE slug = 'shop'");
+        self::assertNotFalse($schema);
+        $name = $schema->fetchColumn();
+        self::assertIsString($name);
+        self::assertMatchesRegularExpression('/^tenant_[0-9a-f]{32}$/', $name);
+        $row = $pdo->query(
+            'SELECT operating_mode, booth_rentals_enabled::text AS rentals, consignment_enabled::text AS consignment,
+                    (SELECT count(*) FROM ' . $name . '.vendors) AS vendors,
+                    (SELECT count(*) FROM ' . $name . '.items) AS items,
+                    (SELECT count(*) FROM ' . $name . '.booths) AS booths
+             FROM ' . $name . '.mall'
+        );
+        self::assertNotFalse($row);
+        $mall = $row->fetch(\PDO::FETCH_ASSOC);
+        self::assertIsArray($mall);
+        self::assertSame('consignor', $mall['operating_mode']);
+        self::assertSame('false', $mall['rentals']);
+        self::assertSame('true', $mall['consignment']);
+        self::assertSame(2, (int) $mall['vendors']);
+        self::assertSame(3, (int) $mall['items']);
+        self::assertSame(0, (int) $mall['booths']);
+        self::assertSame(ShopTenantReset::SLUG, 'shop');
     }
 }

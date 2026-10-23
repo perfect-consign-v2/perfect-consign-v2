@@ -315,9 +315,13 @@ final class MallController
         ?int $floorDays,
         int $taxRate,
     ): ?string {
+        $postedConsignment = MallPayoutSettings::getPostedConsignment(
+            $this->app->request()->field('operating_mode'),
+            $this->app->request()->field('consignment_enabled'),
+        );
         $shop = $this->payouts->getPostedShop(
             $this->app->request()->field('shop_flags'),
-            $this->app->request()->field('consignment_enabled'),
+            $postedConsignment,
             $this->app->request()->field('store_stock_enabled'),
         );
         $consignment = $shop['consignment'];

@@ -16,21 +16,24 @@ use PerfectConsign\Shared\Web\ListTable;
     <div class="titles">
         <h1 class="h1">Past payouts</h1>
     </div>
-    <a class="btn" href="/<?= View::text($slug) ?>/payouts">Pay vendors</a>
+    <a class="btn" href="/<?= View::text($slug) ?>/payouts"><?= !empty($consignmentOnly) ? 'Pay consignors' : 'Pay vendors' ?></a>
 </div>
 <div class="list-dt-wrap">
 <?php
 ListTable::open(['id' => 'payout-history', 'export' => 'payout-history']);
-ListTable::head([
+$historyColumns = [
     ['label' => 'Run', 'sort' => 'num'],
     ['label' => 'Period'],
-    ['label' => 'Vendor'],
+    ['label' => !empty($consignmentOnly) ? 'Consignor' : 'Vendor'],
     ['label' => 'Check', 'sort' => 'num'],
-    ['label' => 'Rent month'],
-    ['label' => 'Tender'],
-    ['label' => 'Status'],
-    ['label' => '', 'actions' => true],
-]);
+];
+if (empty($consignmentOnly)) {
+    $historyColumns[] = ['label' => 'Rent month'];
+}
+$historyColumns[] = ['label' => 'Tender'];
+$historyColumns[] = ['label' => 'Status'];
+$historyColumns[] = ['label' => '', 'actions' => true];
+ListTable::head($historyColumns);
 ?>
     <tbody>
     <?php foreach ($runs as $run): ?>
@@ -43,7 +46,9 @@ ListTable::head([
                 $checkKnown = is_int($checkMinor) || (is_string($checkMinor) && preg_match('/^-?\d+$/', $checkMinor) === 1);
                 echo $checkKnown ? View::text(View::money((int) $checkMinor)) : '—';
             ?></td>
+            <?php if (empty($consignmentOnly)): ?>
             <td><?php $rentMonth = $run['rent_month'] ?? null; ?><?= is_string($rentMonth) && $rentMonth !== '' ? View::date($rentMonth) : '—' ?></td>
+            <?php endif; ?>
             <td><?php
                 $tender = RowValue::string($run['tender'] ?? null);
                 $tenderWords = ['check' => 'Check', 'drawer_cash' => 'Cash from the drawer', 'safe_cash' => 'Cash from the safe'];
@@ -63,7 +68,7 @@ ListTable::head([
             </td>
             <td>
                 <?php if (!$voided && in_array($run['status'] ?? '', ['settled', 'paid'], true) && ($run['reverses_run_id'] ?? '') === ''): ?>
-                    <a href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text(RowValue::string($run['id'] ?? null)) ?>">Print each vendor's sales</a>
+                    <a href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text(RowValue::string($run['id'] ?? null)) ?>">Print each <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?>'s sales</a>
                     <?php if (($run['tender'] ?? '') === 'check' && ($run['status'] ?? '') === 'paid'): ?>
                         <a href="/<?= View::text($slug) ?>/payouts/checks?run=<?= View::text(RowValue::string($run['id'] ?? null)) ?>">Print checks</a>
                     <?php endif; ?>
@@ -85,5 +90,5 @@ ListTable::head([
     <p class="error"><?= View::text($error) ?></p>
 <?php endif; ?>
 <?php if ($excluded !== []): ?>
-    <p>Vendors excluded: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['name']) ?> <?php endforeach; ?></p>
+    <p><?= !empty($consignmentOnly) ? 'Consignors' : 'Vendors' ?> excluded: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['name']) ?> <?php endforeach; ?></p>
 <?php endif; ?>

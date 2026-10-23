@@ -42,7 +42,9 @@ final class SettingsPageTest extends TestCase
         self::assertStringContainsString('Rent starts on the 28th.', $day);
         self::assertStringContainsString('id="late_fees_enabled" name="late_fees_enabled" type="checkbox" value="1" checked>', $day);
         self::assertStringContainsString('Pay vendors their sales. Collect rent at the register.', $html);
-        self::assertStringContainsString('Booth rentals', $html);
+        self::assertStringContainsString('Store stock', $html);
+        self::assertStringNotContainsString('name="booth_rentals_enabled"', $html);
+        self::assertStringNotContainsString('name="consignment_enabled"', $html);
         self::assertStringContainsString('name="rent_cycle_day"', $html);
         self::assertStringNotContainsString('Weekly', $html);
         self::assertStringNotContainsString('Every two weeks', $html);
@@ -96,6 +98,27 @@ final class SettingsPageTest extends TestCase
         self::assertStringContainsString('This mall does not charge booth rent.', $html);
         self::assertStringNotContainsString('name="rent_cycle_day"', $html);
         self::assertStringNotContainsString('name="rent_prepaid_from_prior_sales"', $html);
+    }
+
+    public function testConsignmentSettingsDropBooths(): void
+    {
+        $html = $this->page([
+            'operatingMode' => 'consignor',
+            'boothRentals' => false,
+            'consignmentEnabled' => true,
+        ]);
+
+        self::assertStringContainsString('value="consignor" selected', $html);
+        self::assertStringContainsString('The store clock', $html);
+        self::assertStringContainsString('saved on a consignor', $html);
+        self::assertStringContainsString('name="floor_days"', $html);
+        self::assertStringContainsString('type="hidden" name="booth_width_ft"', $html);
+        self::assertStringNotContainsString('Default width', $html);
+        self::assertStringNotContainsString('name="rent_cycle_day"', $html);
+        self::assertStringNotContainsString('Late fees', $html);
+        self::assertStringNotContainsString('This mall does not charge booth rent.', $html);
+        self::assertStringNotContainsString('This mall&#039;s Gmail', $html);
+        self::assertStringContainsString('This store&#039;s Gmail', $html);
     }
 
     public function testAnEmptyNightlyLineStaysHidden(): void

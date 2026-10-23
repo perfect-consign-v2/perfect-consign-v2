@@ -31,7 +31,7 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
 ?>
 <div class="page-head">
     <div class="titles">
-        <h1 class="h1">Pay this vendor</h1>
+        <h1 class="h1"><?= !empty($consignmentOnly) ? 'Pay this consignor' : 'Pay this vendor' ?></h1>
         <?php if ($paying !== ''): ?>
             <p class="muted"><?= View::text($paying) ?></p>
         <?php endif; ?>
@@ -40,7 +40,7 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
 <?php if (count($vendors) > 1): ?>
     <form method="get" action="/<?= View::text($slug) ?>/payout">
         <div class="field" style="max-width:24rem">
-            <label for="vendor">Vendor</label>
+            <label for="vendor"><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?></label>
             <select class="select" id="vendor" name="vendor" onchange="this.form.submit()">
                 <?php foreach ($vendors as $vendor): ?>
                     <?php
@@ -55,25 +55,25 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
     </form>
 <?php endif; ?>
 <?php if ($open === null): ?>
-    <p class="muted mt-4">No open payout for this vendor.</p>
+    <p class="muted mt-4">No open payout for this <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?>.</p>
 <?php else: ?>
     <div class="payout-figures">
         <div class="stat">
             <div class="stat-label">Their share of sales</div>
             <div class="stat-value"><?= View::text(View::money($open['payable'])) ?></div>
         </div>
-        <?php if ($open['rent_from_sales']): ?>
+        <?php if (empty($consignmentOnly) && $open['rent_from_sales']): ?>
             <div class="stat">
                 <div class="stat-label">Rent from their share</div>
                 <div class="stat-value"><?= View::text(View::money($open['settled'])) ?></div>
             </div>
-        <?php elseif ($open['owes'] > 0): ?>
+        <?php elseif (empty($consignmentOnly) && $open['owes'] > 0): ?>
             <a class="stat stat-link stat-action" href="<?= View::text($collect) ?>">
                 <div class="stat-label">Owes the store</div>
                 <div class="stat-value"><?= View::text(View::money($open['owes'])) ?></div>
                 <div class="stat-delta">Collect rent</div>
             </a>
-        <?php else: ?>
+        <?php elseif (empty($consignmentOnly)): ?>
             <div class="stat">
                 <div class="stat-label">Open rent</div>
                 <div class="stat-value"><?= View::text(View::money($open['rent'])) ?></div>
@@ -83,7 +83,7 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
             <div class="stat-label">We pay them</div>
             <div class="stat-value"><?= View::text(View::money($open['check'])) ?></div>
         </div>
-        <?php if ($open['rent_from_sales'] && $open['owes'] > 0): ?>
+        <?php if (empty($consignmentOnly) && $open['rent_from_sales'] && $open['owes'] > 0): ?>
             <a class="stat stat-link stat-action" href="<?= View::text($collect) ?>">
                 <div class="stat-label">Owes the store</div>
                 <div class="stat-value"><?= View::text(View::money($open['owes'])) ?></div>
@@ -92,7 +92,7 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
         <?php endif; ?>
     </div>
     <?php if ($canPay): ?>
-        <p class="mt-4"><button class="btn btn-primary" type="button" data-open-modal="confirm-payout">Pay this vendor</button></p>
+        <p class="mt-4"><button class="btn btn-primary" type="button" data-open-modal="confirm-payout">Pay this <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?></button></p>
     <?php else: ?>
         <p class="muted mt-4">Nothing to pay.</p>
     <?php endif; ?>
@@ -106,9 +106,9 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
                     <p><?= View::text($paying) ?></p>
                 <?php endif; ?>
                 <p>Their share of sales <?= View::text(View::money($open['payable'])) ?></p>
-                <?php if ($open['rent_from_sales']): ?>
+                <?php if (empty($consignmentOnly) && $open['rent_from_sales']): ?>
                     <p>Rent from their share <?= View::text(View::money($open['settled'])) ?></p>
-                <?php else: ?>
+                <?php elseif (empty($consignmentOnly)): ?>
                     <p>Open rent <?= View::text(View::money($open['rent'])) ?></p>
                 <?php endif; ?>
                 <p class="h3">We pay them <?= View::text(View::money($open['check'])) ?></p>
@@ -116,7 +116,7 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
                     <p>Owes the store <?= View::text(View::money($open['owes'])) ?></p>
                 <?php endif; ?>
                 <div class="row gap-2">
-                    <button class="btn btn-primary" type="submit">Pay this vendor</button>
+                    <button class="btn btn-primary" type="submit">Pay this <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?></button>
                     <button class="btn" type="button" data-close-modal="confirm-payout">Cancel</button>
                 </div>
             </div>

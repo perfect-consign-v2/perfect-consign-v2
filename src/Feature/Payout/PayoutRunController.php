@@ -46,7 +46,7 @@ final class PayoutRunController
             ? $this->once->envelopes($requested)
             : $this->once->envelopes('', $window['from'], $window['to'], $window['rent'], $today);
         $this->app->show('Feature/Payout/envelope', [
-            'title' => 'Each vendor\'s sales',
+            'title' => $this->mall->getPartyLabel('Each vendor\'s sales', 'Each consignor\'s sales'),
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'rows' => $rows,

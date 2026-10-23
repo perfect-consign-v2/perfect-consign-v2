@@ -30,6 +30,8 @@ use PerfectConsign\Shared\Http\View;
 if (!$open) {
     return;
 }
+$showCashDue = ($showCashDue ?? false) === true;
+$cashRoundText = is_string($cashRoundText ?? null) ? $cashRoundText : '';
 $due = max(0, $remaining);
 $cashDue = max(0, $cashFill);
 $sales = max(0, $salesAvailable);
@@ -110,8 +112,8 @@ $amountAttrs = static function (string $value) use (&$amountFocus, $amountInvali
                         <input class="input" id="pay-vendor" name="tender_vendor_draw" inputmode="decimal" placeholder="0.00" value="<?= View::text($payVendor) ?>"<?= $canDraw ? '' : ' disabled' ?><?= $amountAttrs($payVendor) ?>>
                         <button class="btn" id="pay-sales-max" type="button"<?= $canDraw ? '' : ' disabled' ?>>Apply max from sales</button>
                     </div>
-                    <p class="muted text-sm" id="pay-sales-hint"><?php if ($cart['buyer_id'] === ''): ?>Choose the vendor this sale pays.<?php elseif ($sales > 0): ?>Available from sales: <?= View::text(View::money($sales)) ?> (cannot exceed this on checkout).<?php else: ?>No Pay from Sales balance is available for this vendor on this sale.<?php endif; ?></p>
-                    <button class="btn" type="button" data-open-modal="sale-vendor">Choose vendor</button>
+                    <p class="muted text-sm" id="pay-sales-hint"><?php if ($cart['buyer_id'] === ''): ?>Choose the <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?> this sale pays.<?php elseif ($sales > 0): ?>Available from sales: <?= View::text(View::money($sales)) ?> (cannot exceed this on checkout).<?php else: ?>No Pay from Sales balance is available for this <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?> on this sale.<?php endif; ?></p>
+                    <button class="btn" type="button" data-open-modal="sale-vendor">Choose <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?></button>
                 </div>
                 <div class="pay-grid">
                     <div class="field">

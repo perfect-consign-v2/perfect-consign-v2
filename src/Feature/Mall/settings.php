@@ -7,9 +7,13 @@ use PerfectConsign\Feature\Rent\RentCycle;
 use PerfectConsign\Shared\Http\View;
 
 $boothRentals = ($boothRentals ?? true) === true;
+$operatingMode = is_string($operatingMode ?? null) ? $operatingMode : '';
+$consignmentOnly = $operatingMode === 'consignor';
+$boothMall = $operatingMode === 'booth_mall';
+$showRent = !$consignmentOnly && $boothRentals;
 $cycleDay = is_int($cycleDay ?? null) && $cycleDay >= 1 && $cycleDay <= 28 ? $cycleDay : 1;
 $cycleFrozen = ($cycleFrozen ?? false) === true;
-$rentSentence = $boothRentals ? (new RentCycle($cycleDay))->sentence(!empty($rentPrepaid)) : '';
+$rentSentence = $showRent ? (new RentCycle($cycleDay))->sentence(!empty($rentPrepaid)) : '';
 
 /** @var string $slug */
 /** @var string $csrf */
@@ -34,7 +38,9 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, the stickers, how long items stay out, the receipt footer, and a copy of the mall.</p>
+        <p class="muted"><?= $consignmentOnly
+            ? 'The store clock, the store take, the sales tax rate, the stickers, how long items stay out, the receipt footer, and a copy of the store.'
+            : 'The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, the stickers, how long items stay out, the receipt footer, and a copy of the mall.' ?></p>
     </div>
 </div>
 
@@ -61,41 +67,28 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
         <div class="field">
             <label for="default_store_take">Store take</label>
             <input class="input" id="default_store_take" name="default_store_take" inputmode="decimal" value="<?= View::text($storeTake) ?>">
-            <p class="muted text-sm">Percent of a sale this mall keeps. 25 is 25%. A different amount saved on a vendor is marked overridden.</p>
+            <p class="muted text-sm"><?= $consignmentOnly
+                ? 'Percent of a sale this store keeps. 25 is 25%. A different amount saved on a consignor is marked overridden.'
+                : 'Percent of a sale this mall keeps. 25 is 25%. A different amount saved on a vendor is marked overridden.' ?></p>
         </div>
         <div class="field">
             <label for="tax_rate">Sales tax</label>
             <input class="input" id="tax_rate" name="tax_rate" inputmode="decimal" value="<?= View::text($taxRate) ?>">
-            <p class="muted text-sm">Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A vendor marked tax exempt is charged no tax.</p>
+            <p class="muted text-sm"><?= $consignmentOnly
+                ? 'Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A consignor marked tax exempt is charged no tax.'
+                : 'Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A vendor marked tax exempt is charged no tax.' ?></p>
         </div>
         <input type="hidden" name="shop_flags" value="1">
         <div class="field">
             <select class="input" id="operating_mode" name="operating_mode">
                 <?php foreach (['both' => 'Consignment and booths', 'consignor' => 'Consignment', 'booth_mall' => 'Booth mall'] as $value => $label): ?>
-                    <option value="<?= View::text($value) ?>"<?= ($operatingMode ?? '') === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
+                    <option value="<?= View::text($value) ?>"<?= $operatingMode === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
                 <?php endforeach; ?>
             </select>
             <p class="muted text-sm">Consignment pays a share of each sale. A booth mall charges rent. Both does each.</p>
         </div>
         <div class="field">
-            <p class="muted text-sm">Booth rent</p>
             <div class="catalog-switches">
-                <label class="switch-row" for="booth_rentals_enabled">
-                    <span class="switch">
-                        <input id="booth_rentals_enabled" name="booth_rentals_enabled" type="checkbox" value="1"<?= $boothRentals ? ' checked' : '' ?>>
-                        <span class="switch-track" aria-hidden="true"></span>
-                        <span class="switch-knob" aria-hidden="true"></span>
-                    </span>
-                    Booth rentals
-                </label>
-                <label class="switch-row" for="consignment_enabled">
-                    <span class="switch">
-                        <input id="consignment_enabled" name="consignment_enabled" type="checkbox" value="1"<?= !empty($consignmentEnabled) ? ' checked' : '' ?>>
-                        <span class="switch-track" aria-hidden="true"></span>
-                        <span class="switch-knob" aria-hidden="true"></span>
-                    </span>
-                    Consignment
-                </label>
                 <label class="switch-row" for="store_stock_enabled">
                     <span class="switch">
                         <input id="store_stock_enabled" name="store_stock_enabled" type="checkbox" value="1"<?= !empty($storeStockEnabled) ? ' checked' : '' ?>>
@@ -104,7 +97,7 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
                     </span>
                     Store stock
                 </label>
-                <?php if ($boothRentals): ?>
+                <?php if ($showRent): ?>
                     <label class="switch-row" for="rent_prepaid_from_prior_sales">
                         <span class="switch">
                             <input id="rent_prepaid_from_prior_sales" name="rent_prepaid_from_prior_sales" type="checkbox" value="1"<?= !empty($rentPrepaid) ? ' checked' : '' ?>>
@@ -115,15 +108,15 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
                     </label>
                 <?php endif; ?>
             </div>
-            <?php if ($boothRentals && $cycleFrozen): ?>
+            <?php if ($showRent && $cycleFrozen): ?>
                 <p>Cycle day <?= View::text((string) $cycleDay) ?></p>
-            <?php elseif ($boothRentals): ?>
+            <?php elseif ($showRent): ?>
                 <label for="rent_cycle_day">Cycle day</label>
                 <input class="input" id="rent_cycle_day" name="rent_cycle_day" inputmode="numeric" min="1" max="28" value="<?= View::text((string) $cycleDay) ?>" required>
-            <?php else: ?>
+            <?php elseif (!$consignmentOnly): ?>
                 <p>This mall does not charge booth rent.</p>
             <?php endif; ?>
-            <?php if ($boothRentals): ?>
+            <?php if ($showRent): ?>
                 <p><?= View::text($rentSentence) ?></p>
                 <?php
                 $lateFees = ($lateFees ?? false) === true;
@@ -176,8 +169,16 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
                     <option value="<?= View::text($zone) ?>"<?= $zone === $timeZone ? ' selected' : '' ?>><?= View::text(ZoneName::label($zone)) ?></option>
                 <?php endforeach; ?>
             </select>
-            <p class="muted text-sm">This is the clock the mall uses for today, rent, and receipts.</p>
+            <p class="muted text-sm"><?= $consignmentOnly
+                ? 'This is the clock the store uses for today and receipts.'
+                : 'This is the clock the mall uses for today, rent, and receipts.' ?></p>
         </div>
+        <?php if ($consignmentOnly): ?>
+            <input type="hidden" name="booth_width_ft" value="<?= View::text((string) $boothWidth) ?>">
+            <input type="hidden" name="booth_depth_ft" value="<?= View::text((string) $boothDepth) ?>">
+            <input type="hidden" name="floor_width_ft" value="<?= View::text((string) $floorWidth) ?>">
+            <input type="hidden" name="floor_depth_ft" value="<?= View::text((string) $floorDepth) ?>">
+        <?php else: ?>
         <div class="field">
             <label for="booth_width_ft">Default width (ft)</label>
             <input class="input" id="booth_width_ft" name="booth_width_ft" inputmode="numeric" value="<?= View::text($boothWidth) ?>" required>
@@ -198,6 +199,7 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             <input class="input" id="floor_depth_ft" name="floor_depth_ft" inputmode="numeric" value="<?= View::text($floorDepth) ?>" required>
             <p class="muted text-sm">The map draws the floor this deep.</p>
         </div>
+        <?php endif; ?>
         <div class="field">
             <label for="label_stock">Stickers we use</label>
             <select class="select" id="label_stock" name="label_stock">
@@ -229,7 +231,7 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             <?php endforeach; ?>
             </div>
         </div>
-        <?php if (!empty($consignmentEnabled)): ?>
+        <?php if (!$boothMall && !empty($consignmentEnabled)): ?>
         <div class="field">
             <label for="floor_days">Days on the floor</label>
             <input class="input" id="floor_days" name="floor_days" inputmode="numeric" value="<?= View::text($floorDays) ?>">
@@ -250,12 +252,14 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
         <div class="field">
             <label for="receipt_footer">Footer</label>
             <textarea class="textarea" id="receipt_footer" name="receipt_footer" maxlength="400" rows="3"><?= View::text($receiptFooter) ?></textarea>
-            <p class="muted text-sm">Printed at the bottom of a sale receipt and a rent receipt. Leave this empty and those receipts have no footer.</p>
+            <p class="muted text-sm"><?= $consignmentOnly
+                ? 'Printed at the bottom of a sale receipt. Leave this empty and those receipts have no footer.'
+                : 'Printed at the bottom of a sale receipt and a rent receipt. Leave this empty and those receipts have no footer.' ?></p>
         </div>
         <div class="field">
             <label for="receipt_mail_via">Mail Server</label>
             <select class="input" id="receipt_mail_via" name="receipt_mail_via">
-                <?php foreach (['server' => 'Mail Server', 'gmail' => 'This mall\'s Gmail'] as $value => $label): ?>
+                <?php foreach (['server' => 'Mail Server', 'gmail' => $consignmentOnly ? 'This store\'s Gmail' : 'This mall\'s Gmail'] as $value => $label): ?>
                     <option value="<?= View::text($value) ?>"<?= ($receiptMailVia ?? 'server') === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
                 <?php endforeach; ?>
             </select>

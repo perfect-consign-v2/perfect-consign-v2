@@ -67,7 +67,10 @@ final class MallMoneyForm
             );
             $shop = $this->payouts->getPostedShop(
                 $this->app->request()->field('shop_flags'),
-                $this->app->request()->field('consignment_enabled'),
+                MallPayoutSettings::getPostedConsignment(
+                    $this->app->request()->field('operating_mode'),
+                    $this->app->request()->field('consignment_enabled'),
+                ),
                 $this->app->request()->field('store_stock_enabled'),
             );
             $this->payouts->save(

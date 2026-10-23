@@ -33,6 +33,7 @@ foreach ($pack as $row) {
         $owesTotal += $row['owes'];
     }
 }
+$consignmentOnly = ($consignmentOnly ?? false) === true;
 $words = ['credit_only' => 'store credit only', 'hold' => 'hold'];
 $paid = $savedStatus === 'paid';
 $heading = $monthName . ' payout';
@@ -60,14 +61,21 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
     <div class="card-body">
         <?php
         ListTable::open(['id' => 'pay-vendors', 'export' => 'pay-vendors', 'order' => [[0, 'asc']], 'fit' => true]);
-        ListTable::head([
-            ['label' => 'Vendor', 'token' => 'id'],
-            ['label' => 'Booth'],
-            ['label' => 'They earned', 'sort' => 'num'],
-            ['label' => 'Rent', 'sort' => 'num'],
-            ['label' => $paid ? 'Paid them' : 'Pay them', 'sort' => 'num'],
-            ['label' => 'Owes the store', 'sort' => 'num'],
-        ]);
+        $columns = [
+            ['label' => $consignmentOnly ? 'Consignor' : 'Vendor', 'token' => 'id'],
+        ];
+        if (!$consignmentOnly) {
+            $columns[] = ['label' => 'Booth'];
+        }
+        $columns[] = ['label' => 'They earned', 'sort' => 'num'];
+        if (!$consignmentOnly) {
+            $columns[] = ['label' => 'Rent', 'sort' => 'num'];
+        }
+        $columns[] = ['label' => $paid ? 'Paid them' : 'Pay them', 'sort' => 'num'];
+        if (!$consignmentOnly) {
+            $columns[] = ['label' => 'Owes the store', 'sort' => 'num'];
+        }
+        ListTable::head($columns);
         ?>
             <tbody>
             <?php foreach ($pack as $row): ?>
@@ -76,16 +84,24 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
                         <a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($row['vendor_id']) ?>">(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></a>
                         <?php if (($row['note'] ?? '') !== ''): ?><p class="muted"><?= View::text($row['note']) ?></p><?php endif; ?>
                     </td>
+                    <?php if (!$consignmentOnly): ?>
                     <td><?= View::text($row['booth'] === '' ? '—' : $row['booth']) ?></td>
+                    <?php endif; ?>
                     <td><?= View::text(View::money($row['payable'])) ?></td>
+                    <?php if (!$consignmentOnly): ?>
                     <td><?= View::text(View::money($row['monthRent'])) ?></td>
+                    <?php endif; ?>
                     <td><?php if ($paid && $row['check'] > 0): ?>Paid <?= View::text(View::money($row['check'])) ?><?php elseif ($paid): ?>No payment<?php else: ?><span class="payout-due"><?= View::text(View::money($row['check'])) ?></span><?php endif; ?></td>
+                    <?php if (!$consignmentOnly): ?>
                     <td><?php if ($row['owes'] > 0): ?><a class="owe-amount" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>">(<?= View::text(View::money($row['owes'])) ?>)</a><?php endif; ?></td>
+                    <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
+        <?php if (!$consignmentOnly): ?>
         <p>Rent comes out of what they earned.</p>
+        <?php endif; ?>
         <p class="muted"><?= View::text((string) $checks) ?> <?= $savedStatus === 'paid' ? 'paid' : 'to pay' ?>, <?= View::text(View::money($checkTotal)) ?>. <?= View::text((string) $owesCount) ?> owe the store, <?= View::text(View::money($owesTotal)) ?>.</p>
     </div>
 </div>
@@ -99,11 +115,11 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
 <div class="stack mt-6 no-print payout-next">
     <?php if ($savedRun !== '' && $savedTender === 'check' && $paid): ?>
         <a class="btn btn-primary" href="/<?= View::text($slug) ?>/payouts/checks?run=<?= View::text($savedRun) ?>">Print checks</a>
-        <a class="text-link" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each vendor's sales</a>
+        <a class="text-link" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each <?= $consignmentOnly ? 'consignor' : 'vendor' ?>'s sales</a>
         <button class="text-link" type="button" onclick="window.print()">Print this list</button>
     <?php elseif ($savedRun !== ''): ?>
         <button class="btn" type="button" onclick="window.print()">Print this list</button>
-        <a class="text-link" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each vendor's sales</a>
+        <a class="text-link" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each <?= $consignmentOnly ? 'consignor' : 'vendor' ?>'s sales</a>
     <?php else: ?>
         <button class="btn" type="button" onclick="window.print()">Print this list</button>
         <form class="pay-vendors" method="post" action="/<?= View::text($slug) ?>/payouts/close">
@@ -118,7 +134,7 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
             <input class="input" id="override_user" name="override_user" autocomplete="off">
             <label for="override_password">Their password</label>
             <input class="input" id="override_password" name="override_password" type="password" autocomplete="off">
-            <button class="btn btn-primary" type="submit">Pay these vendors</button>
+            <button class="btn btn-primary" type="submit">Pay these <?= $consignmentOnly ? 'consignors' : 'vendors' ?></button>
         </form>
     <?php endif; ?>
 </div>

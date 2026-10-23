@@ -20,14 +20,16 @@ $memoValue = $memo !== '' ? $memo : 'Bought for the business, not for resale';
 $dateValue = $postingDate !== '' ? $postingDate : $today;
 ?>
 <h1>Buy for the store</h1>
-<p class="muted">The store is buying this from the vendor for the business, not to resell. The vendor is paid the agreed price. No money goes in the drawer.</p>
+<p class="muted"><?= !empty($consignmentOnly)
+    ? 'The store is buying this from the consignor for the business, not to resell. The consignor is paid the agreed price. No money goes in the drawer.'
+    : 'The store is buying this from the vendor for the business, not to resell. The vendor is paid the agreed price. No money goes in the drawer.' ?></p>
 <?php if ($error !== null && $error !== '') { ?>
     <p class="error"><?= View::text($error) ?></p>
 <?php } ?>
 <form method="post" action="/<?= View::text($slug) ?>/store-use">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
     <input type="hidden" name="form_token" value="<?= View::text($formToken) ?>">
-    <label for="vendor_id">Vendor</label>
+    <label for="vendor_id"><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?></label>
     <select id="vendor_id" name="vendor_id" required>
         <option value="">Choose</option>
         <?php foreach ($vendors as $vendor) { ?>

@@ -18,6 +18,30 @@ final class MallPayoutSettings
         return RowValue::string($this->row()['operating_mode'] ?? null);
     }
 
+    /**
+     * @return array{rentals: bool, consignment: bool}
+     */
+    public static function capabilities(string $operatingMode): array
+    {
+        return match ($operatingMode) {
+            'consignor' => ['rentals' => false, 'consignment' => true],
+            'booth_mall' => ['rentals' => true, 'consignment' => false],
+            default => ['rentals' => true, 'consignment' => true],
+        };
+    }
+
+    public static function getPostedConsignment(string $operatingMode, string $field): string
+    {
+        if ($operatingMode === '') {
+            return $field;
+        }
+        if (self::capabilities($operatingMode)['consignment']) {
+            return '1';
+        }
+
+        return '0';
+    }
+
     public function payoutCadence(): string
     {
         return RowValue::string($this->row()['payout_cadence'] ?? null);

@@ -21,27 +21,32 @@ $sections = [
 ];
 $currentBooth = $vendor['current'][0]['booth_code'] ?? '';
 $blank = '—';
+$consignmentOnly = ($consignmentOnly ?? false) === true;
+$partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
+$partyOne = $consignmentOnly ? 'consignor' : 'vendor';
 
 ?>
 <article id="vendor-<?= View::text($vendor['id']) ?>">
     <div class="page-head">
         <div class="titles">
             <nav class="breadcrumb">
-                <a href="/<?= View::text($slug) ?>/parties">Vendors</a><span class="sep">/</span>
+                <a href="/<?= View::text($slug) ?>/parties"><?= View::text($partyLabel) ?></a><span class="sep">/</span>
                 <span><?= View::text($vendor['code']) ?></span>
             </nav>
             <h1 class="h1"><?= View::text($vendor['name']) ?></h1>
             <ul class="vendor-pills">
                 <li><span class="badge badge-accent"><?= View::text($vendor['code']) ?></span></li>
                 <li><span class="badge <?= View::text($vendor['status_badge']) ?>"><?= View::text($vendor['status_label']) ?></span></li>
+                <?php if (!$consignmentOnly): ?>
                 <li><span class="badge"><?= $currentBooth === '' ? 'Unassigned' : View::text($currentBooth) ?></span></li>
+                <?php endif; ?>
                 <?php if ($vendor['store_take_overridden']): ?>
                     <li><span class="badge badge-warning">Overridden</span></li>
                 <?php endif; ?>
             </ul>
         </div>
         <div class="row gap-2">
-            <a class="btn" href="<?= View::text(VendorPreview::with('/' . $slug . '/vendor', $vendor['id'])) ?>" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-vendor"></use></svg> Open as vendor</a>
+            <a class="btn" href="<?= View::text(VendorPreview::with('/' . $slug . '/vendor', $vendor['id'])) ?>" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-vendor"></use></svg> Open as <?= View::text($partyOne) ?></a>
             <a class="btn" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
         </div>
     </div>
@@ -52,18 +57,18 @@ $blank = '—';
             <div class="stat-label">Their share of sales</div>
             <div class="stat-value"><?= View::text(View::money($vendor['payable_minor'])) ?></div>
         </div>
-        <?php if ($vendor['rent_from_sales']): ?>
+        <?php if (!$consignmentOnly && $vendor['rent_from_sales']): ?>
             <div class="stat vendor-fig-rent">
                 <div class="stat-label">Rent from their share</div>
                 <div class="stat-value"><?= View::text(View::money($vendor['settled_minor'])) ?></div>
             </div>
-        <?php elseif ($vendor['owes_minor'] > 0): ?>
+        <?php elseif (!$consignmentOnly && $vendor['owes_minor'] > 0): ?>
             <a class="stat stat-link stat-action vendor-fig-rent" href="/<?= View::text($slug) ?>/rent?<?= View::text(http_build_query(['q' => $vendor['name'], 'standing' => 'owed'])) ?>">
                 <div class="stat-label">Owes the store</div>
                 <div class="stat-value"><?= View::text(View::money($vendor['owes_minor'])) ?></div>
                 <div class="stat-delta">Collect rent</div>
             </a>
-        <?php else: ?>
+        <?php elseif (!$consignmentOnly): ?>
             <div class="stat vendor-fig-rent">
                 <div class="stat-label">Open rent</div>
                 <div class="stat-value"><?= View::text(View::money($vendor['rent_minor'])) ?></div>
@@ -73,9 +78,9 @@ $blank = '—';
             <a class="stat stat-link stat-action vendor-fig-pay" href="/<?= View::text($slug) ?>/payout?vendor=<?= View::text($vendor['id']) ?>">
                 <div class="stat-label">We pay them</div>
                 <div class="stat-value"><?= View::text(View::money($vendor['check_minor'])) ?></div>
-                <div class="stat-delta">Pay this vendor</div>
+                <div class="stat-delta">Pay this <?= View::text($partyOne) ?></div>
             </a>
-        <?php elseif ($vendor['rent_from_sales'] && $vendor['owes_minor'] > 0): ?>
+        <?php elseif (!$consignmentOnly && $vendor['rent_from_sales'] && $vendor['owes_minor'] > 0): ?>
             <a class="stat stat-link stat-action vendor-fig-pay" href="/<?= View::text($slug) ?>/rent?<?= View::text(http_build_query(['q' => $vendor['name'], 'standing' => 'owed'])) ?>">
                 <div class="stat-label">Owes the store</div>
                 <div class="stat-value"><?= View::text(View::money($vendor['owes_minor'])) ?></div>
@@ -128,7 +133,7 @@ $blank = '—';
                                 </dd>
                             </div>
                             <div class="record-row">
-                                <dt>Mall default</dt>
+                                <dt><?= $consignmentOnly ? 'Store default' : 'Mall default' ?></dt>
                                 <dd><?= View::text($vendor['default_store_take']) ?>%</dd>
                             </div>
                         </dl>
@@ -161,6 +166,7 @@ $blank = '—';
                     </div>
                 </section>
             </div>
+            <?php if (!$consignmentOnly): ?>
             <div class="vendor-stays">
                 <?php if ($vendor['current'] === [] && $vendor['upcoming'] === [] && $vendor['past'] === []): ?>
                     <div class="card">
@@ -218,8 +224,10 @@ $blank = '—';
                     </div>
                 <?php endforeach; ?>
             </div>
+            <?php endif; ?>
         </div>
 
+        <?php if (!$consignmentOnly): ?>
         <div class="vendor-work">
             <div class="card">
                 <div class="card-head"><div class="h3">Assign a booth</div></div>
@@ -304,6 +312,7 @@ $blank = '—';
                 </script>
             </div>
         </div>
+        <?php endif; ?>
     </div>
     </div>
     <?php
@@ -315,7 +324,7 @@ $blank = '—';
         }
     }
     ?>
-    <?php if (is_array($openStay)): ?>
+    <?php if (!$consignmentOnly && is_array($openStay)): ?>
         <form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/move">
             <div class="card-head"><div class="h3">Move to another booth</div></div>
             <div class="card-body stack">
@@ -349,7 +358,7 @@ $blank = '—';
         </form>
     <?php endif; ?>
     <form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/sign-in" autocomplete="off">
-        <div class="card-head"><div class="h3">Vendor sign-in</div></div>
+        <div class="card-head"><div class="h3"><?= $consignmentOnly ? 'Consignor sign-in' : 'Vendor sign-in' ?></div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <?php if ($signIn === null): ?>

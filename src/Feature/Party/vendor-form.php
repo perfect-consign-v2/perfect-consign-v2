@@ -28,7 +28,10 @@ $phoneText = is_string($phone) ? $phone : '';
 $emailText = is_string($email) ? $email : '';
 $addressText = is_string($address) ? $address : '';
 $display = $firstText !== '' && $firstText === $lastText ? $firstText : trim($firstText . ' ' . $lastText);
-$heading = $editing && $display !== '' ? $display : ($editing ? 'Edit vendor' : 'New vendor');
+$consignmentOnly = ($consignmentOnly ?? false) === true;
+$partyOne = $consignmentOnly ? 'consignor' : 'vendor';
+$partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
+$heading = $editing && $display !== '' ? $display : ($editing ? 'Edit ' . $partyOne : 'New ' . $partyOne);
 $agreementStart = is_array($vendor) && is_string($vendor['agreement_starts_on'] ?? null) ? $vendor['agreement_starts_on'] : '';
 $agreementEnd = is_array($vendor) && is_string($vendor['agreement_ends_on'] ?? null) ? $vendor['agreement_ends_on'] : '';
 $taxId = is_array($vendor) && is_string($vendor['tax_id'] ?? null) ? $vendor['tax_id'] : '';
@@ -47,7 +50,7 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
 <div class="page-head">
     <div class="titles">
         <nav class="breadcrumb">
-            <a href="/<?= View::text($slug) ?>/parties">Vendors</a><span class="sep">/</span>
+            <a href="/<?= View::text($slug) ?>/parties"><?= View::text($partyLabel) ?></a><span class="sep">/</span>
             <?php if ($editing): ?>
                 <a href="/<?= View::text($slug) ?>/vendors/<?= View::text($id) ?>"><?= View::text($crumb) ?></a><span class="sep">/</span>
             <?php endif; ?>
@@ -74,12 +77,12 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
                 <div class="field">
                     <label for="code">Code</label>
                     <input class="input" id="code" name="code" value="<?= View::text($codeText) ?>" required>
-                    <p class="muted text-sm">The code is how this mall finds the vendor.</p>
+                    <p class="muted text-sm"><?= $consignmentOnly ? 'The code is how this store finds the consignor.' : 'The code is how this mall finds the vendor.' ?></p>
                 </div>
                 <div class="field">
                     <label for="business_name">Business name</label>
                     <input class="input" id="business_name" name="business_name" value="<?= View::text(is_string($vendor['business_name'] ?? null) ? $vendor['business_name'] : '') ?>">
-                    <p class="muted text-sm">Shown on the list and the receipt when this vendor is a shop or a couple.</p>
+                    <p class="muted text-sm"><?= $consignmentOnly ? 'Shown on the list and the receipt when this consignor is a shop or a couple.' : 'Shown on the list and the receipt when this vendor is a shop or a couple.' ?></p>
                 </div>
                 <div class="vendor-pair">
                     <div class="field">
@@ -120,7 +123,9 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
                 <div class="field">
                     <label for="store_take">Store take<?php if ($overridden): ?> <span class="badge badge-warning">Overridden</span><?php endif; ?></label>
                     <input class="input" id="store_take" name="store_take" inputmode="decimal" value="<?= View::text($storeTake) ?>">
-                    <p class="muted text-sm">Mall default is <?= View::text($defaultStoreTake) ?>%. Saving a different amount marks this vendor overridden.</p>
+                    <p class="muted text-sm"><?= $consignmentOnly
+                        ? 'Store default is ' . View::text($defaultStoreTake) . '%. Saving a different amount marks this consignor overridden.'
+                        : 'Mall default is ' . View::text($defaultStoreTake) . '%. Saving a different amount marks this vendor overridden.' ?></p>
                 </div>
             </div>
         </section>
@@ -202,8 +207,8 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
     </div>
 
     <div class="vendor-save">
-        <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create vendor' ?></button>
-        <?php if (!$editing): ?>
+        <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create ' . View::text($partyOne) ?></button>
+        <?php if (!$editing && !$consignmentOnly): ?>
             <p class="muted text-sm">After you create them, assign a booth.</p>
         <?php endif; ?>
     </div>
@@ -214,7 +219,9 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
     <div class="card vendor-danger">
         <div class="card-head"><div class="h3">Standing</div></div>
         <div class="card-body stack">
-            <p class="muted text-sm">A vendor who is still owed, or who still owes rent, cannot be made inactive. Delete is refused once this vendor has a booth assignment or a posted line.</p>
+            <p class="muted text-sm"><?= $consignmentOnly
+                ? 'A consignor who is still owed cannot be made inactive. Delete is refused once this consignor has a posted line.'
+                : 'A vendor who is still owed, or who still owes rent, cannot be made inactive. Delete is refused once this vendor has a booth assignment or a posted line.' ?></p>
             <div class="row gap-3 wrap">
                 <form method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($id) ?>/standing">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

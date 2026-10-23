@@ -26,6 +26,7 @@ final class MallTenantReset
         } finally {
             $this->restoreOwner($pdo, $owner);
         }
+        (new ShopTenantReset())->load();
 
         return $schema;
     }

@@ -31,6 +31,11 @@ $warning = $warning ?? null;
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $showBrand = ($showBrand ?? true) === true;
 $boothRentals = ($boothRentals ?? true) === true;
+$consignmentOnly = ($consignmentOnly ?? false) === true;
+$partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
+$payLabel = $consignmentOnly ? 'Pay consignors' : 'Pay vendors';
+$memoLabel = $consignmentOnly ? 'Consignor memo' : 'Vendor memo';
+$portalLabel = $consignmentOnly ? 'Consignor' : 'Vendor';
 $actorRole = is_string($actorRole ?? null) ? $actorRole : '';
 $previewAs = is_string($previewAs ?? null) ? $previewAs : '';
 $resetTestData = getenv('STALL_ALLOW_TENANT_RESET') === '1'
@@ -46,14 +51,14 @@ if ($actorRole === 'owner') {
             ['/customers', 'Customers', 'i-vendor'],
         ],
         'Floor' => [
-            ['/parties', 'Vendors', 'i-vendor'],
+            ['/parties', $partyLabel, 'i-vendor'],
             ['/inventory', 'Inventory', 'i-inventory'],
             ['/booths', 'Booths', 'i-booth'],
             ['/map', 'Map', 'i-map'],
         ],
         'Money' => [
             ['/rent', 'Rent', 'i-booth'],
-            ['/payouts', 'Pay vendors', 'i-wallet'],
+            ['/payouts', $payLabel, 'i-wallet'],
             ['/month', 'This month', 'i-report'],
         ],
         'Setup' => [
@@ -77,7 +82,7 @@ if ($actorRole === 'owner') {
         ['/adjustment', 'Fix a mistake', 'i-edit'],
         ['/missed-sale', 'Missed sale', 'i-edit'],
         ['/store-use', 'Buy for the store', 'i-edit'],
-        ['/vendor-memo', 'Vendor memo', 'i-edit'],
+        ['/vendor-memo', $memoLabel, 'i-edit'],
         ['/tax', 'Sales tax', 'i-percent'],
         ['/book', 'Accounts', 'i-report'],
         ['/gift-certificates', 'Gift certificates', 'i-receipt'],
@@ -98,7 +103,7 @@ if ($actorRole === 'books') {
             ['/sales', 'Sales', 'i-report'],
             ['/month', 'This month', 'i-report'],
             ['/rent', 'Rent', 'i-booth'],
-            ['/payouts', 'Pay vendors', 'i-wallet'],
+            ['/payouts', $payLabel, 'i-wallet'],
             ['/journals', 'Money record', 'i-receipt'],
             ['/reports', 'Reports', 'i-report'],
         ],
@@ -115,7 +120,7 @@ if ($actorRole === 'cashier') {
 }
 if ($actorRole === 'vendor') {
     $groups = [
-        'Vendor' => [
+        $portalLabel => [
             ['/vendor', 'Check', 'i-wallet'],
             ['/vendor/sales', 'Sales', 'i-report'],
             ['/vendor/inventory', 'Inventory', 'i-inventory'],
@@ -125,7 +130,7 @@ if ($actorRole === 'vendor') {
 }
 if ($previewAs !== '') {
     $groups = [
-        'Vendor' => [
+        $portalLabel => [
             ['/vendor', 'Check', 'i-wallet'],
             ['/vendor/sales', 'Sales', 'i-report'],
             ['/vendor/inventory', 'Inventory', 'i-inventory'],
@@ -133,12 +138,20 @@ if ($previewAs !== '') {
         ],
     ];
 }
-if (!$boothRentals) {
+$hiddenNav = [];
+if (!$boothRentals || $consignmentOnly) {
+    $hiddenNav = ['/booths', '/rent', '/wait-list', '/map'];
+}
+if ($consignmentOnly) {
+    $hiddenNav[] = '/mall-sale';
+    $hiddenNav[] = '/booth-extras';
+}
+if ($hiddenNav !== []) {
     foreach ($groups as $name => $links) {
         $kept = [];
         foreach ($links as $link) {
             $navPath = is_string($link[0] ?? null) ? $link[0] : '';
-            if (!in_array($navPath, ['/booths', '/rent', '/wait-list', '/map'], true)) {
+            if (!in_array($navPath, $hiddenNav, true)) {
                 $kept[] = $link;
             }
         }
@@ -148,7 +161,7 @@ if (!$boothRentals) {
 $roleLabel = match ($actorRole) {
     'owner' => 'Owner',
     'cashier' => 'Cashier',
-    'vendor' => 'Vendor',
+    'vendor' => $portalLabel,
     'books' => 'Books',
     default => '',
 };
@@ -333,7 +346,7 @@ $roleLabel = match ($actorRole) {
         </header>
         <main class="content" id="main">
             <?php if ($previewAs !== ''): ?>
-                <p class="muted">You are signed in as the owner, looking at this vendor's portal. <a href="/<?= View::text($slug) ?>/vendors/<?= View::text($previewAs) ?>">Back to their record</a></p>
+                <p class="muted">You are signed in as the owner, looking at this <?= $consignmentOnly ? 'consignor' : 'vendor' ?>'s portal. <a href="/<?= View::text($slug) ?>/vendors/<?= View::text($previewAs) ?>">Back to their record</a></p>
             <?php endif; ?>
 <?php else: ?>
 <main id="main">

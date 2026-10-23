@@ -6,8 +6,11 @@ namespace PerfectConsign\Tests\Feature\Mall;
 
 use PDO;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
+use ReflectionProperty;
 
 final class MallPayoutSettingsTest extends TestCase
 {
@@ -25,6 +28,44 @@ final class MallPayoutSettingsTest extends TestCase
         }
         self::assertFalse($this->settings($this->row(0, 'f'))->rentPrepaid());
         self::assertFalse($this->settings($this->row(0, 0))->rentPrepaid());
+    }
+
+    public function testTheOperatingModeSetsRentAndConsignment(): void
+    {
+        self::assertSame(
+            ['rentals' => false, 'consignment' => true],
+            MallPayoutSettings::capabilities('consignor')
+        );
+        self::assertSame(
+            ['rentals' => true, 'consignment' => false],
+            MallPayoutSettings::capabilities('booth_mall')
+        );
+        self::assertSame(
+            ['rentals' => true, 'consignment' => true],
+            MallPayoutSettings::capabilities('both')
+        );
+        self::assertSame(
+            ['rentals' => true, 'consignment' => true],
+            MallPayoutSettings::capabilities('other')
+        );
+        self::assertSame('1', MallPayoutSettings::getPostedConsignment('', '1'));
+        self::assertSame('', MallPayoutSettings::getPostedConsignment('', ''));
+        self::assertSame('1', MallPayoutSettings::getPostedConsignment('consignor', '0'));
+        self::assertSame('0', MallPayoutSettings::getPostedConsignment('booth_mall', '1'));
+        self::assertSame('1', MallPayoutSettings::getPostedConsignment('both', '0'));
+        $rows = $this->createStub(Statements::class);
+        $rows->method('rows')->willReturnOnConsecutiveCalls(
+            [['operating_mode' => 'consignor']],
+            [['operating_mode' => 'consignor']],
+            [['operating_mode' => 'both']],
+            [['operating_mode' => 'both']],
+        );
+        $mall = (new ReflectionClass(MallSettings::class))->newInstanceWithoutConstructor();
+        (new ReflectionProperty(MallSettings::class, 'statements'))->setValue($mall, $rows);
+        self::assertTrue($mall->isConsignmentOnly());
+        self::assertSame('Consignors', $mall->getPartyLabel('Vendors', 'Consignors'));
+        self::assertFalse($mall->isConsignmentOnly());
+        self::assertSame('Vendors', $mall->getPartyLabel('Vendors', 'Consignors'));
     }
 
     public function testAPostedShopKeepsTheStoredFlagsUntilTheFormSendsThem(): void

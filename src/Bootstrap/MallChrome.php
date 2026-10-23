@@ -46,9 +46,9 @@ final class MallChrome
         return $away;
     }
 
-    public function rentHome(string $slug, bool $open, bool $enabled): ?string
+    public function rentHome(string $slug, bool $open, bool $enabled, string $shop = ''): ?string
     {
-        if (!$open || $enabled || !$this->rentPage($slug)) {
+        if (!$open || !$this->rentPage($slug, $enabled, $shop)) {
             return null;
         }
         $role = $this->door->actor()->role();
@@ -101,14 +101,31 @@ final class MallChrome
             && VendorPreview::token($this->request->query('as')) !== '';
     }
 
-    private function rentPage(string $slug): bool
+    public function closedRentNote(string $shop): string
+    {
+        if ($shop === 'consignment') {
+            return 'This store does not use booths.';
+        }
+
+        return 'This mall does not charge booth rent.';
+    }
+
+    private function rentPage(string $slug, bool $rentalsEnabled, string $shop): bool
     {
         $root = '/' . $slug . '/';
         if (!str_starts_with($this->request->path, $root)) {
             return false;
         }
         $rest = substr($this->request->path, strlen($root));
-        foreach (['rent', 'booths', 'wait-list', 'map'] as $page) {
+        $pages = [];
+        if (!$rentalsEnabled || $shop === 'consignment') {
+            $pages = ['rent', 'booths', 'wait-list', 'map'];
+        }
+        if ($shop === 'consignment') {
+            $pages[] = 'mall-sale';
+            $pages[] = 'booth-extras';
+        }
+        foreach ($pages as $page) {
             if ($rest === $page || str_starts_with($rest, $page . '/')) {
                 return true;
             }

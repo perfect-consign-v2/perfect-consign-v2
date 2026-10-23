@@ -77,7 +77,7 @@ final class PartyController
         }
         if ($error === null) {
             $this->parties->setPayoutMode($id, $this->app->request()->field('payout_mode'));
-            $this->app->redirect($this->vendorPath($slug, $id), 'Vendor created.');
+            $this->app->redirect($this->vendorPath($slug, $id), $this->mall->getPartyLabel('Vendor created.', 'Consignor created.'));
         }
         $this->forms->form($slug, [
             'code' => $code,
@@ -156,7 +156,7 @@ final class PartyController
         }
         if ($error === null) {
             $this->parties->setPayoutMode($id, $this->app->request()->field('payout_mode'));
-            $this->app->redirect($this->vendorPath($slug, $id), 'Vendor saved.');
+            $this->app->redirect($this->vendorPath($slug, $id), $this->mall->getPartyLabel('Vendor saved.', 'Consignor saved.'));
         }
         $this->forms->form($slug, [
             'id' => $id,
@@ -201,7 +201,10 @@ final class PartyController
         }
         $this->app->redirect(
             '/' . $slug . '/vendors/' . $id . '/edit',
-            $inactive ? 'Vendor is inactive.' : 'Vendor is active.'
+            $this->mall->getPartyLabel(
+                $inactive ? 'Vendor is inactive.' : 'Vendor is active.',
+                $inactive ? 'Consignor is inactive.' : 'Consignor is active.',
+            )
         );
     }
 
@@ -219,7 +222,7 @@ final class PartyController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/parties', 'Vendor deleted.');
+            $this->app->redirect('/' . $slug . '/parties', $this->mall->getPartyLabel('Vendor deleted.', 'Consignor deleted.'));
         }
         $vendor = $this->parties->findVendor($id);
         if ($vendor === null) {
@@ -326,7 +329,7 @@ final class PartyController
         $query = $this->app->request()->query('q');
         $status = $this->roster->selected($this->app->request()->query('status'));
         $this->app->show('Feature/Party/parties', [
-            'title' => 'Vendors',
+            'title' => $this->mall->getPartyLabel('Vendors', 'Consignors'),
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'stats' => $assembled['stats'],

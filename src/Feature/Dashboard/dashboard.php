@@ -21,6 +21,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $rentMonth */
 /** @var string $activeSessionId */
 $activeSessionId = is_string($activeSessionId ?? null) ? $activeSessionId : '';
+$consignmentOnly = ($consignmentOnly ?? false) === true;
 $blank = '—';
 ?>
 <?php if (($overdueJobs ?? 0) > 0): ?>
@@ -29,7 +30,7 @@ $blank = '—';
 <div class="page-head">
     <div class="titles">
         <h1 class="h1"><?= View::text($greeting) ?></h1>
-        <p class="muted">Who owes rent, what sold today, and who gets a check.</p>
+        <p class="muted"><?= $consignmentOnly ? 'What sold today, and who gets a check.' : 'Who owes rent, what sold today, and who gets a check.' ?></p>
     </div>
     <div class="row gap-2">
         <a class="btn" href="/<?= View::text($slug) ?>/sales"><svg aria-hidden="true"><use href="#i-report"></use></svg> Today's sales</a>
@@ -46,7 +47,7 @@ $blank = '—';
         <?php endif; ?>
     </a>
     <a class="stat" href="/<?= View::text($slug) ?>/payouts">
-        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-vendor"></use></svg> Vendor payables</div>
+        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-vendor"></use></svg> <?= $consignmentOnly ? 'Consignor payables' : 'Vendor payables' ?></div>
         <div class="stat-value"><?= View::text($picture['payables']['amount']) ?></div>
         <div class="stat-delta muted"><?= View::text($picture['payables']['caption']) ?></div>
     </a>
@@ -93,6 +94,7 @@ $blank = '—';
             </table>
         </div>
     </div>
+    <?php if (!$consignmentOnly): ?>
     <div class="card">
         <div class="card-head"><div class="h3">Booth occupancy</div></div>
         <div class="card-body">
@@ -111,6 +113,7 @@ $blank = '—';
             </div>
         </div>
     </div>
+    <?php endif; ?>
 </div>
 
 <div class="grid cols-2 mt-6">
@@ -146,6 +149,7 @@ $blank = '—';
             </table>
         </div>
     </div>
+    <?php if (!$consignmentOnly): ?>
     <div class="card">
         <div class="card-head">
             <div class="h3">Rent due</div>
@@ -209,5 +213,6 @@ $blank = '—';
             <?php endif; ?>
         </div>
     </div>
+    <?php endif; ?>
 </div>
 <?php ListTable::assets(); ?>

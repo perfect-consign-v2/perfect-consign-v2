@@ -54,6 +54,11 @@ final class MallChromeTest extends TestCase
         self::assertNull($other->rentHome('demo', true, false));
         $outside = $this->chrome($this->role('owner'), new Request('GET', '/other/rent', [], []));
         self::assertNull($outside->rentHome('demo', true, false));
+        $sale = $this->chrome($this->role('owner'), new Request('GET', '/demo/mall-sale', [], []));
+        self::assertSame('/demo/dashboard', $sale->rentHome('demo', true, true, 'consignment'));
+        self::assertNull($sale->rentHome('demo', true, true));
+        self::assertSame('This store does not use booths.', $sale->closedRentNote('consignment'));
+        self::assertSame('This mall does not charge booth rent.', $sale->closedRentNote('mall'));
     }
 
     public function testOwnerPreviewTokensAreKeptOnTheVendorPortal(): void

@@ -76,3 +76,12 @@ $owner = $pdo->prepare(
 );
 $owner->execute(['owner', $hash, 'mall']);
 fwrite(STDOUT, "sign in at /mall as owner. The password is STALL_OWNER_PASSWORD.\n");
+
+try {
+    $shop = (new PerfectConsign\Feature\Dev\ShopTenantReset())->load();
+} catch (Throwable $error) {
+    fwrite(STDERR, $error->getMessage() . "\n");
+    exit(1);
+}
+fwrite(STDOUT, $shop . "\n");
+fwrite(STDOUT, "sign in at /shop as owner. The password is STALL_OWNER_PASSWORD.\n");

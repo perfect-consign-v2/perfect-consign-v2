@@ -76,6 +76,7 @@ final class MallApp
         $data['showBrand'] = $this->roled ? $this->mall->enabled('use_brand') : true;
         $data['boothRentals'] ??= $this->roled ? $this->mall->isRentalsEnabled() : true;
         $data['consignmentEnabled'] ??= $this->roled ? $this->mall->isConsignmentEnabled() : true;
+        $data['consignmentOnly'] ??= $this->roled && $this->mall->isConsignmentOnly();
         $data['storeStockEnabled'] ??= $this->roled ? $this->mall->isStoreStockEnabled() : false;
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
         $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
@@ -165,11 +166,12 @@ final class MallApp
         if (!$this->roled) {
             return;
         }
-        $home = $this->chrome()->rentHome($slug, true, $this->mall->isRentalsEnabled());
+        $shop = $this->mall->isConsignmentOnly() ? 'consignment' : '';
+        $home = $this->chrome()->rentHome($slug, true, $this->mall->isRentalsEnabled(), $shop);
         if ($home === null) {
             return;
         }
-        $this->redirect($home, null, 'This mall does not charge booth rent.');
+        $this->redirect($home, null, $this->chrome()->closedRentNote($shop));
     }
 
     private function refuseForeign(string $slug): void

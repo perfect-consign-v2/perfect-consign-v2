@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Book;
 use InvalidArgumentException;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Http\View;
@@ -16,6 +17,7 @@ final class VendorMemoController
     public function __construct(
         private readonly MallApp $app,
         private readonly VendorMemo $memos,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -48,7 +50,7 @@ final class VendorMemoController
                 return;
             }
             $journalId = $this->memos->record($vendorId, $direction, $amount, $date, $reason);
-            $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Vendor memo posted.');
+            $this->app->redirect('/' . $slug . '/journals/' . $journalId, $this->mall->getPartyLabel('Vendor memo posted.', 'Consignor memo posted.'));
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Book/vendor-memo', $this->page(
                 $tenant->displayName,
@@ -74,7 +76,7 @@ final class VendorMemoController
     private function page(string $displayName, string $slug, ?string $error, ?int $owed): array
     {
         return [
-            'title' => 'Vendor memo',
+            'title' => $this->mall->getPartyLabel('Vendor memo', 'Consignor memo'),
             'displayName' => $displayName,
             'slug' => $slug,
             'vendors' => $this->memos->vendors(),

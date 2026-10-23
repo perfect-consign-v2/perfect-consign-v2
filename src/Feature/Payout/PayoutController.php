@@ -98,7 +98,7 @@ final class PayoutController
             }
         }
         $this->app->show('Feature/Payout/payout', [
-            'title' => 'Pay this vendor',
+            'title' => $this->mall->getPartyLabel('Pay this vendor', 'Pay this consignor'),
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'vendors' => $vendors,
