@@ -141,6 +141,7 @@ final class MallDemo
             $this->statements,
             new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
             new \PerfectConsign\Bootstrap\AuditLog($this->statements),
+            new \PerfectConsign\Shared\Http\Request('GET', '/', [], [], '', '', '127.0.0.1'),
         );
         $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)), $ceiling);
         $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements), new ReceiptChange(), $ceiling);

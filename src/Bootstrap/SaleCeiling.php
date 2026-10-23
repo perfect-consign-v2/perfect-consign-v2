@@ -6,6 +6,7 @@ namespace PerfectConsign\Bootstrap;
 
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 class SaleCeiling
@@ -14,6 +15,7 @@ class SaleCeiling
         private readonly Statements $statements,
         private readonly Actor $actor,
         private readonly AuditLog $audit,
+        private readonly Request $request,
     ) {
     }
 
@@ -109,6 +111,8 @@ class SaleCeiling
 
     private function override(string $username, string $password, string $account): string
     {
+        $username = strtolower(trim($username));
+        $this->refuseLocked($username);
         $rows = $this->statements->bound(
             'SELECT id::text AS id, password_hash FROM staff WHERE lower(username) = lower(?)',
             [$username]
@@ -117,9 +121,58 @@ class SaleCeiling
         $id = is_array($row) ? RowValue::string($row['id'] ?? null) : '';
         $hash = is_array($row) ? RowValue::string($row['password_hash'] ?? null) : '';
         if ($id === '' || $id === $account || !password_verify($password, $hash)) {
+            $this->recordFailure($username);
             throw new DatabaseRefusal('a second person has to sign this');
         }
+        $this->clearFailures($username);
 
         return $id;
+    }
+
+    private function refuseLocked(string $username): void
+    {
+        $slug = $this->actor->slug();
+        if ($slug === null || $username === '') {
+            throw new DatabaseRefusal('a second person has to sign this');
+        }
+        $rows = $this->statements->bound(
+            "SELECT count(*) AS attempts
+             FROM platform.owner_sign_in_failures
+             WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ?)
+               AND username = ?
+               AND client_address = ?
+               AND failed_at > clock_timestamp() - interval '15 minutes'",
+            [$slug, $username, $this->request->address]
+        );
+        if (RowValue::integer($rows[0]['attempts'] ?? null) >= 5) {
+            throw new DatabaseRefusal('too many sign-in attempts');
+        }
+    }
+
+    private function recordFailure(string $username): void
+    {
+        $slug = $this->actor->slug();
+        if ($slug === null || preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
+            return;
+        }
+        $this->statements->change(
+            'INSERT INTO platform.owner_sign_in_failures (tenant_id, username, client_address)
+             SELECT id, ?, ? FROM platform.tenants WHERE slug = ?',
+            [$username, $this->request->address, $slug]
+        );
+    }
+
+    private function clearFailures(string $username): void
+    {
+        $slug = $this->actor->slug();
+        if ($slug === null) {
+            return;
+        }
+        $this->statements->change(
+            'DELETE FROM platform.owner_sign_in_failures
+             WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ?)
+               AND username = ?',
+            [$slug, $username]
+        );
     }
 }
