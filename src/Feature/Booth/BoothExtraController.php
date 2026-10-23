@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Booth;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\ActiveRegister;
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
@@ -17,6 +20,9 @@ final class BoothExtraController
     public function __construct(
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
+        private readonly ActiveRegister $register,
+        private readonly Actor $actor,
+        private readonly AuditLog $audit,
     ) {
     }
 
@@ -35,16 +41,22 @@ final class BoothExtraController
     #[Route('/([a-z][a-z0-9-]{0,62})/booth-extras', ['POST'])]
     public function charge(string $slug): void
     {
-        $this->post($slug, 'booth_charge', 'booth-charge:', 'Booth charge', true);
+        $this->post($slug, 'booth_charge', 'booth-charge:', 'Booth charge', true, false);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/booth-deposit', ['POST'])]
     public function deposit(string $slug): void
     {
-        $this->post($slug, 'booth_deposit', 'booth-deposit:', 'Booth deposit', false);
+        $this->post($slug, 'booth_deposit', 'booth-deposit:', 'Booth deposit', false, false);
     }
 
-    private function post(string $slug, string $source, string $key, string $description, bool $charge): void
+    #[Route('/([a-z][a-z0-9-]{0,62})/booth-deposit/release', ['POST'])]
+    public function release(string $slug): void
+    {
+        $this->post($slug, 'booth_deposit', 'booth-deposit-release:', 'Booth deposit returned', false, true);
+    }
+
+    private function post(string $slug, string $source, string $key, string $description, bool $charge, bool $release): void
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
@@ -56,12 +68,30 @@ final class BoothExtraController
                 throw new DatabaseRefusal('a booth and a reference are required');
             }
             $amount = Money::parseMinor($request->field('amount'));
-            $debit = $charge ? 'booth_rent_receivable' : 'cash';
-            $credit = $charge ? 'booth_other_revenue' : 'booth_deposits';
+            $actor = $this->actor->name();
+            $role = $this->actor->role();
+            if ($actor === '' || $role === '') {
+                throw new DatabaseRefusal('the signed-in person is missing');
+            }
+            $session = $charge ? '' : $this->register->current($slug, true);
+            if (!$charge && $session === '') {
+                throw new DatabaseRefusal('open a register before taking a deposit');
+            }
+            if ($release) {
+                $debit = 'booth_deposits';
+                $credit = 'cash';
+            } else {
+                $debit = $charge ? 'booth_rent_receivable' : 'cash';
+                $credit = $charge ? 'booth_other_revenue' : 'booth_deposits';
+            }
             $this->ledger->post(new JournalDraft(
                 postingKey: $key . $reference,
                 postingDate: $request->field('posting_date'),
                 source: new JournalSource($source, $reference, $description),
+                sessionId: $session === '' ? null : $session,
+                beforeCommit: function (string $journalId) use ($actor, $role, $source): void {
+                    $this->audit->record($actor, $role, $source, 'journal', $journalId);
+                },
                 lines: [
                     [
                         'account_id' => $this->ledger->roleAccount($debit),

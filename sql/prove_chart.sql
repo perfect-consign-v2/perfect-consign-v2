@@ -50,7 +50,10 @@ BEGIN
             ('inventory', '1300', 'asset', 'debit', true, false, NULL),
             ('cost_of_goods', '5000', 'expense', 'debit', true, false, NULL),
             ('vendor_allowance', '6015', 'expense', 'debit', true, false, NULL),
-            ('vendor_charge', '4210', 'revenue', 'credit', true, false, NULL)
+            ('vendor_charge', '4210', 'revenue', 'credit', true, false, NULL),
+            ('returned_checks', '1290', 'asset', 'debit', true, false, NULL),
+            ('booth_other_revenue', '4220', 'revenue', 'credit', true, false, NULL),
+            ('booth_deposits', '2150', 'liability', 'credit', true, false, NULL)
     ) AS expected (role, code, account_type, normal_balance, is_postable, is_control, subledger_type)
         ON expected.role = roles.role
         AND expected.code = account.code
@@ -142,8 +145,12 @@ DECLARE
     role_count integer;
 BEGIN
     SELECT count(*) INTO role_count FROM chart_roles;
-    IF role_count <> 29 THEN
-        -- ('returned_checks', ('booth_other_revenue', ('booth_deposits',
+    IF role_count <> 29
+        OR (
+            SELECT count(*)
+            FROM chart_roles
+            WHERE role IN ('returned_checks', 'booth_other_revenue', 'booth_deposits')
+        ) <> 3 THEN
         RAISE EXCEPTION 'chart roles changed after rollback';
     END IF;
 END $$;

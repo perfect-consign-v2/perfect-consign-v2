@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Check;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -19,6 +20,7 @@ final class NsfController
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
         private readonly AuditLog $audit,
+        private readonly Actor $actor,
     ) {
     }
 
@@ -46,6 +48,11 @@ final class NsfController
                 throw new DatabaseRefusal('a source reference is required');
             }
             $amount = Money::parseMinor($request->field('amount'));
+            $actor = $this->actor->name();
+            $role = $this->actor->role();
+            if ($actor === '' || $role === '') {
+                throw new DatabaseRefusal('the signed-in person is missing');
+            }
             $journalId = $this->ledger->post(new JournalDraft(
                 postingKey: 'check-return:' . $reference,
                 postingDate: $request->field('posting_date'),
@@ -66,6 +73,9 @@ final class NsfController
                         'subledger_ref' => null,
                     ],
                 ],
+                beforeCommit: function (string $journalId) use ($actor, $role): void {
+                    $this->audit->record($actor, $role, 'check.return', 'journal', $journalId);
+                },
             ));
         } catch (DatabaseRefusal $refusal) {
             $this->fail($slug, $this->app->catchRefusal($refusal));
@@ -76,8 +86,6 @@ final class NsfController
 
             return;
         }
-        $actor = $this->app->request()->field('actor');
-        $this->audit->record($actor !== '' ? $actor : 'owner', 'owner', 'check.return', 'journal', $journalId);
         $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Bounced check posted.');
     }
 

@@ -31,6 +31,20 @@ final class Actor
         return $slug;
     }
 
+    public function name(): string
+    {
+        $name = $this->session->get('owner_name');
+        if (!is_string($name)) {
+            return '';
+        }
+        $trimmed = trim($name);
+        if ($trimmed === '' || strpbrk($trimmed, "\r\n") !== false) {
+            return '';
+        }
+
+        return $trimmed;
+    }
+
     public function role(): string
     {
         $role = $this->session->get('actor_role');

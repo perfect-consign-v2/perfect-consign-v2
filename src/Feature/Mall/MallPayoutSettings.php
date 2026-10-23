@@ -124,28 +124,38 @@ final class MallPayoutSettings
     }
 
     /**
-     * @return array{enabled: bool, grace: int, first: int, next: int}
+     * @return array{enabled: bool, grace: int, first: int, next: int, effective: string}
      */
     public function lateFee(): array
     {
         $days = RowValue::integer($this->row()['late_fee_grace_days'] ?? null);
+        $effective = $this->row()['late_fee_effective_on'] ?? null;
 
         return [
             'enabled' => $this->flag('late_fees_enabled'),
             'grace' => $days >= 0 && $days <= 28 ? $days : 0,
             'first' => max(0, RowValue::integer($this->row()['late_fee_first_minor'] ?? null)),
             'next' => max(0, RowValue::integer($this->row()['late_fee_next_minor'] ?? null)),
+            'effective' => is_string($effective) && preg_match('/^\d{4}-\d{2}-\d{2}/', $effective) === 1
+                ? substr($effective, 0, 10)
+                : '',
         ];
     }
 
     public function saveLateFees(bool $enabled, int $grace, int $first, int $next): void
     {
         $days = $grace >= 0 && $grace <= 28 ? $grace : 0;
+        $current = $this->lateFee();
+        $effective = null;
+        if ($enabled) {
+            $effective = $current['enabled'] && $current['effective'] !== '' ? $current['effective'] : date('Y-m-d');
+        }
         $this->statements->change(
             'UPDATE mall
              SET late_fees_enabled = ?::boolean, late_fee_grace_days = ?,
-                 late_fee_first_minor = ?, late_fee_next_minor = ?',
-            [$enabled ? 'true' : 'false', $days, max(0, $first), max(0, $next)]
+                 late_fee_first_minor = ?, late_fee_next_minor = ?,
+                 late_fee_effective_on = ?::date',
+            [$enabled ? 'true' : 'false', $days, max(0, $first), max(0, $next), $effective]
         );
     }
 
@@ -164,7 +174,8 @@ final class MallPayoutSettings
         $rows = $this->statements->rows(
             'SELECT operating_mode, payout_cadence, rent_prepaid_from_prior_sales,
                     booth_rentals_enabled, rent_cycle_day, consignment_enabled, store_stock_enabled,
-                    late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor
+                    late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor,
+                    late_fee_effective_on
              FROM mall'
         );
         $row = $rows[0] ?? null;

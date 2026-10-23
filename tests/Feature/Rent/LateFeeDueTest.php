@@ -67,7 +67,7 @@ final class LateFeeDueTest extends TestCase
         ]);
 
         self::assertSame([
-            [self::BOOTH, '2026-10', 1, '2026-10-21', 10],
+            [self::BOOTH, '2026-10', 1, '2026-10-11', 10],
             [self::BOOTH, '2026-10', 2, '2026-10-21', 25],
         ], $this->posted);
     }
@@ -159,6 +159,7 @@ final class LateFeeDueTest extends TestCase
             'late_fee_grace_days' => $policy['grace'],
             'late_fee_first_minor' => $policy['first'],
             'late_fee_next_minor' => $policy['next'],
+            'late_fee_effective_on' => '2000-01-01',
         ]]);
         $fees = $this->createStub(Statements::class);
         $fees->method('bound')->willReturn([]);

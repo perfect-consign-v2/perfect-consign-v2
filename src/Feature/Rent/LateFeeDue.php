@@ -42,22 +42,23 @@ final class LateFeeDue
         if ($first < 1 || $next < 1) {
             return;
         }
-        foreach ($this->due($today, $policy['grace']) as $fee) {
+        $effective = $policy['effective'] !== '' ? $policy['effective'] : $today;
+        foreach ($this->due($today, $policy['grace'], $effective) as $fee) {
             $amount = $fee['ordinal'] === 1 ? $first : $next;
-            $this->fees->post($fee['booth'], $fee['period'], $today, $amount, $fee['ordinal']);
+            $this->fees->post($fee['booth'], $fee['period'], $fee['date'], $amount, $fee['ordinal']);
         }
     }
 
     /**
      * @return list<array{booth: string, period: string, ordinal: int, date: string}>
      */
-    private function due(string $today, int $grace): array
+    private function due(string $today, int $grace, string $effective): array
     {
         $posted = $this->postedKeys();
         $due = [];
         foreach ($this->byBooth() as $booth => $book) {
             foreach ($this->unpaid($book['charges'], $book['credit']) as $period) {
-                if ($period['left'] < 1) {
+                if ($period['left'] < 1 || $period['start'] < $effective) {
                     continue;
                 }
                 foreach ($this->slots($period['start'], $today, $grace) as $index => $date) {

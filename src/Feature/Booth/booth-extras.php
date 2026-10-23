@@ -38,3 +38,16 @@ use PerfectConsign\Shared\Http\View;
     <input id="deposit_date" name="posting_date" type="date" required>
     <button type="submit">Collect deposit</button>
 </form>
+<form method="post" action="/<?= View::text($slug) ?>/booth-deposit/release">
+    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+    <p>Give a deposit back. Cash out, deposit liability down. The open register has to be the one at the desk.</p>
+    <label for="release_booth">Booth id</label>
+    <input id="release_booth" name="booth_id" required>
+    <label for="release_reference">Reference</label>
+    <input id="release_reference" name="source_reference" required>
+    <label for="release_amount">Amount</label>
+    <input id="release_amount" name="amount" inputmode="decimal" required>
+    <label for="release_date">Day</label>
+    <input id="release_date" name="posting_date" type="date" required>
+    <button type="submit">Return deposit</button>
+</form>
