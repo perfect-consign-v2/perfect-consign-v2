@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Shared\Http;
 
+use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Scalar\RowValue;
 use RuntimeException;
 
@@ -46,9 +47,7 @@ final class View
 
     public static function money(int $minor): string
     {
-        $sign = $minor < 0 ? '-' : '';
-        $absolute = abs($minor);
-        return $sign . '$' . intdiv($absolute, 100) . '.' . str_pad((string) ($absolute % 100), 2, '0', STR_PAD_LEFT);
+        return Money::format($minor);
     }
 
     public static function date(mixed $value): string
