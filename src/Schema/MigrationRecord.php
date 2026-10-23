@@ -67,13 +67,10 @@ final class MigrationRecord
             } catch (RuntimeException) {
                 throw new RuntimeException($file . ' is from an older schema; create a new database');
             }
-            if ($current === $checksum) {
+            if ($current === $checksum || $this->sameAsideFromNewlines($file, $checksum)) {
                 continue;
             }
-            if (!$this->sameAsideFromNewlines($file, $checksum)) {
-                throw new MigrationFileChanged($file . ' changed after it was applied');
-            }
-            $this->replace($schema, $file, $current);
+            throw new MigrationFileChanged($file . ' changed after it was applied');
         }
     }
 
@@ -129,17 +126,6 @@ final class MigrationRecord
         $crlf = str_replace("\n", "\r\n", $lf);
 
         return hash('sha256', $lf) === $stored || hash('sha256', $crlf) === $stored;
-    }
-
-    private function replace(string $schema, string $file, string $checksum): void
-    {
-        $statement = $this->pdo->prepare(
-            'UPDATE ' . $this->relation($schema) . ' SET checksum = ? WHERE filename = ?'
-        );
-        if ($statement === false) {
-            throw new RuntimeException('could not record ' . $file);
-        }
-        $statement->execute([$checksum, $file]);
     }
 
     private function remember(string $schema, string $file, string $checksum): void

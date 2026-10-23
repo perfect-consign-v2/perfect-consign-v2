@@ -59,8 +59,9 @@ fi
 "$php_bin" "${root}/bin/migrate.php" platform
 if ! tenant_err=$("$php_bin" "${root}/bin/migrate.php" tenant mall 2>&1); then
     printf '%s\n' "$tenant_err" >&2
-    if [[ "$tenant_err" == *"changed after it was applied"* ]]; then
-        "$php_bin" "${root}/bin/wipe-tenant.php" mall
+    if [[ "$tenant_err" == *"changed after it was applied"* || "$tenant_err" == *"create a new database"* ]]; then
+        echo "deploy-demo: refusing to wipe mall after a migration checksum change" >&2
+        exit 1
     fi
     "$php_bin" "${root}/bin/provision-tenant.php" mall "Harbor Antique Mall"
     "$php_bin" "${root}/bin/set-owner.php" mall owner
