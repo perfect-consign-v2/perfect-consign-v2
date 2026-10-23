@@ -29,13 +29,10 @@ final class JobQueue
     {
         $statement = $pdo->prepare(
             "INSERT INTO platform.jobs (tenant, kind, payload, run_at)
-             SELECT ?, ?, jsonb_build_object('date', ?), clock_timestamp()
-             WHERE NOT EXISTS (
-                 SELECT 1 FROM platform.jobs
-                 WHERE tenant = ? AND kind = ? AND payload->>'date' = ?
-             )"
+             VALUES (?, ?, jsonb_build_object('date', ?), clock_timestamp())
+             ON CONFLICT (tenant, kind, (payload ->> 'date')) DO NOTHING"
         );
-        $statement->execute([$tenant, $kind, $date, $tenant, $kind, $date]);
+        $statement->execute([$tenant, $kind, $date]);
     }
 
     /**
@@ -77,10 +74,29 @@ final class JobQueue
 
     public function finish(PDO $pdo, string $id, string $error): void
     {
+        if ($error === '') {
+            $statement = $pdo->prepare(
+                'UPDATE platform.jobs
+                 SET finished_at = clock_timestamp(), locked_by = NULL, locked_at = NULL, error = NULL
+                 WHERE id = ?::uuid'
+            );
+            $statement->execute([$id]);
+
+            return;
+        }
         $statement = $pdo->prepare(
-            'UPDATE platform.jobs SET finished_at = clock_timestamp(), locked_by = NULL, error = ? WHERE id = ?::uuid'
+            "UPDATE platform.jobs
+             SET locked_by = NULL,
+                 locked_at = NULL,
+                 error = ?,
+                 finished_at = CASE WHEN attempts >= 5 THEN clock_timestamp() ELSE NULL END,
+                 run_at = CASE
+                     WHEN attempts >= 5 THEN run_at
+                     ELSE clock_timestamp() + (attempts * interval '1 minute')
+                 END
+             WHERE id = ?::uuid"
         );
-        $statement->execute([$error === '' ? null : $error, $id]);
+        $statement->execute([$error, $id]);
     }
 
     public function overdue(PDO $pdo): int
@@ -88,6 +104,7 @@ final class JobQueue
         $query = $pdo->query(
             "SELECT count(*) FROM platform.jobs
              WHERE finished_at IS NULL
+               AND locked_at IS NULL
                AND run_at < clock_timestamp() - interval '15 minutes'"
         );
         if ($query === false) {

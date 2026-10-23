@@ -21,6 +21,11 @@ final class SmtpClient
 
     public function send(string $to, string $subject, string $body): void
     {
+        $to = $this->line($to);
+        $subject = $this->line($subject);
+        $from = $this->line($this->from);
+        $username = $this->line($this->username);
+        $password = $this->line($this->password);
         $errno = 0;
         $error = '';
         $socket = stream_socket_client(
@@ -55,12 +60,12 @@ final class SmtpClient
             }
             $this->command($socket, 'EHLO perfectconsign', 250);
             $this->command($socket, 'AUTH LOGIN', 334);
-            $this->command($socket, base64_encode($this->username), 334);
-            $this->command($socket, base64_encode($this->password), 235);
-            $this->command($socket, 'MAIL FROM:<' . $this->from . '>', 250);
+            $this->command($socket, base64_encode($username), 334);
+            $this->command($socket, base64_encode($password), 235);
+            $this->command($socket, 'MAIL FROM:<' . $from . '>', 250);
             $this->command($socket, 'RCPT TO:<' . $to . '>', 250);
             $this->command($socket, 'DATA', 354);
-            $this->write($socket, $this->payload($to, $subject, $body));
+            $this->write($socket, $this->payload($from, $to, $subject, $body));
             $this->expect($socket, 250);
             $this->command($socket, 'QUIT', 221);
         } finally {
@@ -76,9 +81,15 @@ final class SmtpClient
 
     private function expect(mixed $socket, int $expect): void
     {
-        if ($this->read($socket) !== $expect) {
-            throw new \RuntimeException('smtp send failed');
+        $status = $this->read($socket);
+        if ($status === $expect) {
+            return;
         }
+        if ($status >= 400) {
+            throw new MailDeliveryFailed($status);
+        }
+
+        throw new \RuntimeException('smtp send failed');
     }
 
     private function read(mixed $socket): int
@@ -99,7 +110,6 @@ final class SmtpClient
 
                 continue;
             }
-
             return (int) $match[1];
         }
 
@@ -113,7 +123,12 @@ final class SmtpClient
         }
     }
 
-    private function payload(string $to, string $subject, string $body): string
+    private function line(string $value): string
+    {
+        return str_replace(["\r", "\n"], '', $value);
+    }
+
+    private function payload(string $from, string $to, string $subject, string $body): string
     {
         $text = str_replace(["\r\n", "\r"], "\n", $body);
         $stuffed = preg_replace('/^\./m', '..', $text);
@@ -121,7 +136,7 @@ final class SmtpClient
             throw new \RuntimeException('smtp send failed');
         }
 
-        return 'From: <' . $this->from . ">\r\n"
+        return 'From: <' . $from . ">\r\n"
             . 'To: <' . $to . ">\r\n"
             . 'Subject: ' . $subject . "\r\n"
             . "MIME-Version: 1.0\r\n"

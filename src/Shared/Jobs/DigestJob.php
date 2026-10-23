@@ -9,8 +9,10 @@ use PerfectConsign\Feature\Vendor\VendorFigures;
 use PerfectConsign\Feature\Vendor\VendorLetter;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Mail\MailBounce;
+use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Scalar\RowValue;
+use Psr\Log\LoggerInterface;
 
 final class DigestJob
 {
@@ -18,6 +20,7 @@ final class DigestJob
         private readonly PDO $pdo,
         private readonly OutboundMail $mail,
         private readonly MailBounce $bounce,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -53,8 +56,13 @@ final class DigestJob
                     $subject,
                     VendorLetter::body(RowValue::string($vendor['name'] ?? null), $numbers['payable'], $numbers['rent'])
                 );
-            } catch (\Throwable) {
-                $this->bounce->mark($email);
+            } catch (MailDeliveryFailed $failed) {
+                $this->logger->error('mail was not delivered', ['status' => $failed->status()]);
+                if ($failed->permanent()) {
+                    $this->bounce->mark($email);
+                }
+            } catch (\RuntimeException $error) {
+                $this->logger->error('mail was not delivered', ['message' => $error->getMessage()]);
             }
         }
     }

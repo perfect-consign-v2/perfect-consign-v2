@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Jobs;
 
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Mail\MailBounce;
+use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Scalar\RowValue;
+use Psr\Log\LoggerInterface;
 
 final class SaleNoticeJob
 {
@@ -15,6 +18,7 @@ final class SaleNoticeJob
         private readonly Statements $statements,
         private readonly OutboundMail $mail,
         private readonly MailBounce $bounce,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -48,15 +52,20 @@ final class SaleNoticeJob
             if (!isset($letters[$email])) {
                 $letters[$email] = ['name' => RowValue::string($row['name'] ?? null), 'lines' => []];
             }
-            $letters[$email]['lines'][] = RowValue::string($row['code'] ?? null) . ' ' . RowValue::integer($row['net_minor'] ?? null);
+            $letters[$email]['lines'][] = RowValue::string($row['code'] ?? null) . ' ' . Money::format(RowValue::integer($row['net_minor'] ?? null));
         }
         foreach ($letters as $email => $letter) {
             $name = $letter['name'];
             $lines = $letter['lines'];
             try {
                 $this->mail->deliver($email, 'Sold today', $name . "\n" . implode("\n", $lines));
-            } catch (\Throwable) {
-                $this->bounce->mark($email);
+            } catch (MailDeliveryFailed $failed) {
+                $this->logger->error('mail was not delivered', ['status' => $failed->status()]);
+                if ($failed->permanent()) {
+                    $this->bounce->mark($email);
+                }
+            } catch (\RuntimeException $error) {
+                $this->logger->error('mail was not delivered', ['message' => $error->getMessage()]);
             }
         }
     }

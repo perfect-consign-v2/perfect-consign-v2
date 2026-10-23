@@ -17,6 +17,7 @@ final class SchemaCatalog
         '004_job_grants.sql',
         '005_job_kinds.sql',
         '009_sale_notice_kind.sql',
+        '012_job_insert.sql',
     ];
 
     public function __construct(private readonly string $directory)

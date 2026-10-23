@@ -48,9 +48,9 @@ $runner = new JobRunner(
     $logger,
     new JobSchedule($pdo, $queue),
     new LateFeeJob($pdo),
-    new DigestJob($pdo, new OutboundMail($logger), new MailBounce(new Statements($pdo))),
+    new DigestJob($pdo, new OutboundMail($logger), new MailBounce(new Statements($pdo)), $logger),
     new ReconcileJob($pdo),
-    new SaleNoticeJob(new Statements($pdo), new OutboundMail($logger), new MailBounce(new Statements($pdo))),
+    new SaleNoticeJob(new Statements($pdo), new OutboundMail($logger), new MailBounce(new Statements($pdo)), $logger),
 );
 $forever = in_array('--forever', $argv, true);
 do {

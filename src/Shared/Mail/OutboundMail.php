@@ -62,6 +62,8 @@ final class OutboundMail
                 $settings['password'],
                 $settings['from'],
             ))->send($to, $subject, $body);
+        } catch (MailDeliveryFailed $failed) {
+            throw $failed;
         } catch (\Throwable) {
             throw new \RuntimeException('smtp send failed');
         }

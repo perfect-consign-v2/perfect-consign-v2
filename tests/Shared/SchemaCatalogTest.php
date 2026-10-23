@@ -24,9 +24,11 @@ final class SchemaCatalogTest extends TestCase
         self::assertNotContains('004_job_grants.sql', $tenant);
         self::assertNotContains('005_job_kinds.sql', $tenant);
         self::assertNotContains('009_sale_notice_kind.sql', $tenant);
+        self::assertNotContains('012_job_insert.sql', $tenant);
+        self::assertContains('011_mall_sale_span.sql', $tenant);
         self::assertContains('010_competitive.sql', $tenant);
         self::assertSame(
-            ['000_platform.sql', '002_platform_jobs.sql', '003_poster_jobs.sql', '004_job_grants.sql', '005_job_kinds.sql', '009_sale_notice_kind.sql'],
+            ['000_platform.sql', '002_platform_jobs.sql', '003_poster_jobs.sql', '004_job_grants.sql', '005_job_kinds.sql', '009_sale_notice_kind.sql', '012_job_insert.sql'],
             $platform
         );
         $checksum = $catalog->checksum('001_tenant.sql');
