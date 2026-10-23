@@ -8,7 +8,7 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Shared\Http\ResponseSent;
+use PerfectConsign\Shared\Http\JsonResponse;
 
 final class PosPayController
 {
@@ -108,15 +108,7 @@ final class PosPayController
      */
     private function sendJson(array $payload, int $status = 200): never
     {
-        http_response_code($status);
-        header('Content-Type: application/json; charset=utf-8');
-        try {
-            echo json_encode($payload, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            http_response_code(500);
-            echo '{"error":"The ticket could not be sent."}';
-        }
-        throw new ResponseSent('json');
+        JsonResponse::send($payload, $status, 'The ticket could not be sent.');
     }
 
     private function itemId(): string

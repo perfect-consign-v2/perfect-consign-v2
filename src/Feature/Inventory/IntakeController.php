@@ -10,7 +10,7 @@ use PerfectConsign\Feature\Catalog\NameListStore;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Shared\Http\ResponseSent;
+use PerfectConsign\Shared\Http\JsonResponse;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class IntakeController
@@ -135,15 +135,7 @@ final class IntakeController
      */
     private function sendJson(array $payload, int $status = 200): never
     {
-        http_response_code($status);
-        header('Content-Type: application/json; charset=utf-8');
-        try {
-            echo json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
-        } catch (\JsonException) {
-            http_response_code(500);
-            echo '{"error":"The list could not be sent."}';
-        }
-        throw new ResponseSent('json');
+        JsonResponse::send($payload, $status, 'The list could not be sent.');
     }
 
     private function brandError(string $message): string

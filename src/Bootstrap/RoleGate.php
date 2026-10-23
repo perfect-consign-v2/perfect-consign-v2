@@ -104,7 +104,23 @@ final class RoleGate
         if (in_array($rest, ['/sales', '/month', '/rent', '/payouts', '/journals', '/password', '/dashboard'], true)) {
             return true;
         }
-        if (str_starts_with($rest, '/reports')) {
+        if (in_array($rest, [
+            '/reports',
+            '/reports/sales-tax',
+            '/reports/sales',
+            '/reports/rent',
+            '/reports/payouts',
+            '/reports/stored-value',
+            '/reports/sales-tax.csv',
+            '/reports/sales.csv',
+            '/reports/rent.csv',
+            '/reports/payouts.csv',
+            '/reports/stored-value.csv',
+            '/reports/build',
+        ], true)) {
+            return true;
+        }
+        if (preg_match('#^/reports/saved/[0-9a-fA-F-]{36}$#', $rest) === 1) {
             return true;
         }
         if (preg_match('#^/journals/[0-9a-fA-F-]{36}$#', $rest) === 1) {

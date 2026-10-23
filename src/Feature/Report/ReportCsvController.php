@@ -8,8 +8,8 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\Permission;
+use PerfectConsign\Shared\Http\Csv;
 use PerfectConsign\Shared\Http\ResponseSent;
-use PerfectConsign\Shared\Http\View;
 
 final class ReportCsvController
 {
@@ -114,14 +114,8 @@ final class ReportCsvController
     {
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $name . '"');
-        echo implode(',', $columns) . "\n";
-        foreach ($rows as $row) {
-            $cells = [];
-            foreach ($columns as $column) {
-                $cells[] = View::text((string) ($row[$column] ?? ''));
-            }
-            echo implode(',', $cells) . "\n";
-        }
+        header('Cache-Control: no-store');
+        echo Csv::document($columns, $rows);
         throw new ResponseSent('csv');
     }
 
