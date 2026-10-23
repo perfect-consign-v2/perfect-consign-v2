@@ -1,4 +1,5 @@
 <script>
+function pcRegister() {
 function vendorPick(input, hidden, list, url, onPick) {
     if (!input || !hidden || !list) {
         return;
@@ -478,4 +479,6 @@ document.querySelectorAll('[data-qty-delta]').forEach(function (button) {
 });
 <?php require __DIR__ . '/register-modals.php'; ?>
 <?php require __DIR__ . '/pay-ui.php'; ?>
+}
+pcRegister();
 </script>

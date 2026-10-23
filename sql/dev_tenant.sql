@@ -1,4 +1,5 @@
 -- Dev mall rows. Not part of provisioning. php bin/seed-dev-tenant.php loads this into slug dev.
+-- A reset loads this file, including the dev mailbox, so the credential does not have to be typed again.
 
 UPDATE public.mall
 SET receipt_mail_via = 'gmail',

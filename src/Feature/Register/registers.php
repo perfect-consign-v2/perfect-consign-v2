@@ -146,6 +146,13 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
                     <div class="h3" id="close-title-<?= View::text($id) ?>">Close <?= View::text($name) ?></div>
                 </div>
                 <div class="card-body stack">
+                    <?php if ($confirmVariance && $modal === 'close-' . $id): ?>
+                        <div class="register-mismatch" role="alert">
+                            <p class="register-mismatch__title">Counted cash does not match the drawer.</p>
+                            <p class="register-mismatch__amount"><?= View::text(DenominationCount::difference(DenominationCount::money(ltrim($draftCash, '$'), true), $expectedCash)) ?></p>
+                            <p class="register-mismatch__next">Confirm the difference to close.</p>
+                        </div>
+                    <?php endif; ?>
                     <?php if (($register['open_ticket'] ?? false) === true): ?>
                         <div class="alert alert-danger" role="alert">
                             <p class="error">A sale is still open on this register. Finish it or cancel it, then close.</p>
@@ -158,12 +165,18 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
                         <input type="hidden" name="count_<?= View::text((string) $key) ?>" value="<?= View::text($saved) ?>">
                     <?php endforeach; ?>
                     <table class="close-sheet">
+                        <colgroup>
+                            <col>
+                            <col>
+                            <col>
+                            <col class="diff-col">
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>Tender</th>
                                 <th>Expected</th>
                                 <th>Your count</th>
-                                <th>Difference</th>
+                                <th class="diff-cell">Difference</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -174,19 +187,19 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
                                     <input class="input" id="counted-cash-<?= View::text($id) ?>" name="counted_cash" inputmode="decimal" data-counted="cash" value="<?= $modal === 'close-' . $id ? View::text($draftCash) : '' ?>" required>
                                     <button class="btn" type="button" data-open-modal="register-count" data-count-form="close-form-<?= View::text($id) ?>">Count bills and coins</button>
                                 </td>
-                                <td data-difference="cash">—</td>
+                                <td class="diff-cell" data-difference="cash">—</td>
                             </tr>
                             <tr>
                                 <th scope="row"><label for="counted-card-<?= View::text($id) ?>">Card</label></th>
                                 <td><?= View::text(DenominationCount::dollars($expectedCard)) ?></td>
                                 <td><input class="input" id="counted-card-<?= View::text($id) ?>" name="counted_card" inputmode="decimal" data-counted="card" value="<?= $modal === 'close-' . $id ? View::text($draftCard) : '0.00' ?>"></td>
-                                <td data-difference="card">—</td>
+                                <td class="diff-cell" data-difference="card">—</td>
                             </tr>
                             <tr>
                                 <th scope="row"><label for="counted-checks-<?= View::text($id) ?>">Checks</label></th>
                                 <td><?= View::text(DenominationCount::dollars($expectedChecks)) ?></td>
                                 <td><input class="input" id="counted-checks-<?= View::text($id) ?>" name="counted_checks" inputmode="decimal" data-counted="checks" value="<?= $modal === 'close-' . $id ? View::text($draftChecks) : '0.00' ?>"></td>
-                                <td data-difference="checks">—</td>
+                                <td class="diff-cell" data-difference="checks">—</td>
                             </tr>
                             <?php foreach (['gift_certificate' => 'Gift certificates', 'gift_card' => 'Gift cards', 'store_credit' => 'Store credit'] as $role => $label): ?>
                                 <?php $net = is_int($tenders[$role] ?? null) ? $tenders[$role] : 0; ?>
@@ -194,7 +207,7 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
                                     <th scope="row"><?= View::text($label) ?></th>
                                     <td><?= View::text(DenominationCount::dollars($net)) ?></td>
                                     <td class="muted">Posted</td>
-                                    <td>—</td>
+                                    <td class="diff-cell">—</td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -212,7 +225,6 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
                     <?php endif; ?>
                     <?php if ($confirmVariance && $modal === 'close-' . $id): ?>
                         <input type="hidden" name="confirm_variance" value="yes">
-                        <p>Counted cash, recorded card, and checks. The difference is how much the drawer is over or short.</p>
                     <?php endif; ?>
                     <div class="row gap-2">
                         <button class="btn btn-primary" type="submit"><?= $confirmVariance && $modal === 'close-' . $id ? 'Confirm and close' : 'Close register' ?></button>
@@ -330,6 +342,66 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
             <div class="row gap-2">
                 <button class="btn btn-primary" type="button" data-apply-count>Use this count</button>
                 <button class="btn" type="button" data-close-modal="register-count">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="register-variance" class="register-variance" hidden>
+    <div class="register-variance__backdrop" data-variance-dismiss></div>
+    <div class="register-variance__panel modal-panel card" role="dialog" aria-modal="true" aria-labelledby="register-variance-title" tabindex="-1">
+        <div class="card-head">
+            <button class="modal-x" type="button" data-variance-dismiss aria-label="Close">
+                <svg aria-hidden="true"><use href="#i-x"></use></svg>
+            </button>
+            <div class="h3" id="register-variance-title">Cash does not match</div>
+        </div>
+        <div class="card-body stack">
+            <div class="register-mismatch" role="alert">
+                <p class="register-mismatch__title" id="register-variance-lead">Counted cash does not match the drawer.</p>
+                <p class="register-mismatch__amount" id="register-variance-combined"></p>
+            </div>
+            <div class="register-variance__scroll">
+                <table class="close-sheet register-variance__table">
+                    <colgroup>
+                        <col>
+                        <col>
+                        <col>
+                        <col class="diff-col">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">Tender</th>
+                            <th scope="col">Expected</th>
+                            <th scope="col">Your count</th>
+                            <th class="diff-cell" scope="col">Difference</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th scope="row">Cash</th>
+                            <td id="register-var-exp-cash"></td>
+                            <td id="register-var-ct-cash"></td>
+                            <td class="diff-cell" id="register-var-var-cash"></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Card</th>
+                            <td id="register-var-exp-card"></td>
+                            <td id="register-var-ct-card"></td>
+                            <td class="diff-cell" id="register-var-var-card"></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Checks</th>
+                            <td id="register-var-exp-checks"></td>
+                            <td id="register-var-ct-checks"></td>
+                            <td class="diff-cell" id="register-var-var-checks"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted text-sm">Confirm closes the register and records the cash difference. Cancel returns to the count.</p>
+            <div class="row gap-2 register-variance__actions">
+                <button class="btn btn-primary" type="button" id="register-variance-confirm">Confirm and close</button>
+                <button class="btn" type="button" data-variance-dismiss>Cancel</button>
             </div>
         </div>
     </div>

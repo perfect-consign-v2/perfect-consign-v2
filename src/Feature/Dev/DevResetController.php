@@ -30,6 +30,9 @@ final class DevResetController
         if (!$this->allowed($slug)) {
             $this->app->notFound(MallApp::MISS_HIDDEN);
         }
+        if ($this->app->request()->field('confirm') !== 'RESET') {
+            $this->app->redirect('/' . $slug . '/dashboard', null, 'Type RESET to confirm.');
+        }
         set_time_limit(0);
         try {
             $this->reload($slug);
@@ -46,6 +49,9 @@ final class DevResetController
 
     private function allowed(string $slug): bool
     {
+        if (getenv('STALL_ALLOW_TENANT_RESET') !== '1') {
+            return false;
+        }
         if ($this->actor->role() !== 'owner' || $this->actor->slug() !== $slug) {
             return false;
         }

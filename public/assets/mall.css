@@ -337,6 +337,11 @@ button.text-link:hover {
     border-collapse: collapse;
 }
 
+.diff-cell {
+    width: 1%;
+    white-space: nowrap !important;
+}
+
 .close-sheet th,
 .close-sheet td {
     text-align: left;
@@ -344,13 +349,116 @@ button.text-link:hover {
     vertical-align: top;
 }
 
+.register-mismatch {
+    display: block;
+    margin: 0 0 var(--space-4);
+    padding: 1rem 1.15rem;
+    border-radius: var(--radius);
+    background: #991b1b;
+    color: #fff;
+}
+
+.register-mismatch p {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #fff;
+}
+
+.register-mismatch__title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.register-mismatch__amount {
+    margin-top: 0.35rem;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+
+.register-mismatch__next {
+    margin-top: 0.45rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
 .close-sheet .input {
     max-width: 8rem;
 }
 
 .diff-even { color: #166534; }
-.diff-over { color: #1d4ed8; }
-.diff-short { color: #991b1b; }
+.diff-over { color: #1d4ed8; font-weight: 700; }
+.diff-short { color: #991b1b; font-weight: 700; }
+
+.register-variance {
+    position: fixed;
+    inset: 0;
+    z-index: 140;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 0.75rem;
+}
+
+.register-variance[hidden] { display: none; }
+
+.register-variance__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.62);
+}
+
+.register-variance__panel.modal-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: min(40rem, 100%);
+    max-height: 100%;
+    overflow: hidden;
+    outline: none;
+}
+
+.register-variance__panel > .card-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.register-variance__scroll {
+    overflow: auto;
+    min-height: 0;
+}
+
+.register-variance__table td:nth-child(n+2) {
+    font-variant-numeric: tabular-nums;
+}
+
+.register-variance__actions {
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 40rem) {
+    .register-variance__panel > .card-body {
+        padding: var(--space-3);
+    }
+
+    .register-variance__actions {
+        flex-direction: column;
+    }
+
+    .register-variance__actions .btn {
+        width: 100%;
+    }
+}
 
 .prior-register {
     max-width: 30rem;
@@ -688,7 +796,8 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .ticket-line-end { text-align: right; }
 .ticket-meta { color: var(--text-muted); font-size: var(--text-sm); }
 .ticket-foot { display: flex; flex-direction: column; gap: var(--space-2); }
-.register-due { font-size: 1.75rem; font-weight: 650; }
+.register-due, .register-cash-due { font-size: 1.75rem; font-weight: 650; }
+.register-pay:has(#summary-cash-due:not([hidden])) .register-due { font-size: inherit; font-weight: inherit; }
 .pay-choice { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
 @media (min-width: 40rem) {
     .pay-choice { grid-template-columns: 1fr 1fr; }

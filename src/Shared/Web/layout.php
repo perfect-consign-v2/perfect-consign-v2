@@ -33,14 +33,15 @@ $showBrand = ($showBrand ?? true) === true;
 $boothRentals = ($boothRentals ?? true) === true;
 $actorRole = is_string($actorRole ?? null) ? $actorRole : '';
 $previewAs = is_string($previewAs ?? null) ? $previewAs : '';
-$resetTestData = ($slug === 'dev' || $slug === 'mall') && $actorRole === 'owner';
+$resetTestData = getenv('STALL_ALLOW_TENANT_RESET') === '1'
+    && ($slug === 'dev' || $slug === 'mall')
+    && $actorRole === 'owner';
 $groups = [];
 if ($actorRole === 'owner') {
     $groups = [
         'Counter' => [
             ['/dashboard', 'Home', 'i-dashboard'],
             ['/pos', 'Sell', 'i-cart'],
-            ['/pos/desk', 'Fast sell', 'i-cart'],
             ['/registers', 'Registers', 'i-pos'],
             ['/customers', 'Customers', 'i-vendor'],
         ],
@@ -107,7 +108,6 @@ if ($actorRole === 'cashier') {
     $groups = [
         'Counter' => [
             ['/pos', 'Sell', 'i-cart'],
-            ['/pos/desk', 'Fast sell', 'i-cart'],
             ['/rent', 'Rent', 'i-booth'],
             ['/registers', 'Register', 'i-pos'],
         ],
@@ -258,8 +258,10 @@ $roleLabel = match ($actorRole) {
             </button>
             <div class="topbar-spacer"></div>
             <?php if ($previewAs === '' && $resetTestData): ?>
-                <form method="post" action="/<?= View::text($slug) ?>/reset-test-data" onsubmit="return confirm('Wipe this mall and load the test data again?');">
+                <form method="post" action="/<?= View::text($slug) ?>/reset-test-data">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <label for="reset-confirm">Type RESET</label>
+                    <input class="input" id="reset-confirm" name="confirm" autocomplete="off" required maxlength="5">
                     <button class="btn btn-danger" type="submit">Reset Test Data</button>
                 </form>
             <?php endif; ?>
@@ -379,5 +381,6 @@ $roleLabel = match ($actorRole) {
 </script>
 <?php endif; ?>
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
+<script src="/assets/js/register-swap.js"></script>
 </body>
 </html>

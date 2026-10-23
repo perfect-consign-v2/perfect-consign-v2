@@ -84,7 +84,7 @@ final class RegisterShiftController
         } catch (DatabaseRefusal $refusal) {
             $message = $this->app->catchRefusal($refusal);
             $confirm = $this->confirm($message, $confirmed);
-            $this->hub->show($slug, $this->closeMessage($message, $confirm), 'close-' . $id, $id, $confirm, $draft);
+            $this->hub->show($slug, $confirm === 'yes' ? null : $this->closeMessage($message), 'close-' . $id, $id, $confirm, $draft);
 
             return;
         } catch (\InvalidArgumentException $error) {
@@ -125,13 +125,10 @@ final class RegisterShiftController
         $this->app->redirect('/' . $slug . '/registers', 'Cash dropped.');
     }
 
-    private function closeMessage(string $message, string $confirm): string
+    private function closeMessage(string $message): string
     {
         if ($message === 'close is refused while a ticket is open') {
             return 'A sale is still open on this register. Finish it or cancel it, then close.';
-        }
-        if ($confirm === 'yes') {
-            return 'Counted cash does not match the drawer. Confirm the difference to close.';
         }
 
         return $message;

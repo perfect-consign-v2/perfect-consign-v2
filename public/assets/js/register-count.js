@@ -119,7 +119,7 @@
     if (diff === 0) {
       return 'Even';
     }
-    return '$' + amount.replace('-', '') + (diff > 0 ? ' over' : ' short');
+    return '$' + amount.replace('-', '') + (diff > 0 ? '\u00A0over' : '\u00A0short');
   }
 
   function dollars(minor) {
@@ -158,5 +158,190 @@
       input.addEventListener('input', refresh);
     });
     refresh();
+  });
+
+  var lightbox = document.getElementById('register-variance');
+  var confirmButton = document.getElementById('register-variance-confirm');
+  var lead = document.getElementById('register-variance-lead');
+  var combined = document.getElementById('register-variance-combined');
+  var panel = lightbox ? lightbox.querySelector('.register-variance__panel') : null;
+  var pending = null;
+  var skip = false;
+  var lastFocus = null;
+  if (!lightbox || !confirmButton || !panel) {
+    return;
+  }
+
+  function money(minor) {
+    return '$' + dollars(minor);
+  }
+
+  function readCount(input) {
+    if (!input || input.value.trim() === '') {
+      return 0;
+    }
+    var minor = cents(input.value);
+    if (minor === null || minor < 0) {
+      return null;
+    }
+    return minor;
+  }
+
+  function fillCell(id, text, diff) {
+    var cell = document.getElementById(id);
+    if (!cell) {
+      return;
+    }
+    cell.textContent = text;
+    cell.classList.remove('diff-over', 'diff-short', 'diff-even');
+    if (diff === 0) {
+      cell.classList.add('diff-even');
+    } else if (diff > 0) {
+      cell.classList.add('diff-over');
+    } else if (diff < 0) {
+      cell.classList.add('diff-short');
+    }
+  }
+
+  function hideVariance(restore) {
+    lightbox.hidden = true;
+    document.removeEventListener('keydown', onVarianceKey, true);
+    if (restore !== false && pending) {
+      var host = pending.closest('.modal');
+      if (host) {
+        host.hidden = false;
+      }
+    }
+    if (lastFocus && typeof lastFocus.focus === 'function') {
+      lastFocus.focus();
+    }
+    lastFocus = null;
+    pending = null;
+  }
+
+  function onVarianceKey(event) {
+    if (event.key !== 'Escape' || lightbox.hidden) {
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    hideVariance();
+  }
+
+  function showVariance(form, rows) {
+    var off = [];
+    var total = 0;
+    rows.forEach(function (row) {
+      fillCell('register-var-exp-' + row.kind, money(row.expected), null);
+      fillCell('register-var-ct-' + row.kind, money(row.counted), null);
+      fillCell('register-var-var-' + row.kind, phrase(row.diff), row.diff);
+      total += row.diff;
+      if (row.diff !== 0) {
+        off.push(row.label + (row.kind === 'checks' ? ' are ' : ' is ') + phrase(row.diff));
+      }
+    });
+    var cashRow = null;
+    rows.forEach(function (row) {
+      if (row.kind === 'cash') {
+        cashRow = row;
+      }
+    });
+    if (lead) {
+      lead.textContent = cashRow && cashRow.diff !== 0
+        ? 'Counted cash does not match the drawer.'
+        : off.join('. ') + '.';
+    }
+    if (combined) {
+      combined.textContent = phrase(cashRow && cashRow.diff !== 0 ? cashRow.diff : total);
+    }
+    pending = form;
+    lastFocus = document.activeElement;
+    var host = form.closest('.modal');
+    if (host) {
+      host.hidden = true;
+    }
+    lightbox.hidden = false;
+    document.addEventListener('keydown', onVarianceKey, true);
+    panel.focus();
+  }
+
+  document.querySelectorAll('[data-close-sheet]').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (skip) {
+        skip = false;
+        return;
+      }
+      if (form.querySelector('[name="confirm_variance"]')) {
+        return;
+      }
+      var submitter = event.submitter;
+      if (submitter && submitter.getAttribute('formaction')) {
+        return;
+      }
+      if (form.querySelector('.alert-danger')) {
+        return;
+      }
+      var expected = {
+        cash: Number(form.getAttribute('data-expected-cash')),
+        card: Number(form.getAttribute('data-expected-card')),
+        checks: Number(form.getAttribute('data-expected-checks'))
+      };
+      var rows = [
+        { kind: 'cash', label: 'Cash', expected: expected.cash },
+        { kind: 'card', label: 'Card', expected: expected.card },
+        { kind: 'checks', label: 'Checks', expected: expected.checks }
+      ];
+      var mismatch = false;
+      var i;
+      for (i = 0; i < rows.length; i += 1) {
+        var input = form.querySelector('[data-counted="' + rows[i].kind + '"]');
+        var counted = readCount(input);
+        if (counted === null || !Number.isFinite(rows[i].expected)) {
+          return;
+        }
+        rows[i].counted = counted;
+        rows[i].diff = counted - rows[i].expected;
+        if (rows[i].diff !== 0) {
+          mismatch = true;
+        }
+      }
+      if (!mismatch) {
+        return;
+      }
+      event.preventDefault();
+      showVariance(form, rows);
+    });
+  });
+
+  lightbox.addEventListener('click', function (event) {
+    if (event.target.closest('[data-variance-dismiss]')) {
+      hideVariance();
+    }
+  });
+
+  confirmButton.addEventListener('click', function () {
+    var form = pending;
+    if (!form) {
+      return;
+    }
+    if (typeof form.reportValidity === 'function' && !form.reportValidity()) {
+      hideVariance();
+      return;
+    }
+    var field = form.querySelector('[name="confirm_variance"]');
+    if (!field) {
+      field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = 'confirm_variance';
+      form.appendChild(field);
+    }
+    field.value = 'yes';
+    skip = true;
+    hideVariance(false);
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.submit();
+    }
   });
 })();
