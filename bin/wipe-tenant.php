@@ -18,80 +18,107 @@ function wipeTenant(PDO $pdo, string $slug, string $expectedSlug): void
     }
     $role = $slug === 'mall' ? 'stall_poster' : 'poster_' . substr($schema, strlen('tenant_'));
     $quotedSlug = $pdo->quote($slug);
-    dropBackupTenantKey($pdo);
-    dropPasswordResetTenantKey($pdo);
-    $pdo->exec(
-        'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
-    );
-    $pdo->exec(
-        'DELETE FROM platform.password_reset_requests WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
-    );
-    $pdo->exec(
-        'DELETE FROM platform.owners WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
-    );
-    $pdo->exec('DELETE FROM platform.tenants WHERE slug = ' . $quotedSlug);
-    $pdo->exec('DROP SCHEMA ' . $schema . ' CASCADE');
-    $present = $pdo->prepare('SELECT 1 FROM pg_roles WHERE rolname = ?');
-    $present->execute([$role]);
-    if ($present->fetchColumn() === false) {
-        return;
+    $own = !$pdo->inTransaction();
+    if ($own) {
+        $pdo->beginTransaction();
     }
-    $member = $pdo->prepare(
-        'SELECT 1
-         FROM pg_auth_members AS membership
-         JOIN pg_roles AS granted ON granted.oid = membership.roleid
-         JOIN pg_roles AS login ON login.oid = membership.member
-         WHERE granted.rolname = ? AND login.rolname = \'stall_app\''
-    );
-    $member->execute([$role]);
-    if ($member->fetchColumn() !== false) {
-        $pdo->exec('REVOKE ' . $role . ' FROM stall_app');
+    try {
+        keepPasswordResetKey($pdo, $quotedSlug);
+        $pdo->exec(
+            'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
+        );
+        $pdo->exec(
+            'DELETE FROM platform.password_reset_requests WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
+        );
+        $pdo->exec(
+            'DELETE FROM platform.owners WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
+        );
+        $pdo->exec('DELETE FROM platform.tenants WHERE slug = ' . $quotedSlug);
+        $pdo->exec('DROP SCHEMA ' . $schema . ' CASCADE');
+        $present = $pdo->prepare('SELECT 1 FROM pg_roles WHERE rolname = ?');
+        $present->execute([$role]);
+        if ($present->fetchColumn() === false) {
+            if ($own) {
+                $pdo->commit();
+            }
+
+            return;
+        }
+        $member = $pdo->prepare(
+            'SELECT 1
+             FROM pg_auth_members AS membership
+             JOIN pg_roles AS granted ON granted.oid = membership.roleid
+             JOIN pg_roles AS login ON login.oid = membership.member
+             WHERE granted.rolname = ? AND login.rolname = \'stall_app\''
+        );
+        $member->execute([$role]);
+        if ($member->fetchColumn() !== false) {
+            $pdo->exec('REVOKE ' . $role . ' FROM stall_app');
+        }
+        $pdo->exec('GRANT ' . $role . ' TO CURRENT_USER');
+        $pdo->exec('DROP OWNED BY ' . $role);
+        $pdo->exec('DROP ROLE ' . $role);
+        if ($own) {
+            $pdo->commit();
+        }
+    } catch (Throwable $error) {
+        if ($own && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $error;
     }
-    $pdo->exec('GRANT ' . $role . ' TO CURRENT_USER');
-    $pdo->exec('DROP OWNED BY ' . $role);
-    $pdo->exec('DROP ROLE ' . $role);
 }
 
-function dropPasswordResetTenantKey(PDO $pdo): void
+function keepPasswordResetKey(PDO $pdo, string $quotedSlug): void
 {
     $present = $pdo->query("SELECT to_regclass('platform.password_resets')");
     if ($present === false || $present->fetchColumn() === null) {
         return;
     }
-    $found = $pdo->query(
+    $constraint = $pdo->query(
         "SELECT con.conname
          FROM pg_constraint AS con
          WHERE con.conrelid = 'platform.password_resets'::regclass
            AND con.contype = 'f'
            AND con.confrelid = 'platform.tenants'::regclass"
     );
-    if ($found === false) {
+    if ($constraint === false) {
         throw new RuntimeException('could not read password reset constraints');
     }
-    $constraint = $found->fetchColumn();
-    if (!is_string($constraint) || preg_match('/^[a-z_][a-z0-9_]*$/', $constraint) !== 1) {
-        return;
+    $name = $constraint->fetchColumn();
+    if (!is_string($name) || $name === '') {
+        $orphans = $pdo->query(
+            'SELECT 1
+             FROM platform.password_resets AS reset
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM platform.tenants AS tenant WHERE tenant.id = reset.tenant_id
+             )
+             LIMIT 1'
+        );
+        if ($orphans === false) {
+            throw new RuntimeException('could not read password resets');
+        }
+        if ($orphans->fetchColumn() !== false) {
+            throw new RuntimeException('the password reset foreign key is missing');
+        }
+        $pdo->exec(
+            'ALTER TABLE platform.password_resets
+             ADD CONSTRAINT password_resets_tenant_id_fkey
+             FOREIGN KEY (tenant_id) REFERENCES platform.tenants (id)'
+        );
     }
-    $pdo->exec('ALTER TABLE platform.password_resets DROP CONSTRAINT ' . $constraint);
-}
-
-function dropBackupTenantKey(PDO $pdo): void
-{
     $found = $pdo->query(
-        "SELECT con.conname
-         FROM pg_constraint AS con
-         WHERE con.conrelid = 'platform.owner_backups'::regclass
-           AND con.contype = 'f'
-           AND con.confrelid = 'platform.tenants'::regclass"
+        'SELECT 1
+         FROM platform.password_resets
+         WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')
+         LIMIT 1'
     );
     if ($found === false) {
-        throw new RuntimeException('could not read owner backup constraints');
+        throw new RuntimeException('could not read password resets');
     }
-    $constraint = $found->fetchColumn();
-    if (!is_string($constraint) || preg_match('/^[a-z_][a-z0-9_]*$/', $constraint) !== 1) {
-        return;
+    if ($found->fetchColumn() !== false) {
+        throw new RuntimeException('a password reset still names this mall');
     }
-    $pdo->exec('ALTER TABLE platform.owner_backups DROP CONSTRAINT ' . $constraint);
 }
 
 if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath((string) $argv[0]) === realpath(__FILE__)) {
