@@ -29,7 +29,9 @@ if (run([$php, $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'muta
 $procs = [];
 for ($index = 0; $index < $shards; $index++) {
     $dir = $trees . DIRECTORY_SEPARATOR . 's' . $index;
-    run(['git', 'worktree', 'remove', '--force', $dir], $root, processEnv());
+    if (is_dir($dir)) {
+        run(['git', 'worktree', 'remove', '--force', $dir], $root, processEnv());
+    }
     if (run(['git', 'worktree', 'add', '--detach', $dir, 'HEAD'], $root, processEnv()) !== 0) {
         exit(1);
     }
@@ -94,10 +96,27 @@ exit(run([$php, $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'mut
 function linkVendor(string $vendor, string $link): bool
 {
     if (PHP_OS_FAMILY === 'Windows') {
-        return run(['cmd', '/c', 'mklink', '/J', $link, $vendor], dirname($link), processEnv()) === 0;
+        $command = 'cmd.exe /d /c mklink /J ' . windowsQuote($link) . ' ' . windowsQuote($vendor);
+
+        return runLine($command, dirname($link), processEnv()) === 0 && is_dir($link);
     }
 
     return symlink($vendor, $link);
+}
+
+function windowsQuote(string $path): string
+{
+    return '"' . str_replace('"', '', $path) . '"';
+}
+
+/**
+ * @param array<string, string> $env
+ */
+function runLine(string $command, string $cwd, array $env): int
+{
+    $pipes = [];
+
+    return finish(proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $cwd, $env), $pipes);
 }
 
 /**
@@ -106,8 +125,17 @@ function linkVendor(string $vendor, string $link): bool
  */
 function run(array $command, string $cwd, array $env): int
 {
-    $proc = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $cwd, $env);
-    if (!is_resource($proc)) {
+    $pipes = [];
+
+    return finish(proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $cwd, $env), $pipes);
+}
+
+/**
+ * @param array<int, resource> $pipes
+ */
+function finish(mixed $proc, array $pipes): int
+{
+    if (!is_resource($proc) || !isset($pipes[0], $pipes[1], $pipes[2])) {
         return 1;
     }
     fclose($pipes[0]);
