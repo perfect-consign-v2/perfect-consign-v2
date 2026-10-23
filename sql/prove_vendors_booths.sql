@@ -10,7 +10,10 @@ BEGIN
     FROM information_schema.columns
     WHERE table_schema = current_schema()
       AND table_name IN ('vendors', 'booths', 'booth_assignments')
-      AND column_name NOT IN ('width_ft', 'depth_ft', 'x_ft', 'z_ft', 'commission_bps')
+      AND column_name NOT IN (
+          'width_ft', 'depth_ft', 'x_ft', 'z_ft', 'commission_bps',
+          'keep_days'
+      )
       AND (
           data_type IN ('numeric', 'money', 'bigint', 'integer', 'smallint')
           OR column_name ~* '(amount|balance|minor|rate|price|total)'
@@ -59,6 +62,17 @@ BEGIN
           AND column_name = 'commission_bps'
     ) <> 'integer' THEN
         RAISE EXCEPTION 'vendor store take is missing';
+    END IF;
+
+    -- keep_days is a retention period in days, not an amount of money.
+    IF (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'vendors'
+          AND column_name = 'keep_days'
+    ) <> 'integer' THEN
+        RAISE EXCEPTION 'vendor keep_days is not a day count';
     END IF;
 
     IF (
