@@ -10,6 +10,12 @@ require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
 
+$ownerPassword = getenv('STALL_OWNER_PASSWORD');
+if (!is_string($ownerPassword) || $ownerPassword === '') {
+    fwrite(STDERR, "STALL_OWNER_PASSWORD is required\n");
+    exit(1);
+}
+
 $host = getenv('STALL_DB_HOST');
 $port = getenv('STALL_DB_PORT');
 $name = getenv('STALL_DB_NAME');
@@ -54,12 +60,6 @@ try {
     exit(1);
 }
 
-$ownerPassword = getenv('STALL_OWNER_PASSWORD');
-$printed = 'STALL_OWNER_PASSWORD from the environment';
-if (!is_string($ownerPassword) || $ownerPassword === '') {
-    $ownerPassword = 'mall-demo';
-    $printed = 'mall-demo';
-}
 $hash = password_hash($ownerPassword, PASSWORD_DEFAULT);
 if ($hash === false) {
     fwrite(STDERR, "the password hash could not be created\n");
@@ -75,4 +75,4 @@ $owner = $pdo->prepare(
             password_hash = EXCLUDED.password_hash'
 );
 $owner->execute(['owner', $hash, 'mall']);
-fwrite(STDOUT, "sign in at /mall as owner / " . $printed . "\n");
+fwrite(STDOUT, "sign in at /mall as owner. The password is STALL_OWNER_PASSWORD.\n");

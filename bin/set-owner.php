@@ -13,7 +13,8 @@ $slug = $argv[1] ?? '';
 $username = $argv[2] ?? '';
 $password = getenv('STALL_OWNER_PASSWORD');
 if (!is_string($password) || $password === '') {
-    $password = 'mall-demo';
+    fwrite(STDERR, "STALL_OWNER_PASSWORD is required\n");
+    exit(1);
 }
 $email = ownerEmail(getenv('STALL_OWNER_EMAIL'));
 $host = getenv('STALL_DB_HOST');

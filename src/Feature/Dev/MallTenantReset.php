@@ -58,7 +58,7 @@ final class MallTenantReset
     {
         $password = getenv('STALL_OWNER_PASSWORD');
         if (!is_string($password) || $password === '') {
-            $password = 'mall-demo';
+            throw new RuntimeException('STALL_OWNER_PASSWORD is required');
         }
         return [
             'username' => 'owner',
