@@ -101,9 +101,30 @@ final class RoleGate
         if ($method !== 'GET') {
             return false;
         }
+
+        return self::bookPage($rest) || self::reportPage($rest);
+    }
+
+    private static function bookPage(string $rest): bool
+    {
         if (in_array($rest, ['/sales', '/month', '/rent', '/payouts', '/journals', '/password', '/dashboard'], true)) {
             return true;
         }
+        if (preg_match('#^/journals/[0-9a-fA-F-]{36}$#', $rest) === 1) {
+            return true;
+        }
+        if (str_starts_with($rest, '/rent/receipt/')) {
+            return true;
+        }
+        if (str_starts_with($rest, '/payouts/')) {
+            return true;
+        }
+
+        return str_starts_with($rest, '/pos/receipt/');
+    }
+
+    private static function reportPage(string $rest): bool
+    {
         if (in_array($rest, [
             '/reports',
             '/reports/sales-tax',
@@ -120,19 +141,7 @@ final class RoleGate
         ], true)) {
             return true;
         }
-        if (preg_match('#^/reports/saved/[0-9a-fA-F-]{36}$#', $rest) === 1) {
-            return true;
-        }
-        if (preg_match('#^/journals/[0-9a-fA-F-]{36}$#', $rest) === 1) {
-            return true;
-        }
-        if (str_starts_with($rest, '/rent/receipt/')) {
-            return true;
-        }
-        if (str_starts_with($rest, '/payouts/')) {
-            return true;
-        }
 
-        return str_starts_with($rest, '/pos/receipt/');
+        return preg_match('#^/reports/saved/[0-9a-fA-F-]{36}$#', $rest) === 1;
     }
 }

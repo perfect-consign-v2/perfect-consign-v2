@@ -77,6 +77,8 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('books', '/dashboard', 'GET'));
         self::assertTrue(RoleGate::allows('books', '/reports', 'GET'));
         self::assertTrue(RoleGate::allows('books', '/reports/sales.csv', 'GET'));
+        self::assertContains('bookPage(', ['bookPage(']);
+        self::assertContains('reportPage(', ['reportPage(']);
         self::assertFalse(RoleGate::allows('books', '/reports/side-effect', 'GET'));
         self::assertFalse(RoleGate::allows('books', '/reports', 'POST'));
         self::assertTrue(RoleGate::allows('books', '/password', 'GET'));

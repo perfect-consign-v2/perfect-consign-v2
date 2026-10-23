@@ -60,76 +60,110 @@ final class BoothExtraController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $request = $this->app->request();
-        $reference = $request->field('source_reference');
-        $booth = $request->field('booth_id');
         try {
-            if ($reference === '' || $booth === '') {
-                throw new DatabaseRefusal('a booth and a reference are required');
-            }
-            $amount = Money::parseMinor($request->field('amount'));
-            $actor = $this->actor->name();
-            $role = $this->actor->role();
-            if ($actor === '' || $role === '') {
-                throw new DatabaseRefusal('the signed-in person is missing');
-            }
-            $session = $charge ? '' : $this->register->current($slug, true);
-            if (!$charge && $session === '') {
-                throw new DatabaseRefusal('open a register before taking a deposit');
-            }
-            if ($release) {
-                $debit = 'booth_deposits';
-                $credit = 'cash';
-            } else {
-                $debit = $charge ? 'booth_rent_receivable' : 'cash';
-                $credit = $charge ? 'booth_other_revenue' : 'booth_deposits';
-            }
-            $this->ledger->post(new JournalDraft(
-                postingKey: $key . $reference,
-                postingDate: $request->field('posting_date'),
-                source: new JournalSource($source, $reference, $description),
-                sessionId: $session === '' ? null : $session,
-                beforeCommit: function (string $journalId) use ($actor, $role, $source): void {
-                    $this->audit->record($actor, $role, $source, 'journal', $journalId);
-                },
-                lines: [
-                    [
-                        'account_id' => $this->ledger->roleAccount($debit),
-                        'debit' => $amount,
-                        'credit' => 0,
-                        'subledger_type' => $charge ? 'booth' : null,
-                        'subledger_ref' => $charge ? $booth : null,
-                    ],
-                    [
-                        'account_id' => $this->ledger->roleAccount($credit),
-                        'debit' => 0,
-                        'credit' => $amount,
-                        'subledger_type' => null,
-                        'subledger_ref' => null,
-                    ],
-                ],
-            ));
+            $this->record($slug, $source, $key, $description, $charge, $release);
         } catch (DatabaseRefusal $refusal) {
-            $tenant = $this->app->open($slug, true);
-            $this->app->show('Feature/Booth/booth-extras', [
-                'title' => 'Booth extras',
-                'displayName' => $tenant->displayName,
-                'slug' => $tenant->slug,
-                'error' => $this->app->catchRefusal($refusal),
-            ]);
+            $this->showFailure($slug, $this->app->catchRefusal($refusal));
 
             return;
         } catch (\InvalidArgumentException $error) {
-            $tenant = $this->app->open($slug, true);
-            $this->app->show('Feature/Booth/booth-extras', [
-                'title' => 'Booth extras',
-                'displayName' => $tenant->displayName,
-                'slug' => $tenant->slug,
-                'error' => $error->getMessage(),
-            ]);
+            $this->showFailure($slug, $error->getMessage());
 
             return;
         }
         $this->app->redirect('/' . $slug . '/booth-extras', $description . ' posted.');
+    }
+
+    private function record(string $slug, string $source, string $key, string $description, bool $charge, bool $release): void
+    {
+        $request = $this->app->request();
+        $reference = $request->field('source_reference');
+        $booth = $request->field('booth_id');
+        if ($reference === '' || $booth === '') {
+            throw new DatabaseRefusal('a booth and a reference are required');
+        }
+        $amount = Money::parseMinor($request->field('amount'));
+        [$actor, $role] = $this->signer();
+        [$debit, $credit] = $this->sides($charge, $release);
+        $this->ledger->post(new JournalDraft(
+            postingKey: $key . $reference,
+            postingDate: $request->field('posting_date'),
+            source: new JournalSource($source, $reference, $description),
+            sessionId: $this->drawer($slug, $charge),
+            beforeCommit: function (string $journalId) use ($actor, $role, $source): void {
+                $this->audit->record($actor, $role, $source, 'journal', $journalId);
+            },
+            lines: [
+                $this->line($debit, $amount, 0, $charge ? $booth : null),
+                $this->line($credit, 0, $amount, null),
+            ],
+        ));
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function signer(): array
+    {
+        $actor = $this->actor->name();
+        $role = $this->actor->role();
+        if ($actor === '' || $role === '') {
+            throw new DatabaseRefusal('the signed-in person is missing');
+        }
+
+        return [$actor, $role];
+    }
+
+    private function drawer(string $slug, bool $charge): ?string
+    {
+        if ($charge) {
+            return null;
+        }
+        $session = $this->register->current($slug, true);
+        if ($session === '') {
+            throw new DatabaseRefusal('open a register before taking a deposit');
+        }
+
+        return $session;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function sides(bool $charge, bool $release): array
+    {
+        if ($release) {
+            return ['booth_deposits', 'cash'];
+        }
+        if ($charge) {
+            return ['booth_rent_receivable', 'booth_other_revenue'];
+        }
+
+        return ['cash', 'booth_deposits'];
+    }
+
+    /**
+     * @return array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}
+     */
+    private function line(string $role, int $debit, int $credit, ?string $booth): array
+    {
+        return [
+            'account_id' => $this->ledger->roleAccount($role),
+            'debit' => $debit,
+            'credit' => $credit,
+            'subledger_type' => $booth === null ? null : 'booth',
+            'subledger_ref' => $booth,
+        ];
+    }
+
+    private function showFailure(string $slug, string $error): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $this->app->show('Feature/Booth/booth-extras', [
+            'title' => 'Booth extras',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'error' => $error,
+        ]);
     }
 }
