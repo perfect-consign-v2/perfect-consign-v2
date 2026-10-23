@@ -93,7 +93,7 @@ class PartyStore
             'SELECT id, code, first_name, last_name, name, business_name, phone, email, address, active,
                     commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
                     tax_exempt, tax_exempt_number, payout_mode,
-                    discount_by, keep_days, expiry_action
+                    discount_by, keep_days, expiry_action, email_bounced
              FROM vendors WHERE id = ?::uuid',
             [$id]
         );
@@ -104,13 +104,17 @@ class PartyStore
     public function saveVendor(string $id, VendorDraft $vendor): void
     {
         $count = $this->statements->affected(
-            'UPDATE vendors
+            "UPDATE vendors
              SET code = ?, first_name = ?, last_name = ?, phone = ?, email = ?, address = ?,
                  commission_bps = ?, agreement_starts_on = ?::date, agreement_ends_on = ?::date,
                  tax_id = ?, notes = ?, tax_exempt = ?::boolean, tax_exempt_number = ?, business_name = ?,
-                 discount_by = ?, keep_days = ?, expiry_action = ?
-             WHERE id = ?::uuid',
-            [...$vendor->values(), $id]
+                 discount_by = ?, keep_days = ?, expiry_action = ?,
+                 email_bounced = CASE
+                     WHEN lower(COALESCE(email, '')) IS DISTINCT FROM lower(COALESCE(?::text, '')) THEN false
+                     ELSE email_bounced
+                 END
+             WHERE id = ?::uuid",
+            [...$vendor->values(), $vendor->email(), $id]
         );
         if ($count === 0) {
             throw new \InvalidArgumentException('that vendor is not in this mall');

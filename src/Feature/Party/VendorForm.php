@@ -174,6 +174,7 @@ final class VendorForm
         $kept = $stored['keep_days'] ?? null;
         $vendor['keep_days'] = is_int($kept) ? (string) $kept : (is_string($kept) ? $kept : '');
         $vendor['expiry_action'] = $this->plain($stored['expiry_action'] ?? 'return');
+        $vendor['email_bounced'] = $this->enabled($stored['email_bounced'] ?? false);
         $vendor['first_name'] = $this->plain($stored['first_name'] ?? null);
         $vendor['last_name'] = $this->plain($stored['last_name'] ?? null);
         $vendor['default_store_take'] = $this->percent($mallBasis);

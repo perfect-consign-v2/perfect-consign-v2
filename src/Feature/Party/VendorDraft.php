@@ -35,6 +35,11 @@ final class VendorDraft
     /**
      * @return list<int|string|null>
      */
+    public function email(): ?string
+    {
+        return $this->contact($this->fields['email'], 'email');
+    }
+
     public function values(): array
     {
         $facts = $this->identityFacts();
