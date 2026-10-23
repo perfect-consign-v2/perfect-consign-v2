@@ -32,7 +32,10 @@ final class ForgotController
     {
         $this->app->checkCsrf();
         $tenant = $this->app->open($slug, false);
-        $this->recovery->request($tenant, $this->app->request()->field('username'), $this->app->request()->origin);
+        $sent = $this->recovery->request($tenant, $this->app->request()->field('username'), $this->app->request()->origin);
+        if (!$sent) {
+            $this->app->redirect('/' . $slug . '/forgot', null, 'The reset link was not sent.');
+        }
         $this->app->redirect('/' . $slug . '/forgot', ResetNotice::SENT);
     }
 }

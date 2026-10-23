@@ -21,22 +21,23 @@ final class PasswordRecovery
     ) {
     }
 
-    public function request(TenantRecord $tenant, string $username, string $origin): void
+    public function request(TenantRecord $tenant, string $username, string $origin): bool
     {
         $username = $this->username($username);
         if ($username === '' || !$this->requests->allow($tenant, $username)) {
-            return;
+            return true;
         }
         $account = $this->accounts->find($tenant, $username);
         if ($account === null) {
-            return;
+            return true;
         }
         $mailbox = $this->accounts->companyMail($tenant);
-        $account = $this->accounts->forReset($account, $mailbox['email']);
+        $account = $this->accounts->forReset($account);
         if ($account === null) {
-            return;
+            return true;
         }
-        $this->letters->deliver($tenant, $account, $origin, $mailbox['gmail']);
+
+        return $this->letters->deliver($tenant, $account, $origin, $mailbox['gmail']);
     }
 
     public function available(TenantRecord $tenant, string $token): bool

@@ -21,27 +21,28 @@ final class ResetLetter
     /**
      * @param array{host: string, port: int, username: string, password: string, from: string}|null $gmail
      */
-    public function deliver(TenantRecord $tenant, LoginAccount $account, string $origin, ?array $gmail = null): void
+    public function deliver(TenantRecord $tenant, LoginAccount $account, string $origin, ?array $gmail = null): bool
     {
         if (preg_match('#\Ahttps?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?\z#', $origin) !== 1) {
             $this->logger->error('reset link origin is missing', ['slug' => $tenant->slug]);
 
-            return;
+            return false;
         }
         $token = $this->tokens->issue($tenant, $account);
-        $this->send($account->email, 'Reset your password', $this->letter($tenant, $account, $origin, $token), $gmail);
+
+        return $this->send($account->email, 'Reset your password', $this->letter($tenant, $account, $origin, $token), $gmail);
     }
 
     /**
      * @param array{host: string, port: int, username: string, password: string, from: string}|null $gmail
      */
-    private function send(string $to, string $subject, string $body, ?array $gmail): void
+    private function send(string $to, string $subject, string $body, ?array $gmail): bool
     {
         $file = getenv('STALL_MAIL_FILE');
         if ($gmail === null || (is_string($file) && $file !== '')) {
             $this->mail->send($to, $subject, $body);
 
-            return;
+            return true;
         }
         try {
             (new SmtpClient(
@@ -51,9 +52,13 @@ final class ResetLetter
                 $gmail['password'],
                 $gmail['from'],
             ))->send($to, $subject, $body);
-        } catch (\Throwable) {
-            $this->logger->error('reset mail was refused');
+        } catch (\Throwable $error) {
+            $this->logger->error('reset mail was refused', ['message' => $error->getMessage()]);
+
+            return false;
         }
+
+        return true;
     }
 
     private function letter(TenantRecord $tenant, LoginAccount $account, string $origin, string $token): string

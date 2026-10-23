@@ -113,23 +113,13 @@ final class LoginAccounts
         return is_string($value) ? $value : '';
     }
 
-    public function forReset(?LoginAccount $account, string $company): ?LoginAccount
+    public function forReset(?LoginAccount $account): ?LoginAccount
     {
-        if ($account === null) {
+        if ($account === null || $account->email === '') {
             return null;
-        }
-        $email = $account->email;
-        if ($email === '' && $account->kind === 'owner') {
-            $email = $company;
-        }
-        if ($email === '') {
-            return null;
-        }
-        if ($email === $account->email) {
-            return $account;
         }
 
-        return new LoginAccount($account->kind, $account->id, $account->username, $email);
+        return $account;
     }
 
     /**

@@ -66,15 +66,13 @@ final class PasswordBoundaryTest extends TestCase
         self::assertSame('reset link origin is missing', $log->message);
     }
 
-    public function testAnOwnerWithoutARecoveryEmailUsesTheCompanyAddress(): void
+    public function testAnOwnerWithoutARecoveryEmailIsNotSentToTheCompanyAddress(): void
     {
         $accounts = (new \ReflectionClass(LoginAccounts::class))->newInstanceWithoutConstructor();
         $owner = new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', '');
-        $ownerReset = $accounts->forReset($owner, 'store@example.com');
-        self::assertNotNull($ownerReset);
-        self::assertSame('store@example.com', $ownerReset->email);
-        self::assertNull($accounts->forReset(new LoginAccount('staff', '01900000-0000-7000-8000-0000000000c1', 'cashier', ''), 'store@example.com'));
-        $saved = $accounts->forReset(new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', 'owner@example.com'), 'store@example.com');
+        self::assertNull($accounts->forReset($owner));
+        self::assertNull($accounts->forReset(new LoginAccount('staff', '01900000-0000-7000-8000-0000000000c1', 'cashier', '')));
+        $saved = $accounts->forReset(new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', 'owner@example.com'));
         self::assertNotNull($saved);
         self::assertSame('owner@example.com', $saved->email);
 
