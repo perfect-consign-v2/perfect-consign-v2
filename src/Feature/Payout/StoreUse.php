@@ -21,7 +21,16 @@ final class StoreUse
     ) {
     }
 
-    public function record(string $vendorId, string $itemCode, int $amount, string $postingDate, string $description, string $memo): string
+    public static function postingKey(string $vendorId, string $itemCode, int $amount, string $token): string
+    {
+        if (preg_match('/^[0-9a-f]{32}$/', $token) !== 1) {
+            throw new InvalidArgumentException('this form has expired');
+        }
+
+        return 'store-use:' . hash('sha256', $vendorId . "\n" . strtolower(trim($itemCode)) . "\n" . $amount . "\n" . $token);
+    }
+
+    public function record(string $vendorId, string $itemCode, int $amount, string $postingDate, string $description, string $memo, string $token): string
     {
         $trimmedDescription = trim($description);
         $trimmedMemo = trim($memo);
@@ -32,10 +41,11 @@ final class StoreUse
             throw new InvalidArgumentException('a store use is a positive amount');
         }
         $itemId = $this->itemId($vendorId, $itemCode);
-        $reference = bin2hex(random_bytes(16));
+        $postingKey = self::postingKey($vendorId, $itemCode, $amount, $token);
+        $reference = substr($postingKey, strlen('store-use:'));
 
         return $this->ledger->post(new JournalDraft(
-            postingKey: 'store-use:' . $reference,
+            postingKey: $postingKey,
             postingDate: $postingDate,
             source: new JournalSource('store_use', $reference, 'Store use'),
             lines: [
@@ -71,11 +81,11 @@ final class StoreUse
         return $vendors;
     }
 
-    private function itemId(string $vendorId, string $itemCode): ?string
+    private function itemId(string $vendorId, string $itemCode): string
     {
         $code = trim($itemCode);
         if ($code === '') {
-            return null;
+            throw new DatabaseRefusal('a store use needs an item');
         }
         $rows = $this->statements->bound(
             'SELECT id::text AS id FROM items WHERE vendor_id = ?::uuid AND lower(code) = lower(?)',

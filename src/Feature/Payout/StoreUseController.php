@@ -37,7 +37,15 @@ final class StoreUseController
         $date = $this->app->request()->field('posting_date');
         try {
             $amount = Money::parseMinor($this->app->request()->field('amount'));
-            $journalId = $this->uses->record($vendorId, $itemCode, $amount, $date, $description, $memo);
+            $journalId = $this->uses->record(
+                $vendorId,
+                $itemCode,
+                $amount,
+                $date,
+                $description,
+                $memo,
+                $this->app->request()->field('form_token'),
+            );
             $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Store use posted.');
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Payout/store-use', $this->page($tenant->displayName, $tenant->slug, $this->app->catchRefusal($refusal)));
@@ -47,7 +55,7 @@ final class StoreUseController
     }
 
     /**
-     * @return array{title: string, displayName: string, slug: string, vendors: list<array{id: string, name: string}>, error: ?string, vendorId: string, itemCode: string, description: string, amount: string, memo: string, postingDate: string}
+     * @return array{title: string, displayName: string, slug: string, vendors: list<array{id: string, name: string}>, error: ?string, vendorId: string, itemCode: string, description: string, amount: string, memo: string, postingDate: string, formToken: string}
      */
     private function page(string $displayName, string $slug, ?string $error): array
     {
@@ -63,6 +71,17 @@ final class StoreUseController
             'amount' => $this->app->request()->field('amount'),
             'memo' => $this->app->request()->field('memo'),
             'postingDate' => $this->app->request()->field('posting_date'),
+            'formToken' => $this->formToken(),
         ];
+    }
+
+    private function formToken(): string
+    {
+        $token = $this->app->request()->field('form_token');
+        if (preg_match('/^[0-9a-f]{32}$/', $token) === 1) {
+            return $token;
+        }
+
+        return bin2hex(random_bytes(16));
     }
 }

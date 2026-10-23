@@ -15,6 +15,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $memo */
 /** @var string $postingDate */
 /** @var string $today */
+/** @var string $formToken */
 $memoValue = $memo !== '' ? $memo : 'Bought for the business, not for resale';
 $dateValue = $postingDate !== '' ? $postingDate : $today;
 ?>
@@ -25,6 +26,7 @@ $dateValue = $postingDate !== '' ? $postingDate : $today;
 <?php } ?>
 <form method="post" action="/<?= View::text($slug) ?>/store-use">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+    <input type="hidden" name="form_token" value="<?= View::text($formToken) ?>">
     <label for="vendor_id">Vendor</label>
     <select id="vendor_id" name="vendor_id" required>
         <option value="">Choose</option>
