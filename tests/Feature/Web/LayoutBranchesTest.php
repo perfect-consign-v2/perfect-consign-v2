@@ -66,14 +66,44 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('class="pos-app"', $html);
     }
 
-    public function testTheDevOwnerSeesResetTestData(): void
+    public function testAConsignmentStoreDropsVendorAndBoothPages(): void
     {
         $html = $this->layout([
-            'slug' => 'dev',
             'actorRole' => 'owner',
-            'path' => '/dev/dashboard',
-            'activeRegister' => 'Front',
+            'consignmentOnly' => true,
+            'boothRentals' => false,
+            'path' => '/demo/dashboard',
         ]);
+
+        self::assertStringContainsString('Consignors', $html);
+        self::assertStringContainsString('Pay consignors', $html);
+        self::assertStringContainsString('Consignor memo', $html);
+        self::assertStringNotContainsString('>Vendors<', $html);
+        self::assertStringNotContainsString('Pay vendors', $html);
+        self::assertStringNotContainsString('Vendor memo', $html);
+        self::assertStringNotContainsString('href="/demo/booths"', $html);
+        self::assertStringNotContainsString('href="/demo/rent"', $html);
+        self::assertStringNotContainsString('href="/demo/map"', $html);
+        self::assertStringNotContainsString('href="/demo/wait-list"', $html);
+        self::assertStringNotContainsString('href="/demo/mall-sale"', $html);
+        self::assertStringNotContainsString('href="/demo/booth-extras"', $html);
+        self::assertStringContainsString('href="/demo/parties"', $html);
+        self::assertStringContainsString('href="/demo/payouts"', $html);
+    }
+
+    public function testTheDevOwnerSeesResetTestData(): void
+    {
+        putenv('STALL_ALLOW_TENANT_RESET=1');
+        try {
+            $html = $this->layout([
+                'slug' => 'dev',
+                'actorRole' => 'owner',
+                'path' => '/dev/dashboard',
+                'activeRegister' => 'Front',
+            ]);
+        } finally {
+            putenv('STALL_ALLOW_TENANT_RESET');
+        }
 
         self::assertStringContainsString('action="/dev/reset-test-data"', $html);
         self::assertStringContainsString('class="btn btn-danger"', $html);
@@ -84,12 +114,17 @@ final class LayoutBranchesTest extends TestCase
 
     public function testTheMallOwnerSeesResetTestData(): void
     {
-        $html = $this->layout([
-            'slug' => 'mall',
-            'actorRole' => 'owner',
-            'path' => '/mall/dashboard',
-            'activeRegister' => 'Front',
-        ]);
+        putenv('STALL_ALLOW_TENANT_RESET=1');
+        try {
+            $html = $this->layout([
+                'slug' => 'mall',
+                'actorRole' => 'owner',
+                'path' => '/mall/dashboard',
+                'activeRegister' => 'Front',
+            ]);
+        } finally {
+            putenv('STALL_ALLOW_TENANT_RESET');
+        }
 
         self::assertStringContainsString('action="/mall/reset-test-data"', $html);
         self::assertStringContainsString('class="btn btn-danger"', $html);

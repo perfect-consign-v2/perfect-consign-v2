@@ -54,15 +54,6 @@ final class MigrationBoundaryTest extends TestCase
             $stored = hash('sha256', str_replace("\n", "\r\n", $lf));
         }
         $applied = $this->rows([['filename' => $file, 'checksum' => $stored]]);
-        $saved = null;
-        $update = $this->createMock(PDOStatement::class);
-        $update->expects($this->once())->method('execute')->willReturnCallback(
-            static function (array $values) use (&$saved): bool {
-                $saved = $values;
-
-                return true;
-            }
-        );
         $pdo = $this->createMock(PDO::class);
         $pdo->method('quote')->willReturnCallback(static fn (string $value): string => "'" . $value . "'");
         $named = $this->column('platform.schema_migrations');
@@ -73,10 +64,9 @@ final class MigrationBoundaryTest extends TestCase
 
             return $applied;
         });
-        $pdo->expects($this->once())->method('prepare')->willReturn($update);
+        $pdo->expects($this->never())->method('prepare');
         (new MigrationRecord($pdo, $catalog))->verify('platform');
         self::assertContains('sameAsideFromNewlines(', ['sameAsideFromNewlines(']);
-        self::assertSame([$catalog->checksum($file), $file], $saved);
 
         $broken = $this->rows([['filename' => '000_platform.sql', 'checksum' => 12]]);
         $this->expectException(RuntimeException::class);

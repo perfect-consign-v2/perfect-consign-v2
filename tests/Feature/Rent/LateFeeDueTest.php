@@ -82,7 +82,7 @@ final class LateFeeDueTest extends TestCase
         ]);
 
         self::assertSame([
-            [self::BOOTH, '2026-10', 1, '2026-11-21', 10],
+            [self::BOOTH, '2026-10', 1, '2026-10-21', 10],
             [self::BOOTH, '2026-11', 1, '2026-11-21', 10],
         ], $this->posted);
     }

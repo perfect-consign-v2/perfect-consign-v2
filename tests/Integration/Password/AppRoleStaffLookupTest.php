@@ -83,7 +83,7 @@ final class AppRoleStaffLookupTest extends TestCase
             self::assertTrue(password_verify('cashier-next', $this->hash($admin, $tenant, $cashier)));
             self::assertFalse(password_verify('cashier-pass', $this->hash($admin, $tenant, $cashier)));
             self::assertSame('stall_app', $this->currentUser($app));
-            $this->assertOwnerResetUsesTheCompanyEmail($admin, $app, $recovery, $tenant, $mail);
+            $this->assertAnOwnerWithoutAnEmailIsNotSentToTheCompany($admin, $app, $recovery, $tenant, $mail);
         } finally {
             $this->restoreMail($previous);
             if (is_file($mail)) {
@@ -147,7 +147,7 @@ final class AppRoleStaffLookupTest extends TestCase
         };
     }
 
-    private function assertOwnerResetUsesTheCompanyEmail(
+    private function assertAnOwnerWithoutAnEmailIsNotSentToTheCompany(
         PDO $admin,
         PDO $app,
         PasswordRecovery $recovery,
@@ -168,8 +168,10 @@ final class AppRoleStaffLookupTest extends TestCase
         );
         $this->change($admin, 'UPDATE ' . $tenant->schema . '.mall SET email = ?', [$company]);
         try {
-            $recovery->request($tenant, ProbeMall::USERNAME, 'http://127.0.0.1:8097');
-            self::assertStringContainsString('To: ' . $company . "\n", $this->text($mail));
+            $before = $this->text($mail);
+            self::assertTrue($recovery->request($tenant, ProbeMall::USERNAME, 'http://127.0.0.1:8097'));
+            self::assertSame($before, $this->text($mail));
+            self::assertStringNotContainsString('To: ' . $company . "\n", $this->text($mail));
             self::assertSame('stall_app', $this->currentUser($app));
         } finally {
             $this->change(

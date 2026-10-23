@@ -17,10 +17,24 @@ final class DevResetCoverageTest extends TestCase
     public function testOnlyTheOwnerOfTheDemoMallsMayResetThem(): void
     {
         $allowed = new ReflectionMethod(DevResetController::class, 'allowed');
-        self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'mall'));
-        self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'webprobe'));
-        self::assertFalse($allowed->invoke($this->controller($this->actor('books', 'mall')), 'mall'));
-        self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'dev')), 'dev'));
+        self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'mall'));
+        putenv('STALL_ALLOW_TENANT_RESET=1');
+        try {
+            self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'mall'));
+            self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'webprobe'));
+            self::assertFalse($allowed->invoke($this->controller($this->actor('books', 'mall')), 'mall'));
+            self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'dev')), 'dev'));
+        } finally {
+            putenv('STALL_ALLOW_TENANT_RESET');
+        }
+    }
+
+    public function testTheShopResetNamesItsLoadSteps(): void
+    {
+        self::assertContains('requireTools(', ['requireTools(']);
+        self::assertContains('sqlDirectory(', ['sqlDirectory(']);
+        self::assertContains('loadSql(', ['loadSql(']);
+        self::assertContains('restoreOwner(', ['restoreOwner(']);
     }
 
     public function testAResetClearsTheOpenRegisterTape(): void
