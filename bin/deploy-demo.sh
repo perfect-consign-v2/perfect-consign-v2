@@ -56,6 +56,7 @@ fi
 
 "$php_bin" "$composer" --working-dir="$root" install --no-dev --no-interaction --prefer-dist
 
+"$php_bin" "${root}/bin/ensure-mail-key.php"
 "$php_bin" "${root}/bin/migrate.php" platform
 if ! tenant_err=$("$php_bin" "${root}/bin/migrate.php" tenant mall 2>&1); then
     printf '%s\n' "$tenant_err" >&2

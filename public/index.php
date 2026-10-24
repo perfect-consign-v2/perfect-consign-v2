@@ -19,6 +19,8 @@ use PerfectConsign\Shared\Http\View;
 use Psr\Log\LoggerInterface;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/bin/load-env.php';
+loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
 
 $coverageDirectory = getenv('PC_COVERAGE');
 $coverageStarted = false;
