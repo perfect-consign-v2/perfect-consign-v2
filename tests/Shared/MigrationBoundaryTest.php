@@ -168,13 +168,15 @@ final class MigrationBoundaryTest extends TestCase
         $applied = [];
         $regclass = 0;
         $sql = [];
-        $pdo = $this->tenantPdo(self::SCHEMA, $applied, $regclass, $sql);
+        $seals = 0;
+        $pdo = $this->tenantPdo(self::SCHEMA, $applied, $regclass, $sql, false, $seals);
 
         (new SchemaMigrator($pdo, $catalog))->migrateTenant('mall');
 
         $joined = implode("\n", $sql);
         self::assertStringContainsString('stall_poster', $joined);
         self::assertStringNotContainsString('poster_0123456789abcdef0123456789abcdef', $joined);
+        self::assertSame(1, $seals);
     }
 
     public function testASchemaThatIsNotATenantIsNotProvisioned(): void
@@ -241,7 +243,7 @@ final class MigrationBoundaryTest extends TestCase
      * @param array<string, string> $applied
      * @param list<string> $sql
      */
-    private function tenantPdo(string $schema, array $applied, int &$regclass, array &$sql = [], bool $inside = false): PDO
+    private function tenantPdo(string $schema, array $applied, int &$regclass, array &$sql = [], bool $inside = false, int &$seals = 0): PDO
     {
         $rows = [];
         foreach ($applied as $file => $checksum) {
@@ -262,7 +264,7 @@ final class MigrationBoundaryTest extends TestCase
         $locked = $this->column(true);
         $named = $this->column($schema . '.schema_migrations');
         $present = $this->column('found');
-        $pdo->method('query')->willReturnCallback(static function (string $statement) use ($locked, $named, $found, $present, &$regclass): PDOStatement {
+        $pdo->method('query')->willReturnCallback(static function (string $statement) use ($locked, $named, $found, $present, &$regclass, &$seals): PDOStatement {
             if (str_contains($statement, 'pg_try_advisory_lock') || str_contains($statement, 'pg_advisory_unlock')) {
                 return $locked;
             }
@@ -276,6 +278,9 @@ final class MigrationBoundaryTest extends TestCase
             }
             if (str_contains($statement, 'schema_migrations')) {
                 return $found;
+            }
+            if (str_contains($statement, 'left(gmail_app_password')) {
+                $seals++;
             }
 
             return $present;

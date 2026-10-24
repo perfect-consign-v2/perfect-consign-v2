@@ -30,6 +30,19 @@ final class MailboxSealTest extends TestCase
         MailboxSeal::sealPlain($pdo);
     }
 
+    public function testABlankOrNonTextPasswordIsLeftAlone(): void
+    {
+        $listed = $this->createStub(PDOStatement::class);
+        $listed->method('fetchAll')->willReturn(['', 4]);
+        $update = $this->createMock(PDOStatement::class);
+        $update->expects($this->never())->method('execute');
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('query')->willReturn($listed);
+        $pdo->method('prepare')->willReturn($update);
+
+        MailboxSeal::sealPlain($pdo);
+    }
+
     public function testAnEmptyMailboxIsLeftAlone(): void
     {
         $pdo = $this->createMock(PDO::class);

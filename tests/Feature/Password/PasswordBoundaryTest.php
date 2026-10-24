@@ -152,6 +152,47 @@ final class PasswordBoundaryTest extends TestCase
         self::assertSame('the reset mailbox could not be read', $log->message);
     }
 
+    public function testACompanyMailboxWithoutAMailFileIsRefused(): void
+    {
+        $previous = getenv('STALL_MAIL_FILE');
+        putenv('STALL_MAIL_FILE');
+        $log = new class extends AbstractLogger {
+            public string $message = '';
+
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+                $this->message = (string) $message;
+            }
+        };
+        $letter = new ResetLetter(
+            new ResetTokens($this->createStub(PDO::class)),
+            new OutboundMail($log),
+            $log,
+        );
+        $send = new ReflectionMethod(ResetLetter::class, 'send');
+        set_error_handler(static function (int $severity, string $message): bool {
+            return str_contains($message, 'stream_socket_client');
+        });
+        try {
+            $sent = $send->invoke($letter, 'owner-reset@example.com', 'Reset your password', "Open this link\n", [
+                'host' => '127.0.0.1',
+                'port' => 9,
+                'username' => 'shop@gmail.com',
+                'password' => 'abcdefghijklmnop',
+                'from' => 'shop@gmail.com',
+            ]);
+            self::assertFalse($sent);
+            self::assertSame('reset mail was refused', $log->message);
+        } finally {
+            restore_error_handler();
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_MAIL_FILE=' . $previous);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+        }
+    }
+
     public function testARecordedResetSkipsGmail(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'pc-reset-');

@@ -54,6 +54,18 @@ final class JobDispatchTest extends TestCase
         (new JobSchedule($pdo, new JobQueue()))->schedule();
     }
 
+    public function testASchemaThatIsNotATenantIsRefused(): void
+    {
+        $statement = $this->createStub(PDOStatement::class);
+        $statement->method('fetchColumn')->willReturn('not-a-schema');
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturn($statement);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('tenant is not provisioned');
+        $this->runner($pdo)->schema('mall');
+    }
+
     public function testAnEmptyDigestSendsNothing(): void
     {
         $pdo = $this->createMock(PDO::class);
