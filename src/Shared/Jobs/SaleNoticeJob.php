@@ -6,8 +6,8 @@ namespace PerfectConsign\Shared\Jobs;
 
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Ledger\Money;
+use PerfectConsign\Shared\Mail\MailAttempt;
 use PerfectConsign\Shared\Mail\MailBounce;
-use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Scalar\RowValue;
 use Psr\Log\LoggerInterface;
@@ -57,16 +57,14 @@ final class SaleNoticeJob
         foreach ($letters as $email => $letter) {
             $name = $letter['name'];
             $lines = $letter['lines'];
-            try {
-                $this->mail->deliver($email, 'Sold today', $name . "\n" . implode("\n", $lines));
-            } catch (MailDeliveryFailed $failed) {
-                $this->logger->error('mail was not delivered', ['status' => $failed->status()]);
-                if ($failed->permanent()) {
-                    $this->bounce->mark($email);
-                }
-            } catch (\RuntimeException $error) {
-                $this->logger->error('mail was not delivered', ['message' => $error->getMessage()]);
-            }
+            MailAttempt::send(
+                $this->mail,
+                $this->bounce,
+                $this->logger,
+                $email,
+                'Sold today',
+                $name . "\n" . implode("\n", $lines)
+            );
         }
     }
 }

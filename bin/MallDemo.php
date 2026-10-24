@@ -135,13 +135,16 @@ final class MallDemo
         }
         $this->statements = new Statements($pdo);
         $this->ledger = new LedgerStore($pdo, $this->statements, new LedgerPeriods($pdo), new JournalCash($pdo));
-        $this->parties = new PartyStore($this->statements);
+        $audit = new \PerfectConsign\Bootstrap\JournalAudit(
+            new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
+            new \PerfectConsign\Bootstrap\AuditLog($this->statements),
+        );
+        $this->parties = new PartyStore($this->statements, $audit);
         $pricing = new TicketPricing($this->statements);
         $ceiling = new \PerfectConsign\Bootstrap\SaleCeiling(
             $this->statements,
             new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
             new \PerfectConsign\Bootstrap\AuditLog($this->statements),
-            new \PerfectConsign\Shared\Http\Request('GET', '/', [], [], '', '', '127.0.0.1'),
         );
         $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)), $ceiling);
         $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements), new ReceiptChange(), $ceiling);
@@ -150,8 +153,8 @@ final class MallDemo
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));
         $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
         $lines = new PayoutRunLines($this->statements);
-        $this->settler = new PayoutSettler($this->ledger, $payouts, $this->runs, $lines);
-        $this->disburser = new PayoutDisburser($this->ledger, $payouts, $this->runs, $lines, new PayoutRunChecks($this->statements));
+        $this->settler = new PayoutSettler($this->ledger, $payouts, $this->runs, $lines, $audit);
+        $this->disburser = new PayoutDisburser($this->ledger, $payouts, $this->runs, $lines, new PayoutRunChecks($this->statements), $audit);
     }
 
     public function load(): void
@@ -162,10 +165,7 @@ final class MallDemo
             'UPDATE mall SET commission_bps = ?, tax_bps = ?, floor_days = ?, rent_prepaid_from_prior_sales = true',
             [2000, 8750, 90]
         );
-        $this->statements->change(
-            'UPDATE mall SET receipt_mail_via = ?, gmail_address = ?, gmail_app_password = ?',
-            ['gmail', 'benanamen@gmail.com', 'rtxlnmaxtzfjvjno']
-        );
+        \PerfectConsign\Shared\Mail\MailboxSeed::plant($this->pdo);
         $this->statements->change('UPDATE registers SET name = ? WHERE id = ?::uuid', ['Front desk', self::REGISTER]);
         $this->statements->change(
             "INSERT INTO map_floors (name, sort_order) VALUES ('Annex', 1)",

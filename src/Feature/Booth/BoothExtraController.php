@@ -14,6 +14,7 @@ use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\Money;
+use PerfectConsign\Shared\Database\Statements;
 
 final class BoothExtraController
 {
@@ -23,6 +24,7 @@ final class BoothExtraController
         private readonly ActiveRegister $register,
         private readonly Actor $actor,
         private readonly AuditLog $audit,
+        private readonly Statements $statements,
     ) {
     }
 
@@ -79,12 +81,17 @@ final class BoothExtraController
         $request = $this->app->request();
         $reference = $request->field('source_reference');
         $booth = $request->field('booth_id');
-        if ($reference === '' || $booth === '') {
+        if ($reference === '' || preg_match('/^[0-9a-fA-F-]{36}$/', $booth) !== 1) {
             throw new DatabaseRefusal('a booth and a reference are required');
+        }
+        if ($this->statements->bound('SELECT id::text AS id FROM booths WHERE id = ?::uuid', [$booth]) === []) {
+            throw new DatabaseRefusal('that booth does not exist');
         }
         $amount = Money::parseMinor($request->field('amount'));
         [$actor, $role] = $this->signer();
         [$debit, $credit] = $this->sides($charge, $release);
+        $debitBooth = $debit === 'booth_deposit_held' || $debit === 'booth_rent_receivable' ? $booth : null;
+        $creditBooth = $credit === 'booth_deposit_held' || $credit === 'booth_rent_receivable' ? $booth : null;
         $this->ledger->post(new JournalDraft(
             postingKey: $key . $reference,
             postingDate: $request->field('posting_date'),
@@ -94,8 +101,8 @@ final class BoothExtraController
                 $this->audit->record($actor, $role, $source, 'journal', $journalId);
             },
             lines: [
-                $this->line($debit, $amount, 0, $charge ? $booth : null),
-                $this->line($credit, 0, $amount, null),
+                $this->line($debit, $amount, 0, $debitBooth),
+                $this->line($credit, 0, $amount, $creditBooth),
             ],
         ));
     }
@@ -133,13 +140,13 @@ final class BoothExtraController
     private function sides(bool $charge, bool $release): array
     {
         if ($release) {
-            return ['booth_deposits', 'cash'];
+            return ['booth_deposit_held', 'cash'];
         }
         if ($charge) {
             return ['booth_rent_receivable', 'booth_other_revenue'];
         }
 
-        return ['cash', 'booth_deposits'];
+        return ['cash', 'booth_deposit_held'];
     }
 
     /**

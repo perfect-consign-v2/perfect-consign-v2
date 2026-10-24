@@ -21,6 +21,7 @@ final class Permission
         'rent.waive',
         'register.close',
         'settings.edit',
+        'report.read',
     ];
 
     public static function allows(string $role, string $verb): bool
@@ -32,7 +33,7 @@ final class Permission
             return in_array($verb, ['sale.post', 'sale.void', 'sale.discount', 'sale.tax_free', 'register.close'], true);
         }
         if ($role === 'books') {
-            return false;
+            return $verb === 'report.read';
         }
 
         return false;

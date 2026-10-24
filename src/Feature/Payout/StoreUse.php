@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Payout;
 
 use InvalidArgumentException;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -18,6 +19,7 @@ final class StoreUse
     public function __construct(
         private readonly LedgerStore $ledger,
         private readonly Statements $statements,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -58,6 +60,7 @@ final class StoreUse
                      VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?)',
                     [$journalId, $vendorId, $itemId, $amount, $trimmedDescription, $trimmedMemo]
                 );
+                $this->audit->record('store_use.record', $journalId);
             },
         ));
     }

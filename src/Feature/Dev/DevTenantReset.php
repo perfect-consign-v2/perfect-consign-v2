@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Dev;
 
 use PDO;
+use PerfectConsign\Shared\Mail\MailboxSeed;
 use RuntimeException;
 
 final class DevTenantReset
@@ -21,6 +22,7 @@ final class DevTenantReset
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Dev');
         $this->loadSql($pdo, $provisioner, $schema);
+        MailboxSeed::plant($pdo);
         $this->restoreOwner($pdo, $owner);
 
         return $schema;

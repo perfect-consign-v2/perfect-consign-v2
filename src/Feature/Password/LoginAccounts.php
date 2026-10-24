@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Password;
 
 use PerfectConsign\Bootstrap\DatabaseRole;
+use PerfectConsign\Shared\Mail\SealedSecret;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
 
@@ -183,7 +184,7 @@ final class LoginAccounts
             'host' => 'smtp.gmail.com',
             'port' => 587,
             'username' => $address,
-            'password' => $password,
+            'password' => SealedSecret::open($password),
             'from' => $address,
         ];
     }

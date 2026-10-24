@@ -56,16 +56,18 @@ final class MallSaleController
             $this->app->redirect('/' . $slug . '/mall-sale', 'The signed-in person is missing.');
         }
         try {
-            $rows = $this->statements->bound(
-                'INSERT INTO mall_sales (name, starts_on, ends_on, percent_bps, absorbed_by)
-                 VALUES (?, ?::date, ?::date, ?, ?)
-                 RETURNING id::text AS id',
-                [$request->field('name'), $request->field('starts_on'), $request->field('ends_on'), $bps, $absorbed]
-            );
+            $this->statements->transaction(function () use ($request, $bps, $absorbed, $name, $role): void {
+                $rows = $this->statements->bound(
+                    'INSERT INTO mall_sales (name, starts_on, ends_on, percent_bps, absorbed_by)
+                     VALUES (?, ?::date, ?::date, ?, ?)
+                     RETURNING id::text AS id',
+                    [$request->field('name'), $request->field('starts_on'), $request->field('ends_on'), $bps, $absorbed]
+                );
+                $this->audit->record($name, $role, 'mall_sale.create', 'mall_sale', RowValue::string($rows[0]['id'] ?? null));
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->app->redirect('/' . $slug . '/mall-sale', $this->app->catchRefusal($refusal));
         }
-        $this->audit->record($name, $role, 'mall_sale.create', 'mall_sale', RowValue::string($rows[0]['id'] ?? null));
         $this->app->redirect('/' . $slug . '/mall-sale', 'Mall sale saved.');
     }
 

@@ -39,9 +39,17 @@ final class Csv
         return $body;
     }
 
+    public static function protect(string $value): string
+    {
+        return self::cell($value);
+    }
+
     private static function cell(string $value): string
     {
-        if ($value !== '' && preg_match('/^[=+\-@\t\r]/', $value) === 1) {
+        if ($value !== '' && preg_match('/^[=+@\t\r]/', $value) === 1) {
+            return "'" . $value;
+        }
+        if ($value !== '' && str_starts_with($value, '-') && preg_match('/^-?(?:\d+|\d+\.\d+)$/', $value) !== 1) {
             return "'" . $value;
         }
 

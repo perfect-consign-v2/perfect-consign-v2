@@ -34,4 +34,18 @@ final class ExportStoreTest extends TestCase
         $this->expectException(DatabaseRefusal::class);
         (new ExportStore($pdo))->exportCsv('quickbooks', '2026-01-01', '2026-01-31', '0');
     }
+
+    public function testAFormulaFieldIsPrefixedAndASignedNumberIsNot(): void
+    {
+        $statement = $this->createStub(PDOStatement::class);
+        $statement->method('execute')->willReturn(true);
+        $statement->method('fetchAll')->willReturn(['Ada,=1+1', 'Ada,-500']);
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturn($statement);
+
+        $csv = (new ExportStore($pdo))->exportCsv('quickbooks', '2026-01-01', '2026-01-31', '0');
+
+        self::assertStringContainsString("'=1+1", $csv);
+        self::assertStringContainsString('Ada,-500', $csv);
+    }
 }

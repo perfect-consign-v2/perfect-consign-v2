@@ -1,11 +1,9 @@
 ---
-description: When the user asks for a check, Stall is not done unless composer check exits 0. Do not start that run otherwise.
+description: When the user asks for a check, Stall is not done unless composer check exits 0. The full suite waits for that ask. The path just edited still has to be executed. See catch-it-yourself.
 alwaysApply: true
 ---
 
 # Keep the proven level
-
-Do not start this run unless the user asked for tests or proofs in this message. See `do-not-run-tests`.
 
 When they do ask, done means `composer check` exits 0 after the latest edit, not that a feature proof passed once.
 

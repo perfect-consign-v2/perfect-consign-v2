@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Floor;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -14,6 +16,7 @@ final class FloorController
     public function __construct(
         private readonly MallApp $app,
         private readonly Statements $statements,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -52,13 +55,22 @@ final class FloorController
         if ($kind !== 'missing' && $kind !== 'misplaced') {
             $this->app->redirect('/' . $slug . '/floor', 'Choose missing or misplaced.');
         }
-        $this->statements->change(
-            'INSERT INTO floor_findings (item_id, kind, noted_on, noted_by)
-             SELECT item.id, ?, ?::date, ?
-             FROM items AS item
-             WHERE item.code = ?',
-            [$kind, $request->field('noted_on'), $request->field('noted_by'), $request->field('code')]
-        );
+        try {
+            $this->statements->transaction(function () use ($request, $kind): void {
+                $rows = $this->statements->bound(
+                    'INSERT INTO floor_findings (item_id, kind, noted_on, noted_by)
+                     SELECT item.id, ?, ?::date, ?
+                     FROM items AS item
+                     WHERE item.code = ?
+                     RETURNING id::text AS id',
+                    [$kind, $request->field('noted_on'), $request->field('noted_by'), $request->field('code')]
+                );
+                $id = RowValue::string($rows[0]['id'] ?? null);
+                $this->audit->record('floor.note', $id, 'floor_finding');
+            });
+        } catch (DatabaseRefusal | \InvalidArgumentException) {
+            $this->app->redirect('/' . $slug . '/floor', 'That item is not on the floor.');
+        }
         $this->app->redirect('/' . $slug . '/floor', 'Floor note saved.');
     }
 
@@ -68,13 +80,22 @@ final class FloorController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $request = $this->app->request();
-        $this->statements->change(
-            'INSERT INTO pickups (item_id, vendor_id, picked_up_on, received_by)
-             SELECT item.id, item.vendor_id, ?::date, ?
-             FROM items AS item
-             WHERE item.code = ? AND item.vendor_id IS NOT NULL',
-            [$request->field('picked_up_on'), $request->field('received_by'), $request->field('code')]
-        );
+        try {
+            $this->statements->transaction(function () use ($request): void {
+                $rows = $this->statements->bound(
+                    'INSERT INTO pickups (item_id, vendor_id, picked_up_on, received_by)
+                     SELECT item.id, item.vendor_id, ?::date, ?
+                     FROM items AS item
+                     WHERE item.code = ? AND item.vendor_id IS NOT NULL
+                     RETURNING id::text AS id',
+                    [$request->field('picked_up_on'), $request->field('received_by'), $request->field('code')]
+                );
+                $id = RowValue::string($rows[0]['id'] ?? null);
+                $this->audit->record('pickup.record', $id, 'pickup');
+            });
+        } catch (DatabaseRefusal | \InvalidArgumentException) {
+            $this->app->redirect('/' . $slug . '/floor', 'That item is not on the floor.');
+        }
         $this->app->redirect('/' . $slug . '/floor', 'Pickup saved.');
     }
 

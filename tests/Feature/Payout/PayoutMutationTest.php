@@ -20,6 +20,7 @@ use PerfectConsign\Feature\Payout\RentShortfall;
 use PerfectConsign\Feature\Rent\RentCycle;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 
 final class PayoutMutationTest extends TestCase
@@ -64,6 +65,7 @@ final class PayoutMutationTest extends TestCase
             $runs,
             new PayoutRunLines($statements),
             new PayoutRunChecks($statements),
+            QuietAudit::make($statements),
         );
         self::assertSame('', $pay->disburse('run', 'vendor', '2026-10-18', 0, null));
         self::assertSame('', $pay->disburse('run', 'vendor', '2026-10-18', -5, null));
@@ -391,6 +393,7 @@ final class PayoutMutationTest extends TestCase
                 new PayoutStore($this->createStub(PDO::class), $runs, $store, new PayoutWindow()),
                 $store,
                 new PayoutRunLines($runs),
+                QuietAudit::make($runs),
             ),
             new PayoutDisburser(
                 $this->createStub(LedgerStore::class),
@@ -398,6 +401,7 @@ final class PayoutMutationTest extends TestCase
                 $store,
                 new PayoutRunLines($runs),
                 new PayoutRunChecks($runs),
+                QuietAudit::make($runs),
             ),
             $runs,
             new CheckWords(),

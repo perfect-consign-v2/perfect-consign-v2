@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class JobSchedule
 {
@@ -29,7 +30,7 @@ final class JobSchedule
             if (!is_string($slug) || !is_string($schema)) {
                 continue;
             }
-            $clock = $this->clock($schema);
+            $clock = $this->mallClock($slug, $schema);
             if ($clock === null) {
                 continue;
             }
@@ -42,6 +43,25 @@ final class JobSchedule
             if ($clock['cycle']) {
                 $this->queue->enqueue($this->pdo, $slug, 'rent-reminder', $clock['date']);
             }
+        }
+    }
+
+    /**
+     * @return array{date: string, sunday: bool, cycle: bool}|null
+     */
+    private function mallClock(string $slug, string $schema): ?array
+    {
+        $role = TenantRecord::roleFor($slug, $schema);
+        if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {
+            return null;
+        }
+        if ($this->pdo->exec('SET ROLE ' . $role) === false) {
+            return null;
+        }
+        try {
+            return $this->clock($schema);
+        } finally {
+            $this->pdo->exec('RESET ROLE');
         }
     }
 

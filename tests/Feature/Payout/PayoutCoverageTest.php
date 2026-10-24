@@ -22,6 +22,7 @@ use PerfectConsign\Feature\Payout\RentShortfall;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 
 final class PayoutCoverageTest extends TestCase
@@ -50,6 +51,7 @@ final class PayoutCoverageTest extends TestCase
             new PayoutRunStore($draft, new OccupiedPack($draft)),
             new PayoutRunLines($draft),
             new PayoutRunChecks($draft),
+            QuietAudit::make($draft),
         );
         try {
             $pay->pay('00000000-0000-7000-8000-000000000020', '2026-10-01');
@@ -89,6 +91,7 @@ final class PayoutCoverageTest extends TestCase
             new PayoutRunStore($settled, new OccupiedPack($settled)),
             new PayoutRunLines($settled),
             new PayoutRunChecks($settled),
+            QuietAudit::make($settled),
         );
         try {
             $changed->pay('00000000-0000-7000-8000-000000000020', '2026-10-01');
@@ -119,6 +122,7 @@ final class PayoutCoverageTest extends TestCase
             $this->payouts($statements, '0'),
             new PayoutRunStore($statements, new OccupiedPack($statements)),
             new PayoutRunLines($statements),
+            QuietAudit::make($statements),
         );
         self::assertSame('', $settler->settle('run', 'vendor', '2026-10-01', 0));
         self::assertSame([], $settler->chargeMissing('run', 'vendor'));
@@ -532,13 +536,14 @@ final class PayoutCoverageTest extends TestCase
         return new PayoutOnce(
             $store,
             new PayoutRunSheets($sheets),
-            new PayoutSettler($this->createStub(LedgerStore::class), $this->payouts($runs, '0'), $store, new PayoutRunLines($runs)),
+            new PayoutSettler($this->createStub(LedgerStore::class), $this->payouts($runs, '0'), $store, new PayoutRunLines($runs), QuietAudit::make($runs)),
             new PayoutDisburser(
                 $this->createStub(LedgerStore::class),
                 $this->payouts($runs, '0'),
                 $store,
                 new PayoutRunLines($runs),
                 new PayoutRunChecks($runs),
+                QuietAudit::make($runs),
             ),
             $runs,
             new CheckWords(),

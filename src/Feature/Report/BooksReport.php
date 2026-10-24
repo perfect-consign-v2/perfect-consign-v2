@@ -37,6 +37,16 @@ final class BooksReport
         return $this->total('SELECT COALESCE(sum(balance_minor), 0) AS total FROM account_balances');
     }
 
+    public function displayedTotal(): int
+    {
+        $total = 0;
+        foreach ($this->rows() as $row) {
+            $total += $row['balance_minor'];
+        }
+
+        return $total;
+    }
+
     public function lineTotal(): int
     {
         return $this->total(

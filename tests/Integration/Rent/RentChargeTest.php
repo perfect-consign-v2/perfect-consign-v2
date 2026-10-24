@@ -32,6 +32,7 @@ use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\CatalogLinks;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Support\ProbeMall;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 
 final class RentChargeTest extends TestCase
@@ -99,7 +100,7 @@ final class RentChargeTest extends TestCase
             new RentPosting(
                 $ledger,
                 $payouts,
-                new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements)),
+                new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::make($statements)),
                 new MallPayoutSettings($statements),
                 new RentMoves($statements, new MallPayoutSettings($statements)),
             ),
@@ -266,7 +267,7 @@ final class RentChargeTest extends TestCase
             new RentPosting(
                 $ledger,
                 $payouts,
-                new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements)),
+                new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::make($statements)),
                 $settings,
                 new RentMoves($statements, $settings),
             ),

@@ -6,7 +6,6 @@ namespace PerfectConsign\Bootstrap;
 
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
-use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 class SaleCeiling
@@ -15,7 +14,6 @@ class SaleCeiling
         private readonly Statements $statements,
         private readonly Actor $actor,
         private readonly AuditLog $audit,
-        private readonly Request $request,
     ) {
     }
 
@@ -137,12 +135,11 @@ class SaleCeiling
         }
         $rows = $this->statements->bound(
             "SELECT count(*) AS attempts
-             FROM platform.owner_sign_in_failures
+             FROM platform.override_sign_in_failures
              WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ?)
                AND username = ?
-               AND client_address = ?
                AND failed_at > clock_timestamp() - interval '15 minutes'",
-            [$slug, $username, $this->request->address]
+            [$slug, $username]
         );
         if (RowValue::integer($rows[0]['attempts'] ?? null) >= 5) {
             throw new DatabaseRefusal('too many sign-in attempts');
@@ -156,9 +153,9 @@ class SaleCeiling
             return;
         }
         $this->statements->change(
-            'INSERT INTO platform.owner_sign_in_failures (tenant_id, username, client_address)
-             SELECT id, ?, ? FROM platform.tenants WHERE slug = ?',
-            [$username, $this->request->address, $slug]
+            'INSERT INTO platform.override_sign_in_failures (tenant_id, username)
+             SELECT id, ? FROM platform.tenants WHERE slug = ?',
+            [$username, $slug]
         );
     }
 
@@ -169,7 +166,7 @@ class SaleCeiling
             return;
         }
         $this->statements->change(
-            'DELETE FROM platform.owner_sign_in_failures
+            'DELETE FROM platform.override_sign_in_failures
              WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ?)
                AND username = ?',
             [$slug, $username]

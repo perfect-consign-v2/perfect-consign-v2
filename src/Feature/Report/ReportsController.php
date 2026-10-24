@@ -217,7 +217,7 @@ final class ReportsController
     {
         $tenant = $this->app->open($slug, true);
         $role = $this->actor->role();
-        if (!Permission::allows($role, 'settings.edit') && $role !== 'books') {
+        if (!Permission::allows($role, 'report.read') && !Permission::allows($role, 'settings.edit')) {
             $this->app->notFound();
         }
 

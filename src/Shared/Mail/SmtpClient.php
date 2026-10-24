@@ -48,9 +48,9 @@ final class SmtpClient
         }
         stream_set_timeout($socket, 15);
         try {
-            $this->expect($socket, 220);
-            $this->command($socket, 'EHLO perfectconsign', 250);
-            $this->command($socket, 'STARTTLS', 220);
+            $this->expect($socket, 220, 'greeting');
+            $this->command($socket, 'EHLO perfectconsign', 250, 'ehlo');
+            $this->command($socket, 'STARTTLS', 220, 'starttls');
             $crypto = $this->crypto;
             $secured = $crypto !== null
                 ? $crypto($socket)
@@ -58,35 +58,35 @@ final class SmtpClient
             if ($secured !== true) {
                 throw new \RuntimeException('smtp send failed');
             }
-            $this->command($socket, 'EHLO perfectconsign', 250);
-            $this->command($socket, 'AUTH LOGIN', 334);
-            $this->command($socket, base64_encode($username), 334);
-            $this->command($socket, base64_encode($password), 235);
-            $this->command($socket, 'MAIL FROM:<' . $from . '>', 250);
-            $this->command($socket, 'RCPT TO:<' . $to . '>', 250);
-            $this->command($socket, 'DATA', 354);
+            $this->command($socket, 'EHLO perfectconsign', 250, 'ehlo');
+            $this->command($socket, 'AUTH LOGIN', 334, 'auth');
+            $this->command($socket, base64_encode($username), 334, 'auth');
+            $this->command($socket, base64_encode($password), 235, 'auth');
+            $this->command($socket, 'MAIL FROM:<' . $from . '>', 250, 'mail');
+            $this->command($socket, 'RCPT TO:<' . $to . '>', 250, 'rcpt');
+            $this->command($socket, 'DATA', 354, 'data');
             $this->write($socket, $this->payload($from, $to, $subject, $body));
-            $this->expect($socket, 250);
-            $this->command($socket, 'QUIT', 221);
+            $this->expect($socket, 250, 'data');
+            $this->command($socket, 'QUIT', 221, 'quit');
         } finally {
             fclose($socket);
         }
     }
 
-    private function command(mixed $socket, string $command, int $expect): void
+    private function command(mixed $socket, string $command, int $expect, string $stage): void
     {
         $this->write($socket, $command . "\r\n");
-        $this->expect($socket, $expect);
+        $this->expect($socket, $expect, $stage);
     }
 
-    private function expect(mixed $socket, int $expect): void
+    private function expect(mixed $socket, int $expect, string $stage): void
     {
         $status = $this->read($socket);
         if ($status === $expect) {
             return;
         }
         if ($status >= 400) {
-            throw new MailDeliveryFailed($status);
+            throw new MailDeliveryFailed($status, $stage);
         }
 
         throw new \RuntimeException('smtp send failed');
@@ -136,7 +136,11 @@ final class SmtpClient
             throw new \RuntimeException('smtp send failed');
         }
 
-        return 'From: <' . $from . ">\r\n"
+        $messageId = bin2hex(random_bytes(16)) . '@perfectconsign';
+
+        return 'Date: ' . gmdate('D, d M Y H:i:s O') . "\r\n"
+            . 'Message-ID: <' . $messageId . ">\r\n"
+            . 'From: <' . $from . ">\r\n"
             . 'To: <' . $to . ">\r\n"
             . 'Subject: ' . $subject . "\r\n"
             . "MIME-Version: 1.0\r\n"

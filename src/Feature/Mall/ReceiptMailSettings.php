@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Mall;
 
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Mail\SealedSecret;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class ReceiptMailSettings
@@ -55,7 +56,7 @@ final class ReceiptMailSettings
         }
         $this->statements->change(
             'UPDATE mall SET receipt_mail_via = ?, gmail_address = ?, gmail_app_password = ?',
-            [$chosen, $gmail, $secret]
+            [$chosen, $gmail, SealedSecret::seal($secret)]
         );
     }
 
@@ -85,7 +86,7 @@ final class ReceiptMailSettings
     {
         $password = $this->row()['gmail_app_password'] ?? null;
 
-        return is_string($password) ? $password : '';
+        return is_string($password) ? SealedSecret::open($password) : '';
     }
 
     /**

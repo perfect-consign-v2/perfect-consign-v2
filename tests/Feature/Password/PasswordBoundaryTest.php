@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Feature\Password;
 
 use PDO;
 use PerfectConsign\Bootstrap\DatabaseRole;
+use PerfectConsign\Shared\Mail\SealedSecret;
 use PerfectConsign\Feature\Password\LoginAccount;
 use PerfectConsign\Feature\Password\LoginAccounts;
 use PerfectConsign\Feature\Password\OwnPassword;
@@ -77,24 +78,26 @@ final class PasswordBoundaryTest extends TestCase
         self::assertSame('owner@example.com', $saved->email);
 
         $gmail = new ReflectionMethod(LoginAccounts::class, 'gmail');
+        $sealed = SealedSecret::seal('abcdefghijklmnop');
         self::assertNull($gmail->invoke($accounts, [
             'receipt_mail_via' => 'server',
             'gmail_address' => 'shop@gmail.com',
-            'gmail_app_password' => 'abcdefghijklmnop',
+            'gmail_app_password' => $sealed,
         ]));
         $account = $gmail->invoke($accounts, [
             'receipt_mail_via' => 'gmail',
             'gmail_address' => 'shop@gmail.com',
-            'gmail_app_password' => 'abcdefghijklmnop',
+            'gmail_app_password' => $sealed,
         ]);
         self::assertIsArray($account);
         self::assertSame('smtp.gmail.com', $account['host']);
         self::assertSame(587, $account['port']);
         self::assertSame('shop@gmail.com', $account['from']);
+        self::assertSame('abcdefghijklmnop', $account['password']);
         self::assertNull($gmail->invoke($accounts, [
             'receipt_mail_via' => 'gmail',
             'gmail_address' => 'not-an-email',
-            'gmail_app_password' => 'abcdefghijklmnop',
+            'gmail_app_password' => $sealed,
         ]));
     }
 

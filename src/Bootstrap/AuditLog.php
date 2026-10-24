@@ -8,8 +8,11 @@ use PerfectConsign\Shared\Database\Statements;
 
 final class AuditLog
 {
+    private readonly string $requestId;
+
     public function __construct(private readonly Statements $statements)
     {
+        $this->requestId = bin2hex(random_bytes(8));
     }
 
     public function record(string $actor, string $role, string $action, string $entityType, string $entityId): void
@@ -19,7 +22,7 @@ final class AuditLog
         }
         $this->statements->change(
             'INSERT INTO audit_events (actor, role, action, entity_type, entity_id, request_id) VALUES (?, ?, ?, ?, ?, ?)',
-            [$actor, $role, $action, $entityType, $entityId, bin2hex(random_bytes(8))]
+            [$actor, $role, $action, $entityType, $entityId, $this->requestId]
         );
     }
 }

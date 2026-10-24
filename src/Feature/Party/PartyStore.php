@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Party;
 
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Shared\Database\Statements;
 
 class PartyStore
 {
-    public function __construct(private readonly Statements $statements)
-    {
+    public function __construct(
+        private readonly Statements $statements,
+        private readonly JournalAudit $audit,
+    ) {
     }
 
     /**
@@ -119,6 +122,7 @@ class PartyStore
         if ($count === 0) {
             throw new \InvalidArgumentException('that vendor is not in this mall');
         }
+        $this->audit->record('vendor.edit', $id, 'vendor');
     }
 
     public function setPayoutMode(string $id, string $mode): void

@@ -125,6 +125,9 @@ final class RoleGate
 
     private static function reportPage(string $rest): bool
     {
+        if (!Permission::allows('books', 'report.read')) {
+            return false;
+        }
         if (in_array($rest, [
             '/reports',
             '/reports/sales-tax',

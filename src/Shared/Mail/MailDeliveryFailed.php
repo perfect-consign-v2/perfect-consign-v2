@@ -8,8 +8,10 @@ use RuntimeException;
 
 final class MailDeliveryFailed extends RuntimeException
 {
-    public function __construct(private readonly int $status)
-    {
+    public function __construct(
+        private readonly int $status,
+        private readonly string $stage,
+    ) {
         parent::__construct('smtp send failed');
     }
 
@@ -18,8 +20,13 @@ final class MailDeliveryFailed extends RuntimeException
         return $this->status;
     }
 
+    public function stage(): string
+    {
+        return $this->stage;
+    }
+
     public function permanent(): bool
     {
-        return $this->status >= 500 && $this->status <= 599;
+        return $this->stage === 'rcpt' && $this->status >= 500 && $this->status <= 599;
     }
 }

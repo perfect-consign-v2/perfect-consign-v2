@@ -11,8 +11,10 @@ final class MailDeliveryFailedTest extends TestCase
 {
     public function testOnlyAPermanentStatusIsABounce(): void
     {
-        self::assertTrue((new MailDeliveryFailed(550))->permanent());
-        self::assertFalse((new MailDeliveryFailed(421))->permanent());
-        self::assertFalse((new MailDeliveryFailed(250))->permanent());
+        self::assertTrue((new MailDeliveryFailed(550, 'rcpt'))->permanent());
+        self::assertFalse((new MailDeliveryFailed(535, 'auth'))->permanent());
+        self::assertFalse((new MailDeliveryFailed(550, 'mail'))->permanent());
+        self::assertFalse((new MailDeliveryFailed(421, 'rcpt'))->permanent());
+        self::assertFalse((new MailDeliveryFailed(250, 'rcpt'))->permanent());
     }
 }

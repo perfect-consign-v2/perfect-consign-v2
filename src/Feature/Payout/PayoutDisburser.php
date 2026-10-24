@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Payout;
 
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -18,6 +19,7 @@ final class PayoutDisburser
         private readonly PayoutRunStore $runs,
         private readonly PayoutRunLines $lines,
         private readonly PayoutRunChecks $checks,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -99,6 +101,7 @@ final class PayoutDisburser
             ],
             checkNumber: $checkNumber,
             sessionId: $sessionId,
+            beforeCommit: $this->audit->on('payout.disburse'),
         ));
     }
 }

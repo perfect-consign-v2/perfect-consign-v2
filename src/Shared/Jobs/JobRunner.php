@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
@@ -47,7 +48,28 @@ final class JobRunner
     public function handle(array $job): void
     {
         $schema = $this->schema($job['tenant']);
-        $this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
+        $role = TenantRecord::roleFor($job['tenant'], $schema);
+        if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {
+            throw new RuntimeException('tenant is not provisioned');
+        }
+        if ($this->pdo->exec('SET ROLE ' . $role) === false) {
+            throw new RuntimeException('the worker could not assume the mall role');
+        }
+        try {
+            if ($this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions') === false) {
+                throw new RuntimeException('tenant is not provisioned');
+            }
+            $this->dispatch($job);
+        } finally {
+            $this->pdo->exec('RESET ROLE');
+        }
+    }
+
+    /**
+     * @param array{id: string, tenant: string, kind: string, payload: string, attempts: int} $job
+     */
+    private function dispatch(array $job): void
+    {
         $payload = json_decode($job['payload'], true);
         $date = is_array($payload) && is_string($payload['date'] ?? null) ? $payload['date'] : '';
         if ($job['kind'] === 'assess-late-fees') {

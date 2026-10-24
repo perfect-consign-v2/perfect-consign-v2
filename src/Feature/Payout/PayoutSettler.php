@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Payout;
 
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -17,6 +18,7 @@ final class PayoutSettler
         private readonly PayoutStore $payouts,
         private readonly PayoutRunStore $runs,
         private readonly PayoutRunLines $lines,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -96,6 +98,7 @@ final class PayoutSettler
             postingDate: $postingDate,
             source: new JournalSource('settlement', $vendorId, 'Settlement'),
             lines: $lines,
+            beforeCommit: $this->audit->on('payout.settle'),
         ));
     }
 }

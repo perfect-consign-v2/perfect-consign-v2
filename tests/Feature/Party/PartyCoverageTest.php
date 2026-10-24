@@ -13,6 +13,7 @@ use PerfectConsign\Feature\Party\VendorMove;
 use PerfectConsign\Feature\Party\VendorPlacement;
 use PerfectConsign\Feature\Party\VendorValues;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 
 final class PartyCoverageTest extends TestCase
@@ -93,7 +94,7 @@ final class PartyCoverageTest extends TestCase
         $statements->method('transaction')->willReturnCallback(static function (callable $work): mixed {
             return $work();
         });
-        $store = new PartyStore($statements);
+        $store = new PartyStore($statements, QuietAudit::make($statements));
         $vendor = new VendorDraft($this->fields([]), null);
         try {
             $store->addVendor($vendor);
@@ -155,7 +156,7 @@ final class PartyCoverageTest extends TestCase
         });
         $withId->method('bound')->willReturn([['id' => '00000000-0000-7000-8000-0000000000aa']]);
         try {
-            (new PartyStore($withId))->addAssignment(
+            (new PartyStore($withId, QuietAudit::make($withId)))->addAssignment(
                 '00000000-0000-7000-8000-0000000000b1',
                 '00000000-0000-7000-8000-0000000000a1',
                 '2026-10-01',
@@ -270,7 +271,7 @@ final class PartyCoverageTest extends TestCase
 
             return [['id' => $seen['id']]];
         });
-        $store = new PartyStore($statements);
+        $store = new PartyStore($statements, QuietAudit::make($statements));
         try {
             $store->addVendor(new VendorDraft($this->fields([]), null));
             self::fail('a numeric vendor id was accepted');

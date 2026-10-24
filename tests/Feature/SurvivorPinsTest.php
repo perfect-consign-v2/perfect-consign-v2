@@ -28,6 +28,7 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Schema\MigrationLock;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use ReflectionClass;
@@ -140,6 +141,7 @@ final class SurvivorPinsTest extends TestCase
             (new ReflectionClass(PayoutStore::class))->newInstanceWithoutConstructor(),
             (new ReflectionClass(PayoutRunStore::class))->newInstanceWithoutConstructor(),
             (new ReflectionClass(PayoutRunLines::class))->newInstanceWithoutConstructor(),
+            QuietAudit::make($this->createStub(Statements::class)),
         );
 
         self::assertSame('', $settler->settle('run', 'vendor', '2026-06-01', 0));

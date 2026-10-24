@@ -112,6 +112,102 @@ function eventTriggersLeftOff(string $sql): bool
     return $off !== $on || $last !== 'true';
 }
 
+function privateHelperIsCovered(string $source, string $method, string $covered): bool
+{
+    if (preg_match('/private\s+(?:static\s+)?function\s+' . preg_quote($method, '/') . '\s*\(/', $source) !== 1) {
+        return false;
+    }
+    foreach (methodBodies($source) as $caller => $body) {
+        if ($caller === $method || !symbolIsCovered($caller, $covered)) {
+            continue;
+        }
+        if (symbolIsCovered($method, $body)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @return array<string, string>
+ */
+function methodBodies(string $source): array
+{
+    $bodies = [];
+    $matched = preg_match_all(
+        '/(?:public|protected|private)\s+(?:static\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/',
+        $source,
+        $methods,
+        PREG_OFFSET_CAPTURE
+    );
+    if ($matched === false || $matched === 0) {
+        return [];
+    }
+    foreach ($methods[1] as $index => $name) {
+        $start = $methods[0][$index][1];
+        $paren = strpos($source, '(', $start);
+        if ($paren === false) {
+            continue;
+        }
+        $afterParen = parentBody($source, $paren);
+        if ($afterParen === null) {
+            continue;
+        }
+        $signatureEnd = $paren + strlen($afterParen) + 2;
+        $brace = strpos($source, '{', $signatureEnd);
+        if ($brace === false || $source[$brace] !== '{') {
+            continue;
+        }
+        $body = braceBody($source, $brace);
+        if ($body !== null && is_string($name[0])) {
+            $bodies[$name[0]] = $body;
+        }
+    }
+
+    return $bodies;
+}
+
+function braceBody(string $source, int $open): ?string
+{
+    if (!isset($source[$open]) || $source[$open] !== '{') {
+        return null;
+    }
+    $depth = 0;
+    $length = strlen($source);
+    $quote = '';
+    for ($index = $open; $index < $length; $index++) {
+        $character = $source[$index];
+        if ($quote !== '') {
+            if ($character === '\\') {
+                $index++;
+                continue;
+            }
+            if ($character === $quote) {
+                $quote = '';
+            }
+            continue;
+        }
+        if ($character === '"' || $character === "'") {
+            $quote = $character;
+            continue;
+        }
+        if ($character === '{') {
+            $depth++;
+            continue;
+        }
+        if ($character !== '}') {
+            continue;
+        }
+        $depth--;
+        if ($depth === 0) {
+            return substr($source, $open + 1, $index - $open - 1);
+        }
+    }
+
+    return null;
+}
+
 function symbolIsCovered(string $name, string $covered): bool
 {
     $calls = preg_replace('/\\bfunction\\s+' . preg_quote($name, '/') . '\\s*\\(/', '', $covered);
@@ -417,9 +513,13 @@ function unprovenSymbols(string $root): array
         if (str_starts_with($file, 'src/') || str_starts_with($file, 'src\\')) {
             if (preg_match_all('/(?:public|protected|private)\\s+(?:static\\s+)?function\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(/', $text, $methods) !== false) {
                 foreach ($methods[1] as $method) {
-                    if (!symbolIsCovered($method, $covered)) {
-                        $failures[] = $file . ' adds ' . $method . ' and no proof or test names it';
+                    if (symbolIsCovered($method, $covered)) {
+                        continue;
                     }
+                    if (privateHelperIsCovered(fileText($root, $file), $method, $covered)) {
+                        continue;
+                    }
+                    $failures[] = $file . ' adds ' . $method . ' and no proof or test names it';
                 }
             }
         }

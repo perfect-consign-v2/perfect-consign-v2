@@ -14,9 +14,9 @@ final class CsvTest extends TestCase
         $text = Csv::document(
             ['vendor', 'amount'],
             [
-                ['vendor' => 'Ada, Lane', 'amount' => '12.50'],
+                ['vendor' => 'Ada, Lane', 'amount' => '-500'],
                 ['vendor' => '=1+1', 'amount' => '+10'],
-                ['vendor' => '@cmd', 'amount' => '-2'],
+                ['vendor' => '@cmd', 'amount' => '-2+2'],
             ]
         );
 
@@ -24,7 +24,10 @@ final class CsvTest extends TestCase
         self::assertStringContainsString("'=1+1", $text);
         self::assertStringContainsString("'+10", $text);
         self::assertStringContainsString("'@cmd", $text);
-        self::assertStringContainsString("'-2", $text);
-        self::assertStringNotContainsString('&quot;', $text);
+        self::assertStringContainsString('-500', $text);
+        self::assertStringNotContainsString("'-500", $text);
+        self::assertStringContainsString("'-2+2", $text);
+        self::assertSame('-500', Csv::protect('-500'));
+        self::assertSame("'=1+1", Csv::protect('=1+1'));
     }
 }

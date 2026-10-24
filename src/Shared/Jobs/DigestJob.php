@@ -8,8 +8,8 @@ use PDO;
 use PerfectConsign\Feature\Vendor\VendorFigures;
 use PerfectConsign\Feature\Vendor\VendorLetter;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Mail\MailAttempt;
 use PerfectConsign\Shared\Mail\MailBounce;
-use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Scalar\RowValue;
 use Psr\Log\LoggerInterface;
@@ -50,20 +50,14 @@ final class DigestJob
             if ($numbers['rent'] < $minimumRent) {
                 continue;
             }
-            try {
-                $this->mail->deliver(
-                    $email,
-                    $subject,
-                    VendorLetter::body(RowValue::string($vendor['name'] ?? null), $numbers['payable'], $numbers['rent'])
-                );
-            } catch (MailDeliveryFailed $failed) {
-                $this->logger->error('mail was not delivered', ['status' => $failed->status()]);
-                if ($failed->permanent()) {
-                    $this->bounce->mark($email);
-                }
-            } catch (\RuntimeException $error) {
-                $this->logger->error('mail was not delivered', ['message' => $error->getMessage()]);
-            }
+            MailAttempt::send(
+                $this->mail,
+                $this->bounce,
+                $this->logger,
+                $email,
+                $subject,
+                VendorLetter::body(RowValue::string($vendor['name'] ?? null), $numbers['payable'], $numbers['rent'])
+            );
         }
     }
 }

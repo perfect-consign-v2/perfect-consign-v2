@@ -28,6 +28,7 @@ use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Tests\Support\ProbeMall;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 
 final class PayoutRunTest extends TestCase
@@ -43,12 +44,12 @@ final class PayoutRunTest extends TestCase
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $lines = new PayoutRunLines($statements);
-        $settler = new PayoutSettler($ledger, $payouts, $runs, $lines);
-        $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines, new PayoutRunChecks($statements));
+        $settler = new PayoutSettler($ledger, $payouts, $runs, $lines, QuietAudit::make($statements));
+        $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines, new PayoutRunChecks($statements), QuietAudit::make($statements));
         $reverser = new PayoutReverser($ledger, $statements);
         $purchases = new StorePurchase($ledger);
         $mall = new MallPayoutSettings($statements);
-        $parties = new PartyStore($statements);
+        $parties = new PartyStore($statements, QuietAudit::make($statements));
         $date = $this->openDate($statements);
         $pdo->beginTransaction();
         try {

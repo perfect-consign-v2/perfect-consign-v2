@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/load-env.php';
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
+loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
+
 use PerfectApp\Logger\FileLogger;
 use PerfectConsign\Shared\Jobs\DigestJob;
 use PerfectConsign\Shared\Jobs\JobQueue;
@@ -17,21 +19,18 @@ use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Mail\MailBounce;
 use PerfectConsign\Shared\Mail\OutboundMail;
 
-loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
-
 $host = getenv('STALL_DB_HOST');
 $port = getenv('STALL_DB_PORT');
 $name = getenv('STALL_DB_NAME');
-$user = getenv('STALL_DB_USER');
-$password = getenv('STALL_DB_PASSWORD');
-if (!is_string($host) || $host === '' || !is_string($port) || $port === '' || !is_string($name) || $name === '' || !is_string($user) || $user === '' || !is_string($password) || $password === '') {
-    fwrite(STDERR, "STALL_DB_HOST, STALL_DB_PORT, STALL_DB_NAME, STALL_DB_USER, and STALL_DB_PASSWORD are required\n");
+$password = getenv('STALL_WORKER_PASSWORD');
+if (!is_string($host) || $host === '' || !is_string($port) || $port === '' || !is_string($name) || $name === '' || !is_string($password) || $password === '') {
+    fwrite(STDERR, "STALL_DB_HOST, STALL_DB_PORT, STALL_DB_NAME, and STALL_WORKER_PASSWORD are required\n");
     exit(1);
 }
 
 $pdo = new PDO(
     'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
-    $user,
+    'stall_worker',
     $password,
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
 );

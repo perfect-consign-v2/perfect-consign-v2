@@ -1,6 +1,6 @@
 # Perfect Consign
 
-This is the product copy of the Stall baseline at `27e5e88a740e676024268fdf2ebf2e09ba3bad87`. Stall stays the baseline. Do not change `C:\laragon\www\stall` from here.
+This is the product copy of the Stall baseline at `27e5e88a740e676024268fdf2ebf2e09ba3bad87`. Stall stays the baseline and is not edited from this tree.
 
 No hacks, no shortcuts, no workarounds, and no patches. Fix the design that is wrong. Do not leave a second calculation in application code, or nudge a date or flag so that calculation happens to match the database. Money and balances come from the view or function that owns them.
 
@@ -18,7 +18,7 @@ The boundary is `stall_poster` and `stall_app`. A superuser can `DROP EVENT TRIG
 
 `php bin/provision-platform.php` is the fresh install. It applies `sql/000_platform.sql` once, on an empty database. That file creates `stall_app`, `stall_backup`, the platform tables, schema `extensions`, and `btree_gist`. A second run exits 0 and does not re-apply the file. After `platform_reject_guard_function_replace` exists, replacing `platform.reject_append_only_trigger_change` is refused. Then provision a mall. `sql/001_tenant.sql` is the whole mall schema. `public` in that file is rewritten to the mall schema. An existing database is not upgraded: `php bin/migrate.php` refuses a database whose stamps name an older file, or whose objects exist without `schema_migrations`. Create a new database and provision it. `php bin/migrate.php platform`, `php bin/migrate.php tenant <slug>`, and `php bin/migrate.php tenant-all` apply a file that has not been stamped yet. `sql/002_platform_jobs.sql` is the job queue. `sql/003_audit_events.sql` is the audit log and the report-drift check. `sql/004_job_grants.sql` lets the poster role read the job queue. `php bin/work.php` claims due jobs once. `php bin/work.php --forever` keeps claiming them. A stamped `sql/0*.sql` file is not edited; `php bin/check-migration-freeze.php` refuses that diff. A tenant session path is `tenant_x, pg_catalog, extensions`. `public` is not a mall.
 
-`STALL_DB_HOST`, `STALL_DB_PORT`, `STALL_DB_NAME`, `STALL_DB_USER`, and `STALL_DB_PASSWORD` are required.
+`STALL_DB_HOST`, `STALL_DB_PORT`, `STALL_DB_NAME`, `STALL_DB_USER`, and `STALL_DB_PASSWORD` are required. `php bin/work.php` logs in as `stall_worker` with `STALL_WORKER_PASSWORD`. A reset plants the Gmail mailbox from `STALL_GMAIL_ADDRESS`, `STALL_GMAIL_APP_PASSWORD`, and `STALL_MAIL_KEY`.
 
 ```text
 php bin/seed-mall.php

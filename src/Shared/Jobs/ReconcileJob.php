@@ -18,7 +18,7 @@ final class ReconcileJob
     {
         $report = new BooksReport(new Statements($this->pdo));
         $statement = $this->pdo->prepare('SELECT stall_refuse_report_drift(?, ?)');
-        $statement->execute([$report->viewTotal(), $report->lineTotal()]);
+        $statement->execute([$report->displayedTotal(), $report->lineTotal()]);
     }
 
     public function tie(string $date): void

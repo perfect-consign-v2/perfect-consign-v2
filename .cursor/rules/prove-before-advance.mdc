@@ -1,11 +1,9 @@
 ---
-description: When the user asks for proofs, do not start the next Stall fact until composer check exits 0. Do not start that run otherwise.
+description: When the user asks for proofs, do not start the next Stall fact until composer check exits 0. The full suite waits for that ask. The path just edited still has to be executed. See catch-it-yourself.
 alwaysApply: true
 ---
 
 # Do not advance until the vectors have been run
-
-Do not start this run unless the user asked for tests or proofs in this message. See `do-not-run-tests`.
 
 When they do ask, a proof that only checks the cases named in the plan is not done. Do not add the next fact, and do not call this one finished, until `composer check` exits 0 in that turn. Reading the triggers is not a run. A single `sql/prove_*.sql` run does not count, including the proof named in the plan. The proof scripts roll back.
 

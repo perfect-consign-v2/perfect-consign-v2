@@ -108,6 +108,14 @@ final class TenantProvisioner
             throw new RuntimeException('stall_app is missing. Apply sql/000_platform.sql first.');
         }
         $this->pdo->exec(sprintf('GRANT %s TO stall_app', $role));
+        $worker = $this->pdo->query("SELECT 1 FROM pg_roles WHERE rolname = 'stall_worker'");
+        if ($worker !== false && $worker->fetchColumn() !== false) {
+            $this->pdo->exec(sprintf('GRANT %s TO stall_worker', $role));
+        }
+        $this->pdo->exec(sprintf(
+            'GRANT SELECT, INSERT, DELETE ON TABLE platform.override_sign_in_failures TO %s',
+            $role
+        ));
         $jobs = $this->pdo->prepare('SELECT platform.grant_poster_jobs(?)');
         $jobs->execute([$role]);
     }
