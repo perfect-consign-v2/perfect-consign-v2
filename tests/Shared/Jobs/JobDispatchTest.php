@@ -15,6 +15,7 @@ use PerfectConsign\Shared\Jobs\LateFeeJob;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Mail\MailBounce;
+use PerfectConsign\Shared\Mail\MailProgress;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -53,6 +54,62 @@ final class JobDispatchTest extends TestCase
         (new JobSchedule($pdo, new JobQueue()))->schedule();
     }
 
+    public function testAnEmptyDigestSendsNothing(): void
+    {
+        $pdo = $this->createMock(PDO::class);
+        $pdo->expects($this->exactly(2))->method('query')->willReturn(false);
+        $logger = $this->createStub(LoggerInterface::class);
+        $job = new DigestJob(
+            $pdo,
+            new OutboundMail($logger),
+            new MailBounce($this->createStub(Statements::class)),
+            $logger,
+            new MailProgress(),
+        );
+
+        $job->digest('mall', '2026-01-02');
+        $job->remind('mall', '2026-01-02');
+    }
+
+    public function testAnEmptySaleNoticeSendsNothing(): void
+    {
+        $statements = $this->createMock(Statements::class);
+        $statements->expects($this->once())->method('bound')->willReturn([]);
+        $logger = $this->createStub(LoggerInterface::class);
+        $notice = new SaleNoticeJob(
+            $statements,
+            new OutboundMail($logger),
+            new MailBounce($statements),
+            $logger,
+            new MailProgress(),
+        );
+
+        $notice->notice('mall', '2026-01-02');
+        $notice->notice('mall', 'today');
+    }
+
+    public function testAFailedSaleNoticeStaysWaiting(): void
+    {
+        $statements = $this->createMock(Statements::class);
+        $statements->expects($this->exactly(2))->method('bound')->willReturnOnConsecutiveCalls(
+            [['email' => 'ada@example.test', 'name' => 'Ada', 'code' => 'A1', 'net_minor' => 500]],
+            [],
+        );
+        $statements->expects($this->never())->method('change');
+        $logger = $this->createStub(LoggerInterface::class);
+        $notice = new SaleNoticeJob(
+            $statements,
+            new OutboundMail($logger),
+            new MailBounce($statements),
+            $logger,
+            new MailProgress(),
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('a letter is still waiting to be sent');
+        $notice->notice('mall', '2026-01-02');
+    }
+
     private function pdo(): PDO
     {
         $statement = $this->createStub(PDOStatement::class);
@@ -78,9 +135,9 @@ final class JobDispatchTest extends TestCase
             $logger,
             new JobSchedule($pdo, new JobQueue()),
             new LateFeeJob($pdo),
-            new DigestJob($pdo, $mail, $bounce, $logger),
+            new DigestJob($pdo, $mail, $bounce, $logger, new MailProgress()),
             new ReconcileJob($pdo),
-            new SaleNoticeJob($this->createStub(Statements::class), $mail, $bounce, $logger),
+            new SaleNoticeJob($this->createStub(Statements::class), $mail, $bounce, $logger, new MailProgress()),
         );
     }
 

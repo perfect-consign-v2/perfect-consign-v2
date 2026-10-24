@@ -39,6 +39,13 @@ final class JobRunner
                 $this->logger->error('job failed', ['kind' => $job['kind'], 'tenant' => $job['tenant'], 'error' => $error]);
             }
             $this->queue->finish($this->pdo, $job['id'], $error);
+            if ($error !== '' && $job['attempts'] >= 5) {
+                $this->logger->error('job will not be retried', [
+                    'kind' => $job['kind'],
+                    'tenant' => $job['tenant'],
+                    'error' => $error,
+                ]);
+            }
         }
     }
 
@@ -78,12 +85,12 @@ final class JobRunner
             return;
         }
         if ($job['kind'] === 'vendor-digest') {
-            $this->digest->digest();
+            $this->digest->digest($job['tenant'], $date);
 
             return;
         }
         if ($job['kind'] === 'rent-reminder') {
-            $this->digest->remind();
+            $this->digest->remind($job['tenant'], $date);
 
             return;
         }
@@ -94,7 +101,7 @@ final class JobRunner
             return;
         }
         if ($job['kind'] === 'sale-notice') {
-            $this->notices->notice($date);
+            $this->notices->notice($job['tenant'], $date);
 
             return;
         }

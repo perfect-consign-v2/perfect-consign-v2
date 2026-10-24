@@ -17,6 +17,7 @@ use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Mail\MailBounce;
+use PerfectConsign\Shared\Mail\MailProgress;
 use PerfectConsign\Shared\Mail\OutboundMail;
 
 $host = getenv('STALL_DB_HOST');
@@ -47,9 +48,9 @@ $runner = new JobRunner(
     $logger,
     new JobSchedule($pdo, $queue),
     new LateFeeJob($pdo),
-    new DigestJob($pdo, new OutboundMail($logger), new MailBounce(new Statements($pdo)), $logger),
+    new DigestJob($pdo, new OutboundMail($logger), new MailBounce(new Statements($pdo)), $logger, new MailProgress()),
     new ReconcileJob($pdo),
-    new SaleNoticeJob(new Statements($pdo), new OutboundMail($logger), new MailBounce(new Statements($pdo)), $logger),
+    new SaleNoticeJob(new Statements($pdo), new OutboundMail($logger), new MailBounce(new Statements($pdo)), $logger, new MailProgress()),
 );
 $forever = in_array('--forever', $argv, true);
 do {

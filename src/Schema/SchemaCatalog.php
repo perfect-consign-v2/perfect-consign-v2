@@ -20,6 +20,7 @@ final class SchemaCatalog
         '012_job_insert.sql',
         '013_worker_role.sql',
         '015_override_failures.sql',
+        '017_job_mail_sent.sql',
     ];
 
     public function __construct(private readonly string $directory)

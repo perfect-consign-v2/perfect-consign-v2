@@ -31,13 +31,8 @@ final class PasswordRecovery
         if ($account === null) {
             return true;
         }
-        $mailbox = $this->accounts->companyMail($tenant);
-        $account = $this->accounts->forReset($account);
-        if ($account === null) {
-            return true;
-        }
 
-        return $this->letters->deliver($tenant, $account, $origin, $mailbox['gmail']);
+        return $this->letters->sendReset($tenant, $account, $origin, $this->accounts);
     }
 
     public function available(TenantRecord $tenant, string $token): bool

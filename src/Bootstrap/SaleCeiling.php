@@ -133,6 +133,11 @@ class SaleCeiling
         if ($slug === null || $username === '') {
             throw new DatabaseRefusal('a second person has to sign this');
         }
+        $this->statements->change(
+            "DELETE FROM platform.override_sign_in_failures
+             WHERE failed_at <= clock_timestamp() - interval '15 minutes'",
+            []
+        );
         $rows = $this->statements->bound(
             "SELECT count(*) AS attempts
              FROM platform.override_sign_in_failures

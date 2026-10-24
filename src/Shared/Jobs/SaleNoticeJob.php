@@ -8,6 +8,7 @@ use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Mail\MailAttempt;
 use PerfectConsign\Shared\Mail\MailBounce;
+use PerfectConsign\Shared\Mail\MailProgress;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Scalar\RowValue;
 use Psr\Log\LoggerInterface;
@@ -19,14 +20,23 @@ final class SaleNoticeJob
         private readonly OutboundMail $mail,
         private readonly MailBounce $bounce,
         private readonly LoggerInterface $logger,
+        private readonly MailProgress $progress,
     ) {
     }
 
-    public function notice(string $date): void
+    public function notice(string $tenant, string $date): void
     {
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
             return;
         }
+        $this->deliver($tenant, $date, $this->letters($date));
+    }
+
+    /**
+     * @return array<string, array{name: string, lines: list<string>}>
+     */
+    private function letters(string $date): array
+    {
         $rows = $this->statements->bound(
             "SELECT vendor.email, vendor.name, item.code,
                     (sale.price_minor * sale.quantity - sale.discount_minor - sale.store_discount_minor) AS net_minor
@@ -54,17 +64,38 @@ final class SaleNoticeJob
             }
             $letters[$email]['lines'][] = RowValue::string($row['code'] ?? null) . ' ' . Money::format(RowValue::integer($row['net_minor'] ?? null));
         }
+
+        return $letters;
+    }
+
+    /**
+     * @param array<string, array{name: string, lines: list<string>}> $letters
+     */
+    private function deliver(string $tenant, string $date, array $letters): void
+    {
+        $waiting = false;
         foreach ($letters as $email => $letter) {
-            $name = $letter['name'];
-            $lines = $letter['lines'];
-            MailAttempt::send(
-                $this->mail,
-                $this->bounce,
-                $this->logger,
-                $email,
-                'Sold today',
-                $name . "\n" . implode("\n", $lines)
-            );
+            if (!is_string($email) || $this->progress->sent($this->statements, $tenant, 'sale-notice', $date, $email)) {
+                continue;
+            }
+            try {
+                MailAttempt::send(
+                    $this->mail,
+                    $this->bounce,
+                    $this->logger,
+                    $email,
+                    'Sold today',
+                    $letter['name'] . "\n" . implode("\n", $letter['lines'])
+                );
+            } catch (\RuntimeException $failed) {
+                $this->logger->error('a letter is still waiting', ['email' => $email, 'error' => $failed->getMessage()]);
+                $waiting = true;
+                continue;
+            }
+            $this->progress->record($this->statements, $tenant, 'sale-notice', $date, $email);
+        }
+        if ($waiting) {
+            throw new \RuntimeException('a letter is still waiting to be sent');
         }
     }
 }

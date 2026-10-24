@@ -101,6 +101,57 @@ final class PasswordBoundaryTest extends TestCase
         ]));
     }
 
+    public function testAPlainMailboxDoesNotRevealTheAccount(): void
+    {
+        $count = $this->createStub(\PDOStatement::class);
+        $count->method('fetchColumn')->willReturn(0);
+        $insert = $this->createStub(\PDOStatement::class);
+        $owner = $this->createStub(\PDOStatement::class);
+        $owner->method('fetch')->willReturn([
+            'id' => '01900000-0000-7000-8000-0000000000c1',
+            'email' => 'owner@example.test',
+        ]);
+        $mailbox = $this->createStub(\PDOStatement::class);
+        $mailbox->method('fetch')->willReturn([
+            'email' => 'shop@example.test',
+            'receipt_mail_via' => 'gmail',
+            'gmail_address' => 'shop@example.test',
+            'gmail_app_password' => 'abcdefghijklmnop',
+        ]);
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturnOnConsecutiveCalls($count, $insert, $owner);
+        $pdo->method('exec')->willReturn(1);
+        $pdo->method('query')->willReturn($mailbox);
+        $log = new class extends AbstractLogger {
+            public string $message = '';
+
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+                $this->message = (string) $message;
+            }
+        };
+        $accounts = new LoginAccounts($pdo, new DatabaseRole($pdo));
+        $letters = new ResetLetter(new ResetTokens($pdo), new OutboundMail($log), $log);
+        $recovery = new PasswordRecovery(
+            $pdo,
+            new DatabaseRole($pdo),
+            $accounts,
+            new ResetTokens($pdo),
+            new ResetRequests($pdo),
+            new PasswordChoice(),
+            $letters,
+        );
+
+        self::assertTrue($letters->sendReset(
+            $this->tenant(),
+            new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', 'owner@example.test'),
+            'https://example.test',
+            $accounts,
+        ));
+        self::assertTrue($recovery->request($this->tenant(), 'owner', 'https://example.test'));
+        self::assertSame('the reset mailbox could not be read', $log->message);
+    }
+
     public function testARecordedResetSkipsGmail(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'pc-reset-');

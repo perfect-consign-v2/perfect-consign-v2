@@ -116,6 +116,10 @@ final class TenantProvisioner
             'GRANT SELECT, INSERT, DELETE ON TABLE platform.override_sign_in_failures TO %s',
             $role
         ));
+        $this->pdo->exec(sprintf(
+            'GRANT SELECT, INSERT ON TABLE platform.job_mail_sent TO %s',
+            $role
+        ));
         $jobs = $this->pdo->prepare('SELECT platform.grant_poster_jobs(?)');
         $jobs->execute([$role]);
     }

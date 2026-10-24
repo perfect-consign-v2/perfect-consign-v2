@@ -18,6 +18,26 @@ final class ResetLetter
     ) {
     }
 
+    public function sendReset(TenantRecord $tenant, LoginAccount $account, string $origin, LoginAccounts $accounts): bool
+    {
+        try {
+            $mailbox = $accounts->companyMail($tenant);
+            $account = $accounts->forReset($account);
+            if ($account === null) {
+                return true;
+            }
+
+            return $this->deliver($tenant, $account, $origin, $mailbox['gmail']);
+        } catch (\RuntimeException $error) {
+            $this->logger->error('the reset mailbox could not be read', [
+                'slug' => $tenant->slug,
+                'error' => $error->getMessage(),
+            ]);
+
+            return true;
+        }
+    }
+
     /**
      * @param array{host: string, port: int, username: string, password: string, from: string}|null $gmail
      */
