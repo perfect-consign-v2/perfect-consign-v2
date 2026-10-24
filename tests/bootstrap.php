@@ -6,6 +6,23 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/bin/load-env.php';
 
 loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
+installTestMailbox();
+
+function installTestMailbox(): void
+{
+    $key = getenv('STALL_MAIL_KEY');
+    if (!is_string($key) || $key === '') {
+        putenv('STALL_MAIL_KEY=' . sodium_bin2base64(str_repeat('k', SODIUM_CRYPTO_SECRETBOX_KEYBYTES), SODIUM_BASE64_VARIANT_ORIGINAL));
+    }
+    $address = getenv('STALL_GMAIL_ADDRESS');
+    if (!is_string($address) || $address === '') {
+        putenv('STALL_GMAIL_ADDRESS=ci-mailbox@example.test');
+    }
+    $password = getenv('STALL_GMAIL_APP_PASSWORD');
+    if (!is_string($password) || $password === '') {
+        putenv('STALL_GMAIL_APP_PASSWORD=ci-mailbox-password');
+    }
+}
 
 $coverage = getenv('PC_COVERAGE');
 if (!is_string($coverage) || $coverage === '') {
