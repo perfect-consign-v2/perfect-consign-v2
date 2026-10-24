@@ -493,7 +493,8 @@ function git(string $root, array $arguments): string
 {
     $result = gitResult($root, $arguments);
     if ($result['code'] !== 0) {
-        throw new RuntimeException('could not run git');
+        $detail = trim($result['stderr']);
+        throw new RuntimeException($detail === '' ? 'could not run git' : 'could not run git: ' . $detail);
     }
 
     return $result['stdout'];
@@ -501,7 +502,7 @@ function git(string $root, array $arguments): string
 
 /**
  * @param list<string> $arguments
- * @return array{code: int, stdout: string}
+ * @return array{code: int, stdout: string, stderr: string}
  */
 function gitResult(string $root, array $arguments): array
 {
@@ -509,12 +510,17 @@ function gitResult(string $root, array $arguments): array
     $spec = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
     $process = proc_open($command, $spec, $pipes);
     if (!is_resource($process)) {
-        return ['code' => 1, 'stdout' => ''];
+        return ['code' => 1, 'stdout' => '', 'stderr' => ''];
     }
     $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
     fclose($pipes[1]);
     fclose($pipes[2]);
     $code = proc_close($process);
 
-    return ['code' => $code, 'stdout' => is_string($stdout) ? $stdout : ''];
+    return [
+        'code' => $code,
+        'stdout' => is_string($stdout) ? $stdout : '',
+        'stderr' => is_string($stderr) ? $stderr : '',
+    ];
 }

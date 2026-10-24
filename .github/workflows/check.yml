@@ -30,6 +30,13 @@ jobs:
             if [ "$before" = "0000000000000000000000000000000000000000" ]; then
               echo "OBLIGATION_BASE=$(git rev-parse HEAD^)" >> "$GITHUB_ENV"
             else
+              if ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+                git fetch --no-tags origin "$before" || git fetch --no-tags --unshallow origin
+              fi
+              if ! git cat-file -e "$before^{commit}"; then
+                echo "obligation base $before is not in this clone" >&2
+                exit 1
+              fi
               echo "OBLIGATION_BASE=$before" >> "$GITHUB_ENV"
             fi
           fi
