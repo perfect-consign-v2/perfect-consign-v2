@@ -33,7 +33,7 @@ php bin/seed-dev-tenant.php
 
 `sql/000_platform.sql` creates the `stall_app` and `stall_backup` login roles, stores one owner per mall, and stores owner download times. The poster grants live in `sql/001_tenant.sql` and are applied inside each mall schema by the provisioner. `php bin/provision-platform.php` applies the platform file once.
 
-The web app connects as `stall_app`. Set `STALL_APP_PASSWORD` and `STALL_BACKUP_PASSWORD` in the environment or in `.env`. That file stays out of git. `STALL_PG_DUMP` is `pg_dump` on `PATH`, a path to the Postgres 18 client, or `docker:perfect-consign-postgres` to use the client in that container. The host client must be 18. A Postgres 17 client cannot dump this server.
+The web app connects as `stall_app`. Set `STALL_APP_PASSWORD`, `STALL_BACKUP_PASSWORD`, and `STALL_WORKER_PASSWORD` in the environment or in `.env`. That file stays out of git. `STALL_PG_DUMP` is `pg_dump` on `PATH`, a path to the Postgres 18 client, or `docker:perfect-consign-postgres` to use the client in that container. The host client must be 18. A Postgres 17 client cannot dump this server.
 
 ```text
 php bin/enable-stall-app.php

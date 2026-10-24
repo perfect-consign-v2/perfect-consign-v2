@@ -16,6 +16,7 @@ jobs:
       STALL_APP_PASSWORD: ci-app-password
       STALL_OWNER_PASSWORD: ci-owner-password
       STALL_BACKUP_PASSWORD: ci-backup-password
+      STALL_WORKER_PASSWORD: ci-worker-password
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -55,6 +56,6 @@ jobs:
           exit 1
       - name: Apply the platform schema
         run: php bin/provision-platform.php
-      - name: Enable stall_app and stall_backup logins
+      - name: Enable stall_app, stall_backup, and stall_worker logins
         run: php bin/enable-stall-app.php
       - run: composer check
