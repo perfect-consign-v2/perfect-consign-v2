@@ -33,15 +33,20 @@ $port = getenv('STALL_DB_PORT');
 $name = getenv('STALL_DB_NAME');
 $user = getenv('STALL_DB_USER');
 $adminPassword = getenv('STALL_DB_PASSWORD');
-if (
-    !is_string($host) || $host === ''
-    || !is_string($port) || $port === ''
-    || !is_string($name) || $name === ''
-    || !is_string($user) || $user === ''
-    || !is_string($adminPassword) || $adminPassword === ''
-) {
-    fwrite(STDERR, "STALL_DB_HOST, STALL_DB_PORT, STALL_DB_NAME, STALL_DB_USER, and STALL_DB_PASSWORD are required\n");
-    exit(1);
+if (!is_string($host) || $host === '') {
+    $host = '127.0.0.1';
+}
+if (!is_string($port) || $port === '') {
+    $port = '5436';
+}
+if (!is_string($name) || $name === '') {
+    $name = 'consign';
+}
+if (!is_string($user) || $user === '') {
+    $user = 'stall';
+}
+if (!is_string($adminPassword) || $adminPassword === '') {
+    $adminPassword = 'stall';
 }
 
 try {

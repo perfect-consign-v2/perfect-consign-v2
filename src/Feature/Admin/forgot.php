@@ -5,11 +5,16 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
-/** @var string|null $error */
-/** @var string|null $notice */
 ?>
 <div class="login-wrap">
     <div class="panel">
+        <div class="row gap-3" style="justify-content:center; margin-bottom:var(--space-6)">
+            <span class="brand-mark" style="width:40px;height:40px;font-size:var(--text-lg)">P</span>
+            <div>
+                <div class="h2">Platform</div>
+                <div class="text-sm muted">Perfect Consign</div>
+            </div>
+        </div>
         <div class="card">
             <div class="card-head"><h1>Forgot password</h1></div>
             <form method="post" action="/admin/forgot">

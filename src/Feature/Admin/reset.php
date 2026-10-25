@@ -6,17 +6,23 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
 /** @var string $token */
-/** @var string|null $error */
 /** @var bool $expired */
 $expired = ($expired ?? false) === true;
 ?>
 <div class="login-wrap">
     <div class="panel">
+        <div class="row gap-3" style="justify-content:center; margin-bottom:var(--space-6)">
+            <span class="brand-mark" style="width:40px;height:40px;font-size:var(--text-lg)">P</span>
+            <div>
+                <div class="h2">Platform</div>
+                <div class="text-sm muted">Perfect Consign</div>
+            </div>
+        </div>
         <div class="card">
             <div class="card-head"><h1>Reset password</h1></div>
             <?php if ($expired): ?>
-                <div class="card-body grid" style="gap:var(--space-4)">
-                    <p class="banner bad" style="margin:0"><?= View::text(is_string($error) ? $error : 'That reset link expired.') ?></p>
+                <div class="card-body">
+                    <p class="muted">That reset link expired. Request a new one.</p>
                 </div>
                 <div class="card-foot row between">
                     <a href="/admin/forgot">Request a new link</a>
@@ -26,9 +32,6 @@ $expired = ($expired ?? false) === true;
                 <form method="post" action="/admin/reset/<?= View::text($token) ?>">
                     <div class="card-body grid" style="gap:var(--space-4)">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                        <?php if (is_string($error) && $error !== ''): ?>
-                            <p class="banner bad" style="margin:0"><?= View::text($error) ?></p>
-                        <?php endif; ?>
                         <div class="field">
                             <label for="password">New password</label>
                             <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
