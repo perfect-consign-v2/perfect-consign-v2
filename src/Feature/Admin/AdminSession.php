@@ -83,7 +83,7 @@ final class AdminSession
     }
 
     /**
-     * @return array{id: string, email: string, version: string}
+     * @return array{id: string, email: string, version: string, signed_in_at: string, last_seen_at: string}
      */
     public function snapshot(): array
     {
@@ -91,17 +91,38 @@ final class AdminSession
         if ($current === null) {
             throw new \RuntimeException('the platform admin session is missing');
         }
+        $signedIn = $this->session->get('platform_signed_in_at');
+        $lastSeen = $this->session->get('platform_last_seen_at');
+        if (!is_string($signedIn) || ctype_digit($signedIn) !== true) {
+            $signedIn = (string) time();
+        }
+        if (!is_string($lastSeen) || ctype_digit($lastSeen) !== true) {
+            $lastSeen = (string) time();
+        }
 
-        return $current;
+        return $current + [
+            'signed_in_at' => $signedIn,
+            'last_seen_at' => $lastSeen,
+        ];
     }
 
     /**
-     * @param array{id: string, email: string, version: string} $admin
+     * @param array{id: string, email: string, version: string, signed_in_at?: string, last_seen_at?: string} $admin
      */
     public function restore(array $admin): void
     {
         $this->session->set(self::ID, $admin['id']);
         $this->session->set(self::EMAIL, $admin['email']);
         $this->session->set(self::VERSION, $admin['version']);
+        $signedIn = $admin['signed_in_at'] ?? null;
+        $lastSeen = $admin['last_seen_at'] ?? null;
+        $this->session->set(
+            'platform_signed_in_at',
+            is_string($signedIn) && ctype_digit($signedIn) ? $signedIn : (string) time()
+        );
+        $this->session->set(
+            'platform_last_seen_at',
+            is_string($lastSeen) && ctype_digit($lastSeen) ? $lastSeen : (string) time()
+        );
     }
 }

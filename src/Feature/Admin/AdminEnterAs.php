@@ -41,7 +41,7 @@ final class AdminEnterAs
 
     /**
      * @param array{id: string, email: string, version: string} $admin
-     * @param array{id: string, email: string, version: string} $preserved
+     * @param array{id: string, email: string, version: string, signed_in_at?: string, last_seen_at?: string} $preserved
      */
     private function asOwner(array $admin, TenantRecord $tenant, array $preserved): string
     {
@@ -91,7 +91,7 @@ final class AdminEnterAs
 
     /**
      * @param array{id: string, email: string, version: string} $admin
-     * @param array{id: string, email: string, version: string} $preserved
+     * @param array{id: string, email: string, version: string, signed_in_at?: string, last_seen_at?: string} $preserved
      */
     private function asCashier(array $admin, TenantRecord $tenant, array $preserved): string
     {

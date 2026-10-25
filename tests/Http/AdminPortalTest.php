@@ -80,6 +80,7 @@ final class AdminPortalTest extends TestCase
                 'admin should not stay signed in after tenant logout'
             );
 
+            $client->get('/admin/login');
             $client->post('/admin/login', [
                 'email' => self::ADMIN_EMAIL,
                 'password' => self::ADMIN_PASSWORD,
@@ -94,11 +95,12 @@ final class AdminPortalTest extends TestCase
                 'tenant session must end when admin logs out'
             );
 
-            $client->post('/admin/login', [
+            $client->get('/admin/login');
+            $again = $client->post('/admin/login', [
                 'email' => self::ADMIN_EMAIL,
                 'password' => self::ADMIN_PASSWORD,
             ]);
-            $client->get('/admin/tenants');
+            self::assertStringContainsString('Tenants', $again->body);
             $deleteForm = $client->get('/admin/tenants/' . $slug . '/delete');
             self::assertStringContainsString('permanently deletes', $deleteForm->body);
             $wrong = $client->post('/admin/tenants/' . $slug . '/delete', [

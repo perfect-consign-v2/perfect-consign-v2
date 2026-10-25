@@ -10,6 +10,9 @@ final class FormClient
 {
     private string $csrf = '';
 
+    /** @var array<string, string> */
+    private array $cookies = [];
+
     private string $cookieFile;
 
     private \CurlHandle $curl;
@@ -84,12 +87,29 @@ final class FormClient
     public function postWithHeaders(string $path, array $fields, array $headers): PageResponse
     {
         $fields['csrf'] = $this->csrf;
+        $cookie = $this->cookieHeader();
+        if ($cookie !== '') {
+            $headers[] = 'Cookie: ' . $cookie;
+        }
         $response = $this->send('POST', $path, $fields, false, 60, false, $headers);
         if (!in_array($response->status, [301, 302, 303], true) || $response->location === '') {
             return $response;
         }
 
         return $this->send('GET', $this->locationPath($response->location), null, true, 60, false);
+    }
+
+    private function cookieHeader(): string
+    {
+        if ($this->cookies === []) {
+            return '';
+        }
+        $parts = [];
+        foreach ($this->cookies as $name => $value) {
+            $parts[] = $name . '=' . $value;
+        }
+
+        return implode('; ', $parts);
     }
 
     /**
@@ -177,14 +197,34 @@ final class FormClient
         if (!is_int($status) || !is_int($headerSize)) {
             throw new RuntimeException('curl did not return a response');
         }
-        $headers = substr($raw, 0, $headerSize);
+        $responseHeaders = substr($raw, 0, $headerSize);
         $body = substr($raw, $headerSize);
+        $this->rememberCookies($responseHeaders);
         $token = HtmlPage::csrf($body);
         if ($token !== null) {
             $this->csrf = $token;
         }
 
-        return new PageResponse($status, $body, $this->location($headers));
+        return new PageResponse($status, $body, $this->location($responseHeaders));
+    }
+
+    private function rememberCookies(string $headers): void
+    {
+        if (preg_match_all('/^Set-Cookie:\s*([^=\s]+)=([^;\s]*)/mi', $headers, $matches, PREG_SET_ORDER) === false) {
+            return;
+        }
+        foreach ($matches as $match) {
+            $name = $match[1];
+            $value = $match[2];
+            if ($name === '') {
+                continue;
+            }
+            if ($value === '') {
+                unset($this->cookies[$name]);
+                continue;
+            }
+            $this->cookies[$name] = $value;
+        }
     }
 
     /**
