@@ -20,6 +20,10 @@ $mode = is_string($agreement['payout_mode'] ?? null) ? $agreement['payout_mode']
     <div class="titles">
         <h1 class="h1">Your account</h1>
     </div>
+    <form method="post" action="/<?= View::text($slug) ?>/consignor/logout">
+        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+        <button class="btn" type="submit">Sign out</button>
+    </form>
 </div>
 <section class="card">
     <div class="card-body stack">

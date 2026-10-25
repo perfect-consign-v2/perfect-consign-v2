@@ -111,6 +111,8 @@ final class ProbeServer
             }
         }
         $env['STALL_MAIL_FILE'] = $mail;
+        $env['STALL_PUBLIC_ORIGIN'] = 'http://127.0.0.1:' . $port;
+        $env['APP_ENV'] = $env['APP_ENV'] ?? 'local';
         if (!$mailKey) {
             $env['STALL_MAIL_KEY'] = 'missing';
         }

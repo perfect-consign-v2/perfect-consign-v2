@@ -53,20 +53,15 @@ foreach ($cart['lines'] as $line) {
     $itemId = $line['item_id'] ?? '';
     $price = $line['price'] ?? 0;
     $tax = $line['tax'] ?? 0;
-    $commission = $line['commission'] ?? 0;
     $quantity = $line['quantity'] ?? 1;
-    $commissionBps = $line['commission_bps'] ?? 0;
-    if (!is_string($itemId) || $itemId === '' || !is_int($price) || !is_int($tax) || !is_int($commission) || !is_int($quantity)) {
+    if (!is_string($itemId) || $itemId === '' || !is_int($price) || !is_int($tax) || !is_int($quantity)) {
         continue;
     }
     $snapLines[] = [
         'item_id' => $itemId,
         'price' => $amount($price),
         'tax' => $amount($tax),
-        'commission' => $amount($commission),
         'quantity' => (string) $quantity,
-        'commission_bps' => is_int($commissionBps) ? (string) $commissionBps : '0',
-        'tax_bps' => (string) ($cart['tax_bps'] ?? 0),
     ];
 }
 $encodedSnaps = json_encode($snapLines);

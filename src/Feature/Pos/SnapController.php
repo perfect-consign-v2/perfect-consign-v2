@@ -35,10 +35,10 @@ final class SnapController
                 'item_id' => $request->field('item_id'),
                 'price' => Money::parseMinor($request->field('price')),
                 'tax' => $this->optionalMoney($request->field('tax')),
-                'commission' => $this->optionalMoney($request->field('commission')),
+                'commission' => 0,
                 'quantity' => $this->quantity($request->field('quantity')),
-                'commission_bps' => $this->bps($request->field('commission_bps'), 10000),
-                'tax_bps' => $this->bps($request->field('tax_bps'), 100000),
+                'commission_bps' => 0,
+                'tax_bps' => 0,
             ]);
         } catch (DatabaseRefusal $refusal) {
             $this->send(['error' => $this->app->catchRefusal($refusal), 'posted' => false], 422);
@@ -74,22 +74,6 @@ final class SnapController
         }
 
         return Money::parseMinor($value);
-    }
-
-    private function bps(string $value, int $ceiling): int
-    {
-        if ($value === '') {
-            return 0;
-        }
-        if (preg_match('/^[0-9]{1,6}$/', $value) !== 1) {
-            throw new DatabaseRefusal('that snap is not on this register');
-        }
-        $rate = (int) $value;
-        if ($rate > $ceiling) {
-            throw new DatabaseRefusal('that snap is not on this register');
-        }
-
-        return $rate;
     }
 
     private function quantity(string $value): int

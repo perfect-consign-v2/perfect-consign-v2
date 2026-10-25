@@ -47,7 +47,10 @@ final class VendorEntryController
         if ($vendorId === '') {
             $this->app->redirect('/' . $slug . '/consignor/enter', 'That link has expired.');
         }
+        $now = (string) time();
         $this->session->set($this->key($slug), $vendorId);
+        $this->session->set($this->seenKey($slug), $now);
+        $this->session->set($this->startedKey($slug), $now);
         $this->app->redirect('/' . $slug . '/consignor');
     }
 
@@ -73,18 +76,68 @@ final class VendorEntryController
         $this->app->redirect('/' . $slug . '/consignor', 'Payout preference saved.');
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/consignor/logout', ['POST'])]
+    public function logout(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, false);
+        $this->clear($slug);
+        $this->app->redirect('/' . $slug . '/consignor/enter', 'Signed out.');
+    }
+
     private function vendor(string $slug): string
     {
         $vendorId = $this->session->get($this->key($slug));
         if (!is_string($vendorId) || preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
+            $this->clear($slug);
             $this->app->redirect('/' . $slug . '/consignor/enter');
         }
+        if ($this->stale($slug)) {
+            $this->clear($slug);
+            $this->app->redirect('/' . $slug . '/consignor/enter');
+        }
+        $this->session->set($this->seenKey($slug), (string) time());
 
         return $vendorId;
+    }
+
+    private function stale(string $slug): bool
+    {
+        $now = time();
+
+        return $this->older($this->startedKey($slug), $now, 28800)
+            || $this->older($this->seenKey($slug), $now, 3600);
+    }
+
+    private function older(string $key, int $now, int $limit): bool
+    {
+        $value = $this->session->get($key);
+        if (!is_string($value) || ctype_digit($value) !== true) {
+            return true;
+        }
+
+        return $now - (int) $value >= $limit;
+    }
+
+    private function clear(string $slug): void
+    {
+        $this->session->delete($this->key($slug));
+        $this->session->delete($this->seenKey($slug));
+        $this->session->delete($this->startedKey($slug));
     }
 
     private function key(string $slug): string
     {
         return 'consignor:' . $slug;
+    }
+
+    private function seenKey(string $slug): string
+    {
+        return 'consignor_seen:' . $slug;
+    }
+
+    private function startedKey(string $slug): string
+    {
+        return 'consignor_started:' . $slug;
     }
 }

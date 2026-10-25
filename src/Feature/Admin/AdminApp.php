@@ -74,6 +74,10 @@ final class AdminApp
             $this->admins->clear();
             $this->redirect('/admin/login');
         }
+        if ($this->admins->stale(time())) {
+            $this->admins->clear();
+            $this->redirect('/admin/login');
+        }
         $this->admins->touch();
 
         return ['id' => $id, 'email' => $email, 'version' => $version];
@@ -88,10 +92,10 @@ final class AdminApp
         }
         $this->logger->warning('csrf token refused', ['path' => $this->request->path]);
         http_response_code(400);
-        $this->show('Feature/Admin/expired', [
+        $this->showGuest('Feature/Admin/expired', [
             'title' => 'Form expired',
             'error' => 'The form expired. Go back and try again.',
-        ], false);
+        ]);
         throw new ResponseSent('csrf');
     }
 
@@ -109,14 +113,30 @@ final class AdminApp
     /**
      * @param array<string, mixed> $data
      */
-    public function show(string $template, array $data = [], bool $nav = true): void
+    public function show(string $template, array $data = []): void
+    {
+        $this->paint($template, $data + ['nav' => $this->admins->current() !== null]);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function showGuest(string $template, array $data = []): void
+    {
+        $this->paint($template, $data + ['nav' => false]);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function paint(string $template, array $data): void
     {
         $data['csrf'] = $this->token();
         $data['error'] = $data['error'] ?? null;
         $data['notice'] = $this->takeFlash('admin_notice');
         $data['warning'] = $this->takeFlash('admin_warning');
         $data['path'] = $this->request->path;
-        $data['nav'] = $nav && $this->admins->current() !== null;
+        $data['nav'] = ($data['nav'] ?? false) === true;
         $admin = $this->admins->current();
         $data['adminEmail'] = $admin['email'] ?? '';
         $this->view->render('Feature/Admin/layout', $data + ['body' => $template]);

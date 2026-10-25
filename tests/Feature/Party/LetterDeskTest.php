@@ -16,6 +16,7 @@ use PerfectConsign\Shared\Jobs\JobQueue;
 use PerfectConsign\Shared\Mail\LetterMailbox;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Scalar\RowValue;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -33,6 +34,7 @@ final class LetterDeskTest extends TestCase
         putenv('STALL_MAIL_FILE=' . $file);
         $pdo = LocalAdmin::open()->pdo();
         $schema = $this->schema($pdo);
+        $role = TenantRecord::roleFor('webprobe', $schema);
         $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
         $logger = $this->createStub(LoggerInterface::class);
@@ -46,6 +48,7 @@ final class LetterDeskTest extends TestCase
         );
         $vendorId = $this->vendor($statements);
         try {
+            $pdo->exec('SET ROLE ' . $role);
             try {
                 $desk->fileLetter('webprobe', '2099-06-01', 'Pickup', 'Ready', false, []);
                 self::fail('an empty list was filed');
@@ -53,6 +56,7 @@ final class LetterDeskTest extends TestCase
                 self::assertSame('Choose a consignor.', $error->getMessage());
             }
             $id = $desk->fileLetter('webprobe', '2099-06-01', 'Pickup', 'Your items are ready.', false, [$vendorId]);
+            $pdo->exec('RESET ROLE');
             $letter = $desk->openLetter($id);
             self::assertNotNull($letter);
             self::assertSame('Pickup', $letter['subject']);
@@ -79,6 +83,7 @@ final class LetterDeskTest extends TestCase
             self::assertStringContainsString('show(', $named);
             self::assertStringContainsString('read(', $named);
         } finally {
+            $pdo->exec('RESET ROLE');
             putenv('STALL_MAIL_FILE');
             if (is_file($file)) {
                 unlink($file);

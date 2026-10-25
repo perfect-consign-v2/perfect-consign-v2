@@ -1,11 +1,11 @@
--- A snap posts the captured price, tax, and commission.
+-- A snap posts the captured price and collected tax. Commission comes from the rule engine.
 -- Duplicate, closed period, quantity, a missing item, and a closed drawer are refused one at a time.
 -- The second register does not post the last unit. journal_no stays empty until the post commits.
 
 BEGIN;
 
 INSERT INTO vendors (id, code, first_name, last_name, commission_bps)
-VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane', 0);
+VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane', 2000);
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity, commission_bps)
 VALUES (
@@ -17,7 +17,7 @@ VALUES (
     'BC-COAT',
     DATE '2096-03-01',
     1,
-    0
+    2000
 );
 
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
@@ -56,11 +56,11 @@ VALUES (
 INSERT INTO register_snaps (
     posting_key, session_id, business_date, item_id, price_minor, tax_minor, commission_minor, commission_bps, tax_bps, quantity
 ) VALUES
-    ('01900000-0000-7000-8000-00000000a101', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 2000, 2000, 0, 1),
-    ('01900000-0000-7000-8000-00000000a102', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 2000, 2000, 0, 1),
-    ('01900000-0000-7000-8000-00000000a103', '01900000-0000-7000-8000-000000000d22', DATE '2095-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 2000, 2000, 0, 1),
-    ('01900000-0000-7000-8000-00000000a104', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a9', 10000, 0, 2000, 2000, 0, 1),
-    ('01900000-0000-7000-8000-00000000a105', '01900000-0000-7000-8000-000000000d23', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 2000, 2000, 0, 1);
+    ('01900000-0000-7000-8000-00000000a101', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 0, 0, 0, 1),
+    ('01900000-0000-7000-8000-00000000a102', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 0, 0, 0, 1),
+    ('01900000-0000-7000-8000-00000000a103', '01900000-0000-7000-8000-000000000d22', DATE '2095-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 0, 0, 0, 1),
+    ('01900000-0000-7000-8000-00000000a104', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a9', 10000, 0, 0, 0, 0, 1),
+    ('01900000-0000-7000-8000-00000000a105', '01900000-0000-7000-8000-000000000d23', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 0, 0, 0, 1);
 
 DO $$
 DECLARE
@@ -75,7 +75,10 @@ BEGIN
         RAISE EXCEPTION 'the snap did not keep its receipt number';
     END IF;
     IF (SELECT commission_minor FROM sale_lines WHERE journal_id = (SELECT journal_id FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000a101')) IS DISTINCT FROM 2000 THEN
-        RAISE EXCEPTION 'the snap recomputed commission';
+        RAISE EXCEPTION 'the snap did not use the rule-engine commission';
+    END IF;
+    IF (SELECT tax_variance_minor FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000a101') IS NULL THEN
+        RAISE EXCEPTION 'the snap did not store a tax variance';
     END IF;
     IF (SELECT posting_date FROM journals WHERE posting_key = '01900000-0000-7000-8000-00000000a101') IS DISTINCT FROM DATE '2096-03-30' THEN
         RAISE EXCEPTION 'the snap did not post on its business date';

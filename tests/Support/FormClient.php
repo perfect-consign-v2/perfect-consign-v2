@@ -79,6 +79,21 @@ final class FormClient
 
     /**
      * @param array<string, string> $fields
+     * @param list<string> $headers
+     */
+    public function postWithHeaders(string $path, array $fields, array $headers): PageResponse
+    {
+        $fields['csrf'] = $this->csrf;
+        $response = $this->send('POST', $path, $fields, false, 60, false, $headers);
+        if (!in_array($response->status, [301, 302, 303], true) || $response->location === '') {
+            return $response;
+        }
+
+        return $this->send('GET', $this->locationPath($response->location), null, true, 60, false);
+    }
+
+    /**
+     * @param array<string, string> $fields
      * @param array<string, string> $files
      */
     public function upload(string $path, array $fields, array $files, int $timeoutSeconds = 60): PageResponse

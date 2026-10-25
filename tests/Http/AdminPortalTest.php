@@ -70,6 +70,34 @@ final class AdminPortalTest extends TestCase
                 || str_contains($enterCashier->body, 'ticket')
             );
 
+            $loggedOutMall = $client->post('/' . $slug . '/logout', []);
+            self::assertStringContainsString('Signed out.', $loggedOutMall->body);
+            $adminAfterTenantLogout = $client->getWithoutRedirect('/admin/tenants');
+            self::assertTrue(
+                in_array($adminAfterTenantLogout->status, [301, 302, 303], true)
+                || str_contains($adminAfterTenantLogout->body, 'Platform admin')
+                || str_contains($adminAfterTenantLogout->body, 'Sign in'),
+                'admin should not stay signed in after tenant logout'
+            );
+
+            $client->post('/admin/login', [
+                'email' => self::ADMIN_EMAIL,
+                'password' => self::ADMIN_PASSWORD,
+            ]);
+            $client->post('/admin/tenants/' . $slug . '/enter', ['role' => 'owner']);
+            $client->post('/admin/logout', []);
+            $mallAfterAdminLogout = $client->getWithoutRedirect('/' . $slug . '/dashboard');
+            self::assertTrue(
+                in_array($mallAfterAdminLogout->status, [301, 302, 303], true)
+                || str_contains($mallAfterAdminLogout->body, 'Sign in')
+                || str_contains($mallAfterAdminLogout->body, 'username'),
+                'tenant session must end when admin logs out'
+            );
+
+            $client->post('/admin/login', [
+                'email' => self::ADMIN_EMAIL,
+                'password' => self::ADMIN_PASSWORD,
+            ]);
             $client->get('/admin/tenants');
             $deleteForm = $client->get('/admin/tenants/' . $slug . '/delete');
             self::assertStringContainsString('permanently deletes', $deleteForm->body);
@@ -91,6 +119,19 @@ final class AdminPortalTest extends TestCase
             $known = $client->post('/admin/forgot', ['email' => self::ADMIN_EMAIL]);
             self::assertStringContainsString(ResetNotice::SENT, $unknown->body);
             self::assertStringContainsString(ResetNotice::SENT, $known->body);
+
+            file_put_contents(ProbeServer::mailFile(), '');
+            $client->postWithHeaders('/admin/forgot', ['email' => self::ADMIN_EMAIL], ['Host: evil.example']);
+            $mail = file_get_contents(ProbeServer::mailFile());
+            self::assertIsString($mail);
+            self::assertStringNotContainsString('evil.example', $mail);
+            self::assertStringContainsString($server->baseUrl() . '/admin/reset/', $mail);
+
+            if (preg_match('#/admin/reset/([A-Za-z0-9_-]{43})#', $mail, $token) === 1) {
+                $resetPage = $client->get('/admin/reset/' . $token[1]);
+                self::assertStringContainsString('Reset password', $resetPage->body);
+                self::assertStringContainsString('New password', $resetPage->body);
+            }
         } finally {
             $server->stop();
             $this->cleanupDisposable($pdo, $slug);

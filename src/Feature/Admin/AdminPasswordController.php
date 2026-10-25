@@ -18,10 +18,10 @@ final class AdminPasswordController
     #[Route('/admin/forgot', ['GET'])]
     public function forgotForm(): void
     {
-        $this->app->show('Feature/Admin/forgot', [
+        $this->app->showGuest('Feature/Admin/forgot', [
             'title' => 'Forgot password',
             'error' => null,
-        ], false);
+        ]);
     }
 
     #[Route('/admin/forgot', ['POST'])]
@@ -36,21 +36,21 @@ final class AdminPasswordController
     public function resetForm(string $token): void
     {
         if (!$this->recovery->available($token)) {
-            $this->app->show('Feature/Admin/reset', [
+            $this->app->showGuest('Feature/Admin/reset', [
                 'title' => 'Reset password',
                 'token' => $token,
                 'error' => 'That reset link expired. Request a new one.',
                 'expired' => true,
-            ], false);
+            ]);
 
             return;
         }
-        $this->app->show('Feature/Admin/reset', [
+        $this->app->showGuest('Feature/Admin/reset', [
             'title' => 'Reset password',
             'token' => $token,
             'error' => null,
             'expired' => false,
-        ], false);
+        ]);
     }
 
     #[Route('/admin/reset/([A-Za-z0-9_-]{43})', ['POST'])]
@@ -64,12 +64,12 @@ final class AdminPasswordController
                 $this->app->request()->raw('confirm'),
             );
         } catch (\InvalidArgumentException $error) {
-            $this->app->show('Feature/Admin/reset', [
+            $this->app->showGuest('Feature/Admin/reset', [
                 'title' => 'Reset password',
                 'token' => $token,
                 'error' => $error->getMessage(),
                 'expired' => !$this->recovery->available($token),
-            ], false);
+            ]);
 
             return;
         }

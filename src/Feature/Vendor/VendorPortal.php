@@ -95,6 +95,6 @@ final class VendorPortal
         if ($this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog, extensions') === false) {
             throw new \RuntimeException('the mall schema could not be used');
         }
-        $this->roles->assume($tenant->role);
+        $this->roles->assume('stall_vendor');
     }
 }

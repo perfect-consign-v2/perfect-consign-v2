@@ -66,6 +66,22 @@ final class AdminSession
         $this->session->set('platform_last_seen_at', (string) time());
     }
 
+    public function stale(int $now): bool
+    {
+        return $this->older('platform_signed_in_at', $now, 28800)
+            || $this->older('platform_last_seen_at', $now, 3600);
+    }
+
+    private function older(string $key, int $now, int $limit): bool
+    {
+        $value = $this->session->get($key);
+        if (!is_string($value) || ctype_digit($value) !== true) {
+            return true;
+        }
+
+        return $now - (int) $value >= $limit;
+    }
+
     /**
      * @return array{id: string, email: string, version: string}
      */

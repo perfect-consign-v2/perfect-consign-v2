@@ -44,4 +44,24 @@ final class LoginSession
         $this->session->set('csrf', bin2hex(random_bytes(16)));
         $this->session->set('last_seen_at', (string) time());
     }
+
+    public function clear(): void
+    {
+        foreach (
+            [
+                'owner_slug',
+                'tenant_id',
+                'owner_name',
+                'signed_in_at',
+                'last_seen_at',
+                'actor_role',
+                'actor_account',
+                'credentials_version',
+                'actor_staff',
+                'actor_vendor',
+            ] as $key
+        ) {
+            $this->session->delete($key);
+        }
+    }
 }

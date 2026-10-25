@@ -85,6 +85,22 @@ BEGIN
             RAISE;
         END IF;
     END;
+    SET LOCAL ROLE stall_vendor;
+    BEGIN
+        PERFORM count(*) FROM items;
+        RAISE EXCEPTION 'stall_vendor read items';
+    EXCEPTION WHEN insufficient_privilege THEN
+        NULL;
+    END;
+    RESET ROLE;
+    SET LOCAL ROLE stall_poster;
+    BEGIN
+        PERFORM count(*) FROM stall_vendor_items;
+        RAISE EXCEPTION 'poster still reads stall_vendor_items';
+    EXCEPTION WHEN insufficient_privilege THEN
+        NULL;
+    END;
+    RESET ROLE;
 END $$;
 
 ROLLBACK;

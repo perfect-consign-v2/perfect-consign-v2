@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Bootstrap\SignInLocked;
 
 final class AdminSessionController
@@ -12,6 +13,7 @@ final class AdminSessionController
     public function __construct(
         private readonly AdminApp $app,
         private readonly AdminSignIn $signIn,
+        private readonly LoginSession $tenants,
     ) {
     }
 
@@ -28,10 +30,10 @@ final class AdminSessionController
         if ($this->app->session()->current() !== null) {
             $this->app->redirect('/admin/tenants');
         }
-        $this->app->show('Feature/Admin/login', [
+        $this->app->showGuest('Feature/Admin/login', [
             'title' => 'Platform admin',
             'error' => null,
-        ], false);
+        ]);
     }
 
     #[Route('/admin/login', ['POST'])]
@@ -43,18 +45,18 @@ final class AdminSessionController
         try {
             $signedIn = $this->signIn->attempt($email, $password);
         } catch (SignInLocked) {
-            $this->app->show('Feature/Admin/login', [
+            $this->app->showGuest('Feature/Admin/login', [
                 'title' => 'Platform admin',
                 'error' => 'Too many sign-in attempts. Try again in a few minutes.',
-            ], false);
+            ]);
 
             return;
         }
         if (!$signedIn) {
-            $this->app->show('Feature/Admin/login', [
+            $this->app->showGuest('Feature/Admin/login', [
                 'title' => 'Platform admin',
                 'error' => 'That email or password is wrong.',
-            ], false);
+            ]);
 
             return;
         }
@@ -65,6 +67,7 @@ final class AdminSessionController
     public function logout(): void
     {
         $this->app->checkCsrf();
+        $this->tenants->clear();
         $this->app->session()->clear();
         $this->app->redirect('/admin/login', 'Signed out.');
     }

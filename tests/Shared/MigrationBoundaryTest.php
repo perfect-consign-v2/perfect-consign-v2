@@ -279,7 +279,7 @@ final class MigrationBoundaryTest extends TestCase
             if (str_contains($statement, 'schema_migrations')) {
                 return $found;
             }
-            if (str_contains($statement, 'left(gmail_app_password')) {
+            if (str_contains($statement, 'gmail_app_password FROM mall')) {
                 $seals++;
             }
 

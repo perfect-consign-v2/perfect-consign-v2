@@ -68,6 +68,13 @@ session_set_cookie_params([
     'path' => '/',
     'secure' => requestIsHttps(),
 ]);
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: same-origin');
+header('X-Frame-Options: DENY');
+header("Content-Security-Policy: frame-ancestors 'none'");
+if (requestIsHttps()) {
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+}
 
 $container = null;
 try {
@@ -302,6 +309,16 @@ function requestUploads(): array
 
 function requestOrigin(): string
 {
+    $configured = getenv('STALL_PUBLIC_ORIGIN');
+    if (is_string($configured) && preg_match('#\Ahttps?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?\z#', $configured) === 1) {
+        return $configured;
+    }
+
+    $debug = in_array(getenv('APP_ENV'), ['local', 'development', 'dev'], true) || getenv('APP_DEBUG') === 'true';
+    if (!$debug) {
+        throw new RuntimeException('STALL_PUBLIC_ORIGIN is required');
+    }
+
     $host = hostHeader();
     if (preg_match('/^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/', $host) !== 1) {
         return '';

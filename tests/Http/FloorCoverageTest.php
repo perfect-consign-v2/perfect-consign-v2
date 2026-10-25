@@ -127,8 +127,7 @@ final class FloorCoverageTest extends WebTestCase
             'store_take' => '50',
         ]);
         self::assertSees('Vendor created.', $created);
-        $directory = $this->client->get('/' . self::SLUG . '/parties');
-        $vendor = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
+        $vendor = HtmlPage::pathId($created->body, self::SLUG . '/vendors');
         $first = $this->item($vendor, '10.00');
         $second = $this->item($vendor, '30.00');
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $first['code']]);
@@ -439,8 +438,7 @@ final class FloorCoverageTest extends WebTestCase
             'store_take' => '0',
         ]);
         self::assertSees('Vendor created.', $created);
-        $directory = $this->client->get('/' . self::SLUG . '/parties');
-        $vendor = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
+        $vendor = HtmlPage::pathId($created->body, self::SLUG . '/vendors');
         $booth = 'b' . bin2hex(random_bytes(3));
         $made = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => $booth,
@@ -588,7 +586,7 @@ final class FloorCoverageTest extends WebTestCase
             'store_take' => '50',
         ]);
         self::assertSees('Vendor created.', $buyer);
-        $buyerId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $buyerCode);
+        $buyerId = HtmlPage::pathId($buyer->body, self::SLUG . '/vendors');
         $heldItem = $this->item($buyerId, '10.00');
         $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldItem['code']]);
         $noCustomer = $this->client->post('/' . self::SLUG . '/pos/pay', [
@@ -704,9 +702,8 @@ final class FloorCoverageTest extends WebTestCase
             'last_name' => $code,
         ]);
         self::assertSees($code, $page);
-        $directory = $this->client->get('/' . self::SLUG . '/parties');
 
-        return HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
+        return HtmlPage::pathId($page->body, self::SLUG . '/vendors');
     }
 
     private function gift(string $amount, string $tender, string $number = '', string $check = ''): PageResponse

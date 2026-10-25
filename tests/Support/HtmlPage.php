@@ -81,12 +81,25 @@ final class HtmlPage
             throw new RuntimeException($prefix . ' ' . $text . ' was not on the page');
         }
         foreach ($matches as $match) {
-            if (str_contains($match[0], '>' . $text . '<')) {
+            if (
+                str_contains($match[0], '>' . $text . '<')
+                || str_contains($match[0], '>' . $text . '</')
+            ) {
                 return $match[1];
             }
         }
 
         throw new RuntimeException($prefix . ' ' . $text . ' was not on the page');
+    }
+
+    public static function pathId(string $html, string $pathPrefix): string
+    {
+        $pattern = '#/' . preg_quote($pathPrefix, '#') . '/([0-9a-fA-F-]{36})#';
+        if (preg_match($pattern, $html, $match) !== 1) {
+            throw new RuntimeException($pathPrefix . ' id was not on the page');
+        }
+
+        return $match[1];
     }
 
     public static function option(string $html, string $selectId, string $label): string

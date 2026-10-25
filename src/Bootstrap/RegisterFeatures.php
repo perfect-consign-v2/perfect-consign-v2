@@ -16,33 +16,51 @@ final class RegisterFeatures
      */
     public static function register(Router $router, string $featureDirectory): void
     {
+        foreach (self::controllerClasses($featureDirectory) as $class) {
+            $router->registerController($class);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function controllerClasses(string $featureDirectory): array
+    {
         $classes = [];
         $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($featureDirectory));
         foreach ($files as $file) {
-            if (!$file instanceof SplFileInfo || $file->isDir()) {
-                continue;
-            }
-            if (!str_ends_with($file->getFilename(), 'Controller.php')) {
-                continue;
-            }
-            $class = self::className($file->getPathname());
+            $class = self::controllerClass($file);
             if ($class === null) {
                 continue;
             }
             $classes[] = $class;
         }
-        usort($classes, static function (string $left, string $right): int {
-            $leftAdmin = str_contains($left, '\\Feature\\Admin\\') ? 0 : 1;
-            $rightAdmin = str_contains($right, '\\Feature\\Admin\\') ? 0 : 1;
-            if ($leftAdmin !== $rightAdmin) {
-                return $leftAdmin <=> $rightAdmin;
-            }
+        usort($classes, self::adminRoutesFirst(...));
 
-            return $left <=> $right;
-        });
-        foreach ($classes as $class) {
-            $router->registerController($class);
+        return $classes;
+    }
+
+    private static function controllerClass(mixed $file): ?string
+    {
+        if (!$file instanceof SplFileInfo || $file->isDir()) {
+            return null;
         }
+        if (!str_ends_with($file->getFilename(), 'Controller.php')) {
+            return null;
+        }
+
+        return self::className($file->getPathname());
+    }
+
+    private static function adminRoutesFirst(string $left, string $right): int
+    {
+        $leftAdmin = str_contains($left, '\\Feature\\Admin\\') ? 0 : 1;
+        $rightAdmin = str_contains($right, '\\Feature\\Admin\\') ? 0 : 1;
+        if ($leftAdmin !== $rightAdmin) {
+            return $leftAdmin <=> $rightAdmin;
+        }
+
+        return $left <=> $right;
     }
 
     private static function className(string $path): ?string
