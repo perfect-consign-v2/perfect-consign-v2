@@ -25,6 +25,10 @@ $hear = static function () use ($client): string {
     return is_string($text) ? $text : '';
 };
 
+if ($mode === 'greeting') {
+    $say('400 no');
+    exit(0);
+}
 $say('220 ready');
 $hear();
 $say('250 hello');

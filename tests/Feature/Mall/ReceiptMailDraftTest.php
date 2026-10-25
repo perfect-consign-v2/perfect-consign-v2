@@ -19,10 +19,22 @@ final class ReceiptMailDraftTest extends TestCase
 
     public function testAGmailAddressAndAppPasswordAreChecked(): void
     {
+        $fitted = str_repeat('a', 190) . '@gmail.com';
+        self::assertSame($fitted, ReceiptMailDraft::address($fitted));
         self::assertSame('ada@gmail.com', ReceiptMailDraft::address(' ada@gmail.com '));
         self::assertSame('abcdefghijklmnop', ReceiptMailDraft::password('abcd efgh ijkl mnop'));
         self::assertNull(ReceiptMailDraft::address(''));
         self::assertNull(ReceiptMailDraft::password(''));
+    }
+
+    public function testATwoHundredCharacterAddressIsTheLimit(): void
+    {
+        try {
+            ReceiptMailDraft::address(str_repeat('a', 191) . '@gmail.com');
+            self::fail('a 201-character address was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('that Gmail address is not an email address', $error->getMessage());
+        }
     }
 
     public function testAMailboxThatIsNotGmailIsRefused(): void

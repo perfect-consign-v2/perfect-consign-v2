@@ -47,6 +47,7 @@ $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
         </div>
         <div class="row gap-2">
             <a class="btn" href="<?= View::text(VendorPreview::with('/' . $slug . '/vendor', $vendor['id'])) ?>" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-vendor"></use></svg> Open as <?= View::text($partyOne) ?></a>
+            <a class="btn" href="/<?= View::text($slug) ?>/letters?vendor=<?= View::text($vendor['id']) ?>">Email</a>
             <a class="btn" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
         </div>
     </div>

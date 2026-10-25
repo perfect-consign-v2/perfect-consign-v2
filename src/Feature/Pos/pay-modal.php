@@ -15,7 +15,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var bool $showCashDue */
 /** @var string $cashRoundText */
 /** @var int $salesAvailable */
-/** @var array{lines: list<mixed>, buyer_id: string, buyer_name: string} $cart */
+/** @var array{lines: list<mixed>, buyer_id: string, buyer_name: string, posting_key?: string, tax_bps?: int} $cart */
 /** @var bool $openPayment */
 /** @var string $payError */
 /** @var string $payCash */
@@ -45,6 +45,32 @@ $giftFieldError = in_array($payError, [
 ], true);
 $modalError = $giftFieldError ? '' : $payError;
 $amountFocus = $modalError !== '';
+$snapLines = [];
+foreach ($cart['lines'] as $line) {
+    if (!is_array($line)) {
+        continue;
+    }
+    $itemId = $line['item_id'] ?? '';
+    $price = $line['price'] ?? 0;
+    $tax = $line['tax'] ?? 0;
+    $commission = $line['commission'] ?? 0;
+    $quantity = $line['quantity'] ?? 1;
+    $commissionBps = $line['commission_bps'] ?? 0;
+    if (!is_string($itemId) || $itemId === '' || !is_int($price) || !is_int($tax) || !is_int($commission) || !is_int($quantity)) {
+        continue;
+    }
+    $snapLines[] = [
+        'item_id' => $itemId,
+        'price' => $amount($price),
+        'tax' => $amount($tax),
+        'commission' => $amount($commission),
+        'quantity' => (string) $quantity,
+        'commission_bps' => is_int($commissionBps) ? (string) $commissionBps : '0',
+        'tax_bps' => (string) ($cart['tax_bps'] ?? 0),
+    ];
+}
+$encodedSnaps = json_encode($snapLines);
+$snapJson = is_string($encodedSnaps) ? $encodedSnaps : '[]';
 $amountInvalid = static function (string $value): bool {
     $value = str_replace(['$', ',', ' '], '', trim($value));
     if ($value === '' || $value === '0' || $value === '0.00') {
@@ -76,10 +102,11 @@ $amountAttrs = static function (string $value) use (&$amountFocus, $amountInvali
             <?php $closeModal = 'enter-payment'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
             <div class="h3" id="enter-payment-title">Payment</div>
         </div>
-        <form id="pos-pay" class="pay-split" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-cash-quote="<?= $showCashDue ? '1' : '0' ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-shopper="<?= View::text(is_string($shopperId ?? null) ? $shopperId : '') ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json" data-gift-over="<?= View::text(RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) ?>">
+        <form id="pos-pay" class="pay-split ticket-command" method="post" action="/<?= View::text($slug) ?>/pos/pay" data-due="<?= View::text($amount($due)) ?>" data-cash="<?= View::text($amount($cashDue)) ?>" data-round="<?= View::text((string) $roundStep) ?>" data-cash-quote="<?= $showCashDue ? '1' : '0' ?>" data-lines="<?= View::text((string) count($cart['lines'])) ?>" data-snaps="<?= View::text($snapJson) ?>" data-sales="<?= View::text((string) $sales) ?>" data-buyer="<?= View::text($cart['buyer_id']) ?>" data-shopper="<?= View::text(is_string($shopperId ?? null) ? $shopperId : '') ?>" data-gift-lookup="/<?= View::text($slug) ?>/pos/gift-certificate.json" data-gift-over="<?= View::text(RegisterStore::GIFT_CERTIFICATE_BELOW_ZERO) ?>">
             <p class="error" id="pay-error" role="alert"<?= $modalError === '' ? ' hidden' : '' ?>><?= View::text($modalError) ?></p>
             <div class="card-body stack">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                <input type="hidden" name="posting_key" value="<?= View::text($cart['posting_key'] ?? '') ?>">
                 <input type="hidden" name="vendor_id" value="<?= View::text($cart['buyer_id']) ?>">
                 <div class="pay-quick" role="group" aria-label="Pay the full amount">
                     <button class="btn" type="button" data-pay-full="cash">Full Amount Cash</button>

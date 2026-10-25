@@ -204,11 +204,26 @@ final class RegisterStore
             'opened_on' => $open ? $this->clock->localDate($row['opened_at'] ?? null) : '',
             'opening_cash' => $open ? DenominationCount::dollars(RowValue::integer($row['opening_cash_minor'] ?? 0)) : '',
             'expected_cash' => $open ? DenominationCount::dollars($drawer['expected']) : '',
+            'unsynced_cash' => $open ? DenominationCount::dollars($this->snapTotal($sessionId, 'waiting')) : '',
+            'refused_cash' => $open ? DenominationCount::dollars($this->snapTotal($sessionId, 'refused')) : '',
             'expected_minor' => $drawer['expected'],
             'tenders' => $drawer['tenders'],
             'drops' => $drawer['drops'],
         ];
     }
+    private function snapTotal(string $sessionId, string $status): int
+    {
+        $rows = $this->statements->bound(
+            'SELECT COALESCE(sum(price_minor), 0) AS total
+             FROM register_snaps
+             WHERE session_id = ?::uuid AND status = ?',
+            [$sessionId, $status]
+        );
+        $total = $rows[0]['total'] ?? 0;
+
+        return is_numeric($total) ? (int) $total : 0;
+    }
+
     private function name(string $name): string
     {
         if ($name === '' || $name !== trim($name) || strlen($name) > 40) {

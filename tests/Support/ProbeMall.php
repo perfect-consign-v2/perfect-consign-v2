@@ -47,9 +47,34 @@ final class ProbeMall
                 self::SLUG,
             ]);
         }
+        self::bringTenants($migrator);
+        $migrator->migratePlatformAfter();
         putenv('STALL_OWNER_PASSWORD=' . self::PASSWORD);
         $_ENV['STALL_OWNER_PASSWORD'] = self::PASSWORD;
         self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'set-owner.php', [self::SLUG, self::USERNAME]);
+    }
+
+    private static function bringTenants(SchemaMigrator $migrator): void
+    {
+        $listed = self::admin()->query('SELECT slug FROM platform.tenants ORDER BY slug');
+        if ($listed === false) {
+            return;
+        }
+        while (($slug = $listed->fetchColumn()) !== false) {
+            if (!is_string($slug) || $slug === '') {
+                continue;
+            }
+            try {
+                $migrator->migrateTenant($slug);
+            } catch (MigrationFileChanged | TenantBaselineMismatch) {
+                continue;
+            } catch (RuntimeException $error) {
+                if (str_contains($error->getMessage(), 'older schema')) {
+                    continue;
+                }
+                throw $error;
+            }
+        }
     }
 
     public static function forgetSignIns(string $username): void

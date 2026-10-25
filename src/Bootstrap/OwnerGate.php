@@ -68,7 +68,7 @@ final class OwnerGate
             'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = ?::uuid AND username = ?'
         );
         $clear->execute([$tenant->id, $username]);
-        $this->sessions->open($slug, $username, 'owner', $owner['id'], $owner['version'], '', '');
+        $this->sessions->open($slug, $tenant->id, $username, 'owner', $owner['id'], $owner['version'], '', '');
 
         return true;
     }

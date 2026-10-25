@@ -75,6 +75,8 @@ $renameAction = $modal === 'register-rename' && $registerId !== ''
                 <p class="muted">Opened <?= View::text(is_string($register['opened_at'] ?? null) ? $register['opened_at'] : '') ?></p>
                 <p>Opening float <?= View::text(is_string($register['opening_cash'] ?? null) ? $register['opening_cash'] : '') ?></p>
                 <p>Drawer expected <?= View::text(is_string($register['expected_cash'] ?? null) ? $register['expected_cash'] : '') ?></p>
+                <p>Unsynced snaps <?= View::text(is_string($register['unsynced_cash'] ?? null) ? $register['unsynced_cash'] : '') ?></p>
+                <p>Refused snaps <?= View::text(is_string($register['refused_cash'] ?? null) ? $register['refused_cash'] : '') ?></p>
             <?php else: ?>
                 <p class="muted">No shift is open.</p>
             <?php endif; ?>

@@ -12,6 +12,18 @@ final class OutboundMail
     {
     }
 
+    public function configured(): bool
+    {
+        return $this->settings() !== null;
+    }
+
+    public function captured(): bool
+    {
+        $file = getenv('STALL_MAIL_FILE');
+
+        return is_string($file) && $file !== '';
+    }
+
     public function send(string $to, string $subject, string $body): void
     {
         try {

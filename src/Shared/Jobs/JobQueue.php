@@ -30,9 +30,21 @@ final class JobQueue
         $statement = $pdo->prepare(
             "INSERT INTO platform.jobs (tenant, kind, payload, run_at)
              VALUES (?, ?, jsonb_build_object('date', ?::text), clock_timestamp())
-             ON CONFLICT (tenant, kind, (payload ->> 'date')) DO NOTHING"
+             ON CONFLICT (tenant, kind, (payload ->> 'date')) WHERE ((payload ->> 'letter') IS NULL) DO NOTHING"
         );
         $statement->execute([$tenant, $kind, $date]);
+    }
+
+    public function enqueueLetter(PDO $pdo, string $date, string $letterId): void
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            throw new \InvalidArgumentException('the letter has no day');
+        }
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $letterId) !== 1) {
+            throw new \InvalidArgumentException('the letter is missing');
+        }
+        $statement = $pdo->prepare('SELECT platform.enqueue_vendor_letter(?::date, ?::uuid)');
+        $statement->execute([$date, $letterId]);
     }
 
     /**

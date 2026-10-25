@@ -77,6 +77,35 @@ final class PasswordRequestTest extends TestCase
         self::assertNull($mailbox['gmail']);
     }
 
+    public function testFiveResetsInTheWindowAreRefused(): void
+    {
+        $count = $this->createStub(PDOStatement::class);
+        $count->method('fetchColumn')->willReturn(5);
+        $pdo = $this->createMock(PDO::class);
+        $pdo->expects($this->once())->method('prepare')->willReturn($count);
+        self::assertFalse((new ResetRequests($pdo))->allow($this->tenant(), 'owner'));
+
+        $again = $this->createStub(PDOStatement::class);
+        $again->method('fetchColumn')->willReturn(4);
+        $insert = $this->createStub(PDOStatement::class);
+        $open = $this->createStub(PDO::class);
+        $open->method('prepare')->willReturnOnConsecutiveCalls($again, $insert);
+        self::assertTrue((new ResetRequests($open))->allow($this->tenant(), 'owner'));
+    }
+
+    public function testAStaffRowThatIsNotARecordIsRefused(): void
+    {
+        $statement = $this->createStub(PDOStatement::class);
+        $statement->method('fetch')->willReturn(false);
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturn($statement);
+        $pdo->method('exec')->willReturn(1);
+        $accounts = new LoginAccounts($pdo, new DatabaseRole($pdo));
+        $staff = new ReflectionMethod(LoginAccounts::class, 'staff');
+
+        self::assertNull($staff->invoke($accounts, $this->tenant(), 'ada'));
+    }
+
     public function testAnEmptyPasswordAndALongAddressAreNotAMailbox(): void
     {
         $accounts = (new ReflectionClass(LoginAccounts::class))->newInstanceWithoutConstructor();

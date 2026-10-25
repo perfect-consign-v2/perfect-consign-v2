@@ -28,13 +28,24 @@ final class SchemaCatalogTest extends TestCase
         self::assertNotContains('013_worker_role.sql', $tenant);
         self::assertNotContains('015_override_failures.sql', $tenant);
         self::assertNotContains('017_job_mail_sent.sql', $tenant);
+        self::assertNotContains('020_vendor_letter_job.sql', $tenant);
+        self::assertNotContains('030_revoke_owner_failures.sql', $tenant);
+        self::assertNotContains('031_job_enqueue_gate.sql', $tenant);
+        self::assertNotContains('032_drop_platform_job_mail.sql', $tenant);
+        self::assertNotContains('034_drop_platform_override.sql', $tenant);
         self::assertContains('011_mall_sale_span.sql', $tenant);
         self::assertContains('014_booth_deposit.sql', $tenant);
         self::assertContains('016_mail_secret.sql', $tenant);
         self::assertContains('010_competitive.sql', $tenant);
+        self::assertContains('029_job_mail_sent.sql', $tenant);
+        self::assertContains('033_override_lockout.sql', $tenant);
         self::assertSame(
-            ['000_platform.sql', '002_platform_jobs.sql', '003_poster_jobs.sql', '004_job_grants.sql', '005_job_kinds.sql', '009_sale_notice_kind.sql', '012_job_insert.sql', '013_worker_role.sql', '015_override_failures.sql', '017_job_mail_sent.sql'],
+            ['000_platform.sql', '002_platform_jobs.sql', '003_poster_jobs.sql', '004_job_grants.sql', '005_job_kinds.sql', '009_sale_notice_kind.sql', '012_job_insert.sql', '013_worker_role.sql', '015_override_failures.sql', '017_job_mail_sent.sql', '020_vendor_letter_job.sql', '024_markdown_job.sql', '025_vendor_role.sql', '030_revoke_owner_failures.sql', '031_job_enqueue_gate.sql', '035_enqueue_session_role.sql', '036_platform_admin.sql'],
             $platform
+        );
+        self::assertSame(
+            ['032_drop_platform_job_mail.sql', '034_drop_platform_override.sql'],
+            $catalog->platformAfterFiles()
         );
         $checksum = $catalog->checksum('001_tenant.sql');
         self::assertSame(64, strlen($checksum));

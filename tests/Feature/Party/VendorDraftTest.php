@@ -27,6 +27,13 @@ final class VendorDraftTest extends TestCase
         self::assertNull($values[8]);
     }
 
+    public function testABlankDiscountChoiceUsesTheStaffDefault(): void
+    {
+        $values = $this->draft(['discount_by' => ''])->values();
+
+        self::assertContains('staff', $values);
+    }
+
     public function testTheSameAgreementDayIsKept(): void
     {
         $values = $this->draft([

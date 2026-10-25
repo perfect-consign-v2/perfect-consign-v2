@@ -29,7 +29,8 @@ final class SaleNoticeJob
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
             return;
         }
-        $this->deliver($tenant, $date, $this->letters($date));
+        unset($tenant);
+        $this->deliver($date, $this->letters($date));
     }
 
     /**
@@ -71,11 +72,11 @@ final class SaleNoticeJob
     /**
      * @param array<string, array{name: string, lines: list<string>}> $letters
      */
-    private function deliver(string $tenant, string $date, array $letters): void
+    private function deliver(string $date, array $letters): void
     {
         $waiting = false;
         foreach ($letters as $email => $letter) {
-            if (!is_string($email) || $this->progress->sent($this->statements, $tenant, 'sale-notice', $date, $email)) {
+            if (!is_string($email) || $this->progress->sent($this->statements, 'sale-notice', $date, $email)) {
                 continue;
             }
             try {
@@ -92,7 +93,7 @@ final class SaleNoticeJob
                 $waiting = true;
                 continue;
             }
-            $this->progress->record($this->statements, $tenant, 'sale-notice', $date, $email);
+            $this->progress->record($this->statements, 'sale-notice', $date, $email);
         }
         if ($waiting) {
             throw new \RuntimeException('a letter is still waiting to be sent');

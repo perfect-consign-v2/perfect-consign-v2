@@ -14,6 +14,7 @@ final class LoginSession
 
     public function open(
         string $slug,
+        string $tenantId,
         string $name,
         string $role,
         string $accountId,
@@ -24,6 +25,7 @@ final class LoginSession
         $now = (string) time();
         $this->session->regenerateId(true);
         $this->session->set('owner_slug', $slug);
+        $this->session->set('tenant_id', $tenantId);
         $this->session->set('owner_name', $name);
         $this->session->set('signed_in_at', $now);
         $this->session->set('last_seen_at', $now);

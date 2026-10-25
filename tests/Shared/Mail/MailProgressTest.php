@@ -16,7 +16,7 @@ final class MailProgressTest extends TestCase
         $statements->expects($this->once())->method('bound')->willReturn([['sent' => 1]]);
         $progress = new MailProgress();
 
-        self::assertTrue($progress->sent($statements, 'mall', 'vendor-digest', '2026-01-02', 'ada@example.test'));
+        self::assertTrue($progress->sent($statements, 'vendor-digest', '2026-01-02', 'ada@example.test'));
     }
 
     public function testANewLetterIsRecorded(): void
@@ -26,7 +26,7 @@ final class MailProgressTest extends TestCase
         $statements->expects($this->once())->method('change');
         $progress = new MailProgress();
 
-        self::assertFalse($progress->sent($statements, 'mall', 'sale-notice', '2026-01-02', 'ada@example.test'));
-        $progress->record($statements, 'mall', 'sale-notice', '2026-01-02', 'ada@example.test');
+        self::assertFalse($progress->sent($statements, 'sale-notice', '2026-01-02', 'ada@example.test'));
+        $progress->record($statements, 'sale-notice', '2026-01-02', 'ada@example.test');
     }
 }

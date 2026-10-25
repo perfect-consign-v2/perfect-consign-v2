@@ -53,7 +53,7 @@ if ($printId !== '') {
 }
 ?>
 
-<form method="post" action="<?= View::text($action) ?>" id="item-form" class="grid form-split" enctype="multipart/form-data"
+<form method="post" action="<?= View::text($action) ?>" id="item-form" class="vendor-edit" enctype="multipart/form-data"
     data-vendors="<?= View::text($vendorsUrl) ?>"
     data-brands="<?= View::text($brandsUrl) ?>"
     data-brand-create="<?= View::text($brandCreateUrl) ?>"
@@ -62,114 +62,142 @@ if ($printId !== '') {
     data-take-dirty="<?= $item['overridden'] ? '1' : '0' ?>"
     data-expire-dirty="<?= $item['expire_dirty'] ? '1' : '0' ?>"
     data-sold="<?= $sold ? '1' : '0' ?>">
-    <div class="card">
-        <div class="card-head"><div class="h3">Item</div></div>
-        <div class="card-body grid cols-2">
-            <div class="field combo" style="grid-column: 1 / -1">
-                <label for="vendor_label">Consignor</label>
-                <input class="input" id="vendor_label" name="vendor_label" value="<?= View::text($item['vendor_label']) ?>" autocomplete="off" required<?= $sold ? ' readonly' : '' ?>>
-                <input type="hidden" id="vendor_id" name="vendor_id" value="<?= View::text($item['vendor_id']) ?>">
-                <div class="suggest" id="vendor_suggest" hidden></div>
-                <p class="field-error" id="vendor_client_error" hidden>Choose a consignor from the list.</p>
-                <?php if ($sold): ?><p class="muted text-sm">This consignor is on a sale and cannot be changed.</p><?php endif; ?>
-            </div>
-            <div class="field">
-                <label for="code">Tag</label>
-                <input class="input" id="code" name="code" value="<?= View::text($item['code']) ?>" required>
-            </div>
-            <div class="field">
-                <label for="barcode">Barcode</label>
-                <input class="input" id="barcode" name="barcode" value="<?= View::text($item['barcode']) ?>" maxlength="100">
-                <p class="muted text-sm">Leave blank and a barcode is generated.</p>
-            </div>
-            <div class="field" style="grid-column: 1 / -1">
-                <label for="description">Description</label>
-                <input class="input" id="description" name="description" value="<?= View::text($item['description']) ?>" required>
-            </div>
-            <?php if ($showBrand): ?>
-            <div class="field combo" style="grid-column: 1 / -1">
-                <label for="brand_label">Brand</label>
-                <input class="input" id="brand_label" name="brand_label" value="<?= View::text($item['brand_label']) ?>" autocomplete="off">
-                <input type="hidden" id="brand_id" name="brand_id" value="<?= View::text($item['brand_id']) ?>">
-                <div class="suggest" id="brand_suggest" hidden></div>
-                <div class="row gap-2" id="brand_create" hidden>
-                    <span class="muted text-sm">Add brand <strong id="brand_create_name"></strong>?</span>
-                    <button class="btn btn-sm" id="brand_create_button" type="button">Add brand</button>
+    <div class="record-cards item-cards">
+        <section class="card" aria-labelledby="item-identity">
+            <div class="card-head"><div class="h3" id="item-identity">Item</div></div>
+            <div class="card-body stack">
+                <div class="field combo">
+                    <label for="vendor_label">Consignor</label>
+                    <input class="input" id="vendor_label" name="vendor_label" value="<?= View::text($item['vendor_label']) ?>" autocomplete="off" required<?= $sold ? ' readonly' : '' ?>>
+                    <input type="hidden" id="vendor_id" name="vendor_id" value="<?= View::text($item['vendor_id']) ?>">
+                    <div class="suggest" id="vendor_suggest" hidden></div>
+                    <p class="field-error" id="vendor_client_error" hidden>Choose a consignor from the list.</p>
+                    <?php if ($sold): ?><p class="muted text-sm">This consignor is on a sale and cannot be changed.</p><?php endif; ?>
                 </div>
-                <p class="field-error" id="brand_create_error" hidden></p>
-            </div>
-            <?php endif; ?>
-            <?php foreach ($attributeLists as $attribute): ?>
-                <?php $field = $item['attributes'][$attribute->key] ?? ['id' => '', 'label' => '']; ?>
-                <div class="field combo" style="grid-column: 1 / -1" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
-                    <label for="<?= View::text($attribute->key) ?>_label"><?= View::text(ucfirst($attribute->singular)) ?></label>
-                    <input class="input" id="<?= View::text($attribute->key) ?>_label" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($field['label']) ?>" autocomplete="off">
-                    <input type="hidden" id="<?= View::text($attribute->key) ?>_id" name="<?= View::text($attribute->key) ?>_id" value="<?= View::text($field['id']) ?>">
-                    <div class="suggest" hidden></div>
-                    <div class="row gap-2" hidden data-create-row>
-                        <span class="muted text-sm">Add <?= View::text($attribute->singular) ?> <strong data-create-name></strong>?</span>
-                        <button class="btn btn-sm" type="button" data-create-button>Add <?= View::text($attribute->singular) ?></button>
+                <div class="vendor-pair">
+                    <div class="field">
+                        <label for="code">Tag</label>
+                        <input class="input" id="code" name="code" value="<?= View::text($item['code']) ?>" required>
                     </div>
-                    <p class="field-error" hidden></p>
+                    <div class="field">
+                        <label for="barcode">Barcode</label>
+                        <input class="input" id="barcode" name="barcode" value="<?= View::text($item['barcode']) ?>" maxlength="100">
+                        <p class="muted text-sm">Leave blank and a barcode is generated.</p>
+                    </div>
                 </div>
-            <?php endforeach; ?>
-            <div class="field">
-                <label for="price">Asking price</label>
-                <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($item['price']) ?>" required<?= $sold ? ' readonly' : '' ?>>
-                <?php if ($sold): ?><p class="muted text-sm">This price is on a sale and cannot be changed.</p><?php endif; ?>
+                <div class="field">
+                    <label for="description">Description</label>
+                    <input class="input" id="description" name="description" value="<?= View::text($item['description']) ?>" required>
+                </div>
             </div>
-            <div class="field">
-                <label for="quantity">Qty</label>
-                <input class="input" id="quantity" name="quantity" inputmode="numeric" value="<?= View::text($item['quantity']) ?>" required>
+        </section>
+
+        <section class="card" aria-labelledby="item-price">
+            <div class="card-head"><div class="h3" id="item-price">Price</div></div>
+            <div class="card-body stack">
+                <div class="vendor-pair">
+                    <div class="field">
+                        <label for="price">Asking price</label>
+                        <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($item['price']) ?>" required<?= $sold ? ' readonly' : '' ?>>
+                        <?php if ($sold): ?><p class="muted text-sm">This price is on a sale and cannot be changed.</p><?php endif; ?>
+                    </div>
+                    <div class="field">
+                        <label for="quantity">Qty</label>
+                        <input class="input" id="quantity" name="quantity" inputmode="numeric" value="<?= View::text($item['quantity']) ?>" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="store_take">Store take <span class="badge badge-warning" id="store_take_badge"<?= $item['overridden'] ? '' : ' hidden' ?>>Overridden</span></label>
+                    <input class="input" id="store_take" name="store_take" inputmode="decimal" value="<?= View::text($item['store_take']) ?>">
+                    <p class="muted text-sm">This consignor's split is <span id="store_take_default"><?= View::text($item['default_take']) ?></span>%. A different amount is marked overridden.</p>
+                </div>
             </div>
-            <div class="field">
-                <label for="store_take">Store take <span class="badge badge-warning" id="store_take_badge"<?= $item['overridden'] ? '' : ' hidden' ?>>Overridden</span></label>
-                <input class="input" id="store_take" name="store_take" inputmode="decimal" value="<?= View::text($item['store_take']) ?>">
-                <p class="muted text-sm">This consignor's split is <span id="store_take_default"><?= View::text($item['default_take']) ?></span>%. A different amount is marked overridden.</p>
+        </section>
+
+        <?php if ($showBrand || $attributeLists !== []): ?>
+        <section class="card" aria-labelledby="item-details">
+            <div class="card-head"><div class="h3" id="item-details">Details</div></div>
+            <div class="card-body stack">
+                <?php if ($showBrand): ?>
+                <div class="field combo">
+                    <label for="brand_label">Brand</label>
+                    <input class="input" id="brand_label" name="brand_label" value="<?= View::text($item['brand_label']) ?>" autocomplete="off">
+                    <input type="hidden" id="brand_id" name="brand_id" value="<?= View::text($item['brand_id']) ?>">
+                    <div class="suggest" id="brand_suggest" hidden></div>
+                    <div class="row gap-2" id="brand_create" hidden>
+                        <span class="muted text-sm">Add brand <strong id="brand_create_name"></strong>?</span>
+                        <button class="btn btn-sm" id="brand_create_button" type="button">Add brand</button>
+                    </div>
+                    <p class="field-error" id="brand_create_error" hidden></p>
+                </div>
+                <?php endif; ?>
+                <?php foreach ($attributeLists as $attribute): ?>
+                    <?php $field = $item['attributes'][$attribute->key] ?? ['id' => '', 'label' => '']; ?>
+                    <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
+                        <label for="<?= View::text($attribute->key) ?>_label"><?= View::text(ucfirst($attribute->singular)) ?></label>
+                        <input class="input" id="<?= View::text($attribute->key) ?>_label" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($field['label']) ?>" autocomplete="off">
+                        <input type="hidden" id="<?= View::text($attribute->key) ?>_id" name="<?= View::text($attribute->key) ?>_id" value="<?= View::text($field['id']) ?>">
+                        <div class="suggest" hidden></div>
+                        <div class="row gap-2" hidden data-create-row>
+                            <span class="muted text-sm">Add <?= View::text($attribute->singular) ?> <strong data-create-name></strong>?</span>
+                            <button class="btn btn-sm" type="button" data-create-button>Add <?= View::text($attribute->singular) ?></button>
+                        </div>
+                        <p class="field-error" hidden></p>
+                    </div>
+                <?php endforeach; ?>
             </div>
-            <div class="field">
-                <label for="intake_on">Intake date</label>
-                <input class="input" id="intake_on" name="intake_on" type="date" value="<?= View::text($item['intake_on']) ?>" required>
-            </div>
-            <div class="field">
-                <label for="placement">Where it sits</label>
-                <select class="input" id="placement" name="placement">
-                    <?php if (!empty($boothRentals)): ?>
-                        <option value="booth"<?= ($item['placement'] ?? '') === 'booth' ? ' selected' : '' ?>>Booth</option>
-                    <?php endif; ?>
+        </section>
+        <?php endif; ?>
+
+        <section class="card" aria-labelledby="item-floor">
+            <div class="card-head"><div class="h3" id="item-floor">Floor</div></div>
+            <div class="card-body stack">
+                <div class="field">
+                    <label for="placement">Where it sits</label>
+                    <select class="input" id="placement" name="placement">
+                        <?php if (!empty($boothRentals)): ?>
+                            <option value="booth"<?= ($item['placement'] ?? '') === 'booth' ? ' selected' : '' ?>>Booth</option>
+                        <?php endif; ?>
+                        <?php if (!empty($consignmentEnabled)): ?>
+                            <option value="consigned"<?= ($item['placement'] ?? 'consigned') === 'consigned' ? ' selected' : '' ?>>Consigned</option>
+                        <?php endif; ?>
+                        <?php if (!empty($storeStockEnabled)): ?>
+                            <option value="store"<?= ($item['placement'] ?? '') === 'store' ? ' selected' : '' ?>>Store</option>
+                        <?php endif; ?>
+                    </select>
+                </div>
+                <div class="vendor-pair">
+                    <div class="field">
+                        <label for="intake_on">Intake date</label>
+                        <input class="input" id="intake_on" name="intake_on" type="date" value="<?= View::text($item['intake_on']) ?>" required>
+                    </div>
                     <?php if (!empty($consignmentEnabled)): ?>
-                        <option value="consigned"<?= ($item['placement'] ?? 'consigned') === 'consigned' ? ' selected' : '' ?>>Consigned</option>
+                    <div class="field">
+                        <label for="expires_on">Expire date</label>
+                        <input class="input" id="expires_on" name="expires_on" type="date" value="<?= View::text($item['expires_on']) ?>"<?= $item['intake_on'] !== '' ? ' min="' . View::text($item['intake_on']) . '"' : '' ?>>
+                        <p class="muted text-sm"><?= View::text($expireHint) ?></p>
+                    </div>
                     <?php endif; ?>
-                    <?php if (!empty($storeStockEnabled)): ?>
-                        <option value="store"<?= ($item['placement'] ?? '') === 'store' ? ' selected' : '' ?>>Store</option>
-                    <?php endif; ?>
-                </select>
+                </div>
             </div>
-            <?php if (!empty($consignmentEnabled)): ?>
-            <div class="field">
-                <label for="expires_on">Expire date</label>
-                <input class="input" id="expires_on" name="expires_on" type="date" value="<?= View::text($item['expires_on']) ?>"<?= $item['intake_on'] !== '' ? ' min="' . View::text($item['intake_on']) . '"' : '' ?>>
-                <p class="muted text-sm"><?= View::text($expireHint) ?></p>
+        </section>
+
+        <?php if (!$editing): ?>
+        <section class="card" aria-labelledby="item-photo">
+            <div class="card-head"><div class="h3" id="item-photo">Photo</div></div>
+            <div class="card-body">
+                <div class="field">
+                    <label for="photo">Photo</label>
+                    <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
+                    <p class="muted text-sm">Optional. <?= View::text($photoRule) ?> It shows on this item and on the consignor's sale line.</p>
+                </div>
             </div>
-            <?php endif; ?>
-            <?php if (!$editing): ?>
-            <div class="field" style="grid-column: 1 / -1">
-                <label for="photo">Photo</label>
-                <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
-                <p class="muted text-sm">Optional. <?= View::text($photoRule) ?> It shows on this item and on the consignor's sale line.</p>
-            </div>
-            <?php endif; ?>
-        </div>
+        </section>
+        <?php endif; ?>
     </div>
-    <div class="card">
-        <div class="card-head"><div class="h3">Notes</div></div>
-        <div class="card-body">
-            <p class="muted text-sm"><?php if ($sold): ?>This item has been sold. The price and the consignor stay as they were posted.<?php else: ?>One item. After you save, this form stays open for the same consignor. The asking price is not a sale. Delete the item only while nothing else uses it.<?php endif; ?></p>
-        </div>
-        <div class="card-foot row between">
-            <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/inventory">Cancel</a>
-            <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create item' ?></button>
-        </div>
+    <div class="vendor-save">
+        <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create item' ?></button>
+        <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/inventory">Cancel</a>
     </div>
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
 </form>

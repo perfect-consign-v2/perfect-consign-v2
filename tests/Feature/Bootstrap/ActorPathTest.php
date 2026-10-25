@@ -18,6 +18,15 @@ final class ActorPathTest extends TestCase
         self::assertSame('/demo/vendor', $this->actor(['actor_role' => 'vendor'])->path('demo'));
         self::assertSame('/demo/sales', $this->actor(['actor_role' => 'books'])->path('demo'));
         self::assertSame('/demo/dashboard', $this->actor(['actor_role' => 'owner'])->path('demo'));
+        $withTenant = $this->actor([
+            'owner_slug' => 'demo',
+            'tenant_id' => '01900000-0000-7000-8000-0000000000a1',
+            'actor_role' => 'owner',
+            'signed_in_at' => (string) time(),
+            'last_seen_at' => (string) time(),
+        ]);
+        self::assertSame('demo', $withTenant->slug());
+        self::assertSame('01900000-0000-7000-8000-0000000000a1', $withTenant->tenantId());
         self::assertNull($this->actor(['owner_slug' => 'demo', 'actor_role' => ''])->slug());
         $stale = $this->actor([
             'owner_slug' => 'demo',

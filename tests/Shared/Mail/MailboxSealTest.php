@@ -43,6 +43,24 @@ final class MailboxSealTest extends TestCase
         MailboxSeal::sealPlain($pdo);
     }
 
+    public function testAShortV1ValueIsSealed(): void
+    {
+        $listed = $this->createStub(PDOStatement::class);
+        $listed->method('fetchAll')->willReturn(['v1:short']);
+        $update = $this->createMock(PDOStatement::class);
+        $update->expects($this->once())->method('execute')->willReturnCallback(function (array $values): bool {
+            self::assertSame('v1:short', SealedSecret::open($values[0]));
+            self::assertSame('v1:short', $values[1]);
+
+            return true;
+        });
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('query')->willReturn($listed);
+        $pdo->method('prepare')->willReturn($update);
+
+        MailboxSeal::sealPlain($pdo);
+    }
+
     public function testAnEmptyMailboxIsLeftAlone(): void
     {
         $pdo = $this->createMock(PDO::class);

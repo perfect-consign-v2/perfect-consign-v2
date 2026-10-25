@@ -56,6 +56,16 @@ final class FormClient
         return $this->send('POST', $path, $fields, false, 60, false);
     }
 
+    /**
+     * @param array<string, string> $fields
+     */
+    public function postJson(string $path, array $fields, int $timeoutSeconds = 60): PageResponse
+    {
+        $fields['csrf'] = $this->csrf;
+
+        return $this->send('POST', $path, $fields, false, $timeoutSeconds, false, ['Accept: application/json']);
+    }
+
     public function post(string $path, array $fields, int $timeoutSeconds = 60): PageResponse
     {
         $fields['csrf'] = $this->csrf;
@@ -113,6 +123,7 @@ final class FormClient
 
     /**
      * @param array<string, string|\CURLFile>|null $fields
+     * @param list<string> $headers
      */
     private function send(
         string $method,
@@ -121,6 +132,7 @@ final class FormClient
         bool $follow,
         int $timeoutSeconds,
         bool $multipart,
+        array $headers = [],
     ): PageResponse {
         curl_reset($this->curl);
         $options = [
@@ -136,6 +148,9 @@ final class FormClient
         ];
         if ($fields !== null) {
             $options[CURLOPT_POSTFIELDS] = $multipart ? $fields : http_build_query($this->textFields($fields));
+        }
+        if ($headers !== []) {
+            $options[CURLOPT_HTTPHEADER] = $headers;
         }
         curl_setopt_array($this->curl, $options);
         $raw = curl_exec($this->curl);

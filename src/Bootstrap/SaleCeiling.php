@@ -129,22 +129,12 @@ class SaleCeiling
 
     private function refuseLocked(string $username): void
     {
-        $slug = $this->actor->slug();
-        if ($slug === null || $username === '') {
+        if ($this->actor->slug() === null || $username === '') {
             throw new DatabaseRefusal('a second person has to sign this');
         }
-        $this->statements->change(
-            "DELETE FROM platform.override_sign_in_failures
-             WHERE failed_at <= clock_timestamp() - interval '15 minutes'",
-            []
-        );
         $rows = $this->statements->bound(
-            "SELECT count(*) AS attempts
-             FROM platform.override_sign_in_failures
-             WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ?)
-               AND username = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'",
-            [$slug, $username]
+            'SELECT stall_override_attempts(?) AS attempts',
+            [$username]
         );
         if (RowValue::integer($rows[0]['attempts'] ?? null) >= 5) {
             throw new DatabaseRefusal('too many sign-in attempts');
@@ -153,28 +143,17 @@ class SaleCeiling
 
     private function recordFailure(string $username): void
     {
-        $slug = $this->actor->slug();
-        if ($slug === null || preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
+        if ($this->actor->slug() === null || preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
             return;
         }
-        $this->statements->change(
-            'INSERT INTO platform.override_sign_in_failures (tenant_id, username)
-             SELECT id, ? FROM platform.tenants WHERE slug = ?',
-            [$username, $slug]
-        );
+        $this->statements->bound('SELECT stall_override_record(?)', [$username]);
     }
 
     private function clearFailures(string $username): void
     {
-        $slug = $this->actor->slug();
-        if ($slug === null) {
+        if ($this->actor->slug() === null) {
             return;
         }
-        $this->statements->change(
-            'DELETE FROM platform.override_sign_in_failures
-             WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ?)
-               AND username = ?',
-            [$slug, $username]
-        );
+        $this->statements->bound('SELECT stall_override_clear(?)', [$username]);
     }
 }

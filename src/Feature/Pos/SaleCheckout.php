@@ -25,12 +25,25 @@ final class SaleCheckout
     }
 
     /**
-     * @return array{path: string, notice: string}
+     * @return array{path: string, notice: string, journal_id: string, journal_no: int}
      */
     public function pay(string $slug, string $session, Request $request): array
     {
+        $offered = $request->field('posting_key');
+        $replay = $this->poster->replay($offered);
+        if ($replay !== null) {
+            return [
+                'path' => '/' . $slug . '/pos',
+                'notice' => 'Sale posted.',
+                'journal_id' => $replay,
+                'journal_no' => $this->poster->number($replay),
+            ];
+        }
         $this->sales->refuse($slug);
         $cart = $this->tickets->cart($session);
+        if ($offered !== '') {
+            $cart['posting_key'] = $offered;
+        }
         $deposits = $this->layaways->balance($cart['ticket_id']);
         $holding = $request->field('hold') === '1';
         $entered = $this->entered($request, $holding, $cart['ticket_id'], $cart['due'], $deposits);
@@ -70,7 +83,7 @@ final class SaleCheckout
      *     check: ?string,
      *     cash: int
      * } $entered
-     * @return array{path: string, notice: string}
+     * @return array{path: string, notice: string, journal_id: string, journal_no: int}
      */
     private function hold(string $slug, string $session, array $cart, array $entered): array
     {
@@ -84,12 +97,15 @@ final class SaleCheckout
         return [
             'path' => '/' . $slug . '/pos/layaway/' . $cart['ticket_id'],
             'notice' => 'Layaway held for ' . $name . '.',
+            'journal_id' => '',
+            'journal_no' => 0,
         ];
     }
 
     /**
      * @param array{
      *     ticket_id: string,
+     *     posting_key: string,
      *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int}>,
      *     due: int
      * } $cart
@@ -99,7 +115,7 @@ final class SaleCheckout
      *     check: ?string,
      *     cash: int
      * } $entered
-     * @return array{path: string, notice: string}
+     * @return array{path: string, notice: string, journal_id: string, journal_no: int}
      */
     private function settle(string $slug, string $session, Request $request, array $cart, int $deposits, array $entered): array
     {
@@ -126,6 +142,8 @@ final class SaleCheckout
         return [
             'path' => '/' . $slug . '/pos',
             'notice' => 'Sale posted.',
+            'journal_id' => $journalId,
+            'journal_no' => $this->poster->number($journalId),
         ];
     }
 

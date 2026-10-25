@@ -115,7 +115,7 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
                     <?php if ($line['returned'] === true) {
                         continue;
                     } ?>
-                    <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/return">
+                    <form class="stack ticket-command" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/return">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                         <input type="hidden" name="item_id" value="<?= View::text($line['item_id']) ?>">
                         <p><?= View::text($line['description']) ?></p>
@@ -168,7 +168,7 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
                 <?php endforeach; ?>
             </section>
         <div id="void-ticket" class="modal no-print" role="dialog" aria-modal="true" aria-labelledby="void-ticket-title" hidden>
-            <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/void">
+            <form class="modal-panel card ticket-command" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/void">
                 <div class="card-head">
                     <?php $closeModal = 'void-ticket'; require $templateDirectory . '/Shared/Web/modal-x.php'; ?>
                     <div class="h3" id="void-ticket-title">Void ticket</div>
@@ -203,3 +203,4 @@ if (new URLSearchParams(window.location.search).get('print') === '1') {
     window.print();
 }
 </script>
+<script src="/assets/js/ticket-commands.js"></script>

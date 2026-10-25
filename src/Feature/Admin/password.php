@@ -1,0 +1,35 @@
+<?php
+
+declare(strict_types=1);
+
+use PerfectConsign\Shared\Http\View;
+
+/** @var string $csrf */
+/** @var string|null $error */
+?>
+<div class="card" style="max-width:28rem">
+    <div class="card-head"><h1>Change password</h1></div>
+    <form method="post" action="/admin/password">
+        <div class="card-body grid" style="gap:var(--space-4)">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <?php if (is_string($error) && $error !== ''): ?>
+                <p class="banner bad" style="margin:0"><?= View::text($error) ?></p>
+            <?php endif; ?>
+            <div class="field">
+                <label for="current">Current password</label>
+                <input class="input" id="current" name="current" type="password" autocomplete="current-password" required>
+            </div>
+            <div class="field">
+                <label for="password">New password</label>
+                <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+            </div>
+            <div class="field">
+                <label for="confirm">Confirm password</label>
+                <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" required minlength="8">
+            </div>
+        </div>
+        <div class="card-foot">
+            <button class="btn btn-primary" type="submit">Save password</button>
+        </div>
+    </form>
+</div>

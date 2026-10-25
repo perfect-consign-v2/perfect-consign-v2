@@ -42,6 +42,8 @@ php bin/set-owner.php mall owner
 
 `set-owner.php` reads `STALL_OWNER_PASSWORD`. The same `STALL_DB_*` values used for provisioning are required. The site is `public/index.php`. A mall is `/{slug}`.
 
+Platform admin is `/admin`. After `php bin/migrate.php platform`, run `php bin/set-platform-admin.php` with `STALL_PLATFORM_ADMIN_EMAIL` and `STALL_PLATFORM_ADMIN_PASSWORD` set. The slug `admin` is reserved and cannot be provisioned as a store.
+
 ```bash
 php -S 127.0.0.1:8096 -t public public/index.php
 ```

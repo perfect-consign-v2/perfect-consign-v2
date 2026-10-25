@@ -17,7 +17,8 @@ $showBrand = ($showBrand ?? true) === true;
 /** @var bool $chooseRegister */
 /** @var array{
  *     ticket_id: string,
- *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
+ *     posting_key: string,
+ *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, commission_bps: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
  *     merchandise: int,
  *     discount: int,
  *     discount_reason: string,
@@ -115,8 +116,10 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <h2 class="h3">Current sale</h2>
         </div>
         <div class="card-body stack">
+            <p id="sale-posting" class="muted"><?php if ($open): ?>This sale is not posted.<?php endif; ?></p>
+            <p id="ticket-refusal" class="form-error" hidden></p>
             <fieldset class="register-lock" <?= $locked ? 'disabled' : '' ?>>
-                <form class="row gap-2 register-scan" method="post" action="/<?= View::text($slug) ?>/pos/scan">
+                <form class="row gap-2 register-scan ticket-command" method="post" action="/<?= View::text($slug) ?>/pos/scan">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <div class="combo register-scan-field">
                         <label for="scan">Scan or type</label>
@@ -134,7 +137,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <button class="btn btn-primary" type="button" data-open-modal="instant-add">Instant Inventory</button>
                     <button class="btn" type="button" data-open-modal="gift-sell">Gift Certificate</button>
                     <?php if ($open): ?>
-                        <form class="row gap-2" method="post" action="/<?= View::text($slug) ?>/pos/park">
+                        <form class="row gap-2 ticket-command" method="post" action="/<?= View::text($slug) ?>/pos/park">
                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                             <input class="input" name="park_label" maxlength="40" placeholder="red hat" aria-label="Name for this suspended sale">
                             <button class="btn" type="submit">Suspend Sale (<?= View::text((string) $parkedCount) ?>)</button>
@@ -487,3 +490,5 @@ $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false
 </div>
 <?php require $templateDirectory . '/Feature/Pos/gift-sell.php'; ?>
 <?php require $templateDirectory . '/Feature/Pos/register-ui.php'; ?>
+<script src="/assets/js/ticket-commands.js"></script>
+<script src="/assets/js/register-outbox.js"></script>

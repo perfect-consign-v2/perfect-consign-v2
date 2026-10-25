@@ -27,6 +27,7 @@ final class SalePoster
     /**
      * @param array{
      *     ticket_id: string,
+     *     posting_key: string,
      *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int}>,
      *     due: int
      * } $cart
@@ -40,14 +41,27 @@ final class SalePoster
     public function pay(string $sessionId, string $date, int $roundOn, array $cart, array $tender, ?int $handed): string
     {
         $items = $cart['lines'];
+        $offered = is_string($cart['posting_key'] ?? null) ? $cart['posting_key'] : '';
+        if ($offered !== '') {
+            $existing = $this->posted($offered);
+            if ($existing !== null) {
+                return $existing;
+            }
+        }
         if ($items === []) {
             throw new DatabaseRefusal('a ticket needs an item');
         }
         $this->change->accept($cart['due'], $tender['sum'], $tender['cash'], $roundOn, $handed);
         $ticketId = $cart['ticket_id'];
+        $postingKey = $this->saleKey($ticketId, $offered);
+        $existing = $this->posted($postingKey);
+        if ($existing !== null) {
+            return $existing;
+        }
 
-        return $this->ledger->post(new JournalDraft(
-            postingKey: 'sale:' . $ticketId,
+        try {
+            return $this->ledger->post(new JournalDraft(
+            postingKey: $postingKey,
             postingDate: $date,
             source: new JournalSource('sale', 'sale:' . $ticketId, 'Sale'),
             lines: SaleJournal::sale($this->ledger, $items, $tender['lines'], $tender['cash'], $roundOn, $cart['due']),
@@ -59,6 +73,33 @@ final class SalePoster
             },
             tenderedMinor: $handed,
         ));
+        } catch (DatabaseRefusal $refusal) {
+            $again = $this->posted($postingKey);
+            if ($again !== null) {
+                return $again;
+            }
+
+            throw $refusal;
+        }
+    }
+
+    public function replay(string $postingKey): ?string
+    {
+        if ($postingKey === '') {
+            return null;
+        }
+
+        return $this->posted($postingKey);
+    }
+
+    public function number(string $journalId): int
+    {
+        $journal = $this->ledger->journal($journalId);
+        if ($journal === null) {
+            throw new DatabaseRefusal('that sale is not posted');
+        }
+
+        return RowValue::integer($journal['journal_no'] ?? null);
     }
 
     public function voidSale(
@@ -148,6 +189,33 @@ final class SalePoster
     public function refundAmount(string $journalId, string $itemId): int
     {
         return $this->change->owed($this->receipt($journalId), $itemId);
+    }
+
+    private function saleKey(string $ticketId, string $offered): string
+    {
+        $rows = $this->statements->bound(
+            'SELECT posting_key FROM tickets WHERE id = ?::uuid',
+            [$ticketId]
+        );
+        $stored = RowValue::string($rows[0]['posting_key'] ?? null);
+        if ($offered !== '' && $offered !== $stored) {
+            throw new DatabaseRefusal('the ticket key does not match');
+        }
+
+        return $stored;
+    }
+
+    private function posted(string $postingKey): ?string
+    {
+        $rows = $this->statements->bound(
+            'SELECT id FROM journals WHERE posting_key = ?',
+            [$postingKey]
+        );
+        if ($rows === []) {
+            return null;
+        }
+
+        return RowValue::string($rows[0]['id'] ?? null);
     }
 
     /**

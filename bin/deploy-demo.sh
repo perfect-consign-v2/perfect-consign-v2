@@ -64,6 +64,7 @@ if ! tenant_err=$("$php_bin" "${root}/bin/migrate.php" tenant mall 2>&1); then
     exit 1
 fi
 "$php_bin" "${root}/bin/migrate.php" tenant-all
+"$php_bin" "${root}/bin/migrate.php" platform-after
 
 code=$(curl -sS -o /dev/null -w '%{http_code}' https://v2.perfectconsign.com/mall)
 if [[ "$code" != "200" ]]; then

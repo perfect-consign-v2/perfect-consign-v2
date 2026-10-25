@@ -722,8 +722,41 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Mall\\settings.php' && $line === 10 && $from === '>=' && $to === '>') {
         return 'day 1 is the fallback, so the strict comparison stores the same day';
     }
-    if ($file === 'src\\Shared\\Mail\\SmtpClient.php' && $line === 41 && $from === '||' && $to === '&&') {
+    if ($file === 'src\\Shared\\Mail\\SmtpClient.php' && ($line === 41 || $line === 46) && $from === '||' && $to === '&&') {
         return 'a failed connect sets the socket false together with errno and the error text, and a live socket has neither';
+    }
+    if ($file === 'src\\Feature\\Mall\\settings.php' && ($line === 10 || $line === 14) && $from === '>=' && $to === '>') {
+        return 'day 1 is the fallback, so the strict comparison stores the same day';
+    }
+    if ($file === 'src\\Feature\\Mall\\MallPayoutSettings.php' && ($line === 82 || $line === 160) && $from === '>=' && $to === '>') {
+        return 'a grace of zero is the fallback, so the strict comparison stores the same grace';
+    }
+    if ($file === 'src\\Feature\\Vendor\\VendorCheck.php' && ($line === 70 || $line === 115 || $line === 126) && $from === '>' && $to === '>=') {
+        return 'nothing owed and a negative amount both stay at zero';
+    }
+    if ($file === 'src\\Feature\\Pos\\SaleJournal.php' && ($line === 122 || $line === 139) && $from === '>' && $to === '>=') {
+        return 'a zero cash difference posts a zero rounding line either way';
+    }
+    if ($file === 'src\\Feature\\Rent\\LateFeeDue.php' && $line === 84 && $from === '<' && $to === '<=') {
+        return 'grace of one day already steps one day, so the equal case stores that same step';
+    }
+    if ($file === 'src\\Feature\\Pos\\pos.php' && ($line === 93 || $line === 94) && $from === '>' && $to === '>=') {
+        return 'a zero cash adjustment is not shown, and a positive one keeps the plus sign';
+    }
+    if ($file === 'src\\Feature\\Pos\\TicketPricing.php' && $line === 182 && $from === '>' && $to === '>=') {
+        return 'zero basis points round to zero either way';
+    }
+    if ($file === 'src\\Feature\\Book\\MissedSaleQuote.php' && $line === 17 && $from === '>' && $to === '>=') {
+        return 'the full store take already leaves the vendor nothing, so the equal case throws too';
+    }
+    if ($file === 'src\\Shared\\Web\\layout.php' && ($line === 220 || $line === 244 || $line === 245) && $from === '&&' && $to === '||') {
+        return 'a vendor preview only lists vendor links, and an empty preview leaves the address unchanged';
+    }
+    if ($file === 'src\\Feature\\Vendor\\VendorFigures.php' && $line === 61 && $from === '!' && $to === '') {
+        return 'a missing row still reads a zero total';
+    }
+    if ($file === 'src\\Feature\\Password\\LoginAccounts.php' && $line === 79 && $from === '!' && $to === '') {
+        return 'a staff row that is not a record has no id, so the later check returns the same empty result';
     }
 
     return null;

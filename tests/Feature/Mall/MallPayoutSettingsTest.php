@@ -68,6 +68,14 @@ final class MallPayoutSettingsTest extends TestCase
         self::assertSame('Vendors', $mall->getPartyLabel('Vendors', 'Consignors'));
     }
 
+    public function testAShopThatWasOffKeepsPostedDays(): void
+    {
+        $settings = $this->settings($this->row(0, false) + ['consignment_enabled' => false]);
+
+        self::assertSame(6, $settings->getDaysWhenConsigned(6, '1'));
+        self::assertNull($settings->getDaysWhenConsigned(6, ''));
+    }
+
     public function testAPostedShopKeepsTheStoredFlagsUntilTheFormSendsThem(): void
     {
         $settings = $this->settings($this->row(0, false) + [

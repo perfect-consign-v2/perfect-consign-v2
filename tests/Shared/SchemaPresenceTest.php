@@ -46,4 +46,22 @@ final class SchemaPresenceTest extends TestCase
         self::assertSame(0, $covered['present']);
         self::assertSame('booths', $covered['missing']);
     }
+
+    public function testAFailedCatalogQueryIsMissing(): void
+    {
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('quote')->willReturnCallback(static fn (string $value): string => "'" . $value . "'");
+        $pdo->method('query')->willReturn(false);
+
+        $covered = (new SchemaPresence($pdo))->coverage(self::SCHEMA, [
+            'tables' => ['booths'],
+            'routines' => [],
+            'columns' => [],
+            'triggers' => [],
+            'constraints' => [],
+        ]);
+
+        self::assertSame(0, $covered['present']);
+        self::assertSame('booths', $covered['missing']);
+    }
 }

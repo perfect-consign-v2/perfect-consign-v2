@@ -682,6 +682,7 @@ BEGIN
     ALTER TABLE store_uses DROP CONSTRAINT store_uses_vendor_id_fkey;
     ALTER TABLE vendor_memos DROP CONSTRAINT vendor_memos_vendor_id_fkey;
     ALTER TABLE pickups DROP CONSTRAINT pickups_vendor_id_fkey;
+    ALTER TABLE vendor_letter_copies DROP CONSTRAINT vendor_letter_copies_vendor_id_fkey;
     TRUNCATE assignment_rent, booth_rent_rates, booth_assignments, booths, vendors;
     RAISE EXCEPTION 'vendor truncate was accepted';
 EXCEPTION

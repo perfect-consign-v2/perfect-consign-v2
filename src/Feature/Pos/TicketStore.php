@@ -59,7 +59,8 @@ final class TicketStore
     /**
      * @return array{
      *     ticket_id: string,
-     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
+     *     posting_key: string,
+     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, commission_bps: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
      *     merchandise: int,
      *     discount: int,
      *     discount_reason: string,
@@ -80,6 +81,7 @@ final class TicketStore
         $this->releaseEmpty($sessionId);
         $mall = $this->mall();
         $ticketId = $this->openId($sessionId);
+        $postingKey = $ticketId === null ? '' : $this->postingKey($ticketId);
         $adjustment = $ticketId === null ? $this->pricing->emptyAdjustment() : $this->pricing->adjustment($ticketId);
         $lines = $ticketId === null ? [] : $this->pricing->lines($ticketId, $mall['tax'], $adjustment);
         $merchandise = 0;
@@ -96,6 +98,7 @@ final class TicketStore
 
         return [
             'ticket_id' => $ticketId ?? '',
+            'posting_key' => $postingKey,
             'lines' => $lines,
             'merchandise' => $merchandise,
             'discount' => $discount,
@@ -248,6 +251,16 @@ final class TicketStore
         );
 
         return RowValue::integer($rows[0]['lines'] ?? null);
+    }
+
+    private function postingKey(string $ticketId): string
+    {
+        $rows = $this->statements->bound(
+            'SELECT posting_key FROM tickets WHERE id = ?::uuid',
+            [$ticketId]
+        );
+
+        return RowValue::string($rows[0]['posting_key'] ?? null);
     }
 
     private function openId(string $sessionId): ?string

@@ -13,7 +13,11 @@ final class MailboxSeal
     {
         $listed = $pdo->query(
             "SELECT gmail_app_password FROM mall
-             WHERE gmail_app_password IS NOT NULL AND left(gmail_app_password, 3) <> 'v1:'"
+             WHERE gmail_app_password IS NOT NULL
+               AND NOT (
+                   gmail_app_password ~ '^v1:[A-Za-z0-9+/]+=*$'
+                   AND char_length(gmail_app_password) BETWEEN 20 AND 200
+               )"
         );
         if ($listed === false) {
             throw new RuntimeException('the mailbox password could not be sealed');

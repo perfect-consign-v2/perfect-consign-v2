@@ -26,6 +26,13 @@ final class SmtpStageTest extends TestCase
         self::assertTrue($failed->permanent());
     }
 
+    public function testAFourHundredGreetingIsADeliveryFailure(): void
+    {
+        $failed = $this->stage('greeting', 18774);
+        self::assertSame(400, $failed->status());
+        self::assertSame('greeting', $failed->stage());
+    }
+
     public function testATemporaryRecipientFailureIsRetried(): void
     {
         $failed = $this->stage('later', 18773);

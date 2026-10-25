@@ -52,6 +52,7 @@ if ($actorRole === 'owner') {
         ],
         'Floor' => [
             ['/parties', $partyLabel, 'i-vendor'],
+            ['/letters', 'Email', 'i-receipt'],
             ['/inventory', 'Inventory', 'i-inventory'],
             ['/booths', 'Booths', 'i-booth'],
             ['/map', 'Map', 'i-map'],

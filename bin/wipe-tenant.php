@@ -7,6 +7,21 @@ function wipeTenant(PDO $pdo, string $slug, string $expectedSlug): void
     if ($slug !== $expectedSlug) {
         throw new RuntimeException('refusing to remove ' . $slug);
     }
+    if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $slug) !== 1) {
+        throw new RuntimeException('refusing to remove ' . $slug);
+    }
+    $present = $pdo->query("SELECT to_regprocedure('platform.wipe_tenant(text)')");
+    if ($present !== false && $present->fetchColumn() !== null) {
+        $statement = $pdo->prepare('SELECT platform.wipe_tenant(?)');
+        $statement->execute([$slug]);
+
+        return;
+    }
+    wipeTenantLegacy($pdo, $slug);
+}
+
+function wipeTenantLegacy(PDO $pdo, string $slug): void
+{
     $statement = $pdo->prepare('SELECT schema_name FROM platform.tenants WHERE slug = ?');
     $statement->execute([$slug]);
     $schema = $statement->fetchColumn();
@@ -24,11 +39,12 @@ function wipeTenant(PDO $pdo, string $slug, string $expectedSlug): void
     }
     try {
         keepPasswordResetKey($pdo, $quotedSlug);
+        $jobs = $pdo->query("SELECT to_regclass('platform.jobs')");
+        if ($jobs !== false && $jobs->fetchColumn() !== null) {
+            $pdo->exec('DELETE FROM platform.jobs WHERE tenant = ' . $quotedSlug);
+        }
         $pdo->exec(
             'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
-        );
-        $pdo->exec(
-            'DELETE FROM platform.override_sign_in_failures WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
         );
         $pdo->exec(
             'DELETE FROM platform.password_reset_requests WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'

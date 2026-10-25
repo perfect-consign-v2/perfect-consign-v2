@@ -7,9 +7,11 @@ function runObligations(string $root): void
 $sqlDirectory = $root . DIRECTORY_SEPARATOR . 'sql';
 $failures = [];
 require_once $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+$catalog = new \PerfectConsign\Schema\SchemaCatalog($sqlDirectory);
 $classified = array_flip(array_merge(
-    (new \PerfectConsign\Schema\SchemaCatalog($sqlDirectory))->platformFiles(),
-    (new \PerfectConsign\Schema\SchemaCatalog($sqlDirectory))->tenantFiles()
+    $catalog->platformFiles(),
+    $catalog->platformAfterFiles(),
+    $catalog->tenantFiles()
 ));
 
 $chartProof = readSql($sqlDirectory . DIRECTORY_SEPARATOR . 'prove_chart.sql');

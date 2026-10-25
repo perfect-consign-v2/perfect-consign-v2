@@ -483,6 +483,35 @@ final class LayoutBranchesTest extends TestCase
     /**
      * @param array<string, mixed> $overrides
      */
+    public function testADemoOwnerDoesNotSeeResetTestData(): void
+    {
+        putenv('STALL_ALLOW_TENANT_RESET=1');
+        try {
+            $html = $this->layout([
+                'slug' => 'demo',
+                'actorRole' => 'owner',
+                'path' => '/demo/dashboard',
+            ]);
+        } finally {
+            putenv('STALL_ALLOW_TENANT_RESET');
+        }
+
+        self::assertStringNotContainsString('Reset Test Data', $html);
+    }
+
+    public function testAStoreWithoutBoothsHidesThosePages(): void
+    {
+        $html = $this->layout([
+            'boothRentals' => false,
+            'consignmentOnly' => false,
+            'actorRole' => 'owner',
+            'path' => '/demo/dashboard',
+        ]);
+
+        self::assertStringNotContainsString('href="/demo/booths"', $html);
+        self::assertStringNotContainsString('href="/demo/rent"', $html);
+    }
+
     private function layout(array $overrides): string
     {
         $view = new View(dirname(__DIR__, 3) . '/src');

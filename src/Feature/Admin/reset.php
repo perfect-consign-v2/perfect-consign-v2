@@ -1,0 +1,49 @@
+<?php
+
+declare(strict_types=1);
+
+use PerfectConsign\Shared\Http\View;
+
+/** @var string $csrf */
+/** @var string $token */
+/** @var string|null $error */
+/** @var bool $expired */
+$expired = ($expired ?? false) === true;
+?>
+<div class="login-wrap">
+    <div class="panel">
+        <div class="card">
+            <div class="card-head"><h1>Reset password</h1></div>
+            <?php if ($expired): ?>
+                <div class="card-body grid" style="gap:var(--space-4)">
+                    <p class="banner bad" style="margin:0"><?= View::text(is_string($error) ? $error : 'That reset link expired.') ?></p>
+                </div>
+                <div class="card-foot row between">
+                    <a href="/admin/forgot">Request a new link</a>
+                    <a class="btn" href="/admin/login">Sign in</a>
+                </div>
+            <?php else: ?>
+                <form method="post" action="/admin/reset/<?= View::text($token) ?>">
+                    <div class="card-body grid" style="gap:var(--space-4)">
+                        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                        <?php if (is_string($error) && $error !== ''): ?>
+                            <p class="banner bad" style="margin:0"><?= View::text($error) ?></p>
+                        <?php endif; ?>
+                        <div class="field">
+                            <label for="password">New password</label>
+                            <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+                        </div>
+                        <div class="field">
+                            <label for="confirm">Confirm password</label>
+                            <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" required minlength="8">
+                        </div>
+                    </div>
+                    <div class="card-foot row between">
+                        <a href="/admin/login">Back to sign in</a>
+                        <button class="btn btn-primary" type="submit">Save password</button>
+                    </div>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>

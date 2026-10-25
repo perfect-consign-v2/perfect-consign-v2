@@ -28,15 +28,17 @@ final class DigestJob
 
     public function digest(string $tenant, string $date): void
     {
-        $this->send($tenant, 'vendor-digest', $date, 'This week', 0);
+        unset($tenant);
+        $this->send('vendor-digest', $date, 'This week', 0);
     }
 
     public function remind(string $tenant, string $date): void
     {
-        $this->send($tenant, 'rent-reminder', $date, 'Rent is due', 1);
+        unset($tenant);
+        $this->send('rent-reminder', $date, 'Rent is due', 1);
     }
 
-    private function send(string $tenant, string $kind, string $date, string $subject, int $minimumRent): void
+    private function send(string $kind, string $date, string $subject, int $minimumRent): void
     {
         $statements = new Statements($this->pdo);
         $figures = new VendorFigures($statements);
@@ -47,7 +49,7 @@ final class DigestJob
         $waiting = false;
         foreach ($vendors as $vendor) {
             $email = RowValue::optionalString($vendor['email'] ?? null);
-            if ($email === null || $this->progress->sent($statements, $tenant, $kind, $date, $email)) {
+            if ($email === null || $this->progress->sent($statements, $kind, $date, $email)) {
                 continue;
             }
             $numbers = $figures->numbers(RowValue::string($vendor['id'] ?? null));
@@ -68,7 +70,7 @@ final class DigestJob
                 $waiting = true;
                 continue;
             }
-            $this->progress->record($statements, $tenant, $kind, $date, $email);
+            $this->progress->record($statements, $kind, $date, $email);
         }
         if ($waiting) {
             throw new \RuntimeException('a letter is still waiting to be sent');

@@ -16,7 +16,7 @@ final class TicketPricing
 
     /**
      * @param array{kind: ?string, value: ?int, reason: string, waiver: string} $adjustment
-     * @return list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}>
+     * @return list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, commission_bps: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}>
      */
     public function lines(string $ticketId, int $taxBps, array $adjustment): array
     {
@@ -37,7 +37,7 @@ final class TicketPricing
                     line.line_discount_kind, line.line_discount_value, line.line_discount_reason,
                     CASE
                         WHEN item.placement = \'store\' THEN 0
-                        ELSE COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps)
+                        ELSE stall_commission_for(item.id, line.price_minor, (clock_timestamp() AT TIME ZONE mall.time_zone)::date)
                     END AS commission_bps
              FROM ticket_lines AS line
              JOIN items AS item ON item.id = line.item_id
@@ -169,7 +169,7 @@ final class TicketPricing
 
     /**
      * @param array<string, mixed> $row
-     * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, placement: string, cost: int, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}
+     * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, placement: string, cost: int, price: int, quantity: int, commission: int, commission_bps: int, tax: int, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}
      */
     private function quote(array $row, int $taxBps, int $discount, string $waiver, int $mallBps, string $absorbed): array
     {
@@ -199,6 +199,7 @@ final class TicketPricing
             'price' => $price,
             'quantity' => $quantity,
             'commission' => TicketQuote::halfUp($extended - $taken, RowValue::integer($row['commission_bps'] ?? null)),
+            'commission_bps' => RowValue::integer($row['commission_bps'] ?? null),
             'tax' => $exempt || $waiver !== '' ? 0 : TicketQuote::tax($extended, $taken + $storeDiscount, $taxBps),
             'discount' => $taken,
             'store_discount' => $storeDiscount,

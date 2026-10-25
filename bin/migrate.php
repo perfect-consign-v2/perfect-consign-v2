@@ -50,6 +50,11 @@ try {
         fwrite(STDOUT, "platform current\n");
         exit(0);
     }
+    if ($command === 'platform-after') {
+        $migrator->migratePlatformAfter();
+        fwrite(STDOUT, "platform after tenants current\n");
+        exit(0);
+    }
     if ($command === 'tenant') {
         $slug = $argv[2] ?? '';
         if (!is_string($slug) || $slug === '') {
@@ -71,6 +76,8 @@ try {
             $migrator->migrateTenant($slug);
             fwrite(STDOUT, $slug . " current\n");
         }
+        $migrator->migratePlatformAfter();
+        fwrite(STDOUT, "platform after tenants current\n");
         exit(0);
     }
 } catch (Throwable $error) {
@@ -82,7 +89,7 @@ usage();
 
 function usage(): never
 {
-    fwrite(STDERR, "usage: php bin/migrate.php platform|tenant <slug>|tenant-all\n");
+    fwrite(STDERR, "usage: php bin/migrate.php platform|platform-after|tenant <slug>|tenant-all\n");
     fwrite(STDERR, "Migrations are forward only. There is no down path.\n");
     exit(1);
 }

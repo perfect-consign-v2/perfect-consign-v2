@@ -213,4 +213,53 @@ final class TicketPricingTest extends TestCase
         self::assertSame(175, $lines[0]['discount']);
         self::assertSame('0.01', $lines[0]['line_discount_value']);
     }
+
+    public function testAMallSaleTakenByTheVendorChangesTheDiscount(): void
+    {
+        $vendor = $this->quotedMall('vendor');
+        self::assertSame(200, $vendor[0]['discount']);
+        self::assertSame(0, $vendor[0]['store_discount']);
+
+        $mall = $this->quotedMall('mall');
+        self::assertSame(0, $mall[0]['discount']);
+        self::assertSame(200, $mall[0]['store_discount']);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function quotedMall(string $absorbed): array
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('change');
+        $statements->method('rows')->willReturn([['percent_bps' => 1000, 'absorbed_by' => $absorbed]]);
+        $statements->method('bound')->willReturnOnConsecutiveCalls(
+            [[
+                'line_no' => 1,
+                'item_id' => 'item-1',
+                'price_minor' => 1000,
+                'quantity' => 2,
+                'line_discount_minor' => 0,
+                'offer_discount_minor' => 0,
+                'store_discount_minor' => 0,
+                'offer_name' => '',
+                'code' => 'c1',
+                'description' => 'Coat',
+                'vendor_id' => 'v1',
+                'vendor_name' => 'Ada',
+                'tax_exempt' => false,
+                'line_discount_kind' => '',
+                'line_discount_value' => 0,
+                'commission_bps' => 0,
+            ]],
+            [['share' => 0]],
+        );
+
+        return (new TicketPricing($statements))->lines('ticket-1', 0, [
+            'kind' => null,
+            'value' => null,
+            'reason' => '',
+            'waiver' => '',
+        ]);
+    }
 }

@@ -16,6 +16,7 @@ final class RegisterFeatures
      */
     public static function register(Router $router, string $featureDirectory): void
     {
+        $classes = [];
         $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($featureDirectory));
         foreach ($files as $file) {
             if (!$file instanceof SplFileInfo || $file->isDir()) {
@@ -28,6 +29,18 @@ final class RegisterFeatures
             if ($class === null) {
                 continue;
             }
+            $classes[] = $class;
+        }
+        usort($classes, static function (string $left, string $right): int {
+            $leftAdmin = str_contains($left, '\\Feature\\Admin\\') ? 0 : 1;
+            $rightAdmin = str_contains($right, '\\Feature\\Admin\\') ? 0 : 1;
+            if ($leftAdmin !== $rightAdmin) {
+                return $leftAdmin <=> $rightAdmin;
+            }
+
+            return $left <=> $right;
+        });
+        foreach ($classes as $class) {
             $router->registerController($class);
         }
     }

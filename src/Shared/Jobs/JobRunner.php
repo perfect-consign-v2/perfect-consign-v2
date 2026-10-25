@@ -16,10 +16,7 @@ final class JobRunner
         private readonly JobQueue $queue,
         private readonly LoggerInterface $logger,
         private readonly JobSchedule $schedule,
-        private readonly LateFeeJob $lateFees,
-        private readonly DigestJob $digest,
-        private readonly ReconcileJob $reconcile,
-        private readonly SaleNoticeJob $notices,
+        private readonly JobDispatch $jobs,
     ) {
     }
 
@@ -66,46 +63,10 @@ final class JobRunner
             if ($this->pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions') === false) {
                 throw new RuntimeException('tenant is not provisioned');
             }
-            $this->dispatch($job);
+            $this->jobs->dispatch($job);
         } finally {
             $this->pdo->exec('RESET ROLE');
         }
-    }
-
-    /**
-     * @param array{id: string, tenant: string, kind: string, payload: string, attempts: int} $job
-     */
-    private function dispatch(array $job): void
-    {
-        $payload = json_decode($job['payload'], true);
-        $date = is_array($payload) && is_string($payload['date'] ?? null) ? $payload['date'] : '';
-        if ($job['kind'] === 'assess-late-fees') {
-            $this->lateFees->lateFees($date);
-
-            return;
-        }
-        if ($job['kind'] === 'vendor-digest') {
-            $this->digest->digest($job['tenant'], $date);
-
-            return;
-        }
-        if ($job['kind'] === 'rent-reminder') {
-            $this->digest->remind($job['tenant'], $date);
-
-            return;
-        }
-        if ($job['kind'] === 'reconcile-reports') {
-            $this->reconcile->tie($date);
-            $this->reconcile->reconcile();
-
-            return;
-        }
-        if ($job['kind'] === 'sale-notice') {
-            $this->notices->notice($job['tenant'], $date);
-
-            return;
-        }
-        throw new RuntimeException('unknown job');
     }
 
     public function schema(string $slug): string

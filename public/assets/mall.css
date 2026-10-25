@@ -707,6 +707,7 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .vendor-stays { display: flex; flex-direction: column; gap: var(--space-4); }
 .vendor-stays { margin-top: var(--space-4); }
 .record-cards { display: grid; gap: var(--space-3); }
+.item-cards { align-items: start; }
 .record-dl { margin: 0; }
 .record-row {
     display: grid;

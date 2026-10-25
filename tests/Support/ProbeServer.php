@@ -13,22 +13,34 @@ final class ProbeServer
     /** @var resource|null */
     private $process = null;
 
-    private function __construct(private readonly string $logFile)
-    {
+    private function __construct(
+        private readonly string $logFile,
+        private readonly int $port,
+    ) {
     }
 
     public static function start(string $root): self
+    {
+        return self::open($root, self::PORT, true);
+    }
+
+    public static function startWithoutMailKey(string $root): self
+    {
+        return self::open($root, 8123, false);
+    }
+
+    private static function open(string $root, int $port, bool $mailKey): self
     {
         $logFile = tempnam(sys_get_temp_dir(), 'pc-http-');
         if ($logFile === false) {
             throw new RuntimeException('the server log could not be created');
         }
-        $server = new self($logFile);
+        $server = new self($logFile, $port);
         $public = $root . DIRECTORY_SEPARATOR . 'public';
         $script = $public . DIRECTORY_SEPARATOR . 'index.php';
         $pipes = [];
         $process = proc_open(
-            [PHP_BINARY, '-S', '127.0.0.1:' . self::PORT, '-t', $public, $script],
+            [PHP_BINARY, '-S', '127.0.0.1:' . $port, '-t', $public, $script],
             [
                 0 => ['pipe', 'r'],
                 1 => ['file', self::nullDevice(), 'w'],
@@ -36,7 +48,7 @@ final class ProbeServer
             ],
             $pipes,
             $root,
-            self::environment(),
+            self::environment($mailKey),
             ['bypass_shell' => true]
         );
         if (!is_resource($process)) {
@@ -56,7 +68,7 @@ final class ProbeServer
 
     public function baseUrl(): string
     {
-        return 'http://127.0.0.1:' . self::PORT;
+        return 'http://127.0.0.1:' . $this->port;
     }
 
     public static function mailFile(): string
@@ -81,7 +93,7 @@ final class ProbeServer
     /**
      * @return array<string, string>
      */
-    private static function environment(): array
+    private static function environment(bool $mailKey): array
     {
         $mail = self::mailFile();
         $created = fopen($mail, 'ab');
@@ -99,6 +111,9 @@ final class ProbeServer
             }
         }
         $env['STALL_MAIL_FILE'] = $mail;
+        if (!$mailKey) {
+            $env['STALL_MAIL_KEY'] = 'missing';
+        }
 
         return $env;
     }
@@ -112,6 +127,10 @@ final class ProbeServer
             }
             $page = $this->ping();
             if ($page !== null && $page->status < 500) {
+                if (!$this->running()) {
+                    throw new RuntimeException('the probe server stopped. ' . $this->log());
+                }
+
                 return;
             }
             if ($page !== null && $page->status >= 500) {

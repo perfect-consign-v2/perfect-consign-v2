@@ -31,6 +31,19 @@ final class Actor
         return $slug;
     }
 
+    public function tenantId(): ?string
+    {
+        if ($this->slug() === null) {
+            return null;
+        }
+        $id = $this->session->get('tenant_id');
+        if (!is_string($id) || preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            return null;
+        }
+
+        return $id;
+    }
+
     public function name(): string
     {
         $name = $this->session->get('owner_name');

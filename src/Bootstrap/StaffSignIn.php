@@ -127,6 +127,7 @@ final class StaffSignIn
         $vendor = $row['vendor_id'];
         $this->sessions->open(
             $tenant->slug,
+            $tenant->id,
             $row['display_name'],
             $role,
             $row['id'],

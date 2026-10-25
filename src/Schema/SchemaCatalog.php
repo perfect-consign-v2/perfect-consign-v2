@@ -21,6 +21,19 @@ final class SchemaCatalog
         '013_worker_role.sql',
         '015_override_failures.sql',
         '017_job_mail_sent.sql',
+        '020_vendor_letter_job.sql',
+        '024_markdown_job.sql',
+        '025_vendor_role.sql',
+        '030_revoke_owner_failures.sql',
+        '031_job_enqueue_gate.sql',
+        '035_enqueue_session_role.sql',
+        '036_platform_admin.sql',
+    ];
+
+    /** @var list<string> */
+    public const PLATFORM_AFTER = [
+        '032_drop_platform_job_mail.sql',
+        '034_drop_platform_override.sql',
     ];
 
     public function __construct(private readonly string $directory)
@@ -37,9 +50,10 @@ final class SchemaCatalog
             throw new RuntimeException('could not list schema files');
         }
         $files = [];
+        $platform = array_merge(self::PLATFORM, self::PLATFORM_AFTER);
         foreach ($paths as $path) {
             $name = basename($path);
-            if (in_array($name, self::PLATFORM, true)) {
+            if (in_array($name, $platform, true)) {
                 continue;
             }
             $files[] = $name;
@@ -55,6 +69,14 @@ final class SchemaCatalog
     public function platformFiles(): array
     {
         return self::PLATFORM;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function platformAfterFiles(): array
+    {
+        return self::PLATFORM_AFTER;
     }
 
     /**

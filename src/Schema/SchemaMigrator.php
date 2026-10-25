@@ -36,6 +36,25 @@ final class SchemaMigrator
         }
     }
 
+    public function migratePlatformAfter(): void
+    {
+        $this->record->holdMigration();
+        try {
+            if (!$this->record->ready('platform')) {
+                throw new RuntimeException('platform is not ready');
+            }
+            $applied = $this->record->applied('platform');
+            foreach ($this->catalog->platformAfterFiles() as $file) {
+                if (isset($applied[$file])) {
+                    continue;
+                }
+                $this->runPlatform($file);
+            }
+        } finally {
+            $this->record->releaseMigration();
+        }
+    }
+
     public function migrateTenant(string $slug): void
     {
         $this->tenants()->bringCurrent($slug);

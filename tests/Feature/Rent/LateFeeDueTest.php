@@ -133,12 +133,35 @@ final class LateFeeDueTest extends TestCase
         self::assertSame([], $this->posted);
     }
 
+    public function testACoveredChargeAndTheLastDayOfThePeriodStayDistinct(): void
+    {
+        $this->apply('2026-10-02', $this->policy(10, 20), [
+            $this->move('rent-charge:ab:2026-10', 100),
+            [
+                'posting_key' => 'rent-payment:ab',
+                'source_type' => 'rent_payment',
+                'booth_id' => self::BOOTH,
+                'debit_minor' => 0,
+                'credit_minor' => 100,
+            ],
+        ]);
+        self::assertSame([], $this->posted);
+
+        $this->posted = [];
+        $this->apply('2026-10-31', $this->policy(10, 20), [
+            $this->move('rent-charge:ab:2026-10', 100),
+        ], [], true, '2026-10-01');
+        $dates = array_map(static fn (array $row): string => $row[3], $this->posted);
+        self::assertContains('2026-10-01', $dates);
+        self::assertContains('2026-10-31', $dates);
+    }
+
     /**
      * @param array{enabled: bool, grace: int, first: int, next: int} $policy
      * @param list<array<string, mixed>> $moves
      * @param list<string> $keys
      */
-    private function apply(string $today, array $policy, array $moves, array $keys = [], bool $rentals = true): void
+    private function apply(string $today, array $policy, array $moves, array $keys = [], bool $rentals = true, string $effective = '2000-01-01'): void
     {
         $statements = $this->createStub(Statements::class);
         $statements->method('rows')->willReturnCallback(static function (string $sql) use ($moves, $keys): array {
@@ -159,7 +182,7 @@ final class LateFeeDueTest extends TestCase
             'late_fee_grace_days' => $policy['grace'],
             'late_fee_first_minor' => $policy['first'],
             'late_fee_next_minor' => $policy['next'],
-            'late_fee_effective_on' => '2000-01-01',
+            'late_fee_effective_on' => $effective,
         ]]);
         $fees = $this->createStub(Statements::class);
         $fees->method('bound')->willReturn([]);

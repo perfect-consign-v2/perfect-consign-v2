@@ -105,6 +105,13 @@ final class ItemWriterTest extends TestCase
         }
     }
 
+    public function testStoreStockDoesNotKeepAVendor(): void
+    {
+        $entry = $this->writer()->entry($this->draft(['placement' => 'store']));
+
+        self::assertSame('', $entry->vendorId);
+    }
+
     public function testExpireOnTheIntakeDayIsKept(): void
     {
         $entry = $this->writer()->entry($this->draft(['expires_on' => '2026-09-01']));

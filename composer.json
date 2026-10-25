@@ -38,6 +38,7 @@
         "prove:obligations": "php bin/prove-obligations.php",
         "prove:race": "php bin/prove-race.php",
         "prove:tenant": "php bin/prove-tenant.php",
+        "check:worker": "php bin/check-worker.php",
         "test:smoke": "php vendor/bin/phpunit --testsuite http --group smoke",
         "test:http": "php vendor/bin/phpunit --testsuite http",
         "test:browser": "php vendor/bin/phpunit --testsuite browser",
@@ -54,7 +55,8 @@
             "@prove:obligations",
             "@prove:race",
             "@prove",
-            "@prove:tenant"
+            "@prove:tenant",
+            "@check:worker"
         ]
     },
     "config": {

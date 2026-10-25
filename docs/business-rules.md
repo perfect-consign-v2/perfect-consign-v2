@@ -132,6 +132,8 @@ A saved report is a name plus a catalog choice: columns come from sales, rent, p
 
 The day an item sells, the vendor gets a notice from the same net as the vendor check. The Sunday letter stays a summary. A bounce marks that email address.
 
+The owner can file one plain-text letter to every active consignor with a usable email, or to the ones they check. A missing address and a bounced address are left out. An inactive consignor is left off the list. The letter goes out on the mail run through the mailbox in Settings.
+
 A mall-wide sale has a start, an end, a percent, and who absorbs it. The register applies the event that covers today. Mall adds a store discount. Vendor adds a discount that reduces the vendor's price.
 
 A floor finding is a missing tag or an item that is not where the system says. A pickup records the person and the day the goods went back to the vendor.

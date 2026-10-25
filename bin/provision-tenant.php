@@ -112,14 +112,6 @@ final class TenantProvisioner
         if ($worker !== false && $worker->fetchColumn() !== false) {
             $this->pdo->exec(sprintf('GRANT %s TO stall_worker', $role));
         }
-        $this->pdo->exec(sprintf(
-            'GRANT SELECT, INSERT, DELETE ON TABLE platform.override_sign_in_failures TO %s',
-            $role
-        ));
-        $this->pdo->exec(sprintf(
-            'GRANT SELECT, INSERT ON TABLE platform.job_mail_sent TO %s',
-            $role
-        ));
         $jobs = $this->pdo->prepare('SELECT platform.grant_poster_jobs(?)');
         $jobs->execute([$role]);
     }
@@ -158,6 +150,9 @@ final class TenantProvisioner
     {
         if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $slug) !== 1) {
             throw new InvalidArgumentException('a tenant slug must be a short lowercase name');
+        }
+        if ($slug === 'admin') {
+            throw new InvalidArgumentException('admin is reserved for the platform portal');
         }
     }
 

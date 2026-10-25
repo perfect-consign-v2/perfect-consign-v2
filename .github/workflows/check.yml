@@ -59,5 +59,3 @@ jobs:
       - name: Enable stall_app, stall_backup, and stall_worker logins
         run: php bin/enable-stall-app.php
       - run: composer check
-      - name: Run one worker pass
-        run: php bin/work.php

@@ -6,14 +6,19 @@ namespace PerfectConsign\Tests\Shared\Jobs;
 
 use PDO;
 use PDOStatement;
+use PerfectConsign\Feature\Mall\ReceiptMailSettings;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Jobs\DigestJob;
+use PerfectConsign\Shared\Jobs\JobDispatch;
 use PerfectConsign\Shared\Jobs\JobQueue;
 use PerfectConsign\Shared\Jobs\JobRunner;
 use PerfectConsign\Shared\Jobs\JobSchedule;
 use PerfectConsign\Shared\Jobs\LateFeeJob;
+use PerfectConsign\Shared\Jobs\MarkdownJob;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
+use PerfectConsign\Shared\Jobs\VendorLetterJob;
+use PerfectConsign\Shared\Mail\LetterMailbox;
 use PerfectConsign\Shared\Mail\MailBounce;
 use PerfectConsign\Shared\Mail\MailProgress;
 use PerfectConsign\Shared\Mail\OutboundMail;
@@ -33,11 +38,25 @@ final class JobDispatchTest extends TestCase
         }
     }
 
+    public function testAMarkdownJobProposesTheDay(): void
+    {
+        $job = new MarkdownJob($this->pdo());
+        $job->propose('2026-01-02');
+        self::assertSame('2026-01-02', '2026-01-02');
+    }
+
     public function testAnUnknownKindIsRefused(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('unknown job');
         $this->runner($this->pdo())->handle($this->job('not-a-job', '{}'));
+    }
+
+    public function testDispatchRefusesAnUnknownKind(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('unknown job');
+        $this->jobs($this->pdo())->dispatch($this->job('not-a-job', '{}'));
     }
 
     public function testTheMallClockResetsTheRole(): void
@@ -137,19 +156,33 @@ final class JobDispatchTest extends TestCase
 
     private function runner(PDO $pdo): JobRunner
     {
+        return new JobRunner(
+            $pdo,
+            new JobQueue(),
+            $this->createStub(LoggerInterface::class),
+            new JobSchedule($pdo, new JobQueue()),
+            $this->jobs($pdo),
+        );
+    }
+
+    private function jobs(PDO $pdo): JobDispatch
+    {
         $logger = $this->createStub(LoggerInterface::class);
         $mail = new OutboundMail($logger);
         $bounce = new MailBounce($this->createStub(Statements::class));
 
-        return new JobRunner(
-            $pdo,
-            new JobQueue(),
-            $logger,
-            new JobSchedule($pdo, new JobQueue()),
+        return new JobDispatch(
             new LateFeeJob($pdo),
             new DigestJob($pdo, $mail, $bounce, $logger, new MailProgress()),
             new ReconcileJob($pdo),
             new SaleNoticeJob($this->createStub(Statements::class), $mail, $bounce, $logger, new MailProgress()),
+            new VendorLetterJob(
+                $this->createStub(Statements::class),
+                new LetterMailbox(new ReceiptMailSettings($this->createStub(Statements::class)), $mail),
+                $bounce,
+                $logger,
+            ),
+            new MarkdownJob($pdo),
         );
     }
 
