@@ -36,6 +36,24 @@ final class ProbeMall
         self::fill('STALL_DB_USER', 'stall');
         self::fill('STALL_DB_PASSWORD', 'stall');
         self::requireDatabaseEnv();
+        $attempts = 0;
+        while (true) {
+            try {
+                self::bringCurrent($root);
+
+                return;
+            } catch (RuntimeException $error) {
+                if (!str_contains($error->getMessage(), 'a migration is already running') || $attempts >= 50) {
+                    throw $error;
+                }
+                $attempts++;
+                usleep(100_000);
+            }
+        }
+    }
+
+    private static function bringCurrent(string $root): void
+    {
         $migrator = new SchemaMigrator(self::admin(), new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql'));
         $migrator->migratePlatform();
         if (!self::exists()) {

@@ -48,7 +48,7 @@ final class ProbeServer
             ],
             $pipes,
             $root,
-            self::environment($mailKey),
+            self::environment($port, $mailKey),
             ['bypass_shell' => true]
         );
         if (!is_resource($process)) {
@@ -93,7 +93,7 @@ final class ProbeServer
     /**
      * @return array<string, string>
      */
-    private static function environment(bool $mailKey): array
+    private static function environment(int $port, bool $mailKey): array
     {
         $mail = self::mailFile();
         $created = fopen($mail, 'ab');
