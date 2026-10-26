@@ -24,14 +24,18 @@ execSql($schema, "INSERT INTO accounting_periods (id, book_id, starts_on, ends_o
 race($schema, $sql, 'prove_race_key_a.sql', 'prove_race_key_b.sql', false, null, true);
 race($schema, $sql, 'prove_race_payout_a.sql', 'prove_race_payout_b.sql', false, null, true);
 
-execSql($schema, "INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d201', 'race-rate', 'Race', 'rate'); INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d301', 'R1', 'Race booth'); INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on) VALUES ('01900000-0000-7000-8000-00000000d401', '01900000-0000-7000-8000-00000000d301', '01900000-0000-7000-8000-00000000d201', '2029-03-01'); INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d401', 15000); INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d301', 15000); INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d023', '01900000-0000-7000-8000-000000000001', '2029-01-01', '2029-12-31', 'open')");
-race($schema, $sql, 'prove_race_rate_hold.sql', 'prove_race_rate_charge.sql', true, 'stored rate', false);
-execSql($schema, "DELETE FROM assignment_rent WHERE assignment_id = '01900000-0000-7000-8000-00000000d401'; DELETE FROM booth_rent_rates WHERE booth_id = '01900000-0000-7000-8000-00000000d301'; DELETE FROM booth_assignments WHERE id = '01900000-0000-7000-8000-00000000d401'; DELETE FROM booths WHERE id = '01900000-0000-7000-8000-00000000d301'; DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d201'; DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d023'");
+execSql($schema, "INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d201', 'race-rate', 'Race', 'rate'); INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d301', 'R1', 'Race booth'); INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on) VALUES ('01900000-0000-7000-8000-00000000d401', '01900000-0000-7000-8000-00000000d301', '01900000-0000-7000-8000-00000000d201', '2029-01-01'); INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d401', 15000); INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d301', 15000); INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d023', '01900000-0000-7000-8000-000000000001', '2029-01-01', '2029-12-31', 'open')");
+race($schema, $sql, 'prove_race_rate_hold.sql', 'prove_race_rate_charge.sql', false, null, true);
+race($schema, $sql, 'prove_race_rent_rate_a.sql', 'prove_race_rent_rate_b.sql', false, null, true);
+
+$schema = resetRaceTenant();
+execSql($schema, "INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d022', '01900000-0000-7000-8000-000000000001', '2028-01-01', '2028-12-31', 'open')");
 
 execSql($schema, "INSERT INTO vendors (id, code, first_name, last_name) VALUES ('01900000-0000-7000-8000-00000000d202', 'race-end', 'Race', 'end'); INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d302', 'R2', 'Race booth 2'); INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on) VALUES ('01900000-0000-7000-8000-00000000d402', '01900000-0000-7000-8000-00000000d302', '01900000-0000-7000-8000-00000000d202', '2029-01-01'); INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d402', 15000); INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d302', 15000); INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d026', '01900000-0000-7000-8000-000000000001', '2029-01-01', '2029-12-31', 'open')");
 race($schema, $sql, 'prove_race_end_hold.sql', 'prove_race_end_charge.sql', true, 'assignment that covers', false);
-execSql($schema, "DELETE FROM assignment_rent WHERE assignment_id = '01900000-0000-7000-8000-00000000d402'; DELETE FROM booth_rent_rates WHERE booth_id = '01900000-0000-7000-8000-00000000d302'; DELETE FROM booth_assignments WHERE id = '01900000-0000-7000-8000-00000000d402'; DELETE FROM booths WHERE id = '01900000-0000-7000-8000-00000000d302'; DELETE FROM vendors WHERE id = '01900000-0000-7000-8000-00000000d202'; DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d026'");
 
+$schema = resetRaceTenant();
+execSql($schema, "INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d022', '01900000-0000-7000-8000-000000000001', '2028-01-01', '2028-12-31', 'open')");
 execSql($schema, "INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d024', '01900000-0000-7000-8000-000000000001', '2030-01-01', '2030-12-31', 'open')");
 race($schema, $sql, 'prove_race_period_hold.sql', 'prove_race_period_line.sql', false, null, true);
 execSql($schema, "DELETE FROM accounting_periods WHERE id = '01900000-0000-7000-8000-00000000d024'");
@@ -137,6 +141,21 @@ if ($left !== '0,0,0,0,0,0,0,0,0') {
 }
 
 fwrite(STDOUT, "ok race\n");
+
+function resetRaceTenant(): string
+{
+    $prepared = phpCommand([dirname(__DIR__) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'prepare-race-tenant.php'], null);
+    if ($prepared['code'] !== 0) {
+        fail("race tenant was not reset\n" . $prepared['output']);
+    }
+    $lines = preg_split("/\\r\\n|\\n|\\r/", trim($prepared['output'])) ?: [];
+    $schema = (string) ($lines[count($lines) - 1] ?? '');
+    if (preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
+        fail("race tenant schema is missing after reset ($schema)");
+    }
+
+    return $schema;
+}
 
 function race(
     string $schema,

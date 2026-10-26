@@ -16,6 +16,7 @@ use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
+use PerfectConsign\Feature\Payout\VendorClawback;
 use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\RentLines;
 use PerfectConsign\Feature\Rent\RentMoves;
@@ -100,7 +101,14 @@ final class RentChargeTest extends TestCase
             new RentPosting(
                 $ledger,
                 $payouts,
-                new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::make($statements)),
+                new PayoutSettler(
+                    $ledger,
+                    $payouts,
+                    $runs,
+                    new PayoutRunLines($statements),
+                    QuietAudit::make($statements),
+                    new VendorClawback($ledger, $statements),
+                ),
                 new MallPayoutSettings($statements),
                 new RentMoves($statements, new MallPayoutSettings($statements)),
             ),
@@ -267,7 +275,14 @@ final class RentChargeTest extends TestCase
             new RentPosting(
                 $ledger,
                 $payouts,
-                new PayoutSettler($ledger, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::make($statements)),
+                new PayoutSettler(
+                    $ledger,
+                    $payouts,
+                    $runs,
+                    new PayoutRunLines($statements),
+                    QuietAudit::make($statements),
+                    new VendorClawback($ledger, $statements),
+                ),
                 $settings,
                 new RentMoves($statements, $settings),
             ),

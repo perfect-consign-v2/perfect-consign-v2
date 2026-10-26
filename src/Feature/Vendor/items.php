@@ -12,10 +12,14 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $csrf */
 /** @var string $query */
 /** @var string $stock */
+/** @var int $available */
 /** @var int $unsold */
+/** @var int $unprinted */
 /** @var int $total */
 $stock = $stock ?? '';
+$available = $available ?? 0;
 $unsold = $unsold ?? 0;
+$unprinted = $unprinted ?? 0;
 $query = $query ?? '';
 /** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, brand_name: string, color_name: string, category_name: string, size_name: string, condition_name: string, department_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool}> $items */
 /** @var list<NameList> $attributeLists */
@@ -26,11 +30,29 @@ $blank = '—';
 $showBrand = ($showBrand ?? true) === true;
 $previewAs = is_string($previewAs ?? null) ? $previewAs : '';
 $list = '/' . $slug . '/vendor/inventory';
+$lead = match ($stock) {
+    'available' => 'Your items with quantity on hand — ready to sell.',
+    'unprinted' => 'Your items that still need a sticker printed.',
+    'out' => 'Your items with quantity zero — nothing left to sell.',
+    default => 'One row is one item on the floor.',
+};
+$emptyFilter = match ($stock) {
+    'available' => $query === '' ? 'No items with quantity on hand.' : 'No items match.',
+    'unprinted' => $query === '' ? 'Every item already has a sticker.' : 'No items match.',
+    'out' => $query === '' ? 'No items with quantity zero.' : 'No items match.',
+    default => 'No items match.',
+};
+$shows = [
+    '' => 'All (' . $total . ')',
+    'available' => 'Available (' . $available . ')',
+    'unprinted' => 'Need stickers (' . $unprinted . ')',
+    'out' => 'Qty 0 (' . $unsold . ')',
+];
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Your items</h1>
-        <p class="muted">One row is one item on the floor.</p>
+        <p class="muted"><?= View::text($lead) ?></p>
     </div>
 </div>
 
@@ -46,22 +68,42 @@ $list = '/' . $slug . '/vendor/inventory';
         <?php if ($previewAs !== ''): ?>
             <input type="hidden" name="as" value="<?= View::text($previewAs) ?>">
         <?php endif; ?>
+        <?php if ($stock !== ''): ?>
+            <input type="hidden" name="stock" value="<?= View::text($stock) ?>">
+        <?php endif; ?>
         <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="<?= $showBrand ? 'Search tag, barcode, description, or brand' : 'Search tag, barcode, or description' ?>" aria-label="Search inventory">
         <button class="btn" type="submit">Search</button>
-        <?php
-        $chip = $list . '?stock=out';
-        if ($query !== '') {
-            $chip .= '&q=' . rawurlencode($query);
-        }
-        $chip = VendorPreview::with($chip, $previewAs);
-        ?>
-        <a class="occupancy-pill" href="<?= View::text($chip) ?>"<?= $stock === 'out' ? ' aria-current="page"' : '' ?>>Not for sale (<?= View::text((string) $unsold) ?>)</a>
     </form>
+
+    <div class="list-show mt-4">
+        <p class="muted">Show</p>
+        <div class="segmented" role="navigation" aria-label="Show items">
+            <?php foreach ($shows as $value => $label): ?>
+                <?php
+                $params = [];
+                if ($value !== '') {
+                    $params['stock'] = $value;
+                }
+                if ($query !== '') {
+                    $params['q'] = $query;
+                }
+                $href = VendorPreview::with(
+                    $list . ($params === [] ? '' : '?' . http_build_query($params)),
+                    $previewAs
+                );
+                $selected = $stock === $value;
+                ?>
+                <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="<?= View::text($href) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
+            <?php endforeach; ?>
+        </div>
+    </div>
 
     <?php if ($items !== []): ?>
         <?php
         $printId = '';
-        $lead = 'Check your own items.';
+        $lead = $stock === 'unprinted'
+            ? 'Check your items that still need stickers.'
+            : 'Check your own items.';
         $labelAction = VendorPreview::with('/' . $slug . '/vendor/labels', $previewAs);
         $selectionStorageKey = InventorySelectionKey::vendor($slug);
         require __DIR__ . '/../Inventory/sticker-job.php';
@@ -70,7 +112,7 @@ $list = '/' . $slug . '/vendor/inventory';
 
     <div class="card table-wrap list-dt-wrap list-dt-page-scroll mt-4">
         <?php if ($items === []): ?>
-            <div class="empty"><p>No items match.</p></div>
+            <div class="empty"><p><?= View::text($emptyFilter) ?></p></div>
         <?php else: ?>
             <?php
             $columns = [

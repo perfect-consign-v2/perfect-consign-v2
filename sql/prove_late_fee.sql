@@ -51,7 +51,8 @@ BEGIN
     RAISE EXCEPTION 'a late fee reduced vendor payable';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a control account line must come from a sale, rent charge, rent payment, or payout%' THEN
+        IF SQLERRM NOT LIKE '%a control account line must come from a listed source type%'
+           AND SQLERRM NOT LIKE '%a control account line must come from a sale, rent charge, rent payment, or payout%' THEN
             RAISE;
         END IF;
 END $$;

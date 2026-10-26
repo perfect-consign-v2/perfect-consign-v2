@@ -73,7 +73,7 @@ final class InventoryController
         try {
             $this->items->remove($id);
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->itemError($this->app->catchRefusal($refusal));
+            $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
@@ -96,7 +96,7 @@ final class InventoryController
             }
             $saved = $this->write($id, $this->writer->entry($draft));
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->itemError($this->app->catchRefusal($refusal));
+            $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
@@ -190,7 +190,7 @@ final class InventoryController
     {
         $tenant = $this->app->open($slug, true);
         $query = trim($this->app->request()->query('q'));
-        $stock = $this->app->request()->query('stock') === 'out' ? 'out' : '';
+        $stock = $this->stockFilter($this->app->request()->query('stock'));
         $items = $this->rows->mark($this->items->items($query, $stock), $this->items->referenced());
         $this->app->show('Feature/Inventory/inventory', [
             'title' => 'Items',
@@ -199,13 +199,20 @@ final class InventoryController
             'items' => $items,
             'query' => $query,
             'stock' => $stock,
+            'available' => $this->items->available(),
             'unsold' => $this->items->unsold(),
-            'total' => $query === '' ? count($items) : $this->items->count(),
+            'unprinted' => $this->items->unprinted(),
+            'total' => $this->items->count(),
             'confirm' => $this->confirming($items, $this->app->request()->query('confirm')),
             'labelStock' => $this->mall->getLabelStock(),
             'stocks' => $this->stocks->choices(),
             'error' => $error,
         ]);
+    }
+
+    private function stockFilter(string $stock): string
+    {
+        return in_array($stock, ['available', 'out', 'unprinted'], true) ? $stock : '';
     }
 
     /**
@@ -270,26 +277,4 @@ final class InventoryController
         return '';
     }
 
-    private function itemError(string $message): string
-    {
-        $known = [
-            'items_code_key' => 'That tag is already used.',
-            'items_barcode_key' => 'That barcode is already used.',
-            'items_code_chk' => 'Enter a tag.',
-            'items_barcode_chk' => 'Enter a barcode of at most 100 characters.',
-            'items_description_chk' => 'Enter a description.',
-            'items_commission_chk' => 'store take is a percent from 0 to 100',
-            'items_dates_chk' => 'The expire date is before the intake date.',
-        ];
-        foreach ($known as $needle => $text) {
-            if (str_contains($message, $needle)) {
-                return $text;
-            }
-        }
-        if (str_contains($message, 'foreign key constraint') || str_contains($message, 'is still referenced')) {
-            return 'That item is in use.';
-        }
-
-        return $message;
-    }
 }

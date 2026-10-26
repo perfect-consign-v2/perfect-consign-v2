@@ -297,7 +297,7 @@ END $$;
 
 -- Section 11 cases the lock above does not cover. Dates sit outside the March 2032 window.
 
-UPDATE mall SET tax_bps = 0, commission_bps = 0, cash_round_nickel = false;
+UPDATE mall SET tax_bps = 0, commission_bps = 0, cash_round_minor = 0;
 
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES

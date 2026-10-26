@@ -30,6 +30,8 @@ use PerfectConsign\Shared\Http\View;
         <option value="tender">Tender</option>
         <option value="vendor">Vendor</option>
         <option value="cashier">Cashier</option>
+        <option value="hour">Hour</option>
+        <option value="category">Category</option>
         <option value="none">None</option>
     </select>
     <p>The sales-tax worksheet is not a saved report. It stays tied to the books.</p>

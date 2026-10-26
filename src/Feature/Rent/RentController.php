@@ -188,7 +188,7 @@ final class RentController
         $today = $this->rent->today();
         $figure = $this->receipts->figure($vendorId, $boothId, $today);
         if ($figure === null) {
-            $this->render($slug, $error ?? 'a rent receipt cannot exceed the open rent');
+            $this->render($slug, $error ?? $this->collectMissing($vendorId, $boothId));
             return;
         }
         $returning = $this->app->request()->field('pay_with') !== '';
@@ -261,6 +261,15 @@ final class RentController
         }
 
         return count($chosen);
+    }
+
+    private function collectMissing(string $vendorId, string $boothId): string
+    {
+        if ($vendorId === '' && $boothId === '') {
+            return 'Choose who is paying rent.';
+        }
+
+        return 'They do not owe rent.';
     }
 
     private function chosen(string $name): string

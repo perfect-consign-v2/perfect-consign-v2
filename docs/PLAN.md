@@ -1,6 +1,8 @@
-# Stall
+# Stall (PC2 database nickname)
 
-Internal name for the Perfect Consign database. Customers never see this name.
+This repository is **PC2**. Live Perfect Consign (`curser-pos-*`) is **PC1**. EMP is archived — see [naming.md](naming.md) and [emp-to-pc2.md](emp-to-pc2.md).
+
+**Stall** is the internal name for the PC2 database / roles. Customers never see that name.
 
 ## Scope right now
 

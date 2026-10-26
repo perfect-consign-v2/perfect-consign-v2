@@ -8,6 +8,8 @@ use Psr\Log\LoggerInterface;
 
 final class OutboundMail
 {
+    public const SMTP_NOT_CONFIGURED = 'smtp is not configured';
+
     public function __construct(private readonly LoggerInterface $logger)
     {
     }
@@ -26,13 +28,7 @@ final class OutboundMail
 
     public function send(string $to, string $subject, string $body): void
     {
-        try {
-            $this->deliver($to, $subject, $body);
-        } catch (\InvalidArgumentException) {
-            $this->logger->error('mail was refused');
-        } catch (\RuntimeException $error) {
-            $this->logger->error($error->getMessage());
-        }
+        $this->deliver($to, $subject, $body);
     }
 
     public function deliver(string $to, string $subject, string $body): void
@@ -64,7 +60,7 @@ final class OutboundMail
     {
         $settings = $this->settings();
         if ($settings === null) {
-            throw new \RuntimeException('smtp is not configured');
+            throw new \RuntimeException(self::SMTP_NOT_CONFIGURED);
         }
         try {
             (new SmtpClient(

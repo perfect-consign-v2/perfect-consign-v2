@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Pos;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Shared\Mail\OutboundMail;
 
 final class ReceiptEmailController
 {
@@ -40,7 +41,7 @@ final class ReceiptEmailController
 
             return;
         } catch (\RuntimeException $error) {
-            $message = $error->getMessage() === 'smtp is not configured'
+            $message = $error->getMessage() === OutboundMail::SMTP_NOT_CONFIGURED
                 ? 'the server mailbox is not set up'
                 : 'the receipt was not sent';
             $this->receipts->show($slug, $id, $message);

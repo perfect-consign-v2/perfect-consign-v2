@@ -144,11 +144,23 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             <?php endif; ?>
         </div>
         <div class="field">
-            <label for="cash_round_nickel">
-                <input id="cash_round_nickel" name="cash_round_nickel" type="checkbox" value="1"<?= ($cashRound ?? '') === '1' ? ' checked' : '' ?>>
-                Round cash sales to the nearest nickel
-            </label>
-            <p class="muted text-sm">Cash taken on a sale rounds to a nickel. The round amount shows on the register and on the receipt. Card, checks, and stored value stay exact.</p>
+            <label for="cash_round_minor">Round cash sales to</label>
+            <select class="select" id="cash_round_minor" name="cash_round_minor">
+                <?php
+                $roundNow = $cashRound ?? '0';
+                $roundChoices = [
+                    '0' => 'No cash rounding',
+                    '1' => 'Nearest cent ($0.01)',
+                    '5' => 'Nearest nickel ($0.05)',
+                    '10' => 'Nearest dime ($0.10)',
+                    '25' => 'Nearest quarter ($0.25)',
+                ];
+                foreach ($roundChoices as $value => $label):
+                    ?>
+                    <option value="<?= View::text($value) ?>"<?= $roundNow === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <p class="muted text-sm">Cash taken on a sale rounds to this step. The round amount shows on the register and on the receipt. Card, checks, and stored value stay exact.</p>
         </div>
     </div>
     <div class="card-foot">

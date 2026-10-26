@@ -87,4 +87,71 @@ final class LedgerReport
 
         return $listed;
     }
+
+    /**
+     * @return list<array{code: string, description: string, vendor: string, expires_on: string, quantity: int, price_minor: int}>
+     */
+    public function expiring(): array
+    {
+        $listed = [];
+        foreach ($this->statements->rows(
+            'SELECT code, description, vendor, expires_on::text AS expires_on, quantity, price_minor
+             FROM stall_report_expiring()'
+        ) as $row) {
+            $listed[] = [
+                'code' => RowValue::string($row['code'] ?? null),
+                'description' => RowValue::string($row['description'] ?? null),
+                'vendor' => RowValue::string($row['vendor'] ?? null),
+                'expires_on' => RowValue::string($row['expires_on'] ?? null),
+                'quantity' => RowValue::integer($row['quantity'] ?? null),
+                'price_minor' => RowValue::integer($row['price_minor'] ?? null),
+            ];
+        }
+
+        return $listed;
+    }
+
+    /**
+     * @return list<array{posted_on: string, code: string, description: string, quantity: int}>
+     */
+    public function donated(string $from, string $to): array
+    {
+        $listed = [];
+        foreach ($this->statements->bound(
+            'SELECT posted_on::text AS posted_on, code, description, quantity
+             FROM stall_report_donated(?::date, ?::date)',
+            [$from, $to]
+        ) as $row) {
+            $listed[] = [
+                'posted_on' => RowValue::string($row['posted_on'] ?? null),
+                'code' => RowValue::string($row['code'] ?? null),
+                'description' => RowValue::string($row['description'] ?? null),
+                'quantity' => RowValue::integer($row['quantity'] ?? null),
+            ];
+        }
+
+        return $listed;
+    }
+
+    /**
+     * @return list<array{category: string, sold_qty: int, on_hand_qty: int, sales_minor: int}>
+     */
+    public function sellThrough(string $from, string $to): array
+    {
+        $listed = [];
+        foreach ($this->statements->bound(
+            'SELECT category, sold_qty, on_hand_qty, sales_minor
+             FROM stall_report_sell_through(?::date, ?::date)',
+            [$from, $to]
+        ) as $row) {
+            $listed[] = [
+                'category' => RowValue::string($row['category'] ?? null),
+                'sold_qty' => RowValue::integer($row['sold_qty'] ?? null),
+                'on_hand_qty' => RowValue::integer($row['on_hand_qty'] ?? null),
+                'sales_minor' => RowValue::integer($row['sales_minor'] ?? null),
+            ];
+        }
+
+        return $listed;
+    }
 }

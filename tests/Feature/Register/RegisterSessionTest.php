@@ -247,7 +247,7 @@ final class RegisterSessionTest extends TestCase
             'floor_depth_ft' => 40,
             'commission_bps' => 0,
             'floor_days' => 1,
-            'cash_round_nickel' => false,
+            'cash_round_minor' => 0,
             'tax_bps' => 0,
             'use_color' => false,
             'use_category' => false,

@@ -11,6 +11,10 @@ final class DatabaseRefusal extends RuntimeException
 {
     public const CERTIFICATE_NUMBER_USED = 'That certificate number is already used.';
 
+    public const BARCODE_USED = 'That barcode is already used.';
+
+    public const TICKET_NOT_A_SALE = 'that ticket is not a sale';
+
     public static function fromPdo(PDOException $error): self
     {
         $message = $error->getMessage();
@@ -112,8 +116,9 @@ final class DatabaseRefusal extends RuntimeException
             'vendors_code_key' => 'That code is already used.',
             'booths_code_key' => 'That booth is already used.',
             'booth_assignments_no_overlap' => 'That booth is already taken on those dates.',
+            'assignment_rent_rates_assignment_starts_key' => 'That stay already has a rent rate on that date.',
             'items_code_key' => 'That tag is already used.',
-            'items_barcode_key' => 'That barcode is already used.',
+            'items_barcode_key' => self::BARCODE_USED,
             'brands_name_key' => 'That name is already used.',
             'colors_name_key' => 'That name is already used.',
             'categories_name_key' => 'That name is already used.',

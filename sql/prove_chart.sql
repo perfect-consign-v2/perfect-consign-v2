@@ -54,7 +54,8 @@ BEGIN
             ('returned_checks', '1290', 'asset', 'debit', true, false, NULL),
             ('booth_other_revenue', '4220', 'revenue', 'credit', true, false, NULL),
             ('booth_deposits', '2150', 'liability', 'credit', true, false, NULL),
-            ('booth_deposit_held', '2151', 'liability', 'credit', true, true, 'booth')
+            ('booth_deposit_held', '2151', 'liability', 'credit', true, true, 'booth'),
+            ('vendor_receivable', '1210', 'asset', 'debit', true, true, 'vendor')
     ) AS expected (role, code, account_type, normal_balance, is_postable, is_control, subledger_type)
         ON expected.role = roles.role
         AND expected.code = account.code
@@ -64,7 +65,7 @@ BEGIN
         AND expected.is_control = account.is_control
         AND expected.subledger_type IS NOT DISTINCT FROM account.subledger_type;
 
-    IF role_count <> 30 OR (SELECT count(*) FROM chart_roles) <> 30 THEN
+    IF role_count <> 31 OR (SELECT count(*) FROM chart_roles) <> 31 THEN
         RAISE EXCEPTION 'chart roles do not match the mall chart';
     END IF;
 END $$;
@@ -146,12 +147,12 @@ DECLARE
     role_count integer;
 BEGIN
     SELECT count(*) INTO role_count FROM chart_roles;
-    IF role_count <> 30
+    IF role_count <> 31
         OR (
             SELECT count(*)
             FROM chart_roles
-            WHERE role IN ('returned_checks', 'booth_other_revenue', 'booth_deposits')
-        ) <> 3 THEN
+            WHERE role IN ('returned_checks', 'booth_other_revenue', 'booth_deposits', 'vendor_receivable')
+        ) <> 4 THEN
         RAISE EXCEPTION 'chart roles changed after rollback';
     END IF;
 END $$;

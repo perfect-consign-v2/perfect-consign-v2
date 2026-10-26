@@ -10,6 +10,7 @@ use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
+use Psr\Log\LoggerInterface;
 
 final class VendorEntry
 {
@@ -20,6 +21,7 @@ final class VendorEntry
         private readonly DatabaseRole $roles,
         private readonly Statements $statements,
         private readonly OutboundMail $mail,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -47,11 +49,18 @@ final class VendorEntry
              VALUES (?::uuid, ?, clock_timestamp() + interval '30 minutes')",
             [$vendorId, hash('sha256', $token)]
         );
-        $this->mail->send(
-            $email,
-            'Your consignor link',
-            $origin . '/' . $tenant->slug . '/consignor/enter/' . $token
-        );
+        try {
+            $this->mail->deliver(
+                $email,
+                'Your consignor link',
+                $origin . '/' . $tenant->slug . '/consignor/enter/' . $token
+            );
+        } catch (\Throwable $error) {
+            $this->logger->error('consignor entry mail was refused', [
+                'slug' => $tenant->slug,
+                'message' => $error->getMessage(),
+            ]);
+        }
     }
 
     public function open(TenantRecord $tenant, string $hash): string

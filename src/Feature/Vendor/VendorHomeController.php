@@ -109,7 +109,8 @@ final class VendorHomeController
         $vendorId = $this->vendor($slug);
         $tenant = $this->app->open($slug, true);
         $query = trim($this->app->request()->query('q'));
-        $stock = $this->app->request()->query('stock') === 'out' ? 'out' : '';
+        $rawStock = $this->app->request()->query('stock');
+        $stock = in_array($rawStock, ['available', 'out', 'unprinted'], true) ? $rawStock : '';
         $items = $this->account->items($vendorId, $query, $stock);
         $this->app->show('Feature/Vendor/items', [
             'title' => 'Your items',
@@ -118,8 +119,10 @@ final class VendorHomeController
             'items' => $items,
             'query' => $query,
             'stock' => $stock,
+            'available' => $this->account->available($vendorId),
             'unsold' => $this->account->unsold($vendorId),
-            'total' => $query === '' ? count($items) : $this->account->count($vendorId),
+            'unprinted' => $this->account->unprinted($vendorId),
+            'total' => $this->account->count($vendorId),
             'labelStock' => $this->mall->getLabelStock(),
             'stocks' => $this->catalog->choices(),
         ]);

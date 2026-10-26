@@ -55,9 +55,19 @@ final class VendorAccount
         return $this->inventory->count($vendorId);
     }
 
+    public function available(string $vendorId): int
+    {
+        return $this->inventory->available($vendorId);
+    }
+
     public function unsold(string $vendorId): int
     {
         return $this->inventory->unsold($vendorId);
+    }
+
+    public function unprinted(string $vendorId): int
+    {
+        return $this->inventory->unprinted($vendorId);
     }
 
     public function owns(string $vendorId, string $itemId): bool

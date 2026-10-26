@@ -76,7 +76,10 @@ $showBrand = ($showBrand ?? true) === true;
 /** @var string $payCreditNumber */
 /** @var string|null $notice */
 /** @var string|null $error */
-$open = $cart['ticket_id'] !== '' && $completed === null;
+/** @var list<array{id: string, draft_no: int, vendor_id: string, vendor_label: string, description: string, price_text: string, brand_id: string, brand_label: string, discount_kind: string, discount_value: string, attributes: array<string, array{id: string, label: string}>, missing: list<string>}> $drafts */
+$drafts = is_array($drafts ?? null) ? $drafts : [];
+$hasDrafts = $drafts !== [];
+$open = ($cart['ticket_id'] !== '' || $hasDrafts) && $completed === null;
 $locked = $completed !== null;
 $lines = $cart['lines'];
 $nonCashTender = false;
@@ -87,9 +90,10 @@ foreach ($tenders as $tender) {
     }
 }
 $owed = max(0, $remaining);
-$roundStep = $cart['rounding'] === '1' && $deposits === 0 ? 5 : 1;
-$cashFill = $roundStep === 5 ? CashRound::rounded($owed) : $owed;
-$cashAdjustment = $roundStep === 5 ? CashRound::adjustment($owed) : 0;
+$configured = (int) $cart['rounding'];
+$roundStep = $configured >= 1 && $deposits === 0 ? $configured : 0;
+$cashFill = $roundStep >= 1 ? CashRound::rounded($owed, $roundStep) : $owed;
+$cashAdjustment = $roundStep >= 1 ? CashRound::adjustment($owed, $roundStep) : 0;
 $showCashDue = $open && !$nonCashTender && $cashAdjustment !== 0;
 $cashRoundText = $cashAdjustment > 0 ? '+' . View::money($cashAdjustment) : View::money($cashAdjustment);
 $ask = [
@@ -149,7 +153,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php if ($locked): ?>
                 <button class="btn" type="button" data-open-modal="sale-completed">Sale completed</button>
             <?php endif; ?>
-            <?php if ($lines === []): ?>
+            <?php if ($lines === [] && !$hasDrafts): ?>
                 <p class="muted"><?php if ($locked): ?>Scan and Instant inventory stay locked until you start a new sale.<?php else: ?>Cart is empty. Scan a barcode, search by code, or use <strong>Instant inventory</strong>.<?php endif; ?></p>
             <?php else: ?>
                 <div class="table-wrap">
@@ -165,6 +169,51 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                             </tr>
                         </thead>
                         <tbody>
+                            <?php foreach ($drafts as $draft): ?>
+                                <?php
+                                $missingLabels = [];
+                                foreach ($draft['missing'] as $field) {
+                                    $missingLabels[] = match ($field) {
+                                        'vendor' => 'vendor',
+                                        'description' => 'description',
+                                        'price' => 'price',
+                                        default => $field,
+                                    };
+                                }
+                                $missingText = implode(', ', $missingLabels);
+                                ?>
+                                <tr class="register-draft">
+                                    <td class="register-item">
+                                        <p><?= View::text($draft['description'] !== '' ? $draft['description'] : '—') ?></p>
+                                        <p class="ticket-meta"><?= View::text($draft['vendor_label'] !== '' ? $draft['vendor_label'] : '—') ?></p>
+                                        <p><span class="badge badge-danger">MISSING</span> <span class="muted text-sm"><?= View::text($missingText) ?></span></p>
+                                    </td>
+                                    <td class="register-qty-col muted">1</td>
+                                    <td class="register-price-col muted"><?= View::text($draft['price_text'] !== '' ? $draft['price_text'] : '—') ?></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td class="row gap-2">
+                                        <button
+                                            class="btn btn-sm btn-primary"
+                                            type="button"
+                                            data-open-modal="instant-add"
+                                            data-draft-no="<?= View::text((string) $draft['draft_no']) ?>"
+                                            data-draft-vendor-id="<?= View::text($draft['vendor_id']) ?>"
+                                            data-draft-vendor-label="<?= View::text($draft['vendor_label']) ?>"
+                                            data-draft-description="<?= View::text($draft['description']) ?>"
+                                            data-draft-price="<?= View::text($draft['price_text']) ?>"
+                                            data-draft-brand-id="<?= View::text($draft['brand_id']) ?>"
+                                            data-draft-brand-label="<?= View::text($draft['brand_label']) ?>"
+                                            data-draft-discount-kind="<?= View::text($draft['discount_kind']) ?>"
+                                            data-draft-discount-value="<?= View::text($draft['discount_value']) ?>"
+                                        >Complete</button>
+                                        <form method="post" action="/<?= View::text($slug) ?>/pos/draft/<?= View::text((string) $draft['draft_no']) ?>/remove">
+                                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                            <button class="btn btn-sm" type="submit">Remove</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
                             <?php foreach ($lines as $line): ?>
                                 <tr>
                                     <td class="register-item">
@@ -291,7 +340,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <button class="btn btn-primary btn-block" type="button" disabled>Enter payment</button>
             <?php endif; ?>
             <?php if ($open): ?>
-                <button class="btn btn-primary btn-block register-complete" type="submit" form="pos-pay"<?= $lines === [] || $remaining > 0 ? ' disabled' : '' ?>>Finish sale</button>
+                <button class="btn btn-primary btn-block register-complete" type="submit" form="pos-pay"<?= $lines === [] || $hasDrafts || $remaining > 0 ? ' disabled' : '' ?>>Finish sale</button>
             <?php elseif ($locked): ?>
                 <button class="btn btn-primary btn-block register-complete" type="button" disabled>Finish sale</button>
             <?php endif; ?>
@@ -416,13 +465,15 @@ $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false
         </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <input type="hidden" id="instant_draft_no" name="draft_no" value="">
+            <p class="muted text-sm">Leave a field blank to put a MISSING line on the ticket. Finish those lines before pay.</p>
             <p class="error" id="instant-error" role="alert"<?= $instantError === '' ? ' hidden' : '' ?>><?= View::text($instantError) ?></p>
             <?php if ($instantAdded): ?>
                 <p class="alert alert-success" role="status">Item added to cart.</p>
             <?php endif; ?>
             <div class="field combo">
                 <label for="instant_vendor">Consignor</label>
-                <input class="input" id="instant_vendor" name="vendor_label" value="<?= View::text($instantVendorLabel) ?>" autocomplete="off" required placeholder="<?= !empty($consignmentOnly) ? 'Name or consignor number' : 'Name or vendor number' ?>"<?= ($openInstant && !$instantPriceError) ? ' autofocus' : '' ?>>
+                <input class="input" id="instant_vendor" name="vendor_label" value="<?= View::text($instantVendorLabel) ?>" autocomplete="off" placeholder="<?= !empty($consignmentOnly) ? 'Name or consignor number' : 'Name or vendor number' ?>"<?= ($openInstant && !$instantPriceError) ? ' autofocus' : '' ?>>
                 <input type="hidden" id="instant_vendor_id" name="vendor_id" value="<?= View::text($instantVendorId) ?>">
                 <div class="suggest" id="instant-vendor-suggest" hidden></div>
                 <p class="muted text-sm" id="instant-vendor-hint" hidden></p>
@@ -430,11 +481,11 @@ $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false
             </div>
             <div class="field">
                 <label for="instant_description">Description</label>
-                <input class="input" id="instant_description" name="description" value="<?= View::text($instantDescription) ?>" required placeholder="Short description for tags and receipt">
+                <input class="input" id="instant_description" name="description" value="<?= View::text($instantDescription) ?>" placeholder="Short description for tags and receipt">
             </div>
             <div class="field">
                 <label for="instant_price">Price</label>
-                <input class="input" id="instant_price" name="price" value="<?= View::text($instantPrice) ?>" inputmode="decimal" required<?= $instantPriceError ? ' aria-invalid="true" aria-describedby="instant-error" autofocus' : '' ?>>
+                <input class="input" id="instant_price" name="price" value="<?= View::text($instantPrice) ?>" inputmode="decimal"<?= $instantPriceError ? ' aria-invalid="true" aria-describedby="instant-error" autofocus' : '' ?>>
             </div>
             <div class="field">
                 <label for="instant_discount_kind">Line discount</label>

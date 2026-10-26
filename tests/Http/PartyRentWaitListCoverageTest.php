@@ -36,12 +36,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         self::assertLessThan(500, $gone->status);
         self::assertSees('that booth is not in this mall', $gone);
         $rate = $this->client->post('/' . self::SLUG . '/rates', ['booth_id' => 'not-a-booth', 'amount' => '10.00']);
-        self::assertLessThan(500, $rate->status);
-        self::assertTrue(
-            str_contains($rate->body, 'that booth is not in this mall')
-            || str_contains($rate->body, 'invalid input syntax')
-            || HtmlPage::error($rate->body) !== ''
-        );
+        self::assertSees('that booth is not in this mall', $rate);
         $blankRate = $this->client->post('/' . self::SLUG . '/rates', [
             'booth_id' => self::MISSING,
             'amount' => '',
@@ -312,7 +307,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         $waive = $this->client->post('/' . self::SLUG . '/rent/waive', []);
         self::assertSees('Choose a late fee.', $waive);
         $collect = $this->client->get('/' . self::SLUG . '/rent/collect');
-        self::assertSees('a rent receipt cannot exceed the open rent', $collect);
+        self::assertSees('Choose who is paying rent.', $collect);
         $chargePrepaid = $this->client->post('/' . self::SLUG . '/rent/charge', [
             'booth_id' => $boothId,
             'posting_date' => '2026-10-01',
@@ -334,6 +329,86 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
             || str_contains($deleted->body, 'That vendor still has inventory.')
             || HtmlPage::error($deleted->body) !== ''
         );
+    }
+
+    public function testAssignmentRentChangeAndTimeline(): void
+    {
+        $tag = bin2hex(random_bytes(3));
+        $this->saveMoney(false);
+        $vendor = $this->client->post('/' . self::SLUG . '/vendors', [
+            'code' => 'h' . $tag,
+            'first_name' => 'Hal',
+            'last_name' => $tag,
+        ]);
+        self::assertSees('Vendor created.', $vendor);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', 'h' . $tag);
+        $booth = $this->client->post('/' . self::SLUG . '/booths', [
+            'code' => 'rh' . $tag,
+            'name' => 'History ' . $tag,
+            'amount' => '50.00',
+        ]);
+        self::assertSees('Booth created.', $booth);
+        $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', 'rh' . $tag);
+        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
+            'booth_id' => $boothId,
+            'vendor_id' => $vendorId,
+            'starts_on' => '2026-01-01',
+            'ends_on' => '',
+            'rent' => '50.00',
+        ]);
+        self::assertSees('Booth assigned.', $assigned);
+        $page = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
+        self::assertSees('Change rent', $page);
+        self::assertSame(1, preg_match(
+            '#action="/' . self::SLUG . '/assignments/([0-9a-fA-F-]{36})/rent"#',
+            $page->body,
+            $rentForm
+        ));
+        $changed = $this->client->post('/' . self::SLUG . '/assignments/' . $rentForm[1] . '/rent', [
+            'rent' => '65.00',
+            'starts_on' => '2026-04-01',
+        ]);
+        self::assertSees('Rent rate saved.', $changed);
+        $again = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
+        self::assertSees('$65.00', $again);
+        self::assertSees('01-01-2026', $again);
+        self::assertSees('$50.00', $again);
+        self::assertSees('04-01-2026', $again);
+        $future = $this->client->post('/' . self::SLUG . '/assignments/' . $rentForm[1] . '/rent', [
+            'rent' => '80.00',
+            'starts_on' => '2027-01-01',
+        ]);
+        self::assertSees('Rent rate saved.', $future);
+        $asOf = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
+        self::assertSees('$65.00', $asOf);
+        self::assertSees('$80.00', $asOf);
+        self::assertSees('01-01-2027', $asOf);
+        $check = $this->client->get('/' . self::SLUG . '/vendor?as=' . $vendorId);
+        self::assertSees('Your check', $check);
+        self::assertSees('$65.00', $check);
+        self::assertStringNotContainsString('$80.00', $check->body);
+        $oldCharge = $this->client->post('/' . self::SLUG . '/rent/charge', [
+            'booth_id' => $boothId,
+            'posting_date' => '2026-03-01',
+        ], 120);
+        self::assertSees('Rent charged.', $oldCharge);
+        $newCharge = $this->client->post('/' . self::SLUG . '/rent/charge', [
+            'booth_id' => $boothId,
+            'posting_date' => '2026-04-01',
+        ], 120);
+        self::assertSees('Rent charged.', $newCharge);
+        $payouts = $this->client->get('/' . self::SLUG . '/payouts');
+        self::assertSame(200, $payouts->status);
+        $dup = $this->client->post('/' . self::SLUG . '/assignments/' . $rentForm[1] . '/rent', [
+            'rent' => '70.00',
+            'starts_on' => '2026-04-01',
+        ]);
+        self::assertSees('That stay already has a rent rate on that date.', $dup);
+        $before = $this->client->post('/' . self::SLUG . '/assignments/' . $rentForm[1] . '/rent', [
+            'rent' => '70.00',
+            'starts_on' => '2025-12-01',
+        ]);
+        self::assertSees('The effective date cannot be before the stay starts.', $before);
     }
 
     public function testRentCollectWaiveAndPrepaidOwing(): void

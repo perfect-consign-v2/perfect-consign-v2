@@ -1,7 +1,8 @@
--- Session A. Commits a new rate while the charge is waiting.
+-- Session A. Holds the stay the rent-charge assert locks, then rolls back.
 BEGIN;
-UPDATE assignment_rent
-SET amount_minor = 20000
-WHERE assignment_id = '01900000-0000-7000-8000-00000000d401';
+SELECT id
+FROM booth_assignments
+WHERE id = '01900000-0000-7000-8000-00000000d401'
+FOR UPDATE;
 SELECT pg_sleep(6);
-COMMIT;
+ROLLBACK;

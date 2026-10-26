@@ -17,6 +17,7 @@ final class PayoutSingle
         private readonly PayoutDisburser $disburser,
         private readonly PayoutRunLines $lines,
         private readonly PayoutReverser $reverser,
+        private readonly VendorClawback $clawback,
     ) {
     }
 
@@ -24,11 +25,15 @@ final class PayoutSingle
     {
         $journalId = '';
         $this->statements->transaction(function () use ($vendorId, $postingDate, &$journalId): void {
+            $applied = $this->clawback->apply($vendorId, $postingDate, bin2hex(random_bytes(8)));
             $quoted = $this->payouts->quotedRun($vendorId, $postingDate);
             if ($quoted === null || ($quoted['settled'] <= 0 && $quoted['check'] <= 0)) {
                 throw new DatabaseRefusal('a payout clears a positive open payable or open rent receivable');
             }
             $runId = $this->beginSingle($postingDate, $quoted['run_id']);
+            if ($applied !== '') {
+                $this->lines->link($runId, $applied, 'clawback_apply');
+            }
             foreach ($this->settler->chargeMissing($quoted['run_id'], $vendorId) as $rentId) {
                 $this->lines->link($runId, $rentId, 'rent_charge');
             }

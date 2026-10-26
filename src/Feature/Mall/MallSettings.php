@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Company\CompanyStore;
+use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -83,14 +84,14 @@ final class MallSettings
         return RowValue::integer($days);
     }
 
-    public function cashRoundNickel(): bool
+    public function cashRoundMinor(): int
     {
-        return MallGuard::flag($this->row()['cash_round_nickel'] ?? null);
+        return RowValue::integer($this->row()['cash_round_minor'] ?? 0);
     }
 
     public function getCashRoundText(): string
     {
-        return $this->cashRoundNickel() ? '1' : '';
+        return (string) $this->cashRoundMinor();
     }
 
 
@@ -243,8 +244,9 @@ final class MallSettings
         MallGuard::requireTake($storeTake);
         MallGuard::requireTax($taxRate);
         MallGuard::guardDays($floorDays);
+        $step = CashRound::parse($cashRound);
         $this->statements->change(
-            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_nickel = ?::boolean, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean, use_brand = ?::boolean',
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_minor = ?, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean, use_brand = ?::boolean',
             [
                 $timeZone,
                 $write->boothWidth,
@@ -253,7 +255,7 @@ final class MallSettings
                 $write->floorDepth,
                 $storeTake,
                 $floorDays,
-                $cashRound === '1' ? 'true' : 'false',
+                $step,
                 $taxRate,
                 ...$write->flags->stored(),
             ]
@@ -266,7 +268,7 @@ final class MallSettings
     private function row(): array
     {
         $rows = $this->statements->rows(
-            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_nickel, tax_bps, use_color, use_category, use_size, use_condition, use_department, use_brand, label_stock, booth_rentals_enabled, rent_cycle_day, consignment_enabled, store_stock_enabled, receipt_footer, operating_mode FROM mall'
+            'SELECT time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, cash_round_minor, tax_bps, use_color, use_category, use_size, use_condition, use_department, use_brand, label_stock, booth_rentals_enabled, rent_cycle_day, consignment_enabled, store_stock_enabled, receipt_footer, operating_mode FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {

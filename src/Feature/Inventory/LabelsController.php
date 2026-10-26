@@ -46,6 +46,7 @@ final class LabelsController
         foreach ($this->items->forLabels($job['ids']) as $row) {
             $items[] = $this->item($row, $store);
         }
+        $this->items->markStickersPrinted($job['ids']);
 
         return $this->sheets->compose($job['stock'], $items, $job['copies'], $job['row'], $job['column']);
     }

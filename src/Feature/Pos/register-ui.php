@@ -254,9 +254,7 @@ if (instantForm) {
         const discount = document.getElementById('instant_discount_value');
         let problem = '';
         let field = price;
-        if (price && price.value.trim() === '') {
-            problem = 'Enter a price.';
-        } else if (price) {
+        if (price && price.value.trim() !== '') {
             problem = instantAmount(price.value);
         }
         if (problem === '' && kind && discount && (kind.value === 'percent' || kind.value === 'flat')) {

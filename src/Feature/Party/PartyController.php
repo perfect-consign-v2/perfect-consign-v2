@@ -9,6 +9,7 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\Money;
 
 final class PartyController
 {
@@ -261,6 +262,21 @@ final class PartyController
         });
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/assignments/([0-9a-fA-F-]{36})/rent', ['POST'])]
+    public function changeRent(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $vendorId = $this->vendorOf($id);
+        $this->attempt($slug, $vendorId, 'Rent rate saved.', function () use ($id): void {
+            $this->parties->changeRent(
+                $id,
+                $this->app->request()->field('starts_on'),
+                Money::parseMinor($this->app->request()->field('rent')),
+            );
+        });
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/vendors/([0-9a-fA-F-]{36})/move', ['POST'])]
     public function moveVendor(string $slug, string $id): void
     {
@@ -325,7 +341,8 @@ final class PartyController
     private function render(string $slug, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
-        $assembled = $this->roster->assemble($this->parties->vendorRows(), $this->mall->today());
+        $today = $this->mall->today();
+        $assembled = $this->roster->assemble($this->parties->vendorRows($today), $today);
         $query = $this->app->request()->query('q');
         $status = $this->roster->selected($this->app->request()->query('status'));
         $this->app->show('Feature/Party/parties', [

@@ -93,7 +93,8 @@ final class TicketStore
             $tax += $line['tax'];
         }
         $due = $merchandise - $discount + $tax;
-        $round = $mall['round'] === '1' ? CashRound::adjustment($due) : 0;
+        $step = (int) $mall['round'];
+        $round = $step >= 1 ? CashRound::adjustment($due, $step) : 0;
         $buyer = $this->buyers->current($ticketId);
 
         return [
@@ -216,7 +217,7 @@ final class TicketStore
      */
     private function mall(): array
     {
-        $rows = $this->statements->rows('SELECT tax_bps, cash_round_nickel FROM mall');
+        $rows = $this->statements->rows('SELECT tax_bps, cash_round_minor FROM mall');
         $row = $rows[0] ?? null;
         if (!is_array($row)) {
             throw new DatabaseRefusal('the mall has no clock');
@@ -224,7 +225,7 @@ final class TicketStore
 
         return [
             'tax' => RowValue::integer($row['tax_bps'] ?? null),
-            'round' => TicketFlag::on($row['cash_round_nickel'] ?? null) ? '1' : '',
+            'round' => (string) RowValue::integer($row['cash_round_minor'] ?? 0),
         ];
     }
 

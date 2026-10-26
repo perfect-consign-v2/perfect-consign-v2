@@ -21,6 +21,7 @@ final class PosPage
         private readonly SalePoster $poster,
         private readonly LayawayBook $layaways,
         private readonly PayoutStore $payouts,
+        private readonly TicketDrafts $drafts,
     ) {
     }
 
@@ -47,7 +48,9 @@ final class PosPage
     private function render(string $slug, ?string $error, bool $reopenInstant, ?string $giftError = null, ?string $payError = null, string $instantError = ''): void
     {
         $tenant = $this->app->open($slug, true);
-        $cart = $this->tickets->cart($this->gate->session($slug));
+        $session = $this->gate->session($slug);
+        $cart = $this->tickets->cart($session);
+        $drafts = $this->drafts->forSession($session);
         $tenders = $this->held->list($cart['ticket_id']);
         $applied = $this->layaways->balance($cart['ticket_id']);
         foreach ($tenders as $tender) {
@@ -65,6 +68,7 @@ final class PosPage
             'slug' => $tenant->slug,
             'showSearch' => false,
             'cart' => $cart,
+            'drafts' => $drafts,
             'tenders' => $tenders,
             'deposits' => $this->layaways->balance($cart['ticket_id']),
             'payments' => $this->layaways->payments($cart['ticket_id']),

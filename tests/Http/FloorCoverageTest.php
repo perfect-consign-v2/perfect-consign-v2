@@ -666,7 +666,7 @@ final class FloorCoverageTest extends WebTestCase
             'rent_cycle_day' => '1',
         ];
         if ($round) {
-            $fields['cash_round_nickel'] = '1';
+            $fields['cash_round_minor'] = '5';
         }
         $saved = $this->client->post('/' . self::SLUG . '/settings', $fields);
         self::assertSees('Settings saved.', $saved);

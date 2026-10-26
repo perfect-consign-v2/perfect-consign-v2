@@ -14,7 +14,46 @@ final class InstantItem
         private readonly InventoryStore $items,
         private readonly TicketStore $tickets,
         private readonly TicketLines $lines,
+        private readonly TicketDrafts $drafts,
     ) {
+    }
+
+    /**
+     * @return 'added'|'draft'
+     */
+    public function stage(string $session, string $today, InstantAdd $item, string $vendorLabel): string
+    {
+        $missing = $this->drafts->missingFields($item->vendorId, $item->description, $item->price);
+        if ($missing !== []) {
+            $this->drafts->park(
+                $session,
+                $item->vendorId,
+                $vendorLabel,
+                trim($item->description),
+                trim($item->price),
+                trim($item->brand->id),
+                trim($item->brand->label),
+                $item->discountKind,
+                $item->discountValue,
+                $item->attributes,
+            );
+
+            return 'draft';
+        }
+        $this->add($session, $today, $item);
+
+        return 'added';
+    }
+
+    public function complete(string $session, string $today, int $draftNo, InstantAdd $item): void
+    {
+        $this->add($session, $today, $item);
+        $this->drafts->remove($session, $draftNo);
+    }
+
+    public function discardDraft(string $session, int $draftNo): void
+    {
+        $this->drafts->remove($session, $draftNo);
     }
 
     public function add(string $session, string $today, InstantAdd $item): void

@@ -28,13 +28,17 @@ final class ItemListRows
             $expires = $item['expires_on'] ?? null;
             $brand = $item['brand_name'] ?? null;
             $item['deletable'] = is_string($id) && !isset($held[$id]);
+            $item['vendor_id'] = RowValue::optionalString($item['vendor_id'] ?? null) ?? '';
             $item['vendor_label'] = $this->catalog->label(
-                RowValue::string($item['vendor_code'] ?? null),
-                RowValue::string($item['vendor_name'] ?? null),
+                RowValue::optionalString($item['vendor_code'] ?? null) ?? '',
+                RowValue::optionalString($item['vendor_name'] ?? null) ?? '',
             );
-            $item['barcode'] = RowValue::string($item['barcode'] ?? null);
+            if ($item['vendor_label'] === '' && ($item['placement'] ?? '') === 'store') {
+                $item['vendor_label'] = 'Store stock';
+            }
+            $item['barcode'] = RowValue::optionalString($item['barcode'] ?? null) ?? '';
             $item['quantity'] = RowValue::integer($item['quantity'] ?? null);
-            $item['intake_on'] = RowValue::string($item['intake_on'] ?? null);
+            $item['intake_on'] = RowValue::optionalString($item['intake_on'] ?? null) ?? '';
             $item['expires_on'] = is_string($expires) ? $expires : '';
             $item['take_label'] = $this->take->format(RowValue::integer($item['take_bps'] ?? null));
             $item['overridden'] = ($item['commission_bps'] ?? null) !== null;

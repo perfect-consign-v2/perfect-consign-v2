@@ -28,6 +28,42 @@ document.querySelectorAll('[data-open-modal]').forEach(function (button) {
             }
             modal.hidden = false;
             if (modal.id === 'instant-add') {
+                const draftNo = document.getElementById('instant_draft_no');
+                const vendor = document.getElementById('instant_vendor');
+                const vendorId = document.getElementById('instant_vendor_id');
+                const description = document.getElementById('instant_description');
+                const price = document.getElementById('instant_price');
+                const brand = document.getElementById('instant_brand');
+                const brandId = document.getElementById('instant_brand_id');
+                const discountKind = document.getElementById('instant_discount_kind');
+                const discountValue = document.getElementById('instant_discount_value');
+                if (draftNo) {
+                    draftNo.value = button.getAttribute('data-draft-no') || '';
+                }
+                if (vendor) {
+                    vendor.value = button.getAttribute('data-draft-vendor-label') || vendor.value;
+                }
+                if (vendorId) {
+                    vendorId.value = button.getAttribute('data-draft-vendor-id') || vendorId.value;
+                }
+                if (description && button.hasAttribute('data-draft-description')) {
+                    description.value = button.getAttribute('data-draft-description') || '';
+                }
+                if (price && button.hasAttribute('data-draft-price')) {
+                    price.value = button.getAttribute('data-draft-price') || '';
+                }
+                if (brand && button.hasAttribute('data-draft-brand-label')) {
+                    brand.value = button.getAttribute('data-draft-brand-label') || '';
+                }
+                if (brandId && button.hasAttribute('data-draft-brand-id')) {
+                    brandId.value = button.getAttribute('data-draft-brand-id') || '';
+                }
+                if (discountKind && button.hasAttribute('data-draft-discount-kind')) {
+                    discountKind.value = button.getAttribute('data-draft-discount-kind') || 'consignor_default';
+                }
+                if (discountValue && button.hasAttribute('data-draft-discount-value')) {
+                    discountValue.value = button.getAttribute('data-draft-discount-value') || '';
+                }
                 const consignor = document.getElementById('instant_vendor');
                 if (consignor) {
                     consignor.focus();

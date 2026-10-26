@@ -132,7 +132,7 @@ final class MallController
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
         }
-        $this->postedCashRound = $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '';
+        $this->postedCashRound = $this->postedRound();
         $this->postedTaxRate = $taxRate;
         $this->postedCatalogs = [
             'use_color' => $this->app->request()->field('use_color') === '1',
@@ -215,7 +215,7 @@ final class MallController
                 MallWrite::posted($width, $depth, $floorWidth, $floorDepth, $this->requestFlags()),
                 $this->mall->storeTake(),
                 $days,
-                $this->mall->cashRoundNickel() ? '1' : '',
+                $this->mall->getCashRoundText(),
                 $this->mall->taxRate(),
             );
             $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
@@ -346,7 +346,7 @@ final class MallController
                 ),
                 $storeTake,
                 $floorDays,
-                $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
+                $this->postedRound(),
                 $taxRate,
             );
             $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
@@ -428,5 +428,12 @@ final class MallController
             ],
             'error' => $error,
         ]);
+    }
+
+    private function postedRound(): string
+    {
+        $raw = $this->app->request()->field('cash_round_minor');
+
+        return $raw === '' ? '0' : $raw;
     }
 }

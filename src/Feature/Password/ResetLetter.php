@@ -59,19 +59,18 @@ final class ResetLetter
     private function send(string $to, string $subject, string $body, ?array $gmail): bool
     {
         $file = getenv('STALL_MAIL_FILE');
-        if ($gmail === null || (is_string($file) && $file !== '')) {
-            $this->mail->send($to, $subject, $body);
-
-            return true;
-        }
         try {
-            (new SmtpClient(
-                $gmail['host'],
-                $gmail['port'],
-                $gmail['username'],
-                $gmail['password'],
-                $gmail['from'],
-            ))->send($to, $subject, $body);
+            if ($gmail === null || (is_string($file) && $file !== '')) {
+                $this->mail->deliver($to, $subject, $body);
+            } else {
+                (new SmtpClient(
+                    $gmail['host'],
+                    $gmail['port'],
+                    $gmail['username'],
+                    $gmail['password'],
+                    $gmail['from'],
+                ))->send($to, $subject, $body);
+            }
         } catch (\Throwable $error) {
             $this->logger->error('reset mail was refused', ['message' => $error->getMessage()]);
 

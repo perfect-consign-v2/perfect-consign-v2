@@ -197,7 +197,7 @@ final class ItemWriterTest extends TestCase
             'floor_depth_ft' => 40,
             'commission_bps' => 5000,
             'floor_days' => 1,
-            'cash_round_nickel' => false,
+            'cash_round_minor' => 0,
             'tax_bps' => 0,
             'use_color' => $listsOn,
             'use_category' => $listsOn,

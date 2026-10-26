@@ -235,7 +235,7 @@ WHERE journal.source_type IN (
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
-UPDATE mall SET tax_bps = 0, cash_round_nickel = true;
+UPDATE mall SET tax_bps = 0, cash_round_minor = 5;
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
 VALUES (

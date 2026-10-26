@@ -68,19 +68,18 @@ final class RentCycle
         ];
     }
 
-    public function amount(int $monthly, ?int $override, string $startsOn, string $postingDate): int
+    public function amount(int $monthly, string $startsOn, string $postingDate): int
     {
         if ($this->day === 1) {
-            return MoveInRent::charge($monthly, $override, $startsOn, substr($postingDate, 0, 7));
+            return MoveInRent::charge($monthly, $startsOn, substr($postingDate, 0, 7));
         }
-        $base = $override ?? $monthly;
         $start = $this->start($postingDate);
         $end = $this->end($start);
         if ($startsOn <= $start || $startsOn > $end) {
-            return $base;
+            return $monthly;
         }
 
-        return intdiv($this->span($startsOn, $end) * $base, $this->span($start, $end));
+        return intdiv($this->span($startsOn, $end) * $monthly, $this->span($start, $end));
     }
 
     /**

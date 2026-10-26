@@ -33,7 +33,7 @@ VALUES (
     0
 );
 
-UPDATE mall SET tax_bps = 0, cash_round_nickel = false;
+UPDATE mall SET tax_bps = 0, cash_round_minor = 0;
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,

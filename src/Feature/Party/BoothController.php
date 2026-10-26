@@ -107,6 +107,11 @@ final class BoothController
         $this->app->checkCsrf();
         $id = $this->app->request()->field('booth_id');
         $this->app->open($slug, true);
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            $this->list($slug, 'that booth is not in this mall');
+
+            return;
+        }
         $error = null;
         try {
             $amount = $this->askingAmount();
@@ -119,12 +124,13 @@ final class BoothController
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
-        if ($error === null && preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1) {
+        if ($error === null) {
             $this->app->redirect('/' . $slug . '/booths/' . $id . '/edit', 'Asking rent saved.');
         }
-        $booth = preg_match('/^[0-9a-fA-F-]{36}$/', $id) === 1 ? $this->booths->findBooth($id) : null;
+        $booth = $this->booths->findBooth($id);
         if ($booth === null) {
             $this->list($slug, $error ?? 'that booth is not in this mall');
+
             return;
         }
         $this->form($slug, $booth, $error);

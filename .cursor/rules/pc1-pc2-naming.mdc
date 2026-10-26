@@ -1,0 +1,31 @@
+---
+description: Name live Perfect Consign vs this repo (PC1 / PC2); EMP is archival
+alwaysApply: true
+---
+
+# PC1, PC2, and EMP
+
+Use these names in chat, plans, commits, and docs. Do not invent synonyms.
+
+| Name | What it is | Paths |
+|------|------------|--------|
+| **PC1** | Live Perfect Consign (production / Consigngold stack) | `C:\laragon\www\curser-pos-specs`, `curser-pos-web`, `curser-pos-admin`. Prod DB / `PC_DB_*` / Laragon **5432** when authorized. |
+| **PC2** | This project — the greenfield ledger + mall (workspace root) | `C:\laragon\www\perfect-consign`. Docker Postgres **5436**, DB `consign`. Internal schema nickname **Stall** may still appear in SQL/roles; customers never see it. Prefer **PC2** in prose. |
+| **EMP** | Archived experiment / Nest mall prototype | `C:\laragon\www\emp`. Not a product destination. Not a second source of truth. |
+
+## Rules
+
+- **This workspace is PC2.** Edits belong here unless the operator explicitly names PC1 or EMP paths in that message.
+- Say **PC1** for the live storefront/API tenants (Becca, etc.). Say **PC2** for this repo’s schema, proofs, screens, and cutover target.
+- **Do not call PC2 “Perfect Consign” alone** when PC1 could be meant. Prefer “PC2” or “PC2 (perfect-consign).”
+- **Do not treat EMP as living product truth.** Steal lists and competitor forensics live under PC2 `docs/`. Open EMP only when the operator asks for a one-off read of something not yet absorbed.
+- A **tenant move** means PC1 → PC2 (or competitor → PC2). It must not be a books or Saturday-ops downgrade relative to PC1 for that mall’s signed must-ship list.
+- Parent isolation rules still apply: do not write PC1 or EMP trees from a PC2 chat unless this message authorizes that path.
+
+## Short forms
+
+```text
+PC1  = live Perfect Consign (curser-pos-*)
+PC2  = this repo (perfect-consign / Stall DB)
+EMP  = archived; absorb then stop citing
+```

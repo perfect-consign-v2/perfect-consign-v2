@@ -3,7 +3,7 @@
 
 BEGIN;
 
-UPDATE mall SET tax_bps = 0, commission_bps = 4000, cash_round_nickel = false;
+UPDATE mall SET tax_bps = 0, commission_bps = 4000, cash_round_minor = 0;
 
 INSERT INTO vendors (id, code, first_name, last_name, commission_bps)
 VALUES ('01900000-0000-7000-8000-000000000e10', 'bulk', 'Ada', 'Bulk', 4000);

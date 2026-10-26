@@ -437,7 +437,7 @@ final class MallDemo
         $this->useMall();
         $this->note( "2026-10\n");
         $this->roundCash = true;
-        $this->statements->change('UPDATE mall SET cash_round_nickel = true', []);
+        $this->statements->change('UPDATE mall SET cash_round_minor = 5', []);
         $session = $this->openDrawer('2026-10-01');
         $this->chargeAndCollect($session, 'C-2', '2026-10-01');
         $this->chargeAndCollect($session, 'E-1', '2026-10-01');
@@ -802,7 +802,7 @@ final class MallDemo
     {
         $cart = $this->tickets->cart($sessionId);
         $due = $cart['due'];
-        $roundOn = !$card && $check === null && $this->roundCash ? 1 : 0;
+        $roundOn = !$card && $check === null && $this->roundCash ? 5 : 0;
         $account = $check !== null ? 'checks' : ($card ? 'card' : 'cash');
         $cash = $card || $check !== null ? 0 : $due;
         $this->poster->pay($sessionId, $date, $roundOn, $cart, [
@@ -810,7 +810,7 @@ final class MallDemo
             'sum' => $due,
             'check' => $check,
             'cash' => $cash,
-        ], $cash > 0 ? ($roundOn === 1 ? CashRound::rounded($due) : $due) : null);
+        ], $cash > 0 ? ($roundOn >= 1 ? CashRound::rounded($due, $roundOn) : $due) : null);
     }
 
     private function shelfBarcode(string $vendor): string

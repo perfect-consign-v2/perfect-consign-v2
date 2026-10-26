@@ -54,7 +54,7 @@ final class ReceiptChange
     private function settled(int $due, int $sum, int $cash, int $roundOn): void
     {
         $cashOnly = $cash > 0 && $cash === $sum;
-        $settled = $roundOn === 1 && $cashOnly ? CashRound::rounded($due) : $due;
+        $settled = $roundOn >= 1 && $cashOnly ? CashRound::rounded($due, $roundOn) : $due;
         if ($sum !== $due && $sum !== $settled) {
             throw new DatabaseRefusal('the tenders must add up to the amount due');
         }
@@ -65,7 +65,7 @@ final class ReceiptChange
         if ($handed === null || $cash < 1) {
             return;
         }
-        $cashDue = $roundOn === 1 ? $cash + CashRound::adjustment($cash) : $cash;
+        $cashDue = $roundOn >= 1 ? $cash + CashRound::adjustment($cash, $roundOn) : $cash;
         if ($handed < $cashDue) {
             throw new DatabaseRefusal('the cash received is less than the cash due');
         }

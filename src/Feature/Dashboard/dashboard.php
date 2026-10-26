@@ -56,7 +56,7 @@ $blank = '—';
         <div class="stat-value"><?= View::text($picture['shelf']['value']) ?></div>
     </div>
     <div class="stat">
-        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-alert"></use></svg> Not for sale</div>
+        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-alert"></use></svg> Qty 0</div>
         <div class="stat-value"><?= View::text((string) $picture['shelf']['unsold']) ?></div>
     </div>
 </div>

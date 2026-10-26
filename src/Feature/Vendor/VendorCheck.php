@@ -220,10 +220,21 @@ final class VendorCheck
                     rate.amount_minor
              FROM booth_assignments AS assignment
              JOIN booths AS booth ON booth.id = assignment.booth_id
-             LEFT JOIN assignment_rent AS rate ON rate.assignment_id = assignment.id
+             LEFT JOIN LATERAL (
+                 SELECT history.amount_minor
+                 FROM assignment_rent_rates AS history
+                 WHERE history.assignment_id = assignment.id
+                   AND history.starts_on <= CASE
+                       WHEN assignment.starts_on > ?::date THEN assignment.starts_on
+                       WHEN assignment.ends_on IS NOT NULL AND assignment.ends_on < ?::date THEN assignment.ends_on
+                       ELSE ?::date
+                   END
+                 ORDER BY history.starts_on DESC
+                 LIMIT 1
+             ) AS rate ON true
              WHERE assignment.vendor_id = ?::uuid
              ORDER BY assignment.starts_on DESC",
-            [$vendorId]
+            [$today, $today, $today, $vendorId]
         ) as $row) {
             $starts = RowValue::string($row['starts_on'] ?? null);
             $ends = RowValue::optionalString($row['ends_on'] ?? null);

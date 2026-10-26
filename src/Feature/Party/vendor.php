@@ -10,10 +10,12 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $today */
-/** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, email_bounced: bool, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, check_minor: int, owes_minor: int, settled_minor: int, rent_from_sales: bool, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>} $vendor */
+/** @var array{id: string, code: string, name: string, first_name: string, last_name: string, phone: string, email: string, email_bounced: bool, address: string, status_label: string, status_badge: string, store_take: string, default_store_take: string, store_take_overridden: bool, agreement_starts_on: string, agreement_ends_on: string, tax_id: string, notes: string, tax_exempt: bool, tax_exempt_number: string, payable_minor: int, rent_minor: int, check_minor: int, owes_minor: int, settled_minor: int, clawback_minor: int, rent_from_sales: bool, current: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, upcoming: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>, past: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>} $vendor */
 /** @var list<array{id: string, code: string, rent: string, available_on: string}> $booths */
 /** @var array{username: string, display_name: string, email: string}|null $signIn */
+/** @var array<string, list<array{starts_on: string, amount_minor: int}>> $rentHistories */
 
+$rentHistories ??= [];
 $sections = [
     'Current Booths' => $vendor['current'],
     'Upcoming Booths' => $vendor['upcoming'],
@@ -91,6 +93,12 @@ $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
             <div class="stat vendor-fig-pay">
                 <div class="stat-label">We pay them</div>
                 <div class="stat-value"><?= View::text(View::money(0)) ?></div>
+            </div>
+        <?php endif; ?>
+        <?php if (($vendor['clawback_minor'] ?? 0) > 0): ?>
+            <div class="stat vendor-fig-clawback">
+                <div class="stat-label">They owe us (returns)</div>
+                <div class="stat-value"><?= View::text(View::money($vendor['clawback_minor'])) ?></div>
             </div>
         <?php endif; ?>
     </div>
@@ -212,10 +220,31 @@ $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
                                         <?php endif; ?>
                                     </td>
                                     <td class="num">
+                                        <?php
+                                        $rates = $rentHistories[$assignment['id']] ?? [];
+                                        $openStay = $assignment['ends_on'] === '';
+                                        ?>
                                         <?php if ($assignment['rent_minor'] === null): ?>
                                             <?= $blank ?>
                                         <?php else: ?>
-                                            <?= View::text(View::money($assignment['rent_minor'])) ?>
+                                            <div><?= View::text(View::money($assignment['rent_minor'])) ?></div>
+                                        <?php endif; ?>
+                                        <?php if ($openStay): ?>
+                                            <form class="row-form stack" method="post" action="/<?= View::text($slug) ?>/assignments/<?= View::text($assignment['id']) ?>/rent">
+                                                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                                <label class="sr-only" for="rent-amount-<?= View::text($assignment['id']) ?>">New rent</label>
+                                                <input class="input" id="rent-amount-<?= View::text($assignment['id']) ?>" name="rent" inputmode="decimal" required placeholder="New rent">
+                                                <label class="sr-only" for="rent-starts-<?= View::text($assignment['id']) ?>">Effective date</label>
+                                                <input class="input" id="rent-starts-<?= View::text($assignment['id']) ?>" name="starts_on" type="date" required min="<?= View::text($assignment['starts_on']) ?>" value="<?= View::text($today) ?>">
+                                                <button class="btn btn-sm" type="submit">Change rent</button>
+                                            </form>
+                                        <?php endif; ?>
+                                        <?php if (count($rates) > 1 || ($rates !== [] && $openStay)): ?>
+                                            <ul class="muted text-sm stack">
+                                                <?php foreach ($rates as $rate): ?>
+                                                    <li><?= View::date($rate['starts_on']) ?> — <?= View::text(View::money($rate['amount_minor'])) ?></li>
+                                                <?php endforeach; ?>
+                                            </ul>
                                         <?php endif; ?>
                                     </td>
                                 </tr>

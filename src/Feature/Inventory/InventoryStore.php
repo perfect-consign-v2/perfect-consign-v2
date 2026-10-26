@@ -14,7 +14,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
 final class InventoryStore
 {
     private const string LIST = 'SELECT item.id, item.code, item.barcode, item.description, item.price_minor, item.quantity,
-                       item.vendor_id, item.commission_bps, item.intake_on, item.expires_on,
+                       item.vendor_id, item.placement, item.commission_bps, item.intake_on, item.expires_on,
                        vendor.code AS vendor_code, vendor.name AS vendor_name,
                        COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) AS take_bps,
                        brand.name AS brand_name,
@@ -52,8 +52,14 @@ final class InventoryStore
             $where[] = 'item.vendor_id = ?::uuid';
             $params[] = $vendorId;
         }
+        if ($stock === 'available') {
+            $where[] = 'item.quantity > 0';
+        }
         if ($stock === 'out') {
             $where[] = 'item.quantity = 0';
+        }
+        if ($stock === 'unprinted') {
+            $where[] = 'item.sticker_printed_at IS NULL';
         }
         $needle = strtolower(trim($query));
         if ($needle !== '') {
@@ -84,9 +90,41 @@ final class InventoryStore
         return $this->tally('', $vendorId);
     }
 
+    public function available(string $vendorId = ''): int
+    {
+        return $this->tally(' WHERE quantity > 0', $vendorId);
+    }
+
     public function unsold(string $vendorId = ''): int
     {
         return $this->tally(' WHERE quantity = 0', $vendorId);
+    }
+
+    public function unprinted(string $vendorId = ''): int
+    {
+        return $this->tally(' WHERE sticker_printed_at IS NULL', $vendorId);
+    }
+
+    /**
+     * @param list<string> $ids
+     */
+    public function markStickersPrinted(array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+        $marks = [];
+        $params = [];
+        foreach ($ids as $id) {
+            $marks[] = '?::uuid';
+            $params[] = $id;
+        }
+        $this->statements->change(
+            'UPDATE items SET sticker_printed_at = CURRENT_TIMESTAMP
+             WHERE id IN (' . implode(', ', $marks) . ')
+               AND sticker_printed_at IS NULL',
+            $params
+        );
     }
 
     /**
@@ -201,7 +239,7 @@ final class InventoryStore
                 return $stored;
             } catch (DatabaseRefusal $error) {
                 $refusal = $error;
-                if ($item->barcode !== '' || !str_contains($error->getMessage(), 'That barcode is already used.')) {
+                if ($item->barcode !== '' || $error->getMessage() !== DatabaseRefusal::BARCODE_USED) {
                     throw $error;
                 }
             }

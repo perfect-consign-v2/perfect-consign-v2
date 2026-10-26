@@ -78,7 +78,7 @@ final class VendorPortalTest extends WebTestCase
         $items = $vendor->get('/' . self::SLUG . '/vendor/inventory');
         self::assertSees('Your items', $items);
         self::assertSees('list-dt-filter', $items);
-        self::assertSees('Not for sale', $items);
+        self::assertSees('Qty 0', $items);
         self::assertMatchesRegularExpression('/' . preg_quote($ten['description'], '/') . '[\s\S]*?<td class="num">1<\/td>/', $items->body);
         self::assertMatchesRegularExpression('/' . preg_quote($twenty['description'], '/') . '[\s\S]*?<td class="num">0<\/td>/', $items->body);
         self::assertMatchesRegularExpression('/' . preg_quote($six['description'], '/') . '[\s\S]*?<td class="num">0<\/td>/', $items->body);

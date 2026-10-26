@@ -1,6 +1,8 @@
-# Business rules
+# Business rules (PC2)
 
-Rules the mall enforces. Add a rule here when it is decided. A rule stays in this list after the code that enforces it changes.
+Rules this mall (**PC2** / `perfect-consign`) enforces. Live Perfect Consign is **PC1**. EMP is archived — [naming.md](naming.md), [emp-to-pc2.md](emp-to-pc2.md).
+
+Add a rule here when it is decided. A rule stays in this list after the code that enforces it changes.
 
 ## Vendors
 
@@ -36,7 +38,7 @@ A rent charge for the period a vendor moves in counts the days from the start da
 
 ## Payouts
 
-A payout no longer clears payable and rent against cash. Close posts a settlement: the smaller of the open payable and the open rent, with no cash. A check, a drawer payment, or a payment from the safe is a later disbursement. A vendor with nothing open gets a report and no journal.
+A payout no longer clears payable and rent against cash. Close posts a settlement: the smaller of the open payable and the open rent, with no cash. A check, a drawer payment, or a payment from the safe is a later disbursement. A vendor with nothing open gets a report and no journal. Before settlement, close applies open vendor receivable (clawback) against open payable for that vendor — the smaller of the two — with no cash.
 
 A settled or paid run refuses a new journal dated inside its sales window. A reversal is dated after that window. Settlement, rent charged, checks already written, and rent paid in a later window are the net of those journals, reversals included. Two check disbursements cannot share a check number.
 
@@ -44,13 +46,15 @@ A vendor is pay, credit only, or hold. Credit only and hold are left out of a ru
 
 A vendor memo adds to what the mall owes that vendor, or subtracts from it, with a reason. It is dated before the next payout and shows on the statement. A debit may leave the payable below zero. Later sales pay that balance down before a check. While it is below zero the check is zero. The memo does not charge or pay booth rent. A draw, a check, and any other journal still cannot leave the payable below zero.
 
+Vendor receivable (clawback) is what that vendor owes the mall after a return or void when payable was already paid out. It is a control account by vendor. It cannot go below zero. A return after payout debits receivable for the shortfall (and payable only for what is still open). A void after payout first reclasses the shortfall onto receivable, then posts the exact reverse of the sale. The vendor screen shows “They owe us (returns)” when receivable is open.
+
 ## Inventory
 
 An item is one item. It has a tag, a barcode, a vendor, a description, an asking price, a quantity, and an intake date. The brand may be empty. The expire date may be empty. Quantity is how many are on hand. A new item defaults to 1. An edit may be 0, and then it cannot be sold.
 
 The tag is unique in the mall, ignoring case. A tag is at most 40 characters. The barcode is unique, ignoring case, and at most 100 characters. A blank barcode is filled with BC, the mall date, and a four-digit sequence. A description is at most 200 characters. The asking price is greater than zero.
 
-Stickers print that barcode. The mall remembers which stickers it uses: the 30-up sheet, the 50-up sheet, a hang tag, two hang tags across, or a jewelry tag. A print can pick another. A new sheet starts at row 1, column 1. A job stops at 240 stickers.
+Stickers print that barcode. The mall remembers which stickers it uses: the 30-up sheet, the 50-up sheet, a hang tag, two hang tags across, or a jewelry tag. A print can pick another. A new sheet starts at row 1, column 1. A job stops at 240 stickers. The first sticker preview for an item marks it printed. The items list shows All, Available (quantity on hand), Need stickers (never printed), and Qty 0 — each with a count. The selected filter is visible, and the page lead names what you are looking at.
 
 The asking price is the price on the item. It is not a journal. A sale still posts the amount entered on the sale. After a sale, that asking price and that consignor stay. A return pays the consignor on the item.
 
@@ -114,9 +118,9 @@ A gift certificate is sold for cash, card, or a check. That journal debits the t
 
 A ticket is the open cart on one register shift. It is not a journal. The shift has one open ticket. Scanning an item that is already on the open ticket adds one. Open, parked, and layaway tickets together cannot hold more than what is on hand. The sold price can change until pay. Pay posts the sale and freezes the ticket. Discard removes a ticket only before pay. Close is refused while that shift still has an open ticket.
 
-When the mall rounds cash to the nearest nickel, that round happens only when the sale is paid entirely in cash. The difference posts to cash rounding. It shows on the register once cash is the only payment, and on the receipt. Card, checks, stored value, and any mix of those with cash stay on the cent. Cash handed over above the rounded cash due is change. It is not a second tender, and the journal debits only the amount due.
+When the mall rounds cash to a chosen step (cent, nickel, dime, or quarter), that round happens only when the sale is paid entirely in cash. The difference posts to cash rounding. It shows on the register once cash is the only payment, and on the receipt. Card, checks, stored value, and any mix of those with cash stay on the cent. Cash handed over above the rounded cash due is change. It is not a second tender, and the journal debits only the amount due.
 
-Void from the receipt reverses the whole sale and frees every item. A second void is refused. A return is its own journal for one item. It reverses that item's discount share, store take, tax, and vendor payable, and credits one tender. That item can be sold again. The rest of the ticket stays sold.
+Void from the receipt reverses the whole sale and frees every item. A second void is refused. When the payable for that sale was already paid out, void first reclasses the shortfall to vendor receivable, then posts the exact reverse. A return is its own journal for one item. It reverses that item's discount share, store take, and tax, credits one tender, and reduces vendor payable only up to what is still open — any shortfall posts to vendor receivable. That item can be sold again. The rest of the ticket stays sold. The shopper is not blocked because payable was already cleared.
 
 Park takes the open ticket off the shift so close can finish. Recall puts it on the active shift. A parked ticket is not drawer cash. Two shifts cannot hold the same item. A parked ticket can be discarded. Its lines cannot be changed until it is recalled.
 
@@ -134,17 +138,49 @@ The day an item sells, the vendor gets a notice from the same net as the vendor 
 
 The owner can file one plain-text letter to every active consignor with a usable email, or to the ones they check. A missing address and a bounced address are left out. An inactive consignor is left off the list. The letter goes out on the mail run through the mailbox in Settings.
 
-A mall-wide sale has a start, an end, a percent, and who absorbs it. The register applies the event that covers today. Mall adds a store discount. Vendor adds a discount that reduces the vendor's price.
+A mall-wide sale has a start, an end, a percent, and who absorbs it. The percent cannot exceed 50. Two mall sales cannot overlap on dates. The register applies the event that covers today. Mall adds a store discount. Vendor adds a discount that reduces the vendor's price. Booth, check, and mall-sale posts record who posted them.
 
 A floor finding is a missing tag or an item that is not where the system says. A pickup records the person and the day the goods went back to the vendor.
 
-A booth charge beyond rent debits booth rent receivable and credits booth extras. A deposit collected at the desk debits cash and credits booth deposits. Year-to-date disbursements sit next to the vendor's tax id. The 1099 file waits for an accountant's field list.
+A booth charge beyond rent debits booth rent receivable and credits booth extras. A deposit collected at the desk debits cash and credits booth deposits. A deposit release cannot exceed the deposit still held for that booth. Year-to-date disbursements sit next to the vendor's tax id. The 1099 file waits for an accountant's field list.
 
-The vendor's accepted terms are who may discount, how long goods stay, and what happens at expiry.
+The assignment is the lease: the contracted rent is locked when the stay starts and holds until that stay ends. The rent-charge posting key stays one booth and one period. A mid-period move-in prorates. The deposit stays on the booth deposits account.
+
+The vendor's accepted terms are who may discount, how long goods stay (`keep_days`, a day count from 1 to 3650 when set), and what happens at expiry.
 
 A cashier's discount cannot pass the stored percent ceiling, and a tax-free sale cannot pass the stored tax-free ceiling, unless a second staff member signs as themselves and their ceiling covers it. A cashier void, waive, or payout needs that second signature. The audit row names that person. An owner does not need the second signature.
 
 A bounced check is a dated journal that debits returned checks and credits checks.
+
+## Late fees
+
+Late fees are a mall setting: on or off, grace days (0–28), a first fee amount, and an amount for each later fee. Turning them on records the effective date as that day. Fees start from that effective date, not from older unpaid history before the feature was enabled.
+
+A late fee posts as its own journal: debit that booth's rent receivable, credit late-fee income. It does not reduce vendor payable. A job posts due late fees. A waive is a reversal of that fee journal. A late fee that tries to hit vendor payable is refused.
+
+## Store use and missed sale
+
+A store use is the mall buying a consigned piece for the business, not for resale. It posts its own journal: expense the agreed price and credit that vendor's payable. Quantity on hand falls. It is not a sale and it does not take drawer cash.
+
+A missed sale pays the vendor their share and expenses that cost to the mall when goods left without a proper sale ticket. It posts through the ledger as `missed_sale`, not as a normal register sale.
+
+## Commission rules
+
+Beyond the item / vendor / mall default store-take path, commission rules can win by specificity, then priority, then price bounds. A posted sale line keeps the commission from the rule that was in force. An equal tie between rules is refused. An offline register snap may send a client commission; the post still uses the rule engine's take, not the client's figure.
+
+## Markdown queue
+
+A scheduled markdown can wait in a queue. The asking price changes when the re-tag is confirmed, not only when the day threshold is crossed. A parked ticket keeps the price it already captured. Changing a floor price needs an audit actor.
+
+## Vendor portal and offline sync
+
+A vendor portal session sees only the vendor named by `stall.vendor_id`. A missing setting, or another vendor's id, returns no rows.
+
+An offline register snap posts the captured sold price and collected tax when the drawer is open and the item still has quantity. Duplicate snaps, a closed period, a missing item, a closed drawer, and a second register taking the last unit are refused. `journal_no` stays empty until the post commits. A poster cannot rewrite or delete a posted snap.
+
+## Platform admin
+
+Platform `/admin` is for operators, not mall cashiers. An admin can sign in, reset a password, enter a store as owner or cashier, wipe a tenant, and read an append-only admin audit. Password-reset rows and admin audit events are append-only. A bad admin email is refused.
 
 ## Loyalty
 

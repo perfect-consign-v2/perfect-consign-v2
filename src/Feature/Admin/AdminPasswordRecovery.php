@@ -12,6 +12,8 @@ use Psr\Log\LoggerInterface;
 
 final class AdminPasswordRecovery
 {
+    public const MAIL_FAILED = 'the reset email could not be sent';
+
     public function __construct(
         private readonly PDO $pdo,
         private readonly AdminResetTokens $tokens,
@@ -37,8 +39,8 @@ final class AdminPasswordRecovery
         if ($row === null) {
             return;
         }
-        $this->audit->record($row['id'], $email, 'admin.password_reset_request', 'ok');
         $this->send($row, $origin);
+        $this->audit->record($row['id'], $email, 'admin.password_reset_request', 'ok');
     }
 
     public function available(string $token): bool
@@ -199,21 +201,21 @@ final class AdminPasswordRecovery
             . "If you did not ask, you can ignore this message.\n";
         $gmail = $this->platformMailbox();
         $file = getenv('STALL_MAIL_FILE');
-        if ($gmail === null || (is_string($file) && $file !== '')) {
-            $this->mail->send($row['email'], 'Reset your password', $body);
-
-            return;
-        }
         try {
-            (new SmtpClient(
-                $gmail['host'],
-                $gmail['port'],
-                $gmail['username'],
-                $gmail['password'],
-                $gmail['from'],
-            ))->send($row['email'], 'Reset your password', $body);
+            if ($gmail === null || (is_string($file) && $file !== '')) {
+                $this->mail->deliver($row['email'], 'Reset your password', $body);
+            } else {
+                (new SmtpClient(
+                    $gmail['host'],
+                    $gmail['port'],
+                    $gmail['username'],
+                    $gmail['password'],
+                    $gmail['from'],
+                ))->send($row['email'], 'Reset your password', $body);
+            }
         } catch (\Throwable $error) {
             $this->logger->error('admin reset mail was refused', ['message' => $error->getMessage()]);
+            throw new \RuntimeException(self::MAIL_FAILED, 0, $error);
         }
     }
 

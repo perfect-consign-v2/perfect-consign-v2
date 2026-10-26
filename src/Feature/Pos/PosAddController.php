@@ -29,10 +29,11 @@ final class PosAddController
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         $request = $this->app->request();
+        $draftNo = (int) $request->field('draft_no');
         try {
             $this->sales->refuse($slug);
             $today = $this->mall->today();
-            $this->instant->add($session, $today, new InstantAdd(
+            $add = new InstantAdd(
                 $request->field('vendor_id'),
                 $request->field('description'),
                 $request->field('price'),
@@ -42,7 +43,20 @@ final class PosAddController
                 $this->postedAttributes($request),
                 $request->field('discount_kind'),
                 $request->field('discount_value'),
-            ));
+            );
+            if ($draftNo > 0) {
+                $this->instant->complete($session, $today, $draftNo, $add);
+            } else {
+                $result = $this->instant->stage($session, $today, $add, $request->field('vendor_label'));
+                if ($result === 'draft') {
+                    $this->app->redirect(
+                        '/' . $slug . '/pos' . ($request->field('instant_action') === 'save_and_new' ? '?instant=1' : ''),
+                        'Incomplete line on the ticket.',
+                    );
+
+                    return;
+                }
+            }
         } catch (DatabaseRefusal $refusal) {
             $this->page->instant($slug, $this->app->catchRefusal($refusal));
 
@@ -54,6 +68,16 @@ final class PosAddController
         }
         $stay = $request->field('instant_action') === 'save_and_new';
         $this->app->redirect('/' . $slug . '/pos' . ($stay ? '?instant=1&added=1' : '?instant_added=1'));
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/pos/draft/([1-9][0-9]*)/remove', ['POST'])]
+    public function removeDraft(string $slug, string $draftNo): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $session = $this->gate->session($slug);
+        $this->instant->discardDraft($session, (int) $draftNo);
+        $this->app->redirect('/' . $slug . '/pos', 'Draft line removed.');
     }
 
     /**

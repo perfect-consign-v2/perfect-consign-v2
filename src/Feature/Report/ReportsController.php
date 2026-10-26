@@ -81,6 +81,29 @@ final class ReportsController
         $this->named($slug, 'Stored value', 'stored', $this->ledger->storedValue());
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/expiring', ['GET'])]
+    public function expiring(string $slug): void
+    {
+        $this->open($slug);
+        $this->named($slug, 'Expiring items', 'expiring', $this->ledger->expiring());
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/donated', ['GET'])]
+    public function donated(string $slug): void
+    {
+        $this->open($slug);
+        $bounds = $this->span();
+        $this->named($slug, 'Donated items', 'donated', $this->ledger->donated($bounds['from'], $bounds['to']));
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/sell-through', ['GET'])]
+    public function sellThrough(string $slug): void
+    {
+        $this->open($slug);
+        $bounds = $this->span();
+        $this->named($slug, 'Category sell-through', 'sell-through', $this->ledger->sellThrough($bounds['from'], $bounds['to']));
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/reports/build', ['GET'])]
     public function build(string $slug): void
     {
@@ -151,7 +174,7 @@ final class ReportsController
     {
         $bounds = $this->span();
         $grouped = $this->app->request()->query('group');
-        if (!in_array($grouped, ['day', 'tender', 'vendor', 'cashier'], true)) {
+        if (!in_array($grouped, ['day', 'tender', 'vendor', 'cashier', 'hour', 'category'], true)) {
             $grouped = 'day';
         }
 
@@ -196,8 +219,13 @@ final class ReportsController
     {
         $from = $this->app->request()->query('from');
         $to = $this->app->request()->query('to');
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) !== 1 || preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) !== 1 || $to < $from) {
+        $fromOk = preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) === 1;
+        $toOk = preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) === 1;
+        if (!$fromOk || !$toOk) {
             return $this->months->bounds(date('Y-m'));
+        }
+        if ($to < $from) {
+            $to = $from;
         }
 
         return ['from' => $from, 'to' => $to];

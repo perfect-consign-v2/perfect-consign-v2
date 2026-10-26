@@ -60,7 +60,7 @@ final class RentLines
 
     /**
      * @param array<string, mixed> $booth
-     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}> $stays
+     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
      * @param array<string, int> $rates
      * @param array<string, array{journalId: string, amount: int}> $charges
      * @param array<string, int> $open
@@ -119,7 +119,7 @@ final class RentLines
     }
 
     /**
-     * @param array{vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}|null $holder
+     * @param array{vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}|null $holder
      * @param array{journalId: string, amount: int}|null $charge
      * @return array{
      *   id: string,
@@ -150,20 +150,17 @@ final class RentLines
         $vendorId = null;
         $vendorName = null;
         $startsOn = null;
-        $override = null;
         $endsOn = null;
         if ($holder !== null) {
             $vendorId = $holder['vendorId'];
             $vendorName = $holder['vendorName'];
             $startsOn = $holder['startsOn'];
-            $override = $holder['override'];
             $endsOn = $holder['endsOn'];
         }
         $figure = RentFigure::posted(
             $rate,
             $startsOn,
             $endsOn,
-            $override,
             $span->month,
             $span->today,
             $span->day,
@@ -201,8 +198,8 @@ final class RentLines
     }
 
     /**
-     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}> $stays
-     * @return array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}|null
+     * @param list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}> $stays
+     * @return array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}|null
      */
     private function holder(array $stays, string $boothId, string $start, string $end): ?array
     {
@@ -233,7 +230,7 @@ final class RentLines
 
     /**
      * @param list<array<string, mixed>> $rows
-     * @return list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}>
+     * @return list<array{boothId: string, vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}>
      */
     private function stays(array $rows): array
     {
@@ -246,20 +243,10 @@ final class RentLines
                 'vendorName' => $this->text($row['vendor_name'] ?? null),
                 'startsOn' => $this->day($row['starts_on'] ?? null),
                 'endsOn' => $this->endDate($ends),
-                'override' => $this->override($row['override_minor'] ?? null),
             ];
         }
 
         return $stays;
-    }
-
-    private function override(mixed $amount): ?int
-    {
-        if ($amount === null || $amount === '') {
-            return null;
-        }
-
-        return RowValue::integer($amount);
     }
 
     private function endDate(mixed $ends): ?string

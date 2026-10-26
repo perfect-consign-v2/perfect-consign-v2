@@ -21,6 +21,7 @@ final class SaleCheckout
         private readonly MallSettings $mall,
         private readonly SaleHold $sales,
         private readonly TicketCustomer $customers,
+        private readonly TicketDrafts $drafts,
     ) {
     }
 
@@ -40,6 +41,9 @@ final class SaleCheckout
             ];
         }
         $this->sales->refuse($slug);
+        if ($this->drafts->hasAny($session)) {
+            throw new DatabaseRefusal('Complete Instant Add lines before pay.');
+        }
         $cart = $this->tickets->cart($session);
         if ($offered !== '') {
             $cart['posting_key'] = $offered;
@@ -149,9 +153,10 @@ final class SaleCheckout
 
     private function roundOn(int $cash, int $nonCash, int $deposits): int
     {
+        $step = $this->mall->cashRoundMinor();
         $allCash = $cash > 0 && $nonCash === 0 && $deposits === 0;
-        if ($this->mall->cashRoundNickel() && $allCash) {
-            return 1;
+        if ($step >= 1 && $allCash) {
+            return $step;
         }
 
         return 0;
@@ -160,8 +165,9 @@ final class SaleCheckout
     private function cashDue(int $cash, int $nonCash, int $deposits, int $due): int
     {
         $residual = max(0, $due - $nonCash);
-        if ($this->roundOn($cash, $nonCash, $deposits) === 1) {
-            return CashRound::rounded($residual);
+        $step = $this->roundOn($cash, $nonCash, $deposits);
+        if ($step >= 1) {
+            return CashRound::rounded($residual, $step);
         }
 
         return $residual;

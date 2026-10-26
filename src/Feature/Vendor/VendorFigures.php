@@ -14,7 +14,7 @@ final class VendorFigures
     }
 
     /**
-     * @return array{payable: int, rent: int}
+     * @return array{payable: int, rent: int, clawback: int}
      */
     public function numbers(string $vendorId): array
     {
@@ -46,6 +46,15 @@ final class VendorFigures
                      GROUP BY line.subledger_ref
                      HAVING sum(line.debit_minor - line.credit_minor) > 0
                  ) AS booth",
+                [$vendorId]
+            ),
+            'clawback' => $this->sum(
+                "SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0) AS total
+                 FROM journal_lines AS line
+                 JOIN chart_roles AS role ON role.account_id = line.account_id
+                 WHERE role.role = 'vendor_receivable'
+                   AND line.subledger_type = 'vendor'
+                   AND line.subledger_ref = ?",
                 [$vendorId]
             ),
         ];

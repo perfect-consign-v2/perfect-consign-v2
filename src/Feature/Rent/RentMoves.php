@@ -121,7 +121,6 @@ final class RentMoves
                        rate.amount_minor,
                        to_char(series.period_start::date, 'YYYY-MM-DD') AS period_start
                 FROM booth_assignments AS assignment
-                JOIN assignment_rent AS rate ON rate.assignment_id = assignment.id
                 JOIN booths AS booth ON booth.id = assignment.booth_id
                 JOIN LATERAL generate_series(
                     stall_rent_period_start(assignment.starts_on)::timestamp,
@@ -130,6 +129,14 @@ final class RentMoves
                 ) AS series(period_start)
                   ON assignment.starts_on <= stall_rent_period_end(series.period_start::date)
                  AND (assignment.ends_on IS NULL OR assignment.ends_on >= series.period_start::date)
+                JOIN LATERAL (
+                    SELECT history.amount_minor
+                    FROM assignment_rent_rates AS history
+                    WHERE history.assignment_id = assignment.id
+                      AND history.starts_on <= GREATEST(series.period_start::date, assignment.starts_on)
+                    ORDER BY history.starts_on DESC
+                    LIMIT 1
+                ) AS rate ON true
                 WHERE assignment.vendor_id = ?::uuid
                   AND NOT EXISTS (
                       SELECT 1
@@ -168,7 +175,7 @@ final class RentMoves
         if ($startsOn > $cycle->end($period)) {
             return null;
         }
-        $amount = $cycle->amount(RowValue::integer($row['amount_minor'] ?? null), null, $startsOn, $posting);
+        $amount = $cycle->amount(RowValue::integer($row['amount_minor'] ?? null), $startsOn, $posting);
         if ($amount < 1) {
             return null;
         }

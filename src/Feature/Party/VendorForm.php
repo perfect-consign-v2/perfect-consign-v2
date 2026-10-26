@@ -194,6 +194,7 @@ final class VendorForm
         $vendor['check_minor'] = 0;
         $vendor['owes_minor'] = 0;
         $vendor['settled_minor'] = 0;
+        $vendor['clawback_minor'] = 0;
         $vendor['rent_from_sales'] = false;
         if ($quoted === null) {
             return $vendor;

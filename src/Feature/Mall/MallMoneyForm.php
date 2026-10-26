@@ -31,7 +31,7 @@ final class MallMoneyForm
         return new MallMoneyOutcome(
             $storeTake,
             $taxRate,
-            $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
+            $this->postedRound(),
             $error,
         );
     }
@@ -62,7 +62,7 @@ final class MallMoneyForm
                 MallWrite::posted($booth['width'], $booth['depth'], $floor['width'], $floor['depth'], $this->storedFlags()),
                 $basis,
                 $this->mall->floorDays(),
-                $this->app->request()->field('cash_round_nickel') === '1' ? '1' : '',
+                $this->postedRound(),
                 $taxBasis,
             );
             $shop = $this->payouts->getPostedShop(
@@ -89,6 +89,13 @@ final class MallMoneyForm
         }
 
         return null;
+    }
+
+    private function postedRound(): string
+    {
+        $raw = $this->app->request()->field('cash_round_minor');
+
+        return $raw === '' ? '0' : $raw;
     }
 
     /**

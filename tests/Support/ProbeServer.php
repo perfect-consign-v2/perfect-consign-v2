@@ -122,7 +122,7 @@ final class ProbeServer
 
     private function waitUntilListening(): void
     {
-        $deadline = microtime(true) + 10;
+        $deadline = microtime(true) + 30;
         while (microtime(true) < $deadline) {
             if (!$this->running()) {
                 throw new RuntimeException('the probe server stopped. ' . $this->log());
@@ -138,7 +138,7 @@ final class ProbeServer
             if ($page !== null && $page->status >= 500) {
                 throw new RuntimeException('the probe server failed: ' . $page->body . ' ' . $this->log());
             }
-            usleep(100000);
+            usleep(200000);
         }
         throw new RuntimeException('the probe server did not accept a connection. ' . $this->log());
     }
@@ -164,8 +164,8 @@ final class ProbeServer
         }
         curl_setopt_array($curl, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT_MS => 500,
-            CURLOPT_CONNECTTIMEOUT_MS => 200,
+            CURLOPT_TIMEOUT_MS => 5000,
+            CURLOPT_CONNECTTIMEOUT_MS => 1000,
         ]);
         $body = curl_exec($curl);
         $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);

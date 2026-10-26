@@ -135,11 +135,17 @@ final class RoleGate
             '/reports/rent',
             '/reports/payouts',
             '/reports/stored-value',
+            '/reports/expiring',
+            '/reports/donated',
+            '/reports/sell-through',
             '/reports/sales-tax.csv',
             '/reports/sales.csv',
             '/reports/rent.csv',
             '/reports/payouts.csv',
             '/reports/stored-value.csv',
+            '/reports/expiring.csv',
+            '/reports/donated.csv',
+            '/reports/sell-through.csv',
             '/reports/build',
         ], true)) {
             return true;

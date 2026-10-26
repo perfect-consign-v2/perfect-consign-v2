@@ -24,11 +24,11 @@ final class MoveInRentTest extends TestCase
         self::assertSame(10000, MoveInRent::due(10000, 'September'));
     }
 
-    public function testAChargeUsesTheOverrideThenTheMoveInDays(): void
+    public function testAChargeUsesTheRateThenTheMoveInDays(): void
     {
-        self::assertSame(8000, MoveInRent::charge(9000, 8000, '2026-06-01', '2026-06'));
-        self::assertSame(4800, MoveInRent::charge(9000, null, '2026-06-15', '2026-06'));
-        self::assertSame(3400, MoveInRent::charge(3100, 6200, '2026-03-15', '2026-03'));
-        self::assertSame(6200, MoveInRent::charge(3100, 6200, '2026-03-15', '2026-04'));
+        self::assertSame(8000, MoveInRent::charge(8000, '2026-06-01', '2026-06'));
+        self::assertSame(4800, MoveInRent::charge(9000, '2026-06-15', '2026-06'));
+        self::assertSame(3400, MoveInRent::charge(6200, '2026-03-15', '2026-03'));
+        self::assertSame(6200, MoveInRent::charge(6200, '2026-03-15', '2026-04'));
     }
 }

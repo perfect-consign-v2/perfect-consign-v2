@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Party;
 
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\RowValue;
 
 class PartyStore
 {
@@ -53,18 +54,88 @@ class PartyStore
     /**
      * @return list<array<string, mixed>>
      */
-    public function vendorRows(): array
+    public function vendorRows(string $asOf): array
     {
-        return $this->statements->rows(
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOf) !== 1) {
+            throw new \InvalidArgumentException('a vendor day is YYYY-MM-DD');
+        }
+
+        return $this->statements->bound(
             'SELECT vendor.id AS vendor_id, vendor.code AS vendor_code, vendor.name AS vendor_name,
                     vendor.first_name, vendor.last_name, vendor.phone, vendor.email, vendor.address, vendor.active,
                     assignment.id AS assignment_id, assignment.booth_id, booth.code AS booth_code,
-                    assignment.starts_on, assignment.ends_on, rent.amount_minor AS rent_minor
+                    assignment.starts_on, assignment.ends_on,
+                    (
+                        SELECT rate.amount_minor
+                        FROM assignment_rent_rates AS rate
+                        WHERE rate.assignment_id = assignment.id
+                          AND rate.starts_on <= ?::date
+                        ORDER BY rate.starts_on DESC
+                        LIMIT 1
+                    ) AS rent_minor
              FROM vendors AS vendor
              LEFT JOIN booth_assignments AS assignment ON assignment.vendor_id = vendor.id
              LEFT JOIN booths AS booth ON booth.id = assignment.booth_id
-             LEFT JOIN assignment_rent AS rent ON rent.assignment_id = assignment.id
-             ORDER BY vendor.name, vendor.code, assignment.starts_on'
+             ORDER BY vendor.name, vendor.code, assignment.starts_on',
+            [$asOf]
+        );
+    }
+
+    /**
+     * @return list<array{starts_on: string, amount_minor: int}>
+     */
+    public function rentHistory(string $assignmentId): array
+    {
+        $listed = [];
+        foreach ($this->statements->bound(
+            'SELECT starts_on::text AS starts_on, amount_minor
+             FROM assignment_rent_rates
+             WHERE assignment_id = ?::uuid
+             ORDER BY starts_on',
+            [$assignmentId]
+        ) as $row) {
+            $listed[] = [
+                'starts_on' => RowValue::string($row['starts_on'] ?? null),
+                'amount_minor' => RowValue::integer($row['amount_minor'] ?? null),
+            ];
+        }
+
+        return $listed;
+    }
+
+    public function changeRent(string $assignmentId, string $startsOn, int $amountMinor): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $assignmentId) !== 1) {
+            throw new \InvalidArgumentException('Choose a stay.');
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $startsOn) !== 1) {
+            throw new \InvalidArgumentException('Enter an effective date.');
+        }
+        if ($amountMinor < 1) {
+            throw new \InvalidArgumentException('Rent must be greater than zero.');
+        }
+        $stay = $this->statements->bound(
+            "SELECT to_char(starts_on, 'YYYY-MM-DD') AS starts_on,
+                    to_char(ends_on, 'YYYY-MM-DD') AS ends_on
+             FROM booth_assignments
+             WHERE id = ?::uuid",
+            [$assignmentId]
+        );
+        if ($stay === []) {
+            throw new \InvalidArgumentException('Choose a stay.');
+        }
+        $stayStart = RowValue::string($stay[0]['starts_on'] ?? null);
+        $stayEnd = RowValue::optionalString($stay[0]['ends_on'] ?? null);
+        if ($startsOn < $stayStart) {
+            throw new \InvalidArgumentException('The effective date cannot be before the stay starts.');
+        }
+        if ($stayEnd !== null && $startsOn > $stayEnd) {
+            throw new \InvalidArgumentException('The effective date cannot be after the stay ends.');
+        }
+        $this->statements->change(
+            'INSERT INTO assignment_rent_rates (assignment_id, starts_on, amount_minor)
+             VALUES (?::uuid, ?::date, ?)',
+            [$assignmentId, $startsOn, $amountMinor]
         );
     }
 

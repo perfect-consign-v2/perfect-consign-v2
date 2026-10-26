@@ -32,39 +32,24 @@ final class RentStore
 
     public function rate(string $boothId, string $date): ?int
     {
-        $rows = $this->statements->bound(
-            "SELECT contract.amount_minor
-             FROM booth_assignments AS assignment
-             JOIN assignment_rent AS contract ON contract.assignment_id = assignment.id
-             WHERE assignment.booth_id = ?::uuid
-               AND assignment.starts_on <= ?::date
-               AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
-             ORDER BY assignment.starts_on DESC
-             LIMIT 1",
-            [$boothId, $date, $date]
-        );
-        $amount = $rows[0]['amount_minor'] ?? null;
-        if ($amount === null || $amount === '') {
-            return null;
-        }
-
-        return RowValue::integer($amount);
+        return $this->assignmentRate($boothId, $date);
     }
 
     public function chargeAmount(string $boothId, string $date): int
     {
+        $cycle = new RentCycle($this->cycleDay());
         $stay = $this->covering($boothId, $date);
         if ($stay === null) {
             throw new DatabaseRefusal('a rent charge requires an assignment that covers the charge date');
         }
-        $rate = $this->rate($boothId, $date);
+        $periodStart = $cycle->start($date);
+        $rateAsOf = $stay['starts'] > $periodStart ? $stay['starts'] : $periodStart;
+        $rate = $this->assignmentRate($boothId, $rateAsOf);
         if ($rate === null) {
             throw new DatabaseRefusal('a rent charge requires the booth rate from the assignment');
         }
 
-        $cycle = new RentCycle($this->cycleDay());
-
-        return $cycle->amount($rate, $stay['override'], $stay['starts'], $date);
+        return $cycle->amount($rate, $stay['starts'], $date);
     }
 
     public function postCharge(string $boothId, string $postingDate): void
@@ -202,11 +187,9 @@ final class RentStore
                         assignment.vendor_id::text AS vendor_id,
                         vendor.name AS vendor_name,
                         to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
-                        to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on,
-                        override.amount_minor AS override_minor
+                        to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on
                  FROM booth_assignments AS assignment
                  JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
-                 LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
                  WHERE assignment.starts_on <= ?::date
                    AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)",
                 [$end, $start]
@@ -271,13 +254,14 @@ final class RentStore
             $this->statements->bound(
                 "SELECT DISTINCT ON (assignment.booth_id)
                         assignment.booth_id::text AS booth_id,
-                        contract.amount_minor
+                        rate.amount_minor
                  FROM booth_assignments AS assignment
-                 JOIN assignment_rent AS contract ON contract.assignment_id = assignment.id
+                 JOIN assignment_rent_rates AS rate ON rate.assignment_id = assignment.id
                  WHERE assignment.starts_on <= ?::date
                    AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
-                 ORDER BY assignment.booth_id, assignment.starts_on DESC",
-                [$end, $start]
+                   AND rate.starts_on <= ?::date
+                 ORDER BY assignment.booth_id, assignment.starts_on DESC, rate.starts_on DESC",
+                [$end, $start, $end]
             ),
             $this->statements->bound(
                 "SELECT rate.booth_id::text AS booth_id, rate.amount_minor
@@ -295,16 +279,36 @@ final class RentStore
         );
     }
 
+    private function assignmentRate(string $boothId, string $date): ?int
+    {
+        $rows = $this->statements->bound(
+            "SELECT rate.amount_minor
+             FROM booth_assignments AS assignment
+             JOIN assignment_rent_rates AS rate ON rate.assignment_id = assignment.id
+             WHERE assignment.booth_id = ?::uuid
+               AND assignment.starts_on <= ?::date
+               AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
+               AND rate.starts_on <= ?::date
+             ORDER BY assignment.starts_on DESC, rate.starts_on DESC
+             LIMIT 1",
+            [$boothId, $date, $date, $date]
+        );
+        $amount = $rows[0]['amount_minor'] ?? null;
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        return RowValue::integer($amount);
+    }
+
     /**
-     * @return array{starts: string, override: ?int}|null
+     * @return array{starts: string}|null
      */
     private function covering(string $boothId, string $date): ?array
     {
         $rows = $this->statements->bound(
-            "SELECT to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
-                    override.amount_minor AS override_minor
+            "SELECT to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on
              FROM booth_assignments AS assignment
-             LEFT JOIN assignment_rent AS override ON override.assignment_id = assignment.id
              WHERE assignment.booth_id = ?::uuid
                AND assignment.starts_on <= ?::date
                AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
@@ -315,11 +319,9 @@ final class RentStore
         if ($rows === []) {
             return null;
         }
-        $override = $rows[0]['override_minor'] ?? null;
 
         return [
             'starts' => RowValue::string($rows[0]['starts_on'] ?? null),
-            'override' => $override === null || $override === '' ? null : RowValue::integer($override),
         ];
     }
 }

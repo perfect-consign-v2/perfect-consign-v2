@@ -26,15 +26,14 @@ final class MoveInRent
     }
 
     /**
-     * The figure stall_assert_rent_charge() will accept: the assignment override when one is stored, then the move-in days when the stay starts in that month.
+     * The figure stall_assert_rent_charge() will accept: the rate in force for the period, prorated when the stay starts mid-month.
      */
-    public static function charge(int $monthly, ?int $override, string $startsOn, string $month): int
+    public static function charge(int $monthly, string $startsOn, string $month): int
     {
-        $amount = $override ?? $monthly;
         if (substr($startsOn, 0, 7) !== $month) {
-            return $amount;
+            return $monthly;
         }
 
-        return self::due($amount, $startsOn);
+        return self::due($monthly, $startsOn);
     }
 }

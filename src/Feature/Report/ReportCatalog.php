@@ -14,7 +14,7 @@ final class ReportCatalog
     /**
      * @var list<string>
      */
-    public const GROUPS = ['day', 'tender', 'vendor', 'cashier', 'none'];
+    public const GROUPS = ['day', 'tender', 'vendor', 'cashier', 'hour', 'category', 'none'];
 
     public function accept(string $name, string $source, string $grouped): void
     {

@@ -35,7 +35,7 @@ final class SettingsAndIntakeTest extends WebTestCase
         $money['tax_rate'] = 'nope';
         self::assertSees('tax rate is a percent from 0 to 100', $this->client->post('/' . $slug . '/settings', $money));
         $money['tax_rate'] = '8.5';
-        $money['cash_round_nickel'] = '1';
+        $money['cash_round_minor'] = '5';
         $money['booth_rentals_enabled'] = '1';
         $money['rent_cycle_day'] = '1';
         $money['late_fee_grace_days'] = '0';

@@ -2,7 +2,7 @@
 
 BEGIN;
 
-UPDATE mall SET tax_bps = 0, cash_round_nickel = false;
+UPDATE mall SET tax_bps = 0, cash_round_minor = 0;
 
 INSERT INTO vendors (id, code, first_name, last_name)
 VALUES ('01900000-0000-7000-8000-0000000009a0', 'soda', 'Soda', 'Lane');

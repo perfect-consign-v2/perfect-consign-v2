@@ -36,6 +36,7 @@ foreach ($cart['parked'] as $held) {
         <?php endif; ?>
         <a class="btn" href="/<?= View::text($slug) ?>/pos/layaways">Layaways (<?= View::text((string) $layawayCount) ?>)</a>
         <a class="btn" href="/<?= View::text($slug) ?>/pos/suspended">Suspended Sales (<?= View::text((string) $parkedCount) ?>)</a>
+        <a class="btn btn-primary" href="/<?= View::text($slug) ?>/rent">Collect rent</a>
         <button class="btn" type="button" data-open-modal="gift-balance">Gift Certificate Balance</button>
     </nav>
 </div>

@@ -89,16 +89,20 @@ declare(strict_types=1);
         });
         return problem;
     }
-    function nickel(exact) {
-        const inc = form.getAttribute('data-round') === '5' ? 5 : 1;
-        if (inc <= 1 || exact <= 0) {
+    function cashStep() {
+        const step = parseInt(form.getAttribute('data-round') || '0', 10);
+        return Number.isFinite(step) && step >= 1 ? step : 0;
+    }
+    function roundCash(exact) {
+        const inc = cashStep();
+        if (inc < 1 || exact <= 0) {
             return Math.max(0, exact);
         }
         const rem = exact % inc;
         if (rem === 0) {
             return exact;
         }
-        if (rem * 2 >= inc) {
+        if (rem * 2 > inc) {
             return exact + (inc - rem);
         }
         return exact - rem;
@@ -146,8 +150,8 @@ declare(strict_types=1);
         const due = cents(form.getAttribute('data-due'));
         const nonCash = Math.max(0, sum - cashCents);
         const residual = Math.max(0, due - nonCash);
-        const cashPriced = form.getAttribute('data-round') === '5' && nonCash === 0;
-        const cashDue = cashPriced ? nickel(residual) : residual;
+        const cashPriced = cashStep() >= 1 && nonCash === 0;
+        const cashDue = cashPriced ? roundCash(residual) : residual;
         const settled = due + (cashDue - residual);
         if (tendered) {
             tendered.textContent = money(sum);

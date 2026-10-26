@@ -28,7 +28,14 @@ final class AdminPasswordController
     public function forgotSubmit(): void
     {
         $this->app->checkCsrf();
-        $this->recovery->request($this->app->request()->field('email'), $this->app->request()->origin);
+        try {
+            $this->recovery->request($this->app->request()->field('email'), $this->app->request()->origin);
+        } catch (\RuntimeException $error) {
+            if ($error->getMessage() === AdminPasswordRecovery::MAIL_FAILED) {
+                $this->app->redirect('/admin/forgot', $error->getMessage());
+            }
+            throw $error;
+        }
         $this->app->redirect('/admin/forgot', ResetNotice::SENT);
     }
 

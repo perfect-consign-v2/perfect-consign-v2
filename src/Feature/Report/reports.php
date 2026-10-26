@@ -17,6 +17,10 @@ $month = date('Y-m');
 <ul>
     <li><a href="/<?= View::text($slug) ?>/reports/sales-tax?month=<?= View::text($month) ?>">Monthly sales tax</a></li>
     <li><a href="/<?= View::text($slug) ?>/reports/sales">Sales</a></li>
+    <li><a href="/<?= View::text($slug) ?>/reports/sales?group=hour">Hourly sales</a></li>
+    <li><a href="/<?= View::text($slug) ?>/reports/sell-through">Category sell-through</a></li>
+    <li><a href="/<?= View::text($slug) ?>/reports/expiring">Expiring items</a></li>
+    <li><a href="/<?= View::text($slug) ?>/reports/donated">Donated items</a></li>
     <li><a href="/<?= View::text($slug) ?>/reports/rent">Rent roll</a></li>
     <li><a href="/<?= View::text($slug) ?>/reports/payouts">Payout register</a></li>
     <li><a href="/<?= View::text($slug) ?>/reports/stored-value">Stored value</a></li>

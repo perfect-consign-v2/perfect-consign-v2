@@ -26,6 +26,8 @@ final class SourceLabel
         'store_use' => 'Store use',
         'missed_sale' => 'Missed sale',
         'vendor_memo' => 'Vendor memo',
+        'clawback_reclass' => 'Clawback',
+        'clawback_apply' => 'Apply clawback',
         'layaway_deposit' => 'Layaway deposit',
         'layaway_refund' => 'Layaway refund',
         'gift_certificate_issue' => 'Gift certificate',

@@ -30,7 +30,7 @@ final class OwnerJourneyTest extends WebTestCase
         $signedIn = $this->client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         self::assertSees("Today's sales", $signedIn);
         self::assertSees('Inventory value', $signedIn);
-        self::assertSees('Not for sale', $signedIn);
+        self::assertSees('Qty 0', $signedIn);
     }
 
     public function testTheDashboardShowsOnHandAskingPrice(): void
@@ -42,7 +42,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('Booth occupancy', $page);
         self::assertSees('Vendor payables', $page);
         self::assertMatchesRegularExpression('/Inventory value<\\/div>\\s*<div class="stat-value">\\$/', $page->body);
-        self::assertSees('Not for sale', $page);
+        self::assertSees('Qty 0', $page);
     }
 
     public function testTheOwnerPostsASaleAndSeesTheJournal(): void
@@ -629,7 +629,7 @@ final class OwnerJourneyTest extends WebTestCase
             'rent_cycle_day' => '1',
         ];
         if ($on) {
-            $fields['cash_round_nickel'] = '1';
+            $fields['cash_round_minor'] = '5';
         }
         $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', $fields);
         self::assertSees('Settings saved.', $saved);

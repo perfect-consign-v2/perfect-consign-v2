@@ -1,4 +1,4 @@
--- Proof that cash rounds to the nearest nickel only when the mall asks for it and the sale is paid entirely in cash.
+-- Proof that cash rounds to the mall step (1/5/10/25) only when the sale is paid entirely in cash.
 -- One transaction, then ROLLBACK.
 
 BEGIN;
@@ -35,7 +35,7 @@ VALUES (
     0
 );
 
-UPDATE mall SET tax_bps = 0, cash_round_nickel = false;
+UPDATE mall SET tax_bps = 0, cash_round_minor = 0;
 
 DO $$
 BEGIN
@@ -81,7 +81,7 @@ EXCEPTION
         END IF;
 END $$;
 
-UPDATE mall SET cash_round_nickel = true;
+UPDATE mall SET cash_round_minor = 5;
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
@@ -199,7 +199,7 @@ BEGIN
     RAISE EXCEPTION 'an unrounded cash sale was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a cash sale rounds to the nearest nickel%' THEN
+        IF SQLERRM NOT LIKE '%a cash sale rounds to the cash step%' THEN
             RAISE;
         END IF;
 END $$;
@@ -266,6 +266,78 @@ INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_mi
 VALUES ('01900000-0000-7000-8000-0000000007c6', 1, '01900000-0000-7000-8000-0000000007a5', 1002, 0, 0);
 INSERT INTO register_session_posts (session_id, journal_id)
 VALUES ('01900000-0000-7000-8000-000000000d2a', '01900000-0000-7000-8000-0000000007c6');
+
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
+VALUES
+    ('01900000-0000-7000-8000-0000000007a7', 'Dime', '01900000-0000-7000-8000-000000000101', 'Rounds to a dime', 1006, 'BC-ROUND-DIME', DATE '2094-03-01', 0),
+    ('01900000-0000-7000-8000-0000000007a8', 'Quarter', '01900000-0000-7000-8000-000000000101', 'Rounds to a quarter', 1013, 'BC-ROUND-QTR', DATE '2094-03-01', 0);
+
+UPDATE mall SET cash_round_minor = 10;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-0000000007c8',
+    '01900000-0000-7000-8000-000000000001',
+    'sale:round-dime', '2094-03-08', '2094-03-08 12:00:00+00',
+    '01900000-0000-7000-8000-0000000007a6',
+    'USD', 'sale', 'round-dime', 'Cash rounds to a dime', 1010, 1010
+);
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES
+    ('01900000-0000-7000-8000-0000000007c8', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 1010, 0),
+    ('01900000-0000-7000-8000-0000000007c8', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000020', 0, 4);
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-0000000007c8',
+    '01900000-0000-7000-8000-000000000001',
+    3, '01900000-0000-7000-8000-000000000014', 0, 1006, 'vendor', '01900000-0000-7000-8000-000000000101'
+);
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-0000000007c8', 1, '01900000-0000-7000-8000-0000000007a7', 1006, 0, 0);
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d2a', '01900000-0000-7000-8000-0000000007c8');
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+UPDATE mall SET cash_round_minor = 25;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-0000000007c9',
+    '01900000-0000-7000-8000-000000000001',
+    'sale:round-quarter', '2094-03-09', '2094-03-09 12:00:00+00',
+    '01900000-0000-7000-8000-0000000007a6',
+    'USD', 'sale', 'round-quarter', 'Cash rounds to a quarter', 1025, 1025
+);
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES
+    ('01900000-0000-7000-8000-0000000007c9', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 1025, 0),
+    ('01900000-0000-7000-8000-0000000007c9', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000020', 0, 12);
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES (
+    '01900000-0000-7000-8000-0000000007c9',
+    '01900000-0000-7000-8000-000000000001',
+    3, '01900000-0000-7000-8000-000000000014', 0, 1013, 'vendor', '01900000-0000-7000-8000-000000000101'
+);
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-0000000007c9', 1, '01900000-0000-7000-8000-0000000007a8', 1013, 0, 0);
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d2a', '01900000-0000-7000-8000-0000000007c9');
+
+DO $$
+BEGIN
+    UPDATE mall SET cash_round_minor = 3;
+    RAISE EXCEPTION 'an unknown cash round step was accepted';
+EXCEPTION
+    WHEN check_violation THEN
+        NULL;
+END $$;
 
 SET CONSTRAINTS ALL IMMEDIATE;
 

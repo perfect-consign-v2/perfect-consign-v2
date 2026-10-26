@@ -17,7 +17,7 @@ final class SaleJournal
      */
     public static function sale(LedgerStore $ledger, array $items, array $tenders, int $cash, int $roundOn, int $due): array
     {
-        $delta = $roundOn === 1 && self::onlyCash($tenders, $cash) ? CashRound::rounded($due) - $due : 0;
+        $delta = $roundOn >= 1 && self::onlyCash($tenders, $cash) ? CashRound::adjustment($due, $roundOn) : 0;
         if ($delta === 0 || $cash === $due) {
             $lines = $delta === 0 ? $tenders : self::roundedCash($ledger, $tenders, $cash, $delta);
         } else {
@@ -44,6 +44,7 @@ final class SaleJournal
         array $item,
         string $vendorId,
         array $credit,
+        int $openPayable = 0,
     ): array {
         $price = $item['price'];
         $commission = $item['commission'];
@@ -66,7 +67,14 @@ final class SaleJournal
         }
         $owed = $price - $discount - $commission;
         if ($placement !== 'store' && $owed > 0) {
-            $lines[] = PostedLines::entry($ledger->roleAccount('vendor_payable'), $owed, 0, 'vendor', $vendorId);
+            $againstPayable = min($owed, max(0, $openPayable));
+            $clawback = $owed - $againstPayable;
+            if ($againstPayable > 0) {
+                $lines[] = PostedLines::entry($ledger->roleAccount('vendor_payable'), $againstPayable, 0, 'vendor', $vendorId);
+            }
+            if ($clawback > 0) {
+                $lines[] = PostedLines::entry($ledger->roleAccount('vendor_receivable'), $clawback, 0, 'vendor', $vendorId);
+            }
         }
         $lines[] = $credit;
 

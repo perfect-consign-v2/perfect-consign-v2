@@ -16,7 +16,6 @@ final class RentFigure
         ?int $rate,
         ?string $startsOn,
         ?string $endsOn,
-        ?int $override,
         string $month,
         string $today,
         int $cycleDay = 1,
@@ -32,7 +31,7 @@ final class RentFigure
         $chargeable = $rate !== null && self::coversStay($startsOn, $endsOn, $date);
         $amount = $rate;
         if ($chargeable && $startsOn !== null && $rate !== null) {
-            $amount = (new RentCycle($cycleDay))->amount($rate, $override, $startsOn, $date);
+            $amount = (new RentCycle($cycleDay))->amount($rate, $startsOn, $date);
         }
 
         return ['date' => $date, 'chargeable' => $chargeable, 'amount' => $amount];

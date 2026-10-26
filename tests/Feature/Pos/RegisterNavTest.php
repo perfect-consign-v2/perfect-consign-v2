@@ -17,6 +17,8 @@ final class RegisterNavTest extends TestCase
         self::assertStringNotContainsString('Last sale', $empty);
         self::assertStringContainsString('/demo/pos/receipt/S-9?print=1', $sold);
         self::assertStringContainsString('>Last sale</a>', $sold);
+        self::assertStringContainsString('/demo/rent"', $empty);
+        self::assertStringContainsString('>Collect rent</a>', $empty);
     }
 
     private function nav(string $lastSale): string

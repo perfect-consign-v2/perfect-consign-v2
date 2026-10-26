@@ -12,6 +12,9 @@ $csv = match ($kind) {
     'rent' => '/reports/rent.csv',
     'payouts' => '/reports/payouts.csv',
     'stored' => '/reports/stored-value.csv',
+    'expiring' => '/reports/expiring.csv',
+    'donated' => '/reports/donated.csv',
+    'sell-through' => '/reports/sell-through.csv',
     default => '',
 };
 ?>

@@ -19,6 +19,7 @@ final class PayoutSettler
         private readonly PayoutRunStore $runs,
         private readonly PayoutRunLines $lines,
         private readonly JournalAudit $audit,
+        private readonly VendorClawback $clawback,
     ) {
     }
 
@@ -49,6 +50,10 @@ final class PayoutSettler
         foreach ($this->runs->pack($runId) as $row) {
             foreach ($this->chargeMissing($runId, $row['vendor_id']) as $journalId) {
                 $this->lines->link($runId, $journalId, 'rent_charge');
+            }
+            $applied = $this->clawback->apply($row['vendor_id'], $today, $runId);
+            if ($applied !== '') {
+                $this->lines->link($runId, $applied, 'clawback_apply');
             }
         }
         $this->lines->materialize($runId);

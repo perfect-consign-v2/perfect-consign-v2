@@ -58,6 +58,33 @@ final class ReportCsvController
         $this->csv('stored-value.csv', ['kind', 'balance_minor'], $this->ledger->storedValue());
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/expiring.csv', ['GET'])]
+    public function expiringCsv(string $slug): void
+    {
+        $this->open($slug);
+        $this->csv('expiring.csv', ['code', 'description', 'vendor', 'expires_on', 'quantity', 'price_minor'], $this->ledger->expiring());
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/donated.csv', ['GET'])]
+    public function donatedCsv(string $slug): void
+    {
+        $this->open($slug);
+        $bounds = $this->span();
+        $this->csv('donated.csv', ['posted_on', 'code', 'description', 'quantity'], $this->ledger->donated($bounds['from'], $bounds['to']));
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/sell-through.csv', ['GET'])]
+    public function sellThroughCsv(string $slug): void
+    {
+        $this->open($slug);
+        $bounds = $this->span();
+        $this->csv(
+            'sell-through.csv',
+            ['category', 'sold_qty', 'on_hand_qty', 'sales_minor'],
+            $this->ledger->sellThrough($bounds['from'], $bounds['to']),
+        );
+    }
+
     /**
      * @return list<array<string, int|string>>
      */
@@ -65,7 +92,7 @@ final class ReportCsvController
     {
         $bounds = $this->span();
         $group = $this->app->request()->query('group');
-        if (!in_array($group, ['day', 'tender', 'vendor', 'cashier'], true)) {
+        if (!in_array($group, ['day', 'tender', 'vendor', 'cashier', 'hour', 'category'], true)) {
             $group = 'day';
         }
 
@@ -89,8 +116,13 @@ final class ReportCsvController
     {
         $from = $this->app->request()->query('from');
         $to = $this->app->request()->query('to');
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) !== 1 || preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) !== 1 || $to < $from) {
+        $fromOk = preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) === 1;
+        $toOk = preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) === 1;
+        if (!$fromOk || !$toOk) {
             return $this->months->bounds(date('Y-m'));
+        }
+        if ($to < $from) {
+            $to = $from;
         }
 
         return ['from' => $from, 'to' => $to];

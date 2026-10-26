@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Bootstrap\SaleCeiling;
+use PerfectConsign\Feature\Payout\VendorClawback;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -21,6 +22,7 @@ final class SalePoster
         private readonly SaleReceipt $receipts,
         private readonly ReceiptChange $change,
         private readonly SaleCeiling $ceiling,
+        private readonly VendorClawback $clawback,
     ) {
     }
 
@@ -114,6 +116,7 @@ final class SalePoster
         if ($this->ledger->reversed($journalId) || self::flag($journal['is_reversal'] ?? null)) {
             throw new DatabaseRefusal('a second void is refused');
         }
+        $this->clawbackBeforeVoid($journalId, $date);
 
         $posted = $this->ledger->post(new JournalDraft(
             postingKey: 'reversal:' . $journalId,
@@ -144,12 +147,13 @@ final class SalePoster
         ?string $check,
     ): string {
         $item = $this->item($saleId, $itemId);
+        $openPayable = $this->clawback->openPayable($item['vendor_id']);
 
         return $this->ledger->post(new JournalDraft(
             postingKey: 'return:' . $saleId . ':' . $itemId,
             postingDate: $date,
             source: new JournalSource('item_return', 'return:' . $itemId, 'Return'),
-            lines: SaleJournal::giveBack($this->ledger, $item, $item['vendor_id'], $credit),
+            lines: SaleJournal::giveBack($this->ledger, $item, $item['vendor_id'], $credit, $openPayable),
             sessionId: $sessionId,
             checkNumber: $check,
             beforeCommit: function (string $journalId) use ($saleId, $itemId, $item): void {
@@ -284,7 +288,7 @@ final class SalePoster
     {
         $journal = $this->ledger->journal($journalId);
         if ($journal === null || RowValue::string($journal['source_type'] ?? null) !== 'sale') {
-            throw new DatabaseRefusal('that ticket is not a sale');
+            throw new DatabaseRefusal(DatabaseRefusal::TICKET_NOT_A_SALE);
         }
 
         return $journal;
@@ -344,6 +348,32 @@ final class SalePoster
         }
 
         return $lines;
+    }
+
+    private function clawbackBeforeVoid(string $journalId, string $date): void
+    {
+        $payableAccount = $this->ledger->roleAccount('vendor_payable');
+        $needed = [];
+        foreach ($this->ledger->lines($journalId) as $line) {
+            if (RowValue::string($line['account_id'] ?? null) !== $payableAccount) {
+                continue;
+            }
+            if (RowValue::optionalString($line['subledger_type'] ?? null) !== 'vendor') {
+                continue;
+            }
+            $vendorId = RowValue::optionalString($line['subledger_ref'] ?? null);
+            $credit = RowValue::integer($line['credit_minor'] ?? null);
+            if ($vendorId === null || $credit < 1) {
+                continue;
+            }
+            $needed[$vendorId] = ($needed[$vendorId] ?? 0) + $credit;
+        }
+        foreach ($needed as $vendorId => $amount) {
+            $shortfall = $amount - $this->clawback->openPayable($vendorId);
+            if ($shortfall > 0) {
+                $this->clawback->reclass($vendorId, $shortfall, $date, $journalId);
+            }
+        }
     }
 
     private static function flag(mixed $value): bool

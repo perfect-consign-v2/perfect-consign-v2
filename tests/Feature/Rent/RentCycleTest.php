@@ -33,7 +33,7 @@ final class RentCycleTest extends TestCase
         );
         self::assertSame('2026-03', $cycle->suffix($cycle->start('2026-03-20')));
         self::assertSame(['2026-03'], $cycle->suffixesTouching('2026-03'));
-        self::assertSame(3400, $cycle->amount(3100, 6200, '2026-03-15', '2026-03-20'));
+        self::assertSame(3400, $cycle->amount(6200, '2026-03-15', '2026-03-20'));
     }
 
     public function testDayFifteenRunsFromTheFifteenthThroughTheFourteenth(): void
@@ -43,7 +43,7 @@ final class RentCycleTest extends TestCase
         self::assertSame('2026-03-15', $cycle->start('2026-03-20'));
         self::assertSame('2026-04-14', $cycle->end('2026-03-15'));
         self::assertSame('2026-03-15', $cycle->suffix('2026-03-15'));
-        self::assertSame(2600, $cycle->amount(3100, null, '2026-03-20', '2026-03-20'));
+        self::assertSame(2600, $cycle->amount(3100, '2026-03-20', '2026-03-20'));
         self::assertSame(['2026-02-15', '2026-03-15'], $cycle->suffixesTouching('2026-03'));
         self::assertSame(
             ['from' => '2026-02-15', 'to' => '2026-03-14', 'rent' => '2026-03-15'],
@@ -90,10 +90,10 @@ final class RentCycleTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertSame('a rent field is missing', $error->getMessage());
         }
-        $moved = RentFigure::posted(3100, '2026-03-20', null, null, '2026-03', '2026-04-01', 15, '2026-03-15');
+        $moved = RentFigure::posted(3100, '2026-03-20', null, '2026-03', '2026-04-01', 15, '2026-03-15');
         self::assertSame('2026-03-20', $moved['date']);
         self::assertSame(2600, $moved['amount']);
-        $later = RentFigure::posted(3100, '2026-05-01', null, null, '2026-03', '2026-04-01', 15, '2026-03-15');
+        $later = RentFigure::posted(3100, '2026-05-01', null, '2026-03', '2026-04-01', 15, '2026-03-15');
         self::assertSame('2026-03-15', $later['date']);
     }
 
@@ -131,9 +131,9 @@ final class RentCycleTest extends TestCase
         $cycle = new RentCycle(15);
 
         self::assertSame('2026-03-15', $cycle->start('2026-03-15'));
-        self::assertSame(3100, $cycle->amount(3100, null, '2026-03-01', '2026-03-20'));
-        self::assertSame(100, $cycle->amount(3100, null, '2026-04-14', '2026-03-20'));
-        $onEnd = RentFigure::posted(3100, '2026-04-14', null, null, '2026-03', '2026-04-01', 15, '2026-03-15');
+        self::assertSame(3100, $cycle->amount(3100, '2026-03-01', '2026-03-20'));
+        self::assertSame(100, $cycle->amount(3100, '2026-04-14', '2026-03-20'));
+        $onEnd = RentFigure::posted(3100, '2026-04-14', null, '2026-03', '2026-04-01', 15, '2026-03-15');
         self::assertSame('2026-04-14', $onEnd['date']);
         $day = RentSpan::cover('2026-02', '2026-03-10', 28, null);
         self::assertSame(28, $day->day);

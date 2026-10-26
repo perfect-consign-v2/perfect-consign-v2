@@ -202,7 +202,17 @@ final class RentShortfall
                ON assignment.booth_id = booth.id
               AND assignment.assignment_range @> journal.posting_date
              JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
-             JOIN assignment_rent AS rate ON rate.assignment_id = assignment.id
+             JOIN LATERAL (
+                 SELECT history.amount_minor
+                 FROM assignment_rent_rates AS history
+                 WHERE history.assignment_id = assignment.id
+                   AND history.starts_on <= GREATEST(
+                       stall_rent_period_start(journal.posting_date),
+                       assignment.starts_on
+                   )
+                 ORDER BY history.starts_on DESC
+                 LIMIT 1
+             ) AS rate ON true
              WHERE journal.source_type = 'rent_charge'
                AND NOT journal.is_reversal
                AND line.debit_minor > 0
