@@ -20,6 +20,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        ProbeMall::resetMallMoney();
         $this->client = self::client();
         $signedIn = $this->client->signIn(self::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         self::assertSees("Today's sales", $signedIn);

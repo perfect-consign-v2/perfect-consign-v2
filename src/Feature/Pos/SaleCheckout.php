@@ -13,15 +13,12 @@ use PerfectConsign\Shared\Http\Request;
 final class SaleCheckout
 {
     public function __construct(
-        private readonly TicketStore $tickets,
-        private readonly TicketTenders $held,
+        private readonly CheckoutBasket $basket,
         private readonly TenderSplit $tenders,
         private readonly SalePoster $poster,
-        private readonly LayawayBook $layaways,
         private readonly MallSettings $mall,
         private readonly SaleHold $sales,
         private readonly TicketCustomer $customers,
-        private readonly TicketDrafts $drafts,
     ) {
     }
 
@@ -41,14 +38,14 @@ final class SaleCheckout
             ];
         }
         $this->sales->refuse($slug);
-        if ($this->drafts->hasAny($session)) {
+        if ($this->basket->hasDrafts($session)) {
             throw new DatabaseRefusal('Complete Instant Add lines before pay.');
         }
-        $cart = $this->tickets->cart($session);
+        $cart = $this->basket->cart($session);
         if ($offered !== '') {
             $cart['posting_key'] = $offered;
         }
-        $deposits = $this->layaways->balance($cart['ticket_id']);
+        $deposits = $this->basket->deposits($cart['ticket_id']);
         $holding = $request->field('hold') === '1';
         $entered = $this->entered($request, $holding, $cart['ticket_id'], $cart['due'], $deposits);
         if ($holding && $entered['sum'] < $cart['due'] - $deposits) {
@@ -71,7 +68,7 @@ final class SaleCheckout
         if ($holding) {
             return $this->tenders->read($request);
         }
-        $held = $this->held->split($ticketId, $due, $deposits);
+        $held = $this->basket->heldSplit($ticketId, $due, $deposits);
         if ($held !== null) {
             return $held;
         }
@@ -95,7 +92,7 @@ final class SaleCheckout
         if ($customer['id'] === '') {
             throw new DatabaseRefusal('Choose a customer to hold a layaway.');
         }
-        $this->layaways->hold($session, $this->mall->today(), $cart['ticket_id'], $cart['due'], $entered);
+        $this->basket->holdLayaway($session, $this->mall->today(), $cart['ticket_id'], $cart['due'], $entered);
         $name = $customer['name'] !== '' ? $customer['name'] : 'the customer';
 
         return [
@@ -123,7 +120,7 @@ final class SaleCheckout
      */
     private function settle(string $slug, string $session, Request $request, array $cart, int $deposits, array $entered): array
     {
-        $tender = $this->layaways->include($cart['ticket_id'], $deposits, $entered);
+        $tender = $this->basket->includeDeposits($cart['ticket_id'], $deposits, $entered);
         $nonCash = $tender['sum'] - $tender['cash'];
         $cashDue = $this->cashDue($tender['cash'], $nonCash, $deposits, $cart['due']);
         $shown = $request->field('cash_received');

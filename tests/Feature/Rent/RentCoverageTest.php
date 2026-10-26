@@ -225,7 +225,11 @@ final class RentCoverageTest extends TestCase
                 if (str_contains($sql, "status = 'draft'")) {
                     return [];
                 }
-                if (str_contains($sql, 'stall_payout_pack') && str_contains($sql, 'vendor_id =')) {
+                if (
+                    str_contains($sql, 'stall_payout_quote')
+                    || str_contains($sql, 'stall_payout_run_quote')
+                    || (str_contains($sql, 'stall_payout_pack') && str_contains($sql, 'vendor_id ='))
+                ) {
                     if ($this->owes < 1) {
                         return [];
                     }

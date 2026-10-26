@@ -490,7 +490,7 @@ final class RentChargeTest extends TestCase
 
     private function mall(PDO $pdo, Statements $statements): MallSettings
     {
-        return new MallSettings($statements, new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines()));
+        return new MallSettings($statements, new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines()), new \PerfectConsign\Feature\Mall\MallDay($statements));
     }
 
     private function connection(): PDO

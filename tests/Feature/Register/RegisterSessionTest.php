@@ -229,7 +229,9 @@ final class RegisterSessionTest extends TestCase
     private function session(Statements $statements, LedgerStore $ledger): RegisterSession
     {
         $mall = (new ReflectionClass(MallSettings::class))->newInstanceWithoutConstructor();
-        (new ReflectionProperty(MallSettings::class, 'statements'))->setValue($mall, $this->mallRows());
+        $rows = $this->mallRows();
+        (new ReflectionProperty(MallSettings::class, 'statements'))->setValue($mall, $rows);
+        (new ReflectionProperty(MallSettings::class, 'day'))->setValue($mall, new \PerfectConsign\Feature\Mall\MallDay($rows));
         $clock = new MallClock($mall);
         $activity = new RegisterActivity($statements, $clock);
 

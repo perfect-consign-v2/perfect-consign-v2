@@ -50,4 +50,48 @@ PHP;
         self::assertNotSame('HEAD', $base);
         self::assertNotSame('', $base);
     }
+
+    public function testExtractedSymbolsStayNamed(): void
+    {
+        $named = [
+            'stayRows(',
+            'stayRow(',
+            'park(',
+            'decodedMap(',
+            'attributePair(',
+            'unchargedMonths(',
+            'unprinted(',
+            'timeZone(',
+            'vendorRows(',
+            'vendorRowsFor(',
+            'askingRents(',
+            'rentHistory(',
+            'changeRent(',
+            'askingRent(',
+            'vendorRowQuery(',
+            'endAssignment(',
+            'setAskingRent(',
+            'vendorOf(',
+            'yearPaid(',
+            'hasDrafts(',
+            'deposits(',
+            'heldSplit(',
+            'holdLayaway(',
+            'includeDeposits(',
+            'drafts(',
+            'layaways(',
+            'voidSale(',
+            'returnItem(',
+            'saleKey(',
+            'clearTenders(',
+            'sameItem(',
+            'storedValue(',
+            'expiring(',
+            'donated(',
+            'sellThrough(',
+            'clearUsedPasswordResets(',
+        ];
+        self::assertContains('sellThrough(', $named);
+        self::assertSame(count($named), count(array_unique($named)));
+    }
 }

@@ -214,6 +214,7 @@ final class ItemWriterTest extends TestCase
         $mall = new MallSettings(
             $statements,
             (new ReflectionClass(CompanyStore::class))->newInstanceWithoutConstructor(),
+            new \PerfectConsign\Feature\Mall\MallDay($statements),
         );
 
         return new ItemWriter(

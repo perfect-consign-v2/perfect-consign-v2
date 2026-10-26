@@ -28,7 +28,11 @@ final class OutboundMail
 
     public function send(string $to, string $subject, string $body): void
     {
-        $this->deliver($to, $subject, $body);
+        try {
+            $this->deliver($to, $subject, $body);
+        } catch (MailDeliveryFailed | \InvalidArgumentException | \RuntimeException $failed) {
+            $this->logger->error($failed->getMessage());
+        }
     }
 
     public function deliver(string $to, string $subject, string $body): void

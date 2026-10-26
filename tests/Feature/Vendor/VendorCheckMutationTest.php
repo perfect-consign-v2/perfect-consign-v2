@@ -66,10 +66,7 @@ final class VendorCheckMutationTest extends TestCase
         $statements = $this->statements($pdo, $scene);
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $links = new CatalogLinks($statements);
-        $mall = new MallSettings(
-            $statements,
-            new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines())
-        );
+        $mall = new MallSettings($statements, new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines()), new \PerfectConsign\Feature\Mall\MallDay($statements));
         $take = new StoreTake();
 
         return new VendorCheck(
@@ -77,7 +74,7 @@ final class VendorCheckMutationTest extends TestCase
             new PayoutStore($pdo, $statements, $runs, new PayoutWindow()),
             new VendorAccount(
                 $statements,
-                new InventoryStore($statements, $links, $mall),
+                new \PerfectConsign\Feature\Inventory\ItemQueries($statements),
                 new ItemForm(new IntakeCatalog($statements), new NameListStore($statements, $links), $mall, $take),
                 $take
             )
@@ -102,7 +99,11 @@ final class VendorCheckMutationTest extends TestCase
                 if (str_contains($sql, "status = 'draft'")) {
                     return [];
                 }
-                if (str_contains($sql, 'stall_payout_pack')) {
+                if (
+                    str_contains($sql, 'stall_payout_pack')
+                    || str_contains($sql, 'stall_payout_quote')
+                    || str_contains($sql, 'stall_payout_run_quote')
+                ) {
                     if ($this->scene !== 'owed') {
                         return [];
                     }

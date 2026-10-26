@@ -6,8 +6,6 @@ namespace PerfectConsign\Feature\Party;
 
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
-use PerfectConsign\Feature\Payout\PayoutStore;
-use PerfectConsign\Feature\Payout\VendorClawback;
 use PerfectConsign\Feature\Staff\StaffStore;
 
 final class VendorPage
@@ -15,41 +13,31 @@ final class VendorPage
     public function __construct(
         private readonly MallApp $app,
         private readonly PartyStore $parties,
+        private readonly AssignmentBook $stays,
         private readonly MallSettings $mall,
         private readonly VendorRoster $roster,
-        private readonly PayoutStore $payouts,
+        private readonly VendorBalances $balances,
         private readonly AssignmentOffer $offers,
         private readonly VendorForm $forms,
         private readonly StaffStore $staff,
-        private readonly VendorYearPaid $paid,
-        private readonly VendorClawback $clawback,
     ) {
     }
 
     public function show(string $slug, string $id, ?string $error): void
     {
         $today = $this->mall->today();
-        $assembled = $this->roster->assemble($this->parties->vendorRows($today), $today);
-        $vendor = null;
-        foreach ($assembled['vendors'] as $candidate) {
-            if ($candidate['id'] === $id) {
-                $vendor = $candidate;
-                break;
-            }
-        }
+        $assembled = $this->roster->assemble($this->stays->vendorRowsFor($id, $today), $today);
+        $vendor = $assembled['vendors'][0] ?? null;
         $stored = $this->parties->findVendor($id);
         if ($vendor === null || $stored === null) {
             $this->app->notFound();
         }
         $vendor = $this->forms->filled($vendor, $stored, $this->mall->storeTake());
-        $quoted = $this->payouts->quote($id, $this->mall->today());
+        $quoted = $this->balances->quote($id, $this->mall->today());
         $vendor = $this->forms->figures($vendor, $quoted);
-        $vendor['clawback_minor'] = $this->clawback->openReceivable($id);
-        $vendor['year_paid_minor'] = $this->paid->yearPaid($id);
-        $histories = [];
-        foreach (array_merge($vendor['current'], $vendor['upcoming'], $vendor['past']) as $stay) {
-            $histories[$stay['id']] = $this->parties->rentHistory($stay['id']);
-        }
+        $vendor['clawback_minor'] = $this->balances->clawback($id);
+        $vendor['year_paid_minor'] = $this->balances->yearPaid($id);
+        $histories = $this->rentHistories($vendor);
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Party/vendor', [
             'title' => $vendor['name'],
@@ -62,5 +50,64 @@ final class VendorPage
             'today' => $this->mall->today(),
             'error' => $error,
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $vendor
+     * @return array<string, list<array{starts_on: string, amount_minor: int}>>
+     */
+    private function rentHistories(array $vendor): array
+    {
+        $histories = [];
+        foreach ($this->stayRows($vendor) as $stay) {
+            $stayId = $stay['id'] ?? null;
+            if (!is_string($stayId) || $stayId === '') {
+                continue;
+            }
+            $histories[$stayId] = $this->stays->rentHistory($stayId);
+        }
+
+        return $histories;
+    }
+
+    /**
+     * @param array<string, mixed> $vendor
+     * @return list<array<string, mixed>>
+     */
+    private function stayRows(array $vendor): array
+    {
+        $rows = [];
+        foreach (['current', 'upcoming', 'past'] as $bucket) {
+            $listed = $vendor[$bucket] ?? null;
+            if (!is_array($listed)) {
+                continue;
+            }
+            foreach ($listed as $stay) {
+                $row = $this->stayRow($stay);
+                if ($row !== null) {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function stayRow(mixed $stay): ?array
+    {
+        if (!is_array($stay)) {
+            return null;
+        }
+        $row = [];
+        foreach ($stay as $key => $value) {
+            if (is_string($key)) {
+                $row[$key] = $value;
+            }
+        }
+
+        return $row;
     }
 }

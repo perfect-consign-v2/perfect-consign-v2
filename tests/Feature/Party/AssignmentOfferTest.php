@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Party;
 
+use PerfectConsign\Feature\Party\AssignmentBook;
 use PerfectConsign\Feature\Party\AssignmentOffer;
 use PerfectConsign\Feature\Party\PartyStore;
+use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
 
 final class AssignmentOfferTest extends TestCase
@@ -171,10 +173,22 @@ final class AssignmentOfferTest extends TestCase
     {
         $store = $this->createStub(PartyStore::class);
         $store->method('booths')->willReturn($booths);
-        $store->method('assignments')->willReturn($stays);
-        $store->method('askingRent')->willReturn(10000);
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturnCallback(
+            static function (string $sql) use ($stays): array {
+                if (str_contains($sql, 'booth_rent_rates')) {
+                    return [
+                        ['booth_id' => self::NORTH, 'amount_minor' => 10000],
+                        ['booth_id' => self::SOUTH, 'amount_minor' => 10000],
+                    ];
+                }
 
-        return new AssignmentOffer($store);
+                return $stays;
+            }
+        );
+        $statements->method('bound')->willReturn([['amount_minor' => 10000]]);
+
+        return new AssignmentOffer($store, new AssignmentBook($statements));
     }
 
     /**

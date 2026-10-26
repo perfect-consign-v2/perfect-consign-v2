@@ -110,7 +110,7 @@ final class RentLines
     }
 
     /**
-     * @param array{vendorId: string, vendorName: string, startsOn: string, endsOn: ?string, override: ?int}|null $holder
+     * @param array{vendorId: string, vendorName: string, startsOn: string, endsOn: ?string}|null $holder
      * @param array{journalId: string, amount: int}|null $charge
      */
     private function blank(?int $rate, ?array $holder, int $balance, ?array $charge): bool

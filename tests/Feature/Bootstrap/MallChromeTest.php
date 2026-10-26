@@ -163,7 +163,7 @@ final class MallChromeTest extends TestCase
             new DatabaseRole($pdo),
             $pdo,
             new CompanyLines(),
-        ));
+        ), new \PerfectConsign\Feature\Mall\MallDay($rows));
         $bag = $started === null ? [] : ['close_prior:demo' => $started];
         $sessionLive = $this->createStub(Session::class);
         $sessionLive->method('get')->willReturnCallback(static function (string $key) use (&$bag, $session): mixed {

@@ -95,6 +95,8 @@ final class MallDemo
 
     private readonly PartyStore $parties;
 
+    private readonly \PerfectConsign\Feature\Party\AssignmentBook $stays;
+
     private readonly TicketStore $tickets;
 
     private readonly SalePoster $poster;
@@ -139,7 +141,8 @@ final class MallDemo
             new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
             new \PerfectConsign\Bootstrap\AuditLog($this->statements),
         );
-        $this->parties = new PartyStore($this->statements, $audit);
+        $this->stays = new \PerfectConsign\Feature\Party\AssignmentBook($this->statements);
+        $this->parties = new PartyStore($this->statements, $audit, $this->stays);
         $pricing = new TicketPricing($this->statements);
         $ceiling = new \PerfectConsign\Bootstrap\SaleCeiling(
             $this->statements,
@@ -147,13 +150,38 @@ final class MallDemo
             new \PerfectConsign\Bootstrap\AuditLog($this->statements),
         );
         $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)), $ceiling);
-        $this->poster = new SalePoster($this->ledger, $this->statements, new SaleReceipt($this->ledger, $this->statements), new ReceiptChange(), $ceiling);
+        $attach = new \PerfectConsign\Feature\Pos\SaleTicketAttach($this->statements);
+        $reversals = new \PerfectConsign\Feature\Pos\SaleReversal(
+            $this->ledger,
+            $this->statements,
+            $ceiling,
+            new \PerfectConsign\Feature\Payout\VendorClawback($this->ledger, $this->statements),
+        );
+        $this->poster = new SalePoster(
+            $this->ledger,
+            new SaleReceipt($this->ledger, $this->statements),
+            new ReceiptChange(),
+            $attach,
+            $reversals,
+        );
         $this->company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
-        $this->rent = new RentStore($this->statements, new MallSettings($this->statements, $this->company), new RentLines(), $this->ledger);
+        $this->rent = new RentStore(
+            $this->statements,
+            new MallSettings($this->statements, $this->company, new \PerfectConsign\Feature\Mall\MallDay($this->statements)),
+            new RentLines(),
+            $this->ledger,
+        );
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));
         $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
         $lines = new PayoutRunLines($this->statements);
-        $this->settler = new PayoutSettler($this->ledger, $payouts, $this->runs, $lines, $audit);
+        $this->settler = new PayoutSettler(
+            $this->ledger,
+            $payouts,
+            $this->runs,
+            $lines,
+            $audit,
+            new \PerfectConsign\Feature\Payout\VendorClawback($this->ledger, $this->statements),
+        );
         $this->disburser = new PayoutDisburser($this->ledger, $payouts, $this->runs, $lines, new PayoutRunChecks($this->statements), $audit);
     }
 
@@ -298,7 +326,7 @@ final class MallDemo
                  VALUES (?::uuid, ?, ?, 10, 10, ?, ?, ?::uuid)',
                 [$id, $code, 'Booth ' . $code, $place[0], $place[1], $floorId]
             );
-            $this->parties->setAskingRent($id, $place[2]);
+            $this->stays->setAskingRent($id, $place[2]);
             $this->booths[$code] = $id;
         }
     }
@@ -399,12 +427,12 @@ final class MallDemo
         }
         $this->closeDrawer($session, $month, $month === '2026-06' ? 200 : 0);
         if ($month === '2026-05') {
-            $this->parties->endAssignment($this->assignmentId('C-2', 'LEO'), '2026-05-31');
+            $this->stays->endAssignment($this->assignmentId('C-2', 'LEO'), '2026-05-31');
         }
         if ($month === '2026-07') {
-            $this->parties->endAssignment($this->assignmentId('B-2', 'DAN'), '2026-07-31');
-            $this->parties->setAskingRent($this->booths['A-1'], 35000);
-            $this->parties->setAskingRent($this->booths['B-2'], 27500);
+            $this->stays->endAssignment($this->assignmentId('B-2', 'DAN'), '2026-07-31');
+            $this->stays->setAskingRent($this->booths['A-1'], 35000);
+            $this->stays->setAskingRent($this->booths['B-2'], 27500);
             $this->assign('B-2', 'EVE', '2026-08-01', '', 27500);
             $this->assign('E-1', 'EVE', '2026-08-01', '', 12000);
             $this->assign('D-1', 'MAX', '2026-08-01', '', 15000);
@@ -425,8 +453,8 @@ final class MallDemo
             $this->parties->setActive($this->vendors['DAN'], false);
         }
         if ($month === '2026-09') {
-            $this->parties->endAssignment($this->assignmentId('A-2', 'BEA'), '2026-10-31');
-            $this->parties->endAssignment($this->assignmentId('B-1', 'CAL'), '2026-10-18');
+            $this->stays->endAssignment($this->assignmentId('A-2', 'BEA'), '2026-10-31');
+            $this->stays->endAssignment($this->assignmentId('B-1', 'CAL'), '2026-10-18');
             $this->assign('A-2', 'IRI', '2026-11-01', '', 25000);
             $this->assign('B-1', 'JON', '2026-11-01', '', 15000);
         }
@@ -485,7 +513,7 @@ final class MallDemo
 
     private function assign(string $booth, string $vendor, string $starts, string $ends, int $rent): void
     {
-        $this->parties->addAssignment($this->booths[$booth], $this->vendors[$vendor], $starts, $ends, $rent);
+        $this->stays->addAssignment($this->booths[$booth], $this->vendors[$vendor], $starts, $ends, $rent);
     }
 
     private function assignmentId(string $booth, string $vendor): string

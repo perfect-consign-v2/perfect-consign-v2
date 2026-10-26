@@ -60,48 +60,11 @@ final class ReportsController
         $this->named($slug, 'Sales', 'sales', $this->salesRows());
     }
 
-    #[Route('/([a-z][a-z0-9-]{0,62})/reports/rent', ['GET'])]
-    public function rent(string $slug): void
-    {
-        $this->open($slug);
-        $this->named($slug, 'Rent roll', 'rent', $this->ledger->rent());
-    }
-
     #[Route('/([a-z][a-z0-9-]{0,62})/reports/payouts', ['GET'])]
     public function payouts(string $slug): void
     {
         $this->open($slug);
         $this->named($slug, 'Payout register', 'payouts', $this->payoutRows());
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/reports/stored-value', ['GET'])]
-    public function storedValue(string $slug): void
-    {
-        $this->open($slug);
-        $this->named($slug, 'Stored value', 'stored', $this->ledger->storedValue());
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/reports/expiring', ['GET'])]
-    public function expiring(string $slug): void
-    {
-        $this->open($slug);
-        $this->named($slug, 'Expiring items', 'expiring', $this->ledger->expiring());
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/reports/donated', ['GET'])]
-    public function donated(string $slug): void
-    {
-        $this->open($slug);
-        $bounds = $this->span();
-        $this->named($slug, 'Donated items', 'donated', $this->ledger->donated($bounds['from'], $bounds['to']));
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/reports/sell-through', ['GET'])]
-    public function sellThrough(string $slug): void
-    {
-        $this->open($slug);
-        $bounds = $this->span();
-        $this->named($slug, 'Category sell-through', 'sell-through', $this->ledger->sellThrough($bounds['from'], $bounds['to']));
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/reports/build', ['GET'])]

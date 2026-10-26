@@ -8,7 +8,8 @@
         "krubio/perfect-container-psr-11": "^2.0",
         "ext-pdo": "*",
         "ext-ctype": "*",
-        "ext-zip": "*"
+        "ext-zip": "*",
+      "ext-xdebug": "*"
     },
     "autoload": {
         "psr-4": {

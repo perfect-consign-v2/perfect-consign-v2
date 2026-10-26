@@ -30,7 +30,7 @@ final class MutationAllowListTest extends TestCase
         self::assertNotNull(equivalentReason('src\\Feature\\Pos\\TicketPricing.php', 182, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Feature\\Book\\MissedSaleQuote.php', 17, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Shared\\Web\\layout.php', 244, '&&', '||'));
-        self::assertNotNull(equivalentReason('src\\Feature\\Pos\\pos.php', 93, '>', '>='));
+        self::assertNotNull(equivalentReason('src\\Feature\\Pos\\pos.php', 96, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Feature\\Vendor\\VendorFigures.php', 61, '!', ''));
         self::assertNotNull(equivalentReason('src\\Feature\\Password\\LoginAccounts.php', 79, '!', ''));
 

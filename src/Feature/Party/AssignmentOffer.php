@@ -11,14 +11,16 @@ use PerfectConsign\Shared\Http\View;
 
 final class AssignmentOffer
 {
-    public function __construct(private readonly PartyStore $parties)
-    {
+    public function __construct(
+        private readonly PartyStore $parties,
+        private readonly AssignmentBook $stays,
+    ) {
     }
 
     public function contract(string $boothId, string $typed): int
     {
         if ($typed === '') {
-            $asking = $this->parties->askingRent($boothId);
+            $asking = $this->stays->askingRent($boothId);
             if ($asking === null) {
                 throw new InvalidArgumentException('that booth has no asking rent');
             }
@@ -35,9 +37,10 @@ final class AssignmentOffer
     public function booths(string $today): array
     {
         $this->requireDate($today);
+        $rates = $this->stays->askingRents();
         $choices = [];
-        foreach ($this->listed($this->parties->booths(), $this->staysByBooth($this->parties->assignments()), $today) as $booth) {
-            $minor = $this->parties->askingRent($booth['id']);
+        foreach ($this->listed($this->parties->booths(), $this->staysByBooth($this->stays->assignments()), $today) as $booth) {
+            $minor = $rates[$booth['id']] ?? null;
             $choices[] = [
                 'id' => $booth['id'],
                 'code' => $booth['code'],

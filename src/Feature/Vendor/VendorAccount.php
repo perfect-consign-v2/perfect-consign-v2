@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Vendor;
 
-use PerfectConsign\Feature\Inventory\InventoryStore;
 use PerfectConsign\Feature\Inventory\ItemForm;
+use PerfectConsign\Feature\Inventory\ItemQueries;
 use PerfectConsign\Feature\Inventory\StoreTake;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -14,7 +14,7 @@ final class VendorAccount
 {
     public function __construct(
         private readonly Statements $statements,
-        private readonly InventoryStore $inventory,
+        private readonly ItemQueries $inventory,
         private readonly ItemForm $forms,
         private readonly StoreTake $take,
     ) {

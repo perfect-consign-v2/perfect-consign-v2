@@ -53,8 +53,6 @@ final class PosAddController
                         '/' . $slug . '/pos' . ($request->field('instant_action') === 'save_and_new' ? '?instant=1' : ''),
                         'Incomplete line on the ticket.',
                     );
-
-                    return;
                 }
             }
         } catch (DatabaseRefusal $refusal) {

@@ -105,6 +105,32 @@
       if (field && name !== null) {
         field.value = name;
       }
+      var chargeBooth = button.getAttribute('data-charge-booth');
+      if (form && chargeBooth !== null) {
+        var boothField = form.querySelector('input[name="booth_id"]');
+        var dateField = form.querySelector('input[name="posting_date"]');
+        var codeEl = modal.querySelector('[data-charge-code]');
+        var vendorEl = modal.querySelector('[data-charge-vendor]');
+        var amountEls = modal.querySelectorAll('[data-charge-amount]');
+        if (boothField) {
+          boothField.value = chargeBooth;
+        }
+        if (dateField) {
+          dateField.value = button.getAttribute('data-charge-date') || '';
+        }
+        if (codeEl) {
+          codeEl.textContent = button.getAttribute('data-charge-code') || '';
+        }
+        if (vendorEl) {
+          var vendorName = button.getAttribute('data-charge-vendor') || '';
+          vendorEl.textContent = vendorName;
+          vendorEl.hidden = vendorName === '';
+        }
+        var amountText = button.getAttribute('data-charge-money') || '';
+        amountEls.forEach(function (el) {
+          el.textContent = amountText;
+        });
+      }
       modal.hidden = false;
       if (field) {
         field.focus();

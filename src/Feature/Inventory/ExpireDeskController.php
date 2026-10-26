@@ -40,8 +40,6 @@ final class ExpireDeskController
                     $this->formToken(),
                 );
                 $this->app->redirect('/' . $slug . '/inventory/expired', 'Bought for the store.');
-
-                return;
             }
             $this->desk->dispose($itemId, $kind, $this->postedOn());
             $notice = $kind === 'donate' ? 'Marked donated.' : 'Returned to the vendor.';

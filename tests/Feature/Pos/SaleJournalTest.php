@@ -27,7 +27,7 @@ final class SaleJournalTest extends TestCase
             ]],
             [['account_id' => 'acct-card', 'debit' => 930, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null]],
             0,
-            1,
+            5,
             930,
         );
 
@@ -50,7 +50,7 @@ final class SaleJournalTest extends TestCase
             [],
             [['account_id' => 'acct-cash', 'debit' => 103, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null]],
             103,
-            1,
+            5,
             103,
         );
         self::assertSame(105, $up[0]['debit']);
@@ -62,7 +62,7 @@ final class SaleJournalTest extends TestCase
             [],
             [['account_id' => 'acct-cash', 'debit' => 101, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null]],
             101,
-            1,
+            5,
             101,
         );
         self::assertSame(100, $down[0]['debit']);
@@ -78,7 +78,7 @@ final class SaleJournalTest extends TestCase
             [],
             [['account_id' => 'acct-cash', 'debit' => 50, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null]],
             50,
-            1,
+            5,
             103,
         );
         self::assertSame(50, $up[0]['debit']);
@@ -89,7 +89,7 @@ final class SaleJournalTest extends TestCase
             [],
             [['account_id' => 'acct-cash', 'debit' => 50, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null]],
             50,
-            1,
+            5,
             101,
         );
         self::assertSame(1, $down[1]['debit']);
@@ -106,7 +106,7 @@ final class SaleJournalTest extends TestCase
             'tax' => 80,
             'discount' => 50,
             'store_discount' => 25,
-        ], 'v1', $credit);
+        ], 'v1', $credit, 850);
 
         self::assertSame('acct-commission_revenue', $lines[0]['account_id']);
         self::assertSame(100, $lines[0]['debit']);
@@ -115,6 +115,24 @@ final class SaleJournalTest extends TestCase
         self::assertSame('acct-promotion_expense', $lines[2]['account_id']);
         self::assertSame(25, $lines[2]['credit']);
         self::assertSame('acct-vendor_payable', $lines[3]['account_id']);
+        self::assertSame(850, $lines[3]['debit']);
+        self::assertSame($credit, $lines[4]);
+    }
+
+    public function testAReturnWithNoOpenPayableClawsBackReceivable(): void
+    {
+        $ledger = $this->createStub(LedgerStore::class);
+        $ledger->method('roleAccount')->willReturnCallback(static fn (string $role): string => 'acct-' . $role);
+        $credit = ['account_id' => 'acct-cash', 'debit' => 0, 'credit' => 800, 'subledger_type' => null, 'subledger_ref' => null];
+        $lines = SaleJournal::giveBack($ledger, [
+            'price' => 1000,
+            'commission' => 100,
+            'tax' => 80,
+            'discount' => 50,
+            'store_discount' => 25,
+        ], 'v1', $credit, 0);
+
+        self::assertSame('acct-vendor_receivable', $lines[3]['account_id']);
         self::assertSame(850, $lines[3]['debit']);
         self::assertSame($credit, $lines[4]);
     }
@@ -199,7 +217,7 @@ final class SaleJournalTest extends TestCase
 
     public function testZeroCashDoesNotRoundAnEmptyTender(): void
     {
-        $lines = SaleJournal::sale($this->ledger(), [], [], 0, 1, 103);
+        $lines = SaleJournal::sale($this->ledger(), [], [], 0, 5, 103);
 
         self::assertSame([], $lines);
     }
@@ -214,7 +232,7 @@ final class SaleJournalTest extends TestCase
                 ['account_id' => 'acct-card', 'debit' => 53, 'credit' => 0, 'subledger_type' => null, 'subledger_ref' => null],
             ],
             103,
-            1,
+            5,
             103,
         );
 

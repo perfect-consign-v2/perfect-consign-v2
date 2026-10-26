@@ -89,7 +89,7 @@ final class ActiveRegisterTest extends TestCase
             new DatabaseRole($pdo),
             $pdo,
             new CompanyLines(),
-        ));
+        ), new \PerfectConsign\Feature\Mall\MallDay($mallRows));
         $this->bag = $bag;
         $session = $this->createStub(Session::class);
         $session->method('get')->willReturnCallback(function (string $key): mixed {

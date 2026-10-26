@@ -70,6 +70,30 @@ final class ProbeMall
         putenv('STALL_OWNER_PASSWORD=' . self::PASSWORD);
         $_ENV['STALL_OWNER_PASSWORD'] = self::PASSWORD;
         self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'set-owner.php', [self::SLUG, self::USERNAME]);
+        self::resetMallMoney();
+    }
+
+    /**
+     * HTTP suites flip prepaid/late-fee switches. A hung test must not leave the rent page on the debtors book.
+     */
+    public static function resetMallMoney(): void
+    {
+        $pdo = self::admin();
+        $schemaStmt = $pdo->prepare('SELECT schema_name FROM platform.tenants WHERE slug = ?');
+        $schemaStmt->execute([self::SLUG]);
+        $schema = $schemaStmt->fetchColumn();
+        if (!is_string($schema) || $schema === '' || preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
+            return;
+        }
+        $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
+        $pdo->exec(
+            'UPDATE mall
+             SET rent_prepaid_from_prior_sales = false,
+                 late_fees_enabled = false,
+                 late_fee_grace_days = 0,
+                 late_fee_first_minor = 0,
+                 late_fee_next_minor = 0'
+        );
     }
 
     private static function bringTenants(SchemaMigrator $migrator): void
@@ -122,8 +146,40 @@ final class ProbeMall
     private static function replace(string $root): void
     {
         require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'wipe-tenant.php';
-        \wipeTenant(self::admin(), self::SLUG, self::SLUG);
+        $pdo = self::admin();
+        self::clearUsedPasswordResets($pdo, self::SLUG);
+        \wipeTenant($pdo, self::SLUG, self::SLUG);
         self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php', [self::SLUG, self::DISPLAY_NAME]);
+    }
+
+    /**
+     * Used password resets are append-only and block wipe forever. Local probe DBs run as
+     * superuser so the suite can clear them for this slug only before wipeTenant.
+     */
+    private static function clearUsedPasswordResets(PDO $pdo, string $slug): void
+    {
+        $super = $pdo->query(
+            "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
+        );
+        if ($super === false || $super->fetchColumn() !== true) {
+            return;
+        }
+        $tenant = $pdo->prepare('SELECT id::text FROM platform.tenants WHERE slug = ?');
+        $tenant->execute([$slug]);
+        $tenantId = $tenant->fetchColumn();
+        if (!is_string($tenantId) || $tenantId === '') {
+            return;
+        }
+        $pdo->exec('SET event_triggers TO off');
+        try {
+            $pdo->exec('ALTER TABLE platform.password_resets DISABLE TRIGGER password_resets_append_only');
+            $pdo->exec('ALTER TABLE platform.password_resets DISABLE TRIGGER password_resets_no_truncate');
+            $pdo->prepare('DELETE FROM platform.password_resets WHERE tenant_id = ?::uuid')->execute([$tenantId]);
+            $pdo->exec('ALTER TABLE platform.password_resets ENABLE ALWAYS TRIGGER password_resets_append_only');
+            $pdo->exec('ALTER TABLE platform.password_resets ENABLE ALWAYS TRIGGER password_resets_no_truncate');
+        } finally {
+            $pdo->exec('SET event_triggers TO on');
+        }
     }
 
     private static function fill(string $name, string $value): void

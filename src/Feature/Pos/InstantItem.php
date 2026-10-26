@@ -25,18 +25,7 @@ final class InstantItem
     {
         $missing = $this->drafts->missingFields($item->vendorId, $item->description, $item->price);
         if ($missing !== []) {
-            $this->drafts->park(
-                $session,
-                $item->vendorId,
-                $vendorLabel,
-                trim($item->description),
-                trim($item->price),
-                trim($item->brand->id),
-                trim($item->brand->label),
-                $item->discountKind,
-                $item->discountValue,
-                $item->attributes,
-            );
+            $this->drafts->park($session, $vendorLabel, $item);
 
             return 'draft';
         }

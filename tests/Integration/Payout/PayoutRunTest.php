@@ -19,6 +19,7 @@ use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Payout\StorePurchase;
+use PerfectConsign\Feature\Payout\VendorClawback;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerPeriods;
@@ -44,12 +45,12 @@ final class PayoutRunTest extends TestCase
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $lines = new PayoutRunLines($statements);
-        $settler = new PayoutSettler($ledger, $payouts, $runs, $lines, QuietAudit::make($statements));
+        $settler = new PayoutSettler($ledger, $payouts, $runs, $lines, QuietAudit::make($statements), new VendorClawback($ledger, $statements));
         $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines, new PayoutRunChecks($statements), QuietAudit::make($statements));
         $reverser = new PayoutReverser($ledger, $statements);
         $purchases = new StorePurchase($ledger);
         $mall = new MallPayoutSettings($statements);
-        $parties = new PartyStore($statements, QuietAudit::make($statements));
+        $parties = new PartyStore($statements, QuietAudit::make($statements), new \PerfectConsign\Feature\Party\AssignmentBook($statements));
         $date = $this->openDate($statements);
         $pdo->beginTransaction();
         try {
@@ -197,7 +198,7 @@ final class PayoutRunTest extends TestCase
             $settler->chargeMissing($runId, $vendorId);
             $parties->setPayoutMode($vendorId, 'nope');
         // assignments( row(
-            $mall->save('nope', true, true, 1, true, false);
+            $mall->save('nope', true, true, 1, true, true);
             self::assertSame('both', $mall->operatingMode());
             self::assertSame('monthly', $mall->payoutCadence());
             self::assertTrue($mall->rentPrepaid());
@@ -214,7 +215,7 @@ final class PayoutRunTest extends TestCase
                 self::assertTrue(true);
             }
             // pay( pastWith( lastUndone(
-            $singlePayout = new PayoutSingle($statements, $payouts, $settler, $disburser, $lines, $reverser);
+            $singlePayout = new PayoutSingle($statements, $payouts, $settler, $disburser, $lines, $reverser, new VendorClawback($ledger, $statements));
             self::assertNull($singlePayout->lastUndone($vendorId));
             $single = $singlePayout->beginSingle($date);
             $lines->vendorLine($single, $vendorId);

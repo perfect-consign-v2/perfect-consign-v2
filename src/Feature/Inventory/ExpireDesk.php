@@ -104,7 +104,6 @@ final class ExpireDesk
         $item = $this->item($itemId);
         $vendorId = $item['vendor_id'];
         $postingKey = 'store-purchase:expire-buy:' . hash('sha256', $itemId . "\n" . $amount . "\n" . $token);
-        $reference = substr($postingKey, strlen('store-purchase:'));
 
         return $this->ledger->post(new JournalDraft(
             postingKey: $postingKey,

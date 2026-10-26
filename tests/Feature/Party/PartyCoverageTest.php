@@ -94,7 +94,8 @@ final class PartyCoverageTest extends TestCase
         $statements->method('transaction')->willReturnCallback(static function (callable $work): mixed {
             return $work();
         });
-        $store = new PartyStore($statements, QuietAudit::make($statements));
+        $stays = new \PerfectConsign\Feature\Party\AssignmentBook($statements);
+        $store = new PartyStore($statements, QuietAudit::make($statements), $stays);
         $vendor = new VendorDraft($this->fields([]), null);
         try {
             $store->addVendor($vendor);
@@ -139,7 +140,7 @@ final class PartyCoverageTest extends TestCase
             self::assertSame('that booth was not created', $error->getMessage());
         }
         try {
-            $store->addAssignment(
+            $stays->addAssignment(
                 '00000000-0000-7000-8000-0000000000b1',
                 '00000000-0000-7000-8000-0000000000a1',
                 '2026-10-01',
@@ -156,7 +157,7 @@ final class PartyCoverageTest extends TestCase
         });
         $withId->method('bound')->willReturn([['id' => '00000000-0000-7000-8000-0000000000aa']]);
         try {
-            (new PartyStore($withId, QuietAudit::make($withId)))->addAssignment(
+            (new \PerfectConsign\Feature\Party\AssignmentBook($withId))->addAssignment(
                 '00000000-0000-7000-8000-0000000000b1',
                 '00000000-0000-7000-8000-0000000000a1',
                 '2026-10-01',
@@ -271,7 +272,8 @@ final class PartyCoverageTest extends TestCase
 
             return [['id' => $seen['id']]];
         });
-        $store = new PartyStore($statements, QuietAudit::make($statements));
+        $stays = new \PerfectConsign\Feature\Party\AssignmentBook($statements);
+        $store = new PartyStore($statements, QuietAudit::make($statements), $stays);
         try {
             $store->addVendor(new VendorDraft($this->fields([]), null));
             self::fail('a numeric vendor id was accepted');
@@ -286,7 +288,7 @@ final class PartyCoverageTest extends TestCase
         }
         self::assertFalse($usedTransaction);
         $seen['id'] = '00000000-0000-7000-8000-0000000000aa';
-        $store->addAssignment(
+        $stays->addAssignment(
             '00000000-0000-7000-8000-0000000000b1',
             '00000000-0000-7000-8000-0000000000a1',
             '2026-10-01',
@@ -295,7 +297,7 @@ final class PartyCoverageTest extends TestCase
         );
         self::assertStringNotContainsString('ends_on', $seen['sql']);
         self::assertSame(3, $seen['count']);
-        $store->addAssignment(
+        $stays->addAssignment(
             '00000000-0000-7000-8000-0000000000b1',
             '00000000-0000-7000-8000-0000000000a1',
             '2026-10-01',

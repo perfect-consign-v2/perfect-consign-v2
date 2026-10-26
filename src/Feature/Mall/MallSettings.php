@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Mall;
 
-use DateTimeImmutable;
-use DateTimeZone;
 use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Ledger\CashRound;
@@ -17,6 +15,7 @@ final class MallSettings
     public function __construct(
         private readonly Statements $statements,
         private readonly CompanyStore $company,
+        private readonly MallDay $day,
     ) {
     }
 
@@ -30,12 +29,12 @@ final class MallSettings
 
     public function today(): string
     {
-        return (new DateTimeImmutable('now', new DateTimeZone($this->timeZone())))->format('Y-m-d');
+        return $this->day->today();
     }
 
     public function timeZone(): string
     {
-        return RowValue::string($this->row()['time_zone'] ?? null);
+        return $this->day->timeZone();
     }
 
     /**

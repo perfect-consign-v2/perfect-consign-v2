@@ -15,6 +15,6 @@ final class VendorFiguresTest extends TestCase
         $statements = $this->createStub(Statements::class);
         $statements->method('bound')->willReturn([]);
 
-        self::assertSame(['payable' => 0, 'rent' => 0], (new VendorFigures($statements))->numbers('vendor-1'));
+        self::assertSame(['payable' => 0, 'rent' => 0, 'clawback' => 0], (new VendorFigures($statements))->numbers('vendor-1'));
     }
 }

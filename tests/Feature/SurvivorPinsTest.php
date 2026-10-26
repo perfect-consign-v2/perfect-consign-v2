@@ -142,6 +142,7 @@ final class SurvivorPinsTest extends TestCase
             (new ReflectionClass(PayoutRunStore::class))->newInstanceWithoutConstructor(),
             (new ReflectionClass(PayoutRunLines::class))->newInstanceWithoutConstructor(),
             QuietAudit::make($this->createStub(Statements::class)),
+            (new ReflectionClass(\PerfectConsign\Feature\Payout\VendorClawback::class))->newInstanceWithoutConstructor(),
         );
 
         self::assertSame('', $settler->settle('run', 'vendor', '2026-06-01', 0));
@@ -295,7 +296,7 @@ final class SurvivorPinsTest extends TestCase
         $occupied = (new ReflectionClass(\PerfectConsign\Feature\Payout\OccupiedPack::class))->newInstanceWithoutConstructor();
         $runs = new PayoutRunStore($statements, $occupied);
         $payouts = new PayoutStore($this->createStub(\PDO::class), $statements, $runs, new PayoutWindow());
-        $inventory = (new ReflectionClass(InventoryStore::class))->newInstanceWithoutConstructor();
+        $inventory = (new ReflectionClass(\PerfectConsign\Feature\Inventory\ItemQueries::class))->newInstanceWithoutConstructor();
         $forms = (new ReflectionClass(ItemForm::class))->newInstanceWithoutConstructor();
         $account = new VendorAccount($statements, $inventory, $forms, new StoreTake());
         $home = (new VendorCheck($statements, $payouts, $account))->home('01900000-0000-7000-8000-0000000000aa', '2026-06-15');
@@ -313,7 +314,11 @@ final class SurvivorPinsTest extends TestCase
             $this->createStub(\PDO::class),
             new \PerfectConsign\Feature\Company\CompanyLines(),
         );
-        $clock = new \PerfectConsign\Feature\Mall\MallClock(new \PerfectConsign\Feature\Mall\MallSettings($mallRows, $company));
+        $clock = new \PerfectConsign\Feature\Mall\MallClock(new \PerfectConsign\Feature\Mall\MallSettings(
+            $mallRows,
+            $company,
+            new \PerfectConsign\Feature\Mall\MallDay($mallRows),
+        ));
         $activity = new RegisterActivity($this->createStub(Statements::class), $clock);
 
         self::assertSame('', $activity->local(''));

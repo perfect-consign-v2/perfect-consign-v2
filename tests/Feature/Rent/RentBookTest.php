@@ -174,8 +174,8 @@ final class RentBookTest extends TestCase
         $book = $this->book()->assemble(
             $this->facts(
                 [$this->booth(self::NORTH, 'A1', 'North')],
-                [$this->stay(self::NORTH, self::ADA, 'Ada', '2026-03-15', null, 6200)],
-                [$this->rate(self::NORTH, 3100)],
+                [$this->stay(self::NORTH, self::ADA, 'Ada', '2026-03-15', null)],
+                [$this->rate(self::NORTH, 6200)],
                 [],
                 []
             ),
@@ -183,7 +183,7 @@ final class RentBookTest extends TestCase
             '2026-10-03'
         );
 
-        self::assertSame(3400, $book['rows'][0]['rate_minor'], 'override( replaces the booth rate before the move-in days');
+        self::assertSame(3400, $book['rows'][0]['rate_minor'], 'assignment rate( replaces the booth catalog before the move-in days');
         self::assertSame(3400, $book['stats']['due_minor']);
         self::assertTrue($book['rows'][0]['chargeable']);
     }
@@ -472,9 +472,9 @@ final class RentBookTest extends TestCase
     }
 
     /**
-     * @return array{booth_id: string, vendor_id: string, vendor_name: string, starts_on: string, ends_on: ?string, override_minor: ?int}
+     * @return array{booth_id: string, vendor_id: string, vendor_name: string, starts_on: string, ends_on: ?string}
      */
-    private function stay(string $boothId, string $vendorId, string $name, string $starts, ?string $ends, ?int $override = null): array
+    private function stay(string $boothId, string $vendorId, string $name, string $starts, ?string $ends): array
     {
         return [
             'booth_id' => $boothId,
@@ -482,7 +482,6 @@ final class RentBookTest extends TestCase
             'vendor_name' => $name,
             'starts_on' => $starts,
             'ends_on' => $ends,
-            'override_minor' => $override,
         ];
     }
 

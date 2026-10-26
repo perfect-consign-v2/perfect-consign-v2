@@ -192,6 +192,7 @@ final class RegisterStoreTest extends TestCase
         $mall = new MallSettings(
             $statements,
             (new ReflectionClass(\PerfectConsign\Feature\Company\CompanyStore::class))->newInstanceWithoutConstructor(),
+            new \PerfectConsign\Feature\Mall\MallDay($statements),
         );
         $clock = new MallClock($mall);
         $activity = new RegisterActivity($statements, $clock);

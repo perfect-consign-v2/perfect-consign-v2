@@ -13,15 +13,11 @@ final class PosPage
 {
     public function __construct(
         private readonly MallApp $app,
-        private readonly TicketStore $tickets,
-        private readonly TicketTenders $held,
+        private readonly PosRegister $register,
         private readonly GiftIssue $gifts,
-        private readonly RegisterGate $gate,
         private readonly SaleHold $sales,
         private readonly SalePoster $poster,
-        private readonly LayawayBook $layaways,
         private readonly PayoutStore $payouts,
-        private readonly TicketDrafts $drafts,
     ) {
     }
 
@@ -48,11 +44,11 @@ final class PosPage
     private function render(string $slug, ?string $error, bool $reopenInstant, ?string $giftError = null, ?string $payError = null, string $instantError = ''): void
     {
         $tenant = $this->app->open($slug, true);
-        $session = $this->gate->session($slug);
-        $cart = $this->tickets->cart($session);
-        $drafts = $this->drafts->forSession($session);
-        $tenders = $this->held->list($cart['ticket_id']);
-        $applied = $this->layaways->balance($cart['ticket_id']);
+        $session = $this->register->session($slug);
+        $cart = $this->register->cart($session);
+        $drafts = $this->register->drafts($session);
+        $tenders = $this->register->tenders($cart['ticket_id']);
+        $applied = $this->register->deposits($cart['ticket_id']);
         foreach ($tenders as $tender) {
             $applied += $tender['amount'];
         }
@@ -62,6 +58,7 @@ final class PosPage
         $gift = $this->giftForm($giftError, $reopenInstant);
         $pay = $this->payForm($payError);
         $instant = $this->instantForm($instantError);
+        $shopper = $this->register->shopper($cart['ticket_id']);
         $this->app->show('Feature/Pos/pos', [
             'title' => 'Sell',
             'displayName' => $tenant->displayName,
@@ -70,10 +67,10 @@ final class PosPage
             'cart' => $cart,
             'drafts' => $drafts,
             'tenders' => $tenders,
-            'deposits' => $this->layaways->balance($cart['ticket_id']),
-            'payments' => $this->layaways->payments($cart['ticket_id']),
-            'shopperId' => $this->tickets->getShopper($cart['ticket_id'])['id'],
-            'customerName' => $this->tickets->getShopper($cart['ticket_id'])['name'],
+            'deposits' => $this->register->deposits($cart['ticket_id']),
+            'payments' => $this->register->payments($cart['ticket_id']),
+            'shopperId' => $shopper['id'],
+            'customerName' => $shopper['name'],
             'salesAvailable' => $cart['buyer_id'] === '' ? 0 : max(0, $this->payouts->openPayout($cart['buyer_id'])['payable']),
             'remaining' => $cart['due'] - $applied,
             'giftNumber' => $giftNumber,
@@ -264,10 +261,10 @@ final class PosPage
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'showSearch' => false,
-            'cart' => $this->tickets->cart($this->gate->session($slug)),
+            'cart' => $this->register->cart($this->register->session($slug)),
             'heldStatus' => $status,
             'lastSale' => $this->sales->last($slug),
-            'layaways' => $status === 'layaway' ? $this->tickets->layaways() : [],
+            'layaways' => $status === 'layaway' ? $this->register->layaways() : [],
         ]);
     }
 }

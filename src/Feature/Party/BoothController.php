@@ -15,6 +15,7 @@ final class BoothController
     public function __construct(
         private readonly MallApp $app,
         private readonly PartyStore $booths,
+        private readonly AssignmentBook $asking,
         private readonly MallSettings $mall,
         private readonly BoothRoster $roster,
         private readonly BoothListFilter $filter,
@@ -77,7 +78,7 @@ final class BoothController
             );
             $amount = $this->askingAmount();
             if ($amount !== null) {
-                $this->booths->setAskingRent($id, $amount);
+                $this->asking->setAskingRent($id, $amount);
             }
         });
     }
@@ -118,7 +119,7 @@ final class BoothController
             if ($amount === null) {
                 throw new \InvalidArgumentException('enter an asking rent');
             }
-            $this->booths->setAskingRent($id, $amount);
+            $this->asking->setAskingRent($id, $amount);
         } catch (DatabaseRefusal $refusal) {
             $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
@@ -129,7 +130,7 @@ final class BoothController
         }
         $booth = $this->booths->findBooth($id);
         if ($booth === null) {
-            $this->list($slug, $error ?? 'that booth is not in this mall');
+            $this->list($slug, $error);
 
             return;
         }
@@ -235,7 +236,7 @@ final class BoothController
         if (!is_string($id) || $id === '') {
             return $booth;
         }
-        $minor = $this->booths->askingRent($id);
+        $minor = $this->asking->askingRent($id);
         if ($minor !== null) {
             $booth['amount'] = \PerfectConsign\Shared\Http\View::money($minor);
         }

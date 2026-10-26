@@ -740,7 +740,7 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Rent\\LateFeeDue.php' && $line === 84 && $from === '<' && $to === '<=') {
         return 'grace of one day already steps one day, so the equal case stores that same step';
     }
-    if ($file === 'src\\Feature\\Pos\\pos.php' && ($line === 93 || $line === 94) && $from === '>' && $to === '>=') {
+    if ($file === 'src\\Feature\\Pos\\pos.php' && $line === 96 && $from === '>' && $to === '>=') {
         return 'a zero cash adjustment is not shown, and a positive one keeps the plus sign';
     }
     if ($file === 'src\\Feature\\Pos\\TicketPricing.php' && $line === 182 && $from === '>' && $to === '>=') {

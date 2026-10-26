@@ -65,6 +65,7 @@ final class RentGuardTest extends TestCase
             new MallSettings(
                 $statements,
                 new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines()),
+                new \PerfectConsign\Feature\Mall\MallDay($statements),
             ),
             new RentLines(),
             new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo)),

@@ -81,13 +81,73 @@ final class RentStore
         if (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $exceptMonth) !== 1) {
             throw new InvalidArgumentException('a rent month is YYYY-MM');
         }
-        $due = [];
         $cycle = new RentCycle($this->cycleDay());
-        foreach ($this->openPeriods($today, $cycle->suffixesTouching($exceptMonth)) as $month) {
-            array_push($due, ...$this->dueLines($cycle, $month, $today));
+        $months = $this->openPeriods($today, $cycle->suffixesTouching($exceptMonth));
+        if ($months === []) {
+            return [];
+        }
+        $booths = $this->statements->rows('SELECT id::text AS id, code, name FROM booths');
+        $openRent = $this->openRentRows();
+        $due = [];
+        foreach ($months as $month) {
+            array_push($due, ...$this->dueLines($cycle, $month, $today, $booths, $openRent));
         }
 
         return $due;
+    }
+
+    /**
+     * Months other than the one on screen that still have at least one charge button.
+     *
+     * @return list<array{month: string, label: string, count: int}>
+     */
+    public function unchargedMonths(string $today, string $exceptMonth): array
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
+            throw new InvalidArgumentException('a rent day is YYYY-MM-DD');
+        }
+        if (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $exceptMonth) !== 1) {
+            throw new InvalidArgumentException('a rent month is YYYY-MM');
+        }
+        $skip = (new RentCycle($this->cycleDay()))->suffixesTouching($exceptMonth);
+        $listed = [];
+        foreach ($this->statements->bound(
+            "SELECT stall_rent_charge_suffix(series.period_start::date) AS month,
+                    count(DISTINCT assignment.booth_id) AS booths
+             FROM booth_assignments AS assignment
+             JOIN generate_series(
+                 stall_rent_period_start(assignment.starts_on),
+                 stall_rent_period_start(?::date),
+                 interval '1 month'
+             ) AS series(period_start) ON true
+             WHERE assignment.starts_on <= stall_rent_period_end(series.period_start::date)
+               AND (assignment.ends_on IS NULL OR assignment.ends_on >= series.period_start::date)
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM journals AS posted
+                   WHERE posted.source_type = 'rent_charge'
+                     AND posted.posting_key = 'rent-charge:' || assignment.booth_id::text || ':' || stall_rent_charge_suffix(series.period_start::date)
+                     AND NOT EXISTS (
+                         SELECT 1 FROM journals AS reversal
+                         WHERE reversal.reverses_journal_id = posted.id
+                     )
+               )
+             GROUP BY month
+             ORDER BY month",
+            [$today]
+        ) as $row) {
+            $month = RowValue::string($row['month'] ?? null);
+            if (in_array($month, $skip, true)) {
+                continue;
+            }
+            $listed[] = [
+                'month' => $month,
+                'label' => $this->periodLabel($month),
+                'count' => RowValue::integer($row['booths'] ?? null),
+            ];
+        }
+
+        return $listed;
     }
 
     /**
@@ -130,13 +190,25 @@ final class RentStore
     }
 
     /**
+     * @param list<array<string, mixed>> $booths
+     * @param list<array<string, mixed>> $openRent
      * @return list<array{booth_id: string, code: string, vendor_name: ?string, month: string, label: string, amount_minor: int, charge_date: string}>
      */
-    private function dueLines(RentCycle $cycle, string $month, string $today): array
+    private function dueLines(RentCycle $cycle, string $month, string $today, array $booths, array $openRent): array
     {
         $page = strlen($month) === 7 ? $month : substr($month, 0, 7);
         $period = strlen($month) === 7 ? null : $month;
-        $facts = $this->facts($page, $period, $period === null ? null : $cycle->end($period), $period);
+        $start = $period ?? $page . '-01';
+        $end = $period === null
+            ? (new DateTimeImmutable($page . '-01'))->modify('last day of this month')->format('Y-m-d')
+            : $cycle->end($period);
+        $facts = [
+            'booths' => $booths,
+            'assignments' => $this->assignmentRows($start, $end),
+            'rates' => $this->rates($start, $end),
+            'charges' => $this->chargeFacts($page, $period),
+            'open_rent' => $openRent,
+        ];
         $due = [];
         foreach ($this->lines->build($facts, $page, $today, $cycle->day(), $period) as $line) {
             if ($line['charged'] || $line['rate_minor'] === null || !$line['chargeable']) {
@@ -182,31 +254,47 @@ final class RentStore
 
         return [
             'booths' => $this->statements->rows('SELECT id::text AS id, code, name FROM booths'),
-            'assignments' => $this->statements->bound(
-                "SELECT assignment.booth_id::text AS booth_id,
-                        assignment.vendor_id::text AS vendor_id,
-                        vendor.name AS vendor_name,
-                        to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
-                        to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on
-                 FROM booth_assignments AS assignment
-                 JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
-                 WHERE assignment.starts_on <= ?::date
-                   AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)",
-                [$end, $start]
-            ),
+            'assignments' => $this->assignmentRows($start, $end),
             'rates' => $this->rates($start, $end),
             'charges' => $this->chargeFacts($month, $chargeSuffix),
-            'open_rent' => $this->statements->rows(
-                "SELECT line.subledger_ref AS booth_id,
-                        sum(line.debit_minor - line.credit_minor) AS open_minor
-                 FROM journal_lines AS line
-                 JOIN chart_roles AS role ON role.account_id = line.account_id
-                 WHERE role.role = 'booth_rent_receivable'
-                   AND line.subledger_type = 'booth'
-                 GROUP BY line.subledger_ref
-                 HAVING sum(line.debit_minor - line.credit_minor) > 0"
-            ),
+            'open_rent' => $this->openRentRows(),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function assignmentRows(string $start, string $end): array
+    {
+        return $this->statements->bound(
+            "SELECT assignment.booth_id::text AS booth_id,
+                    assignment.vendor_id::text AS vendor_id,
+                    vendor.name AS vendor_name,
+                    to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
+                    to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on
+             FROM booth_assignments AS assignment
+             JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
+             WHERE assignment.starts_on <= ?::date
+               AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)",
+            [$end, $start]
+        );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function openRentRows(): array
+    {
+        return $this->statements->rows(
+            "SELECT line.subledger_ref AS booth_id,
+                    sum(line.debit_minor - line.credit_minor) AS open_minor
+             FROM journal_lines AS line
+             JOIN chart_roles AS role ON role.account_id = line.account_id
+             WHERE role.role = 'booth_rent_receivable'
+               AND line.subledger_type = 'booth'
+             GROUP BY line.subledger_ref
+             HAVING sum(line.debit_minor - line.credit_minor) > 0"
+        );
     }
 
     /**

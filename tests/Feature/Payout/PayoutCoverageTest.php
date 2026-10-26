@@ -123,6 +123,7 @@ final class PayoutCoverageTest extends TestCase
             new PayoutRunStore($statements, new OccupiedPack($statements)),
             new PayoutRunLines($statements),
             QuietAudit::make($statements),
+            (new \ReflectionClass(\PerfectConsign\Feature\Payout\VendorClawback::class))->newInstanceWithoutConstructor(),
         );
         self::assertSame('', $settler->settle('run', 'vendor', '2026-10-01', 0));
         self::assertSame([], $settler->chargeMissing('run', 'vendor'));
@@ -536,7 +537,7 @@ final class PayoutCoverageTest extends TestCase
         return new PayoutOnce(
             $store,
             new PayoutRunSheets($sheets),
-            new PayoutSettler($this->createStub(LedgerStore::class), $this->payouts($runs, '0'), $store, new PayoutRunLines($runs), QuietAudit::make($runs)),
+            new PayoutSettler($this->createStub(LedgerStore::class), $this->payouts($runs, '0'), $store, new PayoutRunLines($runs), QuietAudit::make($runs), (new \ReflectionClass(\PerfectConsign\Feature\Payout\VendorClawback::class))->newInstanceWithoutConstructor()),
             new PayoutDisburser(
                 $this->createStub(LedgerStore::class),
                 $this->payouts($runs, '0'),

@@ -123,6 +123,7 @@ DROP TABLE brand_hold;
 DO $$
 BEGIN
     ALTER TABLE items DROP CONSTRAINT items_brand_id_fkey;
+    ALTER TABLE ticket_draft_lines DROP CONSTRAINT ticket_draft_lines_brand_fkey;
     TRUNCATE brands;
     RAISE EXCEPTION 'brand truncate was accepted';
 EXCEPTION
@@ -149,6 +150,7 @@ VALUES ('01900000-0000-7000-8000-000000000b05', 'Poster brand');
 DO $$
 BEGIN
     ALTER TABLE items DROP CONSTRAINT items_brand_id_fkey;
+    ALTER TABLE ticket_draft_lines DROP CONSTRAINT ticket_draft_lines_brand_fkey;
     SET LOCAL ROLE stall_poster;
     DELETE FROM brands WHERE id = '01900000-0000-7000-8000-000000000b05';
     IF EXISTS (

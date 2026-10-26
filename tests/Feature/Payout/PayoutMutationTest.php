@@ -128,7 +128,11 @@ final class PayoutMutationTest extends TestCase
 
             public function bound(string $sql, array $params): array
             {
-                if (!str_contains($sql, 'stall_payout_pack')) {
+                if (
+                    !str_contains($sql, 'stall_payout_pack')
+                    && !str_contains($sql, 'stall_payout_quote')
+                    && !str_contains($sql, 'stall_payout_run_quote')
+                ) {
                     return [];
                 }
 
@@ -171,7 +175,11 @@ final class PayoutMutationTest extends TestCase
 
                     return [['id' => '00000000-0000-7000-8000-000000000020']];
                 }
-                if (str_contains($sql, 'stall_payout_pack')) {
+                if (
+                    str_contains($sql, 'stall_payout_pack')
+                    || str_contains($sql, 'stall_payout_quote')
+                    || str_contains($sql, 'stall_payout_run_quote')
+                ) {
                     return [[
                         'vendor_id' => '00000000-0000-7000-8000-0000000000a1',
                         'code' => 'ADA',
@@ -271,8 +279,14 @@ final class PayoutMutationTest extends TestCase
                 if (str_contains($sql, "status = 'draft'")) {
                     return $this->runId === null ? [] : [['id' => $this->runId]];
                 }
-                if (str_contains($sql, 'stall_payout_pack')) {
-                    $from = $params[0] ?? null;
+                if (
+                    str_contains($sql, 'stall_payout_pack')
+                    || str_contains($sql, 'stall_payout_quote')
+                    || str_contains($sql, 'stall_payout_run_quote')
+                ) {
+                    $from = str_contains($sql, 'stall_payout_quote')
+                        ? ($params[1] ?? null)
+                        : ($params[0] ?? null);
                     $this->windowFrom = is_string($from) ? $from : '';
                     if (str_contains($sql, 'pack.owes')) {
                         return [$this->debtor('PREVIEW')];
@@ -394,6 +408,7 @@ final class PayoutMutationTest extends TestCase
                 $store,
                 new PayoutRunLines($runs),
                 QuietAudit::make($runs),
+                (new \ReflectionClass(\PerfectConsign\Feature\Payout\VendorClawback::class))->newInstanceWithoutConstructor(),
             ),
             new PayoutDisburser(
                 $this->createStub(LedgerStore::class),

@@ -181,7 +181,7 @@ final class RegisterPageTest extends TestCase
     {
         $open = [
             'ticket_id' => 'ticket-1',
-            'rounding' => '1',
+            'rounding' => '5',
             'due' => 103,
         ];
         $owing = $this->page([
@@ -233,19 +233,19 @@ final class RegisterPageTest extends TestCase
     {
         $nickel = $this->page([
             'remaining' => 103,
-            'cart' => ['ticket_id' => 'ticket-1', 'rounding' => '1'],
+            'cart' => ['ticket_id' => 'ticket-1', 'rounding' => '5'],
         ]);
         $deposit = $this->page([
             'remaining' => 103,
             'deposits' => 100,
-            'cart' => ['ticket_id' => 'ticket-1', 'rounding' => '1'],
+            'cart' => ['ticket_id' => 'ticket-1', 'rounding' => '5'],
         ]);
 
         self::assertStringContainsString('data-round="5"', $nickel);
         self::assertStringContainsString('data-cash="1.05"', $nickel);
         self::assertStringContainsString('id="pay-settled"><span>Cash due</span><strong id="pay-settled-amount">$1.05', $nickel);
         self::assertStringContainsString('id="pay-round-amount">+$0.02', $nickel);
-        self::assertStringContainsString('data-round="1"', $deposit);
+        self::assertStringContainsString('data-round="0"', $deposit);
         self::assertStringContainsString('data-cash="1.03"', $deposit);
         self::assertStringContainsString('id="pay-settled" hidden', $deposit);
         self::assertStringNotContainsString('id="summary-cash-due"', $deposit);

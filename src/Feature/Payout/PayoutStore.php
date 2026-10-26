@@ -51,15 +51,13 @@ final class PayoutStore
         if ($runId === null) {
             $rows = $this->statements->bound(
                 'SELECT payable, rent, "check" AS check_amount, owes AS owe_amount, settled_minor, rent_from_sales
-                 FROM stall_payout_pack(NULL::uuid, ?::date, ?::date, ?::date, ?::date)
-                 WHERE vendor_id = ?::uuid',
-                [$window['from'], $window['to'], $window['rent'], $today, $vendorId]
+                 FROM stall_payout_quote(?::uuid, ?::date, ?::date, ?::date, ?::date)',
+                [$vendorId, $window['from'], $window['to'], $window['rent'], $today]
             );
         } else {
             $rows = $this->statements->bound(
                 'SELECT payable, rent, "check" AS check_amount, owes AS owe_amount, settled_minor, rent_from_sales
-                 FROM payout_pack
-                 WHERE run_id = ?::uuid AND vendor_id = ?::uuid',
+                 FROM stall_payout_run_quote(?::uuid, ?::uuid)',
                 [$runId, $vendorId]
             );
         }

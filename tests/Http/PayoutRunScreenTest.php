@@ -14,6 +14,15 @@ final class PayoutRunScreenTest extends WebTestCase
     {
         $client = self::client();
         $client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $code = 'p' . bin2hex(random_bytes(3));
+        $created = $client->post('/' . ProbeMall::SLUG . '/vendors', [
+            'code' => $code,
+            'first_name' => 'Pack',
+            'last_name' => $code,
+            'store_take' => '50',
+            'payout_mode' => 'pay',
+        ]);
+        self::assertSees('Vendor created.', $created);
         $page = $client->get('/' . ProbeMall::SLUG . '/payouts');
 
         self::assertSame(200, $page->status);

@@ -14,6 +14,7 @@ final class InventoryController
     public function __construct(
         private readonly MallApp $app,
         private readonly InventoryStore $items,
+        private readonly ItemQueries $queries,
         private readonly ItemForm $forms,
         private readonly ItemWriter $writer,
         private readonly ItemListRows $rows,
@@ -191,7 +192,7 @@ final class InventoryController
         $tenant = $this->app->open($slug, true);
         $query = trim($this->app->request()->query('q'));
         $stock = $this->stockFilter($this->app->request()->query('stock'));
-        $items = $this->rows->mark($this->items->items($query, $stock), $this->items->referenced());
+        $items = $this->rows->mark($this->queries->items($query, $stock), $this->items->referenced());
         $this->app->show('Feature/Inventory/inventory', [
             'title' => 'Items',
             'displayName' => $tenant->displayName,
@@ -199,10 +200,10 @@ final class InventoryController
             'items' => $items,
             'query' => $query,
             'stock' => $stock,
-            'available' => $this->items->available(),
-            'unsold' => $this->items->unsold(),
-            'unprinted' => $this->items->unprinted(),
-            'total' => $this->items->count(),
+            'available' => $this->queries->available(),
+            'unsold' => $this->queries->unsold(),
+            'unprinted' => $this->queries->unprinted(),
+            'total' => $this->queries->count(),
             'confirm' => $this->confirming($items, $this->app->request()->query('confirm')),
             'labelStock' => $this->mall->getLabelStock(),
             'stocks' => $this->stocks->choices(),

@@ -236,7 +236,7 @@ final class CopyBranchesTest extends TestCase
                 'due' => $remaining,
                 'cash_round' => 0,
                 'cash_due' => $remaining,
-                'rounding' => '1',
+                'rounding' => '5',
                 'buyer_id' => $buyerId,
                 'buyer_name' => '',
                 'parked' => [],

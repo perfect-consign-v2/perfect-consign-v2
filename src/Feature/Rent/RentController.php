@@ -233,7 +233,7 @@ final class RentController
             'standing' => $visible['standing'],
             'fromSales' => $fromSales,
             'debtors' => $fromSales ? $this->receipts->debtors($today) : [],
-            'backlog' => $fromSales ? [] : $this->rent->uncharged($today, $month),
+            'backlog' => $fromSales ? [] : $this->rent->unchargedMonths($today, $month),
             'error' => $error,
         ]);
     }

@@ -74,22 +74,10 @@ final class TicketDrafts
         return $rows !== [];
     }
 
-    /**
-     * @param array<string, array{id: string, label: string}> $attributes
-     */
-    public function park(
-        string $sessionId,
-        string $vendorId,
-        string $vendorLabel,
-        string $description,
-        string $priceText,
-        string $brandId,
-        string $brandLabel,
-        string $discountKind,
-        string $discountValue,
-        array $attributes,
-    ): int {
+    public function park(string $sessionId, string $vendorLabel, InstantAdd $item): int
+    {
         $draftNo = $this->nextNo($sessionId);
+        $brandId = trim($item->brand->id);
         $this->statements->change(
             'INSERT INTO ticket_draft_lines (
                 session_id, draft_no, vendor_id, vendor_label, description, price_text,
@@ -101,15 +89,15 @@ final class TicketDrafts
             [
                 $sessionId,
                 $draftNo,
-                $vendorId !== '' ? $vendorId : null,
+                $item->vendorId !== '' ? $item->vendorId : null,
                 $vendorLabel,
-                $description,
-                $priceText,
+                trim($item->description),
+                trim($item->price),
                 $brandId !== '' ? $brandId : null,
-                $brandLabel,
-                $discountKind !== '' ? $discountKind : 'consignor_default',
-                $discountValue,
-                json_encode($attributes, JSON_THROW_ON_ERROR),
+                trim($item->brand->label),
+                $item->discountKind !== '' ? $item->discountKind : 'consignor_default',
+                $item->discountValue,
+                json_encode($item->attributes, JSON_THROW_ON_ERROR),
             ]
         );
 
@@ -166,28 +154,54 @@ final class TicketDrafts
      */
     private function decodeAttributes(string $json): array
     {
-        if ($json === '' || $json === '{}') {
-            return [];
-        }
-        try {
-            $decoded = json_decode($json, true, 32, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return [];
-        }
-        if (!is_array($decoded)) {
+        $decoded = $this->decodedMap($json);
+        if ($decoded === null) {
             return [];
         }
         $attributes = [];
         foreach ($decoded as $key => $value) {
-            if (!is_string($key) || !is_array($value)) {
+            if (!is_string($key)) {
                 continue;
             }
-            $attributes[$key] = [
-                'id' => is_string($value['id'] ?? null) ? $value['id'] : '',
-                'label' => is_string($value['label'] ?? null) ? $value['label'] : '',
-            ];
+            $pair = $this->attributePair($value);
+            if ($pair === null) {
+                continue;
+            }
+            $attributes[$key] = $pair;
         }
 
         return $attributes;
+    }
+
+    /**
+     * @return array<mixed>|null
+     */
+    private function decodedMap(string $json): ?array
+    {
+        if ($json === '' || $json === '{}') {
+            return null;
+        }
+        try {
+            $decoded = json_decode($json, true, 32, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * @return array{id: string, label: string}|null
+     */
+    private function attributePair(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        return [
+            'id' => is_string($value['id'] ?? null) ? $value['id'] : '',
+            'label' => is_string($value['label'] ?? null) ? $value['label'] : '',
+        ];
     }
 }
