@@ -29,8 +29,9 @@ if (run([$php, $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'muta
 $procs = [];
 for ($index = 0; $index < $shards; $index++) {
     $dir = $trees . DIRECTORY_SEPARATOR . 's' . $index;
-    if (is_dir($dir)) {
-        run(['git', 'worktree', 'remove', '--force', $dir], $root, processEnv());
+    if (!clearShardDir($dir, $root)) {
+        fwrite(STDERR, "shard {$index} directory could not be cleared\n");
+        exit(1);
     }
     if (run(['git', 'worktree', 'add', '--detach', $dir, 'HEAD'], $root, processEnv()) !== 0) {
         exit(1);
@@ -92,6 +93,63 @@ $merge = processEnv();
 $merge['PC_MUTATE_MERGE'] = '1';
 $merge['PC_MUTATE_SHARDS'] = (string) $shards;
 exit(run([$php, $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'mutate.php'], $root, $merge));
+
+function clearShardDir(string $dir, string $root): bool
+{
+    if (!is_dir($dir)) {
+        return true;
+    }
+    run(['git', 'worktree', 'remove', '--force', $dir], $root, processEnv());
+    if (!is_dir($dir)) {
+        return true;
+    }
+    run(['git', 'worktree', 'prune'], $root, processEnv());
+    if (!dropVendorLink($dir . DIRECTORY_SEPARATOR . 'vendor')) {
+        return false;
+    }
+
+    return removeTree($dir);
+}
+
+function dropVendorLink(string $vendor): bool
+{
+    if (!file_exists($vendor) && !is_link($vendor) && !is_dir($vendor)) {
+        return true;
+    }
+    if (is_link($vendor)) {
+        return unlink($vendor);
+    }
+    if (PHP_OS_FAMILY === 'Windows' && is_dir($vendor)) {
+        return runLine('cmd.exe /d /c rmdir ' . windowsQuote($vendor), dirname($vendor), processEnv()) === 0
+            || !is_dir($vendor);
+    }
+
+    return is_dir($vendor) ? rmdir($vendor) : unlink($vendor);
+}
+
+function removeTree(string $path): bool
+{
+    if (is_link($path)) {
+        return unlink($path);
+    }
+    if (!is_dir($path)) {
+        return unlink($path);
+    }
+    $items = scandir($path);
+    if ($items === false) {
+        return false;
+    }
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        if (!removeTree($path . DIRECTORY_SEPARATOR . $item)) {
+            return false;
+        }
+    }
+
+    return rmdir($path);
+}
 
 function linkVendor(string $vendor, string $link): bool
 {
