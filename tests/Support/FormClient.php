@@ -215,7 +215,24 @@ final class FormClient
             $this->csrf = $token;
         }
 
-        return new PageResponse($status, $body, $this->location($responseHeaders));
+        return new PageResponse($status, $body, $this->location($responseHeaders), $this->headerMap($responseHeaders));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function headerMap(string $headers): array
+    {
+        $map = [];
+        foreach (preg_split("/\r\n|\n|\r/", $headers) ?: [] as $line) {
+            if (!str_contains($line, ':')) {
+                continue;
+            }
+            [$name, $value] = explode(':', $line, 2);
+            $map[strtolower(trim($name))] = trim($value);
+        }
+
+        return $map;
     }
 
     private function rememberCookies(string $headers): void

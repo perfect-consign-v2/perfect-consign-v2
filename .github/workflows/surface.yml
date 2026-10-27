@@ -1,0 +1,51 @@
+name: surface
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  surface:
+    runs-on: ubuntu-latest
+    env:
+      STALL_DB_HOST: 127.0.0.1
+      STALL_DB_PORT: '5436'
+      STALL_DB_NAME: consign
+      STALL_DB_USER: stall
+      STALL_DB_PASSWORD: stall
+      STALL_APP_PASSWORD: ci-app-password
+      STALL_OWNER_PASSWORD: ci-owner-password
+      STALL_BACKUP_PASSWORD: ci-backup-password
+      STALL_WORKER_PASSWORD: ci-worker-password
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql, zip, curl, sockets
+      - run: composer install --no-interaction --prefer-dist --ignore-platform-req=ext-xdebug
+      - run: docker compose up -d postgres
+      - name: Wait for Postgres
+        run: |
+          for _ in $(seq 1 30); do
+            docker exec perfect-consign-postgres pg_isready -U stall -d consign && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Apply the platform schema
+        run: php bin/provision-platform.php
+      - name: Enable stall_app, stall_backup, and stall_worker logins
+        run: php bin/enable-stall-app.php
+      - name: Install Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+      - name: Safe form surface crawl
+        run: composer test:surface-mutate
+      - name: Browser JS surface clicks
+        run: composer test:browser
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}

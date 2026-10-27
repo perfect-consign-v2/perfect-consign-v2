@@ -48,7 +48,7 @@ JS;
         $this->page->callFunction(self::SUBMIT, [
             $action,
             json_encode($fields, JSON_THROW_ON_ERROR),
-        ])->waitForPageReload(Page::LOAD, 15000);
+        ])->waitForPageReload(Page::LOAD, 60000);
 
         return $this->html();
     }
@@ -61,6 +61,65 @@ JS;
             'username' => $username,
             'password' => $password,
         ]);
+    }
+
+    public function submitStickerJob(string $action, string $itemId): string
+    {
+        $js = <<<'JS'
+function (action, itemId) {
+    const forms = Array.from(document.querySelectorAll('form'));
+    const form = forms.find((item) => item.getAttribute('action') === action && item.method.toLowerCase() === 'post');
+    if (!form) {
+        throw new Error('missing form ' + action);
+    }
+    const box = document.querySelector('input[name="item[]"][value="' + itemId + '"]');
+    if (!box) {
+        throw new Error('missing item ' + itemId);
+    }
+    box.checked = true;
+    form.submit();
+}
+JS;
+        $this->page->callFunction($js, [$action, $itemId])->waitForPageReload(Page::LOAD, 60000);
+
+        return $this->html();
+    }
+
+    public function clickSelector(string $css, bool $waitsForNavigation = false): string
+    {
+        $js = <<<'JS'
+function (selector) {
+    window.print = function () {};
+    const node = document.querySelector(selector);
+    if (!node) {
+        throw new Error('missing ' + selector);
+    }
+    node.click();
+}
+JS;
+        if ($waitsForNavigation) {
+            $this->page->callFunction($js, [$css])->waitForPageReload(Page::LOAD, 60000);
+        } else {
+            $this->page->callFunction($js, [$css]);
+            usleep(200_000);
+        }
+
+        return $this->html();
+    }
+
+    public function currentPath(): string
+    {
+        $url = $this->page->getCurrentUrl();
+        $parts = parse_url($url);
+        if (!is_array($parts) || !isset($parts['path']) || !is_string($parts['path'])) {
+            return '';
+        }
+        $path = $parts['path'];
+        if (isset($parts['query']) && is_string($parts['query']) && $parts['query'] !== '') {
+            $path .= '?' . $parts['query'];
+        }
+
+        return $path;
     }
 
     public function close(): void
