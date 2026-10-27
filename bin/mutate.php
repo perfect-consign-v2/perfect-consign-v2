@@ -253,7 +253,7 @@ foreach ($mutants as $mutant) {
     $runEnv['XDEBUG_MODE'] = 'off';
     unset($runEnv['PC_COVERAGE']);
     $run = proc_open(
-        [$php, $phpunit, '--testsuite', 'unit'],
+        [$php, $phpunit, '--testsuite', 'unit', '--stop-on-failure', '--stop-on-error'],
         [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $runPipes,
         $root,
