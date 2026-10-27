@@ -50,6 +50,11 @@ for ($index = 0; $index < $shards; $index++) {
         fwrite(STDERR, "mutant list could not be copied\n");
         exit(1);
     }
+    $covering = $out . DIRECTORY_SEPARATOR . 'covering.json';
+    if (is_file($covering) && !copy($covering, $shardOut . DIRECTORY_SEPARATOR . 'covering.json')) {
+        fwrite(STDERR, "covering map could not be copied\n");
+        exit(1);
+    }
     $env = processEnv();
     $env['PC_MUTATE_FROM'] = $shardOut . DIRECTORY_SEPARATOR . 'mutants.json';
     $env['PC_MUTATE_SHARDS'] = (string) $shards;
@@ -226,7 +231,16 @@ function processEnv(): array
             $clean[$key] = $value;
         }
     }
-    unset($clean['PC_MUTATE_LIST'], $clean['PC_MUTATE_FROM'], $clean['PC_MUTATE_SHARD'], $clean['PC_MUTATE_SHARDS'], $clean['PC_MUTATE_MERGE']);
+    unset(
+        $clean['PC_MUTATE_LIST'],
+        $clean['PC_MUTATE_FROM'],
+        $clean['PC_MUTATE_SHARD'],
+        $clean['PC_MUTATE_SHARDS'],
+        $clean['PC_MUTATE_MERGE'],
+        $clean['PC_MUTATE_COVERING'],
+        $clean['PC_MUTATE_COVERING_OUT'],
+        $clean['PC_COVERAGE']
+    );
 
     return $clean;
 }

@@ -42,14 +42,26 @@ if (!is_array($env)) {
 }
 /** @var list<array{file: string, line: int, from: string, to: string, offset: int, length: int}> $mutants */
 $mutants = [];
+/** @var array<string, array<int, list<string>>> $covering */
+$covering = [];
 $fromFile = getenv('PC_MUTATE_FROM');
 if (is_string($fromFile) && $fromFile !== '') {
     $mutants = loadMutantList($root, $fromFile);
+    $covering = loadCoveringMap(dirname($fromFile) . DIRECTORY_SEPARATOR . 'covering.json');
 } else {
 $env['XDEBUG_MODE'] = 'coverage';
 $env['PC_COVERAGE'] = $coverageDir;
+$env['PC_MUTATE_COVERING'] = '1';
+$env['PC_MUTATE_COVERING_OUT'] = $outDir . DIRECTORY_SEPARATOR . 'covering.json';
 $coverage = proc_open(
-    [$php, $phpunit, '--testsuite', 'unit'],
+    [
+        $php,
+        $phpunit,
+        '--testsuite',
+        'unit',
+        '--extension',
+        'PerfectConsign\\Tests\\Mutate\\CoveringExtension',
+    ],
     [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
     $pipes,
     $root,
@@ -70,30 +82,33 @@ if ($coverageCode !== 0) {
     exit(1);
 }
 
+$covering = loadCoveringMap($outDir . DIRECTORY_SEPARATOR . 'covering.json');
 /** @var array<string, array<int, int>> $hits */
-$hits = [];
-$dumps = glob($coverageDir . DIRECTORY_SEPARATOR . '*.php');
-if ($dumps === false) {
-    fwrite(STDERR, "coverage dumps could not be read\n");
-    exit(1);
-}
-foreach ($dumps as $dump) {
-    $raw = include $dump;
-    if (!is_array($raw)) {
-        continue;
+$hits = coveringHits($root, $covering);
+if ($hits === []) {
+    $dumps = glob($coverageDir . DIRECTORY_SEPARATOR . '*.php');
+    if ($dumps === false) {
+        fwrite(STDERR, "coverage dumps could not be read\n");
+        exit(1);
     }
-    foreach ($raw as $file => $lines) {
-        if (!is_string($file) || !is_array($lines)) {
+    foreach ($dumps as $dump) {
+        $raw = include $dump;
+        if (!is_array($raw)) {
             continue;
         }
-        if (!str_starts_with($file, $source)) {
-            continue;
-        }
-        foreach ($lines as $line => $count) {
-            if (!is_int($line) || !is_int($count) || $count < 1) {
+        foreach ($raw as $file => $lines) {
+            if (!is_string($file) || !is_array($lines)) {
                 continue;
             }
-            $hits[$file][$line] = ($hits[$file][$line] ?? 0) + $count;
+            if (!str_starts_with($file, $source)) {
+                continue;
+            }
+            foreach ($lines as $line => $count) {
+                if (!is_int($line) || !is_int($count) || $count < 1) {
+                    continue;
+                }
+                $hits[$file][$line] = ($hits[$file][$line] ?? 0) + $count;
+            }
         }
     }
 }
@@ -251,9 +266,16 @@ foreach ($mutants as $mutant) {
     }
     $runEnv = $env;
     $runEnv['XDEBUG_MODE'] = 'off';
-    unset($runEnv['PC_COVERAGE']);
+    unset($runEnv['PC_COVERAGE'], $runEnv['PC_MUTATE_COVERING'], $runEnv['PC_MUTATE_COVERING_OUT']);
+    $command = [$php, $phpunit, '--testsuite', 'unit', '--stop-on-failure', '--stop-on-error'];
+    $tests = coveringTests($covering, relative($root, $file), $mutant['line']);
+    $filter = coveringFilter($tests);
+    if ($filter !== null) {
+        $command[] = '--filter';
+        $command[] = $filter;
+    }
     $run = proc_open(
-        [$php, $phpunit, '--testsuite', 'unit', '--stop-on-failure', '--stop-on-error'],
+        $command,
         [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $runPipes,
         $root,
@@ -798,4 +820,99 @@ function relative(string $root, string $file): string
     }
 
     return str_replace('/', '\\', $normalized);
+}
+
+/**
+ * @return array<string, array<int, list<string>>>
+ */
+function loadCoveringMap(string $path): array
+{
+    if (!is_file($path)) {
+        return [];
+    }
+    $raw = file_get_contents($path);
+    $decoded = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($decoded)) {
+        return [];
+    }
+    $covering = [];
+    foreach ($decoded as $file => $lines) {
+        if (!is_string($file) || !is_array($lines)) {
+            continue;
+        }
+        $normalized = str_replace('/', '\\', $file);
+        foreach ($lines as $line => $tests) {
+            if ((!is_int($line) && !is_string($line)) || !is_array($tests)) {
+                continue;
+            }
+            $lineNo = (int) $line;
+            if ($lineNo < 1) {
+                continue;
+            }
+            $names = [];
+            foreach ($tests as $test) {
+                if (is_string($test) && $test !== '') {
+                    $names[] = $test;
+                }
+            }
+            if ($names === []) {
+                continue;
+            }
+            $covering[$normalized][$lineNo] = array_values(array_unique($names));
+        }
+    }
+
+    return $covering;
+}
+
+/**
+ * @param array<string, array<int, list<string>>> $covering
+ * @return array<string, array<int, int>>
+ */
+function coveringHits(string $root, array $covering): array
+{
+    $hits = [];
+    foreach ($covering as $file => $lines) {
+        $absolute = $root . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $file);
+        foreach ($lines as $line => $tests) {
+            $hits[$absolute][$line] = count($tests);
+        }
+    }
+
+    return $hits;
+}
+
+/**
+ * @param array<string, array<int, list<string>>> $covering
+ * @return list<string>
+ */
+function coveringTests(array $covering, string $file, int $line): array
+{
+    $normalized = str_replace('/', '\\', $file);
+
+    return $covering[$normalized][$line] ?? [];
+}
+
+/**
+ * @param list<string> $tests
+ */
+function coveringFilter(array $tests): ?string
+{
+    $tests = array_values(array_unique(array_filter($tests, static fn(string $test): bool => $test !== '')));
+    if ($tests === []) {
+        return null;
+    }
+    if (count($tests) > 60) {
+        $classes = [];
+        foreach ($tests as $test) {
+            $classes[] = explode('::', $test, 2)[0];
+        }
+        $tests = array_values(array_unique($classes));
+    }
+    $parts = [];
+    foreach ($tests as $test) {
+        $parts[] = preg_quote($test, '/');
+    }
+
+    return '/' . implode('|', $parts) . '/';
 }

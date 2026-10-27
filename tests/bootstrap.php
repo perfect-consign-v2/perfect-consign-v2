@@ -43,6 +43,9 @@ foreach ($existing as $old) {
         exit(1);
     }
 }
+if (getenv('PC_MUTATE_COVERING') === '1') {
+    return;
+}
 if (!function_exists('xdebug_start_code_coverage') || !defined('XDEBUG_FILTER_CODE_COVERAGE')) {
     return;
 }
