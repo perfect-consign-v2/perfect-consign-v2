@@ -66,6 +66,11 @@ fi
 "$php_bin" "${root}/bin/migrate.php" tenant-all
 "$php_bin" "${root}/bin/migrate.php" platform-after
 
+# Keep root email sign-in working when .env names owner email + password.
+if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
+    "$php_bin" "${root}/bin/set-owner.php" mall owner
+fi
+
 code=$(curl -sS -o /dev/null -w '%{http_code}' https://v2.perfectconsign.com/mall)
 if [[ "$code" != "200" ]]; then
     echo "deploy-demo: https://v2.perfectconsign.com/mall returned ${code}" >&2

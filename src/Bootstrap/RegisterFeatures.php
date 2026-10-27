@@ -93,6 +93,9 @@ final class RegisterFeatures
         if (!self::validClassList($loaded)) {
             return null;
         }
+        // Re-sort every load. A stale unordered manifest must not let Home's
+        // /{slug} register before Root's /forgot (demo APP_ENV=production).
+        usort($loaded, self::platformRoutesFirst(...));
 
         return $loaded;
     }
