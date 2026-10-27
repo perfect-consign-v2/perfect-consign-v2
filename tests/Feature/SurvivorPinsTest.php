@@ -5,10 +5,19 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Feature;
 
 use PerfectConsign\Feature\Catalog\NameList;
+use PerfectConsign\Feature\Dev\LocalAdmin;
 use PerfectConsign\Feature\Inventory\InventoryStore;
 use PerfectConsign\Feature\Inventory\ItemForm;
 use PerfectConsign\Feature\Inventory\StoreTake;
+use PerfectConsign\Feature\Mall\ReceiptMailSettings;
+use PerfectConsign\Feature\Mall\ZoneName;
+use PerfectConsign\Feature\Party\AssignmentBook;
+use PerfectConsign\Feature\Party\AssignmentOffer;
+use PerfectConsign\Feature\Party\LetterDesk;
 use PerfectConsign\Feature\Party\MapStore;
+use PerfectConsign\Feature\Party\PartyStore;
+use PerfectConsign\Feature\Password\ResetLetter;
+use PerfectConsign\Feature\Password\ResetTokens;
 use PerfectConsign\Feature\Payout\PayoutRunLines;
 use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
@@ -27,9 +36,14 @@ use PerfectConsign\Feature\WaitList\WaitListStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Schema\MigrationLock;
+use PerfectConsign\Schema\SchemaCatalog;
+use PerfectConsign\Schema\SchemaMigrator;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Mail\LetterMailbox;
+use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\AbstractLogger;
 use Psr\Log\NullLogger;
 use ReflectionClass;
 use ReflectionMethod;
@@ -415,6 +429,324 @@ final class SurvivorPinsTest extends TestCase
 
         $tenders->apply('01900000-0000-7000-8000-0000000000aa', 'vendor_draw', 100, '01900000-0000-7000-8000-0000000000bb', 100);
         self::assertTrue(true);
+    }
+
+    public function testLocalAdminKeepsASetValueAndFillsABlank(): void
+    {
+        $fill = new ReflectionMethod(LocalAdmin::class, 'fill');
+        $previous = getenv('STALL_DB_HOST');
+        try {
+            putenv('STALL_DB_HOST');
+            $fill->invoke(null, 'STALL_DB_HOST', '127.0.0.1');
+            self::assertSame('127.0.0.1', getenv('STALL_DB_HOST'));
+            putenv('STALL_DB_HOST=kept-host');
+            $fill->invoke(null, 'STALL_DB_HOST', '127.0.0.1');
+            self::assertSame('kept-host', getenv('STALL_DB_HOST'));
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_DB_HOST=' . $previous);
+            } else {
+                putenv('STALL_DB_HOST');
+            }
+        }
+    }
+
+    public function testReceiptMailViaOnlyNamesGmailWhenAsked(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturnOnConsecutiveCalls(
+            [['receipt_mail_via' => 'gmail', 'gmail_address' => '', 'gmail_app_password' => null]],
+            [['receipt_mail_via' => 'server', 'gmail_address' => '', 'gmail_app_password' => null]],
+            [['receipt_mail_via' => 'other', 'gmail_address' => '', 'gmail_app_password' => null]],
+        );
+
+        self::assertSame('gmail', (new ReceiptMailSettings($statements))->via());
+        self::assertSame('server', (new ReceiptMailSettings($statements))->via());
+        self::assertSame('server', (new ReceiptMailSettings($statements))->via());
+    }
+
+    public function testAZoneWithoutACityKeepsTheRawName(): void
+    {
+        self::assertSame('Pacific Time (Los Angeles)', ZoneName::label('America/Los_Angeles'));
+        self::assertSame('UTC', ZoneName::label('UTC'));
+        self::assertSame('America/', ZoneName::label('America/'));
+    }
+
+    public function testAnOpenStayBeatsADatedStayOnTheSameBooth(): void
+    {
+        $booth = '01900000-0000-7000-8000-0000000000b1';
+        $store = $this->createStub(PartyStore::class);
+        $store->method('booths')->willReturn([['id' => $booth, 'code' => 'A12']]);
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturnCallback(static function (string $sql) use ($booth): array {
+            if (str_contains($sql, 'booth_rent_rates')) {
+                return [['booth_id' => $booth, 'amount_minor' => 10000]];
+            }
+
+            return [
+                ['booth_id' => $booth, 'starts_on' => '2020-01-01', 'ends_on' => '2026-12-31'],
+                ['booth_id' => $booth, 'starts_on' => '2020-01-01', 'ends_on' => null],
+            ];
+        });
+        $statements->method('bound')->willReturn([['amount_minor' => 10000]]);
+
+        self::assertSame([], (new AssignmentOffer($store, new AssignmentBook($statements)))->booths('2026-10-15'));
+    }
+
+    public function testLetterCopyStatusFollowsSentAndBounceFlags(): void
+    {
+        $on = new ReflectionMethod(LetterDesk::class, 'on');
+        $desk = (new ReflectionClass(LetterDesk::class))->newInstanceWithoutConstructor();
+        self::assertTrue($on->invoke($desk, true));
+        self::assertTrue($on->invoke($desk, 1));
+        self::assertTrue($on->invoke($desk, '1'));
+        self::assertTrue($on->invoke($desk, 't'));
+        self::assertTrue($on->invoke($desk, 'true'));
+        self::assertFalse($on->invoke($desk, false));
+        self::assertFalse($on->invoke($desk, 0));
+        self::assertFalse($on->invoke($desk, ''));
+
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturnCallback(static function (string $sql): array {
+            if (str_contains($sql, 'FROM vendor_letters WHERE id')) {
+                return [[
+                    'subject' => 'Pickup',
+                    'body' => 'Ready',
+                    'filed_on' => '2026-06-01 12:00:00',
+                ]];
+            }
+            if (str_contains($sql, 'vendor_letter_copies')) {
+                return [
+                    ['name' => 'Ada', 'email' => 'ada@example.com', 'sent_at' => '2026-06-01 12:01:00', 'email_bounced' => false],
+                    ['name' => 'Bea', 'email' => 'bea@example.com', 'sent_at' => '', 'email_bounced' => true],
+                    ['name' => 'Cal', 'email' => 'cal@example.com', 'sent_at' => null, 'email_bounced' => false],
+                ];
+            }
+
+            return [];
+        });
+        $opened = (new LetterDesk(
+            $statements,
+            $this->createStub(\PDO::class),
+            (new ReflectionClass(\PerfectConsign\Shared\Jobs\JobQueue::class))->newInstanceWithoutConstructor(),
+            $this->createStub(LetterMailbox::class),
+            (new ReflectionClass(\PerfectConsign\Feature\Party\LetterDraft::class))->newInstanceWithoutConstructor(),
+        ))->openLetter('01900000-0000-7000-8000-0000000000aa');
+
+        self::assertNotNull($opened);
+        self::assertSame(['Sent', 'Bounced', 'Waiting'], array_column($opened['copies'], 'status'));
+    }
+
+    public function testResetMailUsesTheFileMailboxWhenGmailIsAbsent(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pc-reset-');
+        if ($path === false) {
+            self::fail('the mail file could not be created');
+        }
+        $previous = getenv('STALL_MAIL_FILE');
+        putenv('STALL_MAIL_FILE=' . $path);
+        $log = new class extends AbstractLogger {
+            public string $message = '';
+
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+                $this->message = (string) $message;
+            }
+        };
+        $send = new ReflectionMethod(ResetLetter::class, 'send');
+        $gmail = [
+            'host' => '127.0.0.1',
+            'port' => 9,
+            'username' => 'shop@gmail.com',
+            'password' => 'abcdefghijklmnop',
+            'from' => 'shop@gmail.com',
+        ];
+        try {
+            $ok = $send->invoke(
+                new ResetLetter(new ResetTokens($this->createStub(\PDO::class)), new OutboundMail($log), $log),
+                'owner@example.com',
+                'Reset your password',
+                "Open this link\n",
+                $gmail,
+            );
+            self::assertTrue($ok);
+            $text = file_get_contents($path);
+            self::assertIsString($text);
+            self::assertStringContainsString('To: owner@example.com', $text);
+
+            putenv('STALL_MAIL_FILE');
+            set_error_handler(static function (int $severity, string $message): bool {
+                return str_contains($message, 'stream_socket_client');
+            });
+            try {
+                $refused = $send->invoke(
+                    new ResetLetter(new ResetTokens($this->createStub(\PDO::class)), new OutboundMail($log), $log),
+                    'owner@example.com',
+                    'Reset your password',
+                    "Open this link\n",
+                    $gmail,
+                );
+                self::assertFalse($refused);
+                self::assertSame('reset mail was refused', $log->message);
+            } finally {
+                restore_error_handler();
+            }
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_MAIL_FILE=' . $previous);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    public function testAMissingDraftRunQuotesByWindow(): void
+    {
+        $seen = '';
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturn([['rent_cycle_day' => 1]]);
+        $statements->method('bound')->willReturnCallback(static function (string $sql) use (&$seen): array {
+            if (str_contains($sql, "status = 'draft'")) {
+                return [];
+            }
+            $seen = $sql;
+
+            return [[
+                'payable' => 10,
+                'rent' => 0,
+                'check_amount' => 10,
+                'owe_amount' => 0,
+                'settled_minor' => 0,
+                'rent_from_sales' => false,
+            ]];
+        });
+        $occupied = (new ReflectionClass(\PerfectConsign\Feature\Payout\OccupiedPack::class))->newInstanceWithoutConstructor();
+        $runs = new PayoutRunStore($statements, $occupied);
+        $quoted = (new PayoutStore($this->createStub(\PDO::class), $statements, $runs, new PayoutWindow()))
+            ->quote('01900000-0000-7000-8000-0000000000aa', '2026-06-15');
+
+        self::assertNotNull($quoted);
+        self::assertStringContainsString('stall_payout_quote', $seen);
+        self::assertStringNotContainsString('stall_payout_run_quote', $seen);
+    }
+
+    public function testGmailLeavesTheCapturedMailboxAlone(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pc-box-');
+        if ($path === false) {
+            self::fail('the mail file could not be created');
+        }
+        $previous = getenv('STALL_MAIL_FILE');
+        putenv('STALL_MAIL_FILE=' . $path);
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturn([
+            ['receipt_mail_via' => 'gmail', 'gmail_address' => 'shop@gmail.com', 'gmail_app_password' => null],
+        ]);
+        $mail = new OutboundMail(new NullLogger());
+        $box = new LetterMailbox(new ReceiptMailSettings($statements), $mail);
+        try {
+            self::assertTrue($box->ready());
+            $box->send('ada@example.com', 'Hello', 'Body');
+            $text = file_get_contents($path);
+            self::assertIsString($text);
+            self::assertStringContainsString('To: ada@example.com', $text);
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_MAIL_FILE=' . $previous);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    public function testServerMailDoesNotTakeTheGmailPath(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pc-box-');
+        if ($path === false) {
+            self::fail('the mail file could not be created');
+        }
+        $previous = getenv('STALL_MAIL_FILE');
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturn([
+            ['receipt_mail_via' => 'server', 'gmail_address' => '', 'gmail_app_password' => null],
+        ]);
+        $mail = new OutboundMail(new NullLogger());
+        $box = new LetterMailbox(new ReceiptMailSettings($statements), $mail);
+        try {
+            putenv('STALL_MAIL_FILE');
+            try {
+                $box->send('ada@example.com', 'Hello', 'Body');
+                self::fail('server mail sent without a mailbox');
+            } catch (\RuntimeException $error) {
+                self::assertSame(OutboundMail::SMTP_NOT_CONFIGURED, $error->getMessage());
+            }
+            putenv('STALL_MAIL_FILE=' . $path);
+            $box->send('ada@example.com', 'Hello', 'Body');
+            $text = file_get_contents($path);
+            self::assertIsString($text);
+            self::assertStringContainsString('To: ada@example.com', $text);
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_MAIL_FILE=' . $previous);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    public function testOutboundMailKnowsWhenItIsConfigured(): void
+    {
+        $mail = new OutboundMail(new NullLogger());
+        $previousFile = getenv('STALL_MAIL_FILE');
+        $previousHost = getenv('STALL_SMTP_HOST');
+        try {
+            putenv('STALL_MAIL_FILE');
+            putenv('STALL_SMTP_HOST');
+            self::assertFalse($mail->captured());
+            self::assertFalse($mail->configured());
+            putenv('STALL_MAIL_FILE=');
+            self::assertFalse($mail->captured());
+            putenv('STALL_MAIL_FILE=' . sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-mail.txt');
+            self::assertTrue($mail->captured());
+        } finally {
+            if (is_string($previousFile) && $previousFile !== '') {
+                putenv('STALL_MAIL_FILE=' . $previousFile);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+            if (is_string($previousHost) && $previousHost !== '') {
+                putenv('STALL_SMTP_HOST=' . $previousHost);
+            } else {
+                putenv('STALL_SMTP_HOST');
+            }
+        }
+    }
+
+    public function testANestedMigrationDoesNotOpenASecondTransaction(): void
+    {
+        $began = 0;
+        $pdo = $this->createStub(\PDO::class);
+        $pdo->method('inTransaction')->willReturn(true);
+        $pdo->method('beginTransaction')->willReturnCallback(static function () use (&$began): bool {
+            $began++;
+
+            return true;
+        });
+        $catalog = new SchemaCatalog(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'sql');
+        $work = new ReflectionMethod(SchemaMigrator::class, 'transaction');
+        $work->invoke(new SchemaMigrator($pdo, $catalog), static function (): void {
+        }, 'noop.sql');
+
+        self::assertSame(0, $began);
     }
 
     /**

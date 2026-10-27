@@ -160,6 +160,26 @@ final class VendorHomePageTest extends TestCase
         $view->render('Feature/Vendor/items', [
             'slug' => 'demo',
             'csrf' => 'token',
+            'query' => '',
+            'stock' => 'unprinted',
+            'unsold' => 0,
+            'unprinted' => 1,
+            'total' => 1,
+            'items' => [$named],
+            'attributeLists' => [],
+            'labelStock' => 'avery_5160',
+            'stocks' => [['key' => 'avery_5160', 'label' => '5160']],
+            'showBrand' => false,
+            'previewAs' => '',
+        ]);
+        $stickers = ob_get_clean();
+        self::assertIsString($stickers);
+        self::assertStringContainsString('Check your items that still need stickers.', $stickers);
+        self::assertStringNotContainsString('Check your own items.', $stickers);
+        ob_start();
+        $view->render('Feature/Vendor/items', [
+            'slug' => 'demo',
+            'csrf' => 'token',
             'query' => 'Coat',
             'stock' => 'out',
             'unsold' => 1,
