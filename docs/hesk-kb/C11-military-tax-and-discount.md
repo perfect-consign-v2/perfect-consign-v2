@@ -1,7 +1,7 @@
 ---
 title: Disabled-vet tax vs military merchandise discount
 category: Sales and register
-hesk: pending
+hesk: published 2026-10-27
 as_of: 2026-10-26
 ---
 

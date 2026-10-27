@@ -1,7 +1,7 @@
 ---
 title: Platform admin portal
 category: Platform notes
-hesk: published 2026-10-25
+hesk: published 2026-10-27
 as_of: 2026-10-25
 ---
 
@@ -41,5 +41,7 @@ Reset flow creates a token row; using it does not leave editable history holes. 
 
 ## Related
 
+- Email sign-in finds the mall
+- Self-serve store signup
 - What Stall / perfect-consign is today vs full mall screens
 - Vendor portal sees only one vendor

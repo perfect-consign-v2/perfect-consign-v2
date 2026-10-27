@@ -25,9 +25,9 @@ php bin/seed-mall.php
 php bin/seed-dev-tenant.php
 ```
 
-`php bin/seed-mall.php` removes slug `mall`, provisions it again, and posts six months of booths, sales, rent, and payouts through the same posting paths the register uses. It also removes slug `shop` and provisions that store as consignment only: two consignors, a few consigned items, and no booths or rent. Sign in as `owner` at `/mall` or `/shop`. The password is `STALL_OWNER_PASSWORD`. The test suite still builds an empty `webprobe` when that slug is missing.
+`php bin/seed-mall.php` removes slug `mall`, provisions it again, and posts six months of booths, sales, rent, and payouts through the same posting paths the register uses. It also removes slug `shop` and provisions that store as consignment only: two consignors, a few consigned items, and no booths or rent. Sign in at `/` with the owner recovery email and `STALL_OWNER_PASSWORD`, or at `/mall/login` / `/shop/login` with username `owner`. Set `STALL_OWNER_EMAIL` before `set-owner` so the email directory has a row. The test suite still builds an empty `webprobe` when that slug is missing.
 
-`php bin/seed-dev-tenant.php` wipes slug `dev` and no other mall, provisions it, and loads `sql/dev_tenant.sql`: one vendor, one booth on Main Floor, one open assignment, and three items. It does not post a journal. The owner is still `php bin/set-owner.php dev owner`.
+`php bin/seed-dev-tenant.php` wipes slug `dev` and no other mall, provisions it, and loads `sql/dev_tenant.sql`: one vendor, one booth on Main Floor, one open assignment, and three items. It does not post a journal. The owner is still `php bin/set-owner.php dev owner` (optional `STALL_OWNER_EMAIL`).
 
 ## Application
 
@@ -40,7 +40,7 @@ php bin/enable-stall-app.php
 php bin/set-owner.php mall owner
 ```
 
-`set-owner.php` reads `STALL_OWNER_PASSWORD`. The same `STALL_DB_*` values used for provisioning are required. The site is `public/index.php`. A mall is `/{slug}`.
+`set-owner.php` reads `STALL_OWNER_PASSWORD` and optional `STALL_OWNER_EMAIL`. The same `STALL_DB_*` values used for provisioning are required. A duplicate recovery email across malls is refused. The site is `public/index.php`. Root `/` is email sign-in; a mall is `/{slug}` with username deep link `/{slug}/login`.
 
 Platform admin is `/admin`. After `php bin/migrate.php platform`, run `php bin/set-platform-admin.php` with `STALL_PLATFORM_ADMIN_EMAIL` and `STALL_PLATFORM_ADMIN_PASSWORD` set. The slug `admin` is reserved and cannot be provisioned as a store.
 

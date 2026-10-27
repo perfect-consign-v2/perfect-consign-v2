@@ -178,6 +178,14 @@ A vendor portal session sees only the vendor named by `stall.vendor_id`. A missi
 
 An offline register snap posts the captured sold price and collected tax when the drawer is open and the item still has quantity. Duplicate snaps, a closed period, a missing item, a closed drawer, and a second register taking the last unit are refused. `journal_no` stays empty until the post commits. A poster cannot rewrite or delete a posted snap.
 
+## Sign-in
+
+The site root `/` is email and password. The directory maps each recovery email to one mall and one username. Owner emails and staff recovery emails share that directory. The same email cannot appear twice across malls or account kinds. A missing or wrong password fails the same way as an unknown email. Five failed tries for the same email and client address within fifteen minutes lock that pair until the window passes.
+
+`/{slug}/login` still accepts username and password for that mall. Forgot password at `/forgot` looks up the email in the directory and, when found, starts the same reset path as the mall forgot form. The success message is the same whether the email is known or not.
+
+An owner or staff recovery email is required for email sign-in. Setting or changing that email is refused when another sign-in already holds it. `php bin/set-owner.php` may set `STALL_OWNER_EMAIL` when planting the owner.
+
 ## Platform admin
 
 Platform `/admin` is for operators, not mall cashiers. An admin can sign in, reset a password, enter a store as owner or cashier, wipe a tenant, and read an append-only admin audit. Password-reset rows and admin audit events are append-only. A bad admin email is refused.
