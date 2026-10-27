@@ -11,42 +11,47 @@ use PHPUnit\Framework\Attributes\Group;
 #[Group('smoke')]
 final class SmokeTest extends WebTestCase
 {
-    public function testTheRootPageOpensAMall(): void
+    public function testTheRootPageShowsEmailSignIn(): void
     {
         $page = self::client()->get('/');
 
         self::assertSame(200, $page->status);
         self::assertSees('Perfect Consign', $page);
-        self::assertSees('Open your mall', $page);
-        self::assertSees('name="mall"', $page);
-    }
-
-    public function testAMallAddressContinuesToSignIn(): void
-    {
-        $client = self::client();
-        $client->get('/');
-        $page = $client->post('/', ['mall' => ProbeMall::SLUG]);
-
-        self::assertSame(200, $page->status);
         self::assertSees('<h1>Sign in</h1>', $page);
-        self::assertSees(ProbeMall::DISPLAY_NAME, $page);
+        self::assertSees('name="email"', $page);
+        self::assertSees('name="password"', $page);
+        self::assertStringNotContainsString('Open your mall', $page->body);
+        self::assertStringNotContainsString('name="mall"', $page->body);
     }
 
-    public function testAnUnknownMallAddressStaysOnTheDoor(): void
+    public function testAWrongEmailIsRefused(): void
     {
-        $client = self::client();
-        $client->get('/');
-        $page = $client->post('/', ['mall' => 'no-such-mall']);
+        $page = self::client()->signInByEmail('nobody@webprobe.test', ProbeMall::PASSWORD);
 
         self::assertSame(200, $page->status);
-        self::assertSees('No mall uses that address.', $page);
-        self::assertSees('value="no-such-mall"', $page);
+        self::assertSees('That email or password is wrong.', $page);
+    }
+
+    public function testAWrongPasswordIsRefusedAtTheDoor(): void
+    {
+        $page = self::client()->signInByEmail(ProbeMall::EMAIL, 'wrong-password');
+
+        self::assertSame(200, $page->status);
+        self::assertSees('That email or password is wrong.', $page);
+    }
+
+    public function testTheOwnerSignsInWithEmail(): void
+    {
+        $page = self::client()->signInByEmail(ProbeMall::EMAIL, ProbeMall::PASSWORD);
+
+        self::assertSame(200, $page->status);
+        self::assertSees("Today's sales", $page);
     }
 
     public function testASignedInOwnerLeavesTheDoorForTheDashboard(): void
     {
         $client = self::client();
-        $client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $client->signInByEmail(ProbeMall::EMAIL, ProbeMall::PASSWORD);
         $page = $client->getWithoutRedirect('/');
 
         self::assertSame(303, $page->status);
@@ -126,17 +131,5 @@ final class SmokeTest extends WebTestCase
         self::assertSees('/' . ProbeMall::SLUG . '/dashboard', $page);
         self::assertSees('sidebar', $page);
         self::assertStringNotContainsString('name="q"', $page->body);
-    }
-
-    public function testASignedInOwnerDoesNotSeeAnotherMallOnAMiss(): void
-    {
-        $client = self::client();
-        $client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
-        $page = $client->get('/other-mall/secret');
-
-        self::assertSame(404, $page->status);
-        self::assertSees('This address is not a page in ' . ProbeMall::DISPLAY_NAME . '.', $page);
-        self::assertSees('/' . ProbeMall::SLUG . '/dashboard', $page);
-        self::assertStringNotContainsString('/other-mall/', $page->body);
     }
 }

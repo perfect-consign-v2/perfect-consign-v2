@@ -5,9 +5,6 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
-/** @var string $mall */
-
-$mall = $mall ?? '';
 ?>
 <div class="login-wrap">
     <div class="panel">
@@ -19,18 +16,27 @@ $mall = $mall ?? '';
             </div>
         </div>
         <div class="card">
-            <div class="card-head"><h1>Open your mall</h1></div>
+            <div class="card-head"><h1>Sign in</h1></div>
             <form method="post" action="/">
                 <div class="card-body grid" style="gap:var(--space-4)">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <div class="field">
-                        <label for="mall">Mall</label>
-                        <input class="input" id="mall" name="mall" value="<?= View::text($mall) ?>" placeholder="mall" autocomplete="off" autocapitalize="none" spellcheck="false" required autofocus>
+                        <label for="email">Email</label>
+                        <input class="input" id="email" name="email" type="email" autocomplete="username" required autofocus>
+                    </div>
+                    <div class="field">
+                        <label for="password">Password</label>
+                        <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
                     </div>
                 </div>
                 <div class="card-foot row between">
-                    <span></span>
-                    <button class="btn btn-primary" type="submit">Continue</button>
+                    <span>
+                        <a href="/forgot">Forgot password</a>
+                        <?php if (!empty($signupEnabled)): ?>
+                            · <a href="/signup">Create your store</a>
+                        <?php endif; ?>
+                    </span>
+                    <button class="btn btn-primary" type="submit">Sign in</button>
                 </div>
             </form>
         </div>

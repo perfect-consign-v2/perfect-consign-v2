@@ -59,6 +59,18 @@ final class StaffJournalOpeningTest extends WebTestCase
         self::assertSees('Choose a cashier.', $missing);
     }
 
+    public function testACashierCannotReuseTheOwnerEmail(): void
+    {
+        $username = 'c' . bin2hex(random_bytes(4));
+        $page = $this->client->post('/' . self::SLUG . '/staff', [
+            'display_name' => 'Cash',
+            'username' => $username,
+            'password' => 'cashier1',
+            'email' => ProbeMall::EMAIL,
+        ]);
+        self::assertSees('That recovery email is already used on another sign-in.', $page);
+    }
+
     public function testOpeningAndJournalEdges(): void
     {
         $opening = $this->client->get('/' . self::SLUG . '/opening');

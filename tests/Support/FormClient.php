@@ -141,6 +141,16 @@ final class FormClient
         ]);
     }
 
+    public function signInByEmail(string $email, string $password): PageResponse
+    {
+        $this->get('/');
+
+        return $this->post('/', [
+            'email' => $email,
+            'password' => $password,
+        ]);
+    }
+
     public function ensurePeriod(string $slug): void
     {
         $book = $this->get('/' . $slug . '/book');

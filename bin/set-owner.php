@@ -57,7 +57,16 @@ $statement = $pdo->prepare(
             email = COALESCE(EXCLUDED.email, platform.owners.email),
             credentials_version = platform.owners.credentials_version + 1'
 );
-$statement->execute([$username, $hash, $email, $slug]);
+try {
+    $statement->execute([$username, $hash, $email, $slug]);
+} catch (PDOException $error) {
+    $state = $error->errorInfo[0] ?? '';
+    if ($state === '23505') {
+        fwrite(STDERR, "that recovery email is already used on another sign-in\n");
+        exit(1);
+    }
+    throw $error;
+}
 if ($statement->rowCount() < 1) {
     fwrite(STDERR, "that mall was not found\n");
     exit(1);

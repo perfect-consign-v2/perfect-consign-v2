@@ -19,6 +19,8 @@ final class ProbeMall
 
     public const PASSWORD = 'web-probe-owner';
 
+    public const EMAIL = 'owner@webprobe.test';
+
     public const DISPLAY_NAME = 'Web Probe';
 
     public const PERIOD_START = '2020-01-01';
@@ -69,6 +71,8 @@ final class ProbeMall
         $migrator->migratePlatformAfter();
         putenv('STALL_OWNER_PASSWORD=' . self::PASSWORD);
         $_ENV['STALL_OWNER_PASSWORD'] = self::PASSWORD;
+        putenv('STALL_OWNER_EMAIL=' . self::EMAIL);
+        $_ENV['STALL_OWNER_EMAIL'] = self::EMAIL;
         self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'set-owner.php', [self::SLUG, self::USERNAME]);
         self::resetMallMoney();
     }

@@ -127,6 +127,8 @@ final class DatabaseRefusal extends RuntimeException
             'departments_name_key' => 'That name is already used.',
             'map_floors_name_key' => 'That floor name is already used.',
             'wait_list_open_email_key' => 'That email is already on the wait list.',
+            'sign_in_directory_email_key' => 'That recovery email is already used on another sign-in.',
+            'owners_email_key' => 'That recovery email is already used on another sign-in.',
         ];
         foreach ($names as $key => $sentence) {
             if (str_contains($raw, $key)) {

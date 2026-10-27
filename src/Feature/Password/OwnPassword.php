@@ -91,7 +91,11 @@ final class OwnPassword
         $statement = $this->pdo->prepare(
             'UPDATE platform.owners SET email = ? WHERE id = ?::uuid AND tenant_id = ?::uuid'
         );
-        $statement->execute([$email, $accountId, $tenantId]);
+        try {
+            $statement->execute([$email, $accountId, $tenantId]);
+        } catch (\PDOException $error) {
+            $this->refuseTakenEmail($error);
+        }
         if ($statement->rowCount() !== 1) {
             throw new \InvalidArgumentException('That sign-in was not found.');
         }
@@ -102,10 +106,24 @@ final class OwnPassword
         $statement = $this->pdo->prepare(
             'UPDATE ' . $this->table($schema) . ' SET email = ? WHERE id = ?::uuid'
         );
-        $statement->execute([$email, $accountId]);
+        try {
+            $statement->execute([$email, $accountId]);
+        } catch (\PDOException $error) {
+            $this->refuseTakenEmail($error);
+        }
         if ($statement->rowCount() !== 1) {
             throw new \InvalidArgumentException('That sign-in was not found.');
         }
+    }
+
+    private function refuseTakenEmail(\PDOException $error): never
+    {
+        $state = $error->errorInfo[0] ?? '';
+        if ($state === '23505') {
+            throw new \InvalidArgumentException('That recovery email is already used on another sign-in.');
+        }
+
+        throw $error;
     }
 
     private function ownerHash(TenantRecord $tenant, string $accountId): string

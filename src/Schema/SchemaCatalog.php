@@ -28,6 +28,7 @@ final class SchemaCatalog
         '031_job_enqueue_gate.sql',
         '035_enqueue_session_role.sql',
         '036_platform_admin.sql',
+        '052_sign_in_directory.sql',
     ];
 
     /** @var list<string> */
