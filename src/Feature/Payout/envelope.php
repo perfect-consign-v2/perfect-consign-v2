@@ -8,10 +8,6 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var list<array{vendor_id: string, code: string, name: string, booth: string, sold_on: string, item_code: string, description: string, price: int, quantity: int, commission: int, rent: int, check: int, owes: int, check_number: string}> $rows */
 
-$css = file_get_contents(__DIR__ . '/envelope.css');
-if ($css === false) {
-    throw new RuntimeException('the envelope stylesheet is missing');
-}
 $mallSlug = isset($slug) && is_string($slug) ? $slug : '';
 $vendors = [];
 $storedReport = false;
@@ -34,7 +30,7 @@ uasort($vendors, static function (array $left, array $right): int {
     return strnatcasecmp($leftCode, $rightCode);
 });
 ?>
-<style><?= $css ?></style>
+<link rel="stylesheet" href="/assets/envelope.css">
 <div class="no-print">
     <p>One page for each vendor, with what they sold and the check.</p>
     <button class="btn btn-primary" type="button" data-print>Print</button>
@@ -112,10 +108,4 @@ uasort($vendors, static function (array $left, array $right): int {
         <p><?= $storedReport ? 'Report / reprinted from the stored record.' : 'Report for this payout.' ?></p>
     </section>
 <?php endforeach; ?>
-<script>
-document.querySelectorAll('[data-print]').forEach(function (button) {
-    button.addEventListener('click', function () {
-        window.print();
-    });
-});
-</script>
+<script src="/assets/js/print-trigger.js"></script>

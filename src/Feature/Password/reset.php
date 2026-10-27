@@ -15,7 +15,7 @@ use PerfectConsign\Shared\Http\View;
             <div class="card-head"><h1>Reset password</h1></div>
             <?php if ($open): ?>
                 <form method="post" action="/<?= View::text($slug) ?>/reset/<?= View::text($token) ?>">
-                    <div class="card-body grid" style="gap:var(--space-4)">
+                    <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                         <div class="field">
                             <label for="password">New password</label>

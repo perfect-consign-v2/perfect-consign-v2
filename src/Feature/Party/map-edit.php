@@ -113,5 +113,5 @@ $payload = json_encode($booths, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JS
     </div>
     <p class="muted text-sm" id="map-status" role="status"></p>
 </div>
-<script type="application/json" id="map-booths"><?= $payload ?></script>
+<pre id="map-booths" hidden><?= $payload ?></pre>
 <script src="/assets/map-editor.js"></script>

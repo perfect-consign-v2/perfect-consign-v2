@@ -73,7 +73,7 @@ use PerfectConsign\Shared\Http\View;
                                 <label class="muted text-sm" for="amount-<?= View::text($item['id']) ?>">Buy $</label>
                                 <input
                                     class="input"
-                                    style="max-width:7rem"
+                                    data-style-prop="max-width:7rem"
                                     id="amount-<?= View::text($item['id']) ?>"
                                     name="amount"
                                     inputmode="decimal"

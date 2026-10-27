@@ -36,7 +36,7 @@ $renameAction = $renaming ? '/' . $slug . '/brands/' . $modal : $list;
     </div>
 <?php else: ?>
     <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search name" aria-label="Search brands">
+        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search name" aria-label="Search brands">
         <button class="btn" type="submit">Search</button>
     </form>
 

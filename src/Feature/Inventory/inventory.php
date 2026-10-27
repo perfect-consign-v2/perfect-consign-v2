@@ -72,7 +72,7 @@ $shows = [
         <?php if ($stock !== ''): ?>
             <input type="hidden" name="stock" value="<?= View::text($stock) ?>">
         <?php endif; ?>
-        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="<?= $showBrand ? 'Search tag, barcode, description, consignor, or brand' : 'Search tag, barcode, description, or consignor' ?>" aria-label="Search inventory">
+        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="<?= $showBrand ? 'Search tag, barcode, description, consignor, or brand' : 'Search tag, barcode, description, or consignor' ?>" aria-label="Search inventory">
         <button class="btn" type="submit">Search</button>
     </form>
 

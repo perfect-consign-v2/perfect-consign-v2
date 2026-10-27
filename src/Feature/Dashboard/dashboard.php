@@ -40,23 +40,23 @@ $blank = '—';
 
 <div class="grid cols-4">
     <a class="stat" href="/<?= View::text($slug) ?>/sales">
-        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-wallet"></use></svg> Today's sales</div>
+        <div class="stat-label"><svg data-style-prop="width:16px;height:16px" aria-hidden="true"><use href="#i-wallet"></use></svg> Today's sales</div>
         <div class="stat-value"><?= View::text($picture['sales']['amount']) ?></div>
         <?php if ($picture['sales']['delta'] !== null): ?>
             <div class="stat-delta <?= View::text($picture['sales']['delta']['direction']) ?>"><?= View::text($picture['sales']['delta']['text']) ?></div>
         <?php endif; ?>
     </a>
     <a class="stat" href="/<?= View::text($slug) ?>/payouts">
-        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-vendor"></use></svg> <?= $consignmentOnly ? 'Consignor payables' : 'Vendor payables' ?></div>
+        <div class="stat-label"><svg data-style-prop="width:16px;height:16px" aria-hidden="true"><use href="#i-vendor"></use></svg> <?= $consignmentOnly ? 'Consignor payables' : 'Vendor payables' ?></div>
         <div class="stat-value"><?= View::text($picture['payables']['amount']) ?></div>
         <div class="stat-delta muted"><?= View::text($picture['payables']['caption']) ?></div>
     </a>
     <div class="stat">
-        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-box"></use></svg> Inventory value</div>
+        <div class="stat-label"><svg data-style-prop="width:16px;height:16px" aria-hidden="true"><use href="#i-box"></use></svg> Inventory value</div>
         <div class="stat-value"><?= View::text($picture['shelf']['value']) ?></div>
     </div>
     <div class="stat">
-        <div class="stat-label"><svg style="width:16px;height:16px" aria-hidden="true"><use href="#i-alert"></use></svg> Qty 0</div>
+        <div class="stat-label"><svg data-style-prop="width:16px;height:16px" aria-hidden="true"><use href="#i-alert"></use></svg> Qty 0</div>
         <div class="stat-value"><?= View::text((string) $picture['shelf']['unsold']) ?></div>
     </div>
 </div>
@@ -71,11 +71,11 @@ $blank = '—';
             <span class="badge badge-accent"><?= View::text($picture['today_badge']) ?></span>
         </div>
         <div class="card-body">
-            <div class="row" style="align-items:flex-end; gap:6px; height:180px">
+            <div class="row" data-style-prop="align-items:flex-end; gap:6px; height:180px">
                 <?php foreach ($picture['trend'] as $bar): ?>
-                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end" title="<?= View::text($bar['title']) ?>">
-                        <div style="width:100%; height:<?= View::text((string) $bar['height']) ?>%; border-radius:6px 6px 0 0; background: <?= $bar['today'] ? 'var(--accent)' : 'var(--accent-soft)' ?>; border:1px solid <?= $bar['today'] ? 'var(--accent)' : 'var(--border)' ?>"></div>
-                        <span class="text-xs subtle" style="white-space:nowrap"><?= View::text($bar['day']) ?></span>
+                    <div data-style-prop="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end" title="<?= View::text($bar['title']) ?>">
+                        <div data-style-prop="width:100%; height:<?= View::text((string) $bar['height']) ?>%; border-radius:6px 6px 0 0; background: <?= $bar['today'] ? 'var(--accent)' : 'var(--accent-soft)' ?>; border:1px solid <?= $bar['today'] ? 'var(--accent)' : 'var(--border)' ?>"></div>
+                        <span class="text-xs subtle" data-style-prop="white-space:nowrap"><?= View::text($bar['day']) ?></span>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -102,8 +102,8 @@ $blank = '—';
                 <span class="h1"><?= View::text((string) $picture['occupancy']['percent']) ?>%</span>
                 <span class="muted text-sm"><?= View::text($picture['occupancy']['caption']) ?></span>
             </div>
-            <div class="progress mt-4"><span style="width: <?= View::text((string) $picture['occupancy']['percent']) ?>%"></span></div>
-            <div class="grid mt-6" style="gap:var(--space-3)">
+            <div class="progress mt-4"><span data-style-prop="width: <?= View::text((string) $picture['occupancy']['percent']) ?>%"></span></div>
+            <div class="grid mt-6" data-style-prop="gap:var(--space-3)">
                 <?php foreach ($picture['occupancy']['rows'] as $row): ?>
                     <div class="row between">
                         <span class="badge <?= View::text($row['badge']) ?> badge-dot"><?= View::text($row['label']) ?></span>
@@ -120,7 +120,7 @@ $blank = '—';
     <div class="card">
         <div class="card-head">
             <div class="h3">Recent sales</div>
-            <a class="text-sm" style="color:var(--accent)" href="/<?= View::text($slug) ?>/sales?range=all">View all</a>
+            <a class="text-sm" data-style-prop="color:var(--accent)" href="/<?= View::text($slug) ?>/sales?range=all">View all</a>
         </div>
         <div class="table-wrap list-dt-wrap">
             <?php
@@ -153,7 +153,7 @@ $blank = '—';
     <div class="card">
         <div class="card-head">
             <div class="h3">Rent due</div>
-            <a class="text-sm" style="color:var(--accent)" href="/<?= View::text($slug) ?>/rent?month=<?= View::text($rentMonth) ?>">Rent</a>
+            <a class="text-sm" data-style-prop="color:var(--accent)" href="/<?= View::text($slug) ?>/rent?month=<?= View::text($rentMonth) ?>">Rent</a>
         </div>
         <div class="card-body rent-due-scroll">
             <?php if ($rentRows === []): ?>

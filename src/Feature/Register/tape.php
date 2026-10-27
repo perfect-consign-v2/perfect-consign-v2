@@ -28,7 +28,7 @@ $stored = [
     <div class="titles">
         <h1 class="h1">Z-tape · <?= View::text($name) ?></h1>
     </div>
-    <button class="btn btn-primary" type="button" onclick="window.print()">Print</button>
+    <button class="btn btn-primary" type="button" data-print>Print</button>
     <a class="btn" href="/<?= View::text($slug) ?>/registers/<?= View::text($registerId) ?>/shifts">Shifts</a>
 </div>
 <article class="card z-tape">
@@ -88,3 +88,4 @@ $stored = [
         <?php endforeach; ?>
     </div>
 </article>
+<script src="/assets/js/print-trigger.js"></script>

@@ -34,7 +34,7 @@ use PerfectConsign\Shared\Http\View;
                             <td><code><?= View::text($tenant['slug']) ?></code></td>
                             <td><?= View::text($tenant['modeLabel']) ?></td>
                             <td>
-                                <div class="row gap-2" style="justify-content:flex-end; flex-wrap:wrap">
+                                <div class="row gap-2" data-style-prop="justify-content:flex-end; flex-wrap:wrap">
                                     <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter">
                                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                         <input type="hidden" name="role" value="owner">

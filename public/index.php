@@ -63,6 +63,11 @@ header('Content-Type: text/html; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 header('X-Frame-Options: DENY');
+header(
+    "Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; "
+    . "frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'; "
+    . "img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'"
+);
 if ($https) {
     header('Strict-Transport-Security: max-age=86400');
 }

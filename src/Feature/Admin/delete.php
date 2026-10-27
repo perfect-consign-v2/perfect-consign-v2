@@ -9,13 +9,13 @@ use PerfectConsign\Shared\Tenant\TenantRecord;
 /** @var TenantRecord $tenant */
 ?>
 <h1>Delete <?= View::text($tenant->displayName) ?></h1>
-<div class="card" style="max-width:36rem">
+<div class="card" data-style-prop="max-width:36rem">
     <form method="post" action="/admin/tenants/<?= View::text($tenant->slug) ?>/delete">
-        <div class="card-body grid" style="gap:var(--space-4)">
+        <div class="card-body grid" data-style-prop="gap:var(--space-4)">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <div class="alert alert-danger">
-                <p style="margin:0 0 var(--space-2)"><strong>This permanently deletes the store.</strong></p>
-                <p style="margin:0">The tenant schema, poster role, owners, and store data are removed. This cannot be undone. Backup metadata rows may remain on the platform.</p>
+                <p data-style-prop="margin:0 0 var(--space-2)"><strong>This permanently deletes the store.</strong></p>
+                <p data-style-prop="margin:0">The tenant schema, poster role, owners, and store data are removed. This cannot be undone. Backup metadata rows may remain on the platform.</p>
             </div>
             <p>Type the slug <code><?= View::text($tenant->slug) ?></code> to confirm.</p>
             <div class="field">

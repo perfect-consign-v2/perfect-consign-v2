@@ -181,23 +181,7 @@ $roleLabel = match ($actorRole) {
     <link rel="stylesheet" href="/assets/theme.css">
     <link rel="stylesheet" href="/assets/app.css">
     <link rel="stylesheet" href="/assets/mall.css">
-    <script>
-        (function () {
-            try {
-                var theme = localStorage.getItem('pc-theme') || localStorage.getItem('nem-theme');
-                var mode = localStorage.getItem('pc-mode') || localStorage.getItem('nem-mode');
-                var root = document.documentElement;
-                if (theme) {
-                    root.setAttribute('data-theme', theme);
-                    localStorage.setItem('pc-theme', theme);
-                }
-                if (mode) {
-                    root.setAttribute('data-mode', mode);
-                    localStorage.setItem('pc-mode', mode);
-                }
-            } catch (e) {}
-        })();
-    </script>
+    <script src="/assets/js/theme-boot.js"></script>
 </head>
 <body<?= $posShell ? ' class="pos-register"' : '' ?>>
 <a class="skip" href="#main">Skip to main</a>
@@ -293,14 +277,14 @@ $roleLabel = match ($actorRole) {
                         <div role="group" aria-label="Theme">
                             <div class="menu-label" role="presentation">Theme</div>
                             <button class="menu-item" type="button" role="menuitemradio" data-set-theme="neutral" aria-checked="true">
-                                <span class="swatch" style="background:#4f46e5"></span>
+                                <span class="swatch" data-style-prop="background:#4f46e5"></span>
                                 Neutral
-                                <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                                <svg data-style-prop="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
                             </button>
                             <button class="menu-item" type="button" role="menuitemradio" data-set-theme="dark-blue" aria-checked="false">
-                                <span class="swatch" style="background:#1e3a8a"></span>
+                                <span class="swatch" data-style-prop="background:#1e3a8a"></span>
                                 Dark blue
-                                <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                                <svg data-style-prop="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
                             </button>
                         </div>
                         <div class="menu-sep" role="separator"></div>
@@ -309,12 +293,12 @@ $roleLabel = match ($actorRole) {
                             <button class="menu-item" type="button" role="menuitemradio" data-set-mode="light" aria-checked="true">
                                 <svg aria-hidden="true"><use href="#i-sun"></use></svg>
                                 Light
-                                <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                                <svg data-style-prop="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
                             </button>
                             <button class="menu-item" type="button" role="menuitemradio" data-set-mode="dark" aria-checked="false">
                                 <svg aria-hidden="true"><use href="#i-moon"></use></svg>
                                 Dark
-                                <svg style="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                                <svg data-style-prop="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
                             </button>
                         </div>
                     </div>
@@ -326,7 +310,7 @@ $roleLabel = match ($actorRole) {
                             <span class="name"><?= View::text($displayName) ?></span>
                             <span class="role"><?= View::text($roleLabel) ?></span>
                         </span>
-                        <svg style="width:14px;height:14px;color:var(--text-subtle)" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                        <svg data-style-prop="width:14px;height:14px;color:var(--text-subtle)" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
                     </button>
                     <div class="menu" data-menu-panel hidden>
                         <a class="menu-item" href="/<?= View::text($slug) ?>/password">
@@ -381,20 +365,10 @@ $roleLabel = match ($actorRole) {
         </ul>
     </div>
 </dialog>
-<script>
-(function () {
-    var dialog = document.getElementById('prior-register');
-    if (!dialog || typeof dialog.showModal !== 'function') {
-        return;
-    }
-    dialog.addEventListener('cancel', function (event) {
-        event.preventDefault();
-    });
-    dialog.showModal();
-})();
-</script>
+<script src="/assets/js/prior-register.js"></script>
 <?php endif; ?>
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
+<script src="/assets/js/data-style.js" defer></script>
 <script src="/assets/js/register-swap.js"></script>
 </body>
 </html>

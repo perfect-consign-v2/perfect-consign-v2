@@ -56,10 +56,4 @@ $booth = $slip['booth'] === '' ? '—' : $slip['booth'];
         <?php require $templateDirectory . '/Shared/Web/partials/slip-foot.php'; ?>
     </article>
 </div>
-<script>
-document.querySelectorAll('[data-print]').forEach(function (button) {
-    button.addEventListener('click', function () {
-        window.print();
-    });
-});
-</script>
+<script src="/assets/js/print-trigger.js"></script>

@@ -45,7 +45,7 @@ $empty = $status === '' && $query === '' ? 'No one is waiting.' : 'No one matche
         <?php if ($status !== ''): ?>
             <input type="hidden" name="status" value="<?= View::text($status) ?>">
         <?php endif; ?>
-        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search name, email, or phone" aria-label="Search the wait list">
+        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search name, email, or phone" aria-label="Search the wait list">
         <button class="btn" type="submit">Search</button>
     </form>
 

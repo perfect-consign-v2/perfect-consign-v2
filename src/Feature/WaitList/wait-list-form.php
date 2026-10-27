@@ -68,7 +68,7 @@ $statuses = [
                 <input class="input" id="depth_ft" name="depth_ft" inputmode="numeric" value="<?= View::text($depth) ?>">
             </div>
             <?php if ($editing): ?>
-                <div class="field" style="grid-column: 1 / -1">
+                <div class="field" data-style-prop="grid-column: 1 / -1">
                     <label for="status">Status</label>
                     <select class="select" id="status" name="status">
                         <?php foreach ($statuses as $value => $label): ?>
@@ -77,7 +77,7 @@ $statuses = [
                     </select>
                 </div>
             <?php endif; ?>
-            <div class="field" style="grid-column: 1 / -1">
+            <div class="field" data-style-prop="grid-column: 1 / -1">
                 <label for="notes">Notes</label>
                 <textarea class="textarea" id="notes" name="notes" maxlength="2000"><?= View::text($notes) ?></textarea>
             </div>

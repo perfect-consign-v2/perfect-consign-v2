@@ -39,9 +39,9 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
 </div>
 <?php if (count($vendors) > 1): ?>
     <form method="get" action="/<?= View::text($slug) ?>/payout">
-        <div class="field" style="max-width:24rem">
+        <div class="field" data-style-prop="max-width:24rem">
             <label for="vendor"><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?></label>
-            <select class="select" id="vendor" name="vendor" onchange="this.form.submit()">
+            <select class="select" id="vendor" name="vendor" data-submit-on-change>
                 <?php foreach ($vendors as $vendor): ?>
                     <?php
                     $code = is_string($vendor['code'] ?? null) ? $vendor['code'] : '';
@@ -145,3 +145,4 @@ $canPay = $open !== null && ($open['check'] > 0 || $open['settled'] > 0);
         </section>
     <?php endif; ?>
 <?php endif; ?>
+<script src="/assets/js/form-auto-submit.js"></script>

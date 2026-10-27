@@ -40,23 +40,7 @@ $links = [
     <link rel="stylesheet" href="/assets/theme.css">
     <link rel="stylesheet" href="/assets/app.css">
     <link rel="stylesheet" href="/assets/mall.css">
-    <script>
-        (function () {
-            try {
-                var theme = localStorage.getItem('pc-theme') || localStorage.getItem('nem-theme');
-                var mode = localStorage.getItem('pc-mode') || localStorage.getItem('nem-mode');
-                var root = document.documentElement;
-                if (theme) {
-                    root.setAttribute('data-theme', theme);
-                    localStorage.setItem('pc-theme', theme);
-                }
-                if (mode) {
-                    root.setAttribute('data-mode', mode);
-                    localStorage.setItem('pc-mode', mode);
-                }
-            } catch (e) {}
-        })();
-    </script>
+    <script src="/assets/js/theme-boot.js"></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to main</a>
@@ -109,7 +93,7 @@ $links = [
                             <span class="name"><?= View::text($adminEmail) ?></span>
                             <span class="role">Platform admin</span>
                         </span>
-                        <svg style="width:14px;height:14px;color:var(--text-subtle)" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                        <svg data-style-prop="width:14px;height:14px;color:var(--text-subtle)" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
                     </button>
                     <div class="menu" data-menu-panel hidden>
                         <a class="menu-item" href="/admin/password">
@@ -141,5 +125,6 @@ $links = [
 <script src="/assets/js/app.js" defer></script>
 <?php endif; ?>
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
+<script src="/assets/js/data-style.js" defer></script>
 </body>
 </html>

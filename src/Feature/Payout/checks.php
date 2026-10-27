@@ -9,29 +9,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $monthName */
 /** @var list<array{number: string, name: string, code: string, booth: string, amount: int, words: string}> $checks */
 ?>
-<style>
-.check-sheet { break-after: page; page-break-after: always; margin-bottom: 1.5rem; }
-.check-sheet:last-of-type { break-after: auto; page-break-after: auto; margin-bottom: 0; }
-.check-face {
-    max-width: 7.5in;
-    min-height: 2.6in;
-    border: 1px solid #1a2230;
-    padding: 0.35in 0.45in;
-    font-family: Georgia, "Times New Roman", serif;
-    color: #000;
-    background: #fff;
-}
-.check-top, .check-pay { display: flex; justify-content: space-between; gap: 1rem; }
-.check-mall { margin: 0; font-size: 1.15rem; font-weight: 700; }
-.check-number, .check-amount { margin: 0; font-weight: 700; white-space: nowrap; }
-.check-date, .check-words, .check-memo { margin: 0.55rem 0 0; }
-.check-amount { font-size: 1.15rem; }
-@media print {
-    .shell, .app { min-height: 0 !important; height: auto !important; }
-    .check-face { border: 0; }
-    .check-sheet:last-of-type { break-after: auto; page-break-after: auto; }
-}
-</style>
+<link rel="stylesheet" href="/assets/checks-print.css">
 <div class="no-print">
     <p>One check for each vendor who is getting paid.</p>
     <button class="btn btn-primary" type="button" data-print>Print</button>
@@ -53,10 +31,4 @@ use PerfectConsign\Shared\Http\View;
         </article>
     </section>
 <?php endforeach; ?>
-<script>
-document.querySelectorAll('[data-print]').forEach(function (button) {
-    button.addEventListener('click', function () {
-        window.print();
-    });
-});
-</script>
+<script src="/assets/js/print-trigger.js"></script>

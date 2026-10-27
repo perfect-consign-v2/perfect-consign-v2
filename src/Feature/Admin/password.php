@@ -7,9 +7,9 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $csrf */
 ?>
 <h1>Change password</h1>
-<div class="card" style="max-width:28rem">
+<div class="card" data-style-prop="max-width:28rem">
     <form method="post" action="/admin/password">
-        <div class="card-body grid" style="gap:var(--space-4)">
+        <div class="card-body grid" data-style-prop="gap:var(--space-4)">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <div class="field">
                 <label for="current">Current password</label>

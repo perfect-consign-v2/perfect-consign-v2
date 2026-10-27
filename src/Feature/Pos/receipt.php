@@ -193,14 +193,5 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
         </div>
     <?php endif; ?>
 </div>
-<script>
-document.querySelectorAll('[data-print]').forEach(function (button) {
-    button.addEventListener('click', function () {
-        window.print();
-    });
-});
-if (new URLSearchParams(window.location.search).get('print') === '1') {
-    window.print();
-}
-</script>
+<script src="/assets/js/print-trigger.js"></script>
 <script src="/assets/js/ticket-commands.js"></script>

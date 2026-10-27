@@ -62,10 +62,4 @@ use PerfectConsign\Shared\Http\View;
         <?php endif; ?>
     </article>
 </div>
-<script>
-document.querySelectorAll('[data-print]').forEach(function (button) {
-    button.addEventListener('click', function () {
-        window.print();
-    });
-});
-</script>
+<script src="/assets/js/print-trigger.js"></script>

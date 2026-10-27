@@ -116,12 +116,12 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
     <?php if ($savedRun !== '' && $savedTender === 'check' && $paid): ?>
         <a class="btn btn-primary" href="/<?= View::text($slug) ?>/payouts/checks?run=<?= View::text($savedRun) ?>">Print checks</a>
         <a class="text-link" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each <?= $consignmentOnly ? 'consignor' : 'vendor' ?>'s sales</a>
-        <button class="text-link" type="button" onclick="window.print()">Print this list</button>
+        <button class="text-link" type="button" data-print>Print this list</button>
     <?php elseif ($savedRun !== ''): ?>
-        <button class="btn" type="button" onclick="window.print()">Print this list</button>
+        <button class="btn" type="button" data-print>Print this list</button>
         <a class="text-link" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($savedRun) ?>">Print each <?= $consignmentOnly ? 'consignor' : 'vendor' ?>'s sales</a>
     <?php else: ?>
-        <button class="btn" type="button" onclick="window.print()">Print this list</button>
+        <button class="btn" type="button" data-print>Print this list</button>
         <form class="pay-vendors" method="post" action="/<?= View::text($slug) ?>/payouts/close">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <label for="tender">Pay from</label>
@@ -139,26 +139,5 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
     <?php endif; ?>
 </div>
 <?php ListTable::assets(); ?>
-<script>
-(function () {
-    const table = document.getElementById('list-pay-vendors');
-    if (table === null) {
-        return;
-    }
-    let length = 10;
-    window.addEventListener('beforeprint', function () {
-        if (typeof DataTable === 'undefined' || table.getAttribute('data-dt-ready') !== '1') {
-            return;
-        }
-        const api = new DataTable(table);
-        length = api.page.len();
-        api.page.len(-1).draw(false);
-    });
-    window.addEventListener('afterprint', function () {
-        if (typeof DataTable === 'undefined' || table.getAttribute('data-dt-ready') !== '1') {
-            return;
-        }
-        new DataTable(table).page.len(length).draw(false);
-    });
-}());
-</script>
+<script src="/assets/js/print-trigger.js"></script>
+<script src="/assets/js/pay-vendors-print.js"></script>

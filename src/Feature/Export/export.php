@@ -27,13 +27,4 @@ $to = $to ?? '';
     <input id="tax_rate" name="tax_rate" value="Tax Exempt" required>
     <p><button type="submit">Download</button></p>
 </form>
-<script>
-    var fromInput = document.getElementById('from');
-    var toInput = document.getElementById('to');
-    fromInput.addEventListener('change', function () {
-        toInput.min = fromInput.value;
-        if (toInput.value !== '' && toInput.value < fromInput.value) {
-            toInput.value = fromInput.value;
-        }
-    });
-</script>
+<script src="/assets/js/date-from-to.js"></script>

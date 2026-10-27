@@ -34,10 +34,4 @@ $when = $soldOn instanceof DateTimeImmutable ? $soldOn->format('m-d-Y') : View::
         <p class="slip-thanks">Give this number at the register to redeem.</p>
     </article>
 </div>
-<script>
-document.querySelectorAll('[data-print]').forEach(function (button) {
-    button.addEventListener('click', function () {
-        window.print();
-    });
-});
-</script>
+<script src="/assets/js/print-trigger.js"></script>

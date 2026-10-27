@@ -31,10 +31,11 @@ final class VendorStickers
         if ($vendorId === '') {
             $this->app->notFound();
         }
+        $inventory = $this->inventoryPath($slug);
         try {
             $sheet = $this->sheet($this->storeName($slug), $vendorId);
         } catch (\InvalidArgumentException $error) {
-            $this->app->redirect('/' . $slug . '/vendor/inventory', null, $error->getMessage());
+            $this->app->redirect($inventory, null, $error->getMessage());
         }
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Inventory/stickers', $this->jobs->withSelectionKey([
@@ -42,8 +43,16 @@ final class VendorStickers
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'sheet' => $sheet,
-            'back' => '/' . $tenant->slug . '/vendor/inventory',
+            'back' => $inventory,
         ], $this->app->request()->field('selection_storage_key')));
+    }
+
+    private function inventoryPath(string $slug): string
+    {
+        return VendorPreview::with(
+            '/' . $slug . '/vendor/inventory',
+            VendorPreview::token($this->app->request()->query('as'))
+        );
     }
 
     private function storeName(string $slug): string

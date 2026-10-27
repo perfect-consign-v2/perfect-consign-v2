@@ -1,0 +1,4 @@
+@page {
+    size: var(--sticker-page-width, letter) var(--sticker-page-height, auto);
+    margin: 0;
+}

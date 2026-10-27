@@ -18,6 +18,7 @@ When they ask, edits that touch `public/index.php`, `bin/load-env.php`, `src/Sha
 - `PC_COVERAGE` starts only when `APP_ENV` is `test` or `coverage`. Coverage and log directories are `0700`. Coverage files are written atomically.
 - Fatals and `exit` still log and flush coverage via shutdown. Error responses must not append to a half-rendered page (buffer or equivalent).
 - Multi-file uploads are not silently dropped as “zero files.” Absolute-URI / `//` request targets are normalized or refused.
+- Content-Security-Policy stays enforcing on every `index.php` response with `script-src 'self'` and `style-src 'self'` — never `'unsafe-inline'` or `'unsafe-eval'`, never Report-Only as the shipped policy.
 
 ## Done
 

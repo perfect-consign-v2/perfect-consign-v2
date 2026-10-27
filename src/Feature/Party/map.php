@@ -74,7 +74,7 @@ foreach ($tiles as $tile) {
             }
             ?>
             <div class="map-scroll">
-            <div class="booth-map is-grid" id="booth-map" role="application" aria-label="Interactive booth map" style="height:<?= View::text($floorHeight) ?>px;width:<?= View::text($floorBox) ?>px">
+            <div class="booth-map is-grid" id="booth-map" role="application" aria-label="Interactive booth map" data-style-prop="height:<?= View::text($floorHeight) ?>px;width:<?= View::text($floorBox) ?>px">
                 <?php foreach ($placed as $tile): ?>
                     <?php
                     $vendor = $tile['vendor'] ?? 'Unassigned';
@@ -88,7 +88,7 @@ foreach ($tiles as $tile) {
                     <a class="booth-cell <?= View::text($tile['status']) ?><?= is_string($incoming) && $incoming !== '' ? ' has-incoming' : '' ?>"
                        id="booth-<?= View::text($tile['id']) ?>"
                        href="/<?= View::text($slug) ?>/booths/<?= View::text($tile['id']) ?>/edit"
-                       style="left:<?= View::text($tile['left']) ?>px;top:<?= View::text($tile['top']) ?>px;width:<?= View::text($tile['boxWidth']) ?>px;height:<?= View::text($tile['boxHeight']) ?>px"
+                       data-style-prop="left:<?= View::text($tile['left']) ?>px;top:<?= View::text($tile['top']) ?>px;width:<?= View::text($tile['boxWidth']) ?>px;height:<?= View::text($tile['boxHeight']) ?>px"
                        data-booth="<?= View::text($tile['id']) ?>"
                        data-code="<?= View::text($tile['code']) ?>"
                        data-status="<?= View::text($tile['status']) ?>"
@@ -118,7 +118,7 @@ foreach ($tiles as $tile) {
         </div>
         <div class="card-body" id="booth-detail-body">
             <div class="h2 mono" id="bd-code"></div>
-            <div class="mt-4 grid" style="gap:var(--space-3)">
+            <div class="mt-4 grid" data-style-prop="gap:var(--space-3)">
                 <div class="row between"><span class="muted">Status</span><span id="bd-status"></span></div>
                 <div class="row between"><span class="muted">Vendor</span><span class="strong" id="bd-vendor"></span></div>
                 <div class="row between" id="bd-incoming-row" hidden><span class="muted">Incoming</span><span class="strong" id="bd-incoming"></span></div>

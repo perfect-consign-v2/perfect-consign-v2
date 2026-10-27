@@ -4,7 +4,7 @@
  * Usage: <svg class="icon"><use href="#i-dashboard"></use></svg>
  */
 ?>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<svg width="0" height="0" data-style-prop="position:absolute" aria-hidden="true" focusable="false">
   <defs>
     <symbol id="i-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/>

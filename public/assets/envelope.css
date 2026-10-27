@@ -1,0 +1,63 @@
+@page {
+    size: letter;
+    margin: 0.6in;
+}
+
+.envelope {
+    break-after: page;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #000;
+    background: transparent;
+}
+
+.envelope h1,
+.envelope h2,
+.envelope p {
+    margin: 0 0 0.4rem;
+}
+
+.envelope table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.content .envelope table,
+.envelope table {
+    background: transparent;
+    border: 0;
+}
+
+.content .envelope td,
+.content .envelope th,
+.envelope td,
+.envelope th {
+    text-align: left;
+    padding: 0.15rem 0.35rem 0.15rem 0;
+    background: transparent;
+    border: 0;
+}
+
+.content .envelope td.num,
+.content .envelope th.num,
+.envelope .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.envelope tfoot td {
+    font-weight: 700;
+    padding-top: 0.45rem;
+}
+
+.envelope .debit,
+.envelope .owed {
+    color: var(--danger, #d92d20);
+    font-weight: 700;
+}
+
+@media print {
+    .envelope .debit,
+    .envelope .owed {
+        color: #9b1c1c;
+    }
+}

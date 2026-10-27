@@ -8,8 +8,8 @@ use PerfectConsign\Shared\Http\View;
 ?>
 <div class="login-wrap">
     <div class="panel">
-        <div class="row gap-3" style="justify-content:center; margin-bottom:var(--space-6)">
-            <span class="brand-mark" style="width:40px;height:40px;font-size:var(--text-lg)">P</span>
+        <div class="row gap-3" data-style-prop="justify-content:center; margin-bottom:var(--space-6)">
+            <span class="brand-mark" data-style-prop="width:40px;height:40px;font-size:var(--text-lg)">P</span>
             <div>
                 <div class="h2">Perfect Consign</div>
                 <div class="text-sm muted">Mall register</div>
@@ -18,7 +18,7 @@ use PerfectConsign\Shared\Http\View;
         <div class="card">
             <div class="card-head"><h1>Sign in</h1></div>
             <form method="post" action="/">
-                <div class="card-body grid" style="gap:var(--space-4)">
+                <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <div class="field">
                         <label for="email">Email</label>

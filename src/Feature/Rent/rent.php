@@ -107,7 +107,7 @@ $booths = static function (int $count): string {
         <div class="stat-delta muted"><?= View::text($booths(count($owing))) ?></div>
     </div>
     <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search booth or vendor" aria-label="Search booth or vendor">
+        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search booth or vendor" aria-label="Search booth or vendor">
         <button class="btn" type="submit">Search</button>
     </form>
     <div class="card table-wrap list-dt-wrap mt-4">
@@ -180,7 +180,7 @@ $booths = static function (int $count): string {
         <?php if ($standing !== ''): ?>
             <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
         <?php endif; ?>
-        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search booth or vendor" aria-label="Search booth or vendor">
+        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search booth or vendor" aria-label="Search booth or vendor">
         <button class="btn" type="submit">Search</button>
     </form>
 

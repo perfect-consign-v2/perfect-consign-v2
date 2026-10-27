@@ -22,7 +22,7 @@ $sentence = $displayName !== ''
 <?php endif; ?>
         <div class="card">
             <div class="card-head"><h1>Not found</h1></div>
-            <div class="card-body grid" style="gap:var(--space-4)">
+            <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                 <p><?= View::text($sentence) ?></p>
                 <?php if ($homeSlug !== '' || $signInSlug !== '' || $back !== ''): ?>
                 <div class="row gap-3">

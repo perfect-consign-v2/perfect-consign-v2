@@ -40,7 +40,7 @@ $legend = [
     </div>
 <?php else: ?>
     <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <input class="input" style="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search code or name" aria-label="Search booths">
+        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search code or name" aria-label="Search booths">
         <?php if ($standing !== ''): ?>
             <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
         <?php endif; ?>

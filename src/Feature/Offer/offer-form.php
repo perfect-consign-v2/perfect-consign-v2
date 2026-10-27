@@ -75,13 +75,5 @@ $back = VendorPreview::with($base, $previewAs);
     </div>
 </form>
 <?php if (!$locked): ?>
-<script>
-document.getElementById('scope').addEventListener('change', function () {
-    const who = document.getElementById('funded_by');
-    if (!who) {
-        return;
-    }
-    who.value = this.value === 'store' ? 'store' : 'vendor';
-});
-</script>
+<script src="/assets/js/offer-form.js"></script>
 <?php endif; ?>
