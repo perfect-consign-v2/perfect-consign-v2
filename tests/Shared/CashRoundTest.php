@@ -52,4 +52,11 @@ final class CashRoundTest extends TestCase
         self::assertSame(0, CashRound::adjustment(1001, 1));
         self::assertSame(1001, CashRound::rounded(1001, 1));
     }
+
+    public function testAZeroStepDoesNotDivide(): void
+    {
+        self::assertSame(0, CashRound::adjustment(1001, 0));
+        self::assertSame(1001, CashRound::rounded(1001, 0));
+        self::assertSame(0, CashRound::adjustment(-1, 5));
+    }
 }

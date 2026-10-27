@@ -16,22 +16,23 @@ final class MutationAllowListTest extends TestCase
 
         $linux = relative('/workspace/repo', '/workspace/repo/src/Feature/Rent/RentFigure.php');
         self::assertSame('src\\Feature\\Rent\\RentFigure.php', $linux);
-        self::assertNotNull(equivalentReason($linux, 47, '&&', '||'));
-        self::assertNotNull(equivalentReason($linux, 47, '>', '>='));
+        self::assertNotNull(equivalentReason($linux, 46, '&&', '||'));
+        self::assertNotNull(equivalentReason($linux, 46, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Shared\\Mail\\SmtpClient.php', 41, '||', '&&'));
         self::assertNotNull(equivalentReason('src\\Shared\\Mail\\SmtpClient.php', 46, '||', '&&'));
         self::assertNotNull(equivalentReason('src\\Feature\\Mall\\settings.php', 14, '>=', '>'));
         self::assertNotNull(equivalentReason('src\\Feature\\Mall\\MallPayoutSettings.php', 160, '>=', '>'));
         self::assertNotNull(equivalentReason('src\\Feature\\Vendor\\VendorCheck.php', 70, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Feature\\Vendor\\VendorCheck.php', 126, '>', '>='));
-        self::assertNotNull(equivalentReason('src\\Feature\\Pos\\SaleJournal.php', 122, '>', '>='));
-        self::assertNotNull(equivalentReason('src\\Feature\\Pos\\SaleJournal.php', 139, '>', '>='));
+        self::assertNotNull(equivalentReason('src\\Feature\\Pos\\SaleJournal.php', 130, '>', '>='));
+        self::assertNotNull(equivalentReason('src\\Feature\\Pos\\SaleJournal.php', 147, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Feature\\Rent\\LateFeeDue.php', 84, '<', '<='));
         self::assertNotNull(equivalentReason('src\\Feature\\Pos\\TicketPricing.php', 182, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Feature\\Book\\MissedSaleQuote.php', 17, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Shared\\Web\\layout.php', 244, '&&', '||'));
         self::assertNotNull(equivalentReason('src\\Feature\\Pos\\pos.php', 96, '>', '>='));
-        self::assertNotNull(equivalentReason('src\\Feature\\Vendor\\VendorFigures.php', 61, '!', ''));
+        self::assertNotNull(equivalentReason('src\\Feature\\Pos\\pos.php', 92, '>=', '>'));
+        self::assertNotNull(equivalentReason('src\\Ledger\\CashRound.php', 31, '<', '<='));
         self::assertNotNull(equivalentReason('src\\Feature\\Password\\LoginAccounts.php', 79, '!', ''));
 
         $windows = relative(
@@ -39,7 +40,7 @@ final class MutationAllowListTest extends TestCase
             'C:\\laragon\\www\\perfect-consign\\src\\Feature\\Rent\\RentFigure.php'
         );
         self::assertSame('src\\Feature\\Rent\\RentFigure.php', $windows);
-        self::assertNotNull(equivalentReason($windows, 47, '&&', '||'));
+        self::assertNotNull(equivalentReason($windows, 46, '&&', '||'));
     }
 
     public function testARunThatMutatesNothingIsRefused(): void

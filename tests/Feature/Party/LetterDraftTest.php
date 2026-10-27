@@ -32,6 +32,13 @@ final class LetterDraftTest extends TestCase
         (new LetterDraft())->subject("Hello\nthere");
     }
 
+    public function testASubjectAtTheLimitIsKept(): void
+    {
+        $subject = str_repeat('a', 150);
+
+        self::assertSame($subject, (new LetterDraft())->subject($subject));
+    }
+
     public function testALongSubjectIsRefused(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -44,6 +51,13 @@ final class LetterDraftTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Enter a message.');
         (new LetterDraft())->message('   ');
+    }
+
+    public function testAMessageAtTheLimitIsKept(): void
+    {
+        $message = str_repeat('a', 4000);
+
+        self::assertSame($message, (new LetterDraft())->message($message));
     }
 
     public function testALongMessageIsRefused(): void

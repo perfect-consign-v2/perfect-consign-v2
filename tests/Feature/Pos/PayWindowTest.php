@@ -22,7 +22,16 @@ final class PayWindowTest extends TestCase
             'cashFill' => 1000,
             'roundStep' => 1,
             'salesAvailable' => 0,
-            'cart' => ['lines' => [], 'buyer_id' => '', 'buyer_name' => ''],
+            'cart' => [
+                'lines' => [
+                    'bad',
+                    ['item_id' => '', 'price' => 100, 'tax' => 0, 'quantity' => 1],
+                    ['item_id' => 'item-1', 'price' => '1.00', 'tax' => 0, 'quantity' => 1],
+                    ['item_id' => 'item-2', 'price' => 250, 'tax' => 20, 'quantity' => 2],
+                ],
+                'buyer_id' => '',
+                'buyer_name' => '',
+            ],
             'openPayment' => true,
             'payError' => '',
             'payCash' => '',
@@ -38,6 +47,8 @@ final class PayWindowTest extends TestCase
         $html = ob_get_clean();
 
         self::assertIsString($html);
+        self::assertStringContainsString('data-snaps="[{&quot;item_id&quot;:&quot;item-2&quot;', $html);
+        self::assertStringNotContainsString('item-1', $html);
         self::assertMatchesRegularExpression(
             '/<button class="btn btn-primary" id="pay-finish" type="submit"[^>]*>Finish sale<\\/button>/',
             $html

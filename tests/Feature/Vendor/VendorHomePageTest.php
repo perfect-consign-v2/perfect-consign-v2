@@ -120,8 +120,14 @@ final class VendorHomePageTest extends TestCase
         $html = ob_get_clean();
         self::assertIsString($html);
         self::assertStringContainsString('aria-current="page"', $html);
+        self::assertStringContainsString('name="stock" value="out"', $html);
+        self::assertStringContainsString('Your items with quantity zero', $html);
+        self::assertStringContainsString('Check your own items.', $html);
+        self::assertStringNotContainsString('Check your items that still need stickers.', $html);
         self::assertStringContainsString('Search tag, barcode, description, or brand', $html);
         self::assertStringContainsString('&amp;q=Coat', $html);
+        self::assertStringContainsString('stock=out&amp;q=Coat', $html);
+        self::assertDoesNotMatchRegularExpression('/href="[^"]*stock=&amp;q=Coat/', $html);
         self::assertStringContainsString('>Brand<', $html);
         self::assertStringContainsString('class="muted">—', $html);
         self::assertStringContainsString('Wool', $html);

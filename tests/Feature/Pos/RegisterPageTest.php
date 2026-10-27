@@ -169,11 +169,34 @@ final class RegisterPageTest extends TestCase
         $empty = $this->page([
             'cart' => ['ticket_id' => 'ticket-1'],
         ]);
+        $drafts = $this->page([
+            'cart' => ['ticket_id' => 'ticket-1', 'lines' => [$this->line()]],
+            'drafts' => [[
+                'id' => 'draft-1',
+                'draft_no' => 1,
+                'vendor_id' => 'vendor-1',
+                'vendor_label' => 'Ada',
+                'description' => 'Coat',
+                'price_text' => '10.00',
+                'brand_id' => '',
+                'brand_label' => '',
+                'discount_kind' => '',
+                'discount_value' => '',
+                'attributes' => [],
+                'missing' => [],
+            ]],
+        ]);
+        $owing = $this->page([
+            'remaining' => 100,
+            'cart' => ['ticket_id' => 'ticket-1', 'lines' => [$this->line()]],
+        ]);
         $ready = $this->page([
             'cart' => ['ticket_id' => 'ticket-1', 'lines' => [$this->line()]],
         ]);
 
         self::assertStringContainsString('form="pos-pay" disabled', $empty);
+        self::assertStringContainsString('form="pos-pay" disabled', $drafts);
+        self::assertStringContainsString('form="pos-pay" disabled', $owing);
         self::assertStringContainsString('form="pos-pay">Finish sale', $ready);
     }
 

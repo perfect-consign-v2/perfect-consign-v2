@@ -215,6 +215,27 @@ final class SaleJournalTest extends TestCase
         ], 'v1', $credit));
     }
 
+    public function testAStoreReturnDoesNotTouchVendorBalances(): void
+    {
+        $ledger = $this->ledger();
+        $credit = ['account_id' => 'acct-cash', 'debit' => 0, 'credit' => 1000, 'subledger_type' => null, 'subledger_ref' => null];
+        $lines = SaleJournal::giveBack($ledger, [
+            'price' => 1000,
+            'commission' => 0,
+            'tax' => 0,
+            'discount' => 0,
+            'store_discount' => 0,
+            'placement' => 'store',
+            'cost' => 200,
+        ], 'v1', $credit, 1000);
+        $accounts = array_map(static fn (array $line): string => $line['account_id'], $lines);
+
+        self::assertContains('acct-store_sales', $accounts);
+        self::assertContains('acct-inventory', $accounts);
+        self::assertNotContains('acct-vendor_payable', $accounts);
+        self::assertNotContains('acct-vendor_receivable', $accounts);
+    }
+
     public function testZeroCashDoesNotRoundAnEmptyTender(): void
     {
         $lines = SaleJournal::sale($this->ledger(), [], [], 0, 5, 103);
