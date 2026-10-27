@@ -54,10 +54,20 @@ final class EmailSignIn
 
     private function failed(string $email): void
     {
+        $this->pruneStale();
         $failed = $this->pdo->prepare(
             'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
         );
         $failed->execute([$email, $this->request->address]);
+    }
+
+    private function pruneStale(): void
+    {
+        $prune = $this->pdo->prepare(
+            "DELETE FROM platform.email_sign_in_failures
+             WHERE failed_at <= clock_timestamp() - interval '15 minutes'"
+        );
+        $prune->execute();
     }
 
     private function refuseLocked(string $email): void
@@ -66,10 +76,9 @@ final class EmailSignIn
             "SELECT count(*)
              FROM platform.email_sign_in_failures
              WHERE email = ?
-               AND client_address = ?
                AND failed_at > clock_timestamp() - interval '15 minutes'"
         );
-        $recent->execute([$email, $this->request->address]);
+        $recent->execute([$email]);
         if ((int) $recent->fetchColumn() >= 5) {
             $this->logger->info('email sign-in locked', ['email' => $email]);
             throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');

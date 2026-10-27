@@ -16,7 +16,7 @@ final class RequestCoverage
         xdebug_set_filter(
             XDEBUG_FILTER_CODE_COVERAGE,
             XDEBUG_PATH_INCLUDE,
-            [dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'src']
+            [self::applicationSrc()]
         );
         xdebug_start_code_coverage(XDEBUG_CC_UNUSED | XDEBUG_CC_DEAD_CODE);
 
@@ -72,7 +72,7 @@ final class RequestCoverage
         if (!is_array($coverage)) {
             return [];
         }
-        $src = strtolower(str_replace('\\', '/', dirname(__DIR__, 2) . '/src/'));
+        $src = strtolower(str_replace('\\', '/', self::applicationSrc() . '/'));
         $kept = [];
         foreach ($coverage as $file => $lines) {
             $real = self::srcFile($file, $src);
@@ -100,6 +100,11 @@ final class RequestCoverage
         }
 
         return $real;
+    }
+
+    private static function applicationSrc(): string
+    {
+        return dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src';
     }
 
     /**

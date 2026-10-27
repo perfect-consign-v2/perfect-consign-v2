@@ -1,0 +1,31 @@
+---
+description: Keep technical docs, owner docs, and Hesk KB seeds current with every product change.
+alwaysApply: true
+---
+
+# Keep docs and Hesk current (PC2)
+
+A behavior or ops change is unfinished until the matching docs match the code in the **same turn**.
+
+## What to update
+
+| Audience | Where | When |
+|----------|--------|------|
+| **Owner / product law** | `docs/business-rules.md` | Any rule cashiers or owners must know (sign-in, money, refuse lists, screens) |
+| **Technical / operators** | `docs/http-edge.md`, `README.md` Load/Application, and other `docs/*.md` that name the path | Bootstrap, deploy, env, CLI, proofs, HTTP edge |
+| **Hesk (readable map)** | Matching `docs/hesk-kb/*.md` seed | Same facts as above, in the article template |
+
+`docs/business-rules.md` and `docs/PLAN.md` win on conflicts. Hesk mirrors them; it does not invent law.
+
+## Done bar
+
+1. Edit or confirm the owner sentence in `business-rules.md` when product behavior changed.
+2. Edit or confirm the technical note (`http-edge.md`, README, PLAN) when operators or agents need a different command or path.
+3. Edit the matching Hesk seed (`as_of`, body, Source). Set `hesk: pending` until published.
+4. When Hesk is reachable on this machine, run `php docs/hesk-kb/publish-to-hesk.php` and leave seeds `hesk: published YYYY-MM-DD`.
+5. Do not ship “not in PC2 product code yet” Hesk text for behavior that is already live, or the reverse.
+
+```text
+BAD: lockout changed in EmailSignIn.php; E10 and business-rules still say email+address
+GOOD: code, business-rules, http-edge/README if needed, and hesk-kb seed updated together; publish when Hesk is up
+```

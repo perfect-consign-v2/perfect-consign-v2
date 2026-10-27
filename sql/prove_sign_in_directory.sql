@@ -113,14 +113,37 @@ BEGIN
 
     INSERT INTO platform.email_sign_in_failures (email, client_address)
     VALUES ('dirowner@example.com', '127.0.0.1');
+    INSERT INTO platform.email_sign_in_failures (email, client_address)
+    VALUES ('dirowner@example.com', '10.0.0.2');
     IF (
         SELECT count(*)
         FROM platform.email_sign_in_failures
         WHERE email = 'dirowner@example.com'
-          AND client_address = '127.0.0.1'
           AND failed_at > clock_timestamp() - interval '15 minutes'
-    ) < 1 THEN
-        RAISE EXCEPTION 'email sign-in failure was not stored';
+    ) < 2 THEN
+        RAISE EXCEPTION 'email sign-in failures were not stored across addresses';
+    END IF;
+
+    INSERT INTO platform.email_sign_in_failures (email, client_address, failed_at)
+    VALUES (
+        'stale-fail@example.com',
+        '127.0.0.1',
+        clock_timestamp() - interval '20 minutes'
+    );
+    DELETE FROM platform.email_sign_in_failures
+    WHERE failed_at <= clock_timestamp() - interval '15 minutes';
+    IF EXISTS (
+        SELECT 1 FROM platform.email_sign_in_failures WHERE email = 'stale-fail@example.com'
+    ) THEN
+        RAISE EXCEPTION 'stale email sign-in failures were not pruned';
+    END IF;
+    IF (
+        SELECT count(*)
+        FROM platform.email_sign_in_failures
+        WHERE email = 'dirowner@example.com'
+          AND failed_at > clock_timestamp() - interval '15 minutes'
+    ) < 2 THEN
+        RAISE EXCEPTION 'retention prune removed fresh email sign-in failures';
     END IF;
 
     SET LOCAL ROLE stall_app;

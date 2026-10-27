@@ -40,7 +40,7 @@ php bin/enable-stall-app.php
 php bin/set-owner.php mall owner
 ```
 
-`set-owner.php` reads `STALL_OWNER_PASSWORD` and optional `STALL_OWNER_EMAIL`. The same `STALL_DB_*` values used for provisioning are required. A duplicate recovery email across malls is refused. The site is `public/index.php`. Root `/` is email sign-in; a mall is `/{slug}` with username deep link `/{slug}/login`. Edge helpers and TLS/origin rules are documented in `docs/http-edge.md`.
+`set-owner.php` reads `STALL_OWNER_PASSWORD` and optional `STALL_OWNER_EMAIL`. The same `STALL_DB_*` values used for provisioning are required. A duplicate recovery email across malls is refused. The site is `public/index.php`. Root `/` is email sign-in; a mall is `/{slug}` with username deep link `/{slug}/login`. Five failed email sign-ins in fifteen minutes lock that email from any address; stale failure rows are pruned on the next failure. Edge helpers and TLS/origin rules are documented in `docs/http-edge.md`. Production deploys should run `composer build:routes` so `var/cache/feature-controllers.php` is present before traffic hits the app.
 
 Platform admin is `/admin`. After `php bin/migrate.php platform`, run `php bin/set-platform-admin.php` with `STALL_PLATFORM_ADMIN_EMAIL` and `STALL_PLATFORM_ADMIN_PASSWORD` set. The slug `admin` is reserved and cannot be provisioned as a store.
 

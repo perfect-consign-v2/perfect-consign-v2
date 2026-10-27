@@ -6,6 +6,7 @@ Personal learning articles for local Hesk (`https://hesk.test`). Only you can re
 
 - [docs/business-rules.md](../business-rules.md) and [docs/PLAN.md](../PLAN.md) win on conflicts.
 - Hesk is the readable map. Update the matching article when those files change.
+- Agent gate: `.cursor/rules/keep-docs-current.mdc` — owner docs, technical docs, and these seeds stay in the same turn as the code.
 
 ## Hesk setup (this machine)
 

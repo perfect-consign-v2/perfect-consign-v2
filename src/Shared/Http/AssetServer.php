@@ -58,10 +58,9 @@ final class AssetServer
 
     private static function resolvedFile(string $path): ?string
     {
-        $root = realpath(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'assets');
-        $resolved = realpath(
-            dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'public' . str_replace('/', DIRECTORY_SEPARATOR, $path)
-        );
+        $public = self::publicDirectory();
+        $root = realpath($public . DIRECTORY_SEPARATOR . 'assets');
+        $resolved = realpath($public . str_replace('/', DIRECTORY_SEPARATOR, $path));
         if ($root === false || $resolved === false || $root === '/') {
             return null;
         }
@@ -70,6 +69,11 @@ final class AssetServer
         }
 
         return $resolved;
+    }
+
+    private static function publicDirectory(): string
+    {
+        return dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'public';
     }
 
     private static function fail(int $status, string $body): void

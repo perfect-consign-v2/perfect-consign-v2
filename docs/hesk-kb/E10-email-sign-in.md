@@ -24,13 +24,13 @@ An owner or cashier lands on the site root, or uses Forgot password with their r
 - `platform.sign_in_directory` holds one row per owner or staff account that has a recovery email.
 - Email is unique across the whole platform (lowercased). Owner and staff share that uniqueness.
 - Saving an owner or staff recovery email updates the directory through triggers (`052` / `053`).
-- Wrong password and unknown email show the same message. Five failures in fifteen minutes for the same email and client address lock that pair.
+- Wrong password and unknown email show the same message. Five failures in fifteen minutes for the same email lock that email from any client address. Older failure rows are pruned when a new failure is recorded.
 - `/forgot` looks up the email and starts a reset only when a directory row exists; the sent message is always the same.
 
 ## What is refused
 
 - A second account claiming an email already in the directory.
-- Sign-in while the failure lock is active.
+- Sign-in while the failure lock is active (including attempts spread across addresses).
 - Empty or malformed recovery emails in the directory.
 
 ## How to check
@@ -39,7 +39,7 @@ Plant an owner with `STALL_OWNER_EMAIL`, open `/`, sign in with that email. Open
 
 ## Source
 
-`docs/business-rules.md` — Sign-in. `sql/052_sign_in_directory.sql`, `sql/053_staff_sign_in_sync.sql`, `sql/prove_sign_in_directory.sql`.
+`docs/business-rules.md` — Sign-in. `sql/052_sign_in_directory.sql`, `sql/053_staff_sign_in_sync.sql`, `sql/prove_sign_in_directory.sql`. `src/Bootstrap/EmailSignIn.php`.
 
 ## Related
 
