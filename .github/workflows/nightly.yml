@@ -76,7 +76,7 @@ jobs:
         with:
           php-version: '8.5'
           extensions: pdo_pgsql, zip, curl
-      - run: composer install --no-interaction --prefer-dist
+      - run: composer install --no-interaction --prefer-dist --ignore-platform-req=ext-xdebug
       - run: docker compose up -d postgres
       - name: Wait for Postgres
         run: |

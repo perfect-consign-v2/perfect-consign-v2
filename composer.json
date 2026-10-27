@@ -8,8 +8,7 @@
         "krubio/perfect-container-psr-11": "^2.0",
         "ext-pdo": "*",
         "ext-ctype": "*",
-        "ext-zip": "*",
-      "ext-xdebug": "*"
+        "ext-zip": "*"
     },
     "autoload": {
         "psr-4": {
@@ -23,6 +22,7 @@
     },
     "require-dev": {
         "chrome-php/chrome": "1.16",
+        "ext-xdebug": "*",
         "phpmd/phpmd": "2.15",
         "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "13.3.5"
