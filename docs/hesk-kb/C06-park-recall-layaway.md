@@ -1,7 +1,7 @@
 ---
 title: Park / recall / layaway
 category: Sales and register
-hesk: published 2026-10-25
+hesk: published 2026-10-27
 as_of: 2026-10-25
 ---
 
