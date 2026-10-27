@@ -44,4 +44,4 @@ Plant an owner with `STALL_OWNER_EMAIL`, open `/`, sign in with that email. Open
 ## Related
 
 - Platform admin portal
-- Self-serve store signup
+- Public origin, proxies, and Secure cookies

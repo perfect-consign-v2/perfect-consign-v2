@@ -2,47 +2,40 @@
 title: Promo codes
 category: Sales and register
 hesk: published 2026-10-27
-as_of: 2026-10-26
+as_of: 2026-10-27
 ---
 
 # Promo codes
 
 ## As of
 
-2026-10-26
+2026-10-27 — **not in PC2 product code yet.** Keep the seed; do not look for a Promo codes screen or register Promo pad.
 
 ## In one sentence
 
-Owners create redeemable promo codes; cashiers enter a code at the register and it becomes the ticket promotion discount.
+Planned: mall-owned redeemable codes that become the ticket promotion discount when a cashier enters them.
 
 ## When it happens
 
-An owner manages codes under Promo codes. A cashier opens Promo on the register and types a code before tendering.
+Not yet.
 
 ## What the books / screens do
 
-- Each code is unique per mall (case-insensitive), percent or amount, with optional start/end dates and a max use count.
-- A valid code becomes the ticket discount with reason promotion. Clear any other ticket discount first.
-- The cashier discount ceiling still applies.
-- Uses increment only when the sale posts. Voiding a sale does not give the use back.
-- Delete a code only if it has never been used; otherwise deactivate it.
+Nothing extra in the live tree. Ticket discounts still use the existing discount paths only.
 
 ## What is refused
 
-- Invalid, expired, inactive, or used-up codes (never silently ignored).
-- Applying a promo while another ticket discount is still set.
-- Deleting a code that already has uses.
+Treating this article as live ops guidance.
 
 ## How to check
 
-Create a code, apply it on a ticket, pay: use count rises by one. Void the sale: use count stays. Try an expired or spent code: refused.
+Confirm `sql/052_promo_codes.sql` / promo Feature code are absent until this article is rewritten for a shipped fact.
 
 ## Source
 
-`docs/business-rules.md` — Sales. Promo code migrations and proofs.
+Intent only. Not in `docs/business-rules.md` until shipped.
 
 ## Related
 
-- Store take / discount / tax on a line
+- Store take, discount, and tax on a ticket
 - Second-signature ceilings
-- Disabled-vet tax vs military merchandise discount

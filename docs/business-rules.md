@@ -186,6 +186,8 @@ The site root `/` is email and password. The directory maps each recovery email 
 
 An owner or staff recovery email is required for email sign-in. Setting or changing that email is refused when another sign-in already holds it. `php bin/set-owner.php` may set `STALL_OWNER_EMAIL` when planting the owner.
 
+Password-reset and consignor magic links use `STALL_PUBLIC_ORIGIN` (not the request `Host`). Mutating POSTs need a session CSRF token. Secure cookies and HSTS follow trusted TLS only — see `docs/http-edge.md`.
+
 ## Platform admin
 
 Platform `/admin` is for operators, not mall cashiers. An admin can sign in, reset a password, enter a store as owner or cashier, wipe a tenant, and read an append-only admin audit. Password-reset rows and admin audit events are append-only. A bad admin email is refused.

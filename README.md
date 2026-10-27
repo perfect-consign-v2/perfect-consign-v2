@@ -40,13 +40,15 @@ php bin/enable-stall-app.php
 php bin/set-owner.php mall owner
 ```
 
-`set-owner.php` reads `STALL_OWNER_PASSWORD` and optional `STALL_OWNER_EMAIL`. The same `STALL_DB_*` values used for provisioning are required. A duplicate recovery email across malls is refused. The site is `public/index.php`. Root `/` is email sign-in; a mall is `/{slug}` with username deep link `/{slug}/login`.
+`set-owner.php` reads `STALL_OWNER_PASSWORD` and optional `STALL_OWNER_EMAIL`. The same `STALL_DB_*` values used for provisioning are required. A duplicate recovery email across malls is refused. The site is `public/index.php`. Root `/` is email sign-in; a mall is `/{slug}` with username deep link `/{slug}/login`. Edge helpers and TLS/origin rules are documented in `docs/http-edge.md`.
 
 Platform admin is `/admin`. After `php bin/migrate.php platform`, run `php bin/set-platform-admin.php` with `STALL_PLATFORM_ADMIN_EMAIL` and `STALL_PLATFORM_ADMIN_PASSWORD` set. The slug `admin` is reserved and cannot be provisioned as a store.
 
 ```bash
 php -S 127.0.0.1:8096 -t public public/index.php
 ```
+
+That demo server is HTTP. Secure cookies and HSTS stay off unless the process sees trusted TLS (`HTTPS` or a peer in `STALL_TRUSTED_PROXIES`). Self-serve `/signup`, promo codes, and the military customer tax path are not in this tree yet.
 
 ## Tests
 

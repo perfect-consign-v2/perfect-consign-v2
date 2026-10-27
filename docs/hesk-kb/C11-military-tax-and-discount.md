@@ -2,46 +2,40 @@
 title: Disabled-vet tax vs military merchandise discount
 category: Sales and register
 hesk: published 2026-10-27
-as_of: 2026-10-26
+as_of: 2026-10-27
 ---
 
 # Disabled-vet tax vs military merchandise discount
 
 ## As of
 
-2026-10-26
+2026-10-27 — **not in PC2 product code yet.** This seed stays so the distinction is not lost; do not operate as if the screens or proofs exist.
 
 ## In one sentence
 
-Disabled-veteran tax exemption is a saved customer flag that waives sales tax; a military merchandise discount is an on-the-fly percent or amount off with no customer required.
+Planned: saved disabled-veteran tax exemption on a customer vs a walk-up military merchandise discount; they are independent.
 
 ## When it happens
 
-A disabled vet presents credentials for tax exemption on file, or a walk-up asks for a military merchandise discount at the register.
+Not yet. Until migrations and register paths ship, cashiers use existing tax-free / discount tools only.
 
 ## What the books / screens do
 
-- Customer edit: tax exempt + number; military / disabled-veteran implies tax exempt.
-- Putting that customer on the ticket sets waiver reason military and zeros tax. No cashier tax-free ceiling for that path.
-- Walk-up: ticket or line discount with reason military. Discount ceiling and second signature still apply. No customer required.
-- Sales-tax worksheet lists military waivers separately from other exempt sales.
-- Both may apply on one ticket; they are independent.
+Nothing extra in the live tree. Do not expect a military customer flag, a worksheet military bucket, or a dedicated military discount reason.
 
 ## What is refused
 
-- Military customer flag without tax exempt (and number).
-- Tax charged on a military-waived ticket.
-- Treating a merchandise military discount as the tax worksheet military bucket by itself.
+Treating this article as live ops guidance.
 
 ## How to check
 
-Save a military customer, attach to ticket, pay: tax 0 and worksheet military bucket. Apply discount reason military with no customer: merchandise reduced, tax still collected unless a separate waiver applies.
+Confirm `sql/051_military_customer_tax.sql` / `sql/prove_military_exempt.sql` and matching Feature code are absent until this article’s `as_of` and Source are rewritten for a shipped fact.
 
 ## Source
 
-`docs/business-rules.md` — Sales. `sql/prove_military_exempt.sql`.
+Intent only. Not in `docs/business-rules.md` until shipped.
 
 ## Related
 
-- Store take / discount / tax on a line
-- Second-signature ceilings
+- Sales tax worksheet
+- Store take, discount, and tax on a ticket

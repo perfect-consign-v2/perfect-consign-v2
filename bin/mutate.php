@@ -606,16 +606,16 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Party\\MoveInRent.php' && $line === 18 && $from === '<=' && $to === '<') {
         return 'a move-in on the first still charges every day of that month, so the comparison and the proration agree';
     }
-    if ($file === 'src\\Feature\\Rent\\RentCycle.php' && $line === 79 && $from === '<=' && $to === '<') {
+    if ($file === 'src\\Feature\\Rent\\RentCycle.php' && $line === 78 && $from === '<=' && $to === '<') {
         return 'a move-in on the period start is charged for every day, which is the full amount';
     }
-    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 26 && $from === '>' && $to === '>=') {
+    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 25 && $from === '>' && $to === '>=') {
         return 'a stay that starts on the pinned day keeps that day';
     }
-    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 47 && $from === '&&' && $to === '||') {
+    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 46 && $from === '&&' && $to === '||') {
         return 'a start outside this month cannot hold the booth, and a start on the first returns that same day';
     }
-    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 47 && $from === '>' && $to === '>=') {
+    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 46 && $from === '>' && $to === '>=') {
         return 'a start on the first of the month returns that same day either way';
     }
     if ($file === 'src\\Ledger\\Money.php' && $line === 19 && $from === '>' && $to === '>=') {
@@ -672,11 +672,8 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Rent\\LateFee.php' && $line === 67 && $from === '<' && $to === '<=') {
         return 'a waive on the fee date stores that same date';
     }
-    if ($file === 'src\\Feature\\Party\\AssignmentOffer.php' && $line === 102 && $from === '>' && $to === '>=') {
+    if ($file === 'src\\Feature\\Party\\AssignmentOffer.php' && $line === 105 && $from === '>' && $to === '>=') {
         return 'one pass per stay plus the day after the last end already finds the free day';
-    }
-    if ($file === 'src\\Feature\\Party\\AssignmentOffer.php' && ($line === 157 || $line === 160) && $from === '===' && $to === '!==') {
-        return 'an open stay covers every later day, so the booth stays taken either way';
     }
     if ($file === 'src\\Shared\\Web\\layout.php' && $line === 192 && $from === '&&' && $to === '||') {
         return 'preview mode only lists vendor links, and an empty preview leaves the address unchanged';
@@ -693,8 +690,11 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Mall\\settings.php' && $line === 9 && $from === '>=' && $to === '>') {
         return 'day 1 is the fallback, so the strict comparison stores the same day';
     }
-    if ($file === 'src\\Feature\\Pos\\SaleJournal.php' && ($line === 98 || $line === 115) && $from === '>' && $to === '>=') {
-        return 'a zero cash difference is not posted, and both branches would post a zero line';
+    if ($file === 'src\\Feature\\Pos\\SaleJournal.php' && $line === 20 && $from === '>=' && $to === '>') {
+        return 'a one-cent round step never moves the due, so the equal case posts the same cash lines';
+    }
+    if ($file === 'src\\Feature\\Pos\\SaleJournal.php' && $line === 69 && $from === '>' && $to === '>=') {
+        return 'a zero vendor share posts no payable or receivable either way';
     }
     if ($file === 'src\\Feature\\Pos\\TicketTenders.php' && $line === 169 && $from === '<' && $to === '<=') {
         return 'a zero remainder already returned, so this comparison only sees a remainder that is not zero';
@@ -732,10 +732,10 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Vendor\\VendorCheck.php' && $line === 115 && $from === '>' && $to === '>=') {
         return 'nothing owed is already zero, so the equal case stores the same desk amount';
     }
-    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 253 && $from === '>=' && $to === '>') {
+    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 251 && $from === '>=' && $to === '>') {
         return 'day 1 is the fallback, and the payout window clamps that same day again';
     }
-    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 253 && $from === '&&' && $to === '||') {
+    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 251 && $from === '&&' && $to === '||') {
         return 'a day outside 1 through 28 is clamped to day 1 again by the payout window';
     }
     if ($file === 'src\\Feature\\Mall\\MallPayoutSettings.php' && $line === 82 && $from === '>=' && $to === '>') {
@@ -756,7 +756,7 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Vendor\\VendorCheck.php' && ($line === 70 || $line === 115 || $line === 126) && $from === '>' && $to === '>=') {
         return 'nothing owed and a negative amount both stay at zero';
     }
-    if ($file === 'src\\Feature\\Pos\\SaleJournal.php' && ($line === 122 || $line === 139) && $from === '>' && $to === '>=') {
+    if ($file === 'src\\Feature\\Pos\\SaleJournal.php' && ($line === 130 || $line === 147) && $from === '>' && $to === '>=') {
         return 'a zero cash difference posts a zero rounding line either way';
     }
     if ($file === 'src\\Feature\\Rent\\LateFeeDue.php' && $line === 84 && $from === '<' && $to === '<=') {
@@ -764,6 +764,12 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     }
     if ($file === 'src\\Feature\\Pos\\pos.php' && $line === 96 && $from === '>' && $to === '>=') {
         return 'a zero cash adjustment is not shown, and a positive one keeps the plus sign';
+    }
+    if ($file === 'src\\Feature\\Pos\\pos.php' && ($line === 92 || $line === 93 || $line === 94) && $from === '>=' && $to === '>') {
+        return 'a one-cent round step never moves cash due, so the equal case shows the same register amounts';
+    }
+    if ($file === 'src\\Ledger\\CashRound.php' && $line === 31 && $from === '<' && $to === '<=') {
+        return 'a one-cent step always has a zero remainder, so the equal case still returns zero';
     }
     if ($file === 'src\\Feature\\Pos\\TicketPricing.php' && $line === 182 && $from === '>' && $to === '>=') {
         return 'zero basis points round to zero either way';
@@ -773,9 +779,6 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     }
     if ($file === 'src\\Shared\\Web\\layout.php' && ($line === 220 || $line === 244 || $line === 245) && $from === '&&' && $to === '||') {
         return 'a vendor preview only lists vendor links, and an empty preview leaves the address unchanged';
-    }
-    if ($file === 'src\\Feature\\Vendor\\VendorFigures.php' && $line === 61 && $from === '!' && $to === '') {
-        return 'a missing row still reads a zero total';
     }
     if ($file === 'src\\Feature\\Password\\LoginAccounts.php' && $line === 79 && $from === '!' && $to === '') {
         return 'a staff row that is not a record has no id, so the later check returns the same empty result';

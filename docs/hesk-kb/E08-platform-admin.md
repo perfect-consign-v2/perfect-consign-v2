@@ -42,6 +42,6 @@ Reset flow creates a token row; using it does not leave editable history holes. 
 ## Related
 
 - Email sign-in finds the mall
-- Self-serve store signup
+- Public origin, proxies, and Secure cookies
 - What Stall / perfect-consign is today vs full mall screens
 - Vendor portal sees only one vendor
