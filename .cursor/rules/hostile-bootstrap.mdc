@@ -1,0 +1,27 @@
+---
+description: PC2 HTTP edge — refuse spoofed TLS/origin, mangled secrets, ungated coverage, and silent fatals before calling bootstrap done
+alwaysApply: true
+---
+
+# Hostile bootstrap (PC2)
+
+When they ask, edits that touch `public/index.php`, `bin/load-env.php`, `src/Shared/Http/**`, or Bootstrap CSRF/session gates are unfinished until the permanent bootstrap vectors are green after the latest edit. A green happy path is not enough.
+
+## Permanent refusals
+
+- Spoofed `X-Forwarded-Proto` from a peer not in `STALL_TRUSTED_PROXIES` must not set Secure cookies or HSTS. Unset allowlist means ignore forwarded proto; trust only `HTTPS`.
+- Leftmost token of a trusted `X-Forwarded-Proto` chain (`https, http`) is the signal.
+- Public origin comes from `STALL_PUBLIC_ORIGIN` outside an explicit Host-origin allow. Never pass `''` as origin. `APP_DEBUG` alone must not unlock Host-derived origin; that needs `STALL_ALLOW_HOST_ORIGIN=true` and a non-production-like `APP_ENV`.
+- `APP_DEBUG` / local env may control `display_errors` and client-visible exception text. Always set `display_errors` both on and off. Do not couple that switch to origin trust.
+- Mutating POSTs refuse without a valid session CSRF token. Referer / same-host path is back-link hygiene only — not CSRF.
+- One dotenv parser. Quoted values, `export`, and inline `#` must not mangle secrets. Delete duplicate loaders.
+- `PC_COVERAGE` starts only when `APP_ENV` is `test` or `coverage`. Coverage and log directories are `0700`. Coverage files are written atomically.
+- Fatals and `exit` still log and flush coverage via shutdown. Error responses must not append to a half-rendered page (buffer or equivalent).
+- Multi-file uploads are not silently dropped as “zero files.” Absolute-URI / `//` request targets are normalized or refused.
+
+## Done
+
+```text
+BAD: headers added, php -S works, Host poison untested → done
+GOOD: bootstrap unit/HTTP vectors green after the edit; composer check exits 0 when they ask → then stop
+```

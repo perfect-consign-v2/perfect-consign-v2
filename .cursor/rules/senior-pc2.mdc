@@ -1,0 +1,26 @@
+---
+description: PC2 (perfect-consign) — senior-level implementation only; no hacks, shortcuts, or silent fallbacks
+alwaysApply: true
+---
+
+# Senior-level code only (PC2)
+
+For **PC2** (`C:\laragon\www\perfect-consign`, this repo). Consigngold-scoped senior rules do not exempt this tree.
+
+## Required bar
+
+1. **Implement as a senior/staff engineer would ship**: explicit types, clear boundaries, testable units, and predictable failure modes. Code should read as intentional production quality, not “make CI green.”
+
+2. **No hacks** — Avoid tricks that obscure behavior: magic globals for security decisions, stringly-typed control flow, parsing exception messages for business logic, `@` error suppression on runtime I/O, swallowing errors without logging, etc.
+
+3. **No shortcuts** — Do not paper over problems with broad suppressions (PHPStan ignore rules that mask real issues), dead branches “just in case,” or copy-paste instead of a shared abstraction when duplication carries risk.
+
+4. **No inappropriate fallbacks** — Do not return wrong types, fake defaults, or silent “best effort” results when requirements are violated. **Validate** → **fail fast** with the correct HTTP/domain error and **log** (PSR-3) on failure paths. Optional recovery is allowed only when the product explicitly requires it and is documented.
+
+5. **Static analysis** — PHPStan must pass at the repo’s configured level with **no `ignoreErrors` entries** in `phpstan.neon` (and never a baseline). Fix the root cause.
+
+6. **Logging** — Use `Psr\Log\LoggerInterface` in application code; no `error_log` for operational paths where a logger is available. No `@` on I/O.
+
+7. **Trust edge** — Follow `hostile-bootstrap.mdc` for TLS, origin, dotenv, coverage, and fatal handling.
+
+When unsure, choose the **stricter, more explicit** implementation and ask for product clarification rather than inventing a silent fallback.
