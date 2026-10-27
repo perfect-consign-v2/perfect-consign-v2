@@ -151,8 +151,8 @@ final class TenantProvisioner
         if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $slug) !== 1) {
             throw new InvalidArgumentException('a tenant slug must be a short lowercase name');
         }
-        if ($slug === 'admin') {
-            throw new InvalidArgumentException('admin is reserved for the platform portal');
+        if (in_array($slug, ['admin', 'forgot', 'signup', 'assets'], true)) {
+            throw new InvalidArgumentException($slug . ' is reserved for the platform');
         }
     }
 

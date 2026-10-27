@@ -118,7 +118,7 @@ final class RegisterFeatures
             }
             $classes[] = $class;
         }
-        usort($classes, self::adminRoutesFirst(...));
+        usort($classes, self::platformRoutesFirst(...));
 
         return $classes;
     }
@@ -135,15 +135,31 @@ final class RegisterFeatures
         return self::className($file->getPathname());
     }
 
-    private static function adminRoutesFirst(string $left, string $right): int
+    /**
+     * Exact platform paths (/forgot, /admin/…) must register before the mall
+     * catch-all /{slug}, or HomeController steals those names as tenant slugs.
+     */
+    private static function platformRoutesFirst(string $left, string $right): int
     {
-        $leftAdmin = str_contains($left, '\\Feature\\Admin\\') ? 0 : 1;
-        $rightAdmin = str_contains($right, '\\Feature\\Admin\\') ? 0 : 1;
-        if ($leftAdmin !== $rightAdmin) {
-            return $leftAdmin <=> $rightAdmin;
+        $leftRank = self::platformRank($left);
+        $rightRank = self::platformRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
         }
 
         return $left <=> $right;
+    }
+
+    private static function platformRank(string $class): int
+    {
+        if (str_contains($class, '\\Feature\\Admin\\')) {
+            return 0;
+        }
+        if (str_contains($class, '\\Feature\\Root\\')) {
+            return 1;
+        }
+
+        return 2;
     }
 
     private static function className(string $path): ?string

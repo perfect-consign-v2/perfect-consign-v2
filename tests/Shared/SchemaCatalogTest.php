@@ -40,7 +40,7 @@ final class SchemaCatalogTest extends TestCase
         self::assertContains('029_job_mail_sent.sql', $tenant);
         self::assertContains('033_override_lockout.sql', $tenant);
         self::assertSame(
-            ['000_platform.sql', '002_platform_jobs.sql', '003_poster_jobs.sql', '004_job_grants.sql', '005_job_kinds.sql', '009_sale_notice_kind.sql', '012_job_insert.sql', '013_worker_role.sql', '015_override_failures.sql', '017_job_mail_sent.sql', '020_vendor_letter_job.sql', '024_markdown_job.sql', '025_vendor_role.sql', '030_revoke_owner_failures.sql', '031_job_enqueue_gate.sql', '035_enqueue_session_role.sql', '036_platform_admin.sql', '052_sign_in_directory.sql'],
+            ['000_platform.sql', '002_platform_jobs.sql', '003_poster_jobs.sql', '004_job_grants.sql', '005_job_kinds.sql', '009_sale_notice_kind.sql', '012_job_insert.sql', '013_worker_role.sql', '015_override_failures.sql', '017_job_mail_sent.sql', '020_vendor_letter_job.sql', '024_markdown_job.sql', '025_vendor_role.sql', '030_revoke_owner_failures.sql', '031_job_enqueue_gate.sql', '035_enqueue_session_role.sql', '036_platform_admin.sql', '052_sign_in_directory.sql', '054_email_sign_in_failure_stale.sql'],
             $platform
         );
         self::assertSame(

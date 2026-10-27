@@ -17,11 +17,35 @@ use ReflectionClass;
 
 final class EmailSignInLockoutTest extends TestCase
 {
-    public function testFiveFailuresAcrossAddressesLockTheEmail(): void
+    public function testFiveFailuresFromOneAddressLockThatPair(): void
     {
         ProbeMall::ensure(dirname(__DIR__, 3));
         $pdo = $this->pdo();
-        $email = 'lock-' . bin2hex(random_bytes(4)) . '@example.com';
+        $email = 'lock-addr-' . bin2hex(random_bytes(4)) . '@example.com';
+        try {
+            for ($attempt = 1; $attempt <= 5; $attempt++) {
+                $insert = $pdo->prepare(
+                    'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
+                );
+                $insert->execute([$email, '10.8.0.1']);
+            }
+            $signIn = $this->signIn($pdo, '10.8.0.1');
+            try {
+                $signIn->attempt($email, 'wrong-password');
+                self::fail('same-address failures did not lock the email');
+            } catch (SignInLocked $locked) {
+                self::assertStringContainsString('Too many sign-in attempts', $locked->getMessage());
+            }
+        } finally {
+            $this->clear($pdo, $email);
+        }
+    }
+
+    public function testFiveFailuresAcrossAddressesDoNotLockTheEmail(): void
+    {
+        ProbeMall::ensure(dirname(__DIR__, 3));
+        $pdo = $this->pdo();
+        $email = 'lock-spread-' . bin2hex(random_bytes(4)) . '@example.com';
         try {
             for ($address = 1; $address <= 5; $address++) {
                 $insert = $pdo->prepare(
@@ -30,6 +54,25 @@ final class EmailSignInLockoutTest extends TestCase
                 $insert->execute([$email, '10.8.0.' . (string) $address]);
             }
             $signIn = $this->signIn($pdo, '10.8.0.99');
+            self::assertFalse($signIn->attempt($email, 'wrong-password'));
+        } finally {
+            $this->clear($pdo, $email);
+        }
+    }
+
+    public function testTwentyFailuresAcrossAddressesLockTheEmail(): void
+    {
+        ProbeMall::ensure(dirname(__DIR__, 3));
+        $pdo = $this->pdo();
+        $email = 'lock-email-' . bin2hex(random_bytes(4)) . '@example.com';
+        try {
+            for ($address = 1; $address <= 20; $address++) {
+                $insert = $pdo->prepare(
+                    'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
+                );
+                $insert->execute([$email, '10.9.0.' . (string) $address]);
+            }
+            $signIn = $this->signIn($pdo, '10.9.0.99');
             try {
                 $signIn->attempt($email, 'wrong-password');
                 self::fail('distributed failures did not lock the email');
@@ -37,8 +80,7 @@ final class EmailSignInLockoutTest extends TestCase
                 self::assertStringContainsString('Too many sign-in attempts', $locked->getMessage());
             }
         } finally {
-            $clear = $pdo->prepare('DELETE FROM platform.email_sign_in_failures WHERE email = ?');
-            $clear->execute([$email]);
+            $this->clear($pdo, $email);
         }
     }
 
@@ -65,6 +107,12 @@ final class EmailSignInLockoutTest extends TestCase
             $clear = $pdo->prepare('DELETE FROM platform.email_sign_in_failures WHERE email IN (?, ?)');
             $clear->execute([$email, $stale]);
         }
+    }
+
+    private function clear(PDO $pdo, string $email): void
+    {
+        $clear = $pdo->prepare('DELETE FROM platform.email_sign_in_failures WHERE email = ?');
+        $clear->execute([$email]);
     }
 
     private function signIn(PDO $pdo, string $address): EmailSignIn

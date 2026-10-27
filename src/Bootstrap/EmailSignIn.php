@@ -54,23 +54,55 @@ final class EmailSignIn
 
     private function failed(string $email): void
     {
-        $this->pruneStale();
+        $this->pruneStale($email);
         $failed = $this->pdo->prepare(
             'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
         );
         $failed->execute([$email, $this->request->address]);
     }
 
-    private function pruneStale(): void
+    private function pruneStale(string $email): void
     {
-        $prune = $this->pdo->prepare(
+        $forEmail = $this->pdo->prepare(
+            "DELETE FROM platform.email_sign_in_failures
+             WHERE email = ?
+               AND failed_at <= clock_timestamp() - interval '15 minutes'"
+        );
+        $forEmail->execute([$email]);
+        $stale = $this->pdo->prepare(
             "DELETE FROM platform.email_sign_in_failures
              WHERE failed_at <= clock_timestamp() - interval '15 minutes'"
         );
-        $prune->execute();
+        $stale->execute();
     }
 
     private function refuseLocked(string $email): void
+    {
+        if ($this->recentForAddress($email) >= 5) {
+            $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'address']);
+            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+        }
+        if ($this->recentForEmail($email) >= 20) {
+            $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'email']);
+            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+        }
+    }
+
+    private function recentForAddress(string $email): int
+    {
+        $recent = $this->pdo->prepare(
+            "SELECT count(*)
+             FROM platform.email_sign_in_failures
+             WHERE email = ?
+               AND client_address = ?
+               AND failed_at > clock_timestamp() - interval '15 minutes'"
+        );
+        $recent->execute([$email, $this->request->address]);
+
+        return (int) $recent->fetchColumn();
+    }
+
+    private function recentForEmail(string $email): int
     {
         $recent = $this->pdo->prepare(
             "SELECT count(*)
@@ -79,9 +111,7 @@ final class EmailSignIn
                AND failed_at > clock_timestamp() - interval '15 minutes'"
         );
         $recent->execute([$email]);
-        if ((int) $recent->fetchColumn() >= 5) {
-            $this->logger->info('email sign-in locked', ['email' => $email]);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-        }
+
+        return (int) $recent->fetchColumn();
     }
 }

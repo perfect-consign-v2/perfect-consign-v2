@@ -145,6 +145,14 @@ BEGIN
     ) < 2 THEN
         RAISE EXCEPTION 'retention prune removed fresh email sign-in failures';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE schemaname = 'platform'
+          AND indexname = 'email_sign_in_failures_stale'
+    ) THEN
+        RAISE EXCEPTION 'email_sign_in_failures_stale index is missing';
+    END IF;
 
     SET LOCAL ROLE stall_app;
     IF (

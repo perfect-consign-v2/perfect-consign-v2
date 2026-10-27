@@ -62,23 +62,30 @@ final class RegisterFeaturesTest extends TestCase
         }
     }
 
-    public function testAdminControllersSortBeforeTenantControllers(): void
+    public function testAdminAndRootControllersSortBeforeMallControllers(): void
     {
         RegisterFeatures::clearCache();
         putenv('APP_ENV=test');
         $feature = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature';
         $classes = RegisterFeatures::controllerClasses($feature);
         $firstAdmin = null;
-        $firstNonAdmin = null;
+        $firstRoot = null;
+        $firstMall = null;
         foreach ($classes as $index => $class) {
             if (str_contains($class, '\\Feature\\Admin\\')) {
                 $firstAdmin ??= $index;
                 continue;
             }
-            $firstNonAdmin ??= $index;
+            if (str_contains($class, '\\Feature\\Root\\')) {
+                $firstRoot ??= $index;
+                continue;
+            }
+            $firstMall ??= $index;
         }
         self::assertNotNull($firstAdmin);
-        self::assertNotNull($firstNonAdmin);
-        self::assertLessThan($firstNonAdmin, $firstAdmin);
+        self::assertNotNull($firstRoot);
+        self::assertNotNull($firstMall);
+        self::assertLessThan($firstRoot, $firstAdmin);
+        self::assertLessThan($firstMall, $firstRoot);
     }
 }

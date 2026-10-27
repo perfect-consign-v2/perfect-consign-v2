@@ -180,7 +180,7 @@ An offline register snap posts the captured sold price and collected tax when th
 
 ## Sign-in
 
-The site root `/` is email and password. The directory maps each recovery email to one mall and one username. Owner emails and staff recovery emails share that directory. The same email cannot appear twice across malls or account kinds. A missing or wrong password fails the same way as an unknown email. Five failed tries for the same email within fifteen minutes lock that email from any client address until the window passes. Failure rows older than that window are deleted when another failure is recorded.
+The site root `/` is email and password. The directory maps each recovery email to one mall and one username. Owner emails and staff recovery emails share that directory. The same email cannot appear twice across malls or account kinds. A missing or wrong password fails the same way as an unknown email. Five failed tries for the same email and client address within fifteen minutes lock that pair. Twenty failed tries for the same email from any mix of addresses within fifteen minutes lock the email. Failure rows older than that window are deleted when another failure is recorded.
 
 `/{slug}/login` still accepts username and password for that mall. Forgot password at `/forgot` looks up the email in the directory and, when found, starts the same reset path as the mall forgot form. The success message is the same whether the email is known or not.
 
