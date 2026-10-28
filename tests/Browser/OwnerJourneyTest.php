@@ -110,6 +110,8 @@ final class OwnerJourneyTest extends WebTestCase
         $book = $this->session->submit('/' . ProbeMall::SLUG . '/rent/charge', [
             'booth_id' => $boothId,
             'posting_date' => ProbeMall::POSTING_DATE,
+            // Hidden month on the page is "today"; override so saved() returns to the charge month.
+            'month' => ProbeMall::MONTH,
         ]);
 
         self::assertSees('Charged', $book);
