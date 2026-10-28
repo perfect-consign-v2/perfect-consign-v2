@@ -13,7 +13,7 @@ Operators and deployers: start with [hesk-kb/E12-public-origin-and-tls.md](hesk-
 | `RequestOrigin` | `STALL_PUBLIC_ORIGIN` or gated Host fallback |
 | `RequestFactory` / `RequestPath` / `RequestUploads` / `SameHostReferer` | Request shape, path normalize, upload refuse-multi, same-host referer hygiene |
 | `AssetServer` | `/assets/*` from repo `public/assets` (three levels above `src/Shared/Http`); path guard; `Content-Length`; cache |
-| `RequestCoverage` | `PC_COVERAGE` only when `APP_ENV` is `test` or `coverage`; filter is repo `src/`; atomic write; `0700` dirs |
+| `RequestCoverage` | `PC_COVERAGE` only when `APP_ENV` is `test` or `coverage`; filter is repo `src/`; atomic write; `0700` dirs. `composer test:coverage` / `bin/coverage-run.php` sets `APP_ENV=coverage`. ProbeServer also forces `APP_ENV=coverage` whenever `PC_COVERAGE` is set, so a unit test that `putenv`’d `APP_ENV` cannot disable HTTP dumps. Each request may flush once (`enable` clears the write latch and restarts Xdebug coverage) so long-lived `php -S` workers keep accumulating dumps. |
 | `DatabaseConfig` | App DSN; rejects `;` in host/name; int port |
 | `ErrorHandling` | `display_errors` on and off; fatal shutdown log; index discards output buffer on error |
 

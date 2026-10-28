@@ -15,6 +15,7 @@ if (!is_array($env)) {
 }
 $env['XDEBUG_MODE'] = 'coverage';
 $env['PC_COVERAGE'] = $directory;
+$env['APP_ENV'] = 'coverage';
 $phpunit = [PHP_BINARY, $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'phpunit'];
 $extra = array_slice($argv, 1);
 if ($extra === []) {

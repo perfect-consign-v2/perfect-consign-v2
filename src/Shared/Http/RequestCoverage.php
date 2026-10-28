@@ -13,6 +13,10 @@ final class RequestCoverage
         if (!self::allowed($directory, $appEnv) || !self::xdebugReady()) {
             return false;
         }
+        self::$written = false;
+        if (function_exists('xdebug_stop_code_coverage')) {
+            xdebug_stop_code_coverage(true);
+        }
         xdebug_set_filter(
             XDEBUG_FILTER_CODE_COVERAGE,
             XDEBUG_PATH_INCLUDE,

@@ -1,15 +1,15 @@
 ---
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
-hesk: published 2026-10-27
-as_of: 2026-10-27
+hesk: published 2026-10-28
+as_of: 2026-10-28
 ---
 
 # Public origin, proxies, TLS, and page script policy
 
 ## As of
 
-2026-10-27
+2026-10-28
 
 ## In one sentence
 
@@ -32,7 +32,7 @@ You deploy PC2 behind HTTPS, a reverse proxy, or `php -S` for a local demo; or y
 
 - Spoofed `X-Forwarded-Proto: https` from a peer not on the trusted list (no Secure cookie, no HSTS).
 - Empty public origin in production-like env.
-- Coverage dumps when `APP_ENV` is not `test` or `coverage`.
+- Coverage dumps when `APP_ENV` is not `test` or `coverage`. (`composer test:coverage` sets `APP_ENV=coverage` so ProbeServer HTTP dumps are collected.)
 - Inline page script or author CSS (the browser CSP blocks it; the app test suite also refuses it in templates).
 
 ## How to check

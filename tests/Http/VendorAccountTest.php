@@ -30,18 +30,19 @@ final class VendorAccountTest extends WebTestCase
             'password' => 'short',
         ]);
         self::assertSees('Use a password of at least 8 characters.', $refused);
+        $email = $username . '@example.com';
         $added = $owner->post('/' . ProbeMall::SLUG . '/vendors/' . $vendorId . '/sign-in', [
             'username' => $username,
             'display_name' => 'Ada Lane',
             'password' => 'vendor-pass',
-            'email' => 'ada@example.com',
+            'email' => $email,
         ]);
         self::assertSees('Vendor sign-in added.', $added);
         $saved = $owner->post('/' . ProbeMall::SLUG . '/vendors/' . $vendorId . '/sign-in', [
             'username' => $username,
             'display_name' => 'Ada Lane',
             'password' => 'vendor-next',
-            'email' => 'ada@example.com',
+            'email' => $email,
         ]);
         self::assertSees('Vendor sign-in saved.', $saved);
         $itemCode = 't' . bin2hex(random_bytes(3));

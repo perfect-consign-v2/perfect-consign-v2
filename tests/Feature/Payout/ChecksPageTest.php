@@ -41,8 +41,9 @@ final class ChecksPageTest extends TestCase
         self::assertStringContainsString('Check 1043', $html);
         self::assertStringContainsString('Memo: October payout (GIN)', $html);
         self::assertStringContainsString('data-print', $html);
-        self::assertStringContainsString('.check-sheet:last-of-type { break-after: auto; page-break-after: auto; margin-bottom: 0; }', $html);
-        self::assertStringNotContainsString('.check-sheet:last-child', $html);
+        self::assertStringContainsString('/assets/checks-print.css', $html);
+        self::assertStringContainsString('/assets/js/print-trigger.js', $html);
+        self::assertStringNotContainsString('<style>', $html);
     }
 
     public function testTheFirstCheckNumberFormShowsAProblem(): void

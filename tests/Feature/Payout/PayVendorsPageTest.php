@@ -43,7 +43,9 @@ final class PayVendorsPageTest extends TestCase
         self::assertStringContainsString('Print this list', $html);
         self::assertStringContainsString('class="payout-sheet"', $html);
         self::assertStringContainsString('data-dt-fit="1"', $html);
-        self::assertStringContainsString('beforeprint', $html);
+        self::assertStringContainsString('/assets/js/pay-vendors-print.js', $html);
+        self::assertStringContainsString('/assets/js/print-trigger.js', $html);
+        self::assertStringNotContainsString('<script>', $html);
         self::assertStringNotContainsString('Print checks', $html);
         self::assertStringNotContainsString('Close October', $html);
         self::assertStringContainsString('1 to pay', $html);

@@ -46,7 +46,10 @@ final class StaffBooksCoverageTest extends WebTestCase
             'email' => $username . '@example.com',
         ]);
         self::assertSees('That sign-in name is already used.', $again);
-        $id = $this->match($added->body, '#/staff/([0-9a-fA-F-]{36})/books-password#');
+        $id = $this->match(
+            $added->body,
+            '#\(' . preg_quote($username, '#') . '\).*?/staff/([0-9a-fA-F-]{36})/books-password#s'
+        );
         $saved = $this->client->post('/' . self::SLUG . '/staff/' . $id . '/books-password', [
             'password' => 'books-next',
             'email' => $username . '@example.com',

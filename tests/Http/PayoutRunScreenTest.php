@@ -28,7 +28,7 @@ final class PayoutRunScreenTest extends WebTestCase
         self::assertSame(200, $page->status);
         self::assertMatchesRegularExpression('/[A-Z][a-z]+ payout/', $page->body);
         self::assertSees('Print this list', $page);
-        self::assertSees('window.print()', $page);
+        self::assertSees('/assets/js/print-trigger.js', $page);
         self::assertTrue(
             str_contains($page->body, 'Pay these vendors') || str_contains($page->body, ' is paid')
         );

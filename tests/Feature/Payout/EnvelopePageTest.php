@@ -46,7 +46,8 @@ final class EnvelopePageTest extends TestCase
         self::assertStringContainsString('<span>A1</span>', $html);
         self::assertStringContainsString('>Print<', $html);
         self::assertStringNotContainsString('>Back<', $html);
-        self::assertStringContainsString('window.print()', $html);
+        self::assertStringContainsString('/assets/js/print-trigger.js', $html);
+        self::assertStringNotContainsString('<script>', $html);
         self::assertStringContainsString('reprinted from the stored record', $html);
         self::assertStringNotContainsString('no vendor sheets', $html);
     }

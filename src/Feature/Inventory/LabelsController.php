@@ -7,8 +7,6 @@ namespace PerfectConsign\Feature\Inventory;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
-use PerfectConsign\Shared\Http\View;
-use PerfectConsign\Shared\Scalar\RowValue;
 
 final class LabelsController
 {
@@ -18,6 +16,7 @@ final class LabelsController
         private readonly MallSettings $mall,
         private readonly LabelRequest $jobs,
         private readonly LabelSheet $sheets,
+        private readonly StickerFromRow $stickers,
     ) {
     }
 
@@ -44,41 +43,11 @@ final class LabelsController
         $job = $this->jobs->read($this->app->request()->post, $this->mall->getLabelStock());
         $items = [];
         foreach ($this->items->forLabels($job['ids']) as $row) {
-            $items[] = $this->item($row, $store);
+            $items[] = $this->stickers->item($row, $store);
         }
         $this->items->markStickersPrinted($job['ids']);
 
         return $this->sheets->compose($job['stock'], $items, $job['copies'], $job['row'], $job['column']);
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
-    private function item(array $row, string $store): StickerItem
-    {
-        $brand = $row['brand_name'] ?? null;
-
-        return new StickerItem(
-            RowValue::string($row['barcode'] ?? null),
-            View::money(RowValue::integer($row['price_minor'] ?? null)),
-            RowValue::string($row['description'] ?? null),
-            $store,
-            RowValue::string($row['vendor_code'] ?? null),
-            is_string($brand) ? $brand : '',
-            $this->intake(RowValue::string($row['intake_on'] ?? null)),
-            RowValue::string($row['code'] ?? null),
-            is_string($row['deal_name'] ?? null) ? $row['deal_name'] : '',
-        );
-    }
-
-    private function intake(string $day): string
-    {
-        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $day);
-        if ($date instanceof \DateTimeImmutable && $date->format('Y-m-d') === $day) {
-            return $date->format('m-d-Y');
-        }
-
-        return $day;
     }
 
     private function back(string $slug): string

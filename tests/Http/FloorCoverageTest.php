@@ -460,7 +460,7 @@ final class FloorCoverageTest extends WebTestCase
             'description' => 'Missing',
             'price' => '4.00',
         ]);
-        self::assertSees('Choose a vendor.', $missing);
+        self::assertSees('Incomplete line on the ticket.', $missing);
         $added = $this->client->post('/' . self::SLUG . '/pos/instant', [
             'vendor_id' => $vendor,
             'description' => 'Instant ' . $code,
