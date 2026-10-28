@@ -47,7 +47,7 @@ final class BackupConnectionTest extends TestCase
 
     private function blank(string $key): void
     {
-        $previous = getenv($key);
+        $previous = $this->current($key);
         putenv($key . '=');
         try {
             if ($key === 'STALL_DB_USER') {
@@ -66,8 +66,26 @@ final class BackupConnectionTest extends TestCase
         } finally {
             if (is_string($previous) && $previous !== '') {
                 putenv($key . '=' . $previous);
+            } else {
+                putenv($key);
             }
         }
+    }
+
+    private function current(string $key): string|false
+    {
+        $value = getenv($key);
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+        if (isset($_SERVER[$key]) && is_string($_SERVER[$key]) && $_SERVER[$key] !== '') {
+            return $_SERVER[$key];
+        }
+        if (isset($_ENV[$key]) && is_string($_ENV[$key]) && $_ENV[$key] !== '') {
+            return $_ENV[$key];
+        }
+
+        return false;
     }
 
     private function refused(string $host, string $port, string $database, string $user, string $password): void

@@ -59,7 +59,11 @@ final class DatabaseConfigTest extends TestCase
     private function set(string $key, string $value): void
     {
         if (!array_key_exists($key, $this->previous)) {
-            $this->previous[$key] = getenv($key);
+            $current = getenv($key);
+            if ((!is_string($current) || $current === '') && isset($_SERVER[$key]) && is_string($_SERVER[$key]) && $_SERVER[$key] !== '') {
+                $current = $_SERVER[$key];
+            }
+            $this->previous[$key] = $current;
         }
         putenv($key . '=' . $value);
     }

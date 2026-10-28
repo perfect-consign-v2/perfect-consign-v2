@@ -17,12 +17,17 @@ final class TenantResetTest extends TestCase
     public function testLocalAdminOpensTheDockerDatabase(): void
     {
         $host = getenv('STALL_DB_HOST');
+        if ((!is_string($host) || $host === '') && isset($_SERVER['STALL_DB_HOST']) && is_string($_SERVER['STALL_DB_HOST'])) {
+            $host = $_SERVER['STALL_DB_HOST'];
+        }
         putenv('STALL_DB_HOST');
         try {
             $connection = LocalAdmin::open();
         } finally {
             if (is_string($host) && $host !== '') {
                 putenv('STALL_DB_HOST=' . $host);
+            } else {
+                putenv('STALL_DB_HOST');
             }
         }
         self::assertTrue($connection->isLocalRestoreTarget());

@@ -435,6 +435,9 @@ final class SurvivorPinsTest extends TestCase
     {
         $fill = new ReflectionMethod(LocalAdmin::class, 'fill');
         $previous = getenv('STALL_DB_HOST');
+        if ((!is_string($previous) || $previous === '') && isset($_SERVER['STALL_DB_HOST']) && is_string($_SERVER['STALL_DB_HOST'])) {
+            $previous = $_SERVER['STALL_DB_HOST'];
+        }
         try {
             putenv('STALL_DB_HOST');
             $fill->invoke(null, 'STALL_DB_HOST', '127.0.0.1');

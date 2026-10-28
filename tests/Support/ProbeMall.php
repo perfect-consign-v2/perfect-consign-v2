@@ -35,6 +35,9 @@ final class ProbeMall
     {
         require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'load-env.php';
         loadStallEnv($root . DIRECTORY_SEPARATOR . '.env');
+        self::fill('STALL_DB_HOST', '127.0.0.1');
+        self::fill('STALL_DB_PORT', '5436');
+        self::fill('STALL_DB_NAME', 'consign');
         self::fill('STALL_DB_USER', 'stall');
         self::fill('STALL_DB_PASSWORD', 'stall');
         self::requireDatabaseEnv();
