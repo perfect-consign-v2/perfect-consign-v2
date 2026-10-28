@@ -55,6 +55,9 @@ if [[ ! -f "$composer" ]]; then
 fi
 
 "$php_bin" "$composer" --working-dir="$root" install --no-dev --no-interaction --prefer-dist
+# Production APP_ENV reads var/cache/feature-controllers.php; rebuild after every
+# reset so new controllers are registered and removed ones drop out.
+"$php_bin" "$composer" --working-dir="$root" build:routes
 
 "$php_bin" "${root}/bin/ensure-mail-key.php"
 "$php_bin" "${root}/bin/migrate.php" platform
@@ -66,7 +69,8 @@ fi
 "$php_bin" "${root}/bin/migrate.php" tenant-all
 "$php_bin" "${root}/bin/migrate.php" platform-after
 
-# Keep root email sign-in working when .env names owner email + password.
+# Demo convenience: plant or refresh mall owner from .env. set-owner.php is
+# idempotent when the password already matches (no credentials_version bump).
 if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
     "$php_bin" "${root}/bin/set-owner.php" mall owner
 fi

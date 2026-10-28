@@ -1,0 +1,39 @@
+---
+description: PC2 deploy scripts and auth/lockout — ops and abuse vectors are the done bar, not a green happy path
+alwaysApply: true
+---
+
+# Deploy and auth abuse (PC2)
+
+Edits that touch deploy scripts, route registration / feature manifests, email or owner sign-in, lockouts, or credential plant/reset are unfinished until the permanent vectors below are green after the latest edit. A green unit happy path or a local GET probe is not enough.
+
+## Deploy / route manifest
+
+- `APP_ENV=production` loads `var/cache/feature-controllers.php`. A reset checkout that skips rebuild can omit new controllers or keep removed ones.
+- `bin/deploy-demo.sh` (and any automated production deploy path) must run `composer build:routes` after `composer install` / `git reset`. README alone is not a fix.
+- Permanent check: `tests/Feature/Deploy/DeployDemoScriptTest` (script contains the rebuild) and `RegisterFeaturesTest` (production reads a built manifest; scan rebuild restores a full list).
+- Platform-only SQL files belong in `SchemaCatalog::PLATFORM` (or `PLATFORM_AFTER`). A numbered `sql/0xx_*.sql` that mutates `platform.*` and is left off that list will be applied as a tenant migration and can double-create objects.
+
+## Auth / lockout abuse
+
+For every throttle or refuse list on sign-in (email, owner, staff, admin):
+
+- Pair lock (same identity + same client address) — already refused.
+- **Spray:** one client address across many identities — must refuse (email sign-in: forty failures / fifteen minutes across emails).
+- **Distributed hit** on one identity from many addresses — email-wide lock is intentional; do not remove it to “fix DoS” without a product decision.
+- Add the new vector to the permanent integration test (`EmailSignInLockoutTest` or sibling) before calling the fact done.
+
+## Credential plant / deploy side effects
+
+- `bin/set-owner.php` and any deploy step that writes owner/staff passwords must not bump `credentials_version` when the password already matches (sessions stay valid on redeploy).
+- Demo convenience that invalidates sessions must be idempotent, explicitly gated, or named in the done checklist as session-killing on purpose.
+- Permanent check: `tests/Integration/Bootstrap/SetOwnerIdempotentTest`.
+
+## Done
+
+```text
+BAD: deploy README mentions build:routes; script never runs it → done
+BAD: pair lock tested; one IP can still spray 100 emails → done
+BAD: every deploy bumps credentials_version though password unchanged → done
+GOOD: deploy script + spray + idempotent set-owner vectors green after the edit; composer check when they ask → then stop
+```

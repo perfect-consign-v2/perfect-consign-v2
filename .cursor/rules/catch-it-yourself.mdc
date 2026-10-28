@@ -13,6 +13,7 @@ Execute the changed behavior through the same entry the product uses:
 - An error caught inside a job, then returned as success, never reaches `JobQueue::finish()`. A transport failure must still retry. Only a recipient rejection at `RCPT TO` may mark `email_bounced`. A `535` at login must not.
 - A CSV or export edit includes a negative amount and a formula. `-500` stays a number. `=1+1` stays text.
 - A money edit includes the abuse case: a release larger than the amount held, a missing booth on the posted lines, a double submit, an actor taken from the form.
+- A deploy, route-manifest, or sign-in/lockout edit follows `.cursor/rules/deploy-and-auth-abuse.mdc`: rebuild in the deploy script, spray/distributed lockout vectors, idempotent credential plant.
 
 `maintain-proven-level` and `prove-before-advance` withhold the full `composer check` until this message asks for it. They do not withhold the execution above. A failed run is fixed in this session. If a run cannot be started, name the command and the reason before calling the work done.
 

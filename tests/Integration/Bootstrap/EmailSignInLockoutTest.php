@@ -84,6 +84,61 @@ final class EmailSignInLockoutTest extends TestCase
         }
     }
 
+    public function testFortyFailuresFromOneAddressAcrossEmailsLockTheClient(): void
+    {
+        ProbeMall::ensure(dirname(__DIR__, 3));
+        $pdo = $this->pdo();
+        $emails = [];
+        try {
+            for ($n = 1; $n <= 40; $n++) {
+                $email = 'spray-' . bin2hex(random_bytes(3)) . $n . '@example.com';
+                $emails[] = $email;
+                $insert = $pdo->prepare(
+                    'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
+                );
+                $insert->execute([$email, '10.10.0.8']);
+            }
+            $next = 'spray-next-' . bin2hex(random_bytes(4)) . '@example.com';
+            $emails[] = $next;
+            $signIn = $this->signIn($pdo, '10.10.0.8');
+            try {
+                $signIn->attempt($next, 'wrong-password');
+                self::fail('address-wide spray failures did not lock the client');
+            } catch (SignInLocked $locked) {
+                self::assertStringContainsString('Too many sign-in attempts', $locked->getMessage());
+            }
+        } finally {
+            foreach ($emails as $email) {
+                $this->clear($pdo, $email);
+            }
+        }
+    }
+
+    public function testThirtyNineFailuresFromOneAddressAcrossEmailsStillAllowAnotherEmail(): void
+    {
+        ProbeMall::ensure(dirname(__DIR__, 3));
+        $pdo = $this->pdo();
+        $emails = [];
+        try {
+            for ($n = 1; $n <= 39; $n++) {
+                $email = 'under-' . bin2hex(random_bytes(3)) . $n . '@example.com';
+                $emails[] = $email;
+                $insert = $pdo->prepare(
+                    'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
+                );
+                $insert->execute([$email, '10.10.0.9']);
+            }
+            $next = 'under-next-' . bin2hex(random_bytes(4)) . '@example.com';
+            $emails[] = $next;
+            $signIn = $this->signIn($pdo, '10.10.0.9');
+            self::assertFalse($signIn->attempt($next, 'wrong-password'));
+        } finally {
+            foreach ($emails as $email) {
+                $this->clear($pdo, $email);
+            }
+        }
+    }
+
     public function testRecordingAFailurePrunesStaleRows(): void
     {
         ProbeMall::ensure(dirname(__DIR__, 3));

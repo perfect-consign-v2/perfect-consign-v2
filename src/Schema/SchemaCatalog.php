@@ -30,6 +30,7 @@ final class SchemaCatalog
         '036_platform_admin.sql',
         '052_sign_in_directory.sql',
         '054_email_sign_in_failure_stale.sql',
+        '055_email_sign_in_failure_address.sql',
     ];
 
     /** @var list<string> */

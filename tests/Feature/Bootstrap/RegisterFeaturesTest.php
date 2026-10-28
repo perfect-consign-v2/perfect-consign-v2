@@ -115,4 +115,35 @@ final class RegisterFeaturesTest extends TestCase
         self::assertLessThan($firstRoot, $firstAdmin);
         self::assertLessThan($firstMall, $firstRoot);
     }
+
+    public function testBuildManifestRestoresControllersOmittedFromAStaleProductionCache(): void
+    {
+        RegisterFeatures::clearCache();
+        $feature = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature';
+        $manifest = RegisterFeatures::manifestPath($feature);
+        $directory = dirname($manifest);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            self::fail('could not create cache directory');
+        }
+        $poison = [
+            'PerfectConsign\\Feature\\Home\\HomeController',
+        ];
+        $payload = "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($poison, true) . ";\n";
+        self::assertNotFalse(file_put_contents($manifest, $payload));
+        putenv('APP_ENV=production');
+        RegisterFeatures::clearCache();
+        $stale = RegisterFeatures::controllerClasses($feature);
+        self::assertSame($poison, $stale);
+        self::assertNotContains('PerfectConsign\\Feature\\Root\\RootController', $stale);
+        $rebuilt = RegisterFeatures::buildManifest($feature);
+        RegisterFeatures::clearCache();
+        $loaded = RegisterFeatures::controllerClasses($feature);
+        putenv('APP_ENV=test');
+        self::assertSame($rebuilt, $loaded);
+        self::assertContains('PerfectConsign\\Feature\\Root\\RootController', $loaded);
+        self::assertGreaterThan(count($poison), count($loaded));
+        if (is_file($manifest)) {
+            unlink($manifest);
+        }
+    }
 }

@@ -153,6 +153,14 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'email_sign_in_failures_stale index is missing';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE schemaname = 'platform'
+          AND indexname = 'email_sign_in_failures_address'
+    ) THEN
+        RAISE EXCEPTION 'email_sign_in_failures_address index is missing';
+    END IF;
 
     SET LOCAL ROLE stall_app;
     IF (

@@ -22,16 +22,23 @@ $port = getenv('STALL_DB_PORT');
 $name = getenv('STALL_DB_NAME');
 $user = getenv('STALL_DB_USER');
 $adminPassword = getenv('STALL_DB_PASSWORD');
-if (
-    !is_string($slug) || $slug === ''
-    || !is_string($username) || $username === ''
-    || !is_string($host) || $host === ''
-    || !is_string($port) || $port === ''
-    || !is_string($name) || $name === ''
-    || !is_string($user) || $user === ''
-    || !is_string($adminPassword) || $adminPassword === ''
-) {
-    fwrite(STDERR, "usage: php bin/set-owner.php <slug> <username>\nSTALL_DB_HOST, STALL_DB_PORT, STALL_DB_NAME, STALL_DB_USER, and STALL_DB_PASSWORD are required\n");
+if (!is_string($host) || $host === '') {
+    $host = '127.0.0.1';
+}
+if (!is_string($port) || $port === '') {
+    $port = '5436';
+}
+if (!is_string($name) || $name === '') {
+    $name = 'consign';
+}
+if (!is_string($user) || $user === '') {
+    $user = 'stall';
+}
+if (!is_string($adminPassword) || $adminPassword === '') {
+    $adminPassword = 'stall';
+}
+if (!is_string($slug) || $slug === '' || !is_string($username) || $username === '') {
+    fwrite(STDERR, "usage: php bin/set-owner.php <slug> <username>\n");
     exit(1);
 }
 
@@ -41,6 +48,37 @@ $pdo = new PDO(
     $adminPassword,
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
 );
+
+$current = $pdo->prepare(
+    'SELECT o.id, o.username, o.password_hash, o.email
+     FROM platform.owners o
+     INNER JOIN platform.tenants t ON t.id = o.tenant_id
+     WHERE t.slug = ?'
+);
+$current->execute([$slug]);
+$existing = $current->fetch(PDO::FETCH_ASSOC);
+if (is_array($existing) && passwordMatches($password, $existing['password_hash'] ?? null)) {
+    $sameUser = is_string($existing['username'] ?? null) && $existing['username'] === $username;
+    $sameEmail = ownerEmailsMatch($email, $existing['email'] ?? null);
+    if ($sameUser && $sameEmail) {
+        fwrite(STDOUT, "owner unchanged\n");
+        exit(0);
+    }
+    $touch = $pdo->prepare(
+        'UPDATE platform.owners
+         SET username = ?, email = COALESCE(?, email)
+         WHERE id = ?::uuid'
+    );
+    try {
+        $touch->execute([$username, $email, $existing['id']]);
+    } catch (PDOException $error) {
+        refuseDuplicateEmail($error);
+        throw $error;
+    }
+    fwrite(STDOUT, "owner profile saved\n");
+    exit(0);
+}
+
 $hash = password_hash($password, PASSWORD_DEFAULT);
 if ($hash === false) {
     fwrite(STDERR, "the password hash could not be created\n");
@@ -60,11 +98,7 @@ $statement = $pdo->prepare(
 try {
     $statement->execute([$username, $hash, $email, $slug]);
 } catch (PDOException $error) {
-    $state = $error->errorInfo[0] ?? '';
-    if ($state === '23505') {
-        fwrite(STDERR, "that recovery email is already used on another sign-in\n");
-        exit(1);
-    }
+    refuseDuplicateEmail($error);
     throw $error;
 }
 if ($statement->rowCount() < 1) {
@@ -85,4 +119,27 @@ function ownerEmail(mixed $email): ?string
     }
 
     return $email;
+}
+
+function passwordMatches(string $password, mixed $hash): bool
+{
+    return is_string($hash) && $hash !== '' && password_verify($password, $hash);
+}
+
+function ownerEmailsMatch(?string $wanted, mixed $stored): bool
+{
+    if ($wanted === null) {
+        return true;
+    }
+
+    return is_string($stored) && $stored === $wanted;
+}
+
+function refuseDuplicateEmail(PDOException $error): void
+{
+    $state = $error->errorInfo[0] ?? '';
+    if ($state === '23505') {
+        fwrite(STDERR, "that recovery email is already used on another sign-in\n");
+        exit(1);
+    }
 }
