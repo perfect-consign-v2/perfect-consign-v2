@@ -62,7 +62,7 @@ final class OwnerJourneyTest extends WebTestCase
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         $this->openRegister();
         $vendor = $this->vendor();
-        $vendorId = HtmlPage::taggedId($this->session->open('/' . ProbeMall::SLUG . '/parties'), 'tr', 'vendor', $vendor);
+        $vendorId = HtmlPage::taggedId($this->session->html(), 'article', 'vendor', $vendor);
         $tag = 't' . bin2hex(random_bytes(4));
         $description = 'Coat ' . $tag;
         $this->session->open('/' . ProbeMall::SLUG . '/inventory/new');
@@ -94,8 +94,9 @@ final class OwnerJourneyTest extends WebTestCase
         $booth = $this->booth();
         $boothId = HtmlPage::taggedId($this->session->html(), 'tr', 'booth', $booth);
         $this->session->open('/' . ProbeMall::SLUG . '/booths/' . $boothId . '/edit');
-        $this->session->submit('/' . ProbeMall::SLUG . '/rates', [
-            'booth_id' => $boothId,
+        $this->session->submit('/' . ProbeMall::SLUG . '/booths/' . $boothId, [
+            'code' => $booth,
+            'name' => $booth,
             'amount' => '100.00',
         ]);
         $this->session->open('/' . ProbeMall::SLUG . '/vendors/' . $vendorId);
@@ -331,6 +332,8 @@ final class OwnerJourneyTest extends WebTestCase
         if (preg_match($pattern, $page, $match) !== 1) {
             self::fail('the open register action was not on the page');
         }
+        // The open form ships with an empty action; the Open button stamps it via JS.
+        $this->session->clickSelector('[data-open-modal="register-open"][data-brand-action="' . $match[1] . '"]');
         $fields = [
             'cashier' => ProbeMall::USERNAME,
             'opening_float' => '0.00',

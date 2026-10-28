@@ -10,15 +10,19 @@ use RuntimeException;
 
 final class RequestFactoryTest extends TestCase
 {
-    /** @var list<string> */
-    private array $keys = [];
+    /** @var array<string, string|false> */
+    private array $previous = [];
 
     protected function tearDown(): void
     {
-        foreach ($this->keys as $key) {
-            putenv($key);
+        foreach ($this->previous as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+            } else {
+                putenv($key . '=' . $value);
+            }
         }
-        $this->keys = [];
+        $this->previous = [];
     }
 
     public function testConfiguredOriginWinsOverHost(): void
@@ -146,9 +150,12 @@ final class RequestFactoryTest extends TestCase
 
     private function setEnv(string $key, string $value): void
     {
-        $this->keys[] = $key;
+        if (!array_key_exists($key, $this->previous)) {
+            $this->previous[$key] = getenv($key);
+        }
         if ($value === '') {
             putenv($key);
+
             return;
         }
         putenv($key . '=' . $value);

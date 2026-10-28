@@ -45,10 +45,13 @@ JS;
      */
     public function submit(string $action, array $fields): string
     {
-        $this->page->callFunction(self::SUBMIT, [
+        $evaluation = $this->page->callFunction(self::SUBMIT, [
             $action,
             json_encode($fields, JSON_THROW_ON_ERROR),
-        ])->waitForPageReload(Page::LOAD, 60000);
+        ]);
+        // Surface JS errors (missing form/field) instead of hanging on reload.
+        $evaluation->waitForResponse(15000);
+        $evaluation->waitForPageReload(Page::LOAD, 60000);
 
         return $this->html();
     }
@@ -80,7 +83,9 @@ function (action, itemId) {
     form.submit();
 }
 JS;
-        $this->page->callFunction($js, [$action, $itemId])->waitForPageReload(Page::LOAD, 60000);
+        $evaluation = $this->page->callFunction($js, [$action, $itemId]);
+        $evaluation->waitForResponse(15000);
+        $evaluation->waitForPageReload(Page::LOAD, 60000);
 
         return $this->html();
     }
@@ -97,10 +102,11 @@ function (selector) {
     node.click();
 }
 JS;
+        $evaluation = $this->page->callFunction($js, [$css]);
+        $evaluation->waitForResponse(15000);
         if ($waitsForNavigation) {
-            $this->page->callFunction($js, [$css])->waitForPageReload(Page::LOAD, 60000);
+            $evaluation->waitForPageReload(Page::LOAD, 60000);
         } else {
-            $this->page->callFunction($js, [$css]);
             usleep(200_000);
         }
 
