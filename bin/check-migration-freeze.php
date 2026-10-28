@@ -6,8 +6,11 @@ declare(strict_types=1);
  * @param list<string> $changed
  * @return list<string>
  */
-function migrationFreezeFailures(int $highest, array $changed): array
+function migrationFreezeFailures(int $highest, array $changed, bool $baselineReset = false): array
 {
+    if ($baselineReset) {
+        return [];
+    }
     $failures = [];
     foreach ($changed as $file) {
         if (preg_match('#(?:^|/)sql/(\d{3})_[a-z0-9_]+\.sql$#', $file, $match) !== 1) {
@@ -20,6 +23,27 @@ function migrationFreezeFailures(int $highest, array $changed): array
     }
 
     return $failures;
+}
+
+/**
+ * A baseline reset collapses history into 000/001 only (dev DBs; no upgrade path).
+ */
+function migrationBaselineReset(string $root): bool
+{
+    $paths = glob($root . DIRECTORY_SEPARATOR . 'sql' . DIRECTORY_SEPARATOR . '0*.sql');
+    if ($paths === false || $paths === []) {
+        return false;
+    }
+    $highest = 0;
+    foreach ($paths as $path) {
+        $name = basename($path);
+        if (preg_match('/^(\d{3})_[a-z0-9_]+\.sql$/', $name, $match) !== 1) {
+            return false;
+        }
+        $highest = max($highest, (int) $match[1]);
+    }
+
+    return $highest <= 1;
 }
 
 function migrationFreezeHighest(string $root): int
@@ -53,7 +77,7 @@ function migrationFreezeChanged(string $root, int $highest): array
         }
     }
 
-    return migrationFreezeFailures($highest, $changed);
+    return migrationFreezeFailures($highest, $changed, migrationBaselineReset($root));
 }
 
 /**

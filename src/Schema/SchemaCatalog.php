@@ -12,32 +12,10 @@ final class SchemaCatalog
     /** @var list<string> */
     public const PLATFORM = [
         '000_platform.sql',
-        '002_platform_jobs.sql',
-        '003_poster_jobs.sql',
-        '004_job_grants.sql',
-        '005_job_kinds.sql',
-        '009_sale_notice_kind.sql',
-        '012_job_insert.sql',
-        '013_worker_role.sql',
-        '015_override_failures.sql',
-        '017_job_mail_sent.sql',
-        '020_vendor_letter_job.sql',
-        '024_markdown_job.sql',
-        '025_vendor_role.sql',
-        '030_revoke_owner_failures.sql',
-        '031_job_enqueue_gate.sql',
-        '035_enqueue_session_role.sql',
-        '036_platform_admin.sql',
-        '052_sign_in_directory.sql',
-        '054_email_sign_in_failure_stale.sql',
-        '055_email_sign_in_failure_address.sql',
     ];
 
     /** @var list<string> */
-    public const PLATFORM_AFTER = [
-        '032_drop_platform_job_mail.sql',
-        '034_drop_platform_override.sql',
-    ];
+    public const PLATFORM_AFTER = [];
 
     public function __construct(private readonly string $directory)
     {

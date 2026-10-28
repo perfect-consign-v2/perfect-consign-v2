@@ -54,7 +54,7 @@ if ($backupRole === false || $backupRole->fetchColumn() === false) {
 }
 $workerRole = $pdo->query("SELECT 1 FROM pg_roles WHERE rolname = 'stall_worker'");
 if ($workerRole === false || $workerRole->fetchColumn() === false) {
-    fwrite(STDERR, "stall_worker is missing. Apply sql/013_worker_role.sql first.\n");
+    fwrite(STDERR, "stall_worker is missing. Apply sql/000_platform.sql first.\n");
     exit(1);
 }
 $pdo->exec('ALTER ROLE stall_app LOGIN PASSWORD ' . $pdo->quote($password));

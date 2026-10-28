@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Schema;
 
 use PDO;
-use PerfectConsign\Shared\Mail\MailboxSeal;
 use RuntimeException;
 use Throwable;
 
@@ -88,9 +87,6 @@ final class TenantMigrator
     private function runTenant(string $file, string $schema, string $role): void
     {
         $this->transaction(function () use ($file, $schema, $role): void {
-            if ($file === '018_mail_sealed_only.sql') {
-                MailboxSeal::sealPlain($this->pdo);
-            }
             $this->pdo->exec($this->catalog->rewrite($this->catalog->read($file), $schema, $role));
             $this->record->stamp($schema, [$file]);
             $this->grantRead($schema, $role);

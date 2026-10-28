@@ -40,7 +40,7 @@ Sell, pay the vendor out, return the item: payable stays ≥ 0, receivable rises
 
 ## Source
 
-`docs/business-rules.md` — Payouts; Sales (void / return). `sql/040_vendor_clawback.sql`.
+`docs/business-rules.md` — Payouts; Sales (void / return). `sql/001_tenant.sql`, `sql/prove_clawback.sql`.
 
 ## Related
 

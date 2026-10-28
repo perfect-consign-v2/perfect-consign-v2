@@ -36,7 +36,7 @@ Prioritized for cutting EMP as a dependency. Each row is a **PC2** work item; EM
 
 | Steal | Why | EMP breadcrumb | PC2 status |
 |-------|-----|----------------|------------|
-| **Clawback receivable** after return/void when leftover payable is gone | PC1 blocks (`RETURN_EXCEEDS_PAYABLE`); EMP posts named receivable so the shopper is not blocked and books stay honest | CON-004, `1310`, CLW-* | **Done** — `vendor_receivable` / `sql/040_vendor_clawback.sql`, apply at payout close, vendor “They owe us” |
+| **Clawback receivable** after return/void when leftover payable is gone | PC1 blocks (`RETURN_EXCEEDS_PAYABLE`); EMP posts named receivable so the shopper is not blocked and books stay honest | CON-004, `1310`, CLW-* | **Done** — `vendor_receivable` / `sql/001_tenant.sql`, apply at payout close, vendor “They owe us” |
 | **Processor fee expense** on settlement; never haircut vendor payable | Card fees must not become a dealer haircut (Quail/SC pattern) | CON-006, `6170` | **Missing** until card settlement posts |
 | **Card clearing + “Waiting for the bank” list** that always matches the GL | Demo-killer vs typed-only card; diligence feature | SET-*, `1200` | Partial (card tender exists); no settlement ritual yet |
 | **Cash rounding increments** `{1, 5, 10, 25}` (not only nickel on/off) | ConsignCloud/Quail family; EMP already named the dropdown | MON-009 | **Done** — `cash_round_minor`, Settings dropdown, `041_cash_round_steps.sql` |

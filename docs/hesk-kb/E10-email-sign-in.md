@@ -40,7 +40,7 @@ Plant an owner with `STALL_OWNER_EMAIL`, open `/`, sign in with that email. Open
 
 ## Source
 
-`docs/business-rules.md` — Sign-in. `sql/052_sign_in_directory.sql`, `sql/053_staff_sign_in_sync.sql`, `sql/055_email_sign_in_failure_address.sql`, `sql/prove_sign_in_directory.sql`. `src/Bootstrap/EmailSignIn.php`.
+`docs/business-rules.md` — Sign-in. `sql/000_platform.sql`, `sql/001_tenant.sql`, `sql/prove_sign_in_directory.sql`. `src/Bootstrap/EmailSignIn.php`.
 
 ## Related
 

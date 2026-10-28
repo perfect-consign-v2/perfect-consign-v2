@@ -15,4 +15,14 @@ final class MigrationFreezeTest extends TestCase
         self::assertSame(['sql/001_tenant.sql is at or below 001'], $failures);
         self::assertSame([], migrationFreezeFailures(1, ['sql/003_audit_events.sql']));
     }
+
+    public function testABaselineResetSkipsFreeze(): void
+    {
+        require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'check-migration-freeze.php';
+        self::assertSame(
+            [],
+            migrationFreezeFailures(55, ['sql/001_tenant.sql', 'sql/003_audit_events.sql'], true)
+        );
+        self::assertTrue(migrationBaselineReset(dirname(__DIR__, 2)));
+    }
 }

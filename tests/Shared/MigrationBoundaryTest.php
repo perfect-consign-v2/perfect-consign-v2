@@ -176,7 +176,8 @@ final class MigrationBoundaryTest extends TestCase
         $joined = implode("\n", $sql);
         self::assertStringContainsString('stall_poster', $joined);
         self::assertStringNotContainsString('poster_0123456789abcdef0123456789abcdef', $joined);
-        self::assertSame(1, $seals);
+        // Baseline 001 already requires sealed mailbox passwords; no mid-migrate seal step.
+        self::assertSame(0, $seals);
     }
 
     public function testASchemaThatIsNotATenantIsNotProvisioned(): void

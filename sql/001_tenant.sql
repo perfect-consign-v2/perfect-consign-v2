@@ -441,6 +441,69 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.staff_sign_in_directory() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    mall_id uuid;
+    who text;
+BEGIN
+    SELECT tenants.id INTO mall_id
+    FROM platform.tenants AS tenants
+    WHERE tenants.schema_name = TG_TABLE_SCHEMA;
+    IF mall_id IS NULL THEN
+        RAISE EXCEPTION 'the tenant for this schema is missing';
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        PERFORM platform.clear_sign_in_directory('staff', OLD.id);
+        RETURN OLD;
+    END IF;
+    who := lower(NEW.username);
+    IF TG_OP = 'UPDATE' AND OLD.email IS NOT NULL AND NEW.email IS NULL THEN
+        PERFORM platform.clear_sign_in_directory('staff', NEW.id);
+        RETURN NEW;
+    END IF;
+    PERFORM platform.put_sign_in_directory(
+        NEW.email,
+        mall_id,
+        'staff',
+        NEW.id,
+        who
+    );
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_apply_commission_rate() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    prior integer;
+    chosen integer;
+    sale_date date;
+BEGIN
+    IF current_setting('stall.snap_priced', true) = '1' THEN
+        RETURN NEW;
+    END IF;
+    SELECT journal.posting_date INTO sale_date
+    FROM public.journals AS journal
+    WHERE journal.id = NEW.journal_id;
+    SELECT item.commission_bps INTO prior
+    FROM public.items AS item
+    WHERE item.id = NEW.item_id;
+    chosen := public.stall_commission_for(NEW.item_id, NEW.price_minor, sale_date);
+    PERFORM set_config('stall.prior_bps', COALESCE(prior::text, ''), true);
+    UPDATE public.items
+    SET commission_bps = chosen
+    WHERE id = NEW.item_id
+      AND placement <> 'store';
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION public.stall_apply_disposition() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -590,6 +653,364 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_apply_missed_sale() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    rate integer;
+    share bigint;
+    expense bigint;
+    payable bigint;
+    on_hand integer;
+    placement text;
+    owner uuid;
+BEGIN
+    IF NEW.item_id IS NULL THEN
+        SELECT COALESCE(vendor.commission_bps, mall.commission_bps)
+        INTO rate
+        FROM public.vendors AS vendor
+        CROSS JOIN public.mall AS mall
+        WHERE vendor.id = NEW.vendor_id;
+    ELSE
+        SELECT item.placement, item.vendor_id, item.quantity,
+               COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps)
+        INTO placement, owner, on_hand, rate
+        FROM public.items AS item
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        CROSS JOIN public.mall AS mall
+        WHERE item.id = NEW.item_id
+        FOR UPDATE OF item;
+        IF placement IS NULL THEN
+            RAISE EXCEPTION 'a missed sale needs an item'
+                USING ERRCODE = '23514';
+        END IF;
+        IF placement = 'store' OR owner IS DISTINCT FROM NEW.vendor_id THEN
+            RAISE EXCEPTION 'a missed sale stays with the vendor'
+                USING ERRCODE = '23514';
+        END IF;
+        IF EXISTS (SELECT 1 FROM public.sale_lines WHERE item_id = NEW.item_id) THEN
+            RAISE EXCEPTION 'a sold piece cannot be a missed sale'
+                USING ERRCODE = '23514';
+        END IF;
+        IF on_hand < 1 THEN
+            RAISE EXCEPTION 'there are not enough on hand'
+                USING ERRCODE = '23514';
+        END IF;
+        IF EXISTS (
+            SELECT 1
+            FROM public.missed_sales AS prior
+            JOIN public.journals AS posted ON posted.id = prior.journal_id
+            WHERE prior.item_id = NEW.item_id
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM public.journals AS reversal
+                  WHERE reversal.reverses_journal_id = posted.id
+                    AND reversal.is_reversal = true
+              )
+        ) THEN
+            RAISE EXCEPTION 'a missed sale is already posted for that piece'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+
+    IF rate IS NULL THEN
+        RAISE EXCEPTION 'a missed sale needs a vendor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    share := NEW.price_minor - public.stall_half_up(NEW.price_minor, rate);
+    IF share < 1 THEN
+        RAISE EXCEPTION 'a missed sale owes the vendor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT COALESCE(sum(line.debit_minor), 0)
+    INTO expense
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'operating_expense'
+      AND line.debit_minor > 0
+      AND line.credit_minor = 0
+      AND line.subledger_type IS NULL;
+
+    SELECT COALESCE(sum(line.credit_minor), 0)
+    INTO payable
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'vendor_payable'
+      AND line.credit_minor > 0
+      AND line.debit_minor = 0
+      AND line.subledger_type = 'vendor'
+      AND line.subledger_ref = NEW.vendor_id::text;
+
+    IF expense <> share OR payable <> share OR (
+        SELECT count(*) FROM public.journal_lines WHERE journal_id = NEW.journal_id
+    ) <> 2 THEN
+        RAISE EXCEPTION 'a missed sale debits the loss and credits the vendor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.item_id IS NOT NULL THEN
+        UPDATE public.items
+        SET quantity = quantity - 1
+        WHERE id = NEW.item_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_apply_snap_price() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    snap_price bigint;
+    posting text;
+BEGIN
+    SELECT journal.posting_key INTO posting
+    FROM public.journals AS journal
+    WHERE journal.id = NEW.journal_id;
+    SELECT snap.price_minor
+    INTO snap_price
+    FROM public.register_snaps AS snap
+    WHERE snap.posting_key = posting
+      AND snap.item_id = NEW.item_id;
+    IF snap_price IS NULL THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.price_minor IS DISTINCT FROM snap_price THEN
+        RAISE EXCEPTION 'a snapped sale keeps its price'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM set_config('stall.snap_priced', '1', true);
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_apply_store_use() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    expense bigint;
+    payable bigint;
+    on_hand integer;
+    placement text;
+    owner uuid;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.journals
+        WHERE id = NEW.journal_id AND source_type = 'store_use' AND is_reversal = false
+    ) THEN
+        RAISE EXCEPTION 'a use belongs on a store use'
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM public.item_buys
+        WHERE journal_id = NEW.journal_id
+           OR (NEW.item_id IS NOT NULL AND item_id = NEW.item_id)
+    ) THEN
+        RAISE EXCEPTION 'inventory cannot be a use'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NEW.item_id IS NOT NULL THEN
+        SELECT item.placement, item.vendor_id, item.quantity
+        INTO placement, owner, on_hand
+        FROM public.items AS item
+        WHERE item.id = NEW.item_id
+        FOR UPDATE OF item;
+        IF placement IS NULL THEN
+            RAISE EXCEPTION 'a store use needs an item'
+                USING ERRCODE = '23514';
+        END IF;
+        IF placement = 'store' OR owner IS DISTINCT FROM NEW.vendor_id THEN
+            RAISE EXCEPTION 'a store use stays with the vendor'
+                USING ERRCODE = '23514';
+        END IF;
+        IF EXISTS (SELECT 1 FROM public.sale_lines WHERE item_id = NEW.item_id) THEN
+            RAISE EXCEPTION 'a sold piece cannot be a store use'
+                USING ERRCODE = '23514';
+        END IF;
+        IF on_hand < 1 THEN
+            RAISE EXCEPTION 'there are not enough on hand'
+                USING ERRCODE = '23514';
+        END IF;
+        IF EXISTS (
+            SELECT 1
+            FROM public.store_uses AS prior
+            JOIN public.journals AS posted ON posted.id = prior.journal_id
+            WHERE prior.item_id = NEW.item_id
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM public.journals AS reversal
+                  WHERE reversal.reverses_journal_id = posted.id
+                    AND reversal.is_reversal = true
+              )
+        ) THEN
+            RAISE EXCEPTION 'that piece is already used by the store'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+
+    SELECT COALESCE(sum(line.debit_minor), 0)
+    INTO expense
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'store_purchases'
+      AND line.debit_minor > 0
+      AND line.credit_minor = 0
+      AND line.subledger_type IS NULL;
+    SELECT COALESCE(sum(line.credit_minor), 0)
+    INTO payable
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'vendor_payable'
+      AND line.credit_minor > 0
+      AND line.debit_minor = 0
+      AND line.subledger_type = 'vendor'
+      AND line.subledger_ref = NEW.vendor_id::text;
+    IF expense <> NEW.amount_minor OR payable <> NEW.amount_minor OR (
+        SELECT count(*) FROM public.journal_lines WHERE journal_id = NEW.journal_id
+    ) <> 2 THEN
+        RAISE EXCEPTION 'a store use pays the agreed price'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.item_id IS NOT NULL THEN
+        UPDATE public.items AS piece
+        SET quantity = piece.quantity - 1
+        WHERE piece.id = NEW.item_id
+          AND piece.placement = ANY (ARRAY['consigned'::text, 'booth'::text])
+          AND piece.vendor_id = NEW.vendor_id
+          AND piece.cost_minor IS NULL;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'a store use stays with the vendor'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_apply_vendor_letter_copy() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    standing boolean;
+    address text;
+    bounced boolean;
+BEGIN
+    SELECT vendor.active, vendor.email, vendor.email_bounced
+    INTO standing, address, bounced
+    FROM public.vendors AS vendor
+    WHERE vendor.id = NEW.vendor_id;
+    IF standing IS NULL OR standing = false THEN
+        RAISE EXCEPTION 'an inactive consignor is left out'
+            USING ERRCODE = '23514';
+    END IF;
+    IF bounced THEN
+        RAISE EXCEPTION 'a bounced address is left out'
+            USING ERRCODE = '23514';
+    END IF;
+    IF address IS NULL OR lower(address) IS DISTINCT FROM lower(NEW.email) THEN
+        RAISE EXCEPTION 'the letter address is not the consignor email'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_apply_vendor_memo() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    allowance bigint;
+    charge bigint;
+    payable_credit bigint;
+    payable_debit bigint;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.journals
+        WHERE id = NEW.journal_id
+          AND source_type = 'vendor_memo'
+          AND is_reversal = false
+          AND posting_key = 'vendor-memo:' || source_reference
+    ) THEN
+        RAISE EXCEPTION 'a vendor memo names its journal'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT COALESCE(sum(line.debit_minor), 0)
+    INTO allowance
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'vendor_allowance'
+      AND line.debit_minor > 0
+      AND line.credit_minor = 0
+      AND line.subledger_type IS NULL;
+
+    SELECT COALESCE(sum(line.credit_minor), 0)
+    INTO charge
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'vendor_charge'
+      AND line.credit_minor > 0
+      AND line.debit_minor = 0
+      AND line.subledger_type IS NULL;
+
+    SELECT COALESCE(sum(line.credit_minor), 0)
+    INTO payable_credit
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'vendor_payable'
+      AND line.credit_minor > 0
+      AND line.debit_minor = 0
+      AND line.subledger_type = 'vendor'
+      AND line.subledger_ref = NEW.vendor_id::text;
+
+    SELECT COALESCE(sum(line.debit_minor), 0)
+    INTO payable_debit
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'vendor_payable'
+      AND line.debit_minor > 0
+      AND line.credit_minor = 0
+      AND line.subledger_type = 'vendor'
+      AND line.subledger_ref = NEW.vendor_id::text;
+
+    IF (SELECT count(*) FROM public.journal_lines WHERE journal_id = NEW.journal_id) <> 2 THEN
+        RAISE EXCEPTION 'a vendor memo posts the vendor and one other account'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.direction = 'credit' AND (allowance <> NEW.amount_minor OR payable_credit <> NEW.amount_minor OR charge <> 0 OR payable_debit <> 0) THEN
+        RAISE EXCEPTION 'a vendor memo posts the vendor and one other account'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.direction = 'debit' AND (charge <> NEW.amount_minor OR payable_debit <> NEW.amount_minor OR allowance <> 0 OR payable_credit <> 0) THEN
+        RAISE EXCEPTION 'a vendor memo posts the vendor and one other account'
+            USING ERRCODE = '23514';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION public.stall_assert_adjustment() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -713,6 +1134,69 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_assert_clawback() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    lines integer;
+    payable_debit bigint;
+    payable_credit bigint;
+    receivable_debit bigint;
+    receivable_credit bigint;
+    vendor_ref text;
+BEGIN
+    IF NEW.source_type NOT IN ('clawback_reclass', 'clawback_apply') OR NEW.is_reversal THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT count(*) INTO lines FROM public.journal_lines WHERE journal_id = NEW.id;
+    IF lines <> 2 THEN
+        RAISE EXCEPTION 'a clawback posts payable and receivable for one vendor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT COALESCE(sum(line.debit_minor), 0), COALESCE(sum(line.credit_minor), 0), min(line.subledger_ref)
+    INTO payable_debit, payable_credit, vendor_ref
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id
+      AND role.role = 'vendor_payable'
+      AND line.subledger_type = 'vendor';
+
+    SELECT COALESCE(sum(line.debit_minor), 0), COALESCE(sum(line.credit_minor), 0)
+    INTO receivable_debit, receivable_credit
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id
+      AND role.role = 'vendor_receivable'
+      AND line.subledger_type = 'vendor'
+      AND line.subledger_ref IS NOT DISTINCT FROM vendor_ref;
+
+    IF vendor_ref IS NULL THEN
+        RAISE EXCEPTION 'a clawback posts payable and receivable for one vendor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.source_type = 'clawback_reclass' THEN
+        IF receivable_debit < 1 OR payable_credit <> receivable_debit OR payable_debit <> 0 OR receivable_credit <> 0 THEN
+            RAISE EXCEPTION 'a clawback reclass debits receivable and credits payable'
+                USING ERRCODE = '23514';
+        END IF;
+    ELSIF payable_debit < 1 OR receivable_credit <> payable_debit OR payable_credit <> 0 OR receivable_debit <> 0 THEN
+        RAISE EXCEPTION 'a clawback apply debits payable and credits receivable'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.posting_key IS DISTINCT FROM NEW.source_type || ':' || NEW.source_reference THEN
+        RAISE EXCEPTION 'a clawback posting key is its source reference'
+            USING ERRCODE = '23514';
+    END IF;
+
+    RETURN NULL;
+END;
+$$;
+
 CREATE FUNCTION public.stall_assert_disbursement() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -814,12 +1298,14 @@ DECLARE
     commission_debit bigint;
     tax_debit bigint;
     payable_debit bigint;
+    receivable_debit bigint;
     promo_credit bigint;
     promo_debit bigint;
     store_debit bigint;
     placement text;
     cogs_credit bigint;
     inventory_debit bigint;
+    holder_owed bigint;
 BEGIN
     IF TG_TABLE_NAME = 'item_returns' THEN
         IF TG_OP <> 'INSERT' THEN
@@ -954,6 +1440,15 @@ BEGIN
       AND line.debit_minor > 0
       AND line.subledger_type = 'vendor';
 
+    SELECT COALESCE(sum(line.debit_minor), 0)
+    INTO receivable_debit
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id
+      AND role.role = 'vendor_receivable'
+      AND line.debit_minor > 0
+      AND line.subledger_type = 'vendor';
+
     SELECT COALESCE(sum(line.credit_minor), 0), COALESCE(sum(line.debit_minor), 0)
     INTO promo_credit, promo_debit
     FROM public.journal_lines AS line
@@ -1001,15 +1496,18 @@ BEGIN
       AND role.role = 'inventory'
       AND line.debit_minor > 0;
 
+    holder_owed := sale_price - sale_discount - sale_commission;
+
     IF placement = 'store' THEN
         IF payable_debit <> 0
+            OR receivable_debit <> 0
             OR store_debit <> sale_price - sale_discount
             OR commission_debit <> 0
             OR cogs_credit <> inventory_debit THEN
             RAISE EXCEPTION 'a return reverses that item'
                 USING ERRCODE = '23514';
         END IF;
-    ELSIF payable_debit <> sale_price - sale_discount - sale_commission
+    ELSIF payable_debit + receivable_debit <> holder_owed
         OR store_debit <> 0 THEN
         RAISE EXCEPTION 'a return reverses that item'
             USING ERRCODE = '23514';
@@ -1112,6 +1610,30 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION public.stall_assert_missed_sale() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.source_type <> 'missed_sale' OR NEW.is_reversal THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.posting_key <> 'missed-sale:' || NEW.source_reference THEN
+        RAISE EXCEPTION 'a missed sale posting key is its source reference'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.missed_sales WHERE journal_id = NEW.id
+    ) OR (
+        SELECT count(*) FROM public.journal_lines WHERE journal_id = NEW.id
+    ) <> 2 THEN
+        RAISE EXCEPTION 'a missed sale names the piece'
+            USING ERRCODE = '23514';
+    END IF;
     RETURN NULL;
 END;
 $$;
@@ -1504,6 +2026,7 @@ DECLARE
     line_count integer;
     debit_ok integer;
     credit_ok integer;
+    stay_id uuid;
 BEGIN
     IF NEW.source_type <> 'rent_charge' OR NEW.is_reversal THEN
         RETURN NULL;
@@ -1529,15 +2052,24 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT assignment.starts_on, contract.amount_minor
-    INTO assign_start, rate_minor
+    SELECT assignment.id, assignment.starts_on
+    INTO stay_id, assign_start
     FROM public.booth_assignments AS assignment
-    JOIN public.assignment_rent AS contract ON contract.assignment_id = assignment.id
     WHERE assignment.booth_id = booth_ref::uuid
       AND assignment.assignment_range @> NEW.posting_date
     ORDER BY assignment.starts_on DESC
     LIMIT 1
-    FOR UPDATE OF assignment, contract;
+    FOR UPDATE OF assignment;
+
+    IF stay_id IS NOT NULL THEN
+        SELECT rate.amount_minor
+        INTO rate_minor
+        FROM public.assignment_rent_rates AS rate
+        WHERE rate.assignment_id = stay_id
+          AND rate.starts_on <= GREATEST(charge_start, assign_start)
+        ORDER BY rate.starts_on DESC
+        LIMIT 1;
+    END IF;
 
     IF assign_start IS NULL THEN
         IF EXISTS (
@@ -1553,9 +2085,14 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
+    IF rate_minor IS NULL THEN
+        RAISE EXCEPTION 'a rent charge requires the booth rate from the assignment'
+            USING ERRCODE = '23514';
+    END IF;
+
     charge_end := public.stall_rent_period_end(charge_start);
+    days_in_period := (charge_end - charge_start) + 1;
     IF assign_start > charge_start AND assign_start <= charge_end THEN
-        days_in_period := (charge_end - charge_start) + 1;
         days_charged := (charge_end - assign_start) + 1;
         rate_minor := (days_charged * rate_minor) / days_in_period;
     END IF;
@@ -1717,9 +2254,11 @@ CREATE FUNCTION public.stall_assert_sale_shape() RETURNS trigger
 DECLARE
     sale_source text;
     sale_reversal boolean;
+    sale_date date;
     tax_exempt boolean;
     commission_bps integer;
     tax_bps integer;
+    snap_priced boolean;
     expected_commission bigint;
     expected_tax bigint;
     expected_discount bigint;
@@ -1750,7 +2289,7 @@ DECLARE
     cash_debit bigint;
     exact_cash bigint;
     round_delta integer;
-    round_cash boolean;
+    round_step integer;
     placement text;
     store_net bigint;
     store_lines integer;
@@ -1766,8 +2305,8 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
 
-        SELECT journal.source_type, journal.is_reversal
-        INTO sale_source, sale_reversal
+        SELECT journal.source_type, journal.is_reversal, journal.posting_date
+        INTO sale_source, sale_reversal, sale_date
         FROM public.journals AS journal
         WHERE journal.id = NEW.journal_id;
 
@@ -1776,10 +2315,13 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
 
+        snap_priced := current_setting('stall.snap_priced', true) = '1';
+
         SELECT item.placement,
                vendor.tax_exempt,
                CASE
                    WHEN item.placement = 'store' THEN 0
+                   WHEN snap_priced THEN public.stall_commission_for(item.id, NEW.price_minor, sale_date)
                    ELSE COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps)
                END,
                mall.tax_bps,
@@ -1860,7 +2402,9 @@ BEGIN
 
         expected_commission := public.stall_half_up(NEW.price_minor * NEW.quantity - NEW.discount_minor, commission_bps);
 
-        IF tax_exempt OR waiver THEN
+        IF snap_priced THEN
+            expected_tax := NEW.tax_minor;
+        ELSIF tax_exempt OR waiver THEN
             expected_tax := 0;
         ELSE
             expected_tax := public.stall_tax_minor(
@@ -1980,18 +2524,12 @@ BEGIN
       AND role.role = 'cash'
       AND line.debit_minor > 0;
 
-    SELECT cash_round_nickel INTO round_cash FROM public.mall;
+    SELECT cash_round_minor INTO round_step FROM public.mall;
 
     exact_cash := prices - discounts - store_discounts + taxes - (tender_sum - cash_debit);
-    round_delta := CASE exact_cash % 5
-        WHEN 1 THEN -1
-        WHEN 2 THEN -2
-        WHEN 3 THEN 2
-        WHEN 4 THEN 1
-        ELSE 0
-    END;
+    round_delta := public.stall_cash_round_delta(exact_cash, round_step);
 
-    IF cash_debit = 0 OR cash_debit <> tender_sum OR round_cash IS DISTINCT FROM true THEN
+    IF cash_debit = 0 OR cash_debit <> tender_sum OR round_step IS NULL OR round_step < 1 THEN
         IF round_lines <> 0 OR tender_sum <> prices - discounts - store_discounts + taxes THEN
             RAISE EXCEPTION 'a sale debits the sold prices plus tax'
                 USING ERRCODE = '23514';
@@ -2001,7 +2539,7 @@ BEGIN
         OR (round_delta = 0 AND round_lines <> 0)
         OR (round_delta > 0 AND (round_lines <> 1 OR round_credit <> round_delta OR round_debit <> 0))
         OR (round_delta < 0 AND (round_lines <> 1 OR round_debit <> -round_delta OR round_credit <> 0)) THEN
-        RAISE EXCEPTION 'a cash sale rounds to the nearest nickel'
+        RAISE EXCEPTION 'a cash sale rounds to the cash step'
             USING ERRCODE = '23514';
     END IF;
 
@@ -2375,6 +2913,30 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_assert_store_use() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.source_type <> 'store_use' OR NEW.is_reversal THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.posting_key <> 'store-use:' || NEW.source_reference THEN
+        RAISE EXCEPTION 'a store use posting key is its source reference'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.store_uses WHERE journal_id = NEW.id
+    ) OR (
+        SELECT count(*) FROM public.journal_lines WHERE journal_id = NEW.id
+    ) <> 2 THEN
+        RAISE EXCEPTION 'a store use names the piece'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
 CREATE FUNCTION public.stall_assert_stored_value_issue() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -2435,28 +2997,56 @@ CREATE FUNCTION public.stall_assert_subledger_non_negative() RETURNS trigger
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
-    negative_payable integer;
+    journal_source text;
+    worsened integer;
     negative_rent integer;
+    negative_receivable integer;
     tax_balance bigint;
     stored_role text;
 BEGIN
-    SELECT count(*) INTO negative_payable
+    SELECT source_type INTO journal_source
+    FROM public.journals
+    WHERE id = NEW.id;
+
+    SELECT count(*) INTO worsened
     FROM (
-        SELECT line.subledger_ref
-        FROM public.journal_lines AS line
-        JOIN public.chart_roles AS role ON role.account_id = line.account_id
-        WHERE role.role = 'vendor_payable'
-          AND line.subledger_type = 'vendor'
-          AND line.subledger_ref IN (
-              SELECT touched.subledger_ref
-              FROM public.journal_lines AS touched
-              JOIN public.chart_roles AS touched_role ON touched_role.account_id = touched.account_id
-              WHERE touched.journal_id = NEW.id
-                AND touched_role.role = 'vendor_payable'
-          )
-        GROUP BY line.subledger_ref
-        HAVING sum(line.credit_minor - line.debit_minor) < 0
-    ) AS below;
+        SELECT touched.subledger_ref
+        FROM public.journal_lines AS touched
+        JOIN public.chart_roles AS touched_role ON touched_role.account_id = touched.account_id
+        WHERE touched.journal_id = NEW.id
+          AND touched_role.role = 'vendor_payable'
+          AND touched.subledger_type = 'vendor'
+        GROUP BY touched.subledger_ref
+        HAVING COALESCE((
+            SELECT sum(line.credit_minor - line.debit_minor)
+            FROM public.journal_lines AS line
+            JOIN public.chart_roles AS role ON role.account_id = line.account_id
+            WHERE role.role = 'vendor_payable'
+              AND line.subledger_type = 'vendor'
+              AND line.subledger_ref = touched.subledger_ref
+        ), 0) < 0
+        AND COALESCE((
+            SELECT sum(line.credit_minor - line.debit_minor)
+            FROM public.journal_lines AS line
+            JOIN public.chart_roles AS role ON role.account_id = line.account_id
+            WHERE role.role = 'vendor_payable'
+              AND line.subledger_type = 'vendor'
+              AND line.subledger_ref = touched.subledger_ref
+        ), 0) < COALESCE((
+            SELECT sum(prior.credit_minor - prior.debit_minor)
+            FROM public.journal_lines AS prior
+            JOIN public.chart_roles AS prior_role ON prior_role.account_id = prior.account_id
+            WHERE prior.journal_id <> NEW.id
+              AND prior_role.role = 'vendor_payable'
+              AND prior.subledger_type = 'vendor'
+              AND prior.subledger_ref = touched.subledger_ref
+        ), 0)
+    ) AS worse;
+
+    IF worsened > 0 AND journal_source IS DISTINCT FROM 'vendor_memo' THEN
+        RAISE EXCEPTION 'a vendor payable cannot go below zero'
+            USING ERRCODE = '23514';
+    END IF;
 
     SELECT count(*) INTO negative_rent
     FROM (
@@ -2476,8 +3066,31 @@ BEGIN
         HAVING sum(line.debit_minor - line.credit_minor) < 0
     ) AS below;
 
-    IF negative_payable > 0 OR negative_rent > 0 THEN
+    IF negative_rent > 0 THEN
         RAISE EXCEPTION 'a vendor payable and a booth rent receivable cannot go below zero'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT count(*) INTO negative_receivable
+    FROM (
+        SELECT line.subledger_ref
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        WHERE role.role = 'vendor_receivable'
+          AND line.subledger_type = 'vendor'
+          AND line.subledger_ref IN (
+              SELECT touched.subledger_ref
+              FROM public.journal_lines AS touched
+              JOIN public.chart_roles AS touched_role ON touched_role.account_id = touched.account_id
+              WHERE touched.journal_id = NEW.id
+                AND touched_role.role = 'vendor_receivable'
+          )
+        GROUP BY line.subledger_ref
+        HAVING sum(line.debit_minor - line.credit_minor) < 0
+    ) AS below;
+
+    IF negative_receivable > 0 THEN
+        RAISE EXCEPTION 'a vendor receivable cannot go below zero'
             USING ERRCODE = '23514';
     END IF;
 
@@ -2808,6 +3421,28 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_assert_vendor_memo() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.source_type <> 'vendor_memo' OR NEW.is_reversal THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.posting_key <> 'vendor-memo:' || NEW.source_reference THEN
+        RAISE EXCEPTION 'a vendor memo posting key is its source reference'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.vendor_memos WHERE journal_id = NEW.id
+    ) THEN
+        RAISE EXCEPTION 'a vendor memo names the vendor'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
 CREATE FUNCTION public.stall_assign_payout_run_no() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -2826,6 +3461,18 @@ BEGIN
     NEW.run_no := assigned;
     RETURN NEW;
 END;
+$$;
+
+CREATE FUNCTION public.stall_cash_round_delta(exact_cents bigint, step integer) RETURNS bigint
+    LANGUAGE sql IMMUTABLE STRICT
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT CASE
+        WHEN step < 1 OR exact_cents < 0 THEN 0::bigint
+        WHEN exact_cents % step = 0 THEN 0::bigint
+        WHEN (exact_cents % step) * 2 <= step THEN -(exact_cents % step)
+        ELSE step - (exact_cents % step)
+    END;
 $$;
 
 CREATE FUNCTION public.stall_close_quiet_period(closed_period uuid) RETURNS void
@@ -2923,6 +3570,146 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_commission_for(item uuid, unit_price bigint, on_date date) RETURNS integer
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    rank integer;
+    top integer;
+    rates integer;
+    chosen integer;
+BEGIN
+    IF item IS NULL OR unit_price IS NULL OR unit_price < 0 OR on_date IS NULL THEN
+        RAISE EXCEPTION 'a commission price is required'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT max(CASE
+            WHEN rule.item_id = item THEN 3
+            WHEN rule.vendor_id IS NOT NULL THEN 2
+            ELSE 1
+        END)
+    INTO rank
+    FROM public.commission_rules AS rule
+    JOIN public.items AS piece ON piece.id = item
+    WHERE unit_price >= rule.min_minor
+      AND (rule.max_minor IS NULL OR unit_price <= rule.max_minor)
+      AND rule.starts_on <= on_date
+      AND (rule.ends_on IS NULL OR rule.ends_on >= on_date)
+      AND (
+          rule.item_id = item
+          OR (rule.item_id IS NULL AND rule.vendor_id IS NOT DISTINCT FROM piece.vendor_id AND rule.vendor_id IS NOT NULL)
+          OR (rule.item_id IS NULL AND rule.vendor_id IS NULL)
+      );
+
+    IF rank IS NULL THEN
+        SELECT CASE
+                WHEN piece.placement = 'store' THEN 0
+                ELSE COALESCE(piece.commission_bps, vendor.commission_bps, mall.commission_bps)
+            END
+        INTO chosen
+        FROM public.items AS piece
+        LEFT JOIN public.vendors AS vendor ON vendor.id = piece.vendor_id
+        CROSS JOIN public.mall AS mall
+        WHERE piece.id = item;
+
+        RETURN COALESCE(chosen, 0);
+    END IF;
+
+    SELECT max(rule.priority)
+    INTO top
+    FROM public.commission_rules AS rule
+    JOIN public.items AS piece ON piece.id = item
+    WHERE unit_price >= rule.min_minor
+      AND (rule.max_minor IS NULL OR unit_price <= rule.max_minor)
+      AND rule.starts_on <= on_date
+      AND (rule.ends_on IS NULL OR rule.ends_on >= on_date)
+      AND (
+          (rank = 3 AND rule.item_id = item)
+          OR (rank = 2 AND rule.item_id IS NULL AND rule.vendor_id IS NOT DISTINCT FROM piece.vendor_id)
+          OR (rank = 1 AND rule.item_id IS NULL AND rule.vendor_id IS NULL)
+      );
+
+    SELECT count(DISTINCT rule.bps), min(rule.bps)
+    INTO rates, chosen
+    FROM public.commission_rules AS rule
+    JOIN public.items AS piece ON piece.id = item
+    WHERE rule.priority = top
+      AND unit_price >= rule.min_minor
+      AND (rule.max_minor IS NULL OR unit_price <= rule.max_minor)
+      AND rule.starts_on <= on_date
+      AND (rule.ends_on IS NULL OR rule.ends_on >= on_date)
+      AND (
+          (rank = 3 AND rule.item_id = item)
+          OR (rank = 2 AND rule.item_id IS NULL AND rule.vendor_id IS NOT DISTINCT FROM piece.vendor_id)
+          OR (rank = 1 AND rule.item_id IS NULL AND rule.vendor_id IS NULL)
+      );
+
+    IF rates IS DISTINCT FROM 1 THEN
+        RAISE EXCEPTION 'two commission rules are equally specific'
+            USING ERRCODE = '23514';
+    END IF;
+
+    RETURN chosen;
+END;
+$$;
+
+CREATE FUNCTION public.stall_confirm_markdown(proposal uuid, actor text, override_floor boolean) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    piece uuid;
+    step uuid;
+    proposed bigint;
+    current_price bigint;
+    floor_minor bigint;
+BEGIN
+    SELECT row.item_id, row.step_id, row.proposed_minor
+    INTO piece, step, proposed
+    FROM public.markdown_proposals AS row
+    WHERE row.id = proposal
+      AND row.status = 'proposed'
+    FOR UPDATE;
+
+    IF piece IS NULL THEN
+        RAISE EXCEPTION 'that markdown is not waiting'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT item.price_minor INTO current_price
+    FROM public.items AS item
+    WHERE item.id = piece
+    FOR UPDATE;
+
+    SELECT floor.floor_minor INTO floor_minor
+    FROM public.item_floors AS floor
+    WHERE floor.item_id = piece;
+
+    IF floor_minor IS NOT NULL AND proposed < floor_minor AND override_floor IS DISTINCT FROM true THEN
+        RAISE EXCEPTION 'a markdown stays at or above the floor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF floor_minor IS NOT NULL AND proposed < floor_minor THEN
+        IF actor IS NULL OR btrim(actor) = '' THEN
+            RAISE EXCEPTION 'a floor override names its actor'
+                USING ERRCODE = '23514';
+        END IF;
+        INSERT INTO public.audit_events (actor, role, action, entity_type, entity_id, request_id)
+        VALUES (btrim(actor), 'owner', 'markdown-floor', 'item', piece::text, proposal::text);
+    END IF;
+
+    INSERT INTO public.item_price_events (item_id, step_id, prior_minor, price_minor, applied_on)
+    VALUES (piece, step, current_price, proposed, (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall AS mall));
+
+    UPDATE public.markdown_proposals
+    SET status = 'confirmed'
+    WHERE id = proposal;
+END;
+$$;
+
 CREATE FUNCTION public.stall_csv_field(value text) RETURNS text
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'pg_catalog'
@@ -2932,6 +3719,25 @@ CREATE FUNCTION public.stall_csv_field(value text) RETURNS text
         WHEN value ~ '[",\n\r]' THEN '"' || replace(value, '"', '""') || '"'
         ELSE value
     END;
+$$;
+
+CREATE FUNCTION public.stall_export_file_hash(system text, from_date date, to_date date) RETURNS text
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    row text;
+    body text := '';
+BEGIN
+    FOR row IN
+        SELECT line
+        FROM public.stall_export_journal_csv(system, from_date, to_date) AS line
+    LOOP
+        body := body || row || E'\n';
+    END LOOP;
+
+    RETURN md5(body);
+END;
 $$;
 
 CREATE FUNCTION public.stall_export_journal_csv(system text, from_date date, to_date date, tax_rate text DEFAULT 'Tax Exempt'::text) RETURNS SETOF text
@@ -3075,6 +3881,165 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_export_tie_delta(system text, from_date date, to_date date) RETURNS bigint
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    ledger_debit bigint;
+    ledger_credit bigint;
+    file_debit bigint;
+    file_credit bigint;
+    inside_debit bigint;
+    inside_credit bigint;
+    balance_debit bigint;
+    balance_credit bigint;
+BEGIN
+    IF system IS NULL OR system NOT IN ('quickbooks', 'xero') THEN
+        RAISE EXCEPTION 'the export system must be quickbooks or xero'
+            USING ERRCODE = '23514';
+    END IF;
+    IF from_date IS NULL OR to_date IS NULL OR from_date > to_date THEN
+        RAISE EXCEPTION 'the export range ends before it starts'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.export_lines AS line
+        WHERE line.posting_date >= from_date
+          AND line.posting_date <= to_date
+    ) THEN
+        RETURN 0;
+    END IF;
+
+    PERFORM line
+    FROM public.stall_export_journal_csv(system, from_date, to_date) AS line;
+
+    SELECT COALESCE(sum(line.debit_minor), 0), COALESCE(sum(line.credit_minor), 0)
+    INTO ledger_debit, ledger_credit
+    FROM public.export_lines AS line
+    WHERE line.posting_date >= from_date
+      AND line.posting_date <= to_date;
+
+    IF system = 'quickbooks' THEN
+        SELECT
+            COALESCE(sum(
+                CASE
+                    WHEN line.debit_minor > 0 THEN round(
+                        to_char(
+                            line.debit_minor::numeric / (10::numeric ^ book.currency_scale),
+                            'FM999999999999990' || CASE
+                                WHEN book.currency_scale > 0 THEN '.' || repeat('0', book.currency_scale)
+                                ELSE ''
+                            END
+                        )::numeric * (10::numeric ^ book.currency_scale)
+                    )::bigint
+                    ELSE 0
+                END
+            ), 0),
+            COALESCE(sum(
+                CASE
+                    WHEN line.credit_minor > 0 THEN round(
+                        to_char(
+                            line.credit_minor::numeric / (10::numeric ^ book.currency_scale),
+                            'FM999999999999990' || CASE
+                                WHEN book.currency_scale > 0 THEN '.' || repeat('0', book.currency_scale)
+                                ELSE ''
+                            END
+                        )::numeric * (10::numeric ^ book.currency_scale)
+                    )::bigint
+                    ELSE 0
+                END
+            ), 0)
+        INTO file_debit, file_credit
+        FROM public.export_lines AS line
+        JOIN public.journals AS journal
+            ON journal.journal_no = line.journal_no
+           AND journal.posting_key = line.posting_key
+        JOIN public.ledger_books AS book
+            ON book.id = journal.book_id
+        WHERE line.posting_date >= from_date
+          AND line.posting_date <= to_date;
+    ELSE
+        SELECT
+            COALESCE(sum(
+                CASE
+                    WHEN signed > 0 THEN signed
+                    ELSE 0
+                END
+            ), 0),
+            COALESCE(sum(
+                CASE
+                    WHEN signed < 0 THEN -signed
+                    ELSE 0
+                END
+            ), 0)
+        INTO file_debit, file_credit
+        FROM (
+            SELECT round(
+                to_char(
+                    CASE
+                        WHEN line.debit_minor > 0 THEN line.debit_minor::numeric
+                        ELSE -line.credit_minor::numeric
+                    END / (10::numeric ^ book.currency_scale),
+                    'FM999999999999990' || CASE
+                        WHEN book.currency_scale > 0 THEN '.' || repeat('0', book.currency_scale)
+                        ELSE ''
+                    END
+                )::numeric * (10::numeric ^ book.currency_scale)
+            )::bigint AS signed
+            FROM public.export_lines AS line
+            JOIN public.journals AS journal
+                ON journal.journal_no = line.journal_no
+               AND journal.posting_key = line.posting_key
+            JOIN public.ledger_books AS book
+                ON book.id = journal.book_id
+            WHERE line.posting_date >= from_date
+              AND line.posting_date <= to_date
+        ) AS filed;
+    END IF;
+
+    SELECT
+        COALESCE(sum(inside.debit_minor), 0),
+        COALESCE(sum(inside.credit_minor), 0),
+        COALESCE(sum(balance.debit_minor), 0),
+        COALESCE(sum(balance.credit_minor), 0)
+    INTO inside_debit, inside_credit, balance_debit, balance_credit
+    FROM (
+        SELECT
+            account.id AS account_id,
+            COALESCE(sum(line.debit_minor), 0) AS debit_minor,
+            COALESCE(sum(line.credit_minor), 0) AS credit_minor
+        FROM public.journal_lines AS line
+        JOIN public.journals AS journal ON journal.id = line.journal_id
+        JOIN public.accounts AS account ON account.id = line.account_id
+        JOIN public.chart_roles AS role ON role.account_id = account.id
+        JOIN public.export_accounts AS mapped
+            ON mapped.role = role.role
+           AND mapped.system = stall_export_tie_delta.system
+        WHERE journal.posting_date >= from_date
+          AND journal.posting_date <= to_date
+          AND NOT EXISTS (
+              SELECT 1
+              FROM public.journal_lines AS other
+              JOIN public.journals AS other_journal ON other_journal.id = other.journal_id
+              WHERE other.account_id = account.id
+                AND (
+                    other_journal.posting_date < from_date
+                    OR other_journal.posting_date > to_date
+                )
+          )
+        GROUP BY account.id
+    ) AS inside
+    JOIN public.account_balances AS balance ON balance.account_id = inside.account_id;
+
+    RETURN abs(ledger_debit - file_debit)
+        + abs(ledger_credit - file_credit)
+        + abs(inside_debit - balance_debit)
+        + abs(inside_credit - balance_credit);
+END;
+$$;
+
 CREATE FUNCTION public.stall_guard_capabilities_stock() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -3092,6 +4057,32 @@ BEGIN
         RAISE EXCEPTION 'store stock still has items on hand'
             USING ERRCODE = '23514';
     END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_guard_commission_rule() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM public.commission_rules AS other
+        WHERE other.id IS DISTINCT FROM NEW.id
+          AND other.priority = NEW.priority
+          AND other.bps IS DISTINCT FROM NEW.bps
+          AND other.item_id IS NOT DISTINCT FROM NEW.item_id
+          AND other.vendor_id IS NOT DISTINCT FROM NEW.vendor_id
+          AND daterange(other.starts_on, COALESCE(other.ends_on, 'infinity'::date), '[]')
+              && daterange(NEW.starts_on, COALESCE(NEW.ends_on, 'infinity'::date), '[]')
+          AND int8range(other.min_minor, COALESCE(other.max_minor + 1, 9223372036854775807), '[)')
+              && int8range(NEW.min_minor, COALESCE(NEW.max_minor + 1, 9223372036854775807), '[)')
+    ) THEN
+        RAISE EXCEPTION 'two commission rules are equally specific'
+            USING ERRCODE = '23514';
+    END IF;
+
     RETURN NEW;
 END;
 $$;
@@ -3163,6 +4154,20 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_guard_period_export() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.status IS DISTINCT FROM 'closed' OR OLD.status IS NOT DISTINCT FROM 'closed' THEN
+        RETURN NEW;
+    END IF;
+    PERFORM public.stall_refuse_export_tie(NEW.starts_on, NEW.ends_on);
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION public.stall_guard_shop_capabilities() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -3171,6 +4176,30 @@ BEGIN
     IF NEW.floor_days IS NOT NULL AND NEW.consignment_enabled IS DISTINCT FROM true THEN
         RAISE EXCEPTION 'floor days need consignment'
             USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_guard_vendor_letter_copy() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'a letter copy cannot be removed'
+            USING ERRCODE = '25006';
+    END IF;
+    IF OLD.sent_at IS NOT NULL THEN
+        RAISE EXCEPTION 'a letter copy was already sent'
+            USING ERRCODE = '25006';
+    END IF;
+    IF NEW.sent_at IS NULL
+        OR NEW.letter_id IS DISTINCT FROM OLD.letter_id
+        OR NEW.vendor_id IS DISTINCT FROM OLD.vendor_id
+        OR NEW.email IS DISTINCT FROM OLD.email THEN
+        RAISE EXCEPTION 'a letter copy cannot be rewritten'
+            USING ERRCODE = '25006';
     END IF;
     RETURN NEW;
 END;
@@ -3253,6 +4282,49 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_override_attempts(who text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $_$
+BEGIN
+    IF who IS NULL OR who !~ '^[a-z][a-z0-9-]{0,62}$' THEN
+        RETURN 0;
+    END IF;
+    RETURN (
+        SELECT count(*)::integer
+        FROM public.override_sign_in_failures
+        WHERE username = who
+          AND failed_at > clock_timestamp() - interval '15 minutes'
+    );
+END;
+$_$;
+
+CREATE FUNCTION public.stall_override_clear(who text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $_$
+BEGIN
+    IF who IS NULL OR who !~ '^[a-z][a-z0-9-]{0,62}$' THEN
+        RETURN;
+    END IF;
+    DELETE FROM public.override_sign_in_failures WHERE username = who;
+END;
+$_$;
+
+CREATE FUNCTION public.stall_override_record(who text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $_$
+BEGIN
+    IF who IS NULL OR who !~ '^[a-z][a-z0-9-]{0,62}$' THEN
+        RETURN;
+    END IF;
+    DELETE FROM public.override_sign_in_failures
+    WHERE failed_at <= clock_timestamp() - interval '15 minutes';
+    INSERT INTO public.override_sign_in_failures (username) VALUES (who);
+END;
+$_$;
+
 CREATE FUNCTION public.stall_pack_checksum(run uuid) RETURNS text
     LANGUAGE sql STABLE
     SET search_path TO 'pg_catalog'
@@ -3313,11 +4385,24 @@ CREATE FUNCTION public.stall_pack_checksum_frozen(run uuid) RETURNS text
     );
 $$;
 
+CREATE FUNCTION public.stall_pack_run_id() RETURNS uuid
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $_$
+    SELECT CASE
+        WHEN current_setting('stall.pack_run', true) ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        THEN current_setting('stall.pack_run', true)::uuid
+        ELSE NULL
+    END
+$_$;
+
 CREATE FUNCTION public.stall_pack_runs() RETURNS TABLE(id uuid, sales_from date, sales_to date, rent_month date, posting_date date)
     LANGUAGE sql
     AS $_$
     SELECT run.id, run.sales_from, run.sales_to, run.rent_month, run.posting_date
     FROM public.payout_runs AS run
+    WHERE public.stall_pack_run_id() IS NULL
+       OR run.id = public.stall_pack_run_id()
     UNION ALL
     SELECT
         '00000000-0000-0000-0000-000000000000'::uuid,
@@ -3339,7 +4424,19 @@ CREATE FUNCTION public.stall_pack_runs() RETURNS TABLE(id uuid, sales_from date,
         END
     WHERE current_setting('stall.pack_from', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
       AND current_setting('stall.pack_to', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-      AND current_setting('stall.pack_posting', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$';
+      AND current_setting('stall.pack_posting', true) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      AND public.stall_pack_run_id() IS NULL;
+$_$;
+
+CREATE FUNCTION public.stall_pack_vendor_id() RETURNS uuid
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $_$
+    SELECT CASE
+        WHEN current_setting('stall.pack_vendor', true) ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        THEN current_setting('stall.pack_vendor', true)::uuid
+        ELSE NULL
+    END
 $_$;
 
 CREATE FUNCTION public.stall_rent_charge_suffix(period_start date) RETURNS text
@@ -3439,6 +4536,8 @@ CREATE TABLE public.items (
     has_photo boolean DEFAULT false NOT NULL,
     placement text DEFAULT 'consigned'::text NOT NULL,
     cost_minor bigint,
+    held boolean DEFAULT false NOT NULL,
+    sticker_printed_at timestamp with time zone,
     CONSTRAINT items_barcode_chk CHECK (((barcode = btrim(barcode)) AND (barcode <> ''::text) AND (char_length(barcode) <= 100))),
     CONSTRAINT items_code_chk CHECK (((code = btrim(code)) AND (code <> ''::text) AND (char_length(code) <= 40))),
     CONSTRAINT items_commission_chk CHECK (((commission_bps IS NULL) OR ((commission_bps >= 0) AND (commission_bps <= 10000)))),
@@ -3504,7 +4603,6 @@ CREATE TABLE public.mall (
     commission_bps integer DEFAULT 0 NOT NULL,
     floor_days integer,
     tax_bps integer DEFAULT 0 NOT NULL,
-    cash_round_nickel boolean DEFAULT false NOT NULL,
     operating_mode text DEFAULT 'both'::text NOT NULL,
     payout_cadence text DEFAULT 'monthly'::text NOT NULL,
     rent_prepaid_from_prior_sales boolean DEFAULT false NOT NULL,
@@ -3534,7 +4632,10 @@ CREATE TABLE public.mall (
     receipt_mail_via text DEFAULT 'server'::text NOT NULL,
     gmail_address text,
     gmail_app_password text,
+    late_fee_effective_on date,
+    cash_round_minor integer DEFAULT 0 NOT NULL,
     CONSTRAINT mall_booth_size_chk CHECK (((booth_width_ft > 0) AND (booth_depth_ft > 0))),
+    CONSTRAINT mall_cash_round_minor_chk CHECK ((cash_round_minor = ANY (ARRAY[0, 1, 5, 10, 25]))),
     CONSTRAINT mall_city_chk CHECK (((city IS NULL) OR ((city = btrim(city)) AND (city <> ''::text) AND (char_length(city) <= 80)))),
     CONSTRAINT mall_commission_chk CHECK (((commission_bps >= 0) AND (commission_bps <= 10000))),
     CONSTRAINT mall_email_chk CHECK (((email IS NULL) OR ((email = btrim(email)) AND (char_length(email) <= 200) AND (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text)))),
@@ -3552,7 +4653,7 @@ CREATE TABLE public.mall (
     CONSTRAINT mall_phone_chk CHECK (((phone IS NULL) OR ((phone = btrim(phone)) AND (phone <> ''::text) AND (char_length(phone) <= 40)))),
     CONSTRAINT mall_postal_chk CHECK (((postal IS NULL) OR ((postal = btrim(postal)) AND (postal <> ''::text) AND (char_length(postal) <= 20)))),
     CONSTRAINT mall_receipt_footer_chk CHECK (((receipt_footer = btrim(receipt_footer, E' \t\n\r')) AND (char_length(receipt_footer) <= 400))),
-    CONSTRAINT mall_receipt_mail_chk CHECK (((receipt_mail_via = ANY (ARRAY['server'::text, 'gmail'::text])) AND ((gmail_address IS NULL) OR ((gmail_address = btrim(gmail_address)) AND (char_length(gmail_address) <= 200) AND (gmail_address ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'::text))) AND ((gmail_app_password IS NULL) OR ((gmail_app_password = btrim(gmail_app_password)) AND ((char_length(gmail_app_password) >= 16) AND (char_length(gmail_app_password) <= 64)) AND (gmail_app_password ~ '^[A-Za-z0-9]+$'::text))) AND ((receipt_mail_via = 'server'::text) OR ((gmail_address IS NOT NULL) AND (gmail_app_password IS NOT NULL))))),
+    CONSTRAINT mall_receipt_mail_chk CHECK (((receipt_mail_via = ANY (ARRAY['server'::text, 'gmail'::text])) AND ((gmail_address IS NULL) OR ((gmail_address = btrim(gmail_address)) AND (char_length(gmail_address) <= 200) AND (gmail_address ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'::text))) AND ((gmail_app_password IS NULL) OR ((gmail_app_password = btrim(gmail_app_password)) AND (char_length(gmail_app_password) >= 20) AND (char_length(gmail_app_password) <= 200) AND (gmail_app_password ~ '^v1:[A-Za-z0-9+/]+=*$'::text))) AND ((receipt_mail_via = 'server'::text) OR ((gmail_address IS NOT NULL) AND (gmail_app_password IS NOT NULL))))),
     CONSTRAINT mall_rent_cycle_day_chk CHECK (((rent_cycle_day >= 1) AND (rent_cycle_day <= 28))),
     CONSTRAINT mall_state_chk CHECK (((state IS NULL) OR ((state = btrim(state)) AND (state <> ''::text) AND (char_length(state) <= 40)))),
     CONSTRAINT mall_street2_chk CHECK (((street2 IS NULL) OR ((street2 = btrim(street2)) AND (street2 <> ''::text) AND (char_length(street2) <= 200)))),
@@ -3586,13 +4687,20 @@ CASE
     WHEN (first_name = last_name) THEN first_name
     ELSE btrim(((first_name || ' '::text) || last_name))
 END) STORED,
+    discount_by text DEFAULT 'staff'::text NOT NULL,
+    keep_days integer,
+    expiry_action text DEFAULT 'return'::text NOT NULL,
+    email_bounced boolean DEFAULT false NOT NULL,
     CONSTRAINT vendors_address_chk CHECK (((address IS NULL) OR ((address = btrim(address)) AND (address <> ''::text) AND (char_length(address) <= 400)))),
     CONSTRAINT vendors_agreement_chk CHECK (((agreement_ends_on IS NULL) OR (agreement_starts_on IS NULL) OR (agreement_starts_on <= agreement_ends_on))),
     CONSTRAINT vendors_business_name_chk CHECK (((business_name IS NULL) OR ((business_name = btrim(business_name)) AND (business_name <> ''::text) AND (char_length(business_name) <= 120)))),
     CONSTRAINT vendors_code_chk CHECK (((code = btrim(code)) AND (code <> ''::text))),
     CONSTRAINT vendors_commission_chk CHECK (((commission_bps >= 0) AND (commission_bps <= 10000))),
+    CONSTRAINT vendors_discount_by_chk CHECK ((discount_by = ANY (ARRAY['staff'::text, 'owner'::text]))),
     CONSTRAINT vendors_email_chk CHECK (((email IS NULL) OR ((email = btrim(email)) AND (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'::text) AND (char_length(email) <= 200)))),
+    CONSTRAINT vendors_expiry_action_chk CHECK ((expiry_action = ANY (ARRAY['return'::text, 'donate'::text, 'buy'::text]))),
     CONSTRAINT vendors_first_name_chk CHECK (((first_name = btrim(first_name)) AND (first_name <> ''::text))),
+    CONSTRAINT vendors_keep_days_chk CHECK (((keep_days IS NULL) OR ((keep_days >= 1) AND (keep_days <= 3650)))),
     CONSTRAINT vendors_last_name_chk CHECK (((last_name = btrim(last_name)) AND (last_name <> ''::text))),
     CONSTRAINT vendors_notes_chk CHECK (((notes IS NULL) OR ((notes = btrim(notes)) AND (notes <> ''::text) AND (char_length(notes) <= 2000)))),
     CONSTRAINT vendors_payout_mode_chk CHECK ((payout_mode = ANY (ARRAY['pay'::text, 'credit_only'::text, 'hold'::text]))),
@@ -3613,7 +4721,7 @@ CREATE VIEW public.payout_missing_rent AS
             ELSE rate.amount_minor
         END AS amount
    FROM ((((public.stall_pack_runs() run(id, sales_from, sales_to, rent_month, posting_date)
-     JOIN public.vendors vendor ON (vendor.active))
+     JOIN public.vendors vendor ON ((vendor.active AND ((public.stall_pack_vendor_id() IS NULL) OR (vendor.id = public.stall_pack_vendor_id())))))
      JOIN public.booth_assignments assignment ON ((assignment.vendor_id = vendor.id)))
      JOIN LATERAL generate_series((public.stall_rent_period_start(assignment.starts_on))::timestamp without time zone, (public.stall_rent_period_start(LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date)))::timestamp without time zone, '1 mon'::interval) series(period_start) ON ((assignment.starts_on <= LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date))))
      JOIN public.assignment_rent rate ON ((rate.assignment_id = assignment.id)))
@@ -3628,7 +4736,7 @@ CREATE TABLE public.payout_run_journals (
     run_id uuid NOT NULL,
     journal_id uuid NOT NULL,
     role text NOT NULL,
-    CONSTRAINT payout_run_journals_role_chk CHECK ((role = ANY (ARRAY['settlement'::text, 'disbursement'::text, 'rent_charge'::text, 'reversal'::text])))
+    CONSTRAINT payout_run_journals_role_chk CHECK ((role = ANY (ARRAY['settlement'::text, 'disbursement'::text, 'rent_charge'::text, 'reversal'::text, 'clawback_apply'::text])))
 );
 
 CREATE TABLE public.sale_lines (
@@ -3666,12 +4774,12 @@ CREATE VIEW public.payout_pack_sales AS
     sale.discount_minor,
     sale.quantity
    FROM (((public.stall_pack_runs() run(id, sales_from, sales_to, rent_month, posting_date)
-     JOIN public.journals journal ON ((((journal.posting_date >= run.sales_from) AND (journal.posting_date <= run.sales_to)) AND (journal.source_type = 'sale'::text) AND (NOT journal.is_reversal))))
+     JOIN public.journals journal ON (((journal.posting_date >= run.sales_from) AND (journal.posting_date <= run.sales_to) AND (journal.source_type = 'sale'::text) AND (NOT journal.is_reversal))))
      JOIN public.sale_lines sale ON ((sale.journal_id = journal.id)))
      JOIN public.items item ON ((item.id = sale.item_id)))
   WHERE ((NOT (EXISTS ( SELECT 1
            FROM public.payout_run_journals link
-          WHERE ((link.run_id = run.id) AND (link.journal_id = journal.id))))) AND (journal.posting_key !~~ (('settlement:'::text || (run.id)::text) || ':%'::text)) AND (journal.posting_key !~~ (('disbursement:'::text || (run.id)::text) || ':%'::text)));
+          WHERE ((link.run_id = run.id) AND (link.journal_id = journal.id))))) AND (journal.posting_key !~~ (('settlement:'::text || (run.id)::text) || ':%'::text)) AND (journal.posting_key !~~ (('disbursement:'::text || (run.id)::text) || ':%'::text)) AND ((public.stall_pack_vendor_id() IS NULL) OR (item.vendor_id = public.stall_pack_vendor_id())));
 
 CREATE VIEW public.payout_pack AS
  WITH params AS (
@@ -3685,7 +4793,7 @@ CREATE VIEW public.payout_pack AS
             btrim(((vendor.first_name || ' '::text) || vendor.last_name)) AS name,
             vendor.payout_mode AS mode
            FROM (public.stall_pack_runs() run(id, sales_from, sales_to, rent_month, posting_date)
-             JOIN public.vendors vendor ON (vendor.active))
+             JOIN public.vendors vendor ON ((vendor.active AND ((public.stall_pack_vendor_id() IS NULL) OR (vendor.id = public.stall_pack_vendor_id())))))
         ), own AS (
          SELECT run.id AS run_id,
             journal.id AS journal_id
@@ -3871,6 +4979,8 @@ CREATE FUNCTION public.stall_payout_pack(target_run uuid, window_from date, wind
 DECLARE
     preview_id uuid := '00000000-0000-0000-0000-000000000000';
 BEGIN
+    PERFORM set_config('stall.pack_run', '', true);
+    PERFORM set_config('stall.pack_vendor', '', true);
     PERFORM set_config('stall.pack_from', window_from::text, true);
     PERFORM set_config('stall.pack_to', window_to::text, true);
     PERFORM set_config('stall.pack_rent', COALESCE(window_rent::text, ''), true);
@@ -3880,6 +4990,140 @@ BEGIN
         FROM payout_pack
         WHERE run_id = COALESCE(target_run, preview_id);
     PERFORM set_config('stall.pack_from', '', true);
+    PERFORM set_config('stall.pack_to', '', true);
+    PERFORM set_config('stall.pack_rent', '', true);
+    PERFORM set_config('stall.pack_posting', '', true);
+    PERFORM set_config('stall.pack_vendor', '', true);
+    PERFORM set_config('stall.pack_run', '', true);
+END;
+$$;
+
+CREATE FUNCTION public.stall_payout_quote(target_vendor uuid, window_from date, window_to date, window_rent date, window_posting date) RETURNS SETOF public.payout_pack
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    preview_id uuid := '00000000-0000-0000-0000-000000000000';
+BEGIN
+    IF target_vendor IS NULL THEN
+        RAISE EXCEPTION 'a payout quote needs a vendor'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM set_config('stall.pack_run', '', true);
+    PERFORM set_config('stall.pack_vendor', target_vendor::text, true);
+    PERFORM set_config('stall.pack_from', window_from::text, true);
+    PERFORM set_config('stall.pack_to', window_to::text, true);
+    PERFORM set_config('stall.pack_rent', COALESCE(window_rent::text, ''), true);
+    PERFORM set_config('stall.pack_posting', window_posting::text, true);
+    RETURN QUERY
+        SELECT *
+        FROM payout_pack
+        WHERE run_id = preview_id
+          AND vendor_id = target_vendor;
+    PERFORM set_config('stall.pack_from', '', true);
+    PERFORM set_config('stall.pack_to', '', true);
+    PERFORM set_config('stall.pack_rent', '', true);
+    PERFORM set_config('stall.pack_posting', '', true);
+    PERFORM set_config('stall.pack_vendor', '', true);
+    PERFORM set_config('stall.pack_run', '', true);
+END;
+$$;
+
+CREATE FUNCTION public.stall_payout_run_quote(target_run uuid, target_vendor uuid) RETURNS SETOF public.payout_pack
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF target_run IS NULL OR target_vendor IS NULL THEN
+        RAISE EXCEPTION 'a payout run quote needs a run and a vendor'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM set_config('stall.pack_run', target_run::text, true);
+    PERFORM set_config('stall.pack_vendor', target_vendor::text, true);
+    RETURN QUERY
+        SELECT *
+        FROM payout_pack
+        WHERE run_id = target_run
+          AND vendor_id = target_vendor;
+    PERFORM set_config('stall.pack_run', '', true);
+    PERFORM set_config('stall.pack_vendor', '', true);
+END;
+$$;
+
+CREATE FUNCTION public.stall_propose_markdowns(on_date date) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    filed integer := 0;
+    piece record;
+    next_step uuid;
+    original bigint;
+    proposed bigint;
+BEGIN
+    IF on_date IS NULL THEN
+        RAISE EXCEPTION 'a markdown needs a day'
+            USING ERRCODE = '23514';
+    END IF;
+
+    FOR piece IN
+        SELECT item.id
+        FROM public.items AS item
+        WHERE item.placement = 'consigned'
+          AND item.quantity > 0
+          AND item.held IS DISTINCT FROM true
+    LOOP
+        SELECT step.id
+        INTO next_step
+        FROM public.markdown_steps AS step
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM public.item_price_events AS prior
+            WHERE prior.item_id = piece.id
+              AND prior.step_id = step.id
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM public.markdown_proposals AS open_row
+            WHERE open_row.item_id = piece.id
+              AND open_row.step_id = step.id
+              AND open_row.status = 'proposed'
+        )
+        ORDER BY step.days_on_floor
+        LIMIT 1;
+
+        IF next_step IS NULL THEN
+            CONTINUE;
+        END IF;
+
+        IF EXISTS (
+            SELECT 1
+            FROM public.items AS aged
+            JOIN public.markdown_steps AS step ON step.id = next_step
+            WHERE aged.id = piece.id
+              AND aged.intake_on + step.days_on_floor > on_date
+        ) THEN
+            CONTINUE;
+        END IF;
+
+        SELECT event.prior_minor INTO original
+        FROM public.item_price_events AS event
+        WHERE event.item_id = piece.id
+        ORDER BY event.applied_on, event.id
+        LIMIT 1;
+        IF original IS NULL THEN
+            SELECT price_minor INTO original FROM public.items WHERE id = piece.id;
+        END IF;
+
+        SELECT public.stall_half_up(original, 10000 - step.percent * 100)
+        INTO proposed
+        FROM public.markdown_steps AS step
+        WHERE step.id = next_step;
+
+        INSERT INTO public.markdown_proposals (item_id, step_id, proposed_minor, proposed_on)
+        VALUES (piece.id, next_step, proposed, on_date);
+        filed := filed + 1;
+    END LOOP;
+
+    RETURN filed;
 END;
 $$;
 
@@ -3960,6 +5204,127 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_refuse_booth_deposit_overdraw() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    held bigint;
+    booth_account uuid;
+BEGIN
+    SELECT role.account_id INTO booth_account
+    FROM public.chart_roles AS role
+    WHERE role.role = 'booth_deposit_held';
+    IF NEW.account_id IS DISTINCT FROM booth_account THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.subledger_type IS DISTINCT FROM 'booth' OR NEW.subledger_ref IS NULL THEN
+        RAISE EXCEPTION 'a booth deposit line names its booth'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.booths WHERE id = NEW.subledger_ref::uuid) THEN
+        RAISE EXCEPTION 'that booth does not exist'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0) INTO held
+    FROM public.journal_lines AS line
+    WHERE line.account_id = booth_account
+      AND line.subledger_ref = NEW.subledger_ref;
+    IF held < 0 THEN
+        RAISE EXCEPTION 'a release is larger than the deposit held'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_refuse_export_tie(from_date date, to_date date) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    export_system text;
+    delta bigint;
+BEGIN
+    FOREACH export_system IN ARRAY ARRAY['quickbooks', 'xero'] LOOP
+        delta := public.stall_export_tie_delta(export_system, from_date, to_date);
+        IF delta <> 0 THEN
+            RAISE EXCEPTION 'the export does not tie to the books'
+                USING ERRCODE = '23514';
+        END IF;
+    END LOOP;
+END;
+$$;
+
+CREATE FUNCTION public.stall_refuse_report_drift(report_minor bigint, books_minor bigint) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF report_minor IS DISTINCT FROM books_minor THEN
+        RAISE EXCEPTION 'a report disagrees with the books'
+            USING ERRCODE = '23514';
+    END IF;
+END;
+$$;
+
+CREATE FUNCTION public.stall_refuse_role_drift(role_name text) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    from_lines bigint;
+    from_view bigint;
+    normal text;
+BEGIN
+    SELECT account.normal_balance INTO normal
+    FROM public.chart_roles AS role
+    JOIN public.accounts AS account ON account.id = role.account_id
+    WHERE role.role = role_name;
+    SELECT COALESCE(sum(
+        CASE normal
+            WHEN 'debit' THEN line.debit_minor - line.credit_minor
+            ELSE line.credit_minor - line.debit_minor
+        END
+    ), 0) INTO from_lines
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE role.role = role_name;
+    SELECT COALESCE(sum(balance.balance_minor), 0) INTO from_view
+    FROM public.account_balances AS balance
+    JOIN public.chart_roles AS role ON role.account_id = balance.account_id
+    WHERE role.role = role_name;
+    PERFORM public.stall_refuse_report_drift(from_lines, from_view);
+END;
+$$;
+
+CREATE FUNCTION public.stall_refuse_tax_drift(starts_on date, ends_on date) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    sheet_minor bigint;
+    books_minor bigint;
+BEGIN
+    SELECT COALESCE(sum(row.tax_minor), 0) INTO sheet_minor
+    FROM public.stall_sales_tax_sheet(starts_on, ends_on) AS row
+    WHERE row.section IN ('taxable', 'exempt', 'return', 'void');
+    books_minor := public.stall_sales_tax_collected(starts_on, ends_on);
+    PERFORM public.stall_refuse_tax_pair(sheet_minor, books_minor);
+END;
+$$;
+
+CREATE FUNCTION public.stall_refuse_tax_pair(sheet_minor bigint, books_minor bigint) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF sheet_minor IS DISTINCT FROM books_minor THEN
+        RAISE EXCEPTION 'sales tax disagrees with the books'
+            USING ERRCODE = '23514';
+    END IF;
+END;
+$$;
+
 CREATE FUNCTION public.stall_refuse_ticket_discount(ticket uuid, kind text, value bigint) RETURNS void
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -4016,6 +5381,16 @@ CREATE FUNCTION public.stall_register_expected_cash(target_session uuid) RETURNS
     ), 0)
     FROM public.register_sessions AS session
     WHERE session.id = target_session;
+$$;
+
+CREATE FUNCTION public.stall_reject_assignment_rent_rate_rewrite() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'an assignment rent rate cannot change'
+        USING ERRCODE = '23514';
+END;
 $$;
 
 CREATE FUNCTION public.stall_reject_assignment_rent_rewrite() RETURNS trigger
@@ -4094,6 +5469,15 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_reject_audit_write() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'an audit row cannot be changed'
+        USING ERRCODE = '25006';
+END;
+$$;
+
 CREATE FUNCTION public.stall_reject_booth_place() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -4124,6 +5508,23 @@ BEGIN
         NEW.id, NEW.floor_id, NEW.x_ft, NEW.z_ft, NEW.width_ft, NEW.depth_ft,
         default_width, default_depth, floor_width, floor_depth
     );
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_reject_buy_of_store_use() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM public.store_uses
+        WHERE journal_id = NEW.journal_id OR item_id = NEW.item_id
+    ) THEN
+        RAISE EXCEPTION 'a use is not inventory'
+            USING ERRCODE = '23514';
+    END IF;
     RETURN NEW;
 END;
 $$;
@@ -4268,8 +5669,8 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    IF chart_role IN ('vendor_payable', 'booth_rent_receivable') THEN
-        RAISE EXCEPTION 'a control account line must come from a sale, rent charge, rent payment, or payout'
+    IF chart_role IN ('vendor_payable', 'booth_rent_receivable', 'vendor_receivable') THEN
+        RAISE EXCEPTION 'a control account line must come from a listed source type'
             USING ERRCODE = '23514';
     END IF;
 
@@ -4550,6 +5951,16 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_reject_missed_sale_write() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'a missed sale cannot be changed'
+        USING ERRCODE = '25006';
 END;
 $$;
 
@@ -4843,6 +6254,30 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_reject_second_vendor_memo() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.is_reversal IS DISTINCT FROM true
+        OR NEW.source_type <> 'vendor_memo'
+        OR NEW.reverses_journal_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM public.journals AS other
+        WHERE other.reverses_journal_id = NEW.reverses_journal_id
+          AND other.is_reversal = true
+          AND other.id <> NEW.id
+    ) THEN
+        RAISE EXCEPTION 'a second void is refused'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION public.stall_reject_session_post() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -4974,6 +6409,16 @@ BEGIN
 END;
 $_$;
 
+CREATE FUNCTION public.stall_reject_store_use_write() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'a store use cannot be changed'
+        USING ERRCODE = '25006';
+END;
+$$;
+
 CREATE FUNCTION public.stall_reject_stored_value_change() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -5035,10 +6480,295 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_reject_vendor_letter() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'a letter cannot be changed'
+        USING ERRCODE = '25006';
+END;
+$$;
+
+CREATE FUNCTION public.stall_reject_vendor_memo_write() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'a vendor memo cannot be changed'
+        USING ERRCODE = '25006';
+END;
+$$;
+
 CREATE FUNCTION public.stall_rent_cycle_day() RETURNS integer
     LANGUAGE sql STABLE
     AS $$
     SELECT rent_cycle_day FROM public.mall
+$$;
+
+CREATE FUNCTION public.stall_report_donated(starts_on date, ends_on date) RETURNS TABLE(posted_on date, code text, description text, quantity bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT disposition.posted_on,
+           item.code,
+           item.description,
+           item.quantity::bigint
+    FROM public.item_dispositions AS disposition
+    JOIN public.items AS item ON item.id = disposition.item_id
+    WHERE disposition.kind = 'donate'
+      AND disposition.posted_on >= starts_on
+      AND disposition.posted_on <= ends_on
+    ORDER BY disposition.posted_on, lower(item.code), item.code;
+$$;
+
+CREATE FUNCTION public.stall_report_expiring() RETURNS TABLE(code text, description text, vendor text, expires_on date, quantity bigint, price_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT item.code,
+           item.description,
+           COALESCE(vendor.name, vendor.code, ''),
+           item.expires_on,
+           item.quantity::bigint,
+           item.price_minor
+    FROM public.items AS item
+    LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+    CROSS JOIN public.mall
+    WHERE item.placement = 'consigned'
+      AND item.quantity > 0
+      AND item.expires_on IS NOT NULL
+      AND item.expires_on <= ((clock_timestamp() AT TIME ZONE mall.time_zone)::date + 14)
+      AND NOT EXISTS (SELECT 1 FROM public.item_dispositions AS disposition WHERE disposition.item_id = item.id)
+      AND NOT EXISTS (SELECT 1 FROM public.item_buys AS buy WHERE buy.item_id = item.id)
+    ORDER BY item.expires_on, lower(item.code), item.code;
+$$;
+
+CREATE FUNCTION public.stall_report_payouts(starts_on date, ends_on date) RETURNS TABLE(paid_on date, vendor text, amount_minor bigint, kind text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT journal.posting_date, COALESCE(vendor.name, ''),
+           COALESCE(sum(line.debit_minor), 0)::bigint, journal.source_type
+    FROM public.journals AS journal
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'vendor_payable'
+    LEFT JOIN public.vendors AS vendor ON vendor.id = line.subledger_ref::uuid
+    WHERE journal.source_type IN ('check_disbursement', 'cash_disbursement', 'safe_disbursement')
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    GROUP BY journal.posting_date, vendor.name, journal.source_type, journal.id
+    ORDER BY journal.posting_date, vendor.name;
+$$;
+
+CREATE FUNCTION public.stall_report_rent() RETURNS TABLE(booth text, vendor text, open_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT booth.code, COALESCE(vendor.name, ''),
+           COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    JOIN public.booths AS booth ON booth.id = line.subledger_ref::uuid
+    LEFT JOIN public.booth_assignments AS assignment
+      ON assignment.booth_id = booth.id AND assignment.ends_on IS NULL
+    LEFT JOIN public.vendors AS vendor ON vendor.id = assignment.vendor_id
+    GROUP BY booth.code, vendor.name
+    HAVING COALESCE(sum(line.debit_minor - line.credit_minor), 0) <> 0
+    ORDER BY booth.code;
+$$;
+
+CREATE FUNCTION public.stall_report_sales(starts_on date, ends_on date, grouped text) RETURNS TABLE(label text, sales_minor bigint, tax_minor bigint, sale_count bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT journal.posting_date::text,
+           COALESCE(sum(sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor), 0)::bigint,
+           COALESCE(sum(sale_line.tax_minor), 0)::bigint,
+           count(DISTINCT journal.id)::bigint
+    FROM public.journals AS journal
+    JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+    WHERE grouped = 'day'
+      AND journal.source_type = 'sale'
+      AND NOT journal.is_reversal
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    GROUP BY journal.posting_date
+    UNION ALL
+    SELECT COALESCE(vendor.name, 'Store'),
+           COALESCE(sum(sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor), 0)::bigint,
+           COALESCE(sum(sale_line.tax_minor), 0)::bigint,
+           count(DISTINCT journal.id)::bigint
+    FROM public.journals AS journal
+    JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+    JOIN public.items AS item ON item.id = sale_line.item_id
+    LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+    WHERE grouped = 'vendor'
+      AND journal.source_type = 'sale'
+      AND NOT journal.is_reversal
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    GROUP BY vendor.name
+    UNION ALL
+    SELECT COALESCE(session.cashier, ''),
+           COALESCE(sum(sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor), 0)::bigint,
+           COALESCE(sum(sale_line.tax_minor), 0)::bigint,
+           count(DISTINCT journal.id)::bigint
+    FROM public.journals AS journal
+    JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+    LEFT JOIN public.register_session_posts AS posted ON posted.journal_id = journal.id
+    LEFT JOIN public.register_sessions AS session ON session.id = posted.session_id
+    WHERE grouped = 'cashier'
+      AND journal.source_type = 'sale'
+      AND NOT journal.is_reversal
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    GROUP BY session.cashier
+    UNION ALL
+    SELECT role.role,
+           COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint,
+           0::bigint,
+           count(DISTINCT journal.id)::bigint
+    FROM public.journals AS journal
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE grouped = 'tender'
+      AND journal.source_type = 'sale'
+      AND NOT journal.is_reversal
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+      AND role.role IN ('cash', 'card', 'checks', 'gift_card', 'gift_certificate', 'store_credit')
+    GROUP BY role.role
+    UNION ALL
+    SELECT to_char((journal.occurred_at AT TIME ZONE mall.time_zone), 'HH24') || ':00',
+           COALESCE(sum(sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor), 0)::bigint,
+           COALESCE(sum(sale_line.tax_minor), 0)::bigint,
+           count(DISTINCT journal.id)::bigint
+    FROM public.journals AS journal
+    JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+    CROSS JOIN public.mall
+    WHERE grouped = 'hour'
+      AND journal.source_type = 'sale'
+      AND NOT journal.is_reversal
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    GROUP BY to_char((journal.occurred_at AT TIME ZONE mall.time_zone), 'HH24')
+    UNION ALL
+    SELECT COALESCE(category.name, 'Uncategorized'),
+           COALESCE(sum(sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor), 0)::bigint,
+           COALESCE(sum(sale_line.tax_minor), 0)::bigint,
+           count(DISTINCT journal.id)::bigint
+    FROM public.journals AS journal
+    JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+    JOIN public.items AS item ON item.id = sale_line.item_id
+    LEFT JOIN public.categories AS category ON category.id = item.category_id
+    WHERE grouped = 'category'
+      AND journal.source_type = 'sale'
+      AND NOT journal.is_reversal
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    GROUP BY category.name;
+$$;
+
+CREATE FUNCTION public.stall_report_sell_through(starts_on date, ends_on date) RETURNS TABLE(category text, sold_qty bigint, on_hand_qty bigint, sales_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH sold AS (
+        SELECT COALESCE(category.name, 'Uncategorized') AS category,
+               COALESCE(sum(sale_line.quantity), 0)::bigint AS sold_qty,
+               COALESCE(sum(sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor), 0)::bigint AS sales_minor
+        FROM public.journals AS journal
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        WHERE journal.source_type = 'sale'
+          AND NOT journal.is_reversal
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+        GROUP BY category.name
+    ),
+    on_hand AS (
+        SELECT COALESCE(category.name, 'Uncategorized') AS category,
+               COALESCE(sum(item.quantity), 0)::bigint AS on_hand_qty
+        FROM public.items AS item
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        WHERE item.quantity > 0
+        GROUP BY category.name
+    )
+    SELECT COALESCE(sold.category, on_hand.category) AS category,
+           COALESCE(sold.sold_qty, 0)::bigint,
+           COALESCE(on_hand.on_hand_qty, 0)::bigint,
+           COALESCE(sold.sales_minor, 0)::bigint
+    FROM sold
+    FULL OUTER JOIN on_hand ON on_hand.category = sold.category
+    ORDER BY COALESCE(sold.category, on_hand.category);
+$$;
+
+CREATE FUNCTION public.stall_report_stored_value() RETURNS TABLE(kind text, balance_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT role.role, COALESCE(balance.balance_minor, 0)::bigint
+    FROM public.chart_roles AS role
+    JOIN public.account_balances AS balance ON balance.account_id = role.account_id
+    WHERE role.role IN ('gift_card', 'gift_certificate', 'store_credit')
+    ORDER BY role.role;
+$$;
+
+CREATE FUNCTION public.stall_restore_commission_rate() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    prior_tax text;
+BEGIN
+    IF current_setting('stall.prior_bps', true) IS NOT NULL THEN
+        UPDATE public.items
+        SET commission_bps = NULLIF(current_setting('stall.prior_bps', true), '')::integer
+        WHERE id = NEW.item_id
+          AND placement <> 'store';
+    END IF;
+    prior_tax := current_setting('stall.prior_tax', true);
+    IF prior_tax IS NOT NULL AND prior_tax <> '' THEN
+        UPDATE public.mall
+        SET tax_bps = prior_tax::integer;
+    END IF;
+    PERFORM set_config('stall.snap_priced', '', true);
+    PERFORM set_config('stall.prior_bps', '', true);
+    PERFORM set_config('stall.prior_tax', '', true);
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION public.stall_restore_missed_sale() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.is_reversal IS DISTINCT FROM true
+        OR NEW.source_type <> 'missed_sale'
+        OR NEW.reverses_journal_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM public.journals AS other
+        WHERE other.reverses_journal_id = NEW.reverses_journal_id
+          AND other.is_reversal = true
+          AND other.id <> NEW.id
+    ) THEN
+        RAISE EXCEPTION 'a second void is refused'
+            USING ERRCODE = '23514';
+    END IF;
+    UPDATE public.items AS item
+    SET quantity = item.quantity + 1
+    FROM public.missed_sales AS missed
+    WHERE missed.journal_id = NEW.reverses_journal_id
+      AND missed.item_id = item.id;
+    RETURN NEW;
+END;
 $$;
 
 CREATE FUNCTION public.stall_restore_on_hand() RETURNS trigger
@@ -5087,6 +6817,35 @@ BEGIN
           AND item.id = returned.item_id;
     END IF;
 
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_restore_store_use() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.is_reversal IS DISTINCT FROM true
+        OR NEW.source_type <> 'store_use'
+        OR NEW.reverses_journal_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM public.journals AS other
+        WHERE other.reverses_journal_id = NEW.reverses_journal_id
+          AND other.is_reversal = true
+          AND other.id <> NEW.id
+    ) THEN
+        RAISE EXCEPTION 'a second void is refused'
+            USING ERRCODE = '23514';
+    END IF;
+    UPDATE public.items AS item
+    SET quantity = item.quantity + 1
+    FROM public.store_uses AS used
+    WHERE used.journal_id = NEW.reverses_journal_id
+      AND used.item_id = item.id;
     RETURN NEW;
 END;
 $$;
@@ -5188,6 +6947,185 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_sales_tax_collected(starts_on date, ends_on date) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.journals AS journal ON journal.id = line.journal_id AND journal.book_id = line.book_id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE role.role = 'sales_tax_payable'
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+      AND journal.source_type IN ('sale', 'item_return');
+$$;
+
+CREATE FUNCTION public.stall_sales_tax_sheet(starts_on date, ends_on date) RETURNS TABLE(section text, label text, sale_count bigint, items_sold bigint, subtotal_minor bigint, discount_minor bigint, tax_minor bigint, total_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH sale AS (
+        SELECT
+            journal.id,
+            sale_line.quantity,
+            sale_line.price_minor * sale_line.quantity AS gross_minor,
+            sale_line.discount_minor + sale_line.store_discount_minor AS discount_minor,
+            sale_line.tax_minor,
+            CASE
+                WHEN ticket.tax_waiver_reason IS NOT NULL THEN ticket.tax_waiver_reason
+                WHEN vendor.tax_exempt THEN 'vendor resale'
+                ELSE ''
+            END AS exempt_reason,
+            CASE
+                WHEN (sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor) > 0
+                    THEN (
+                        (sale_line.tax_minor * 100000)
+                        + ((sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor) / 2)
+                    ) / (sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor)
+                ELSE 0
+            END AS rate_bps
+        FROM public.journals AS journal
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        LEFT JOIN public.tickets AS ticket ON ticket.posted_journal_id = journal.id
+        WHERE journal.source_type = 'sale'
+          AND NOT journal.is_reversal
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+    ),
+    returned AS (
+        SELECT
+            item_return.quantity,
+            item_return.price_minor * item_return.quantity AS gross_minor,
+            item_return.discount_minor + item_return.store_discount_minor AS discount_minor,
+            item_return.tax_minor
+        FROM public.item_returns AS item_return
+        JOIN public.journals AS journal ON journal.id = item_return.journal_id
+        WHERE journal.source_type = 'item_return'
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+    )
+    SELECT 'taxable', 'Taxable sales', count(DISTINCT sale.id)::bigint, COALESCE(sum(sale.quantity), 0)::bigint,
+           COALESCE(sum(sale.gross_minor), 0)::bigint, COALESCE(sum(sale.discount_minor), 0)::bigint,
+           COALESCE(sum(sale.tax_minor), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor + sale.tax_minor), 0)::bigint
+    FROM sale
+    WHERE sale.exempt_reason = ''
+    UNION ALL
+    SELECT 'exempt', sale.exempt_reason, count(DISTINCT sale.id)::bigint, COALESCE(sum(sale.quantity), 0)::bigint,
+           COALESCE(sum(sale.gross_minor), 0)::bigint, COALESCE(sum(sale.discount_minor), 0)::bigint,
+           COALESCE(sum(sale.tax_minor), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor + sale.tax_minor), 0)::bigint
+    FROM sale
+    WHERE sale.exempt_reason <> ''
+    GROUP BY sale.exempt_reason
+    UNION ALL
+    SELECT 'return', 'Returns', count(*)::bigint, COALESCE(sum(returned.quantity), 0)::bigint,
+           (-COALESCE(sum(returned.gross_minor), 0))::bigint, (-COALESCE(sum(returned.discount_minor), 0))::bigint,
+           (-COALESCE(sum(returned.tax_minor), 0))::bigint,
+           (-COALESCE(sum(returned.gross_minor - returned.discount_minor + returned.tax_minor), 0))::bigint
+    FROM returned
+    UNION ALL
+    SELECT 'void', 'Voids', count(DISTINCT journal.id)::bigint, 0,
+           0, 0,
+           (-COALESCE(sum(line.debit_minor - line.credit_minor), 0))::bigint,
+           (-COALESCE(sum(line.debit_minor - line.credit_minor), 0))::bigint
+    FROM public.journals AS journal
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+    WHERE journal.source_type = 'sale'
+      AND journal.is_reversal
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    UNION ALL
+    SELECT 'rate', sale.rate_bps::text, count(DISTINCT sale.id)::bigint, COALESCE(sum(sale.quantity), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor), 0)::bigint, 0,
+           COALESCE(sum(sale.tax_minor), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor + sale.tax_minor), 0)::bigint
+    FROM sale
+    WHERE sale.exempt_reason = ''
+    GROUP BY sale.rate_bps
+    UNION ALL
+    SELECT 'nontaxable', 'Booth rent collected', count(DISTINCT journal.id)::bigint, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journals AS journal
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    WHERE journal.source_type = 'rent_payment'
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    UNION ALL
+    SELECT 'nontaxable', kind.label, count(DISTINCT journal.id)::bigint, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM (VALUES
+        ('gift_certificate_issue', 'gift_certificate', 'Gift certificates issued'),
+        ('gift_card_issue', 'gift_card', 'Gift cards issued'),
+        ('store_credit_issue', 'store_credit', 'Store credit issued')
+    ) AS kind(source_type, role_name, label)
+    JOIN public.journals AS journal ON journal.source_type = kind.source_type
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = kind.role_name
+    WHERE journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+      AND NOT journal.is_reversal
+    GROUP BY kind.label
+    UNION ALL
+    SELECT 'liability', 'Opening', 0, 0, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint, 0
+    FROM public.journal_lines AS line
+    JOIN public.journals AS journal ON journal.id = line.journal_id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+    WHERE journal.posting_date < starts_on
+    UNION ALL
+    SELECT 'liability', 'Collected', 0, 0, 0, 0, public.stall_sales_tax_collected(starts_on, ends_on), 0
+    UNION ALL
+    SELECT 'liability', 'Paid', 0, 0, 0, 0,
+           COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint, 0
+    FROM public.journal_lines AS line
+    JOIN public.journals AS journal ON journal.id = line.journal_id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+    WHERE journal.source_type = 'tax_payment'
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    UNION ALL
+    SELECT 'liability', 'Closing', 0, 0, 0, 0,
+           (
+               COALESCE((
+                   SELECT sum(line.credit_minor - line.debit_minor)
+                   FROM public.journal_lines AS line
+                   JOIN public.journals AS journal ON journal.id = line.journal_id
+                   JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+                   WHERE journal.posting_date <= ends_on
+               ), 0)
+           )::bigint,
+           0;
+$$;
+
+CREATE FUNCTION public.stall_seed_assignment_rent_rate() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    stay_start date;
+BEGIN
+    SELECT starts_on INTO stay_start
+    FROM public.booth_assignments
+    WHERE id = NEW.assignment_id;
+    IF stay_start IS NULL THEN
+        RAISE EXCEPTION 'a rent rate needs an assignment'
+            USING ERRCODE = '23514';
+    END IF;
+    INSERT INTO public.assignment_rent_rates (assignment_id, starts_on, amount_minor)
+    VALUES (NEW.assignment_id, stay_start, NEW.amount_minor)
+    ON CONFLICT (assignment_id, starts_on) DO NOTHING;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION public.stall_seed_export_accounts() RETURNS void
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -5260,11 +7198,230 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.stall_sync_snap(snap_key text) RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    snap public.register_snaps%ROWTYPE;
+    on_hand integer;
+    vendor uuid;
+    cash_id uuid;
+    commission_id uuid;
+    payable_id uuid;
+    tax_id uuid;
+    posted_id uuid;
+    payable bigint;
+    posted_no bigint;
+    book uuid;
+    period uuid;
+    commission_bps integer;
+    commission_minor bigint;
+    tax_expected bigint;
+    mall_tax integer;
+BEGIN
+    SELECT * INTO snap
+    FROM public.register_snaps AS row
+    WHERE row.posting_key = snap_key
+    FOR UPDATE;
+
+    IF snap.id IS NULL THEN
+        RAISE EXCEPTION 'that snap is not on this register'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF snap.status = 'posted' AND snap.journal_no IS NOT NULL THEN
+        RETURN snap.journal_no;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.register_sessions AS session
+        WHERE session.id = snap.session_id
+          AND session.closed_at IS NULL
+    ) THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = 'a register session is required'
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM public.journals AS journal WHERE journal.posting_key = snap.posting_key
+    ) THEN
+        SELECT journal.id, journal.journal_no
+        INTO posted_id, posted_no
+        FROM public.journals AS journal
+        WHERE journal.posting_key = snap.posting_key;
+        UPDATE public.register_snaps
+        SET status = 'posted', journal_id = posted_id, journal_no = posted_no, refusal = NULL
+        WHERE id = snap.id;
+        RETURN posted_no;
+    END IF;
+
+    SELECT role.account_id INTO cash_id FROM public.chart_roles AS role WHERE role.role = 'cash';
+    SELECT role.account_id INTO commission_id FROM public.chart_roles AS role WHERE role.role = 'commission_revenue';
+    SELECT role.account_id INTO payable_id FROM public.chart_roles AS role WHERE role.role = 'vendor_payable';
+    SELECT role.account_id INTO tax_id FROM public.chart_roles AS role WHERE role.role = 'sales_tax_payable';
+    SELECT id INTO book FROM public.ledger_books WHERE is_default;
+    SELECT open_period.id INTO period
+    FROM public.accounting_periods AS open_period
+    WHERE open_period.book_id = book
+      AND open_period.starts_on <= snap.business_date
+      AND open_period.ends_on >= snap.business_date
+      AND open_period.status = 'open';
+
+    IF period IS NULL THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = 'a closed period refuses a new journal'
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    SELECT item.quantity, item.vendor_id
+    INTO on_hand, vendor
+    FROM public.items AS item
+    WHERE item.id = snap.item_id
+      AND item.placement = 'consigned'
+    FOR UPDATE;
+
+    IF vendor IS NULL THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = 'a sale line needs an item'
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    IF on_hand < snap.quantity THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = 'there are not enough on hand'
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    commission_bps := public.stall_commission_for(snap.item_id, snap.price_minor, snap.business_date);
+    commission_minor := public.stall_half_up(snap.price_minor * snap.quantity, commission_bps);
+    SELECT mall.tax_bps INTO mall_tax FROM public.mall AS mall;
+    tax_expected := public.stall_tax_minor(snap.price_minor * snap.quantity, mall_tax);
+    UPDATE public.register_snaps
+    SET tax_expected_minor = tax_expected,
+        tax_variance_minor = snap.tax_minor - tax_expected
+    WHERE id = snap.id;
+
+    payable := snap.price_minor * snap.quantity - commission_minor;
+    posted_id := uuidv7();
+
+    BEGIN
+        INSERT INTO public.journals (
+            id, book_id, posting_key, posting_date, occurred_at, period_id,
+            currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+        ) VALUES (
+            posted_id, book, snap.posting_key, snap.business_date, clock_timestamp(), period,
+            'USD', 'sale', snap.posting_key, 'Snapped sale',
+            snap.price_minor * snap.quantity + snap.tax_minor,
+            snap.price_minor * snap.quantity + snap.tax_minor
+        );
+        INSERT INTO public.journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+        VALUES (posted_id, book, 1, cash_id, snap.price_minor * snap.quantity + snap.tax_minor, 0);
+        IF commission_minor > 0 THEN
+            INSERT INTO public.journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+            VALUES (posted_id, book, 2, commission_id, 0, commission_minor);
+        END IF;
+        INSERT INTO public.journal_lines (
+            journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+        ) VALUES (
+            posted_id, book, 3, payable_id, 0, payable, 'vendor', vendor::text
+        );
+        IF snap.tax_minor > 0 THEN
+            INSERT INTO public.journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+            VALUES (posted_id, book, 4, tax_id, 0, snap.tax_minor);
+        END IF;
+        INSERT INTO public.sale_lines (journal_id, line_no, item_id, price_minor, quantity, commission_minor, tax_minor)
+        VALUES (posted_id, 1, snap.item_id, snap.price_minor, snap.quantity, commission_minor, snap.tax_minor);
+        INSERT INTO public.register_session_posts (session_id, journal_id)
+        VALUES (snap.session_id, posted_id);
+        SET CONSTRAINTS ALL IMMEDIATE;
+        SELECT journal.journal_no INTO posted_no FROM public.journals AS journal WHERE journal.id = posted_id;
+    EXCEPTION WHEN OTHERS THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = SQLERRM
+        WHERE id = snap.id;
+        RETURN NULL;
+    END;
+
+    SET CONSTRAINTS ALL DEFERRED;
+
+    UPDATE public.register_snaps
+    SET status = 'posted', journal_id = posted_id, journal_no = posted_no, refusal = NULL
+    WHERE id = snap.id;
+
+    RETURN posted_no;
+END;
+$$;
+
 CREATE FUNCTION public.stall_tax_minor(net bigint, tax_bps bigint) RETURNS bigint
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'pg_catalog'
     AS $$
     SELECT (net * tax_bps + 50000) / 100000;
+$$;
+
+CREATE FUNCTION public.stall_vendor_open(entry_hash text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    vendor uuid;
+    token_id uuid;
+BEGIN
+    SELECT link.id, link.vendor_id
+    INTO token_id, vendor
+    FROM public.vendor_entry_tokens AS link
+    WHERE link.token_hash = entry_hash
+      AND link.used_at IS NULL
+      AND link.expires_at > clock_timestamp()
+    FOR UPDATE;
+
+    IF token_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    UPDATE public.vendor_entry_tokens
+    SET used_at = clock_timestamp()
+    WHERE id = token_id;
+
+    RETURN vendor;
+END;
+$$;
+
+CREATE FUNCTION public.stall_vendor_prefer(mode text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    vendor uuid;
+BEGIN
+    IF mode IS NULL OR mode NOT IN ('pay', 'hold') THEN
+        RAISE EXCEPTION 'a payout preference is check or hold'
+            USING ERRCODE = '23514';
+    END IF;
+    BEGIN
+        vendor := NULLIF(current_setting('stall.vendor_id', true), '')::uuid;
+    EXCEPTION WHEN invalid_text_representation THEN
+        vendor := NULL;
+    END;
+    IF vendor IS NULL THEN
+        RAISE EXCEPTION 'a vendor setting is required'
+            USING ERRCODE = '23514';
+    END IF;
+    UPDATE public.vendors
+    SET payout_mode = mode
+    WHERE id = vendor;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'a vendor setting is required'
+            USING ERRCODE = '23514';
+    END IF;
+END;
 $$;
 
 CREATE TABLE public.accounts (
@@ -5314,6 +7471,29 @@ CREATE TABLE public.accounting_periods (
     CONSTRAINT accounting_periods_status_chk CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
 );
 
+CREATE TABLE public.assignment_rent_rates (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    assignment_id uuid NOT NULL,
+    starts_on date NOT NULL,
+    amount_minor bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT assignment_rent_rates_amount_chk CHECK ((amount_minor > 0))
+);
+
+CREATE TABLE public.audit_events (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    actor text NOT NULL,
+    role text NOT NULL,
+    action text NOT NULL,
+    entity_type text NOT NULL,
+    entity_id text NOT NULL,
+    request_id text NOT NULL,
+    at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT audit_events_action_chk CHECK (((action = btrim(action)) AND (action <> ''::text))),
+    CONSTRAINT audit_events_actor_chk CHECK (((actor = btrim(actor)) AND (actor <> ''::text))),
+    CONSTRAINT audit_events_role_chk CHECK ((role = ANY (ARRAY['owner'::text, 'cashier'::text, 'vendor'::text, 'books'::text])))
+);
+
 CREATE TABLE public.book_journal_counters (
     book_id uuid NOT NULL,
     last_no bigint NOT NULL,
@@ -5358,6 +7538,22 @@ CREATE TABLE public.colors (
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT colors_name_chk CHECK (((name = btrim(name)) AND (name <> ''::text)))
+);
+
+CREATE TABLE public.commission_rules (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    vendor_id uuid,
+    item_id uuid,
+    priority integer DEFAULT 0 NOT NULL,
+    min_minor bigint NOT NULL,
+    max_minor bigint,
+    bps integer NOT NULL,
+    starts_on date NOT NULL,
+    ends_on date,
+    CONSTRAINT commission_rules_bps_chk CHECK (((bps >= 0) AND (bps <= 10000))),
+    CONSTRAINT commission_rules_dates_chk CHECK (((ends_on IS NULL) OR (starts_on <= ends_on))),
+    CONSTRAINT commission_rules_price_chk CHECK (((min_minor >= 0) AND ((max_minor IS NULL) OR (min_minor <= max_minor)))),
+    CONSTRAINT commission_rules_target_chk CHECK ((NOT ((item_id IS NOT NULL) AND (vendor_id IS NOT NULL))))
 );
 
 CREATE TABLE public.conditions (
@@ -5412,6 +7608,16 @@ CREATE VIEW public.export_lines AS
      JOIN public.journals journal ON (((journal.id = line.journal_id) AND (journal.book_id = line.book_id))))
      JOIN public.accounts account ON (((account.id = line.account_id) AND (account.book_id = line.book_id))));
 
+CREATE TABLE public.floor_findings (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    item_id uuid NOT NULL,
+    kind text NOT NULL,
+    noted_on date NOT NULL,
+    noted_by text NOT NULL,
+    CONSTRAINT floor_findings_by_chk CHECK (((noted_by = btrim(noted_by)) AND (noted_by <> ''::text) AND (char_length(noted_by) <= 80))),
+    CONSTRAINT floor_findings_kind_chk CHECK ((kind = ANY (ARRAY['missing'::text, 'misplaced'::text])))
+);
+
 CREATE TABLE public.item_buys (
     id uuid DEFAULT uuidv7() NOT NULL,
     journal_id uuid NOT NULL,
@@ -5427,6 +7633,12 @@ CREATE TABLE public.item_dispositions (
     kind text NOT NULL,
     posted_on date NOT NULL,
     CONSTRAINT item_dispositions_kind_chk CHECK ((kind = ANY (ARRAY['return'::text, 'donate'::text])))
+);
+
+CREATE TABLE public.item_floors (
+    item_id uuid NOT NULL,
+    floor_minor bigint NOT NULL,
+    CONSTRAINT item_floors_amount_chk CHECK ((floor_minor >= 0))
 );
 
 CREATE TABLE public.item_photos (
@@ -5463,6 +7675,15 @@ CREATE TABLE public.item_returns (
     CONSTRAINT item_returns_tax_chk CHECK ((tax_minor >= 0))
 );
 
+CREATE TABLE public.job_mail_sent (
+    kind text NOT NULL,
+    mail_date date NOT NULL,
+    email text NOT NULL,
+    sent_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT job_mail_sent_email_chk CHECK (((email = btrim(email)) AND (char_length(email) >= 3) AND (char_length(email) <= 200))),
+    CONSTRAINT job_mail_sent_kind_chk CHECK ((kind = ANY (ARRAY['vendor-digest'::text, 'rent-reminder'::text, 'sale-notice'::text])))
+);
+
 CREATE TABLE public.journal_cash_tendered (
     journal_id uuid NOT NULL,
     tendered_minor bigint NOT NULL,
@@ -5483,6 +7704,19 @@ CREATE TABLE public.ledger_books (
     CONSTRAINT ledger_books_scale_chk CHECK (((currency_scale >= 0) AND (currency_scale <= 4)))
 );
 
+CREATE TABLE public.mall_sales (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    name text NOT NULL,
+    starts_on date NOT NULL,
+    ends_on date NOT NULL,
+    percent_bps integer NOT NULL,
+    absorbed_by text NOT NULL,
+    CONSTRAINT mall_sales_absorbed_chk CHECK ((absorbed_by = ANY (ARRAY['mall'::text, 'vendor'::text]))),
+    CONSTRAINT mall_sales_name_chk CHECK (((name = btrim(name)) AND (name <> ''::text) AND (char_length(name) <= 80))),
+    CONSTRAINT mall_sales_percent_chk CHECK (((percent_bps > 0) AND (percent_bps <= 5000))),
+    CONSTRAINT mall_sales_span_chk CHECK ((starts_on <= ends_on))
+);
+
 CREATE TABLE public.map_floors (
     id uuid DEFAULT uuidv7() NOT NULL,
     name text NOT NULL,
@@ -5491,12 +7725,36 @@ CREATE TABLE public.map_floors (
     CONSTRAINT map_floors_sort_chk CHECK ((sort_order >= 0))
 );
 
+CREATE TABLE public.markdown_proposals (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    item_id uuid NOT NULL,
+    step_id uuid NOT NULL,
+    proposed_minor bigint NOT NULL,
+    status text DEFAULT 'proposed'::text NOT NULL,
+    proposed_on date NOT NULL,
+    CONSTRAINT markdown_proposals_price_chk CHECK ((proposed_minor > 0)),
+    CONSTRAINT markdown_proposals_status_chk CHECK ((status = ANY (ARRAY['proposed'::text, 'confirmed'::text, 'skipped'::text])))
+);
+
 CREATE TABLE public.markdown_steps (
     id uuid DEFAULT uuidv7() NOT NULL,
     days_on_floor integer NOT NULL,
     percent integer NOT NULL,
     CONSTRAINT markdown_steps_days_chk CHECK (((days_on_floor >= 1) AND (days_on_floor <= 365))),
     CONSTRAINT markdown_steps_percent_chk CHECK (((percent >= 1) AND (percent <= 99)))
+);
+
+CREATE TABLE public.missed_sales (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    journal_id uuid NOT NULL,
+    vendor_id uuid NOT NULL,
+    item_id uuid,
+    price_minor bigint NOT NULL,
+    description text NOT NULL,
+    memo text NOT NULL,
+    CONSTRAINT missed_sales_description_chk CHECK (((description = btrim(description)) AND (description <> ''::text) AND (char_length(description) <= 200))),
+    CONSTRAINT missed_sales_memo_chk CHECK (((memo = btrim(memo)) AND (memo <> ''::text) AND (char_length(memo) <= 200))),
+    CONSTRAINT missed_sales_price_chk CHECK ((price_minor > 0))
 );
 
 CREATE TABLE public.offers (
@@ -5518,6 +7776,13 @@ CREATE TABLE public.offers (
     CONSTRAINT offers_name_chk CHECK (((name = btrim(name)) AND (name <> ''::text) AND (char_length(name) <= 80))),
     CONSTRAINT offers_scope_chk CHECK ((((scope = 'store'::text) AND (scope_id IS NULL)) OR ((scope = ANY (ARRAY['item'::text, 'vendor'::text])) AND (scope_id IS NOT NULL)))),
     CONSTRAINT offers_threshold_chk CHECK ((threshold_qty >= 2))
+);
+
+CREATE TABLE public.override_sign_in_failures (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    username text NOT NULL,
+    failed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT override_sign_in_failures_username_chk CHECK (((username = btrim(username)) AND (username ~ '^[a-z][a-z0-9-]{0,62}$'::text)))
 );
 
 CREATE TABLE public.payout_run_lines (
@@ -5601,6 +7866,15 @@ CREATE TABLE public.payout_runs (
     CONSTRAINT payout_runs_window_chk CHECK ((sales_from <= sales_to))
 );
 
+CREATE TABLE public.pickups (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    item_id uuid NOT NULL,
+    vendor_id uuid NOT NULL,
+    picked_up_on date NOT NULL,
+    received_by text NOT NULL,
+    CONSTRAINT pickups_by_chk CHECK (((received_by = btrim(received_by)) AND (received_by <> ''::text) AND (char_length(received_by) <= 80)))
+);
+
 CREATE TABLE public.register_checks (
     journal_id uuid NOT NULL,
     check_number text NOT NULL,
@@ -5630,11 +7904,45 @@ CREATE TABLE public.register_sessions (
     CONSTRAINT register_sessions_open_cash_chk CHECK ((opening_cash_minor >= 0))
 );
 
+CREATE TABLE public.register_snaps (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    posting_key text NOT NULL,
+    session_id uuid NOT NULL,
+    business_date date NOT NULL,
+    item_id uuid NOT NULL,
+    price_minor bigint NOT NULL,
+    tax_minor bigint NOT NULL,
+    commission_minor bigint NOT NULL,
+    commission_bps integer DEFAULT 0 NOT NULL,
+    tax_bps integer DEFAULT 0 NOT NULL,
+    quantity integer DEFAULT 1 NOT NULL,
+    status text DEFAULT 'waiting'::text NOT NULL,
+    refusal text,
+    journal_id uuid,
+    journal_no bigint,
+    tax_expected_minor bigint,
+    tax_variance_minor bigint,
+    CONSTRAINT register_snaps_key_chk CHECK ((posting_key ~ '^[0-9a-f-]{36}$'::text)),
+    CONSTRAINT register_snaps_money_chk CHECK (((price_minor > 0) AND (tax_minor >= 0) AND (commission_minor >= 0) AND (quantity > 0) AND (commission_bps >= 0) AND (commission_bps <= 10000) AND (tax_bps >= 0) AND (tax_bps <= 100000))),
+    CONSTRAINT register_snaps_status_chk CHECK ((status = ANY (ARRAY['waiting'::text, 'posted'::text, 'refused'::text])))
+);
+
 CREATE TABLE public.registers (
     id uuid DEFAULT uuidv7() NOT NULL,
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT registers_name_chk CHECK (((name = btrim(name)) AND (name <> ''::text) AND (char_length(name) <= 40)))
+);
+
+CREATE TABLE public.saved_reports (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    name text NOT NULL,
+    source text NOT NULL,
+    grouped text NOT NULL,
+    filter_text text DEFAULT ''::text NOT NULL,
+    CONSTRAINT saved_reports_grouped_chk CHECK ((grouped = ANY (ARRAY['day'::text, 'tender'::text, 'vendor'::text, 'cashier'::text, 'hour'::text, 'category'::text, 'none'::text]))),
+    CONSTRAINT saved_reports_name_chk CHECK (((name = btrim(name)) AND (name <> ''::text) AND (char_length(name) <= 80) AND (lower(name) <> 'sales tax'::text))),
+    CONSTRAINT saved_reports_source_chk CHECK ((source = ANY (ARRAY['sales'::text, 'rent'::text, 'payouts'::text, 'stored_value'::text])))
 );
 
 CREATE TABLE public.schema_migrations (
@@ -5662,13 +7970,96 @@ CREATE TABLE public.staff (
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     email text,
     credentials_version integer DEFAULT 1 NOT NULL,
+    discount_ceiling_bps integer DEFAULT 10000 NOT NULL,
+    tax_free_ceiling_minor bigint DEFAULT 100000000 NOT NULL,
     CONSTRAINT staff_credentials_version_chk CHECK ((credentials_version >= 1)),
+    CONSTRAINT staff_discount_ceiling_chk CHECK (((discount_ceiling_bps >= 0) AND (discount_ceiling_bps <= 10000))),
     CONSTRAINT staff_display_name_chk CHECK (((display_name = btrim(display_name)) AND (display_name <> ''::text) AND (char_length(display_name) <= 80))),
     CONSTRAINT staff_email_chk CHECK (((email IS NULL) OR ((email = btrim(email)) AND (char_length(email) <= 200) AND (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text)))),
     CONSTRAINT staff_password_chk CHECK ((char_length(password_hash) >= 20)),
     CONSTRAINT staff_role_chk CHECK ((role = ANY (ARRAY['cashier'::text, 'vendor'::text, 'books'::text]))),
+    CONSTRAINT staff_tax_free_ceiling_chk CHECK ((tax_free_ceiling_minor >= 0)),
     CONSTRAINT staff_username_chk CHECK (((username = btrim(username)) AND (username ~ '^[a-z][a-z0-9-]{0,62}$'::text))),
     CONSTRAINT staff_vendor_chk CHECK ((((role = 'vendor'::text) AND (vendor_id IS NOT NULL)) OR ((role = ANY (ARRAY['cashier'::text, 'books'::text])) AND (vendor_id IS NULL))))
+);
+
+CREATE VIEW public.stall_vendor_agreement WITH (security_barrier='true') AS
+ SELECT agreement_starts_on,
+    agreement_ends_on,
+    payout_mode
+   FROM public.vendors vendor
+  WHERE (id = (NULLIF(current_setting('stall.vendor_id'::text, true), ''::text))::uuid);
+
+CREATE VIEW public.stall_vendor_expiring WITH (security_barrier='true') AS
+ SELECT item.id,
+    item.code,
+    item.description,
+    item.expires_on
+   FROM (public.items item
+     CROSS JOIN public.mall mall)
+  WHERE ((item.vendor_id = (NULLIF(current_setting('stall.vendor_id'::text, true), ''::text))::uuid) AND (item.quantity > 0) AND (item.expires_on IS NOT NULL) AND (item.expires_on <= (((clock_timestamp() AT TIME ZONE mall.time_zone))::date + 14)));
+
+CREATE VIEW public.stall_vendor_items WITH (security_barrier='true') AS
+ SELECT id,
+    code,
+    description,
+    price_minor,
+    quantity,
+    expires_on
+   FROM public.items item
+  WHERE (vendor_id = (NULLIF(current_setting('stall.vendor_id'::text, true), ''::text))::uuid);
+
+CREATE VIEW public.vendor_statement AS
+ SELECT
+        CASE
+            WHEN (role.role = 'vendor_payable'::text) THEN (line.subledger_ref)::uuid
+            ELSE assignment.vendor_id
+        END AS vendor_id,
+    journal.posting_date,
+    journal.occurred_at,
+    journal.journal_no,
+    line.line_no,
+    journal.id AS journal_id,
+    journal.source_type,
+    journal.posting_key,
+    role.role,
+    line.subledger_type,
+    line.subledger_ref,
+    line.debit_minor,
+    line.credit_minor
+   FROM (((public.journal_lines line
+     JOIN public.journals journal ON (((journal.id = line.journal_id) AND (journal.book_id = line.book_id))))
+     JOIN public.chart_roles role ON ((role.account_id = line.account_id)))
+     LEFT JOIN public.booth_assignments assignment ON (((role.role = 'booth_rent_receivable'::text) AND (assignment.booth_id = (line.subledger_ref)::uuid) AND (assignment.assignment_range @> journal.posting_date))))
+  WHERE (role.role = ANY (ARRAY['vendor_payable'::text, 'booth_rent_receivable'::text]));
+
+CREATE VIEW public.stall_vendor_payable WITH (security_barrier='true') AS
+ SELECT (COALESCE(sum((credit_minor - debit_minor)), (0)::numeric))::bigint AS open_minor
+   FROM public.vendor_statement line
+  WHERE ((vendor_id = (NULLIF(current_setting('stall.vendor_id'::text, true), ''::text))::uuid) AND (role = 'vendor_payable'::text));
+
+CREATE VIEW public.stall_vendor_sales WITH (security_barrier='true') AS
+ SELECT sale.journal_id,
+    sale.price_minor,
+    sale.quantity,
+    sale.commission_minor,
+    journal.posting_date
+   FROM ((public.sale_lines sale
+     JOIN public.journals journal ON ((journal.id = sale.journal_id)))
+     JOIN public.items item ON ((item.id = sale.item_id)))
+  WHERE (item.vendor_id = (NULLIF(current_setting('stall.vendor_id'::text, true), ''::text))::uuid);
+
+CREATE TABLE public.store_uses (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    journal_id uuid NOT NULL,
+    vendor_id uuid NOT NULL,
+    item_id uuid,
+    amount_minor bigint NOT NULL,
+    description text NOT NULL,
+    memo text NOT NULL,
+    CONSTRAINT store_uses_amount_chk CHECK ((amount_minor > 0)),
+    CONSTRAINT store_uses_description_chk CHECK (((description = btrim(description)) AND (description <> ''::text) AND (char_length(description) <= 200))),
+    CONSTRAINT store_uses_memo_chk CHECK (((memo = btrim(memo)) AND (memo <> ''::text) AND (char_length(memo) <= 200)))
 );
 
 CREATE TABLE public.stored_values (
@@ -5678,6 +8069,22 @@ CREATE TABLE public.stored_values (
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT stored_values_kind_chk CHECK ((kind = ANY (ARRAY['gift_certificate'::text, 'gift_card'::text, 'store_credit'::text]))),
     CONSTRAINT stored_values_number_chk CHECK (((number = btrim(number)) AND (number <> ''::text) AND (char_length(number) <= 40)))
+);
+
+CREATE TABLE public.ticket_draft_lines (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    session_id uuid NOT NULL,
+    draft_no integer NOT NULL,
+    vendor_id uuid,
+    vendor_label text DEFAULT ''::text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    price_text text DEFAULT ''::text NOT NULL,
+    brand_id uuid,
+    brand_label text DEFAULT ''::text NOT NULL,
+    discount_kind text DEFAULT 'consignor_default'::text NOT NULL,
+    discount_value text DEFAULT ''::text NOT NULL,
+    attributes_json text DEFAULT '{}'::text NOT NULL,
+    CONSTRAINT ticket_draft_lines_no_chk CHECK ((draft_no > 0))
 );
 
 CREATE TABLE public.ticket_lines (
@@ -5722,36 +8129,59 @@ CREATE TABLE public.tickets (
     buyer_id uuid,
     customer_id uuid,
     park_label text,
+    posting_key text GENERATED ALWAYS AS (('sale:'::text || (id)::text)) STORED,
     CONSTRAINT tickets_discount_chk CHECK ((((discount_kind IS NULL) AND (discount_value IS NULL) AND (discount_reason IS NULL)) OR ((discount_kind = 'percent'::text) AND (discount_value > 0) AND (discount_value <= 10000) AND (discount_reason = ANY (ARRAY['manager approval'::text, 'damaged'::text, 'loyalty'::text, 'promotion'::text, 'other'::text]))) OR ((discount_kind = 'amount'::text) AND (discount_value > 0) AND (discount_reason = ANY (ARRAY['manager approval'::text, 'damaged'::text, 'loyalty'::text, 'promotion'::text, 'other'::text]))))),
     CONSTRAINT tickets_park_label_chk CHECK (((park_label IS NULL) OR ((park_label = btrim(park_label)) AND ((char_length(park_label) >= 1) AND (char_length(park_label) <= 40))))),
     CONSTRAINT tickets_posted_chk CHECK ((((status = ANY (ARRAY['open'::text, 'parked'::text, 'layaway'::text])) AND (posted_journal_id IS NULL)) OR ((status = 'posted'::text) AND (posted_journal_id IS NOT NULL)))),
+    CONSTRAINT tickets_posting_key_chk CHECK ((posting_key ~ '^sale:[0-9a-f-]{36}$'::text)),
     CONSTRAINT tickets_status_chk CHECK ((status = ANY (ARRAY['open'::text, 'posted'::text, 'parked'::text, 'layaway'::text]))),
     CONSTRAINT tickets_waiver_chk CHECK (((tax_waiver_reason IS NULL) OR (tax_waiver_reason = ANY (ARRAY['resale'::text, 'charity'::text, 'government or school'::text, 'other'::text]))))
 );
 
-CREATE VIEW public.vendor_statement AS
- SELECT
-        CASE
-            WHEN (role.role = 'vendor_payable'::text) THEN (line.subledger_ref)::uuid
-            ELSE assignment.vendor_id
-        END AS vendor_id,
-    journal.posting_date,
-    journal.occurred_at,
-    journal.journal_no,
-    line.line_no,
-    journal.id AS journal_id,
-    journal.source_type,
-    journal.posting_key,
-    role.role,
-    line.subledger_type,
-    line.subledger_ref,
-    line.debit_minor,
-    line.credit_minor
-   FROM (((public.journal_lines line
-     JOIN public.journals journal ON (((journal.id = line.journal_id) AND (journal.book_id = line.book_id))))
-     JOIN public.chart_roles role ON ((role.account_id = line.account_id)))
-     LEFT JOIN public.booth_assignments assignment ON (((role.role = 'booth_rent_receivable'::text) AND (assignment.booth_id = (line.subledger_ref)::uuid) AND (assignment.assignment_range @> journal.posting_date))))
-  WHERE (role.role = ANY (ARRAY['vendor_payable'::text, 'booth_rent_receivable'::text]));
+CREATE TABLE public.vendor_entry_requests (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    email text NOT NULL,
+    requested_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT vendor_entry_requests_email_chk CHECK (((email = btrim(email)) AND (email <> ''::text)))
+);
+
+CREATE TABLE public.vendor_entry_tokens (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    vendor_id uuid NOT NULL,
+    token_hash text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    used_at timestamp with time zone,
+    CONSTRAINT vendor_entry_tokens_hash_chk CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))
+);
+
+CREATE TABLE public.vendor_letter_copies (
+    letter_id uuid NOT NULL,
+    vendor_id uuid NOT NULL,
+    email text NOT NULL,
+    sent_at timestamp with time zone,
+    CONSTRAINT vendor_letter_copies_email_chk CHECK (((email = btrim(email)) AND (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'::text) AND (char_length(email) <= 200)))
+);
+
+CREATE TABLE public.vendor_letters (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    subject text NOT NULL,
+    body text NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT vendor_letters_body_chk CHECK (((body = btrim(body)) AND (body <> ''::text) AND (char_length(body) <= 4000))),
+    CONSTRAINT vendor_letters_subject_chk CHECK (((subject = btrim(subject)) AND (subject <> ''::text) AND (char_length(subject) <= 150) AND (subject !~ '[\r\n]'::text)))
+);
+
+CREATE TABLE public.vendor_memos (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    journal_id uuid NOT NULL,
+    vendor_id uuid NOT NULL,
+    direction text NOT NULL,
+    amount_minor bigint NOT NULL,
+    reason text NOT NULL,
+    CONSTRAINT vendor_memos_amount_chk CHECK ((amount_minor > 0)),
+    CONSTRAINT vendor_memos_direction_chk CHECK ((direction = ANY (ARRAY['credit'::text, 'debit'::text]))),
+    CONSTRAINT vendor_memos_reason_chk CHECK (((reason = btrim(reason)) AND (reason <> ''::text) AND (char_length(reason) <= 200)))
+);
 
 CREATE TABLE public.wait_list (
     id uuid DEFAULT uuidv7() NOT NULL,
@@ -5772,6 +8202,267 @@ CREATE TABLE public.wait_list (
     CONSTRAINT wait_list_size_chk CHECK ((((width_ft IS NULL) = (depth_ft IS NULL)) AND ((width_ft IS NULL) OR ((width_ft > 0) AND (depth_ft > 0))))),
     CONSTRAINT wait_list_status_chk CHECK ((status = ANY (ARRAY['waiting'::text, 'contacted'::text, 'placed'::text, 'declined'::text])))
 );
+
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000010', '01900000-0000-7000-8000-000000000001', '1000', 'Cash', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.443136+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000011', '01900000-0000-7000-8000-000000000001', '1010', 'Bank', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.443673+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000012', '01900000-0000-7000-8000-000000000001', '4000', 'Commission revenue', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:50.443696+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000013', '01900000-0000-7000-8000-000000000001', '2100', 'Sales tax payable', 'liability', 'credit', true, false, NULL, '2026-10-21 00:42:50.443701+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000014', '01900000-0000-7000-8000-000000000001', '2000', 'Vendor payable', 'liability', 'credit', true, true, 'vendor', '2026-10-21 00:42:50.443707+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000015', '01900000-0000-7000-8000-000000000001', '1200', 'Booth rent receivable', 'asset', 'debit', true, true, 'booth', '2026-10-21 00:42:50.443713+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000016', '01900000-0000-7000-8000-000000000001', '1020', 'Card', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.521647+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000017', '01900000-0000-7000-8000-000000000001', '4100', 'Rent revenue', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:50.538444+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000018', '01900000-0000-7000-8000-000000000001', '6000', 'Operating expense', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:50.610894+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000019', '01900000-0000-7000-8000-000000000001', '3000', 'Retained earnings', 'equity', 'credit', true, false, NULL, '2026-10-21 00:42:50.686443+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001c', '01900000-0000-7000-8000-000000000001', '2200', 'Gift certificates', 'liability', 'credit', true, true, 'gift_certificate', '2026-10-21 00:42:50.925665+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001f', '01900000-0000-7000-8000-000000000001', '6150', 'Cash over/short', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:50.926074+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001e', '01900000-0000-7000-8000-000000000001', '2220', 'Store credit', 'liability', 'credit', true, true, 'store_credit', '2026-10-21 00:42:50.926087+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001b', '01900000-0000-7000-8000-000000000001', '1100', 'Checks', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.926101+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001a', '01900000-0000-7000-8000-000000000001', '1015', 'Cash in safe', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.926109+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001d', '01900000-0000-7000-8000-000000000001', '2210', 'Gift cards', 'liability', 'credit', true, true, 'gift_card', '2026-10-21 00:42:50.926116+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000020', '01900000-0000-7000-8000-000000000001', '6160', 'Cash rounding', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:51.066886+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000021', '01900000-0000-7000-8000-000000000001', '2230', 'Layaway deposits', 'liability', 'credit', true, true, 'ticket', '2026-10-21 00:42:51.140466+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000022', '01900000-0000-7000-8000-000000000001', '6100', 'Store purchases', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:51.168172+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000023', '01900000-0000-7000-8000-000000000001', '4110', 'Late fee income', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:51.443162+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000024', '01900000-0000-7000-8000-000000000001', '6200', 'Promotion expense', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:51.504616+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000027', '01900000-0000-7000-8000-000000000001', '5000', 'Cost of goods', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:51.784291+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000026', '01900000-0000-7000-8000-000000000001', '1300', 'Inventory', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:51.784366+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000025', '01900000-0000-7000-8000-000000000001', '4120', 'Store sales', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:51.784373+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000028', '01900000-0000-7000-8000-000000000001', '6015', 'Vendor allowance', 'expense', 'debit', true, false, NULL, '2026-10-28 06:05:55.017747+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000029', '01900000-0000-7000-8000-000000000001', '4210', 'Vendor charge', 'revenue', 'credit', true, false, NULL, '2026-10-28 06:05:55.017899+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002a', '01900000-0000-7000-8000-000000000001', '1290', 'Returned checks', 'asset', 'debit', true, false, NULL, '2026-10-28 06:05:55.615756+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002b', '01900000-0000-7000-8000-000000000001', '4220', 'Booth extras', 'revenue', 'credit', true, false, NULL, '2026-10-28 06:05:55.615876+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002c', '01900000-0000-7000-8000-000000000001', '2150', 'Booth deposits', 'liability', 'credit', true, false, NULL, '2026-10-28 06:05:55.615883+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002d', '01900000-0000-7000-8000-000000000001', '2151', 'Booth deposits held', 'liability', 'credit', true, true, 'booth', '2026-10-28 06:05:56.044917+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002e', '01900000-0000-7000-8000-000000000001', '1210', 'Vendor receivable', 'asset', 'debit', true, true, 'vendor', '2026-10-28 06:05:57.306203+00');
+
+INSERT INTO public.book_journal_counters (book_id, last_no) VALUES ('01900000-0000-7000-8000-000000000001', 0);
+
+INSERT INTO public.book_payout_run_counters (book_id, last_no) VALUES ('01900000-0000-7000-8000-000000000001', 0);
+
+INSERT INTO public.chart_roles (role, account_id) VALUES ('cash', '01900000-0000-7000-8000-000000000010');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('bank', '01900000-0000-7000-8000-000000000011');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('commission_revenue', '01900000-0000-7000-8000-000000000012');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('sales_tax_payable', '01900000-0000-7000-8000-000000000013');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('vendor_payable', '01900000-0000-7000-8000-000000000014');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_rent_receivable', '01900000-0000-7000-8000-000000000015');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('card', '01900000-0000-7000-8000-000000000016');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('rent_revenue', '01900000-0000-7000-8000-000000000017');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('operating_expense', '01900000-0000-7000-8000-000000000018');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('retained_earnings', '01900000-0000-7000-8000-000000000019');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('checks', '01900000-0000-7000-8000-00000000001b');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('gift_certificate', '01900000-0000-7000-8000-00000000001c');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('store_credit', '01900000-0000-7000-8000-00000000001e');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('cash_over_short', '01900000-0000-7000-8000-00000000001f');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('gift_card', '01900000-0000-7000-8000-00000000001d');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('cash_in_safe', '01900000-0000-7000-8000-00000000001a');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('cash_rounding', '01900000-0000-7000-8000-000000000020');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('layaway_deposit', '01900000-0000-7000-8000-000000000021');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('store_purchases', '01900000-0000-7000-8000-000000000022');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('late_fee_income', '01900000-0000-7000-8000-000000000023');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('promotion_expense', '01900000-0000-7000-8000-000000000024');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('store_sales', '01900000-0000-7000-8000-000000000025');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('inventory', '01900000-0000-7000-8000-000000000026');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('cost_of_goods', '01900000-0000-7000-8000-000000000027');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('vendor_allowance', '01900000-0000-7000-8000-000000000028');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('vendor_charge', '01900000-0000-7000-8000-000000000029');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('returned_checks', '01900000-0000-7000-8000-00000000002a');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_other_revenue', '01900000-0000-7000-8000-00000000002b');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_deposits', '01900000-0000-7000-8000-00000000002c');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_deposit_held', '01900000-0000-7000-8000-00000000002d');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('vendor_receivable', '01900000-0000-7000-8000-00000000002e');
+
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'tax_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'adjustment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'tax_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'tax_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'adjustment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'adjustment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'adjustment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'adjustment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'adjustment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'rent_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'adjustment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'period_close');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'period_close');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'period_close');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('retained_earnings', 'period_close');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_card', 'gift_card_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'gift_card_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_certificate', 'gift_certificate_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'gift_certificate_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'gift_certificate_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'cash_drop');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash_in_safe', 'cash_drop');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'store_credit_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'gift_card_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'store_credit_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash_over_short', 'register_variance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_credit', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_certificate', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'gift_card_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'store_credit_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'gift_certificate_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_credit', 'store_credit_issue');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'register_variance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_card', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash_rounding', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_certificate', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_credit', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_card', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'layaway_deposit');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'layaway_refund');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'layaway_deposit');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'layaway_refund');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('layaway_deposit', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('layaway_deposit', 'layaway_refund');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'layaway_deposit');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'layaway_refund');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('layaway_deposit', 'layaway_deposit');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'safe_disbursement');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'cash_disbursement');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'check_disbursement');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'cash_disbursement');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_purchases', 'store_purchase');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash_in_safe', 'safe_disbursement');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'settlement');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'store_purchase');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'check_disbursement');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'settlement');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'rent_payment');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'late_fee');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('late_fee_income', 'late_fee');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'booth_correction');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('promotion_expense', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('promotion_expense', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cost_of_goods', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('inventory', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_sales', 'sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('inventory', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_sales', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cost_of_goods', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'missed_sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'missed_sale');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_allowance', 'vendor_memo');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_charge', 'vendor_memo');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'vendor_memo');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_purchases', 'store_use');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'store_use');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('returned_checks', 'check_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'check_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'booth_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_other_revenue', 'booth_charge');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'booth_deposit');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_deposits', 'booth_deposit');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_deposit_held', 'booth_deposit');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_receivable', 'item_return');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_receivable', 'clawback_reclass');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_receivable', 'clawback_apply');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'clawback_reclass');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'clawback_apply');
+
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'vendor_payable', '2000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash', '1000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'bank', '1010');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'booth_rent_receivable', '1200');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'sales_tax_payable', '2100');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'operating_expense', '6000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'commission_revenue', '4000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'card', '1020');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'rent_revenue', '4100');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'vendor_payable', '2000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cash', '1000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'bank', '1010');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'booth_rent_receivable', '1200');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'sales_tax_payable', '2100');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'operating_expense', '6000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'commission_revenue', '4000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'card', '1020');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'rent_revenue', '4100');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'retained_earnings', '3000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'retained_earnings', '3000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'gift_certificate', '2200');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'checks', '1100');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'store_credit', '2220');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cash_over_short', '6150');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'gift_card', '2210');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cash_in_safe', '1015');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'gift_certificate', '2200');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'checks', '1100');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'store_credit', '2220');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash_over_short', '6150');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'gift_card', '2210');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash_in_safe', '1015');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash_rounding', '6160');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cash_rounding', '6160');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'layaway_deposit', '2230');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'layaway_deposit', '2230');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'store_purchases', '6100');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'store_purchases', '6100');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'late_fee_income', '4110');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'late_fee_income', '4110');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'promotion_expense', '6200');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'promotion_expense', '6200');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'inventory', '1300');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'store_sales', '4120');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cost_of_goods', '5000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'store_sales', '4120');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'inventory', '1300');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cost_of_goods', '5000');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'vendor_allowance', '6015');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'vendor_charge', '4210');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'vendor_allowance', '6015');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'vendor_charge', '4210');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'returned_checks', '1290');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'booth_other_revenue', '4220');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'booth_deposits', '2150');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'returned_checks', '1290');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'booth_other_revenue', '4220');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'booth_deposits', '2150');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'booth_deposit_held', '2151');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'booth_deposit_held', '2151');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'vendor_receivable', '1210');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'vendor_receivable', '1210');
+
+INSERT INTO public.ledger_books (id, code, name, currency, currency_scale, is_default, created_at) VALUES ('01900000-0000-7000-8000-000000000001', 'mall', 'Mall', 'USD', 2, true, '2026-10-21 00:42:50.440076+00');
+
+INSERT INTO public.mall (id, time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, tax_bps, operating_mode, payout_cadence, rent_prepaid_from_prior_sales, use_color, use_category, use_size, use_condition, use_department, label_stock, use_brand, booth_rentals_enabled, rent_cycle_day, street, street2, city, state, postal, phone, email, late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor, receipt_footer, consignment_enabled, store_stock_enabled, receipt_mail_via, gmail_address, gmail_app_password, late_fee_effective_on, cash_round_minor) VALUES (true, 'America/Los_Angeles', 10, 10, 120, 90, 0, NULL, 0, 'both', 'monthly', false, true, true, true, true, true, 'avery_8160', true, true, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 0, 0, 0, 'Thank you', true, false, 'server', NULL, NULL, NULL, 0);
+
+INSERT INTO public.map_floors (id, name, sort_order) VALUES ('01a15be9-2e20-73a5-85ed-43ebc7a867f3', 'Main Floor', 0);
+
+INSERT INTO public.registers (id, name, created_at) VALUES ('01900000-0000-7000-8000-000000000d10', 'Register', '2026-10-21 00:42:50.890252+00');
 
 ALTER TABLE ONLY public.accounting_periods
     ADD CONSTRAINT accounting_periods_book_id_key UNIQUE (book_id, id);
@@ -5796,6 +8487,15 @@ ALTER TABLE ONLY public.accounts
 
 ALTER TABLE ONLY public.assignment_rent
     ADD CONSTRAINT assignment_rent_pkey PRIMARY KEY (assignment_id);
+
+ALTER TABLE ONLY public.assignment_rent_rates
+    ADD CONSTRAINT assignment_rent_rates_assignment_starts_key UNIQUE (assignment_id, starts_on);
+
+ALTER TABLE ONLY public.assignment_rent_rates
+    ADD CONSTRAINT assignment_rent_rates_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.audit_events
+    ADD CONSTRAINT audit_events_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.book_journal_counters
     ADD CONSTRAINT book_journal_counters_pkey PRIMARY KEY (book_id);
@@ -5836,6 +8536,9 @@ ALTER TABLE ONLY public.chart_source_rules
 ALTER TABLE ONLY public.colors
     ADD CONSTRAINT colors_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.commission_rules
+    ADD CONSTRAINT commission_rules_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.conditions
     ADD CONSTRAINT conditions_pkey PRIMARY KEY (id);
 
@@ -5847,6 +8550,9 @@ ALTER TABLE ONLY public.departments
 
 ALTER TABLE ONLY public.export_accounts
     ADD CONSTRAINT export_accounts_pkey PRIMARY KEY (system, role);
+
+ALTER TABLE ONLY public.floor_findings
+    ADD CONSTRAINT floor_findings_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.item_buys
     ADD CONSTRAINT item_buys_item_id_key UNIQUE (item_id);
@@ -5863,6 +8569,9 @@ ALTER TABLE ONLY public.item_dispositions
 ALTER TABLE ONLY public.item_dispositions
     ADD CONSTRAINT item_dispositions_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.item_floors
+    ADD CONSTRAINT item_floors_pkey PRIMARY KEY (item_id);
+
 ALTER TABLE ONLY public.item_photos
     ADD CONSTRAINT item_photos_pkey PRIMARY KEY (item_id);
 
@@ -5877,6 +8586,9 @@ ALTER TABLE ONLY public.item_returns
 
 ALTER TABLE ONLY public.items
     ADD CONSTRAINT items_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.job_mail_sent
+    ADD CONSTRAINT job_mail_sent_pkey PRIMARY KEY (kind, mail_date, email);
 
 ALTER TABLE ONLY public.journal_cash_tendered
     ADD CONSTRAINT journal_cash_tendered_pkey PRIMARY KEY (journal_id);
@@ -5905,8 +8617,17 @@ ALTER TABLE ONLY public.ledger_books
 ALTER TABLE ONLY public.mall
     ADD CONSTRAINT mall_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.mall_sales
+    ADD CONSTRAINT mall_sales_no_overlap EXCLUDE USING gist (daterange(starts_on, ends_on, '[]'::text) WITH &&);
+
+ALTER TABLE ONLY public.mall_sales
+    ADD CONSTRAINT mall_sales_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.map_floors
     ADD CONSTRAINT map_floors_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.markdown_proposals
+    ADD CONSTRAINT markdown_proposals_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.markdown_steps
     ADD CONSTRAINT markdown_steps_days_key UNIQUE (days_on_floor);
@@ -5917,8 +8638,17 @@ ALTER TABLE ONLY public.markdown_steps
 ALTER TABLE ONLY public.markdown_steps
     ADD CONSTRAINT markdown_steps_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.missed_sales
+    ADD CONSTRAINT missed_sales_journal_key UNIQUE (journal_id);
+
+ALTER TABLE ONLY public.missed_sales
+    ADD CONSTRAINT missed_sales_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.offers
     ADD CONSTRAINT offers_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.override_sign_in_failures
+    ADD CONSTRAINT override_sign_in_failures_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.payout_run_journals
     ADD CONSTRAINT payout_run_journals_pkey PRIMARY KEY (run_id, journal_id);
@@ -5941,6 +8671,9 @@ ALTER TABLE ONLY public.payout_runs
 ALTER TABLE ONLY public.payout_runs
     ADD CONSTRAINT payout_runs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.pickups
+    ADD CONSTRAINT pickups_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.register_checks
     ADD CONSTRAINT register_checks_pkey PRIMARY KEY (journal_id);
 
@@ -5949,6 +8682,12 @@ ALTER TABLE ONLY public.register_session_posts
 
 ALTER TABLE ONLY public.register_sessions
     ADD CONSTRAINT register_sessions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.register_snaps
+    ADD CONSTRAINT register_snaps_key_key UNIQUE (posting_key);
+
+ALTER TABLE ONLY public.register_snaps
+    ADD CONSTRAINT register_snaps_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.registers
     ADD CONSTRAINT registers_pkey PRIMARY KEY (id);
@@ -5959,6 +8698,12 @@ ALTER TABLE ONLY public.sale_lines
 ALTER TABLE ONLY public.sale_lines
     ADD CONSTRAINT sale_lines_pkey PRIMARY KEY (journal_id, line_no);
 
+ALTER TABLE ONLY public.saved_reports
+    ADD CONSTRAINT saved_reports_name_key UNIQUE (name);
+
+ALTER TABLE ONLY public.saved_reports
+    ADD CONSTRAINT saved_reports_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);
 
@@ -5968,8 +8713,20 @@ ALTER TABLE ONLY public.sizes
 ALTER TABLE ONLY public.staff
     ADD CONSTRAINT staff_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.store_uses
+    ADD CONSTRAINT store_uses_journal_key UNIQUE (journal_id);
+
+ALTER TABLE ONLY public.store_uses
+    ADD CONSTRAINT store_uses_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.stored_values
     ADD CONSTRAINT stored_values_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.ticket_draft_lines
+    ADD CONSTRAINT ticket_draft_lines_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.ticket_draft_lines
+    ADD CONSTRAINT ticket_draft_lines_session_draft_key UNIQUE (session_id, draft_no);
 
 ALTER TABLE ONLY public.ticket_lines
     ADD CONSTRAINT ticket_lines_item_key UNIQUE (ticket_id, item_id);
@@ -5983,6 +8740,30 @@ ALTER TABLE ONLY public.ticket_tenders
 ALTER TABLE ONLY public.tickets
     ADD CONSTRAINT tickets_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_posting_key_key UNIQUE (posting_key);
+
+ALTER TABLE ONLY public.vendor_entry_requests
+    ADD CONSTRAINT vendor_entry_requests_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.vendor_entry_tokens
+    ADD CONSTRAINT vendor_entry_tokens_hash_key UNIQUE (token_hash);
+
+ALTER TABLE ONLY public.vendor_entry_tokens
+    ADD CONSTRAINT vendor_entry_tokens_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.vendor_letter_copies
+    ADD CONSTRAINT vendor_letter_copies_pkey PRIMARY KEY (letter_id, vendor_id);
+
+ALTER TABLE ONLY public.vendor_letters
+    ADD CONSTRAINT vendor_letters_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.vendor_memos
+    ADD CONSTRAINT vendor_memos_journal_key UNIQUE (journal_id);
+
+ALTER TABLE ONLY public.vendor_memos
+    ADD CONSTRAINT vendor_memos_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.vendors
     ADD CONSTRAINT vendors_code_key UNIQUE (code);
 
@@ -5991,6 +8772,8 @@ ALTER TABLE ONLY public.vendors
 
 ALTER TABLE ONLY public.wait_list
     ADD CONSTRAINT wait_list_pkey PRIMARY KEY (id);
+
+CREATE INDEX assignment_rent_rates_assignment_idx ON public.assignment_rent_rates USING btree (assignment_id, starts_on DESC);
 
 CREATE UNIQUE INDEX brands_name_key ON public.brands USING btree (lower(name));
 
@@ -6022,6 +8805,8 @@ CREATE UNIQUE INDEX ledger_books_one_default ON public.ledger_books USING btree 
 
 CREATE UNIQUE INDEX map_floors_name_key ON public.map_floors USING btree (lower(name));
 
+CREATE INDEX override_sign_in_failures_window ON public.override_sign_in_failures USING btree (username, failed_at);
+
 CREATE UNIQUE INDEX payout_runs_one_draft_window ON public.payout_runs USING btree (book_id, sales_from, sales_to, COALESCE(rent_month, '0001-01-01'::date)) WHERE ((status = 'draft'::text) AND (reverses_run_id IS NULL) AND (kind = 'batch'::text));
 
 CREATE UNIQUE INDEX register_sessions_one_open ON public.register_sessions USING btree (register_id) WHERE (closed_at IS NULL);
@@ -6034,11 +8819,15 @@ CREATE UNIQUE INDEX staff_username_key ON public.staff USING btree (lower(userna
 
 CREATE UNIQUE INDEX stored_values_number_key ON public.stored_values USING btree (kind, lower(number));
 
+CREATE INDEX ticket_draft_lines_session_idx ON public.ticket_draft_lines USING btree (session_id);
+
 CREATE UNIQUE INDEX tickets_one_open ON public.tickets USING btree (session_id) WHERE (status = 'open'::text);
 
 CREATE UNIQUE INDEX wait_list_open_email_key ON public.wait_list USING btree (lower(email)) WHERE (status = ANY (ARRAY['waiting'::text, 'contacted'::text]));
 
 CREATE TRIGGER accounting_periods_before_closed BEFORE INSERT ON public.accounting_periods FOR EACH ROW EXECUTE FUNCTION public.stall_reject_period_before_closed();
+
+CREATE TRIGGER accounting_periods_export_tie BEFORE UPDATE OF status ON public.accounting_periods FOR EACH ROW EXECUTE FUNCTION public.stall_guard_period_export();
 
 CREATE TRIGGER accounting_periods_frozen BEFORE DELETE OR UPDATE ON public.accounting_periods FOR EACH ROW EXECUTE FUNCTION public.ledger_reject_period_change();
 
@@ -6063,6 +8852,24 @@ CREATE TRIGGER assignment_rent_frozen_after_charge BEFORE DELETE OR UPDATE ON pu
 CREATE TRIGGER assignment_rent_no_truncate BEFORE TRUNCATE ON public.assignment_rent FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
 ALTER TABLE public.assignment_rent ENABLE ALWAYS TRIGGER assignment_rent_no_truncate;
+
+CREATE TRIGGER assignment_rent_rates_append_only BEFORE DELETE OR UPDATE ON public.assignment_rent_rates FOR EACH ROW EXECUTE FUNCTION public.stall_reject_assignment_rent_rate_rewrite();
+
+ALTER TABLE public.assignment_rent_rates ENABLE ALWAYS TRIGGER assignment_rent_rates_append_only;
+
+CREATE TRIGGER assignment_rent_rates_no_truncate BEFORE TRUNCATE ON public.assignment_rent_rates FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.assignment_rent_rates ENABLE ALWAYS TRIGGER assignment_rent_rates_no_truncate;
+
+CREATE TRIGGER assignment_rent_seed_rate AFTER INSERT ON public.assignment_rent FOR EACH ROW EXECUTE FUNCTION public.stall_seed_assignment_rent_rate();
+
+CREATE TRIGGER audit_events_no_delete BEFORE DELETE OR UPDATE ON public.audit_events FOR EACH ROW EXECUTE FUNCTION public.stall_reject_audit_write();
+
+ALTER TABLE public.audit_events ENABLE ALWAYS TRIGGER audit_events_no_delete;
+
+CREATE TRIGGER audit_events_no_truncate BEFORE TRUNCATE ON public.audit_events FOR EACH STATEMENT EXECUTE FUNCTION public.stall_reject_audit_write();
+
+ALTER TABLE public.audit_events ENABLE ALWAYS TRIGGER audit_events_no_truncate;
 
 CREATE TRIGGER booth_assignments_append_only BEFORE DELETE OR UPDATE ON public.booth_assignments FOR EACH ROW EXECUTE FUNCTION public.stall_reject_assignment_rewrite();
 
@@ -6114,6 +8921,8 @@ CREATE TRIGGER colors_no_truncate BEFORE TRUNCATE ON public.colors FOR EACH STAT
 
 ALTER TABLE public.colors ENABLE ALWAYS TRIGGER colors_no_truncate;
 
+CREATE TRIGGER commission_rules_guard BEFORE INSERT OR UPDATE ON public.commission_rules FOR EACH ROW EXECUTE FUNCTION public.stall_guard_commission_rule();
+
 CREATE TRIGGER conditions_no_truncate BEFORE TRUNCATE ON public.conditions FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
 ALTER TABLE public.conditions ENABLE ALWAYS TRIGGER conditions_no_truncate;
@@ -6131,6 +8940,10 @@ CREATE TRIGGER item_buys_apply BEFORE INSERT ON public.item_buys FOR EACH ROW EX
 CREATE TRIGGER item_buys_no_truncate BEFORE TRUNCATE ON public.item_buys FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
 ALTER TABLE public.item_buys ENABLE ALWAYS TRIGGER item_buys_no_truncate;
+
+CREATE TRIGGER item_buys_store_use_no_delete BEFORE INSERT ON public.item_buys FOR EACH ROW EXECUTE FUNCTION public.stall_reject_buy_of_store_use();
+
+ALTER TABLE public.item_buys ENABLE ALWAYS TRIGGER item_buys_store_use_no_delete;
 
 CREATE TRIGGER item_dispositions_apply BEFORE INSERT ON public.item_dispositions FOR EACH ROW EXECUTE FUNCTION public.stall_apply_disposition();
 
@@ -6172,6 +8985,10 @@ CREATE TRIGGER journal_lines_append_only BEFORE DELETE OR UPDATE ON public.journ
 
 ALTER TABLE public.journal_lines ENABLE ALWAYS TRIGGER journal_lines_append_only;
 
+CREATE TRIGGER journal_lines_booth_deposit_append_only AFTER INSERT ON public.journal_lines FOR EACH ROW EXECUTE FUNCTION public.stall_refuse_booth_deposit_overdraw();
+
+ALTER TABLE public.journal_lines ENABLE ALWAYS TRIGGER journal_lines_booth_deposit_append_only;
+
 CREATE TRIGGER journal_lines_control_source BEFORE INSERT ON public.journal_lines FOR EACH ROW EXECUTE FUNCTION public.stall_reject_control_source();
 
 CREATE TRIGGER journal_lines_no_truncate BEFORE TRUNCATE ON public.journal_lines FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
@@ -6193,6 +9010,10 @@ CREATE CONSTRAINT TRIGGER journals_balanced AFTER INSERT ON public.journals DEFE
 CREATE CONSTRAINT TRIGGER journals_cash_drop_no_delete AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_cash_drop();
 
 ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_cash_drop_no_delete;
+
+CREATE CONSTRAINT TRIGGER journals_clawback_no_delete AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_clawback();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_clawback_no_delete;
 
 CREATE TRIGGER journals_closed_payout_window AFTER INSERT ON public.journals FOR EACH ROW EXECUTE FUNCTION public.stall_reject_closed_payout_window();
 
@@ -6216,6 +9037,12 @@ CREATE TRIGGER journals_live_key BEFORE INSERT ON public.journals FOR EACH ROW E
 
 ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_live_key;
 
+CREATE CONSTRAINT TRIGGER journals_missed_sale_no_delete AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_missed_sale();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_missed_sale_no_delete;
+
+CREATE TRIGGER journals_missed_sale_restore AFTER INSERT ON public.journals FOR EACH ROW EXECUTE FUNCTION public.stall_restore_missed_sale();
+
 CREATE TRIGGER journals_no_truncate BEFORE TRUNCATE ON public.journals FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
 ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_no_truncate;
@@ -6225,6 +9052,10 @@ CREATE CONSTRAINT TRIGGER journals_opening AFTER INSERT ON public.journals DEFER
 CREATE TRIGGER journals_opening_key BEFORE INSERT ON public.journals FOR EACH ROW EXECUTE FUNCTION public.stall_reject_duplicate_opening();
 
 ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_opening_key;
+
+CREATE CONSTRAINT TRIGGER journals_payable_floor_no_delete AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_subledger_non_negative();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_payable_floor_no_delete;
 
 CREATE CONSTRAINT TRIGGER journals_payout AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_payout();
 
@@ -6256,17 +9087,27 @@ CREATE CONSTRAINT TRIGGER journals_store_purchase AFTER INSERT ON public.journal
 
 ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_store_purchase;
 
+CREATE CONSTRAINT TRIGGER journals_store_use_no_delete AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_store_use();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_store_use_no_delete;
+
+CREATE TRIGGER journals_store_use_restore_no_delete AFTER INSERT ON public.journals FOR EACH ROW EXECUTE FUNCTION public.stall_restore_store_use();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_store_use_restore_no_delete;
+
 CREATE CONSTRAINT TRIGGER journals_stored_value_issue AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_stored_value_issue();
 
 CREATE CONSTRAINT TRIGGER journals_subledger_non_negative AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_subledger_non_negative();
 
 CREATE CONSTRAINT TRIGGER journals_tax_payment AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_tax_payment();
 
+CREATE TRIGGER journals_vendor_memo_once AFTER INSERT ON public.journals FOR EACH ROW EXECUTE FUNCTION public.stall_reject_second_vendor_memo();
+
+CREATE CONSTRAINT TRIGGER journals_vendor_memo_shape AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_vendor_memo();
+
 CREATE TRIGGER ledger_books_currency_frozen BEFORE UPDATE OF currency, currency_scale ON public.ledger_books FOR EACH ROW EXECUTE FUNCTION public.ledger_reject_book_currency();
 
 CREATE TRIGGER ledger_books_journal_counter AFTER INSERT ON public.ledger_books FOR EACH ROW EXECUTE FUNCTION public.ledger_seed_journal_counter();
-
-INSERT INTO public.ledger_books (id, code, name, currency, currency_scale, is_default, created_at) VALUES ('01900000-0000-7000-8000-000000000001', 'mall', 'Mall', 'USD', 2, true, '2026-10-21 00:42:50.440076+00');
 
 CREATE TRIGGER ledger_books_no_truncate BEFORE TRUNCATE ON public.ledger_books FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
@@ -6307,6 +9148,18 @@ CREATE TRIGGER markdown_steps_no_truncate BEFORE TRUNCATE ON public.markdown_ste
 ALTER TABLE public.markdown_steps ENABLE ALWAYS TRIGGER markdown_steps_no_truncate;
 
 CREATE TRIGGER markdown_steps_order BEFORE INSERT OR UPDATE ON public.markdown_steps FOR EACH ROW EXECUTE FUNCTION public.stall_guard_markdown_step();
+
+CREATE TRIGGER missed_sales_apply_no_delete BEFORE INSERT ON public.missed_sales FOR EACH ROW EXECUTE FUNCTION public.stall_apply_missed_sale();
+
+ALTER TABLE public.missed_sales ENABLE ALWAYS TRIGGER missed_sales_apply_no_delete;
+
+CREATE TRIGGER missed_sales_no_delete BEFORE DELETE OR UPDATE ON public.missed_sales FOR EACH ROW EXECUTE FUNCTION public.stall_reject_missed_sale_write();
+
+ALTER TABLE public.missed_sales ENABLE ALWAYS TRIGGER missed_sales_no_delete;
+
+CREATE TRIGGER missed_sales_no_truncate BEFORE TRUNCATE ON public.missed_sales FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.missed_sales ENABLE ALWAYS TRIGGER missed_sales_no_truncate;
 
 CREATE TRIGGER offers_guard BEFORE INSERT OR DELETE OR UPDATE ON public.offers FOR EACH ROW EXECUTE FUNCTION public.stall_assert_offer();
 
@@ -6410,6 +9263,10 @@ CREATE TRIGGER registers_no_truncate BEFORE TRUNCATE ON public.registers FOR EAC
 
 ALTER TABLE public.registers ENABLE ALWAYS TRIGGER registers_no_truncate;
 
+CREATE TRIGGER sale_lines_00_price BEFORE INSERT ON public.sale_lines FOR EACH ROW EXECUTE FUNCTION public.stall_apply_snap_price();
+
+CREATE TRIGGER sale_lines_00_rate BEFORE INSERT ON public.sale_lines FOR EACH ROW EXECUTE FUNCTION public.stall_apply_commission_rate();
+
 CREATE TRIGGER sale_lines_append_only BEFORE INSERT OR DELETE OR UPDATE ON public.sale_lines FOR EACH ROW EXECUTE FUNCTION public.stall_assert_sale_shape();
 
 ALTER TABLE public.sale_lines ENABLE ALWAYS TRIGGER sale_lines_append_only;
@@ -6422,6 +9279,8 @@ CREATE CONSTRAINT TRIGGER sale_lines_open_ticket_no_delete AFTER INSERT ON publi
 
 ALTER TABLE public.sale_lines ENABLE ALWAYS TRIGGER sale_lines_open_ticket_no_delete;
 
+CREATE TRIGGER sale_lines_zz_rate AFTER INSERT ON public.sale_lines FOR EACH ROW EXECUTE FUNCTION public.stall_restore_commission_rate();
+
 CREATE TRIGGER sizes_no_truncate BEFORE TRUNCATE ON public.sizes FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
 ALTER TABLE public.sizes ENABLE ALWAYS TRIGGER sizes_no_truncate;
@@ -6429,6 +9288,22 @@ ALTER TABLE public.sizes ENABLE ALWAYS TRIGGER sizes_no_truncate;
 CREATE TRIGGER staff_no_truncate BEFORE TRUNCATE ON public.staff FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
 ALTER TABLE public.staff ENABLE ALWAYS TRIGGER staff_no_truncate;
+
+CREATE TRIGGER staff_sign_in_directory AFTER INSERT OR UPDATE OF email, username ON public.staff FOR EACH ROW EXECUTE FUNCTION public.staff_sign_in_directory();
+
+CREATE TRIGGER staff_sign_in_directory_delete AFTER DELETE ON public.staff FOR EACH ROW EXECUTE FUNCTION public.staff_sign_in_directory();
+
+CREATE TRIGGER store_uses_apply_no_delete BEFORE INSERT ON public.store_uses FOR EACH ROW EXECUTE FUNCTION public.stall_apply_store_use();
+
+ALTER TABLE public.store_uses ENABLE ALWAYS TRIGGER store_uses_apply_no_delete;
+
+CREATE TRIGGER store_uses_no_delete BEFORE DELETE OR UPDATE ON public.store_uses FOR EACH ROW EXECUTE FUNCTION public.stall_reject_store_use_write();
+
+ALTER TABLE public.store_uses ENABLE ALWAYS TRIGGER store_uses_no_delete;
+
+CREATE TRIGGER store_uses_no_truncate BEFORE TRUNCATE ON public.store_uses FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.store_uses ENABLE ALWAYS TRIGGER store_uses_no_truncate;
 
 CREATE TRIGGER stored_values_append_only BEFORE UPDATE ON public.stored_values FOR EACH ROW EXECUTE FUNCTION public.stall_reject_stored_value_change();
 
@@ -6458,6 +9333,38 @@ CREATE TRIGGER tickets_no_truncate BEFORE TRUNCATE ON public.tickets FOR EACH ST
 
 ALTER TABLE public.tickets ENABLE ALWAYS TRIGGER tickets_no_truncate;
 
+CREATE TRIGGER vendor_letter_copies_apply_no_delete BEFORE INSERT ON public.vendor_letter_copies FOR EACH ROW EXECUTE FUNCTION public.stall_apply_vendor_letter_copy();
+
+ALTER TABLE public.vendor_letter_copies ENABLE ALWAYS TRIGGER vendor_letter_copies_apply_no_delete;
+
+CREATE TRIGGER vendor_letter_copies_no_delete BEFORE DELETE OR UPDATE ON public.vendor_letter_copies FOR EACH ROW EXECUTE FUNCTION public.stall_guard_vendor_letter_copy();
+
+ALTER TABLE public.vendor_letter_copies ENABLE ALWAYS TRIGGER vendor_letter_copies_no_delete;
+
+CREATE TRIGGER vendor_letter_copies_no_truncate BEFORE TRUNCATE ON public.vendor_letter_copies FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.vendor_letter_copies ENABLE ALWAYS TRIGGER vendor_letter_copies_no_truncate;
+
+CREATE TRIGGER vendor_letters_no_delete BEFORE DELETE OR UPDATE ON public.vendor_letters FOR EACH ROW EXECUTE FUNCTION public.stall_reject_vendor_letter();
+
+ALTER TABLE public.vendor_letters ENABLE ALWAYS TRIGGER vendor_letters_no_delete;
+
+CREATE TRIGGER vendor_letters_no_truncate BEFORE TRUNCATE ON public.vendor_letters FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.vendor_letters ENABLE ALWAYS TRIGGER vendor_letters_no_truncate;
+
+CREATE TRIGGER vendor_memos_apply_no_delete BEFORE INSERT ON public.vendor_memos FOR EACH ROW EXECUTE FUNCTION public.stall_apply_vendor_memo();
+
+ALTER TABLE public.vendor_memos ENABLE ALWAYS TRIGGER vendor_memos_apply_no_delete;
+
+CREATE TRIGGER vendor_memos_no_delete BEFORE DELETE OR UPDATE ON public.vendor_memos FOR EACH ROW EXECUTE FUNCTION public.stall_reject_vendor_memo_write();
+
+ALTER TABLE public.vendor_memos ENABLE ALWAYS TRIGGER vendor_memos_no_delete;
+
+CREATE TRIGGER vendor_memos_no_truncate BEFORE TRUNCATE ON public.vendor_memos FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.vendor_memos ENABLE ALWAYS TRIGGER vendor_memos_no_truncate;
+
 CREATE TRIGGER vendors_no_truncate BEFORE TRUNCATE ON public.vendors FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
 ALTER TABLE public.vendors ENABLE ALWAYS TRIGGER vendors_no_truncate;
@@ -6482,6 +9389,9 @@ ALTER TABLE ONLY public.accounts
 
 ALTER TABLE ONLY public.assignment_rent
     ADD CONSTRAINT assignment_rent_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES public.booth_assignments(id);
+
+ALTER TABLE ONLY public.assignment_rent_rates
+    ADD CONSTRAINT assignment_rent_rates_assignment_fkey FOREIGN KEY (assignment_id) REFERENCES public.booth_assignments(id);
 
 ALTER TABLE ONLY public.book_journal_counters
     ADD CONSTRAINT book_journal_counters_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.ledger_books(id);
@@ -6509,6 +9419,9 @@ ALTER TABLE ONLY public.chart_source_rules
 
 ALTER TABLE ONLY public.export_accounts
     ADD CONSTRAINT export_accounts_role_fkey FOREIGN KEY (role) REFERENCES public.chart_roles(role);
+
+ALTER TABLE ONLY public.floor_findings
+    ADD CONSTRAINT floor_findings_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
 
 ALTER TABLE ONLY public.item_buys
     ADD CONSTRAINT item_buys_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
@@ -6579,6 +9492,15 @@ ALTER TABLE ONLY public.journals
 ALTER TABLE ONLY public.journals
     ADD CONSTRAINT journals_reverses_journal_id_fkey FOREIGN KEY (reverses_journal_id) REFERENCES public.journals(id);
 
+ALTER TABLE ONLY public.missed_sales
+    ADD CONSTRAINT missed_sales_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
+
+ALTER TABLE ONLY public.missed_sales
+    ADD CONSTRAINT missed_sales_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.journals(id);
+
+ALTER TABLE ONLY public.missed_sales
+    ADD CONSTRAINT missed_sales_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
+
 ALTER TABLE ONLY public.payout_run_journals
     ADD CONSTRAINT payout_run_journals_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.journals(id);
 
@@ -6615,6 +9537,12 @@ ALTER TABLE ONLY public.payout_runs
 ALTER TABLE ONLY public.payout_runs
     ADD CONSTRAINT payout_runs_reverses_run_id_fkey FOREIGN KEY (reverses_run_id) REFERENCES public.payout_runs(id);
 
+ALTER TABLE ONLY public.pickups
+    ADD CONSTRAINT pickups_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
+
+ALTER TABLE ONLY public.pickups
+    ADD CONSTRAINT pickups_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
+
 ALTER TABLE ONLY public.register_checks
     ADD CONSTRAINT register_checks_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.journals(id);
 
@@ -6639,6 +9567,24 @@ ALTER TABLE ONLY public.sale_lines
 ALTER TABLE ONLY public.staff
     ADD CONSTRAINT staff_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
 
+ALTER TABLE ONLY public.store_uses
+    ADD CONSTRAINT store_uses_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
+
+ALTER TABLE ONLY public.store_uses
+    ADD CONSTRAINT store_uses_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.journals(id);
+
+ALTER TABLE ONLY public.store_uses
+    ADD CONSTRAINT store_uses_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
+
+ALTER TABLE ONLY public.ticket_draft_lines
+    ADD CONSTRAINT ticket_draft_lines_brand_fkey FOREIGN KEY (brand_id) REFERENCES public.brands(id);
+
+ALTER TABLE ONLY public.ticket_draft_lines
+    ADD CONSTRAINT ticket_draft_lines_session_fkey FOREIGN KEY (session_id) REFERENCES public.register_sessions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.ticket_draft_lines
+    ADD CONSTRAINT ticket_draft_lines_vendor_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
+
 ALTER TABLE ONLY public.ticket_lines
     ADD CONSTRAINT ticket_lines_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
 
@@ -6662,6 +9608,18 @@ ALTER TABLE ONLY public.tickets
 
 ALTER TABLE ONLY public.tickets
     ADD CONSTRAINT tickets_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.register_sessions(id);
+
+ALTER TABLE ONLY public.vendor_letter_copies
+    ADD CONSTRAINT vendor_letter_copies_letter_id_fkey FOREIGN KEY (letter_id) REFERENCES public.vendor_letters(id);
+
+ALTER TABLE ONLY public.vendor_letter_copies
+    ADD CONSTRAINT vendor_letter_copies_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
+
+ALTER TABLE ONLY public.vendor_memos
+    ADD CONSTRAINT vendor_memos_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.journals(id);
+
+ALTER TABLE ONLY public.vendor_memos
+    ADD CONSTRAINT vendor_memos_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
 
 GRANT USAGE ON SCHEMA public TO stall_poster;
 
@@ -6857,205 +9815,266 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.wait_list TO stall_poster;
 
 GRANT SELECT ON TABLE public.wait_list TO stall_backup;
 
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000010', '01900000-0000-7000-8000-000000000001', '1000', 'Cash', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.443136+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000011', '01900000-0000-7000-8000-000000000001', '1010', 'Bank', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.443673+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000012', '01900000-0000-7000-8000-000000000001', '4000', 'Commission revenue', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:50.443696+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000013', '01900000-0000-7000-8000-000000000001', '2100', 'Sales tax payable', 'liability', 'credit', true, false, NULL, '2026-10-21 00:42:50.443701+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000014', '01900000-0000-7000-8000-000000000001', '2000', 'Vendor payable', 'liability', 'credit', true, true, 'vendor', '2026-10-21 00:42:50.443707+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000015', '01900000-0000-7000-8000-000000000001', '1200', 'Booth rent receivable', 'asset', 'debit', true, true, 'booth', '2026-10-21 00:42:50.443713+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000016', '01900000-0000-7000-8000-000000000001', '1020', 'Card', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.521647+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000017', '01900000-0000-7000-8000-000000000001', '4100', 'Rent revenue', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:50.538444+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000018', '01900000-0000-7000-8000-000000000001', '6000', 'Operating expense', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:50.610894+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000019', '01900000-0000-7000-8000-000000000001', '3000', 'Retained earnings', 'equity', 'credit', true, false, NULL, '2026-10-21 00:42:50.686443+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001c', '01900000-0000-7000-8000-000000000001', '2200', 'Gift certificates', 'liability', 'credit', true, true, 'gift_certificate', '2026-10-21 00:42:50.925665+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001f', '01900000-0000-7000-8000-000000000001', '6150', 'Cash over/short', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:50.926074+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001e', '01900000-0000-7000-8000-000000000001', '2220', 'Store credit', 'liability', 'credit', true, true, 'store_credit', '2026-10-21 00:42:50.926087+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001b', '01900000-0000-7000-8000-000000000001', '1100', 'Checks', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.926101+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001a', '01900000-0000-7000-8000-000000000001', '1015', 'Cash in safe', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.926109+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000001d', '01900000-0000-7000-8000-000000000001', '2210', 'Gift cards', 'liability', 'credit', true, true, 'gift_card', '2026-10-21 00:42:50.926116+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000020', '01900000-0000-7000-8000-000000000001', '6160', 'Cash rounding', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:51.066886+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000021', '01900000-0000-7000-8000-000000000001', '2230', 'Layaway deposits', 'liability', 'credit', true, true, 'ticket', '2026-10-21 00:42:51.140466+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000022', '01900000-0000-7000-8000-000000000001', '6100', 'Store purchases', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:51.168172+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000023', '01900000-0000-7000-8000-000000000001', '4110', 'Late fee income', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:51.443162+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000024', '01900000-0000-7000-8000-000000000001', '6200', 'Promotion expense', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:51.504616+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000027', '01900000-0000-7000-8000-000000000001', '5000', 'Cost of goods', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:51.784291+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000026', '01900000-0000-7000-8000-000000000001', '1300', 'Inventory', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:51.784366+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000025', '01900000-0000-7000-8000-000000000001', '4120', 'Store sales', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:51.784373+00');
-INSERT INTO public.book_payout_run_counters (book_id, last_no) VALUES ('01900000-0000-7000-8000-000000000001', 0);
-INSERT INTO public.chart_roles (role, account_id) VALUES ('cash', '01900000-0000-7000-8000-000000000010');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('bank', '01900000-0000-7000-8000-000000000011');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('commission_revenue', '01900000-0000-7000-8000-000000000012');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('sales_tax_payable', '01900000-0000-7000-8000-000000000013');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('vendor_payable', '01900000-0000-7000-8000-000000000014');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_rent_receivable', '01900000-0000-7000-8000-000000000015');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('card', '01900000-0000-7000-8000-000000000016');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('rent_revenue', '01900000-0000-7000-8000-000000000017');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('operating_expense', '01900000-0000-7000-8000-000000000018');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('retained_earnings', '01900000-0000-7000-8000-000000000019');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('checks', '01900000-0000-7000-8000-00000000001b');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('gift_certificate', '01900000-0000-7000-8000-00000000001c');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('store_credit', '01900000-0000-7000-8000-00000000001e');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('cash_over_short', '01900000-0000-7000-8000-00000000001f');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('gift_card', '01900000-0000-7000-8000-00000000001d');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('cash_in_safe', '01900000-0000-7000-8000-00000000001a');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('cash_rounding', '01900000-0000-7000-8000-000000000020');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('layaway_deposit', '01900000-0000-7000-8000-000000000021');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('store_purchases', '01900000-0000-7000-8000-000000000022');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('late_fee_income', '01900000-0000-7000-8000-000000000023');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('promotion_expense', '01900000-0000-7000-8000-000000000024');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('store_sales', '01900000-0000-7000-8000-000000000025');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('inventory', '01900000-0000-7000-8000-000000000026');
-INSERT INTO public.chart_roles (role, account_id) VALUES ('cost_of_goods', '01900000-0000-7000-8000-000000000027');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'tax_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'adjustment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'tax_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'tax_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'adjustment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'adjustment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'adjustment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'adjustment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'adjustment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'rent_charge');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'adjustment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'period_close');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_revenue', 'period_close');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('operating_expense', 'period_close');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('retained_earnings', 'period_close');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_card', 'gift_card_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'gift_card_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_certificate', 'gift_certificate_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'gift_certificate_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'gift_certificate_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'cash_drop');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash_in_safe', 'cash_drop');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'store_credit_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'gift_card_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'store_credit_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash_over_short', 'register_variance');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_credit', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_certificate', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'gift_card_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'store_credit_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'gift_certificate_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_credit', 'store_credit_issue');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'register_variance');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_card', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash_rounding', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('commission_revenue', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_certificate', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_credit', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('gift_card', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'layaway_deposit');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'layaway_refund');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'layaway_deposit');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'layaway_refund');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('layaway_deposit', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('layaway_deposit', 'layaway_refund');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'layaway_deposit');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'layaway_refund');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('layaway_deposit', 'layaway_deposit');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'safe_disbursement');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'cash_disbursement');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'check_disbursement');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'cash_disbursement');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_purchases', 'store_purchase');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash_in_safe', 'safe_disbursement');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'settlement');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'store_purchase');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'check_disbursement');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'settlement');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'rent_payment');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'late_fee');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('late_fee_income', 'late_fee');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'booth_correction');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('promotion_expense', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('promotion_expense', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cost_of_goods', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('inventory', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_sales', 'sale');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('inventory', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('store_sales', 'item_return');
-INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cost_of_goods', 'item_return');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'vendor_payable', '2000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash', '1000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'bank', '1010');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'booth_rent_receivable', '1200');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'sales_tax_payable', '2100');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'operating_expense', '6000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'commission_revenue', '4000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'card', '1020');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'rent_revenue', '4100');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'vendor_payable', '2000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cash', '1000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'bank', '1010');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'booth_rent_receivable', '1200');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'sales_tax_payable', '2100');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'operating_expense', '6000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'commission_revenue', '4000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'card', '1020');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'rent_revenue', '4100');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'retained_earnings', '3000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'retained_earnings', '3000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'gift_certificate', '2200');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'checks', '1100');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'store_credit', '2220');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cash_over_short', '6150');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'gift_card', '2210');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cash_in_safe', '1015');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'gift_certificate', '2200');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'checks', '1100');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'store_credit', '2220');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash_over_short', '6150');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'gift_card', '2210');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash_in_safe', '1015');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash_rounding', '6160');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cash_rounding', '6160');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'layaway_deposit', '2230');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'layaway_deposit', '2230');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'store_purchases', '6100');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'store_purchases', '6100');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'late_fee_income', '4110');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'late_fee_income', '4110');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'promotion_expense', '6200');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'promotion_expense', '6200');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'inventory', '1300');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'store_sales', '4120');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cost_of_goods', '5000');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'store_sales', '4120');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'inventory', '1300');
-INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'cost_of_goods', '5000');
-INSERT INTO public.mall (id, time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, tax_bps, cash_round_nickel, operating_mode, payout_cadence, rent_prepaid_from_prior_sales, use_color, use_category, use_size, use_condition, use_department, label_stock, use_brand, booth_rentals_enabled, rent_cycle_day, street, street2, city, state, postal, phone, email, late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor, receipt_footer, consignment_enabled, store_stock_enabled, receipt_mail_via, gmail_address, gmail_app_password) VALUES (true, 'America/Los_Angeles', 10, 10, 120, 90, 0, NULL, 0, false, 'both', 'monthly', false, true, true, true, true, true, 'avery_8160', true, true, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 0, 0, 0, 'Thank you', true, false, 'server', NULL, NULL);
-INSERT INTO public.map_floors (id, name, sort_order) VALUES ('01a15be9-2e20-73a5-85ed-43ebc7a867f3', 'Main Floor', 0);
-INSERT INTO public.registers (id, name, created_at) VALUES ('01900000-0000-7000-8000-000000000d10', 'Register', '2026-10-21 00:42:50.890252+00');
+GRANT SELECT, INSERT ON TABLE public.audit_events TO stall_poster;
+
+GRANT SELECT, INSERT ON TABLE public.missed_sales TO stall_poster;
+
+GRANT SELECT, INSERT ON TABLE public.vendor_memos TO stall_poster;
+
+GRANT SELECT, INSERT ON TABLE public.store_uses TO stall_poster;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saved_reports TO stall_poster;
+
+GRANT SELECT, INSERT, DELETE ON TABLE public.mall_sales TO stall_poster;
+
+GRANT SELECT, INSERT ON TABLE public.floor_findings TO stall_poster;
+
+GRANT SELECT, INSERT ON TABLE public.pickups TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_export_tie_delta(system text, from_date date, to_date date) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_export_tie_delta(system text, from_date date, to_date date) TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_refuse_export_tie(from_date date, to_date date) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_refuse_export_tie(from_date date, to_date date) TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_export_file_hash(system text, from_date date, to_date date) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_export_file_hash(system text, from_date date, to_date date) TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_guard_period_export() TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_guard_period_export() TO stall_backup;
+
+GRANT SELECT, INSERT ON TABLE public.vendor_letters TO stall_poster;
+
+GRANT SELECT, INSERT ON TABLE public.vendor_letter_copies TO stall_poster;
+
+GRANT UPDATE (sent_at) ON TABLE public.vendor_letter_copies TO stall_poster;
+
+GRANT ALL ON TABLE public.commission_rules TO stall_poster;
+
+GRANT ALL ON TABLE public.commission_rules TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_guard_commission_rule() TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_guard_commission_rule() TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_commission_for(item uuid, unit_price bigint, on_date date) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_commission_for(item uuid, unit_price bigint, on_date date) TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_apply_commission_rate() TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_apply_commission_rate() TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_restore_commission_rate() TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_restore_commission_rate() TO stall_backup;
+
+GRANT ALL ON TABLE public.item_floors TO stall_poster;
+
+GRANT ALL ON TABLE public.item_floors TO stall_backup;
+
+GRANT ALL ON TABLE public.markdown_proposals TO stall_poster;
+
+GRANT ALL ON TABLE public.markdown_proposals TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_propose_markdowns(on_date date) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_propose_markdowns(on_date date) TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_confirm_markdown(proposal uuid, actor text, override_floor boolean) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_confirm_markdown(proposal uuid, actor text, override_floor boolean) TO stall_backup;
+
+GRANT USAGE ON SCHEMA public TO stall_vendor;
+
+GRANT SELECT ON public.stall_vendor_items TO stall_vendor;
+
+GRANT SELECT ON public.stall_vendor_sales TO stall_vendor;
+
+GRANT SELECT ON public.stall_vendor_payable TO stall_vendor;
+
+GRANT SELECT ON public.stall_vendor_expiring TO stall_vendor;
+
+GRANT SELECT ON public.stall_vendor_agreement TO stall_vendor;
+
+GRANT ALL ON TABLE public.vendor_entry_tokens TO stall_poster;
+
+GRANT ALL ON TABLE public.vendor_entry_tokens TO stall_backup;
+
+GRANT ALL ON TABLE public.vendor_entry_requests TO stall_poster;
+
+GRANT ALL ON TABLE public.vendor_entry_requests TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_vendor_open(entry_hash text) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_vendor_open(entry_hash text) TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_vendor_prefer(mode text) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_vendor_prefer(mode text) TO stall_backup;
+
+GRANT SELECT ON public.stall_vendor_items TO stall_poster;
+
+GRANT SELECT ON public.stall_vendor_sales TO stall_poster;
+
+GRANT SELECT ON public.stall_vendor_payable TO stall_poster;
+
+GRANT SELECT ON public.stall_vendor_expiring TO stall_poster;
+
+GRANT SELECT ON public.stall_vendor_agreement TO stall_poster;
+
+GRANT ALL ON TABLE public.register_snaps TO stall_poster;
+
+GRANT ALL ON TABLE public.register_snaps TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_sync_snap(snap_key text) TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_sync_snap(snap_key text) TO stall_backup;
+
+GRANT ALL ON FUNCTION public.stall_apply_snap_price() TO stall_poster;
+
+GRANT ALL ON FUNCTION public.stall_apply_snap_price() TO stall_backup;
+
+GRANT SELECT, INSERT ON TABLE public.job_mail_sent TO stall_poster;
+
+GRANT SELECT ON TABLE public.job_mail_sent TO stall_backup;
+
+REVOKE ALL ON TABLE public.override_sign_in_failures FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_override_attempts(text) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_override_record(text) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_override_clear(text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_override_attempts(text) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_override_record(text) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_override_clear(text) TO stall_poster;
+
+GRANT SELECT ON TABLE public.override_sign_in_failures TO stall_backup;
+
+REVOKE ALL ON TABLE public.register_snaps FROM PUBLIC;
+
+REVOKE ALL ON TABLE public.register_snaps FROM stall_poster;
+
+REVOKE ALL ON TABLE public.register_snaps FROM stall_backup;
+
+GRANT SELECT, INSERT ON TABLE public.register_snaps TO stall_poster;
+
+GRANT SELECT ON TABLE public.register_snaps TO stall_backup;
+
+REVOKE ALL ON FUNCTION public.stall_sync_snap(text) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_sync_snap(text) FROM stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_sync_snap(text) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_apply_snap_price() FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_apply_snap_price() TO stall_poster;
+
+REVOKE ALL ON TABLE public.vendor_entry_requests FROM PUBLIC;
+
+REVOKE ALL ON TABLE public.vendor_entry_requests FROM stall_poster;
+
+REVOKE ALL ON TABLE public.vendor_entry_requests FROM stall_backup;
+
+GRANT SELECT, INSERT ON TABLE public.vendor_entry_requests TO stall_poster;
+
+GRANT SELECT ON TABLE public.vendor_entry_requests TO stall_backup;
+
+REVOKE ALL ON TABLE public.vendor_entry_tokens FROM PUBLIC;
+
+REVOKE ALL ON TABLE public.vendor_entry_tokens FROM stall_poster;
+
+REVOKE ALL ON TABLE public.vendor_entry_tokens FROM stall_backup;
+
+GRANT SELECT, INSERT ON TABLE public.vendor_entry_tokens TO stall_poster;
+
+GRANT SELECT ON TABLE public.vendor_entry_tokens TO stall_backup;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_open(text) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_prefer(text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open(text) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_prefer(text) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_prefer(text) TO stall_vendor;
+
+REVOKE ALL ON TABLE public.markdown_proposals FROM stall_backup;
+
+GRANT SELECT ON TABLE public.markdown_proposals TO stall_backup;
+
+REVOKE ALL ON TABLE public.item_floors FROM stall_backup;
+
+GRANT SELECT ON TABLE public.item_floors TO stall_backup;
+
+REVOKE ALL ON TABLE public.commission_rules FROM stall_backup;
+
+GRANT SELECT ON TABLE public.commission_rules TO stall_backup;
+
+REVOKE SELECT ON public.stall_vendor_items FROM stall_poster;
+
+REVOKE SELECT ON public.stall_vendor_sales FROM stall_poster;
+
+REVOKE SELECT ON public.stall_vendor_payable FROM stall_poster;
+
+REVOKE SELECT ON public.stall_vendor_expiring FROM stall_poster;
+
+REVOKE SELECT ON public.stall_vendor_agreement FROM stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_cash_round_delta(bigint, integer) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_cash_round_delta(bigint, integer) TO stall_poster;
+
+REVOKE ALL ON TABLE public.ticket_draft_lines FROM PUBLIC;
+
+REVOKE ALL ON TABLE public.ticket_draft_lines FROM stall_poster;
+
+REVOKE ALL ON TABLE public.ticket_draft_lines FROM stall_backup;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.ticket_draft_lines TO stall_poster;
+
+GRANT SELECT ON TABLE public.ticket_draft_lines TO stall_backup;
+
+REVOKE ALL ON TABLE public.assignment_rent_rates FROM PUBLIC;
+
+GRANT SELECT, INSERT ON TABLE public.assignment_rent_rates TO stall_poster;
+
+GRANT SELECT ON TABLE public.assignment_rent_rates TO stall_backup;
+
+REVOKE ALL ON FUNCTION public.stall_pack_vendor_id() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_payout_quote(uuid, date, date, date, date) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_pack_vendor_id() TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_pack_vendor_id() TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_payout_quote(uuid, date, date, date, date) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_payout_quote(uuid, date, date, date, date) TO stall_backup;
+
+REVOKE ALL ON FUNCTION public.stall_pack_run_id() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_payout_run_quote(uuid, uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_pack_run_id() TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_pack_run_id() TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_payout_run_quote(uuid, uuid) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_payout_run_quote(uuid, uuid) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION platform.put_sign_in_directory(text, uuid, text, uuid, text) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION platform.clear_sign_in_directory(text, uuid) TO stall_poster;

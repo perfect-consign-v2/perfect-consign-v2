@@ -37,7 +37,7 @@ Create 40% mall-absorbed sale for this week; register shows it today. Second ove
 
 ## Source
 
-`docs/business-rules.md` — Floor, sales, and checks. `sql/011_mall_sale_span.sql`.
+`docs/business-rules.md` — Floor, sales, and checks. `sql/001_tenant.sql`.
 
 ## Related
 
