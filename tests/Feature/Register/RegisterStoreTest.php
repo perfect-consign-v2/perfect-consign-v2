@@ -171,14 +171,42 @@ final class RegisterStoreTest extends TestCase
             if (str_contains($sql, 'stall_register_expected_cash')) {
                 return [['expected' => 250]];
             }
+            if (str_contains($sql, 'price_minor * quantity + tax_minor')) {
+                return [['total' => 3083]];
+            }
 
             return [];
         });
         $cards = $this->store($statements)->cards();
         self::assertTrue($cards[0]['open']);
         self::assertTrue($cards[0]['open_ticket']);
+        self::assertSame('$30.83', $cards[0]['unsynced_cash']);
+        self::assertSame('$30.83', $cards[0]['refused_cash']);
         self::assertFalse($cards[1]['open']);
         self::assertSame('', $cards[1]['cashier']);
+    }
+
+    public function testOfflineSnapTotalsUseUnitPriceTimesQuantityPlusTax(): void
+    {
+        $seen = [];
+        $statements = $this->createMock(Statements::class);
+        $statements->expects($this->exactly(2))
+            ->method('bound')
+            ->willReturnCallback(static function (string $sql, array $params) use (&$seen): array {
+                $seen[] = ['sql' => $sql, 'params' => $params];
+                self::assertStringContainsString('price_minor * quantity + tax_minor', $sql);
+                self::assertStringNotContainsString('sum(price_minor),', $sql);
+
+                return [['total' => $params[1] === 'waiting' ? 3083 : 0]];
+            });
+        $method = (new ReflectionClass(RegisterStore::class))->getMethod('snapTotal');
+        $store = $this->store($statements);
+        self::assertSame(3083, $method->invoke($store, '01900000-0000-7000-8000-000000000001', 'waiting'));
+        self::assertSame(0, $method->invoke($store, '01900000-0000-7000-8000-000000000001', 'refused'));
+        self::assertSame(
+            ['waiting', 'refused'],
+            array_map(static fn (array $call): string => (string) $call['params'][1], $seen)
+        );
     }
 
     public function testSaleIsADrawerSource(): void

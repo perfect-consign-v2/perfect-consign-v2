@@ -176,7 +176,7 @@ A scheduled markdown can wait in a queue. The asking price changes when the re-t
 
 A vendor portal session sees only the vendor named by `stall.vendor_id`. A missing setting, or another vendor's id, returns no rows.
 
-An offline register snap posts the captured sold price and collected tax when the drawer is open and the item still has quantity. Duplicate snaps, a closed period, a missing item, a closed drawer, and a second register taking the last unit are refused. `journal_no` stays empty until the post commits. A poster cannot rewrite or delete a posted snap.
+An offline register snap posts the captured sold price and collected tax when the drawer is open and the item still has quantity. Cash posted is unit price × quantity + tax. The register cards’ Unsynced snaps and Refused snaps totals use that same cash figure so the drawer can reconcile offline cash. Duplicate snaps, a closed period, a missing item, a closed drawer, and a second register taking the last unit are refused. `journal_no` stays empty until the post commits. A poster cannot rewrite or delete a posted snap.
 
 ## Sign-in
 

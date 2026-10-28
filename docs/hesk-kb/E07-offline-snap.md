@@ -1,15 +1,15 @@
 ---
 title: Offline register snap
 category: Platform notes
-hesk: published 2026-10-27
-as_of: 2026-10-25
+hesk: published 2026-10-28
+as_of: 2026-10-28
 ---
 
 # Offline register snap
 
 ## As of
 
-2026-10-25
+2026-10-28
 
 ## In one sentence
 
@@ -21,7 +21,8 @@ A register that was offline syncs captured sales to the server.
 
 ## What the books / screens do
 
-- Posts captured sold price and collected tax with an open shift / open quantity.
+- Posts captured sold price and collected tax with an open shift / open quantity. Cash is unit price × quantity + tax.
+- Register cards show Unsynced snaps and Refused snaps as that same cash total (not unit price alone).
 - Commission uses the rule engine even if the client sent a wrong take.
 - `journal_no` stays empty until the post commits.
 
@@ -34,11 +35,11 @@ A register that was offline syncs captured sales to the server.
 
 ## How to check
 
-Sync one snap: sale journal appears with rule-engine commission. Replay same key: refused. Wrong client commission: books still show server take.
+Sync one snap: sale journal appears with rule-engine commission. Replay same key: refused. Wrong client commission: books still show server take. A waiting snap for a $10 item × 3 with $0.83 tax shows $30.83 under Unsynced snaps.
 
 ## Source
 
-`docs/business-rules.md` — Vendor portal and offline sync. `sql/prove_offline_sync.sql`, `sql/prove_offline_sync_rules.sql`.
+`docs/business-rules.md` — Vendor portal and offline sync. `sql/prove_offline_sync.sql`, `sql/prove_offline_sync_rules.sql`. `RegisterStore::snapTotal`.
 
 ## Related
 

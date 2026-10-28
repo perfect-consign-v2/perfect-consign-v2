@@ -214,7 +214,7 @@ final class RegisterStore
     private function snapTotal(string $sessionId, string $status): int
     {
         $rows = $this->statements->bound(
-            'SELECT COALESCE(sum(price_minor), 0) AS total
+            'SELECT COALESCE(sum(price_minor * quantity + tax_minor), 0) AS total
              FROM register_snaps
              WHERE session_id = ?::uuid AND status = ?',
             [$sessionId, $status]

@@ -1,7 +1,7 @@
 ---
 title: Mall-wide sale percent and dates
 category: Floor and ops
-hesk: published 2026-10-27
+hesk: published 2026-10-28
 as_of: 2026-10-25
 ---
 
