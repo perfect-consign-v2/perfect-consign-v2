@@ -12,7 +12,7 @@ $expired = ($expired ?? false) === true;
 <div class="login-wrap">
     <div class="panel">
         <div class="row gap-3" data-style-prop="justify-content:center; margin-bottom:var(--space-6)">
-            <span class="brand-mark" data-style-prop="width:40px;height:40px;font-size:var(--text-lg)">P</span>
+            <span class="brand-mark brand-mark--hero">P</span>
             <div>
                 <div class="h2">Platform</div>
                 <div class="text-sm muted">Perfect Consign</div>
@@ -34,11 +34,11 @@ $expired = ($expired ?? false) === true;
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                         <div class="field">
                             <label for="password">New password</label>
-                            <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+                            <?php View::passwordField(id: 'password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
                         </div>
                         <div class="field">
                             <label for="confirm">Confirm password</label>
-                            <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" required minlength="8">
+                            <?php View::passwordField(id: 'confirm', name: 'confirm', required: true, minlength: 8, autocomplete: 'new-password'); ?>
                         </div>
                     </div>
                     <div class="card-foot row between">

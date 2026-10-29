@@ -18,11 +18,9 @@ Vendor home (`src/Feature/Vendor/home.php`) is a plain table of that vendor’s 
 
 ### Page scroll, staff Items only
 
-Mark only `#list-inventory` with `data-dt-page-scroll="1"`. In `initTable`, when that attribute is `1`, do not set `scrollX`, `scrollY`, or `scrollCollapse`. The resize handler must not write `settings.oScroll.sY` for that table. Every other `table.list-dt` (vendors, booths, rent, payouts, journals, and the rest) keeps the current inner scroll.
+Mark only `#list-inventory` with `data-dt-page-scroll="1"`. In `initTable`, use `scrollX: true` and do **not** set `scrollY` / `scrollCollapse` (same for every `table.list-dt` in this app today). The resize handler must not write `settings.oScroll.sY` for page-scroll tables.
 
-Leaving `scrollX` on still builds `.dt-scroll` / `.dt-scroll-body` with inline `overflow: auto`. That is why a “skip scrollY only” change still looks like a short scroll box. Omit both axes so Items is a normal table and the document scrolls.
-
-Add class `list-dt-page-scroll` on the `.list-dt-wrap` for that table. Stick the real `thead th` while the page scrolls. The selector has to beat any `position: static` rule on those headers. Do not set `overflow` other than `visible` on an ancestor of that header: `overflow-x: auto` forces `overflow-y` to `auto`, and the header then sticks inside that box instead of the page. `.list-dt-wrap.table-wrap` is already `overflow: visible`.
+`scrollX` builds `.dt-scroll-head` / `.dt-scroll-body`. Keep the body height auto (`max-height: none`) so it is not a short vertical scroll box. Horizontal overflow lives only on `.dt-scroll-body` (`overflow-x: auto`). Stick `.dt-scroll-head` to `top: var(--topbar-h)` while the page scrolls vertically. Do not put `overflow-x: auto` on the wrap around that sticky head — that traps vertical stickiness. `.list-dt-wrap.table-wrap` stays `overflow: visible`.
 
 `ListTable::assets()` cache-busts `list-datatables.css` with the mtime of `list-datatables.js`. Version the stylesheet from the CSS file’s own mtime so a CSS-only change is not stuck in the browser.
 

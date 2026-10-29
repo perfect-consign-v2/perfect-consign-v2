@@ -26,20 +26,22 @@ final class ForgotMailboxKeyTest extends TestCase
         $server = null;
         try {
             $this->storeGmail($pdo);
+            $this->clearResetRequests($pdo);
             putenv('STALL_MAIL_KEY=missing');
             $server = ProbeServer::startWithoutMailKey($root);
             $guest = new FormClient($server->baseUrl());
-            $slug = ProbeMall::SLUG;
-            $guest->get('/' . $slug . '/forgot');
-            $unknown = $guest->post('/' . $slug . '/forgot', ['username' => 'missing-user']);
+            $guest->get('/forgot');
+            $unknown = $guest->post('/forgot', ['email' => 'missing-user@example.com']);
+            $outboxBefore = $this->outboxCount($pdo);
             $logBefore = $this->logSize($root);
-            $known = $guest->post('/' . $slug . '/forgot', ['username' => ProbeMall::USERNAME]);
+            $known = $guest->post('/forgot', ['email' => ProbeMall::EMAIL]);
             self::assertSame(200, $unknown->status);
             self::assertSame(200, $known->status);
             self::assertStringContainsString(ResetNotice::SENT, $unknown->body);
             self::assertStringContainsString(ResetNotice::SENT, $known->body);
-            self::assertStringNotContainsString('missing-user', $unknown->body);
-            self::assertStringNotContainsString('missing-user', $known->body);
+            self::assertStringNotContainsString('missing-user@example.com', $unknown->body);
+            self::assertStringNotContainsString('missing-user@example.com', $known->body);
+            self::assertSame($outboxBefore, $this->outboxCount($pdo), 'a reset must not be filed when the mailbox key is missing');
             self::assertStringContainsString('the reset mailbox could not be read', $this->logTail($root, $logBefore));
         } finally {
             if ($server !== null) {
@@ -114,6 +116,29 @@ final class ForgotMailboxKeyTest extends TestCase
             'UPDATE mall SET receipt_mail_via = ?, gmail_address = ?, gmail_app_password = ?'
         );
         $statement->execute([$saved['via'], $saved['address'], $saved['password']]);
+    }
+
+    private function clearResetRequests(PDO $pdo): void
+    {
+        $tenant = $pdo->prepare('SELECT id FROM platform.tenants WHERE slug = ?');
+        $tenant->execute([ProbeMall::SLUG]);
+        $id = $tenant->fetchColumn();
+        if (!is_string($id) || $id === '') {
+            self::fail('the probe mall is missing');
+        }
+        $clear = $pdo->prepare('DELETE FROM platform.password_reset_requests WHERE tenant_id = ?::uuid');
+        $clear->execute([$id]);
+    }
+
+    private function outboxCount(PDO $pdo): int
+    {
+        $query = $pdo->query(
+            "SELECT count(*) FROM platform.mail_outbox
+             WHERE purpose = 'password reset mail was refused'
+               AND address = " . $pdo->quote(strtolower(ProbeMall::EMAIL))
+        );
+
+        return $query === false ? 0 : (int) $query->fetchColumn();
     }
 
     private function logSize(string $root): int

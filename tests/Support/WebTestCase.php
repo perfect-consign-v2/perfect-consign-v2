@@ -57,6 +57,11 @@ abstract class WebTestCase extends TestCase
         return is_string($text) ? $text : '';
     }
 
+    protected static function flushMail(): void
+    {
+        MailWorker::flush();
+    }
+
     protected static function makeRoomForAFloor(FormClient $client, string $slug): void
     {
         $editor = $client->get('/' . $slug . '/map/edit');

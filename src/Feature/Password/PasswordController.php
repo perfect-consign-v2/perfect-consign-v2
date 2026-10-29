@@ -6,7 +6,6 @@ namespace PerfectConsign\Feature\Password;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\Actor;
-use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 
@@ -16,7 +15,6 @@ final class PasswordController
         private readonly MallApp $app,
         private readonly OwnPassword $passwords,
         private readonly LoginAccounts $accounts,
-        private readonly LoginSession $sessions,
         private readonly Actor $actor,
     ) {
     }
@@ -34,19 +32,20 @@ final class PasswordController
         $tenant = $this->app->open($slug, true);
         $request = $this->app->request();
         try {
-            $version = $this->changed(
+            $email = $this->accounts->shown($tenant, $this->actor->role(), $this->account());
+            $this->changed(
                 $tenant,
                 $request->raw('current_password'),
                 $request->raw('password'),
                 $request->raw('confirm'),
             );
-            $this->sessions->stamp($version);
         } catch (\InvalidArgumentException $error) {
             $this->render($tenant, $error->getMessage());
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/password', 'Password updated.');
+        $this->app->signOut();
+        $this->app->redirect($this->signInPath($email), 'Password updated. Sign in with your new password.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/password/email', ['POST'])]
@@ -55,24 +54,38 @@ final class PasswordController
         $this->app->checkCsrf();
         $tenant = $this->app->open($slug, true);
         $request = $this->app->request();
+        $email = $request->field('email');
         try {
-            $this->saveEmail($tenant, $request->raw('current_password'), $request->field('email'));
+            $this->saveEmail($tenant, $request->raw('current_password'), $email);
         } catch (\InvalidArgumentException $error) {
             $this->render($tenant, $error->getMessage());
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/password', 'Recovery email saved.');
+        $this->app->signOut();
+        $this->app->redirect($this->signInPath($email), 'Sign-in email saved. Sign in with your new email.');
     }
 
-    private function changed(TenantRecord $tenant, string $current, string $next, string $confirm): string
+    private function changed(TenantRecord $tenant, string $current, string $next, string $confirm): void
     {
         $account = $this->account();
         if ($this->actor->role() === 'owner') {
-            return $this->passwords->changeOwner($tenant, $account, $current, $next, $confirm);
+            $this->passwords->changeOwner($tenant, $account, $current, $next, $confirm);
+
+            return;
         }
 
-        return $this->passwords->changeStaff($tenant, $account, $current, $next, $confirm);
+        $this->passwords->changeStaff($tenant, $account, $current, $next, $confirm);
+    }
+
+    private function signInPath(string $email): string
+    {
+        $email = trim($email);
+        if ($email === '') {
+            return '/';
+        }
+
+        return '/?email=' . rawurlencode($email);
     }
 
     private function saveEmail(TenantRecord $tenant, string $current, string $email): void
@@ -99,7 +112,7 @@ final class PasswordController
     private function render(TenantRecord $tenant, ?string $error): void
     {
         $this->app->show('Feature/Password/password', [
-            'title' => 'Password',
+            'title' => 'Change password',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'email' => $this->accounts->shown($tenant, $this->actor->role(), $this->actor->account()),

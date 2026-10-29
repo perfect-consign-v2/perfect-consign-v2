@@ -15,6 +15,7 @@ use PerfectConsign\Shared\Jobs\JobRunner;
 use PerfectConsign\Shared\Jobs\JobSchedule;
 use PerfectConsign\Shared\Jobs\LateFeeJob;
 use PerfectConsign\Shared\Jobs\MarkdownJob;
+use PerfectConsign\Shared\Jobs\OutboundMailJob;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Jobs\VendorLetterJob;
@@ -121,6 +122,8 @@ final class JobDispatchTest extends TestCase
 
     public function testAFailedSaleNoticeStaysWaiting(): void
     {
+        $previous = getenv('STALL_MAIL_FILE');
+        putenv('STALL_MAIL_FILE');
         $statements = $this->createMock(Statements::class);
         $statements->expects($this->exactly(2))->method('bound')->willReturnOnConsecutiveCalls(
             [['email' => 'ada@example.test', 'name' => 'Ada', 'code' => 'A1', 'net_minor' => 500]],
@@ -136,9 +139,17 @@ final class JobDispatchTest extends TestCase
             new MailProgress(),
         );
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('a letter is still waiting to be sent');
-        $notice->notice('mall', '2026-01-02');
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('a letter is still waiting to be sent');
+            $notice->notice('mall', '2026-01-02');
+        } finally {
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_MAIL_FILE=' . $previous);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+        }
     }
 
     private function pdo(): PDO
@@ -162,6 +173,7 @@ final class JobDispatchTest extends TestCase
             $this->createStub(LoggerInterface::class),
             new JobSchedule($pdo, new JobQueue()),
             $this->jobs($pdo),
+            new \PerfectConsign\Shared\Jobs\WorkerRuns($pdo),
         );
     }
 
@@ -171,6 +183,10 @@ final class JobDispatchTest extends TestCase
         $mail = new OutboundMail($logger);
         $bounce = new MailBounce($this->createStub(Statements::class));
 
+        $notices = new \PerfectConsign\Shared\Mail\PlatformOperatorNotice($logger);
+        $gmail = new \PerfectConsign\Shared\Mail\GmailSender($notices);
+        $mailbox = \PerfectConsign\Tests\Support\MailTestKit::letterMailbox($this->createStub(Statements::class), $mail);
+
         return new JobDispatch(
             new LateFeeJob($pdo),
             new DigestJob($pdo, $mail, $bounce, $logger, new MailProgress()),
@@ -178,11 +194,16 @@ final class JobDispatchTest extends TestCase
             new SaleNoticeJob($this->createStub(Statements::class), $mail, $bounce, $logger, new MailProgress()),
             new VendorLetterJob(
                 $this->createStub(Statements::class),
-                new LetterMailbox(new ReceiptMailSettings($this->createStub(Statements::class)), $mail),
+                $mailbox,
                 $bounce,
                 $logger,
             ),
             new MarkdownJob($pdo),
+            new OutboundMailJob(
+                new \PerfectConsign\Shared\Mail\MailOutbox($pdo),
+                $mailbox,
+                new \PerfectConsign\Shared\Mail\PlatformMailbox($mail, $gmail, $notices),
+            ),
         );
     }
 

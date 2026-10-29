@@ -11,7 +11,10 @@ use PerfectConsign\Shared\Http\View;
 <div class="card">
     <div class="card-head row between">
         <div class="h3">Stores</div>
-        <span class="muted text-sm"><?= View::text((string) count($tenants)) ?> total</span>
+        <div class="row gap-2">
+            <a class="btn btn-sm btn-primary" href="/admin/tenants/create">Create store</a>
+            <span class="muted text-sm"><?= View::text((string) count($tenants)) ?> total</span>
+        </div>
     </div>
     <div class="card-body">
         <?php if ($tenants === []): ?>

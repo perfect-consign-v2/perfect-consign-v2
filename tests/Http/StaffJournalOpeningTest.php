@@ -68,7 +68,7 @@ final class StaffJournalOpeningTest extends WebTestCase
             'password' => 'cashier1',
             'email' => ProbeMall::EMAIL,
         ]);
-        self::assertSees('That recovery email is already used on another sign-in.', $page);
+        self::assertSees('That email is already used on another sign-in.', $page);
     }
 
     public function testOpeningAndJournalEdges(): void

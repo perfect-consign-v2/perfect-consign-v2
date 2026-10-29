@@ -11,9 +11,11 @@ use PerfectConsign\Bootstrap\EmailSignIn;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\SignInDirectory;
 use PerfectConsign\Bootstrap\SignInLocked;
+use PerfectConsign\Bootstrap\SignInUnverified;
 use PerfectConsign\Bootstrap\TenantLookup;
 use PerfectConsign\Feature\Password\PasswordRecovery;
 use PerfectConsign\Feature\Password\ResetNotice;
+use PerfectConsign\Feature\Signup\PlatformSettings;
 
 final class RootController
 {
@@ -25,6 +27,7 @@ final class RootController
         private readonly SignInDirectory $directory,
         private readonly PasswordRecovery $recovery,
         private readonly Actor $actor,
+        private readonly PlatformSettings $settings,
     ) {
     }
 
@@ -47,12 +50,16 @@ final class RootController
         try {
             $signedIn = $this->emailSignIn->attempt($email, $password);
         } catch (SignInLocked) {
-            $this->loginPage('Too many sign-in attempts. Try again in a few minutes.');
+            $this->loginPage('Too many sign-in attempts. Try again in a few minutes.', $email);
+
+            return;
+        } catch (SignInUnverified $unverified) {
+            $this->loginPage($unverified->getMessage(), $email);
 
             return;
         }
         if (!$signedIn) {
-            $this->loginPage('That email or password is wrong.');
+            $this->loginPage('That email or password is wrong.', $email);
 
             return;
         }
@@ -90,14 +97,18 @@ final class RootController
         $this->app->redirect('/forgot', ResetNotice::SENT);
     }
 
-    private function loginPage(?string $error): void
+    private function loginPage(?string $error, ?string $email = null): void
     {
+        if ($email === null) {
+            $email = $this->app->request()->query('email');
+        }
         $this->app->show('Shared/Web/root', [
             'title' => 'Sign in',
             'displayName' => '',
             'slug' => '',
             'error' => $error,
-            'signupEnabled' => false,
+            'email' => $email,
+            'signupEnabled' => $this->settings->storeSignupEnabled(),
         ]);
     }
 

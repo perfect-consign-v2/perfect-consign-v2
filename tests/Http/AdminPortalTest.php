@@ -116,6 +116,7 @@ final class AdminPortalTest extends TestCase
             $still->execute([$slug]);
             self::assertFalse($still->fetchColumn() !== false);
 
+            $pdo->exec('DELETE FROM platform.admin_password_reset_requests');
             $client->get('/admin/forgot');
             $unknown = $client->post('/admin/forgot', ['email' => 'missing@example.test']);
             $known = $client->post('/admin/forgot', ['email' => self::ADMIN_EMAIL]);
@@ -123,20 +124,68 @@ final class AdminPortalTest extends TestCase
             self::assertStringContainsString(ResetNotice::SENT, $known->body);
 
             file_put_contents(ProbeServer::mailFile(), '');
+            $pdo->exec('DELETE FROM platform.admin_password_reset_requests');
             $client->postWithHeaders('/admin/forgot', ['email' => self::ADMIN_EMAIL], ['Host: evil.example']);
             $mail = file_get_contents(ProbeServer::mailFile());
             self::assertIsString($mail);
             self::assertStringNotContainsString('evil.example', $mail);
             self::assertStringContainsString($server->baseUrl() . '/admin/reset/', $mail);
-
-            if (preg_match('#/admin/reset/([A-Za-z0-9_-]{43})#', $mail, $token) === 1) {
-                $resetPage = $client->get('/admin/reset/' . $token[1]);
-                self::assertStringContainsString('Reset password', $resetPage->body);
-                self::assertStringContainsString('New password', $resetPage->body);
-            }
+            self::assertSame(1, preg_match_all('#/admin/reset/([A-Za-z0-9_-]{43})#', $mail, $tokens));
+            $resetPage = $client->get('/admin/reset/' . $tokens[1][0]);
+            self::assertStringContainsString('Reset password', $resetPage->body);
+            self::assertStringContainsString('New password', $resetPage->body);
         } finally {
             $server->stop();
             $this->cleanupDisposable($pdo, $slug);
+        }
+    }
+
+    public function testAdminAppLogViewAndClear(): void
+    {
+        $root = dirname(__DIR__, 2);
+        require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'load-env.php';
+        loadStallEnv($root . DIRECTORY_SEPARATOR . '.env');
+        $pdo = $this->adminPdo();
+        $this->seedAdmin($pdo);
+        $logPath = $root . DIRECTORY_SEPARATOR . 'var' . DIRECTORY_SEPARATOR . 'log' . DIRECTORY_SEPARATOR . 'app.log';
+        $directory = dirname($logPath);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            self::fail('could not create log directory');
+        }
+        $prior = is_file($logPath) ? file_get_contents($logPath) : false;
+        $marker = 'admin-log-http-' . bin2hex(random_bytes(6));
+        self::assertNotFalse(file_put_contents($logPath, $marker . "\n", LOCK_EX));
+        $server = ProbeServer::start($root);
+        try {
+            $client = new FormClient($server->baseUrl());
+            $client->get('/admin/login');
+            $client->post('/admin/login', [
+                'email' => self::ADMIN_EMAIL,
+                'password' => self::ADMIN_PASSWORD,
+            ]);
+            $page = $client->get('/admin/log');
+            self::assertSame(200, $page->status);
+            self::assertStringContainsString('App log', $page->body);
+            self::assertStringContainsString('var/log/app.log', $page->body);
+            self::assertStringContainsString($marker, $page->body);
+            $cleared = $client->post('/admin/log/clear', []);
+            self::assertStringContainsString('Cleared application log', $cleared->body);
+            self::assertStringNotContainsString($marker, $cleared->body);
+            $after = file_get_contents($logPath);
+            self::assertIsString($after);
+            self::assertStringNotContainsString($marker, $after);
+            self::assertStringContainsString('application log cleared', $after);
+            $audit = $client->get('/admin/audit');
+            self::assertStringContainsString('app.log_clear', $audit->body);
+        } finally {
+            $server->stop();
+            if ($prior === false) {
+                if (is_file($logPath)) {
+                    unlink($logPath);
+                }
+            } else {
+                file_put_contents($logPath, $prior, LOCK_EX);
+            }
         }
     }
 

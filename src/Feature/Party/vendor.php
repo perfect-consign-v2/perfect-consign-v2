@@ -358,12 +358,12 @@ $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
                 <input class="input" id="vendor_username" name="username" required maxlength="63" autocapitalize="none" autocomplete="off" value="<?= View::text($signIn === null ? '' : $signIn['username']) ?>">
             </div>
             <div class="field">
-                <label for="vendor_email">Recovery email</label>
+                <label for="vendor_email">Email</label>
                 <input class="input" id="vendor_email" name="email" type="email" required maxlength="200" autocomplete="off" value="<?= View::text($signIn !== null && $signIn['email'] !== '' ? $signIn['email'] : $vendor['email']) ?>">
             </div>
             <div class="field">
                 <label for="vendor_password">Password</label>
-                <input class="input" id="vendor_password" name="password" type="password" required minlength="8" autocomplete="off">
+                <?php View::passwordField(id: 'vendor_password', name: 'password', required: true, minlength: 8, autocomplete: 'off'); ?>
             </div>
             <p><button class="btn" type="submit"><?= $signIn === null ? 'Add sign-in' : 'Save sign-in' ?></button></p>
         </div>

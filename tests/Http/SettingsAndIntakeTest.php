@@ -40,6 +40,9 @@ final class SettingsAndIntakeTest extends WebTestCase
         $money['rent_cycle_day'] = '1';
         $money['late_fee_grace_days'] = '0';
         self::assertSees('Money saved.', $this->client->post('/' . $slug . '/settings', $money));
+        $afterMoney = $this->client->get('/' . $slug . '/settings');
+        self::assertSees('value="5" selected', $afterMoney);
+        self::assertDoesNotMatchRegularExpression('/id="cash_round_minor"[\s\S]*?value="0"[^>]*selected/', $afterMoney->body);
 
         $building = [
             'settings_part' => 'building',

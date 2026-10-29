@@ -42,4 +42,29 @@ final class ViewAndErrorTest extends TestCase
         self::assertStringNotContainsString('line_subledger_type_2', $plain);
     }
 
+    public function testPasswordFieldRendersShowToggle(): void
+    {
+        ob_start();
+        View::passwordField(
+            id: 'password',
+            name: 'password',
+            required: true,
+            minlength: 8,
+            autocomplete: 'current-password',
+        );
+        $html = ob_get_clean();
+        self::assertIsString($html);
+        self::assertStringContainsString('class="password-field"', $html);
+        self::assertStringContainsString('type="password"', $html);
+        self::assertStringContainsString('id="password"', $html);
+        self::assertStringContainsString('name="password"', $html);
+        self::assertStringContainsString('autocomplete="current-password"', $html);
+        self::assertStringContainsString('minlength="8"', $html);
+        self::assertStringContainsString(' required', $html);
+        self::assertStringContainsString('aria-label="Show password"', $html);
+        self::assertStringContainsString('password-field__toggle', $html);
+        self::assertStringContainsString('password-field__icon--show', $html);
+        self::assertStringContainsString('password-field__icon--hide', $html);
+    }
+
 }

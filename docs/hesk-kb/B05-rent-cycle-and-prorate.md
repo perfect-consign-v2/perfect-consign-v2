@@ -1,7 +1,7 @@
 ---
 title: Rent cycle day and prorated move-in charge
 category: Rent
-hesk: published 2026-10-28
+hesk: published 2026-10-29
 as_of: 2026-10-25
 ---
 

@@ -540,7 +540,7 @@ final class SurvivorPinsTest extends TestCase
         self::assertSame(['Sent', 'Bounced', 'Waiting'], array_column($opened['copies'], 'status'));
     }
 
-    public function testResetMailUsesTheFileMailboxWhenGmailIsAbsent(): void
+    public function testOutboundMailJobWritesTheFileMailbox(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'pc-reset-');
         if ($path === false) {
@@ -549,51 +549,49 @@ final class SurvivorPinsTest extends TestCase
         $previous = getenv('STALL_MAIL_FILE');
         putenv('STALL_MAIL_FILE=' . $path);
         $log = new class extends AbstractLogger {
-            public string $message = '';
-
             public function log($level, string|\Stringable $message, array $context = []): void
             {
-                $this->message = (string) $message;
             }
         };
-        $send = new ReflectionMethod(ResetLetter::class, 'send');
-        $gmail = [
-            'host' => '127.0.0.1',
-            'port' => 9,
-            'username' => 'shop@gmail.com',
-            'password' => 'abcdefghijklmnop',
-            'from' => 'shop@gmail.com',
-        ];
+        $host = getenv('STALL_DB_HOST');
+        $port = getenv('STALL_DB_PORT');
+        $name = getenv('STALL_DB_NAME');
+        $user = getenv('STALL_DB_USER');
+        $password = getenv('STALL_DB_PASSWORD');
+        if (!is_string($host) || !is_string($port) || !is_string($name) || !is_string($user) || !is_string($password)) {
+            self::fail('database env is required');
+        }
+        $pdo = new \PDO(
+            'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
+            $user,
+            $password,
+            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+        );
+        $outbox = new \PerfectConsign\Shared\Mail\MailOutbox($pdo);
+        $id = $outbox->file(
+            'platform',
+            'platform',
+            'password reset mail was refused',
+            'owner@example.com',
+            'Reset your password',
+            "Open this link\n",
+        );
+        $notices = new \PerfectConsign\Shared\Mail\PlatformOperatorNotice($log);
+        $job = new \PerfectConsign\Shared\Jobs\OutboundMailJob(
+            $outbox,
+            $this->createStub(LetterMailbox::class),
+            new \PerfectConsign\Shared\Mail\OutboundMail($log),
+            new \PerfectConsign\Shared\Mail\GmailSender($notices),
+            $notices,
+        );
         try {
-            $ok = $send->invoke(
-                new ResetLetter(new ResetTokens($this->createStub(\PDO::class)), new OutboundMail($log), $log),
-                'owner@example.com',
-                'Reset your password',
-                "Open this link\n",
-                $gmail,
-            );
-            self::assertTrue($ok);
+            $job->send($id);
             $text = file_get_contents($path);
             self::assertIsString($text);
             self::assertStringContainsString('To: owner@example.com', $text);
-
-            putenv('STALL_MAIL_FILE');
-            set_error_handler(static function (int $severity, string $message): bool {
-                return str_contains($message, 'stream_socket_client');
-            });
-            try {
-                $refused = $send->invoke(
-                    new ResetLetter(new ResetTokens($this->createStub(\PDO::class)), new OutboundMail($log), $log),
-                    'owner@example.com',
-                    'Reset your password',
-                    "Open this link\n",
-                    $gmail,
-                );
-                self::assertFalse($refused);
-                self::assertSame('reset mail was refused', $log->message);
-            } finally {
-                restore_error_handler();
-            }
+            $row = $outbox->open($id);
+            self::assertNotNull($row);
+            self::assertNotSame('', $row['sent_at']);
         } finally {
             if (is_string($previous) && $previous !== '') {
                 putenv('STALL_MAIL_FILE=' . $previous);
@@ -649,7 +647,7 @@ final class SurvivorPinsTest extends TestCase
             ['receipt_mail_via' => 'gmail', 'gmail_address' => 'shop@gmail.com', 'gmail_app_password' => null],
         ]);
         $mail = new OutboundMail(new NullLogger());
-        $box = new LetterMailbox(new ReceiptMailSettings($statements), $mail);
+        $box = \PerfectConsign\Tests\Support\MailTestKit::letterMailbox($statements, $mail);
         try {
             self::assertTrue($box->ready());
             $box->send('ada@example.com', 'Hello', 'Body');
@@ -680,7 +678,7 @@ final class SurvivorPinsTest extends TestCase
             ['receipt_mail_via' => 'server', 'gmail_address' => '', 'gmail_app_password' => null],
         ]);
         $mail = new OutboundMail(new NullLogger());
-        $box = new LetterMailbox(new ReceiptMailSettings($statements), $mail);
+        $box = \PerfectConsign\Tests\Support\MailTestKit::letterMailbox($statements, $mail);
         try {
             putenv('STALL_MAIL_FILE');
             try {

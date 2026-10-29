@@ -9,7 +9,7 @@ use PerfectConsign\Shared\Http\View;
 <div class="login-wrap">
     <div class="panel">
         <div class="row gap-3" data-style-prop="justify-content:center; margin-bottom:var(--space-6)">
-            <span class="brand-mark" data-style-prop="width:40px;height:40px;font-size:var(--text-lg)">P</span>
+            <span class="brand-mark brand-mark--hero">P</span>
             <div>
                 <div class="h2">Platform</div>
                 <div class="text-sm muted">Perfect Consign</div>
@@ -26,7 +26,7 @@ use PerfectConsign\Shared\Http\View;
                     </div>
                     <div class="field">
                         <label for="password">Password</label>
-                        <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+                        <?php View::passwordField(id: 'password', name: 'password', required: true, autocomplete: 'current-password'); ?>
                     </div>
                 </div>
                 <div class="card-foot row between">

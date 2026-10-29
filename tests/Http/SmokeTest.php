@@ -58,30 +58,38 @@ final class SmokeTest extends WebTestCase
         self::assertStringContainsString('/' . ProbeMall::SLUG . '/dashboard', $page->location);
     }
 
-    public function testAMallHomeOffersSignIn(): void
+    public function testAMallHomeRedirectsToRootSignIn(): void
     {
-        $page = self::client()->get('/' . ProbeMall::SLUG);
+        $page = self::client()->getWithoutRedirect('/' . ProbeMall::SLUG);
 
-        self::assertSame(200, $page->status);
-        self::assertSees(ProbeMall::DISPLAY_NAME, $page);
-        self::assertSees('Sign in', $page);
+        self::assertSame(303, $page->status);
+        self::assertSame('/', $page->location);
     }
 
-    public function testTheSignInFormIsShown(): void
+    public function testASignedInOwnerAtTheMallRootGoesToTheirHome(): void
     {
-        $page = self::client()->get('/' . ProbeMall::SLUG . '/login');
+        $client = self::client();
+        $client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $page = $client->getWithoutRedirect('/' . ProbeMall::SLUG);
 
-        self::assertSame(200, $page->status);
-        self::assertSees('<h1>Sign in</h1>', $page);
-        self::assertSees('name="password"', $page);
+        self::assertSame(303, $page->status);
+        self::assertStringContainsString('/' . ProbeMall::SLUG . '/dashboard', $page->location);
     }
 
-    public function testAWrongPasswordIsRefused(): void
+    public function testSlugLoginRedirectsToRoot(): void
     {
-        $page = self::client()->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, 'wrong-password');
+        $page = self::client()->getWithoutRedirect('/' . ProbeMall::SLUG . '/login');
 
-        self::assertSame(200, $page->status);
-        self::assertSees('That username or password is wrong.', $page);
+        self::assertSame(303, $page->status);
+        self::assertSame('/', $page->location);
+    }
+
+    public function testSlugForgotRedirectsToGlobalForgot(): void
+    {
+        $page = self::client()->getWithoutRedirect('/' . ProbeMall::SLUG . '/forgot');
+
+        self::assertSame(303, $page->status);
+        self::assertSame('/forgot', $page->location);
     }
 
     public function testAnUnsignedRequestDoesNotOpenTheBook(): void
@@ -89,7 +97,7 @@ final class SmokeTest extends WebTestCase
         $page = self::client()->getWithoutRedirect('/' . ProbeMall::SLUG . '/book');
 
         self::assertSame(303, $page->status);
-        self::assertStringContainsString('/' . ProbeMall::SLUG . '/login', $page->location);
+        self::assertSame('/', $page->location);
     }
 
     public function testTheOwnerSignsInToTheBook(): void
@@ -116,7 +124,8 @@ final class SmokeTest extends WebTestCase
 
         self::assertSame(404, $page->status);
         self::assertSees('This address is not a page in ' . ProbeMall::DISPLAY_NAME . '.', $page);
-        self::assertSees('/' . ProbeMall::SLUG . '/login', $page);
+        self::assertSees('href="/"', $page);
+        self::assertStringNotContainsString('/login', $page->body);
         self::assertStringNotContainsString('Go to the dashboard', $page->body);
     }
 

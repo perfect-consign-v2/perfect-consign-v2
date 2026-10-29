@@ -43,7 +43,7 @@ final class ReceiptEmailController
         } catch (\RuntimeException $error) {
             $message = $error->getMessage() === OutboundMail::SMTP_NOT_CONFIGURED
                 ? 'the server mailbox is not set up'
-                : 'the receipt was not sent';
+                : 'the receipt email could not be sent';
             $this->receipts->show($slug, $id, $message);
 
             return;

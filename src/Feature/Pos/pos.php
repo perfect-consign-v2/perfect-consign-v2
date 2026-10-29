@@ -360,7 +360,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <label for="void_override_user">Second person</label>
             <input id="void_override_user" name="override_user" autocomplete="off">
             <label for="void_override_password">Their password</label>
-            <input id="void_override_password" name="override_password" type="password" autocomplete="off">
+            <?php View::passwordField(id: 'void_override_password', name: 'override_password', autocomplete: 'off'); ?>
             <button class="btn btn-primary" type="submit">Confirm void</button>
             <button class="btn" type="button" data-close-modal="void-ticket">Cancel</button>
         </div>

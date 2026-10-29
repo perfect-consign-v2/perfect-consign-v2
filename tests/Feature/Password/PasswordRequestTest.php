@@ -176,7 +176,7 @@ final class PasswordRequestTest extends TestCase
             new ResetTokens($pdo),
             new ResetRequests($pdo),
             new PasswordChoice(),
-            new ResetLetter(new ResetTokens($pdo), new OutboundMail($log), $log),
+            \PerfectConsign\Tests\Support\MailTestKit::resetLetter($pdo, $log),
         );
     }
 

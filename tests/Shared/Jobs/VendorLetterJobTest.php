@@ -54,7 +54,7 @@ final class VendorLetterJobTest extends TestCase
             $statements->expects($this->once())->method('change');
             $mail = new OutboundMail($this->createStub(LoggerInterface::class));
             self::assertTrue($mail->captured());
-            $mailbox = new LetterMailbox(new ReceiptMailSettings($statements), $mail);
+            $mailbox = \PerfectConsign\Tests\Support\MailTestKit::letterMailbox($statements, $mail);
             self::assertTrue($mail->configured() || $mailbox->ready());
             $job = new VendorLetterJob(
                 $statements,

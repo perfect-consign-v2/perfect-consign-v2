@@ -1,7 +1,7 @@
 ---
 title: Void vs return
 category: Sales and register
-hesk: published 2026-10-28
+hesk: published 2026-10-29
 as_of: 2026-10-25
 ---
 

@@ -92,7 +92,7 @@ final class PasswordRulesTest extends TestCase
                 $addresses->parse($email);
                 self::fail('accepted ' . $email);
             } catch (\InvalidArgumentException $error) {
-                self::assertSame('Enter a recovery email.', $error->getMessage());
+                self::assertSame('Enter an email.', $error->getMessage());
             }
         }
     }

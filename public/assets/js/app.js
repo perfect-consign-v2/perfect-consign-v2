@@ -48,6 +48,8 @@
       b.setAttribute('aria-checked', b.getAttribute('data-set-mode') === mode ? 'true' : 'false');
     });
   }
+  setTheme(root.getAttribute('data-theme') || 'dark-blue');
+  setMode(root.getAttribute('data-mode') || 'light');
   document.querySelectorAll('[data-set-theme]').forEach(function (b) {
     b.addEventListener('click', function () { setTheme(b.getAttribute('data-set-theme')); });
   });

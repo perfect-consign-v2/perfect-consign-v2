@@ -40,23 +40,23 @@ $blank = '—';
 
 <div class="grid cols-4">
     <a class="stat" href="/<?= View::text($slug) ?>/sales">
-        <div class="stat-label"><svg data-style-prop="width:16px;height:16px" aria-hidden="true"><use href="#i-wallet"></use></svg> Today's sales</div>
+        <div class="stat-label"><svg width="16" height="16" aria-hidden="true"><use href="#i-wallet"></use></svg> Today's sales</div>
         <div class="stat-value"><?= View::text($picture['sales']['amount']) ?></div>
         <?php if ($picture['sales']['delta'] !== null): ?>
             <div class="stat-delta <?= View::text($picture['sales']['delta']['direction']) ?>"><?= View::text($picture['sales']['delta']['text']) ?></div>
         <?php endif; ?>
     </a>
     <a class="stat" href="/<?= View::text($slug) ?>/payouts">
-        <div class="stat-label"><svg data-style-prop="width:16px;height:16px" aria-hidden="true"><use href="#i-vendor"></use></svg> <?= $consignmentOnly ? 'Consignor payables' : 'Vendor payables' ?></div>
+        <div class="stat-label"><svg width="16" height="16" aria-hidden="true"><use href="#i-vendor"></use></svg> <?= $consignmentOnly ? 'Consignor payables' : 'Vendor payables' ?></div>
         <div class="stat-value"><?= View::text($picture['payables']['amount']) ?></div>
         <div class="stat-delta muted"><?= View::text($picture['payables']['caption']) ?></div>
     </a>
     <div class="stat">
-        <div class="stat-label"><svg data-style-prop="width:16px;height:16px" aria-hidden="true"><use href="#i-box"></use></svg> Inventory value</div>
+        <div class="stat-label"><svg width="16" height="16" aria-hidden="true"><use href="#i-box"></use></svg> Inventory value</div>
         <div class="stat-value"><?= View::text($picture['shelf']['value']) ?></div>
     </div>
     <div class="stat">
-        <div class="stat-label"><svg data-style-prop="width:16px;height:16px" aria-hidden="true"><use href="#i-alert"></use></svg> Qty 0</div>
+        <div class="stat-label"><svg width="16" height="16" aria-hidden="true"><use href="#i-alert"></use></svg> Qty 0</div>
         <div class="stat-value"><?= View::text((string) $picture['shelf']['unsold']) ?></div>
     </div>
 </div>

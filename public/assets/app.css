@@ -23,8 +23,11 @@
   height: 100vh;
   overflow: hidden;
   transform: translateX(-100%);
-  transition: transform var(--transition);
   visibility: hidden;
+}
+/* Transition only after first paint so load does not animate from the off-canvas rule. */
+html.pc-ui .sidebar {
+  transition: transform var(--transition);
 }
 .app[data-mobile-open="true"] .sidebar { transform: translateX(0); visibility: visible; }
 .sidebar-brand {
@@ -43,6 +46,11 @@
   color: var(--accent-contrast);
   display: grid; place-items: center;
   font-weight: 800; font-size: var(--text-md);
+}
+.brand-mark--hero {
+  width: 40px;
+  height: 40px;
+  font-size: var(--text-lg);
 }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; overflow: hidden; }
 .brand-text .name { font-weight: 700; font-size: var(--text-md); color: var(--sidebar-text); white-space: nowrap; }
@@ -110,7 +118,7 @@
 
 
 /* ---- Main column ------------------------------------------------------- */
-.main { display: flex; flex-direction: column; min-width: 0; }
+.main { display: flex; flex-direction: column; min-width: 0; max-width: 100%; }
 
 .topbar {
   min-height: var(--topbar-h);
@@ -181,6 +189,12 @@
   cursor: pointer;
 }
 .account-btn:hover { background: var(--surface-2); }
+.account-btn > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-subtle);
+}
 .avatar {
   width: 30px; height: 30px; border-radius: 50%;
   background: var(--accent); color: var(--accent-contrast);
@@ -219,13 +233,18 @@
 }
 .menu-item:hover { background: var(--surface-3); }
 .menu-item svg { width: 16px; height: 16px; color: var(--text-muted); }
+.menu-item .menu-check {
+  margin-left: auto;
+  visibility: hidden;
+}
 .menu-item[aria-checked="true"] { color: var(--accent); font-weight: 600; }
 .menu-item[aria-checked="true"] svg { color: var(--accent); }
+.menu-item[aria-checked="true"] .menu-check { visibility: visible; }
 .menu-sep { height: 1px; background: var(--border); margin: var(--space-2) 0; }
 .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--border-strong); }
 
 /* ---- Content ----------------------------------------------------------- */
-.content { padding: var(--space-4); flex: 1; }
+.content { padding: var(--space-4); flex: 1; min-width: 0; }
 .page-head {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: var(--space-4); margin-bottom: var(--space-6); flex-wrap: wrap;
@@ -247,7 +266,8 @@
     transition: grid-template-columns var(--transition);
   }
   .app[data-collapsed="true"] { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
-  .sidebar { position: sticky; z-index: auto; width: auto; transform: none; visibility: visible; }
+  /* Keep nav above page-scroll list tables (overflow:visible) when side-scrolling. */
+  .sidebar { position: sticky; top: 0; left: 0; z-index: 30; width: auto; transform: none; visibility: visible; }
   .app[data-mobile-open="true"] .sidebar { transform: none; }
   .app[data-mobile-open="true"] .sidebar-scrim { display: none; }
   .app[data-collapsed="true"] .brand-text,

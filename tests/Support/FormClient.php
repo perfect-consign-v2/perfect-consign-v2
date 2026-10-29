@@ -133,12 +133,7 @@ final class FormClient
 
     public function signIn(string $slug, string $username, string $password): PageResponse
     {
-        $this->get('/' . $slug . '/login');
-
-        return $this->post('/' . $slug . '/login', [
-            'username' => $username,
-            'password' => $password,
-        ]);
+        return $this->signInByEmail($this->emailForAccount($slug, $username), $password);
     }
 
     public function signInByEmail(string $email, string $password): PageResponse
@@ -149,6 +144,38 @@ final class FormClient
             'email' => $email,
             'password' => $password,
         ]);
+    }
+
+    private function emailForAccount(string $slug, string $username): string
+    {
+        if ($slug === ProbeMall::SLUG && $username === ProbeMall::USERNAME) {
+            return ProbeMall::EMAIL;
+        }
+        $host = getenv('STALL_DB_HOST') ?: '127.0.0.1';
+        $port = getenv('STALL_DB_PORT') ?: '5436';
+        $name = getenv('STALL_DB_NAME') ?: 'consign';
+        $user = getenv('STALL_DB_USER') ?: 'stall';
+        $password = getenv('STALL_DB_PASSWORD') ?: 'stall';
+        $pdo = new \PDO(
+            'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
+            $user,
+            $password,
+            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+        );
+        $statement = $pdo->prepare(
+            'SELECT directory.email
+             FROM platform.sign_in_directory AS directory
+             INNER JOIN platform.tenants AS tenants ON tenants.id = directory.tenant_id
+             WHERE tenants.slug = ?
+               AND directory.username = ?'
+        );
+        $statement->execute([$slug, strtolower($username)]);
+        $email = $statement->fetchColumn();
+        if (!is_string($email) || $email === '') {
+            throw new RuntimeException('no sign-in email for ' . $slug . '/' . $username);
+        }
+
+        return $email;
     }
 
     public function ensurePeriod(string $slug): void

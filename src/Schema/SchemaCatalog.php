@@ -15,7 +15,15 @@ final class SchemaCatalog
     ];
 
     /** @var list<string> */
-    public const PLATFORM_AFTER = [];
+    public const PLATFORM_AFTER = [
+        '055_store_signup.sql',
+        '056_wipe_email_verifications.sql',
+        '057_mail_outbox.sql',
+        '058_worker_runs.sql',
+        '059_worker_heartbeat.sql',
+        '060_worker_runs_delete.sql',
+        '061_admin_app_log_audit.sql',
+    ];
 
     public function __construct(private readonly string $directory)
     {

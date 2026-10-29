@@ -1,0 +1,11 @@
+/* Hold first paint until theme.css applies. CSP forbids inline style. */
+body {
+  visibility: hidden;
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+html[data-css-fallback] body {
+  visibility: visible;
+}

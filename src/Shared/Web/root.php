@@ -9,10 +9,9 @@ use PerfectConsign\Shared\Http\View;
 <div class="login-wrap">
     <div class="panel">
         <div class="row gap-3" data-style-prop="justify-content:center; margin-bottom:var(--space-6)">
-            <span class="brand-mark" data-style-prop="width:40px;height:40px;font-size:var(--text-lg)">P</span>
+            <span class="brand-mark brand-mark--hero">P</span>
             <div>
                 <div class="h2">Perfect Consign</div>
-                <div class="text-sm muted">Mall register</div>
             </div>
         </div>
         <div class="card">
@@ -22,11 +21,11 @@ use PerfectConsign\Shared\Http\View;
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <div class="field">
                         <label for="email">Email</label>
-                        <input class="input" id="email" name="email" type="email" autocomplete="username" required autofocus>
+                        <input class="input" id="email" name="email" type="email" autocomplete="username" required autofocus value="<?= View::text(is_string($email ?? null) ? $email : '') ?>">
                     </div>
                     <div class="field">
                         <label for="password">Password</label>
-                        <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+                        <?php View::passwordField(id: 'password', name: 'password', required: true, autocomplete: 'current-password'); ?>
                     </div>
                 </div>
                 <div class="card-foot row between">

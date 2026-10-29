@@ -32,7 +32,7 @@ final class NotFoundPageTest extends TestCase
     {
         $html = $this->page('', '', 'demo', '');
 
-        self::assertStringContainsString('href="/demo/login"', $html);
+        self::assertStringContainsString('href="/"', $html);
         self::assertStringNotContainsString('href="/demo/dashboard"', $html);
     }
 

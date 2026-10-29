@@ -113,6 +113,7 @@ final class AdminPasswordController
 
             return;
         }
-        $this->app->redirect('/admin/password', 'Password saved.');
+        $this->app->session()->clear();
+        $this->app->redirect('/admin/login', 'Password saved. Sign in with your new password.');
     }
 }

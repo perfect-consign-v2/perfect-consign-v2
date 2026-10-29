@@ -20,6 +20,7 @@ use PerfectConsign\Feature\Password\ResetTokens;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Tenant\TenantRecord;
+use PerfectConsign\Tests\Support\MailTestKit;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use ReflectionMethod;
@@ -58,11 +59,7 @@ final class PasswordBoundaryTest extends TestCase
                 $this->message = (string) $message;
             }
         };
-        $letter = new ResetLetter(
-            new ResetTokens($this->createStub(PDO::class)),
-            new OutboundMail($log),
-            $log
-        );
+        $letter = MailTestKit::resetLetter($this->createStub(PDO::class), $log);
         $letter->deliver($this->tenant(), new LoginAccount('staff', '01900000-0000-7000-8000-0000000000c1', 'cashier', 'c@example.com'), 'not-a-url');
         self::assertSame('reset link origin is missing', $log->message);
     }
@@ -103,25 +100,8 @@ final class PasswordBoundaryTest extends TestCase
 
     public function testAPlainMailboxDoesNotRevealTheAccount(): void
     {
-        $count = $this->createStub(\PDOStatement::class);
-        $count->method('fetchColumn')->willReturn(0);
-        $insert = $this->createStub(\PDOStatement::class);
-        $owner = $this->createStub(\PDOStatement::class);
-        $owner->method('fetch')->willReturn([
-            'id' => '01900000-0000-7000-8000-0000000000c1',
-            'email' => 'owner@example.test',
-        ]);
-        $mailbox = $this->createStub(\PDOStatement::class);
-        $mailbox->method('fetch')->willReturn([
-            'email' => 'shop@example.test',
-            'receipt_mail_via' => 'gmail',
-            'gmail_address' => 'shop@example.test',
-            'gmail_app_password' => 'abcdefghijklmnop',
-        ]);
         $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturnOnConsecutiveCalls($count, $insert, $owner);
         $pdo->method('exec')->willReturn(1);
-        $pdo->method('query')->willReturn($mailbox);
         $log = new class extends AbstractLogger {
             public string $message = '';
 
@@ -130,16 +110,15 @@ final class PasswordBoundaryTest extends TestCase
                 $this->message = (string) $message;
             }
         };
+        $mailbox = $this->createStub(\PerfectConsign\Shared\Mail\LetterMailbox::class);
+        $mailbox->method('ready')->willThrowException(new \RuntimeException('Mail is not set up.'));
         $accounts = new LoginAccounts($pdo, new DatabaseRole($pdo));
-        $letters = new ResetLetter(new ResetTokens($pdo), new OutboundMail($log), $log);
-        $recovery = new PasswordRecovery(
+        $letters = new ResetLetter(
             $pdo,
             new DatabaseRole($pdo),
-            $accounts,
             new ResetTokens($pdo),
-            new ResetRequests($pdo),
-            new PasswordChoice(),
-            $letters,
+            $mailbox,
+            $log,
         );
 
         self::assertTrue($letters->sendReset(
@@ -148,91 +127,7 @@ final class PasswordBoundaryTest extends TestCase
             'https://example.test',
             $accounts,
         ));
-        self::assertTrue($recovery->request($this->tenant(), 'owner', 'https://example.test'));
         self::assertSame('the reset mailbox could not be read', $log->message);
-    }
-
-    public function testACompanyMailboxWithoutAMailFileIsRefused(): void
-    {
-        $previous = getenv('STALL_MAIL_FILE');
-        putenv('STALL_MAIL_FILE');
-        $log = new class extends AbstractLogger {
-            public string $message = '';
-
-            public function log($level, string|\Stringable $message, array $context = []): void
-            {
-                $this->message = (string) $message;
-            }
-        };
-        $letter = new ResetLetter(
-            new ResetTokens($this->createStub(PDO::class)),
-            new OutboundMail($log),
-            $log,
-        );
-        $send = new ReflectionMethod(ResetLetter::class, 'send');
-        set_error_handler(static function (int $severity, string $message): bool {
-            return str_contains($message, 'stream_socket_client');
-        });
-        try {
-            $sent = $send->invoke($letter, 'owner-reset@example.com', 'Reset your password', "Open this link\n", [
-                'host' => '127.0.0.1',
-                'port' => 9,
-                'username' => 'shop@gmail.com',
-                'password' => 'abcdefghijklmnop',
-                'from' => 'shop@gmail.com',
-            ]);
-            self::assertFalse($sent);
-            self::assertSame('reset mail was refused', $log->message);
-        } finally {
-            restore_error_handler();
-            if (is_string($previous) && $previous !== '') {
-                putenv('STALL_MAIL_FILE=' . $previous);
-            } else {
-                putenv('STALL_MAIL_FILE');
-            }
-        }
-    }
-
-    public function testARecordedResetSkipsGmail(): void
-    {
-        $path = tempnam(sys_get_temp_dir(), 'pc-reset-');
-        if ($path === false) {
-            self::fail('the mail file could not be created');
-        }
-        $previous = getenv('STALL_MAIL_FILE');
-        putenv('STALL_MAIL_FILE=' . $path);
-        $log = new class extends AbstractLogger {
-            public function log($level, string|\Stringable $message, array $context = []): void
-            {
-            }
-        };
-        $letter = new ResetLetter(
-            new ResetTokens($this->createStub(PDO::class)),
-            new OutboundMail($log),
-            $log,
-        );
-        $send = new ReflectionMethod(ResetLetter::class, 'send');
-        try {
-            $send->invoke($letter, 'owner-reset@example.com', 'Reset your password', "Open this link\n", [
-                'host' => 'smtp.gmail.com',
-                'port' => 587,
-                'username' => 'shop@gmail.com',
-                'password' => 'abcdefghijklmnop',
-                'from' => 'shop@gmail.com',
-            ]);
-            $text = file_get_contents($path);
-            self::assertIsString($text);
-            self::assertStringContainsString('To: owner-reset@example.com', $text);
-        } finally {
-            if (is_string($previous) && $previous !== '') {
-                putenv('STALL_MAIL_FILE=' . $previous);
-            } else {
-                putenv('STALL_MAIL_FILE');
-            }
-            if (is_file($path)) {
-                unlink($path);
-            }
-        }
     }
 
     public function testAClosedResetLinkAsksForANewOne(): void
@@ -255,7 +150,7 @@ final class PasswordBoundaryTest extends TestCase
         ]);
         $open = ob_get_clean();
         self::assertIsString($closed);
-        self::assertStringContainsString('/demo/forgot', $closed);
+        self::assertStringContainsString('/forgot', $closed);
         self::assertIsString($open);
         self::assertStringContainsString('name="password"', $open);
         self::assertStringContainsString('name="confirm"', $open);

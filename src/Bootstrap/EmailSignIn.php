@@ -37,7 +37,7 @@ final class EmailSignIn
         }
         try {
             $signedIn = $this->door->signIn($match['slug'], $match['username'], $password);
-        } catch (SignInLocked $locked) {
+        } catch (SignInLocked | SignInUnverified $locked) {
             throw $locked;
         }
         if (!$signedIn) {

@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Feature\Mall\ReceiptMailSettings;
+use PerfectConsign\Shared\Mail\LetterMailbox;
 use PerfectConsign\Shared\Mail\OutboundMail;
-use PerfectConsign\Shared\Mail\SmtpClient;
 
 final class ReceiptMailer
 {
     public function __construct(
         private readonly ReceiptMailSettings $settings,
-        private readonly OutboundMail $mail,
+        private readonly LetterMailbox $mailbox,
         private readonly ReceiptLetter $letter,
     ) {
     }
@@ -35,38 +35,17 @@ final class ReceiptMailer
         if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $address) !== 1 || str_contains($address, "\n") || str_contains($address, "\r")) {
             throw new \InvalidArgumentException('that email is not an email address');
         }
-        $subject = 'Receipt ' . (string) $receipt['sale_number'];
-        $body = $this->letter->body($receipt, $storeName, $companyLines, $footer);
-        if ($this->settings->via() === 'gmail') {
-            $this->gmail($address, $subject, $body);
-
-            return;
+        if (!$this->mailbox->ready()) {
+            if ($this->settings->via() === 'gmail') {
+                throw new \InvalidArgumentException('Gmail is not set up');
+            }
+            throw new \RuntimeException(OutboundMail::SMTP_NOT_CONFIGURED);
         }
-        $this->mail->deliver($address, $subject, $body);
-    }
-
-    private function gmail(string $to, string $subject, string $body): void
-    {
-        $account = $this->settings->gmail();
-        if ($account === null) {
-            throw new \InvalidArgumentException('Gmail is not set up');
-        }
-        $file = getenv('STALL_MAIL_FILE');
-        if (is_string($file) && $file !== '') {
-            $this->mail->deliver($to, $subject, $body);
-
-            return;
-        }
-        try {
-            (new SmtpClient(
-                $account['host'],
-                $account['port'],
-                $account['username'],
-                $account['password'],
-                $account['from'],
-            ))->send($to, $subject, $body);
-        } catch (\Throwable) {
-            throw new \InvalidArgumentException('Gmail refused the receipt');
-        }
+        $this->mailbox->send(
+            $address,
+            'Receipt ' . (string) $receipt['sale_number'],
+            $this->letter->body($receipt, $storeName, $companyLines, $footer),
+            'receipt mail was refused',
+        );
     }
 }

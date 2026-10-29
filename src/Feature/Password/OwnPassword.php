@@ -120,7 +120,7 @@ final class OwnPassword
     {
         $state = $error->errorInfo[0] ?? '';
         if ($state === '23505') {
-            throw new \InvalidArgumentException('That recovery email is already used on another sign-in.');
+            throw new \InvalidArgumentException('That email is already used on another sign-in.');
         }
 
         throw $error;

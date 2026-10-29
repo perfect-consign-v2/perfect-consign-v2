@@ -75,10 +75,10 @@ if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
     "$php_bin" "${root}/bin/set-owner.php" mall owner
 fi
 
-code=$(curl -sS -o /dev/null -w '%{http_code}' https://v2.perfectconsign.com/mall)
+code=$(curl -sS -o /dev/null -w '%{http_code}' https://v2.perfectconsign.com/mall/login)
 if [[ "$code" != "200" ]]; then
-    echo "deploy-demo: https://v2.perfectconsign.com/mall returned ${code}" >&2
+    echo "deploy-demo: https://v2.perfectconsign.com/mall/login returned ${code}" >&2
     exit 1
 fi
 
-echo "deploy-demo: ${sha} is live at https://v2.perfectconsign.com/mall"
+echo "deploy-demo: ${sha} is live at https://v2.perfectconsign.com/mall/login"

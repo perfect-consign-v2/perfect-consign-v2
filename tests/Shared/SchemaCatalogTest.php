@@ -19,7 +19,10 @@ final class SchemaCatalogTest extends TestCase
         self::assertSame(['001_tenant.sql'], $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
         self::assertSame(['000_platform.sql'], $platform);
-        self::assertSame([], $catalog->platformAfterFiles());
+        self::assertSame(
+            ['055_store_signup.sql', '056_wipe_email_verifications.sql', '057_mail_outbox.sql', '058_worker_runs.sql', '059_worker_heartbeat.sql', '060_worker_runs_delete.sql', '061_admin_app_log_audit.sql'],
+            $catalog->platformAfterFiles()
+        );
         $checksum = $catalog->checksum('001_tenant.sql');
         self::assertSame(64, strlen($checksum));
         $mall = $catalog->read('001_tenant.sql');

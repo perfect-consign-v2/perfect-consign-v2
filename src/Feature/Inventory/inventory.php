@@ -127,7 +127,7 @@ $shows = [
             }
             $columns[] = ['label' => 'Intake'];
             $columns[] = ['label' => 'Expires'];
-            $columns[] = ['label' => 'Store take', 'sort' => 'num'];
+            $columns[] = ['label' => 'Store %', 'sort' => 'num'];
             $columns[] = ['label' => 'Qty', 'sort' => 'num'];
             $columns[] = ['label' => 'Price', 'sort' => 'num'];
             $columns[] = ['label' => '', 'actions' => true];
@@ -202,8 +202,6 @@ $shows = [
                                 </form>
                             <?php elseif ($item['deletable']): ?>
                                 <a class="btn btn-sm" href="<?= View::text($delete) ?>"><svg aria-hidden="true"><use href="#i-trash"></use></svg> Delete</a>
-                            <?php else: ?>
-                                <span class="muted">In use</span>
                             <?php endif; ?>
                         </td>
                     </tr>

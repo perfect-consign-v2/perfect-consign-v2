@@ -139,8 +139,8 @@ final class RegisterFeatures
     }
 
     /**
-     * Exact platform paths (/forgot, /admin/…) must register before the mall
-     * catch-all /{slug}, or HomeController steals those names as tenant slugs.
+     * Exact platform paths (/forgot, /signup, /admin/…) must register before the
+     * mall catch-all /{slug}, or HomeController steals those names as tenant slugs.
      */
     private static function platformRoutesFirst(string $left, string $right): int
     {
@@ -158,7 +158,8 @@ final class RegisterFeatures
         if (str_contains($class, '\\Feature\\Admin\\')) {
             return 0;
         }
-        if (str_contains($class, '\\Feature\\Root\\')) {
+        if (str_contains($class, '\\Feature\\Root\\')
+            || str_contains($class, '\\Feature\\Signup\\')) {
             return 1;
         }
 

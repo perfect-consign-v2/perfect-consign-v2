@@ -10,7 +10,7 @@ final class RecoveryAddress
     {
         $email = trim($email);
         if ($email === '' || strlen($email) > 200 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1) {
-            throw new \InvalidArgumentException('Enter a recovery email.');
+            throw new \InvalidArgumentException('Enter an email.');
         }
 
         return $email;

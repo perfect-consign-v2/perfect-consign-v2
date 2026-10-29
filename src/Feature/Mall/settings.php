@@ -147,7 +147,7 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             <label for="cash_round_minor">Round cash sales to</label>
             <select class="select" id="cash_round_minor" name="cash_round_minor">
                 <?php
-                $roundNow = $cashRound ?? '0';
+                $roundNow = (string) ($cashRound ?? '0');
                 $roundChoices = [
                     '0' => 'No cash rounding',
                     '1' => 'Nearest cent ($0.01)',
@@ -156,8 +156,9 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
                     '25' => 'Nearest quarter ($0.25)',
                 ];
                 foreach ($roundChoices as $value => $label):
+                    $step = (string) $value;
                     ?>
-                    <option value="<?= View::text($value) ?>"<?= $roundNow === $value ? ' selected' : '' ?>><?= View::text($label) ?></option>
+                    <option value="<?= View::text($step) ?>"<?= $roundNow === $step ? ' selected' : '' ?>><?= View::text($label) ?></option>
                 <?php endforeach; ?>
             </select>
             <p class="muted text-sm">Cash taken on a sale rounds to this step. The round amount shows on the register and on the receipt. Card, checks, and stored value stay exact.</p>
@@ -283,7 +284,7 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
         </div>
         <div class="field">
             <label for="gmail_app_password">Gmail app password</label>
-            <input class="input" id="gmail_app_password" name="gmail_app_password" type="password" autocomplete="new-password" value="">
+            <?php View::passwordField(id: 'gmail_app_password', name: 'gmail_app_password', autocomplete: 'new-password', value: ''); ?>
             <p class="muted text-sm"><?= !empty($gmailPasswordSaved) ? 'An app password is saved. Leave this blank to keep it.' : 'Create an app password in the Google account. Spaces are ignored.' ?></p>
         </div>
     </div>

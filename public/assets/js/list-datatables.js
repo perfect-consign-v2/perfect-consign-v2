@@ -1,7 +1,8 @@
 /**
  * Client-side DataTables for rendered lists.
  * Sort arrows on every orderable column, a filter in each header,
- * paging, and CSV / Excel / PDF / print of the filtered rows.
+ * paging, column visibility, and CSV / Excel / PDF / print of the
+ * filtered visible rows.
  */
 (function () {
     'use strict';
@@ -121,8 +122,72 @@
         return defs;
     }
 
-    function exportable(idx, node) {
-        return !(node && node.classList && node.classList.contains('list-dt-actions'));
+    function columnTitle(dt, idx, title) {
+        var header = dt.column(idx).header();
+        if (header !== null) {
+            var labeled = header.querySelector('.dt-column-title');
+            if (labeled !== null) {
+                var text = labeled.textContent === null ? '' : labeled.textContent.trim();
+                if (text !== '') {
+                    return text;
+                }
+            }
+        }
+        var cleaned = String(title || '').replace(/\s+/g, ' ').trim();
+        return cleaned === '' ? 'Column ' + (idx + 1) : cleaned;
+    }
+
+    function visibilityStorageKey(tableEl) {
+        return 'pc-list-dt-columns:' + tableEl.id;
+    }
+
+    function readColumnVisibility(tableEl, columnCount) {
+        try {
+            var raw = window.localStorage.getItem(visibilityStorageKey(tableEl));
+            if (raw === null || raw === '') {
+                return null;
+            }
+            var parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed) || parsed.length !== columnCount) {
+                return null;
+            }
+            var visible = [];
+            for (var i = 0; i < parsed.length; i++) {
+                if (typeof parsed[i] !== 'boolean') {
+                    return null;
+                }
+                visible.push(parsed[i]);
+            }
+            return visible;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function rememberColumnVisibility(tableEl, api) {
+        var visible = [];
+        api.columns().every(function () {
+            visible.push(this.visible());
+        });
+        try {
+            window.localStorage.setItem(visibilityStorageKey(tableEl), JSON.stringify(visible));
+        } catch (error) {}
+    }
+
+    function applyStoredVisibility(tableEl, api) {
+        var headers = tableEl.querySelectorAll('thead th');
+        var stored = readColumnVisibility(tableEl, headers.length);
+        if (stored === null) {
+            return;
+        }
+        stored.forEach(function (show, index) {
+            var header = headers[index];
+            if (header && header.classList.contains('list-dt-actions')) {
+                return;
+            }
+            api.column(index).visible(show, false);
+        });
+        api.columns.adjust();
     }
 
     function idTokenSearch(term) {
@@ -300,7 +365,7 @@
         var selectionUi = openInventorySelection(tableEl);
         var name = exportName(tableEl);
         var exportOptions = {
-            columns: exportable,
+            columns: ':visible:not(.list-dt-actions)',
             modifier: { search: 'applied', order: 'applied', page: 'all' },
             format: {
                 body: function (data, row, column, node) {
@@ -315,6 +380,7 @@
             order: readOrder(tableEl),
             pageLength: storedPageLength(),
             lengthMenu: [10, 25, 50, 100],
+            scrollX: true,
             stripe: true,
             searchDelay: 300,
             layout: {
@@ -324,6 +390,13 @@
                 bottomEnd: 'paging',
             },
             buttons: [
+                {
+                    extend: 'colvis',
+                    text: 'Columns',
+                    columns: ':not(.list-dt-actions)',
+                    columnText: columnTitle,
+                    popoverTitle: 'Show or hide columns',
+                },
                 { extend: 'csv', filename: name, exportOptions: exportOptions },
                 { extend: 'excel', filename: name, exportOptions: exportOptions },
                 { extend: 'pdf', filename: name, orientation: 'landscape', pageSize: 'LETTER', exportOptions: exportOptions },
@@ -331,8 +404,10 @@
             ],
             columnDefs: columnDefs(tableEl),
             initComplete: function () {
-                bindFilters(this.api());
-                this.api().columns.adjust();
+                var api = this.api();
+                applyStoredVisibility(tableEl, api);
+                bindFilters(api);
+                api.columns.adjust();
             },
         };
         if (selectionUi !== null) {
@@ -340,7 +415,12 @@
                 selectionUi.draw();
             };
         }
-        return new DataTable('#' + tableEl.id, options);
+        var api = new DataTable('#' + tableEl.id, options);
+        api.on('column-visibility.dt', function () {
+            rememberColumnVisibility(tableEl, api);
+            api.columns.adjust();
+        });
+        return api;
     }
 
     function init() {

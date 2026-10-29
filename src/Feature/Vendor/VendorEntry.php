@@ -6,7 +6,8 @@ namespace PerfectConsign\Feature\Vendor;
 
 use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Shared\Database\Statements;
-use PerfectConsign\Shared\Mail\OutboundMail;
+use PerfectConsign\Shared\Mail\LetterMailbox;
+use PerfectConsign\Shared\Mail\MailOutbox;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
@@ -20,7 +21,8 @@ final class VendorEntry
         private readonly PDO $pdo,
         private readonly DatabaseRole $roles,
         private readonly Statements $statements,
-        private readonly OutboundMail $mail,
+        private readonly LetterMailbox $mailbox,
+        private readonly MailOutbox $outbox,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -43,6 +45,11 @@ final class VendorEntry
         if ($vendorId === '' || preg_match('#\Ahttps?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?\z#', $origin) !== 1) {
             return;
         }
+        if (!$this->mailbox->ready()) {
+            $this->logger->error('consignor entry mailbox is not set up', ['slug' => $tenant->slug]);
+
+            return;
+        }
         $token = bin2hex(random_bytes(32));
         $this->statements->change(
             "INSERT INTO vendor_entry_tokens (vendor_id, token_hash, expires_at)
@@ -50,13 +57,16 @@ final class VendorEntry
             [$vendorId, hash('sha256', $token)]
         );
         try {
-            $this->mail->deliver(
+            $this->outbox->file(
+                $tenant->slug,
+                MailOutbox::MAILBOX_MALL,
+                'consignor entry mail was refused',
                 $email,
                 'Your consignor link',
-                $origin . '/' . $tenant->slug . '/consignor/enter/' . $token
+                $origin . '/' . $tenant->slug . '/consignor/enter/' . $token,
             );
         } catch (\Throwable $error) {
-            $this->logger->error('consignor entry mail was refused', [
+            $this->logger->error('consignor entry mail could not be filed', [
                 'slug' => $tenant->slug,
                 'message' => $error->getMessage(),
             ]);

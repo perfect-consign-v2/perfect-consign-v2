@@ -52,7 +52,10 @@
     border-radius: var(--radius);
     background: var(--surface);
 }
-.content form button:not(.btn):not(.menu-item):not(.icon-btn):not(.modal-x) {
+.content form .password-field > input {
+    padding-right: 2.75rem;
+}
+.content form button:not(.btn):not(.menu-item):not(.icon-btn):not(.modal-x):not(.password-field__toggle) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -645,8 +648,10 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .login-wrap {
     min-height: 100vh;
     display: grid;
-    place-items: center;
+    justify-items: center;
+    align-content: start;
     padding: var(--space-6);
+    padding-top: max(var(--space-6), 12vh);
     background: var(--bg);
 }
 .login-wrap .panel { width: 100%; max-width: 420px; }

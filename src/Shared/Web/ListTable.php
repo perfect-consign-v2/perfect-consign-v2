@@ -111,6 +111,7 @@ final class ListTable
             . '<script src="/assets/datatables/pdfmake.min.js"></script>'
             . '<script src="/assets/datatables/vfs_fonts.js"></script>'
             . '<script src="/assets/datatables/dataTables.buttons.min.js"></script>'
+            . '<script src="/assets/datatables/buttons.colVis.min.js"></script>'
             . '<script src="/assets/datatables/buttons.html5.min.js"></script>'
             . '<script src="/assets/datatables/buttons.print.min.js"></script>';
         if (self::$selectionNeeded && !self::$selectionPrinted) {

@@ -90,7 +90,7 @@ $lines = $cart['lines'];
             </div>
             <div class="field">
                 <label for="override_password">Their password</label>
-                <input class="input" id="override_password" name="override_password" type="password" autocomplete="off">
+                <?php View::passwordField(id: 'override_password', name: 'override_password', autocomplete: 'off'); ?>
             </div>
             <div class="row between">
                 <button class="btn" type="submit" name="discount_action" value="remove" formnovalidate>Remove discount</button>
@@ -123,7 +123,7 @@ $lines = $cart['lines'];
             </div>
             <div class="field">
                 <label for="tax_override_password">Their password</label>
-                <input class="input" id="tax_override_password" name="override_password" type="password" autocomplete="off">
+                <?php View::passwordField(id: 'tax_override_password', name: 'override_password', autocomplete: 'off'); ?>
             </div>
             <div class="row between">
                 <button class="btn" type="submit" name="waiver_action" value="restore" formnovalidate>Restore tax</button>

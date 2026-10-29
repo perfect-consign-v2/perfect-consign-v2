@@ -30,7 +30,8 @@ final class JobQueue
         $statement = $pdo->prepare(
             "INSERT INTO platform.jobs (tenant, kind, payload, run_at)
              VALUES (?, ?, jsonb_build_object('date', ?::text), clock_timestamp())
-             ON CONFLICT (tenant, kind, (payload ->> 'date')) WHERE ((payload ->> 'letter') IS NULL) DO NOTHING"
+             ON CONFLICT (tenant, kind, (payload ->> 'date'))
+             WHERE ((payload ->> 'letter') IS NULL AND (payload ->> 'mail') IS NULL) DO NOTHING"
         );
         $statement->execute([$tenant, $kind, $date]);
     }

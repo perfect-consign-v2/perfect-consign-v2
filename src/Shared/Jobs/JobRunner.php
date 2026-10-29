@@ -17,32 +17,43 @@ final class JobRunner
         private readonly LoggerInterface $logger,
         private readonly JobSchedule $schedule,
         private readonly JobDispatch $jobs,
+        private readonly WorkerRuns $runs,
     ) {
     }
 
     public function pass(string $worker): void
     {
-        $this->schedule->schedule();
-        $overdue = $this->queue->overdue($this->pdo);
-        if ($overdue > 0) {
-            $this->logger->error('job is past run_at', ['overdue' => $overdue]);
-        }
-        while (($job = $this->queue->claim($this->pdo, $worker)) !== null) {
-            $error = '';
-            try {
-                $this->handle($job);
-            } catch (\Throwable $failure) {
-                $error = $failure->getMessage();
-                $this->logger->error('job failed', ['kind' => $job['kind'], 'tenant' => $job['tenant'], 'error' => $error]);
+        $finished = 0;
+        $failed = 0;
+        try {
+            $this->schedule->schedule();
+            $overdue = $this->queue->overdue($this->pdo);
+            if ($overdue > 0) {
+                $this->logger->error('job is past run_at', ['overdue' => $overdue]);
             }
-            $this->queue->finish($this->pdo, $job['id'], $error);
-            if ($error !== '' && $job['attempts'] >= 5) {
-                $this->logger->error('job will not be retried', [
-                    'kind' => $job['kind'],
-                    'tenant' => $job['tenant'],
-                    'error' => $error,
-                ]);
+            while (($job = $this->queue->claim($this->pdo, $worker)) !== null) {
+                $error = '';
+                try {
+                    $this->handle($job);
+                } catch (\Throwable $failure) {
+                    $error = $failure->getMessage();
+                    $this->logger->error('job failed', ['kind' => $job['kind'], 'tenant' => $job['tenant'], 'error' => $error]);
+                }
+                $this->queue->finish($this->pdo, $job['id'], $error);
+                $finished++;
+                if ($error !== '') {
+                    $failed++;
+                }
+                if ($error !== '' && $job['attempts'] >= 5) {
+                    $this->logger->error('job will not be retried', [
+                        'kind' => $job['kind'],
+                        'tenant' => $job['tenant'],
+                        'error' => $error,
+                    ]);
+                }
             }
+        } finally {
+            $this->runs->completePass($worker, $finished, $failed);
         }
     }
 
@@ -51,6 +62,14 @@ final class JobRunner
      */
     public function handle(array $job): void
     {
+        if ($job['tenant'] === 'platform') {
+            if ($job['kind'] !== 'outbound-mail') {
+                throw new RuntimeException('platform jobs are mail only');
+            }
+            $this->jobs->dispatch($job);
+
+            return;
+        }
         $schema = $this->schema($job['tenant']);
         $role = TenantRecord::roleFor($job['tenant'], $schema);
         if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {

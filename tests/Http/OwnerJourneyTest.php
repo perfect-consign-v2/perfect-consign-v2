@@ -93,8 +93,8 @@ final class OwnerJourneyTest extends WebTestCase
         $list = $this->client->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
         $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $description);
         self::assertSame(1, preg_match('/<tr id="item-' . preg_quote($itemId, '/') . '">.*?<\/tr>/s', $list->body, $row));
-        self::assertStringContainsString('In use', $row[0]);
         self::assertStringNotContainsString('Delete', $row[0]);
+        self::assertStringNotContainsString('In use', $row[0]);
         self::assertStringNotContainsString('Delete this item?', $this->client->get('/' . ProbeMall::SLUG . '/inventory?confirm=' . $itemId)->body);
         $edit = $this->client->get('/' . ProbeMall::SLUG . '/inventory/' . $itemId . '/edit');
         self::assertSame(1, preg_match('/id="price"[^>]*readonly/', $edit->body));

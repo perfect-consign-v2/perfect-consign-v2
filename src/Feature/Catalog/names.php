@@ -80,8 +80,6 @@ $noun = $list->singular;
                                 </form>
                             <?php elseif ($deletable): ?>
                                 <a class="btn btn-sm" href="<?= View::text($delete) ?>"><svg aria-hidden="true"><use href="#i-trash"></use></svg> Delete</a>
-                            <?php else: ?>
-                                <span class="muted">In use</span>
                             <?php endif; ?>
                         </td>
                     </tr>

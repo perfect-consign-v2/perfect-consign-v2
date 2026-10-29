@@ -51,7 +51,7 @@ use PerfectConsign\Shared\Http\View;
         <div class="field">
             <label for="email">Email</label>
             <input class="input" id="email" name="email" maxlength="200" value="<?= View::text($company['email']) ?>">
-            <p class="muted text-sm">The owner password reset is sent here when the owner has no recovery email. System email uses the Mail Server setting.</p>
+            <p class="muted text-sm">Store contact email. Owner and staff reset links go to each account's sign-in email.</p>
         </div>
         <p><button class="btn btn-primary" type="submit">Save</button></p>
     </div>

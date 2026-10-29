@@ -50,6 +50,7 @@ final class ListTableTest extends TestCase
         self::assertStringContainsString('/assets/js/list-datatables.js', $html);
         self::assertStringNotContainsString('inventory-selection-store.js', $html);
         self::assertStringNotContainsString('data-dt-page-scroll', $html);
+        self::assertStringContainsString('/assets/datatables/buttons.colVis.min.js', $html);
         self::assertStringContainsString('/assets/datatables/buttons.html5.min.js', $html);
         self::assertStringContainsString('/assets/datatables/buttons.print.min.js', $html);
         $root = dirname(__DIR__, 2);

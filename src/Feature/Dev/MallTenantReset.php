@@ -53,7 +53,7 @@ final class MallTenantReset
     }
 
     /**
-     * @return array{username: string, password_hash: string}
+     * @return array{username: string, password_hash: string, email: ?string}
      */
     private function replacementOwner(): array
     {
@@ -61,10 +61,26 @@ final class MallTenantReset
         if (!is_string($password) || $password === '') {
             throw new RuntimeException('STALL_OWNER_PASSWORD is required');
         }
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        if ($hash === false) {
+            throw new RuntimeException('the password hash could not be created');
+        }
+
         return [
             'username' => 'owner',
-            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'password_hash' => $hash,
+            'email' => $this->ownerEmailFromEnv(),
         ];
+    }
+
+    private function ownerEmailFromEnv(): ?string
+    {
+        $email = getenv('STALL_OWNER_EMAIL');
+        if (!is_string($email) || trim($email) === '') {
+            return null;
+        }
+
+        return strtolower(trim($email));
     }
 
     private function requireTools(): void
@@ -81,12 +97,12 @@ final class MallTenantReset
     }
 
     /**
-     * @return array{username: string, password_hash: string}|null
+     * @return array{username: string, password_hash: string, email: ?string}|null
      */
     private function owner(PDO $pdo): ?array
     {
         $statement = $pdo->prepare(
-            'SELECT owners.username, owners.password_hash
+            'SELECT owners.username, owners.password_hash, owners.email
              FROM platform.owners AS owners
              JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
              WHERE tenants.slug = ?'
@@ -97,7 +113,7 @@ final class MallTenantReset
     }
 
     /**
-     * @return array{username: string, password_hash: string}|null
+     * @return array{username: string, password_hash: string, email: ?string}|null
      */
     private function ownerRow(mixed $row): ?array
     {
@@ -109,22 +125,34 @@ final class MallTenantReset
         if (!is_string($username) || $username === '' || !is_string($passwordHash) || $passwordHash === '') {
             throw new RuntimeException('the mall owner row is invalid');
         }
+        $email = $row['email'] ?? null;
+        if (!is_string($email) || trim($email) === '') {
+            $email = $this->ownerEmailFromEnv();
+        } else {
+            $email = strtolower(trim($email));
+        }
 
-        return ['username' => $username, 'password_hash' => $passwordHash];
+        return ['username' => $username, 'password_hash' => $passwordHash, 'email' => $email];
     }
 
     /**
-     * @param array{username: string, password_hash: string} $owner
+     * @param array{username: string, password_hash: string, email: ?string} $owner
      */
     private function restoreOwner(PDO $pdo, array $owner): void
     {
         $statement = $pdo->prepare(
-            'INSERT INTO platform.owners (id, tenant_id, username, password_hash)
-             SELECT uuidv7(), id, ?, ?
+            'INSERT INTO platform.owners (id, tenant_id, username, password_hash, email, email_verified_at)
+             SELECT uuidv7(), id, ?, ?, ?, CASE WHEN ?::text IS NULL THEN NULL ELSE clock_timestamp() END
              FROM platform.tenants
              WHERE slug = ?'
         );
-        $statement->execute([$owner['username'], $owner['password_hash'], self::SLUG]);
+        $statement->execute([
+            $owner['username'],
+            $owner['password_hash'],
+            $owner['email'],
+            $owner['email'],
+            self::SLUG,
+        ]);
         if ($statement->rowCount() < 1) {
             throw new RuntimeException('the mall owner could not be restored');
         }

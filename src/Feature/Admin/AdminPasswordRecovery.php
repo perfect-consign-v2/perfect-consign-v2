@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectConsign\Feature\Password\PasswordChoice;
-use PerfectConsign\Shared\Mail\OutboundMail;
-use PerfectConsign\Shared\Mail\SmtpClient;
+use PerfectConsign\Shared\Mail\PlatformMailbox;
 use PDO;
 use Psr\Log\LoggerInterface;
 
@@ -18,7 +17,7 @@ final class AdminPasswordRecovery
         private readonly PDO $pdo,
         private readonly AdminResetTokens $tokens,
         private readonly PasswordChoice $passwords,
-        private readonly OutboundMail $mail,
+        private readonly PlatformMailbox $platformMail,
         private readonly LoggerInterface $logger,
         private readonly AdminAudit $audit,
         private readonly AdminSession $session,
@@ -191,51 +190,32 @@ final class AdminPasswordRecovery
     {
         if (preg_match('#\Ahttps?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?\z#', $origin) !== 1) {
             $this->logger->error('admin reset link origin is missing');
-
-            return;
+            throw new \RuntimeException(self::MAIL_FAILED);
+        }
+        if (!$this->platformMail->ready()) {
+            $this->logger->error('admin reset mailbox is not set up');
+            throw new \RuntimeException(self::MAIL_FAILED);
         }
         $token = $this->tokens->issue($row['id']);
         $body = "A password reset was requested for the Perfect Consign platform admin.\n\n"
             . "Open this link within 30 minutes:\n"
             . $origin . '/admin/reset/' . $token . "\n\n"
             . "If you did not ask, you can ignore this message.\n";
-        $gmail = $this->platformMailbox();
-        $file = getenv('STALL_MAIL_FILE');
         try {
-            if ($gmail === null || (is_string($file) && $file !== '')) {
-                $this->mail->deliver($row['email'], 'Reset your password', $body);
-            } else {
-                (new SmtpClient(
-                    $gmail['host'],
-                    $gmail['port'],
-                    $gmail['username'],
-                    $gmail['password'],
-                    $gmail['from'],
-                ))->send($row['email'], 'Reset your password', $body);
-            }
+            $this->platformMail->send(
+                $row['email'],
+                'Reset your Perfect Consign admin password',
+                $body,
+                'admin reset mail was refused',
+            );
         } catch (\Throwable $error) {
-            $this->logger->error('admin reset mail was refused', ['message' => $error->getMessage()]);
+            $this->logger->error('admin reset mail was refused', [
+                'message' => $error->getMessage(),
+            ]);
             throw new \RuntimeException(self::MAIL_FAILED, 0, $error);
         }
-    }
-
-    /**
-     * @return array{host: string, port: int, username: string, password: string, from: string}|null
-     */
-    private function platformMailbox(): ?array
-    {
-        $address = getenv('STALL_GMAIL_ADDRESS');
-        $password = getenv('STALL_GMAIL_APP_PASSWORD');
-        if (!is_string($address) || $address === '' || !is_string($password) || $password === '') {
-            return null;
-        }
-
-        return [
-            'host' => 'smtp.gmail.com',
-            'port' => 587,
-            'username' => $address,
-            'password' => $password,
-            'from' => $address,
-        ];
+        $this->logger->info('admin reset mail was sent', [
+            'email' => $row['email'],
+        ]);
     }
 }

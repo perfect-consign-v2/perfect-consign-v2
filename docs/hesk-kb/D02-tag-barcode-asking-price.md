@@ -1,15 +1,15 @@
 ---
 title: Tag / barcode / asking price vs posted sale amount
 category: Inventory
-hesk: published 2026-10-28
-as_of: 2026-10-25
+hesk: published 2026-10-29
+as_of: 2026-10-28
 ---
 
 # Tag / barcode / asking price vs posted sale amount
 
 ## As of
 
-2026-10-25
+2026-10-28
 
 ## In one sentence
 
@@ -31,7 +31,7 @@ Creating/editing items, printing stickers, ringing a sale.
 ## What is refused
 
 - Duplicate tag or barcode.
-- Deleting an item while something still points at it (“In use”).
+- Deleting an item while something still points at it (no Delete on the list; a direct delete is refused).
 - Deleting a vendor/brand an item still names.
 
 ## How to check

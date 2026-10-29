@@ -3,10 +3,13 @@
 .list-dt-wrap.table-wrap,
 .card.list-dt-wrap {
     overflow: visible;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .list-dt-wrap .dt-scroll-body {
-    overflow: visible;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     max-height: none;
     height: auto;
 }
@@ -36,6 +39,44 @@
 }
 
 .list-dt-wrap .dt-buttons .dt-button:hover {
+    background: var(--surface-2);
+}
+
+/* Collection popovers attach to body, outside .list-dt-wrap. */
+div.dt-button-collection {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-xs);
+    padding: var(--space-2);
+    max-height: min(70vh, 24rem);
+    overflow: auto;
+}
+
+div.dt-button-collection .dt-button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-sm);
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+div.dt-button-collection .dt-button:last-child {
+    margin-bottom: 0;
+}
+
+div.dt-button-collection .dt-button:hover {
+    background: var(--surface-2);
+}
+
+div.dt-button-collection .dt-button.dt-button-active {
+    border-color: var(--border-strong);
     background: var(--surface-2);
 }
 
@@ -155,26 +196,30 @@
     color: var(--text) !important;
 }
 
-.list-dt-wrap.list-dt-page-scroll,
-.list-dt-wrap.list-dt-page-scroll .dt-scroll,
-.list-dt-wrap.list-dt-page-scroll .dt-scroll-head,
-.list-dt-wrap.list-dt-page-scroll .dt-scroll-body {
+/* Page scroll: document scrolls rows; only .dt-scroll-body side-scrolls. */
+.list-dt-wrap.list-dt-page-scroll .dt-scroll {
     overflow: visible;
-    max-height: none;
-    height: auto;
+    min-width: 0;
+    max-width: 100%;
 }
 
-.list-dt-wrap.list-dt-page-scroll table.list-dt {
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-.list-dt-wrap.list-dt-page-scroll table.list-dt thead th,
-.list-dt-wrap.list-dt-page-scroll .dt-scroll-head table thead th {
-    position: sticky;
+.list-dt-wrap.list-dt-page-scroll .dt-scroll-head {
+    position: sticky !important;
     top: var(--topbar-h);
-    z-index: 3;
+    z-index: 5;
     background: var(--surface-2);
+}
+
+.list-dt-wrap.list-dt-page-scroll .dt-scroll-head table thead th {
+    position: static;
+    top: auto;
+    background: var(--surface-2);
+}
+
+.list-dt-wrap.list-dt-page-scroll .dt-scroll-body {
+    max-height: none !important;
+    height: auto !important;
+    overflow-x: auto !important;
 }
 
 .list-dt-wrap .list-dt-select-all {

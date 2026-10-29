@@ -29,7 +29,7 @@ $sentence = $displayName !== ''
                     <?php if ($homeSlug !== ''): ?>
                         <a class="btn btn-primary" href="/<?= View::text($homeSlug) ?>/dashboard">Go to the dashboard</a>
                     <?php elseif ($signInSlug !== ''): ?>
-                        <a class="btn btn-primary" href="/<?= View::text($signInSlug) ?>/login">Sign in</a>
+                        <a class="btn btn-primary" href="/">Sign in</a>
                     <?php endif; ?>
                     <?php if ($back !== ''): ?>
                         <a class="btn" href="<?= View::text($back) ?>">Back</a>

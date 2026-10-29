@@ -43,7 +43,7 @@ final class LetterDeskTest extends TestCase
             $statements,
             $pdo,
             new JobQueue(),
-            new LetterMailbox(new ReceiptMailSettings($statements), $mail),
+            \PerfectConsign\Tests\Support\MailTestKit::letterMailbox($statements, $mail),
             new LetterDraft(),
         );
         $vendorId = $this->vendor($statements);

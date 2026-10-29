@@ -66,7 +66,9 @@ if (is_array($existing) && passwordMatches($password, $existing['password_hash']
     }
     $touch = $pdo->prepare(
         'UPDATE platform.owners
-         SET username = ?, email = COALESCE(?, email)
+         SET username = ?,
+             email = COALESCE(?, email),
+             email_verified_at = COALESCE(email_verified_at, clock_timestamp())
          WHERE id = ?::uuid'
     );
     try {
@@ -85,14 +87,15 @@ if ($hash === false) {
     exit(1);
 }
 $statement = $pdo->prepare(
-    'INSERT INTO platform.owners (id, tenant_id, username, password_hash, email)
-     SELECT uuidv7(), id, ?, ?, ?
+    'INSERT INTO platform.owners (id, tenant_id, username, password_hash, email, email_verified_at)
+     SELECT uuidv7(), id, ?, ?, ?, clock_timestamp()
      FROM platform.tenants
      WHERE slug = ?
      ON CONFLICT (tenant_id) DO UPDATE
         SET username = EXCLUDED.username,
             password_hash = EXCLUDED.password_hash,
             email = COALESCE(EXCLUDED.email, platform.owners.email),
+            email_verified_at = COALESCE(platform.owners.email_verified_at, clock_timestamp()),
             credentials_version = platform.owners.credentials_version + 1'
 );
 try {
@@ -139,7 +142,7 @@ function refuseDuplicateEmail(PDOException $error): void
 {
     $state = $error->errorInfo[0] ?? '';
     if ($state === '23505') {
-        fwrite(STDERR, "that recovery email is already used on another sign-in\n");
+        fwrite(STDERR, "that email is already used on another sign-in\n");
         exit(1);
     }
 }

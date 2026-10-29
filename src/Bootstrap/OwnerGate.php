@@ -64,6 +64,10 @@ final class OwnerGate
 
             return false;
         }
+        if (!$owner['verified']) {
+            $this->logger->info('owner sign-in refused unverified email', ['slug' => $slug]);
+            throw new SignInUnverified('Confirm your email before signing in.');
+        }
         $clear = $this->pdo->prepare(
             'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = ?::uuid AND username = ?'
         );
@@ -74,12 +78,12 @@ final class OwnerGate
     }
 
     /**
-     * @return array{id: string, hash: string, version: string}|null
+     * @return array{id: string, hash: string, version: string, verified: bool}|null
      */
     private function owner(string $tenantId, string $username): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id::text AS id, password_hash, credentials_version
+            'SELECT id::text AS id, password_hash, credentials_version, email_verified_at
              FROM platform.owners
              WHERE tenant_id = ?::uuid AND username = ?'
         );
@@ -98,7 +102,12 @@ final class OwnerGate
             return null;
         }
 
-        return ['id' => $id, 'hash' => $hash, 'version' => $version];
+        return [
+            'id' => $id,
+            'hash' => $hash,
+            'version' => $version,
+            'verified' => $row['email_verified_at'] !== null,
+        ];
     }
 
     public function signOut(): void

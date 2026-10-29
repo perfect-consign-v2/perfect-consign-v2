@@ -96,6 +96,8 @@ final class LedgerPathTest extends WebTestCase
         $beaItem = $this->item($owner, $bea, 'Bea coat ' . bin2hex(random_bytes(2)));
 
         self::clearMailbox();
+        self::flushMail();
+        self::clearMailbox();
         $guest = self::client();
         $guest->get('/' . self::SLUG . '/consignor/enter');
         $unknown = $guest->post('/' . self::SLUG . '/consignor/enter', ['email' => 'missing-' . bin2hex(random_bytes(3)) . '@example.test']);
@@ -104,6 +106,7 @@ final class LedgerPathTest extends WebTestCase
         self::assertSees(VendorEntry::SENT, $known);
         self::assertStringNotContainsString($adaMail, $unknown->body);
         self::assertStringNotContainsString($adaMail, $known->body);
+        self::flushMail();
         $token = $this->match(self::mailbox(), '#/consignor/enter/([0-9a-f]{64})#');
         $home = $guest->get('/' . self::SLUG . '/consignor/enter/' . $token);
         self::assertStringContainsString($adaItem['description'], $home->body);

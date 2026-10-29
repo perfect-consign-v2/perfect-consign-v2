@@ -136,7 +136,11 @@ final class SmtpClient
             throw new \RuntimeException('smtp send failed');
         }
 
-        $messageId = bin2hex(random_bytes(16)) . '@perfectconsign';
+        $domain = 'localhost';
+        if (preg_match('/@([A-Za-z0-9.-]+)\z/', $from, $match) === 1) {
+            $domain = strtolower($match[1]);
+        }
+        $messageId = bin2hex(random_bytes(16)) . '@' . $domain;
 
         return 'Date: ' . gmdate('D, d M Y H:i:s O') . "\r\n"
             . 'Message-ID: <' . $messageId . ">\r\n"

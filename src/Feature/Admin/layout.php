@@ -24,18 +24,22 @@ $path = $path ?? '';
 $mark = 'P';
 $links = [
     ['/admin/tenants', 'Tenants', 'i-dashboard'],
+    ['/admin/signup', 'Signup', 'i-lock'],
+    ['/admin/worker', 'Mail worker', 'i-report'],
+    ['/admin/log', 'App log', 'i-report'],
     ['/admin/audit', 'Audit', 'i-report'],
-    ['/admin/password', 'Password', 'i-lock'],
+    ['/admin/password', 'Change password', 'i-lock'],
 ];
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="neutral" data-mode="light">
+<html lang="en" data-theme="dark-blue" data-mode="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <meta name="robots" content="noindex">
     <title><?= View::text($title) ?> · Platform</title>
+    <link rel="stylesheet" href="/assets/boot.css">
     <link rel="stylesheet" href="/assets/inter.css">
     <link rel="stylesheet" href="/assets/theme.css">
     <link rel="stylesheet" href="/assets/app.css">
@@ -67,7 +71,7 @@ $links = [
                     || ($href !== '/admin/tenants' && str_starts_with($path, $href));
                 ?>
                 <a class="nav-item" href="<?= View::text($href) ?>"<?= $active ? ' aria-current="page"' : '' ?> title="<?= View::text($label) ?>">
-                    <svg aria-hidden="true"><use href="#<?= View::text($icon) ?>"></use></svg>
+                    <svg width="18" height="18" aria-hidden="true"><use href="#<?= View::text($icon) ?>"></use></svg>
                     <span class="nav-label"><?= View::text($label) ?></span>
                 </a>
             <?php endforeach; ?>
@@ -93,18 +97,18 @@ $links = [
                             <span class="name"><?= View::text($adminEmail) ?></span>
                             <span class="role">Platform admin</span>
                         </span>
-                        <svg data-style-prop="width:14px;height:14px;color:var(--text-subtle)" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                        <svg width="14" height="14" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
                     </button>
                     <div class="menu" data-menu-panel hidden>
                         <a class="menu-item" href="/admin/password">
-                            <svg aria-hidden="true"><use href="#i-lock"></use></svg>
-                            Password
+                            <svg width="16" height="16" aria-hidden="true"><use href="#i-lock"></use></svg>
+                            Change password
                         </a>
                         <div class="menu-sep" role="separator"></div>
                         <form method="post" action="/admin/logout">
                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                             <button class="menu-item" type="submit">
-                                <svg aria-hidden="true"><use href="#i-logout"></use></svg>
+                                <svg width="16" height="16" aria-hidden="true"><use href="#i-logout"></use></svg>
                                 Sign out
                             </button>
                         </form>
@@ -126,5 +130,6 @@ $links = [
 <?php endif; ?>
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
 <script src="/assets/js/data-style.js" defer></script>
+<script src="/assets/js/password-toggle.js" defer></script>
 </body>
 </html>

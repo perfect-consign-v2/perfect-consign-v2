@@ -73,6 +73,7 @@ final class RegisterFeaturesTest extends TestCase
         }
         $poison = [
             'PerfectConsign\\Feature\\Home\\HomeController',
+            'PerfectConsign\\Feature\\Signup\\SignupController',
             'PerfectConsign\\Feature\\Root\\RootController',
             'PerfectConsign\\Feature\\Admin\\AdminLoginController',
         ];
@@ -83,37 +84,39 @@ final class RegisterFeaturesTest extends TestCase
         putenv('APP_ENV=test');
         self::assertSame('PerfectConsign\\Feature\\Admin\\AdminLoginController', $loaded[0]);
         self::assertSame('PerfectConsign\\Feature\\Root\\RootController', $loaded[1]);
-        self::assertSame('PerfectConsign\\Feature\\Home\\HomeController', $loaded[2]);
+        self::assertSame('PerfectConsign\\Feature\\Signup\\SignupController', $loaded[2]);
+        self::assertSame('PerfectConsign\\Feature\\Home\\HomeController', $loaded[3]);
         if (is_file($manifest)) {
             unlink($manifest);
         }
     }
 
-    public function testAdminAndRootControllersSortBeforeMallControllers(): void
+    public function testAdminRootAndSignupControllersSortBeforeMallControllers(): void
     {
         RegisterFeatures::clearCache();
         putenv('APP_ENV=test');
         $feature = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature';
         $classes = RegisterFeatures::controllerClasses($feature);
         $firstAdmin = null;
-        $firstRoot = null;
+        $firstPlatform = null;
         $firstMall = null;
         foreach ($classes as $index => $class) {
             if (str_contains($class, '\\Feature\\Admin\\')) {
                 $firstAdmin ??= $index;
                 continue;
             }
-            if (str_contains($class, '\\Feature\\Root\\')) {
-                $firstRoot ??= $index;
+            if (str_contains($class, '\\Feature\\Root\\')
+                || str_contains($class, '\\Feature\\Signup\\')) {
+                $firstPlatform ??= $index;
                 continue;
             }
             $firstMall ??= $index;
         }
         self::assertNotNull($firstAdmin);
-        self::assertNotNull($firstRoot);
+        self::assertNotNull($firstPlatform);
         self::assertNotNull($firstMall);
-        self::assertLessThan($firstRoot, $firstAdmin);
-        self::assertLessThan($firstMall, $firstRoot);
+        self::assertLessThan($firstPlatform, $firstAdmin);
+        self::assertLessThan($firstMall, $firstPlatform);
     }
 
     public function testBuildManifestRestoresControllersOmittedFromAStaleProductionCache(): void

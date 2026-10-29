@@ -117,7 +117,7 @@ final class AppRoleStaffLookupTest extends TestCase
             $tokens,
             new ResetRequests($pdo),
             new PasswordChoice(),
-            new ResetLetter($tokens, new OutboundMail($logger), $logger),
+            \PerfectConsign\Tests\Support\MailTestKit::resetLetter($pdo, $logger),
         );
     }
 

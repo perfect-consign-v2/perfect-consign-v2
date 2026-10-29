@@ -129,7 +129,7 @@ $shows = [
             }
             $columns[] = ['label' => 'Intake'];
             $columns[] = ['label' => 'Expires'];
-            $columns[] = ['label' => 'Store take', 'sort' => 'num'];
+            $columns[] = ['label' => 'Store %', 'sort' => 'num'];
             $columns[] = ['label' => 'Qty', 'sort' => 'num'];
             $columns[] = ['label' => 'Price', 'sort' => 'num'];
             ListTable::open(['id' => 'vendor-items', 'export' => 'items', 'pageScroll' => true]);

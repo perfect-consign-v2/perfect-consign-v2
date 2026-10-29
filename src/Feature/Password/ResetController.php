@@ -36,7 +36,7 @@ final class ResetController
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/login', 'Password updated. Sign in.');
+        $this->app->redirect('/', 'Password updated. Sign in.');
     }
 
     private function render(TenantRecord $tenant, string $token, ?string $error): void

@@ -54,7 +54,7 @@ final class SettingsPageTest extends TestCase
         self::assertStringNotContainsString('name="rent_prepaid_from_prior_sales" type="checkbox" value="1" checked', $html);
         self::assertStringContainsString('name="cash_round_minor"', $html);
         self::assertStringContainsString('No cash rounding', $html);
-        $nickel = $this->page(['cashRound' => 5]);
+        $nickel = $this->page(['cashRound' => '5']);
         self::assertStringContainsString('value="5" selected', $nickel);
         self::assertDoesNotMatchRegularExpression('/value="0"[^>]*selected/', $nickel);
         self::assertDoesNotMatchRegularExpression('/value="10"[^>]*selected/', $nickel);

@@ -20,6 +20,7 @@ use PerfectConsign\Shared\Http\RequestFactory;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\TlsSignal;
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Mail\PlatformOperatorNotice;
 use Psr\Log\LoggerInterface;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -45,7 +46,8 @@ if (!is_dir($logDirectory) && !mkdir($logDirectory, 0700, true) && !is_dir($logD
 }
 $logFile = $logDirectory . DIRECTORY_SEPARATOR . 'app.log';
 $logger = new FileLogger($logFile);
-ErrorHandling::register($logger);
+$operatorNotices = new PlatformOperatorNotice($logger);
+ErrorHandling::register($logger, $operatorNotices);
 
 $trustedProxies = getenv('STALL_TRUSTED_PROXIES');
 $trustedProxies = is_string($trustedProxies) ? $trustedProxies : '';
@@ -102,14 +104,17 @@ try {
 } catch (ResponseSent) {
     return;
 } catch (Throwable $error) {
-    $logger->error($error->getMessage(), [
+    $fault = [
         'file' => $error->getFile(),
         'line' => $error->getLine(),
         'trace' => $error->getTraceAsString(),
         'request_id' => $requestId,
         'method' => $request?->method ?? ($_SERVER['REQUEST_METHOD'] ?? ''),
         'path' => $request?->path ?? ($_SERVER['REQUEST_URI'] ?? ''),
-    ]);
+        'message' => $error->getMessage(),
+    ];
+    $logger->error($error->getMessage(), $fault);
+    $operatorNotices->serverFailed('uncaught exception', $fault);
     while (ob_get_level() > 0) {
         ob_end_clean();
     }

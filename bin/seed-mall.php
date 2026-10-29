@@ -65,17 +65,38 @@ if ($hash === false) {
     fwrite(STDERR, "the password hash could not be created\n");
     exit(1);
 }
+$ownerEmail = getenv('STALL_OWNER_EMAIL');
+if (!is_string($ownerEmail) || trim($ownerEmail) === '') {
+    $ownerEmail = null;
+} else {
+    $ownerEmail = strtolower(trim($ownerEmail));
+}
 $owner = $pdo->prepare(
-    'INSERT INTO platform.owners (id, tenant_id, username, password_hash)
-     SELECT uuidv7(), id, ?, ?
+    'INSERT INTO platform.owners (id, tenant_id, username, password_hash, email, email_verified_at)
+     SELECT uuidv7(), id, ?, ?, ?, CASE WHEN ?::text IS NULL THEN NULL ELSE clock_timestamp() END
      FROM platform.tenants
      WHERE slug = ?
      ON CONFLICT (tenant_id) DO UPDATE
         SET username = EXCLUDED.username,
-            password_hash = EXCLUDED.password_hash'
+            password_hash = EXCLUDED.password_hash,
+            email = COALESCE(EXCLUDED.email, platform.owners.email),
+            email_verified_at = COALESCE(platform.owners.email_verified_at, EXCLUDED.email_verified_at)'
 );
-$owner->execute(['owner', $hash, 'mall']);
-fwrite(STDOUT, "sign in at /mall as owner. The password is STALL_OWNER_PASSWORD.\n");
+try {
+    $owner->execute(['owner', $hash, $ownerEmail, $ownerEmail, 'mall']);
+} catch (PDOException $error) {
+    $state = $error->errorInfo[0] ?? '';
+    if ($state === '23505') {
+        fwrite(STDERR, "that email is already used on another sign-in\n");
+        exit(1);
+    }
+    throw $error;
+}
+if ($ownerEmail !== null) {
+    fwrite(STDOUT, "sign in at / with {$ownerEmail}. The password is STALL_OWNER_PASSWORD.\n");
+} else {
+    fwrite(STDOUT, "set STALL_OWNER_EMAIL then re-run set-owner; sign-in is email-only at /\n");
+}
 
 try {
     $shop = (new PerfectConsign\Feature\Dev\ShopTenantReset())->load();

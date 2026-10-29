@@ -1,7 +1,7 @@
 ---
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
-hesk: published 2026-10-28
+hesk: published 2026-10-29
 as_of: 2026-10-28
 ---
 
@@ -9,7 +9,7 @@ as_of: 2026-10-28
 
 ## As of
 
-2026-10-28
+2026-10-28 — CSP-safe assets, `boot.css` first paint, and Admin → App log clear for `var/log/app.log`.
 
 ## In one sentence
 
@@ -26,7 +26,8 @@ You deploy PC2 behind HTTPS, a reverse proxy, or `php -S` for a local demo; or y
 - `STALL_TRUSTED_PROXIES` lists proxy IPs or IPv4 CIDRs. Only those peers may supply `X-Forwarded-Proto` for Secure cookies and HSTS. If the list is empty, forwarded proto is ignored; only the server’s own HTTPS signal counts.
 - When TLS is trusted, HSTS is sent as `max-age=86400` without `includeSubDomains`. Mutating POSTs still need a session CSRF token; Referer is not CSRF.
 - Every page sends an enforcing Content-Security-Policy: scripts and styles must come from the same origin under `/assets/` (no inline script or style tags, no `style=` attributes, no `onclick=` handlers). Barcode sticker images may use `data:` URLs.
-- Log and coverage directories are mode `0700`. Rotate `var/log/app.log` outside the app.
+- Pages load a tiny `boot.css` before the theme so the browser does not flash oversized unstyled text while theme CSS is still arriving.
+- Log and coverage directories are mode `0700`. Rotate `var/log/app.log` with logrotate (or equivalent), or clear it from Admin → App log (audited).
 
 ## What is refused
 

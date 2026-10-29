@@ -66,7 +66,7 @@ After an item is created, the add form stays open with the same vendor and the s
 
 The consignor is chosen by custom id or name. The custom id is shown in front of the name. A brand is chosen by name. A name that is not in the mall can be added before the item is saved.
 
-The tag, barcode, brand, description, quantity, store take, intake date, and expire date can be changed. The price and the consignor can be changed until a sale is posted. An item can be deleted only while nothing else points at it. The list says In use, and there is no delete step.
+The tag, barcode, brand, description, quantity, store take, intake date, and expire date can be changed. The price and the consignor can be changed until a sale is posted. An item can be deleted only while nothing else points at it. The list shows Delete only then; a held item has no delete step.
 
 A vendor or brand that an item still names cannot be deleted. An inactive vendor can still own an item. The booth stays on the vendor’s assignment, not on the item.
 
@@ -136,7 +136,9 @@ A saved report is a name plus a catalog choice: columns come from sales, rent, p
 
 The day an item sells, the vendor gets a notice from the same net as the vendor check. The Sunday letter stays a summary. A bounce marks that email address.
 
-The owner can file one plain-text letter to every active consignor with a usable email, or to the ones they check. A missing address and a bounced address are left out. An inactive consignor is left off the list. The letter goes out on the mail run through the mailbox in Settings.
+Password-reset and receipt emails send in the web request through the mailbox in Settings. Platform admin forgot-password also sends in the web request (platform Gmail/SMTP env). Other store mail (consignor link, owner vendor letter, sale notice, Sunday digest, rent reminder) is filed first and goes out on the mail run (`php bin/work.php`). Platform operator notices for failed Gmail or HTTP 500s stay immediate. A filed letter shows Waiting until the worker marks it Sent (or Bounced). Admin → Mail worker shows whether `STALL_WORKER_PASSWORD` is set, the last run, waiting outbox mail, and a pruneable run log.
+
+The owner can file one plain-text letter to every active consignor with a usable email, or to the ones they check. A missing address and a bounced address are left out. An inactive consignor is left off the list.
 
 A mall-wide sale has a start, an end, a percent, and who absorbs it. The percent cannot exceed 50. Two mall sales cannot overlap on dates. The register applies the event that covers today. Mall adds a store discount. Vendor adds a discount that reduces the vendor's price. Booth, check, and mall-sale posts record who posted them.
 
@@ -180,17 +182,21 @@ An offline register snap posts the captured sold price and collected tax when th
 
 ## Sign-in
 
-The site root `/` is email and password. The directory maps each recovery email to one mall and one username. Owner emails and staff recovery emails share that directory. The same email cannot appear twice across malls or account kinds. A missing or wrong password fails the same way as an unknown email. Five failed tries for the same email and client address within fifteen minutes lock that pair. Forty failed tries from one client address across any emails within fifteen minutes lock that address (stops password spraying). Twenty failed tries for the same email from any mix of addresses within fifteen minutes lock the email (distributed guessing can briefly lock a mailbox; that is intentional). Failure rows older than that window are deleted when another failure is recorded.
+The site root `/` is the only sign-in page: email and password. The directory maps each sign-in email to one mall and one username. Owner and staff emails share that directory. The same email cannot appear twice across malls or account kinds. A missing or wrong password fails the same way as an unknown email. Five failed tries for the same email and client address within fifteen minutes lock that pair. Forty failed tries from one client address across any emails within fifteen minutes lock that address (stops password spraying). Twenty failed tries for the same email from any mix of addresses within fifteen minutes lock the email (distributed guessing can briefly lock a mailbox; that is intentional). Failure rows older than that window are deleted when another failure is recorded.
 
-`/{slug}/login` still accepts username and password for that mall. Forgot password at `/forgot` looks up the email in the directory and, when found, starts the same reset path as the mall forgot form. The success message is the same whether the email is known or not.
+Bare `/{slug}` and old `/{slug}/login` bookmarks redirect to `/` (or to the signed-in role’s home when the session already belongs to that mall). Forgot password is only `/forgot` (old `/{slug}/forgot` redirects there). It looks up the email in the directory and, when found, sends the reset email in that request through the mall mailbox. The success message is the same whether the email is known or not.
 
-An owner or staff recovery email is required for email sign-in. Setting or changing that email is refused when another sign-in already holds it. `php bin/set-owner.php` may set `STALL_OWNER_EMAIL` when planting the owner.
+An owner or staff email is required for email sign-in. Setting or changing that email is refused when another sign-in already holds it. The account menu Change password screen updates the password and that sign-in email; the mall company email is not a reset fallback. `php bin/set-owner.php` may set `STALL_OWNER_EMAIL` when planting the owner.
 
 Password-reset and consignor magic links use `STALL_PUBLIC_ORIGIN` (not the request `Host`). Mutating POSTs need a session CSRF token. Secure cookies and HSTS follow trusted TLS only — see `docs/http-edge.md`.
 
 ## Platform admin
 
-Platform `/admin` is for operators, not mall cashiers. An admin can sign in, reset a password, enter a store as owner or cashier, wipe a tenant, and read an append-only admin audit. Password-reset rows and admin audit events are append-only. A bad admin email is refused.
+Platform `/admin` is for operators, not mall cashiers. An admin can sign in, reset a password, enter a store as owner or cashier, wipe a tenant, create a store by hand, read an append-only admin audit, open Mail worker for run status and log prune/clear, and open App log to view or clear `var/log/app.log` on this host (clear is audited as `app.log_clear`). Password-reset rows and admin audit events are append-only. A bad admin email is refused. When Gmail (or other outbound mail) fails, the failure is logged and a notice is emailed to `STALL_PLATFORM_ADMIN_EMAIL`. Uncaught exceptions and fatal errors that become HTTP 500 also email that address (using the platform Gmail/SMTP env, not the mall’s Gmail row). Store-facing mail uses each mall’s Settings mailbox; platform mail (admin reset, signup verify, operator notices) uses the platform Gmail/SMTP env. Admin reset and signup verify send in the web request; operator notices stay immediate.
+
+## Self-serve store signup
+
+Public Create your store at `/signup` is off until a platform admin turns it on under Admin → Signup. A second Admin → Signup switch requires the owner to confirm email before sign-in (on by default). When confirmation is required, the mall is created, a link is emailed, and owner sign-in is refused until that link is used. When confirmation is off, signup signs the owner in immediately. Admin Tenants → Create store always marks the owner email verified and does not send a confirmation link; it works even when public signup is off. The database stores `email_verified_at` on the owner. CLI `set-owner` marks the planted owner verified. A duplicate owner email (or any other create failure after provisioning starts) shows the same generic line — “That store could not be created.” — so the form does not reveal whether an email is already on file. Sign-in is email + password; signup never talks about a separate sign-in name.
 
 ## Loyalty
 

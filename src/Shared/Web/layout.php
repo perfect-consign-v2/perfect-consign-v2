@@ -168,7 +168,7 @@ $roleLabel = match ($actorRole) {
 };
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="neutral" data-mode="light">
+<html lang="en" data-theme="dark-blue" data-mode="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -177,6 +177,7 @@ $roleLabel = match ($actorRole) {
     <?php if ($robots === 'noindex'): ?>
         <meta name="robots" content="noindex">
     <?php endif; ?>
+    <link rel="stylesheet" href="/assets/boot.css">
     <link rel="stylesheet" href="/assets/inter.css">
     <link rel="stylesheet" href="/assets/theme.css">
     <link rel="stylesheet" href="/assets/app.css">
@@ -203,7 +204,7 @@ $roleLabel = match ($actorRole) {
             <?php if ($leftOpen !== [] && $priorCloseStarted): ?>
                 <div class="nav-group-label">Registers</div>
                 <a class="nav-item" href="/<?= View::text($slug) ?>/registers" aria-current="page">
-                    <svg aria-hidden="true"><use href="#i-pos"></use></svg>
+                    <svg width="18" height="18" aria-hidden="true"><use href="#i-pos"></use></svg>
                     <span class="nav-label">Close the register</span>
                 </a>
             <?php endif; ?>
@@ -234,7 +235,7 @@ $roleLabel = match ($actorRole) {
                         : ($path === $href || str_starts_with($path, $href . '/'));
                     ?>
                     <a class="nav-item" href="<?= View::text($href) ?>"<?= $active ? ' aria-current="page"' : '' ?> title="<?= View::text($navLabel) ?>">
-                        <svg aria-hidden="true"><use href="#<?= View::text($navIcon) ?>"></use></svg>
+                        <svg width="18" height="18" aria-hidden="true"><use href="#<?= View::text($navIcon) ?>"></use></svg>
                         <span class="nav-label"><?= View::text($navLabel) ?></span>
                     </a>
                 <?php endforeach; ?>
@@ -271,20 +272,20 @@ $roleLabel = match ($actorRole) {
             <div class="topbar-actions">
                 <div class="account" data-menu>
                     <button class="icon-btn" type="button" data-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="Appearance">
-                        <svg aria-hidden="true"><use href="#i-palette"></use></svg>
+                        <svg width="18" height="18" aria-hidden="true"><use href="#i-palette"></use></svg>
                     </button>
                     <div class="menu" data-menu-panel role="menu" aria-label="Appearance" hidden>
                         <div role="group" aria-label="Theme">
                             <div class="menu-label" role="presentation">Theme</div>
-                            <button class="menu-item" type="button" role="menuitemradio" data-set-theme="neutral" aria-checked="true">
+                            <button class="menu-item" type="button" role="menuitemradio" data-set-theme="neutral" aria-checked="false">
                                 <span class="swatch" data-style-prop="background:#4f46e5"></span>
                                 Neutral
-                                <svg data-style-prop="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                                <svg class="menu-check" aria-hidden="true"><use href="#i-check"></use></svg>
                             </button>
-                            <button class="menu-item" type="button" role="menuitemradio" data-set-theme="dark-blue" aria-checked="false">
+                            <button class="menu-item" type="button" role="menuitemradio" data-set-theme="dark-blue" aria-checked="true">
                                 <span class="swatch" data-style-prop="background:#1e3a8a"></span>
                                 Dark blue
-                                <svg data-style-prop="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                                <svg class="menu-check" aria-hidden="true"><use href="#i-check"></use></svg>
                             </button>
                         </div>
                         <div class="menu-sep" role="separator"></div>
@@ -293,12 +294,12 @@ $roleLabel = match ($actorRole) {
                             <button class="menu-item" type="button" role="menuitemradio" data-set-mode="light" aria-checked="true">
                                 <svg aria-hidden="true"><use href="#i-sun"></use></svg>
                                 Light
-                                <svg data-style-prop="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                                <svg class="menu-check" aria-hidden="true"><use href="#i-check"></use></svg>
                             </button>
                             <button class="menu-item" type="button" role="menuitemradio" data-set-mode="dark" aria-checked="false">
                                 <svg aria-hidden="true"><use href="#i-moon"></use></svg>
                                 Dark
-                                <svg data-style-prop="margin-left:auto" aria-hidden="true"><use href="#i-check"></use></svg>
+                                <svg class="menu-check" aria-hidden="true"><use href="#i-check"></use></svg>
                             </button>
                         </div>
                     </div>
@@ -310,18 +311,18 @@ $roleLabel = match ($actorRole) {
                             <span class="name"><?= View::text($displayName) ?></span>
                             <span class="role"><?= View::text($roleLabel) ?></span>
                         </span>
-                        <svg data-style-prop="width:14px;height:14px;color:var(--text-subtle)" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+                        <svg width="14" height="14" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
                     </button>
                     <div class="menu" data-menu-panel hidden>
                         <a class="menu-item" href="/<?= View::text($slug) ?>/password">
-                            <svg aria-hidden="true"><use href="#i-lock"></use></svg>
-                            Password
+                            <svg width="16" height="16" aria-hidden="true"><use href="#i-lock"></use></svg>
+                            Change password
                         </a>
                         <div class="menu-sep" role="separator"></div>
                         <form method="post" action="/<?= View::text($slug) ?>/logout">
                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                             <button class="menu-item" type="submit">
-                                <svg aria-hidden="true"><use href="#i-logout"></use></svg>
+                                <svg width="16" height="16" aria-hidden="true"><use href="#i-logout"></use></svg>
                                 Sign out
                             </button>
                         </form>
@@ -369,6 +370,7 @@ $roleLabel = match ($actorRole) {
 <?php endif; ?>
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
 <script src="/assets/js/data-style.js" defer></script>
+<script src="/assets/js/password-toggle.js" defer></script>
 <script src="/assets/js/register-swap.js"></script>
 </body>
 </html>

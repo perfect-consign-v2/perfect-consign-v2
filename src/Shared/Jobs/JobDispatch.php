@@ -15,6 +15,7 @@ final class JobDispatch
         private readonly SaleNoticeJob $notices,
         private readonly VendorLetterJob $letters,
         private readonly MarkdownJob $markdowns,
+        private readonly OutboundMailJob $outbound,
     ) {
     }
 
@@ -49,6 +50,9 @@ final class JobDispatch
             'markdown-propose' => function () use ($date): void {
                 $this->markdowns->propose($date);
             },
+            'outbound-mail' => function () use ($payload): void {
+                $this->outbound->send($this->mailId($payload));
+            },
         ];
         $handler = $handlers[$job['kind']] ?? null;
         if ($handler === null) {
@@ -75,5 +79,15 @@ final class JobDispatch
         $letter = $payload['letter'] ?? null;
 
         return is_string($letter) ? $letter : '';
+    }
+
+    private function mailId(mixed $payload): string
+    {
+        if (!is_array($payload)) {
+            return '';
+        }
+        $mail = $payload['mail'] ?? null;
+
+        return is_string($mail) ? $mail : '';
     }
 }

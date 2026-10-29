@@ -11,17 +11,18 @@ use PerfectConsign\Shared\Http\View;
     <form method="post" action="/admin/password">
         <div class="card-body grid" data-style-prop="gap:var(--space-4)">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <p class="muted">Changing your password signs you out. You will need to sign in again with the new password.</p>
             <div class="field">
                 <label for="current">Current password</label>
-                <input class="input" id="current" name="current" type="password" autocomplete="current-password" required>
+                <?php View::passwordField(id: 'current', name: 'current', required: true, autocomplete: 'current-password'); ?>
             </div>
             <div class="field">
                 <label for="password">New password</label>
-                <input class="input" id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+                <?php View::passwordField(id: 'password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
             </div>
             <div class="field">
                 <label for="confirm">Confirm password</label>
-                <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" required minlength="8">
+                <?php View::passwordField(id: 'confirm', name: 'confirm', required: true, minlength: 8, autocomplete: 'new-password'); ?>
             </div>
         </div>
         <div class="card-foot">
