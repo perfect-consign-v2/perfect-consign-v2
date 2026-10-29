@@ -42,17 +42,17 @@ final class ReviewCoverageTest extends WebTestCase
 
     public function testFiveBadPasswordsLockTheUsername(): void
     {
-        $username = 'lock-' . bin2hex(random_bytes(4));
+        $email = 'lock-' . bin2hex(random_bytes(4)) . '@example.com';
         $client = self::client();
         try {
             for ($attempt = 0; $attempt < 5; $attempt++) {
-                $refused = $client->signIn(self::SLUG, $username, 'wrong-password');
-                self::assertSees('That username or password is wrong.', $refused);
+                $refused = $client->signInByEmail($email, 'wrong-password');
+                self::assertSees('That email or password is wrong.', $refused);
             }
-            $locked = $client->signIn(self::SLUG, $username, 'wrong-password');
+            $locked = $client->signInByEmail($email, 'wrong-password');
             self::assertSees('Too many sign-in attempts', $locked);
         } finally {
-            ProbeMall::forgetSignIns($username);
+            ProbeMall::forgetEmailSignIns($email);
         }
     }
 }

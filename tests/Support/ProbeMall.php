@@ -136,6 +136,14 @@ final class ProbeMall
         $statement->execute([$username, self::SLUG]);
     }
 
+    public static function forgetEmailSignIns(string $email): void
+    {
+        $statement = self::admin()->prepare(
+            'DELETE FROM platform.email_sign_in_failures WHERE email = ?'
+        );
+        $statement->execute([strtolower(trim($email))]);
+    }
+
     private static function current(string $root, SchemaMigrator $migrator): void
     {
         try {

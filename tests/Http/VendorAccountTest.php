@@ -61,7 +61,7 @@ final class VendorAccountTest extends WebTestCase
 
         $vendor = self::client();
         $stale = $vendor->signIn(ProbeMall::SLUG, $username, 'vendor-pass');
-        self::assertSees('That username or password is wrong.', $stale);
+        self::assertSees('That email or password is wrong.', $stale);
         $home = $vendor->signIn(ProbeMall::SLUG, $username, 'vendor-next');
         self::assertSame(200, $home->status);
         self::assertSees('Your check', $home);

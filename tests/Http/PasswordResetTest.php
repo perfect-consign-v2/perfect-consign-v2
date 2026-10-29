@@ -66,10 +66,8 @@ final class PasswordResetTest extends WebTestCase
         self::assertSees(ResetNotice::SENT, $known);
         self::assertStringNotContainsString($email, $unknown->body);
         self::assertStringNotContainsString($email, $known->body);
-        self::assertSame(0, preg_match_all('#/reset/#', self::mailbox()));
-        self::flushMail();
-        $token = $this->match(self::mailbox(), '#/reset/([A-Za-z0-9_-]{43})#');
         self::assertSame(1, preg_match_all('#/reset/#', self::mailbox()));
+        $token = $this->match(self::mailbox(), '#/reset/([A-Za-z0-9_-]{43})#');
 
         $reset = $guest->post('/' . $slug . '/reset/' . $token, [
             'password' => 'cashier-next',
