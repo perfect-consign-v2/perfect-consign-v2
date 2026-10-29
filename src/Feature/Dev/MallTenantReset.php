@@ -61,14 +61,9 @@ final class MallTenantReset
         if (!is_string($password) || $password === '') {
             throw new RuntimeException('STALL_OWNER_PASSWORD is required');
         }
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        if ($hash === false) {
-            throw new RuntimeException('the password hash could not be created');
-        }
-
         return [
             'username' => 'owner',
-            'password_hash' => $hash,
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'email' => $this->ownerEmailFromEnv(),
         ];
     }

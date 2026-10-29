@@ -23,6 +23,22 @@ final class MigrationFreezeTest extends TestCase
             [],
             migrationFreezeFailures(55, ['sql/001_tenant.sql', 'sql/003_audit_events.sql'], true)
         );
-        self::assertTrue(migrationBaselineReset(dirname(__DIR__, 2)));
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-baseline-' . bin2hex(random_bytes(4));
+        $sql = $root . DIRECTORY_SEPARATOR . 'sql';
+        if (!mkdir($sql, 0700, true) && !is_dir($sql)) {
+            self::fail('baseline fixture could not be created');
+        }
+        try {
+            self::assertNotFalse(file_put_contents($sql . DIRECTORY_SEPARATOR . '000_platform.sql', "--\n"));
+            self::assertNotFalse(file_put_contents($sql . DIRECTORY_SEPARATOR . '001_tenant.sql', "--\n"));
+            self::assertTrue(migrationBaselineReset($root));
+        } finally {
+            foreach (glob($sql . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
+                unlink($file);
+            }
+            rmdir($sql);
+            rmdir($root);
+        }
+        self::assertFalse(migrationBaselineReset(dirname(__DIR__, 2)));
     }
 }

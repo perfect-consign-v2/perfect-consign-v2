@@ -363,7 +363,7 @@ $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
             </div>
             <div class="field">
                 <label for="vendor_password">Password</label>
-                <?php View::passwordField(id: 'vendor_password', name: 'password', required: true, minlength: 8, autocomplete: 'off'); ?>
+                <?php View::requiredPasswordField(id: 'vendor_password', name: 'password', minlength: 8, autocomplete: 'off'); ?>
             </div>
             <p><button class="btn" type="submit"><?= $signIn === null ? 'Add sign-in' : 'Save sign-in' ?></button></p>
         </div>

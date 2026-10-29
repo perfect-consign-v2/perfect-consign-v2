@@ -91,6 +91,40 @@ final class StoreSignup
         ?string $adminId,
         string $auditEmail,
     ): array {
+        [$storeName, $email] = $this->normalizedSignupInput($storeName, $email, $password, $confirm);
+        $slug = $this->slugFromName($storeName);
+        if ($this->slugTaken($slug)) {
+            throw new RuntimeException('That store address is already taken.');
+        }
+        $username = $this->usernameFromEmail($email);
+        $this->provisionOwner($slug, $storeName, $username, $password, $email, $emailVerified);
+        $this->audit->record(
+            $adminId,
+            $auditEmail,
+            $auditAction,
+            'ok',
+            $this->tenantId($slug),
+            $slug,
+            ['display_name' => $storeName, 'email_verified' => $emailVerified],
+        );
+
+        return [
+            'slug' => $slug,
+            'username' => $username,
+            'email' => $email,
+            'verified' => $emailVerified,
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function normalizedSignupInput(
+        string $storeName,
+        string $email,
+        string $password,
+        string $confirm,
+    ): array {
         $storeName = trim($storeName);
         $email = strtolower(trim($email));
         if ($storeName === '' || strlen($storeName) > 120) {
@@ -106,12 +140,17 @@ final class StoreSignup
             throw new RuntimeException('Password confirmation does not match.');
         }
 
-        $slug = $this->slugFromName($storeName);
-        if ($this->slugTaken($slug)) {
-            throw new RuntimeException('That store address is already taken.');
-        }
-        $username = $this->usernameFromEmail($email);
+        return [$storeName, $email];
+    }
 
+    private function provisionOwner(
+        string $slug,
+        string $storeName,
+        string $username,
+        string $password,
+        string $email,
+        bool $emailVerified,
+    ): void {
         $admin = BackupConnection::admin()->pdo();
         $sqlDirectory = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'sql';
         $provisioner = new TenantProvisioner($admin, $sqlDirectory);
@@ -129,24 +168,6 @@ final class StoreSignup
             }
             throw new RuntimeException('That store could not be created.', 0, $error);
         }
-
-        $tenantId = $this->tenantId($slug);
-        $this->audit->record(
-            $adminId,
-            $auditEmail,
-            $auditAction,
-            'ok',
-            $tenantId,
-            $slug,
-            ['display_name' => $storeName, 'email_verified' => $emailVerified],
-        );
-
-        return [
-            'slug' => $slug,
-            'username' => $username,
-            'email' => $email,
-            'verified' => $emailVerified,
-        ];
     }
 
     public function slugFromName(string $name): string

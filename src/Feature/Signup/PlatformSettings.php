@@ -35,18 +35,34 @@ final class PlatformSettings
 
     private function boolSetting(string $key, bool $whenMissing): bool
     {
+        $value = $this->rawSetting($key);
+        if ($value === null) {
+            return $whenMissing;
+        }
+
+        return $this->parseBool($value, $whenMissing);
+    }
+
+    private function rawSetting(string $key): mixed
+    {
         try {
             $statement = $this->pdo->prepare(
                 'SELECT value FROM platform.settings WHERE key = ?'
             );
             $statement->execute([$key]);
         } catch (\PDOException) {
-            return $whenMissing;
+            return null;
         }
         $value = $statement->fetchColumn();
         if ($value === false || $value === null) {
-            return $whenMissing;
+            return null;
         }
+
+        return $value;
+    }
+
+    private function parseBool(mixed $value, bool $whenMissing): bool
+    {
         if (is_bool($value)) {
             return $value;
         }
@@ -63,9 +79,8 @@ final class PlatformSettings
         if ($trimmed === 'false' || $trimmed === '0' || $trimmed === '') {
             return false;
         }
-        $decoded = json_decode($trimmed, true);
 
-        return $decoded === true;
+        return json_decode($trimmed, true) === true;
     }
 
     private function put(string $key, bool $enabled): void

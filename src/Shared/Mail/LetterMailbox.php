@@ -17,11 +17,15 @@ class LetterMailbox
 
     public function ready(): bool
     {
+        if ($this->mail->captured()) {
+            if ($this->settings->via() === 'gmail' && $this->settings->hasGmailPassword()) {
+                return $this->settings->gmail() !== null;
+            }
+
+            return true;
+        }
         if ($this->settings->via() === 'gmail') {
             return $this->settings->gmail() !== null;
-        }
-        if ($this->mail->captured()) {
-            return true;
         }
 
         return $this->mail->configured();

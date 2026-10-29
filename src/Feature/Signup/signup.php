@@ -48,11 +48,11 @@ $checkEmail = ($checkEmail ?? false) === true;
                         </div>
                         <div class="field">
                             <label for="password">Password</label>
-                            <?php View::passwordField(id: 'password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                            <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
                         </div>
                         <div class="field">
                             <label for="password_confirm">Confirm password</label>
-                            <?php View::passwordField(id: 'password_confirm', name: 'password_confirm', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                            <?php View::requiredPasswordField(id: 'password_confirm', name: 'password_confirm', minlength: 8, autocomplete: 'new-password'); ?>
                         </div>
                     </div>
                     <div class="card-foot row between">
@@ -60,16 +60,6 @@ $checkEmail = ($checkEmail ?? false) === true;
                         <button class="btn btn-primary" type="submit">Create store</button>
                     </div>
                 </form>
-                <script>
-                    (function () {
-                        const form = document.querySelector('form[data-submit-once]');
-                        if (!form) return;
-                        form.addEventListener('submit', function () {
-                            const button = form.querySelector('button[type="submit"]');
-                            if (button) button.disabled = true;
-                        });
-                    })();
-                </script>
             <?php endif; ?>
         </div>
     </div>

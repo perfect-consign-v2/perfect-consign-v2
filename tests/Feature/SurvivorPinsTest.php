@@ -577,12 +577,15 @@ final class SurvivorPinsTest extends TestCase
             "Open this link\n",
         );
         $notices = new \PerfectConsign\Shared\Mail\PlatformOperatorNotice($log);
+        $outbound = new \PerfectConsign\Shared\Mail\OutboundMail($log);
         $job = new \PerfectConsign\Shared\Jobs\OutboundMailJob(
             $outbox,
             $this->createStub(LetterMailbox::class),
-            new \PerfectConsign\Shared\Mail\OutboundMail($log),
-            new \PerfectConsign\Shared\Mail\GmailSender($notices),
-            $notices,
+            new \PerfectConsign\Shared\Mail\PlatformMailbox(
+                $outbound,
+                new \PerfectConsign\Shared\Mail\GmailSender($notices),
+                $notices,
+            ),
         );
         try {
             $job->send($id);

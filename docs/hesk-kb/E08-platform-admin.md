@@ -9,7 +9,7 @@ as_of: 2026-10-28
 
 ## As of
 
-2026-10-28 — Admin → App log, Mail worker, Signup toggles, and Tenants → Create store are live. Admin forgot-password sends in the web request.
+2026-10-28 — Admin → App log, Mail worker, Signup toggles, and Tenants → Create store are live. Tenant wipe clears that mall’s password-reset rows. Admin forgot-password sends in the web request.
 
 ## In one sentence
 
@@ -26,7 +26,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 - Enter-as owner or cashier into a tenant store.
 - Tenants → Create store provisions a mall with the owner email already verified (works even when public signup is off).
 - Admin → Signup turns public `/signup` on or off and whether email confirmation is required before owner sign-in.
-- Tenant wipe and other admin actions land in the admin audit.
+- Tenant wipe removes that mall’s password-reset and email-verification rows (append-only elsewhere), then drops the store; wipe and other admin actions land in the admin audit.
 - Gmail/SMTP send failures are logged and emailed to `STALL_PLATFORM_ADMIN_EMAIL`.
 - Uncaught exceptions and fatal errors (HTTP 500) are logged and emailed to that same address.
 - Mail worker shows whether `STALL_WORKER_PASSWORD` is set, last `php bin/work.php` run, waiting outbox mail, and a prune/clear run log.

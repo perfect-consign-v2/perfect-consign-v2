@@ -7,10 +7,12 @@ namespace PerfectConsign\Tests\Shared\Jobs;
 use PerfectConsign\Feature\Mall\ReceiptMailSettings;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Jobs\VendorLetterJob;
+use PerfectConsign\Shared\Mail\GmailSender;
 use PerfectConsign\Shared\Mail\LetterMailbox;
 use PerfectConsign\Shared\Mail\MailBounce;
 use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\OutboundMail;
+use PerfectConsign\Shared\Mail\PlatformOperatorNotice;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
@@ -26,7 +28,11 @@ final class VendorLetterJobTest extends TestCase
         $statements->expects($this->never())->method('change');
         $job = new VendorLetterJob(
             $statements,
-            new LoginRefusalMailbox(new ReceiptMailSettings($this->createStub(Statements::class)), new OutboundMail($this->createStub(LoggerInterface::class))),
+            new LoginRefusalMailbox(
+                new ReceiptMailSettings($this->createStub(Statements::class)),
+                new OutboundMail($this->createStub(LoggerInterface::class)),
+                new GmailSender(new PlatformOperatorNotice($this->createStub(LoggerInterface::class))),
+            ),
             new MailBounce($statements),
             $this->createStub(LoggerInterface::class),
         );
@@ -78,8 +84,12 @@ final class VendorLetterJobTest extends TestCase
 
 final class LoginRefusalMailbox extends LetterMailbox
 {
-    public function send(string $to, string $subject, string $body): void
-    {
+    public function send(
+        string $to,
+        string $subject,
+        string $body,
+        string $purpose = 'vendor letter mail was refused',
+    ): void {
         throw new MailDeliveryFailed(535, 'auth');
     }
 }

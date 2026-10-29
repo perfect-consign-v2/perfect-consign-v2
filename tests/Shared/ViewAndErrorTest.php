@@ -45,10 +45,9 @@ final class ViewAndErrorTest extends TestCase
     public function testPasswordFieldRendersShowToggle(): void
     {
         ob_start();
-        View::passwordField(
+        View::requiredPasswordField(
             id: 'password',
             name: 'password',
-            required: true,
             minlength: 8,
             autocomplete: 'current-password',
         );

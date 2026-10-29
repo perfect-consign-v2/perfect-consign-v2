@@ -57,30 +57,75 @@ final class AppLogFile
         }
         $path = $this->path();
         if (!is_file($path)) {
-            return [
-                'path' => $this->relativePath(),
-                'exists' => false,
-                'bytes' => 0,
-                'modified_at' => '',
-                'truncated' => false,
-                'body' => '',
-            ];
+            return $this->emptySnapshot(false, 0, '');
         }
         $bytes = $this->byteCount();
+        $modifiedAt = $this->modifiedAtUtc($path);
+        if ($bytes === 0) {
+            return $this->emptySnapshot(true, 0, $modifiedAt);
+        }
+        [$body, $truncated] = $this->readTail($path, $bytes, $maxBytes);
+
+        return [
+            'path' => $this->relativePath(),
+            'exists' => true,
+            'bytes' => $bytes,
+            'modified_at' => $modifiedAt,
+            'truncated' => $truncated,
+            'body' => $body,
+        ];
+    }
+
+    public function clear(): void
+    {
+        $path = $this->path();
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            throw new RuntimeException('The log directory could not be created.');
+        }
+        $written = file_put_contents($path, '', LOCK_EX);
+        if ($written === false) {
+            throw new RuntimeException('The application log could not be cleared.');
+        }
+    }
+
+    /**
+     * @return array{
+     *     path: string,
+     *     exists: bool,
+     *     bytes: int,
+     *     modified_at: string,
+     *     truncated: bool,
+     *     body: string
+     * }
+     */
+    private function emptySnapshot(bool $exists, int $bytes, string $modifiedAt): array
+    {
+        return [
+            'path' => $this->relativePath(),
+            'exists' => $exists,
+            'bytes' => $bytes,
+            'modified_at' => $modifiedAt,
+            'truncated' => false,
+            'body' => '',
+        ];
+    }
+
+    private function modifiedAtUtc(string $path): string
+    {
         $modified = filemtime($path);
         if ($modified === false) {
             throw new RuntimeException('The application log time could not be read.');
         }
-        if ($bytes === 0) {
-            return [
-                'path' => $this->relativePath(),
-                'exists' => true,
-                'bytes' => 0,
-                'modified_at' => gmdate('Y-m-d H:i:s', $modified) . ' UTC',
-                'truncated' => false,
-                'body' => '',
-            ];
-        }
+
+        return gmdate('Y-m-d H:i:s', $modified) . ' UTC';
+    }
+
+    /**
+     * @return array{0: string, 1: bool}
+     */
+    private function readTail(string $path, int $bytes, int $maxBytes): array
+    {
         $handle = fopen($path, 'rb');
         if ($handle === false) {
             throw new RuntimeException('The application log could not be opened.');
@@ -104,26 +149,6 @@ final class AppLogFile
             }
         }
 
-        return [
-            'path' => $this->relativePath(),
-            'exists' => true,
-            'bytes' => $bytes,
-            'modified_at' => gmdate('Y-m-d H:i:s', $modified) . ' UTC',
-            'truncated' => $truncated,
-            'body' => $body,
-        ];
-    }
-
-    public function clear(): void
-    {
-        $path = $this->path();
-        $directory = dirname($path);
-        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
-            throw new RuntimeException('The log directory could not be created.');
-        }
-        $written = file_put_contents($path, '', LOCK_EX);
-        if ($written === false) {
-            throw new RuntimeException('The application log could not be cleared.');
-        }
+        return [$body, $truncated];
     }
 }

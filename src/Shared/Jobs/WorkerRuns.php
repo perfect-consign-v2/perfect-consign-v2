@@ -90,8 +90,8 @@ final class WorkerRuns
                 'worker' => RowValue::string($row['worker'] ?? null),
                 'started_at' => RowValue::string($row['started_at'] ?? null),
                 'finished_at' => RowValue::string($row['finished_at'] ?? null),
-                'jobs_finished' => (int) ($row['jobs_finished'] ?? 0),
-                'jobs_failed' => (int) ($row['jobs_failed'] ?? 0),
+                'jobs_finished' => RowValue::integer($row['jobs_finished'] ?? 0),
+                'jobs_failed' => RowValue::integer($row['jobs_failed'] ?? 0),
             ];
         }
 
@@ -143,26 +143,40 @@ final class WorkerRuns
              LIMIT 1'
         );
         $row = $last === false ? false : $last->fetch(PDO::FETCH_ASSOC);
-        $waiting = (int) $this->pdo->query(
+        $waiting = $this->countQuery(
             'SELECT count(*) FROM platform.mail_outbox WHERE sent_at IS NULL'
-        )->fetchColumn();
-        $overdue = (int) $this->pdo->query(
+        );
+        $overdue = $this->countQuery(
             "SELECT count(*)
              FROM platform.jobs
              WHERE finished_at IS NULL
                AND run_at <= clock_timestamp()
                AND locked_at IS NULL"
-        )->fetchColumn();
+        );
 
         return [
             'password_configured' => is_string($password) && $password !== '',
             'last_seen_at' => is_array($row) ? RowValue::string($row['seen_at'] ?? null) : '',
-            'last_jobs_finished' => is_array($row) ? (int) ($row['last_jobs_finished'] ?? 0) : 0,
-            'last_jobs_failed' => is_array($row) ? (int) ($row['last_jobs_failed'] ?? 0) : 0,
+            'last_jobs_finished' => is_array($row)
+                ? RowValue::integer($row['last_jobs_finished'] ?? 0)
+                : 0,
+            'last_jobs_failed' => is_array($row)
+                ? RowValue::integer($row['last_jobs_failed'] ?? 0)
+                : 0,
             'waiting_mail' => $waiting,
             'overdue_jobs' => $overdue,
             'auto_prune_days' => self::AUTO_PRUNE_DAYS,
         ];
+    }
+
+    private function countQuery(string $sql): int
+    {
+        $statement = $this->pdo->query($sql);
+        if ($statement === false) {
+            throw new RuntimeException('the worker status count failed');
+        }
+
+        return RowValue::integer($statement->fetchColumn());
     }
 
     private function workerName(string $worker): string

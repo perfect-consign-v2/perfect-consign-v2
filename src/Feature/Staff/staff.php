@@ -32,7 +32,7 @@ $readers = is_array($readers ?? null) ? $readers : [];
         </div>
         <div class="field">
             <label for="password">Password</label>
-            <?php View::passwordField(id: 'password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+            <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
         </div>
         <div class="field">
             <label for="email">Email</label>
@@ -58,7 +58,7 @@ $readers = is_array($readers ?? null) ? $readers : [];
                             </div>
                             <div class="field">
                                 <label for="password-<?= View::text($cashier['id']) ?>">New password</label>
-                                <?php View::passwordField(id: 'password-' . (string) $cashier['id'], name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                                <?php View::requiredPasswordField(id: 'password-' . (string) $cashier['id'], name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
                             </div>
                             <p><button class="btn" type="submit">Save cashier sign-in</button></p>
                         </form>
@@ -83,7 +83,7 @@ $readers = is_array($readers ?? null) ? $readers : [];
         </div>
         <div class="field">
             <label for="books_password">Password</label>
-            <?php View::passwordField(id: 'books_password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+            <?php View::requiredPasswordField(id: 'books_password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
         </div>
         <div class="field">
             <label for="books_email">Email</label>
@@ -109,7 +109,7 @@ $readers = is_array($readers ?? null) ? $readers : [];
                             </div>
                             <div class="field">
                                 <label for="books-password-<?= View::text($reader['id']) ?>">New password</label>
-                                <?php View::passwordField(id: 'books-password-' . (string) $reader['id'], name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                                <?php View::requiredPasswordField(id: 'books-password-' . (string) $reader['id'], name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
                             </div>
                             <p><button class="btn" type="submit">Save books sign-in</button></p>
                         </form>

@@ -19,11 +19,11 @@ use PerfectConsign\Shared\Http\View;
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                         <div class="field">
                             <label for="password">New password</label>
-                            <?php View::passwordField(id: 'password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                            <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
                         </div>
                         <div class="field">
                             <label for="confirm">Confirm new password</label>
-                            <?php View::passwordField(id: 'confirm', name: 'confirm', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                            <?php View::requiredPasswordField(id: 'confirm', name: 'confirm', minlength: 8, autocomplete: 'new-password'); ?>
                         </div>
                     </div>
                     <div class="card-foot row between">

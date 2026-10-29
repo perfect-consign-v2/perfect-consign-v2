@@ -21,15 +21,15 @@ use PerfectConsign\Shared\Http\View;
             <p class="muted">Changing your password signs you out. You will need to sign in again with the new password.</p>
             <div class="field">
                 <label for="current_password">Current password</label>
-                <?php View::passwordField(id: 'current_password', name: 'current_password', required: true, autocomplete: 'current-password'); ?>
+                <?php View::requiredPasswordField(id: 'current_password', name: 'current_password', autocomplete: 'current-password'); ?>
             </div>
             <div class="field">
                 <label for="password">New password</label>
-                <?php View::passwordField(id: 'password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
             </div>
             <div class="field">
                 <label for="confirm">Confirm new password</label>
-                <?php View::passwordField(id: 'confirm', name: 'confirm', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                <?php View::requiredPasswordField(id: 'confirm', name: 'confirm', minlength: 8, autocomplete: 'new-password'); ?>
             </div>
             <p><button class="btn btn-primary" type="submit">Update password</button></p>
         </form>
@@ -45,7 +45,7 @@ use PerfectConsign\Shared\Http\View;
             </div>
             <div class="field">
                 <label for="email_current_password">Current password</label>
-                <?php View::passwordField(id: 'email_current_password', name: 'current_password', required: true, autocomplete: 'current-password'); ?>
+                <?php View::requiredPasswordField(id: 'email_current_password', name: 'current_password', autocomplete: 'current-password'); ?>
             </div>
             <p><button class="btn" type="submit">Save email</button></p>
         </form>

@@ -131,5 +131,6 @@ $links = [
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
 <script src="/assets/js/data-style.js" defer></script>
 <script src="/assets/js/password-toggle.js" defer></script>
+<script src="/assets/js/form-auto-submit.js" defer></script>
 </body>
 </html>

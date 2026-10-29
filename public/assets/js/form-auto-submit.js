@@ -6,4 +6,12 @@
             }
         });
     });
+    document.querySelectorAll('form[data-submit-once]').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var button = form.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = true;
+            }
+        });
+    });
 })();

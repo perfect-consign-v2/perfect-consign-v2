@@ -64,14 +64,35 @@ final class View
         string $id,
         string $name,
         string $class = 'input',
-        bool $required = false,
         ?int $minlength = null,
         ?string $autocomplete = null,
         ?string $value = null,
     ): void {
+        self::writePasswordField($id, $name, $class, '', $minlength, $autocomplete, $value);
+    }
+
+    public static function requiredPasswordField(
+        string $id,
+        string $name,
+        string $class = 'input',
+        ?int $minlength = null,
+        ?string $autocomplete = null,
+        ?string $value = null,
+    ): void {
+        self::writePasswordField($id, $name, $class, ' required', $minlength, $autocomplete, $value);
+    }
+
+    private static function writePasswordField(
+        string $id,
+        string $name,
+        string $class,
+        string $requiredAttr,
+        ?int $minlength,
+        ?string $autocomplete,
+        ?string $value,
+    ): void {
         $safeId = self::text($id);
         $classAttr = $class !== '' ? ' class="' . self::text($class) . '"' : '';
-        $reqAttr = $required ? ' required' : '';
         $minAttr = $minlength !== null ? ' minlength="' . $minlength . '"' : '';
         $acAttr = ($autocomplete !== null && $autocomplete !== '')
             ? ' autocomplete="' . self::text($autocomplete) . '"'
@@ -79,7 +100,7 @@ final class View
         $valueAttr = $value !== null ? ' value="' . self::text($value) . '"' : '';
         echo '<div class="password-field">';
         echo '<input type="password" id="' . $safeId . '" name="' . self::text($name) . '"'
-            . $classAttr . $reqAttr . $minAttr . $acAttr . $valueAttr . '>';
+            . $classAttr . $requiredAttr . $minAttr . $acAttr . $valueAttr . '>';
         echo '<button type="button" class="password-field__toggle" aria-label="Show password"'
             . ' aria-controls="' . $safeId . '" aria-pressed="false">';
         echo '<span class="password-field__icon password-field__icon--show" aria-hidden="true">';

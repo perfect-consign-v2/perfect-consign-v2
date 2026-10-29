@@ -18,6 +18,9 @@ final class PlatformOperatorNotice
     {
     }
 
+    /**
+     * @param array<string, mixed> $context
+     */
     public function mailFailed(string $purpose, \Throwable $error, array $context = []): void
     {
         if ($error instanceof MailDeliveryFailed) {

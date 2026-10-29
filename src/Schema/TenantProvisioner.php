@@ -34,40 +34,14 @@ final class TenantProvisioner
             throw new InvalidArgumentException('a tenant display name is required');
         }
         $this->assertBackupRole();
-
-        $idStatement = $this->pdo->query('SELECT uuidv7() AS id');
-        if ($idStatement === false) {
-            throw new RuntimeException('could not create a tenant id');
-        }
-        $idRow = $idStatement->fetch(PDO::FETCH_ASSOC);
-        if (!is_array($idRow) || !is_string($idRow['id'] ?? null)) {
-            throw new RuntimeException('could not create a tenant id');
-        }
-        $id = $idRow['id'];
+        $id = $this->newTenantId();
         $schema = 'tenant_' . str_replace('-', '', $id);
         $this->assertSchema($schema);
         $role = $this->roleName($slug, $schema);
-
-        $createdRole = false;
-        if (!$this->roleExists($role)) {
-            $create = $this->pdo->prepare('SELECT platform.create_poster(?)');
-            $create->execute([$role]);
-            $createdRole = true;
-        }
+        $createdRole = $this->ensurePosterRole($role);
         $this->pdo->exec(sprintf('GRANT %s TO CURRENT_USER', $role));
-
         try {
-            $this->pdo->beginTransaction();
-            $insert = $this->pdo->prepare(
-                'INSERT INTO platform.tenants (id, slug, schema_name, display_name) VALUES (?, ?, ?, ?)'
-            );
-            $insert->execute([$id, $slug, $schema, $displayName]);
-            $this->pdo->exec(sprintf('CREATE SCHEMA %s', $schema));
-            $this->pdo->exec(sprintf('REVOKE ALL ON SCHEMA %s FROM PUBLIC', $schema));
-            $this->applyLedger($schema, $role);
-            $this->pdo->commit();
-            $this->grantApp($role);
-            $this->grantBackup($schema, $role);
+            $this->commitTenantSchema($id, $slug, $schema, $displayName, $role);
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -79,6 +53,51 @@ final class TenantProvisioner
         }
 
         return $schema;
+    }
+
+    private function newTenantId(): string
+    {
+        $idStatement = $this->pdo->query('SELECT uuidv7() AS id');
+        if ($idStatement === false) {
+            throw new RuntimeException('could not create a tenant id');
+        }
+        $idRow = $idStatement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($idRow) || !is_string($idRow['id'] ?? null)) {
+            throw new RuntimeException('could not create a tenant id');
+        }
+
+        return $idRow['id'];
+    }
+
+    private function ensurePosterRole(string $role): bool
+    {
+        if ($this->roleExists($role)) {
+            return false;
+        }
+        $create = $this->pdo->prepare('SELECT platform.create_poster(?)');
+        $create->execute([$role]);
+
+        return true;
+    }
+
+    private function commitTenantSchema(
+        string $id,
+        string $slug,
+        string $schema,
+        string $displayName,
+        string $role,
+    ): void {
+        $this->pdo->beginTransaction();
+        $insert = $this->pdo->prepare(
+            'INSERT INTO platform.tenants (id, slug, schema_name, display_name) VALUES (?, ?, ?, ?)'
+        );
+        $insert->execute([$id, $slug, $schema, $displayName]);
+        $this->pdo->exec(sprintf('CREATE SCHEMA %s', $schema));
+        $this->pdo->exec(sprintf('REVOKE ALL ON SCHEMA %s FROM PUBLIC', $schema));
+        $this->applyLedger($schema, $role);
+        $this->pdo->commit();
+        $this->grantApp($role);
+        $this->grantBackup($schema, $role);
     }
 
     public function applyLedger(string $schema, string $role): void

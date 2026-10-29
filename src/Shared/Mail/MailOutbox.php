@@ -27,30 +27,12 @@ final class MailOutbox
         string $subject,
         string $body,
     ): string {
-        if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $tenant) !== 1) {
-            throw new InvalidArgumentException('the mall is not a mall');
-        }
-        if ($mailbox !== self::MAILBOX_MALL && $mailbox !== self::MAILBOX_PLATFORM) {
-            throw new InvalidArgumentException('the mailbox is not a mailbox');
-        }
-        $purpose = trim($purpose);
-        if ($purpose === '' || strlen($purpose) > 64) {
-            throw new InvalidArgumentException('the mail purpose is missing');
-        }
-        $address = strtolower(trim($address));
-        if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $address) !== 1 || strlen($address) > 200) {
-            throw new InvalidArgumentException('that email is not an email address');
-        }
-        if (str_contains($address, "\n") || str_contains($address, "\r")) {
-            throw new InvalidArgumentException('that email is not an email address');
-        }
-        $subject = trim($subject);
-        if ($subject === '' || strlen($subject) > 200 || str_contains($subject, "\n") || str_contains($subject, "\r")) {
-            throw new InvalidArgumentException('the subject is missing');
-        }
-        if ($body === '' || strlen($body) > 20000) {
-            throw new InvalidArgumentException('the message is missing');
-        }
+        $this->assertTenant($tenant);
+        $this->assertMailbox($mailbox);
+        $purpose = $this->normalizedPurpose($purpose);
+        $address = $this->normalizedAddress($address);
+        $subject = $this->normalizedSubject($subject);
+        $this->assertBody($body);
         $statement = $this->pdo->prepare(
             'SELECT platform.file_outbound_mail(?::text, ?::text, ?::text, ?::text, ?::text, ?::text)'
         );
@@ -115,5 +97,59 @@ final class MailOutbox
              WHERE id = ?::uuid AND sent_at IS NULL'
         );
         $statement->execute([$id]);
+    }
+
+    private function assertTenant(string $tenant): void
+    {
+        if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $tenant) !== 1) {
+            throw new InvalidArgumentException('the mall is not a mall');
+        }
+    }
+
+    private function assertMailbox(string $mailbox): void
+    {
+        if ($mailbox !== self::MAILBOX_MALL && $mailbox !== self::MAILBOX_PLATFORM) {
+            throw new InvalidArgumentException('the mailbox is not a mailbox');
+        }
+    }
+
+    private function normalizedPurpose(string $purpose): string
+    {
+        $purpose = trim($purpose);
+        if ($purpose === '' || strlen($purpose) > 64) {
+            throw new InvalidArgumentException('the mail purpose is missing');
+        }
+
+        return $purpose;
+    }
+
+    private function normalizedAddress(string $address): string
+    {
+        $address = strtolower(trim($address));
+        if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $address) !== 1 || strlen($address) > 200) {
+            throw new InvalidArgumentException('that email is not an email address');
+        }
+        if (str_contains($address, "\n") || str_contains($address, "\r")) {
+            throw new InvalidArgumentException('that email is not an email address');
+        }
+
+        return $address;
+    }
+
+    private function normalizedSubject(string $subject): string
+    {
+        $subject = trim($subject);
+        if ($subject === '' || strlen($subject) > 200 || str_contains($subject, "\n") || str_contains($subject, "\r")) {
+            throw new InvalidArgumentException('the subject is missing');
+        }
+
+        return $subject;
+    }
+
+    private function assertBody(string $body): void
+    {
+        if ($body === '' || strlen($body) > 20000) {
+            throw new InvalidArgumentException('the message is missing');
+        }
     }
 }

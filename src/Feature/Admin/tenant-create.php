@@ -31,11 +31,11 @@ use PerfectConsign\Shared\Http\View;
         </div>
         <div class="field">
             <label for="password">Password</label>
-            <?php View::passwordField(id: 'password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+            <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
         </div>
         <div class="field">
             <label for="password_confirm">Confirm password</label>
-            <?php View::passwordField(id: 'password_confirm', name: 'password_confirm', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+            <?php View::requiredPasswordField(id: 'password_confirm', name: 'password_confirm', minlength: 8, autocomplete: 'new-password'); ?>
         </div>
         <p class="row gap-2">
             <button class="btn btn-primary" type="submit">Create store</button>

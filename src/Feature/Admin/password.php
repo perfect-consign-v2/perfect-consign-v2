@@ -14,15 +14,15 @@ use PerfectConsign\Shared\Http\View;
             <p class="muted">Changing your password signs you out. You will need to sign in again with the new password.</p>
             <div class="field">
                 <label for="current">Current password</label>
-                <?php View::passwordField(id: 'current', name: 'current', required: true, autocomplete: 'current-password'); ?>
+                <?php View::requiredPasswordField(id: 'current', name: 'current', autocomplete: 'current-password'); ?>
             </div>
             <div class="field">
                 <label for="password">New password</label>
-                <?php View::passwordField(id: 'password', name: 'password', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
             </div>
             <div class="field">
                 <label for="confirm">Confirm password</label>
-                <?php View::passwordField(id: 'confirm', name: 'confirm', required: true, minlength: 8, autocomplete: 'new-password'); ?>
+                <?php View::requiredPasswordField(id: 'confirm', name: 'confirm', minlength: 8, autocomplete: 'new-password'); ?>
             </div>
         </div>
         <div class="card-foot">

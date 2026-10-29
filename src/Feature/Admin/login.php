@@ -26,7 +26,7 @@ use PerfectConsign\Shared\Http\View;
                     </div>
                     <div class="field">
                         <label for="password">Password</label>
-                        <?php View::passwordField(id: 'password', name: 'password', required: true, autocomplete: 'current-password'); ?>
+                        <?php View::requiredPasswordField(id: 'password', name: 'password', autocomplete: 'current-password'); ?>
                     </div>
                 </div>
                 <div class="card-foot row between">
