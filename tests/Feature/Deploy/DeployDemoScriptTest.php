@@ -16,15 +16,30 @@ final class DeployDemoScriptTest extends TestCase
         self::assertIsString($script);
         self::assertStringContainsString('composer', $script);
         self::assertStringContainsString('install', $script);
+        self::assertStringContainsString('/opt/plesk/php/8.5/bin/php', $script);
+        self::assertMatchesRegularExpression(
+            '/export PATH=.*dirname -- "\$php_bin"/',
+            $script
+        );
         self::assertMatchesRegularExpression(
             '/composer["\s].*build:routes|build:routes/',
             $script
         );
+        $pathAt = strpos($script, 'export PATH=');
         $installAt = strpos($script, 'install --no-dev');
         $routesAt = strpos($script, 'build:routes');
+        self::assertNotFalse($pathAt);
         self::assertNotFalse($installAt);
         self::assertNotFalse($routesAt);
+        self::assertGreaterThan($pathAt, $installAt);
         self::assertGreaterThan($installAt, $routesAt);
+
+        $composerJson = file_get_contents(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'composer.json');
+        self::assertIsString($composerJson);
+        self::assertMatchesRegularExpression(
+            '/"build:routes"\s*:\s*"@php bin\/build-feature-routes\.php"/',
+            $composerJson
+        );
     }
 
     public function testDeployDoesNotRequireAPasswordChangeWhenOwnerAlreadyMatches(): void

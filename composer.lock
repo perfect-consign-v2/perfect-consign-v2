@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "46ce55ddaa7ac13d2d05e9405dcb25df",
+    "content-hash": "e6c39332978f6986efff9768aed85276",
     "packages": [
         {
             "name": "krubio/perfect-container-psr-11",
@@ -3806,6 +3806,8 @@
         "ext-ctype": "*",
         "ext-zip": "*"
     },
-    "platform-dev": {},
+    "platform-dev": {
+        "ext-xdebug": "*"
+    },
     "plugin-api-version": "2.9.0"
 }

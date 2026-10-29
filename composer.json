@@ -39,7 +39,7 @@
         "prove:obligations": "php bin/prove-obligations.php",
         "prove:race": "php bin/prove-race.php",
         "prove:tenant": "php bin/prove-tenant.php",
-        "build:routes": "php bin/build-feature-routes.php",
+        "build:routes": "@php bin/build-feature-routes.php",
         "check:worker": "php bin/check-worker.php",
         "test:smoke": "php vendor/bin/phpunit --testsuite http --group smoke",
         "test:http": "php vendor/bin/phpunit --testsuite http --exclude-group surface-mutate",

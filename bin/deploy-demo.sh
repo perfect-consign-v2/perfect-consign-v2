@@ -54,9 +54,14 @@ if [[ ! -f "$composer" ]]; then
     exit 1
 fi
 
+# Plesk PHP is not on PATH as `php`. Composer scripts that shell out to bare
+# `php` (and @php when the finder misses) need this directory first.
+export PATH="$(dirname -- "$php_bin"):${PATH:-}"
+
 "$php_bin" "$composer" --working-dir="$root" install --no-dev --no-interaction --prefer-dist
 # Production APP_ENV reads var/cache/feature-controllers.php; rebuild after every
 # reset so new controllers are registered and removed ones drop out.
+# build:routes uses @php so it reuses this interpreter even without PATH.
 "$php_bin" "$composer" --working-dir="$root" build:routes
 
 "$php_bin" "${root}/bin/ensure-mail-key.php"
