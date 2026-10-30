@@ -26,6 +26,15 @@ if (!is_dir($coverageDir) && !mkdir($coverageDir, 0755, true) && !is_dir($covera
     fwrite(STDERR, "coverage directory could not be created\n");
     exit(1);
 }
+foreach (array_merge(
+    glob($coverageDir . DIRECTORY_SEPARATOR . '*.php') ?: [],
+    glob($coverageDir . DIRECTORY_SEPARATOR . '*.cov') ?: [],
+) as $staleDump) {
+    if (is_file($staleDump) && !unlink($staleDump)) {
+        fwrite(STDERR, "mutation coverage dump could not be cleared\n");
+        exit(1);
+    }
+}
 if (!is_dir($outDir) && !mkdir($outDir, 0755, true) && !is_dir($outDir)) {
     fwrite(STDERR, "mutation directory could not be created\n");
     exit(1);

@@ -1,15 +1,15 @@
 ---
 title: Booth / consignment / store-stock switches
 category: Vendors and booths
-hesk: published 2026-10-29
-as_of: 2026-10-25
+hesk: published 2026-10-30
+as_of: 2026-10-30
 ---
 
 # Booth / consignment / store-stock switches
 
 ## As of
 
-2026-10-25
+2026-10-30
 
 ## In one sentence
 
@@ -21,7 +21,8 @@ Changing mall settings, adding items, charging rent, or opening booth / wait-lis
 
 ## What the books / screens do
 
-- Booth rent off: no rent charge, pay-vendors does not take rent, booth/rent/wait list/map pages stay closed.
+- Booth rent off: no rent charge, pay-vendors does not take rent, booth/rent/wait list/map pages stay closed, and Collect rent is hidden on the register.
+- Consignment-only store: same rent and booth screens stay closed, including Collect rent on the register.
 - Consignment off: days on the floor cannot save; consigned intake is blocked while rules apply.
 - Store stock off: store pieces cannot be added while items remain, per refuse rules.
 - Item placement: booth piece and consigned piece name a vendor; store piece does not.
@@ -38,7 +39,7 @@ Changing mall settings, adding items, charging rent, or opening booth / wait-lis
 
 ## How to check
 
-With rent off, booth pages closed and no rent charges. With only store stock on, a store sale posts no vendor payable.
+With rent off or consignment-only, booth pages closed, Collect rent gone from the register, and no rent charges. With only store stock on, a store sale posts no vendor payable.
 
 ## Source
 

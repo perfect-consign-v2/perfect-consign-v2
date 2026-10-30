@@ -215,6 +215,27 @@ final class RegisterStoreTest extends TestCase
         self::assertFalse($this->store($this->createStub(Statements::class))->drawerSource('opening'));
     }
 
+    public function testZTapeExpectedCashLabelsLayawayDepositWithoutUnderscore(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([
+            ['source_type' => 'layaway_deposit', 'net' => 2500],
+            ['source_type' => 'layaway_refund', 'net' => -500],
+        ]);
+        $activity = $this->activity($statements);
+        $method = (new ReflectionClass(RegisterActivity::class))->getMethod('cashLines');
+        /** @var list<array{label: string, amount: string}> $lines */
+        $lines = $method->invoke($activity, 'sess-1', 10000);
+        self::assertSame(
+            [
+                ['label' => 'Opening count', 'amount' => '$100.00'],
+                ['label' => 'Layaway deposit', 'amount' => '$25.00'],
+                ['label' => 'Layaway refund', 'amount' => '-$5.00'],
+            ],
+            $lines
+        );
+    }
+
     private function store(Statements $statements): RegisterStore
     {
         $mall = new MallSettings(
@@ -226,5 +247,16 @@ final class RegisterStoreTest extends TestCase
         $activity = new RegisterActivity($statements, $clock);
 
         return new RegisterStore($statements, $clock, $activity);
+    }
+
+    private function activity(Statements $statements): RegisterActivity
+    {
+        $mall = new MallSettings(
+            $statements,
+            (new ReflectionClass(\PerfectConsign\Feature\Company\CompanyStore::class))->newInstanceWithoutConstructor(),
+            new \PerfectConsign\Feature\Mall\MallDay($statements),
+        );
+
+        return new RegisterActivity($statements, new MallClock($mall));
     }
 }

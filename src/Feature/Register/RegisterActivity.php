@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Register;
 
 use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\SourceLabel;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -28,6 +29,8 @@ final class RegisterActivity
         'gift_certificate_issue' => 'Gift certificates sold for cash',
         'gift_card_issue' => 'Gift cards sold for cash',
         'store_credit_issue' => 'Store credit sold for cash',
+        'layaway_deposit' => 'Layaway deposit',
+        'layaway_refund' => 'Layaway refund',
         'payout' => 'Cash payouts',
         'cash_drop' => 'Cash drops',
     ];
@@ -245,7 +248,7 @@ final class RegisterActivity
                 continue;
             }
             $lines[] = [
-                'label' => self::CASH_LINES[$source] ?? $source,
+                'label' => self::CASH_LINES[$source] ?? SourceLabel::text($source),
                 'amount' => DenominationCount::dollars($net),
             ];
         }

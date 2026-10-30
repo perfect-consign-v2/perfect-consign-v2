@@ -21,7 +21,23 @@ final class RegisterNavTest extends TestCase
         self::assertStringContainsString('>Collect rent</a>', $empty);
     }
 
-    private function nav(string $lastSale): string
+    public function testCollectRentIsHiddenWhenTheStoreIsConsignmentOnly(): void
+    {
+        $html = $this->nav('', consignmentOnly: true);
+
+        self::assertStringNotContainsString('Collect rent', $html);
+        self::assertStringNotContainsString('/demo/rent"', $html);
+    }
+
+    public function testCollectRentIsHiddenWhenBoothRentIsOff(): void
+    {
+        $html = $this->nav('', boothRentals: false);
+
+        self::assertStringNotContainsString('Collect rent', $html);
+        self::assertStringNotContainsString('/demo/rent"', $html);
+    }
+
+    private function nav(string $lastSale, bool $boothRentals = true, bool $consignmentOnly = false): string
     {
         $view = new View(dirname(__DIR__, 3) . '/src');
         ob_start();
@@ -32,6 +48,8 @@ final class RegisterNavTest extends TestCase
             'lastSale' => $lastSale,
             'giftNumber' => '',
             'giftBalance' => null,
+            'boothRentals' => $boothRentals,
+            'consignmentOnly' => $consignmentOnly,
         ]);
         $html = ob_get_clean();
         self::assertIsString($html);

@@ -51,7 +51,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('href="/demo/sizes"', $html);
         self::assertStringNotContainsString('href="/demo/conditions"', $html);
         self::assertStringContainsString('href="/demo/dashboard" aria-current="page"', $html);
-        self::assertStringContainsString('href="/demo/registers">Active: Front</a>', $html);
+        self::assertStringNotContainsString('Active:', $html);
         self::assertStringNotContainsString('Reset Test Data', $html);
         self::assertStringContainsString('id="flash-dialog"', $html);
         self::assertStringContainsString('data-kind="danger"', $html);
@@ -109,7 +109,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('class="btn btn-danger"', $html);
         self::assertStringContainsString('name="csrf" value="token"', $html);
         self::assertStringContainsString('Reset Test Data', $html);
-        self::assertStringContainsString('href="/dev/registers">Active: Front</a>', $html);
+        self::assertStringNotContainsString('Active:', $html);
     }
 
     public function testTheMallOwnerSeesResetTestData(): void
@@ -129,7 +129,7 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('action="/mall/reset-test-data"', $html);
         self::assertStringContainsString('class="btn btn-danger"', $html);
         self::assertStringContainsString('Reset Test Data', $html);
-        self::assertStringContainsString('href="/mall/registers">Active: Front</a>', $html);
+        self::assertStringNotContainsString('Active:', $html);
     }
 
     public function testACashierOnTheDevMallDoesNotSeeResetTestData(): void
@@ -141,7 +141,7 @@ final class LayoutBranchesTest extends TestCase
             'activeRegister' => 'Front',
         ]);
 
-        self::assertStringContainsString('href="/dev/registers">Active: Front</a>', $html);
+        self::assertStringNotContainsString('Active:', $html);
         self::assertStringNotContainsString('Reset Test Data', $html);
         self::assertStringNotContainsString('/dev/reset-test-data', $html);
     }

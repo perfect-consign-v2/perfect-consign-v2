@@ -153,6 +153,9 @@ final class RegisterPageTest extends TestCase
         ]);
 
         self::assertStringNotContainsString('data-qty-delta="-1" disabled', $html);
+        self::assertStringContainsString('class="register-line-total"', $html);
+        self::assertStringContainsString('id="summary-subtotal"', $html);
+        self::assertStringContainsString('data-unit-price="1000"', $html);
         self::assertStringContainsString('Line discount −$1.00', $html);
         self::assertStringContainsString('$19.00', $html);
         self::assertSame(1, substr_count($html, 'value="percent" checked'));

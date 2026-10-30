@@ -562,8 +562,127 @@ if (instantForm) {
         }
     });
 }
+function moneyText(cents) {
+    const n = Math.max(0, cents);
+    return '$' + Math.floor(n / 100) + '.' + String(n % 100).padStart(2, '0');
+}
+function halfUp(amount, bps) {
+    return Math.floor((amount * bps + 5000) / 10000);
+}
+function taxCents(net, taxBps) {
+    return Math.floor((net * taxBps + 50000) / 100000);
+}
+function parseDiscountValue(kind, raw) {
+    const text = String(raw || '').trim();
+    if (text === '') {
+        return 0;
+    }
+    if (kind === 'percent') {
+        const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(text);
+        if (!match) {
+            return 0;
+        }
+        return (Number(match[1]) * 100) + Number((match[2] || '').padEnd(2, '0'));
+    }
+    const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(text);
+    if (!match) {
+        return 0;
+    }
+    return (Number(match[1]) * 100) + Number((match[2] || '').padEnd(2, '0'));
+}
+function lineAmounts(row, quantity) {
+    const unit = parseInt(row.getAttribute('data-unit-price') || '0', 10) || 0;
+    const offer = parseInt(row.getAttribute('data-offer-discount') || '0', 10) || 0;
+    const store = parseInt(row.getAttribute('data-store-discount') || '0', 10) || 0;
+    const kind = row.getAttribute('data-line-discount-kind') || '';
+    const raw = row.getAttribute('data-line-discount-value') || '';
+    const extended = unit * quantity;
+    const afterOffer = Math.max(0, extended - offer - store);
+    let lineDiscount = 0;
+    if (kind === 'percent') {
+        lineDiscount = halfUp(afterOffer, parseDiscountValue(kind, raw));
+    } else if (kind === 'amount') {
+        lineDiscount = parseDiscountValue(kind, raw);
+    } else {
+        lineDiscount = parseInt(row.getAttribute('data-line-discount') || '0', 10) || 0;
+    }
+    if (lineDiscount > afterOffer) {
+        lineDiscount = afterOffer;
+    }
+    const net = Math.max(0, afterOffer - lineDiscount);
+    return {
+        extended: extended,
+        discount: lineDiscount + offer + store,
+        net: net,
+        taxable: row.getAttribute('data-tax-exempt') !== '1'
+    };
+}
+function paintCartTotals() {
+    const pay = document.querySelector('.register-pay');
+    if (!pay) {
+        return;
+    }
+    const taxBps = parseInt(pay.getAttribute('data-tax-bps') || '0', 10) || 0;
+    const waived = pay.getAttribute('data-tax-waived') === '1';
+    const applied = parseInt(pay.getAttribute('data-applied') || '0', 10) || 0;
+    let merchandise = 0;
+    let discount = 0;
+    let tax = 0;
+    document.querySelectorAll('.register-cart-line').forEach(function (row) {
+        const input = row.querySelector('.register-qty-input');
+        const quantity = Math.max(1, parseInt(input && input.value, 10) || 1);
+        const amounts = lineAmounts(row, quantity);
+        const total = row.querySelector('.register-line-total');
+        if (total) {
+            total.textContent = moneyText(amounts.net);
+        }
+        merchandise += amounts.extended;
+        discount += amounts.discount;
+        if (!waived && amounts.taxable) {
+            tax += taxCents(amounts.net, taxBps);
+        }
+        const minus = row.querySelector('[data-qty-delta="-1"]');
+        if (minus) {
+            minus.disabled = quantity < 2;
+        }
+    });
+    const due = merchandise - discount + tax;
+    const owed = Math.max(0, due - applied);
+    const subtotal = document.getElementById('summary-subtotal');
+    const taxEl = document.getElementById('summary-tax');
+    const total = document.getElementById('summary-total');
+    const owedEl = document.getElementById('summary-owed');
+    const discountEl = document.getElementById('discount');
+    if (subtotal) {
+        subtotal.textContent = moneyText(merchandise);
+    }
+    if (taxEl) {
+        taxEl.textContent = moneyText(tax);
+    }
+    if (total) {
+        total.textContent = moneyText(due);
+    }
+    if (owedEl) {
+        owedEl.textContent = moneyText(owed);
+    }
+    if (discountEl && discount > 0) {
+        discountEl.textContent = moneyText(discount);
+    }
+    const payForm = document.getElementById('pos-pay');
+    if (payForm) {
+        payForm.setAttribute('data-due', (due / 100).toFixed(2));
+        if (typeof payForm.dispatchEvent === 'function') {
+            payForm.querySelectorAll('[name^="tender_"]').forEach(function (field) {
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+    }
+}
 document.querySelectorAll('.register-qty-input, .register-price').forEach(function (input) {
     input.addEventListener('change', function () {
+        if (input.classList.contains('register-qty-input')) {
+            paintCartTotals();
+        }
         if (input.form) {
             input.form.requestSubmit();
         }
@@ -581,6 +700,7 @@ document.querySelectorAll('[data-qty-delta]').forEach(function (button) {
             return;
         }
         input.value = String(next);
+        paintCartTotals();
         form.requestSubmit();
     });
 });

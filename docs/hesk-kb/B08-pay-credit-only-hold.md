@@ -1,7 +1,7 @@
 ---
 title: Pay vs credit-only vs hold
 category: Payouts and settlement
-hesk: published 2026-10-29
+hesk: published 2026-10-30
 as_of: 2026-10-25
 ---
 

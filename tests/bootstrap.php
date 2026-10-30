@@ -32,14 +32,6 @@ if (!is_dir($coverage) && !mkdir($coverage, 0755, true) && !is_dir($coverage)) {
     fwrite(STDERR, "coverage directory could not be created\n");
     exit(1);
 }
-$existingPhp = glob($coverage . DIRECTORY_SEPARATOR . '*.php') ?: [];
-$existingCov = glob($coverage . DIRECTORY_SEPARATOR . '*.cov') ?: [];
-foreach (array_merge($existingPhp, $existingCov) as $old) {
-    if (is_file($old) && !unlink($old)) {
-        fwrite(STDERR, "coverage dump could not be cleared\n");
-        exit(1);
-    }
-}
 if (getenv('PC_MUTATE_COVERING') === '1') {
     return;
 }
@@ -78,7 +70,7 @@ register_shutdown_function(static function () use ($coverage): void {
         $kept[$real] = $lines;
     }
     $written = file_put_contents(
-        $coverage . DIRECTORY_SEPARATOR . 'process.php',
+        $coverage . DIRECTORY_SEPARATOR . 'process-' . bin2hex(random_bytes(8)) . '.php',
         '<?php return ' . var_export($kept, true) . ";\n"
     );
     if ($written === false) {

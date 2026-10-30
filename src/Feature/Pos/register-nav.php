@@ -14,6 +14,9 @@ $lastSale = is_string($lastSale ?? null) ? $lastSale : '';
 
 $giftNumber = $giftNumber ?? '';
 $giftBalance = $giftBalance ?? null;
+$boothRentals = ($boothRentals ?? true) === true;
+$consignmentOnly = ($consignmentOnly ?? false) === true;
+$showCollectRent = $boothRentals && !$consignmentOnly;
 $parkedCount = 0;
 $layawayCount = 0;
 foreach ($cart['parked'] as $held) {
@@ -36,7 +39,9 @@ foreach ($cart['parked'] as $held) {
         <?php endif; ?>
         <a class="btn" href="/<?= View::text($slug) ?>/pos/layaways">Layaways (<?= View::text((string) $layawayCount) ?>)</a>
         <a class="btn" href="/<?= View::text($slug) ?>/pos/suspended">Suspended Sales (<?= View::text((string) $parkedCount) ?>)</a>
-        <a class="btn btn-primary" href="/<?= View::text($slug) ?>/rent">Collect rent</a>
+        <?php if ($showCollectRent): ?>
+            <a class="btn btn-primary" href="/<?= View::text($slug) ?>/rent">Collect rent</a>
+        <?php endif; ?>
         <button class="btn" type="button" data-open-modal="gift-balance">Gift Certificate Balance</button>
     </nav>
 </div>

@@ -16,7 +16,7 @@ $showBrand = ($showBrand ?? true) === true;
 /** @var array{
  *     ticket_id: string,
  *     posting_key: string,
- *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, commission_bps: int, tax: int, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
+ *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, commission_bps: int, tax: int, tax_exempt?: bool, discount: int, line_discount: int, line_discount_kind: string, line_discount_value: string}>,
  *     merchandise: int,
  *     discount: int,
  *     discount_reason: string,
@@ -213,7 +213,23 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                                 </tr>
                             <?php endforeach; ?>
                             <?php foreach ($lines as $line): ?>
-                                <tr>
+                                <?php
+                                $offerName = is_string($line['offer_name'] ?? null) ? $line['offer_name'] : '';
+                                $offerOff = RowValue::integer($line['offer_discount'] ?? 0);
+                                $storeOff = RowValue::integer($line['store_discount'] ?? 0);
+                                $offerStoreOff = $offerOff + $storeOff;
+                                $lineNet = RowValue::integer($line['price'] * $line['quantity'] - $line['line_discount'] - $offerStoreOff);
+                                ?>
+                                <tr
+                                    class="register-cart-line"
+                                    data-unit-price="<?= View::text((string) RowValue::integer($line['price'])) ?>"
+                                    data-offer-discount="<?= View::text((string) $offerOff) ?>"
+                                    data-store-discount="<?= View::text((string) $storeOff) ?>"
+                                    data-line-discount="<?= View::text((string) RowValue::integer($line['line_discount'])) ?>"
+                                    data-line-discount-kind="<?= View::text((string) ($line['line_discount_kind'] ?? '')) ?>"
+                                    data-line-discount-value="<?= View::text((string) ($line['line_discount_value'] ?? '')) ?>"
+                                    data-tax-exempt="<?= !empty($line['tax_exempt']) ? '1' : '0' ?>"
+                                >
                                     <td class="register-item">
                                         <p><?= View::text($line['description']) ?></p>
                                         <p class="ticket-meta"><?= View::text($line['code']) ?></p>
@@ -238,19 +254,15 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                                         </form>
                                     </td>
                                     <td>
-                                        <?php
-                                        $offerName = is_string($line['offer_name'] ?? null) ? $line['offer_name'] : '';
-                                        $offerOff = RowValue::integer($line['offer_discount'] ?? 0) + RowValue::integer($line['store_discount'] ?? 0);
-                                        ?>
-                                        <?php if ($offerName !== '' && $offerOff > 0): ?>
-                                            <p class="ticket-meta"><?= View::text($offerName) ?> −<?= View::text(View::money($offerOff)) ?></p>
+                                        <?php if ($offerName !== '' && $offerStoreOff > 0): ?>
+                                            <p class="ticket-meta"><?= View::text($offerName) ?> −<?= View::text(View::money($offerStoreOff)) ?></p>
                                         <?php endif; ?>
                                         <?php if ($line['line_discount'] > 0): ?>
                                             <p class="ticket-meta">Line discount −<?= View::text(View::money(RowValue::integer($line['line_discount']))) ?></p>
                                         <?php endif; ?>
                                         <button class="btn btn-sm" type="button" data-open-modal="line-discount-<?= View::text((string) $line['line_no']) ?>">Discount</button>
                                     </td>
-                                    <td><?= View::text(View::money(RowValue::integer($line['price'] * $line['quantity'] - $line['line_discount'] - $offerOff))) ?></td>
+                                    <td class="register-line-total"><?= View::text(View::money($lineNet)) ?></td>
                                     <td>
                                         <form method="post" action="/<?= View::text($slug) ?>/pos/remove">
                                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -266,13 +278,13 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php endif; ?>
         </div>
     </section>
-    <section class="card register-pay">
+    <section class="card register-pay" data-tax-bps="<?= View::text((string) RowValue::integer($cart['tax_bps'])) ?>" data-tax-waived="<?= $cart['waiver'] !== '' ? '1' : '0' ?>" data-applied="<?= View::text((string) max(0, RowValue::integer($cart['due']) - $owed)) ?>">
         <div class="card-head"><h2 class="h3">Payment summary</h2></div>
         <div class="card-body stack">
             <p>Register: <strong><?= $chooseRegister ? 'Choose a register' : View::text($activeRegister) ?></strong>
                 <a class="text-link" href="/<?= View::text($slug) ?>/registers">Change</a>
             </p>
-            <p class="register-summary"><span>Subtotal</span><span><?= View::text(View::money(RowValue::integer($cart['merchandise']))) ?></span></p>
+            <p class="register-summary"><span>Subtotal</span><span id="summary-subtotal"><?= View::text(View::money(RowValue::integer($cart['merchandise']))) ?></span></p>
             <?php if ($cart['discount'] > 0): ?>
                 <p class="register-summary">
                     <span>Discount <?= View::text($cart['discount_reason']) ?></span>
@@ -282,10 +294,10 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php if ($cart['waiver'] !== ''): ?>
                 <p><span class="badge" id="tax-waived">Tax waived</span> <?= View::text($cart['waiver']) ?></p>
             <?php else: ?>
-                <p class="register-summary"><span>Tax</span><span><?= View::text(View::money(RowValue::integer($cart['tax']))) ?></span></p>
+                <p class="register-summary"><span>Tax</span><span id="summary-tax"><?= View::text(View::money(RowValue::integer($cart['tax']))) ?></span></p>
             <?php endif; ?>
-            <p class="register-summary"><span>Total</span><span class="register-due"><?= View::text(View::money(RowValue::integer($cart['due']))) ?></span></p>
-            <p>Still due <strong><?= View::text(View::money($owed)) ?></strong></p>
+            <p class="register-summary"><span>Total</span><span id="summary-total" class="register-due"><?= View::text(View::money(RowValue::integer($cart['due']))) ?></span></p>
+            <p>Still due <strong id="summary-owed"><?= View::text(View::money($owed)) ?></strong></p>
             <?php if ($showCashDue): ?>
                 <p class="register-summary" id="summary-cash-round">
                     <span>Cash round</span>

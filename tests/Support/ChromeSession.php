@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Support;
 
+use HeadlessChromium\Communication\Message;
 use HeadlessChromium\Page;
 
 final class ChromeSession
@@ -58,12 +59,20 @@ JS;
 
     public function signIn(string $slug, string $username, string $password): string
     {
+        // One Chrome process is shared across browser tests. A prior sign-in leaves
+        // the session cookie, and GET / then redirects to the dashboard (no login form).
+        $this->clearBrowserCookies();
         $this->open('/');
 
         return $this->submit('/', [
             'email' => $this->emailForAccount($slug, $username),
             'password' => $password,
         ]);
+    }
+
+    private function clearBrowserCookies(): void
+    {
+        $this->page->getSession()->sendMessageSync(new Message('Network.clearBrowserCookies'));
     }
 
     private function emailForAccount(string $slug, string $username): string

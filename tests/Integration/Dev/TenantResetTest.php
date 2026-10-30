@@ -52,6 +52,26 @@ final class TenantResetTest extends TestCase
         } catch (\RuntimeException $error) {
             self::assertStringContainsString('mall owner row is invalid', $error->getMessage());
         }
+        $previousEmail = getenv('STALL_OWNER_EMAIL');
+        putenv('STALL_OWNER_EMAIL=' . ProbeMall::EMAIL);
+        $_ENV['STALL_OWNER_EMAIL'] = ProbeMall::EMAIL;
+        try {
+            $withoutEmail = $mall->invoke(new MallTenantReset(), [
+                'username' => 'owner',
+                'password_hash' => 'hash',
+                'email' => null,
+            ]);
+            self::assertIsArray($withoutEmail);
+            self::assertNull($withoutEmail['email']);
+        } finally {
+            if (is_string($previousEmail)) {
+                putenv('STALL_OWNER_EMAIL=' . $previousEmail);
+                $_ENV['STALL_OWNER_EMAIL'] = $previousEmail;
+            } else {
+                putenv('STALL_OWNER_EMAIL');
+                unset($_ENV['STALL_OWNER_EMAIL']);
+            }
+        }
         $stream = (new MallTenantReset())->progressStream();
         self::assertIsResource($stream);
         fclose($stream);

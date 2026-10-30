@@ -72,12 +72,46 @@ final class ProbeMall
         }
         self::bringTenants($migrator);
         $migrator->migratePlatformAfter();
-        putenv('STALL_OWNER_PASSWORD=' . self::PASSWORD);
-        $_ENV['STALL_OWNER_PASSWORD'] = self::PASSWORD;
-        putenv('STALL_OWNER_EMAIL=' . self::EMAIL);
-        $_ENV['STALL_OWNER_EMAIL'] = self::EMAIL;
-        self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'set-owner.php', [self::SLUG, self::USERNAME]);
+        self::withOwnerEnv(self::PASSWORD, self::EMAIL, static function () use ($root): void {
+            self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'set-owner.php', [self::SLUG, self::USERNAME]);
+        });
         self::resetMallMoney();
+    }
+
+    /**
+     * set-owner.php reads STALL_OWNER_* from the process env. Leave the caller's
+     * values in place afterward so mall/demo resets do not inherit the probe email.
+     */
+    private static function withOwnerEnv(string $password, string $email, callable $run): void
+    {
+        $previousPassword = getenv('STALL_OWNER_PASSWORD');
+        $previousEmail = getenv('STALL_OWNER_EMAIL');
+        $previousPasswordEnv = $_ENV['STALL_OWNER_PASSWORD'] ?? null;
+        $previousEmailEnv = $_ENV['STALL_OWNER_EMAIL'] ?? null;
+        putenv('STALL_OWNER_PASSWORD=' . $password);
+        $_ENV['STALL_OWNER_PASSWORD'] = $password;
+        putenv('STALL_OWNER_EMAIL=' . $email);
+        $_ENV['STALL_OWNER_EMAIL'] = $email;
+        try {
+            $run();
+        } finally {
+            self::restoreEnv('STALL_OWNER_PASSWORD', $previousPassword, $previousPasswordEnv);
+            self::restoreEnv('STALL_OWNER_EMAIL', $previousEmail, $previousEmailEnv);
+        }
+    }
+
+    private static function restoreEnv(string $name, string|false $getenvValue, mixed $envValue): void
+    {
+        if ($getenvValue !== false) {
+            putenv($name . '=' . $getenvValue);
+        } else {
+            putenv($name);
+        }
+        if (is_string($envValue)) {
+            $_ENV[$name] = $envValue;
+        } else {
+            unset($_ENV[$name]);
+        }
     }
 
     /**
