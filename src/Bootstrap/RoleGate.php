@@ -29,10 +29,7 @@ final class RoleGate
 
     private static function manager(string $rest, string $method): bool
     {
-        if (self::cashier($rest, $method)) {
-            return true;
-        }
-        if (self::floor($rest)) {
+        if (self::cashier($rest, $method) || self::floor($rest)) {
             return true;
         }
         if ($method !== 'GET') {
@@ -47,20 +44,8 @@ final class RoleGate
         if (in_array($rest, ['/parties', '/map', '/customers', '/wait-list', '/offers', '/letters', '/booths', '/inventory'], true)) {
             return true;
         }
-        if (
-            str_starts_with($rest, '/parties/')
-            || str_starts_with($rest, '/vendors/')
-            || str_starts_with($rest, '/inventory/')
-            || str_starts_with($rest, '/booths/')
-            || str_starts_with($rest, '/customers/')
-            || str_starts_with($rest, '/wait-list/')
-            || str_starts_with($rest, '/offers/')
-            || str_starts_with($rest, '/letters/')
-        ) {
-            return true;
-        }
 
-        return false;
+        return RolePaths::underFloor($rest);
     }
 
     private static function cashier(string $rest, string $method): bool
@@ -152,14 +137,8 @@ final class RoleGate
         if (preg_match('#^/journals/[0-9a-fA-F-]{36}$#', $rest) === 1) {
             return true;
         }
-        if (str_starts_with($rest, '/rent/receipt/')) {
-            return true;
-        }
-        if (str_starts_with($rest, '/payouts/')) {
-            return true;
-        }
 
-        return str_starts_with($rest, '/pos/receipt/');
+        return RolePaths::underPrefix($rest, ['/rent/receipt/', '/payouts/', '/pos/receipt/']);
     }
 
     private static function reportPage(string $rest, string $role): bool
@@ -167,26 +146,7 @@ final class RoleGate
         if (!Permission::allows($role, 'report.read')) {
             return false;
         }
-        if (in_array($rest, [
-            '/reports',
-            '/reports/sales-tax',
-            '/reports/sales',
-            '/reports/rent',
-            '/reports/payouts',
-            '/reports/stored-value',
-            '/reports/expiring',
-            '/reports/donated',
-            '/reports/sell-through',
-            '/reports/sales-tax.csv',
-            '/reports/sales.csv',
-            '/reports/rent.csv',
-            '/reports/payouts.csv',
-            '/reports/stored-value.csv',
-            '/reports/expiring.csv',
-            '/reports/donated.csv',
-            '/reports/sell-through.csv',
-            '/reports/build',
-        ], true)) {
+        if (in_array($rest, RolePaths::reports(), true)) {
             return true;
         }
 

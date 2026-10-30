@@ -98,6 +98,49 @@ final class AdminEnterAs
         if ($role !== 'cashier' && $role !== 'manager') {
             throw new \InvalidArgumentException('Choose owner, cashier, or manager.');
         }
+        $row = $this->staffRow($tenant, $role);
+        if ($row === null) {
+            $this->audit->record(
+                $admin['id'],
+                $admin['email'],
+                'tenant.enter_as_refused',
+                'refused',
+                $tenant->id,
+                $tenant->slug,
+                ['as_role' => $role, 'reason' => 'missing_' . $role],
+            );
+            throw new \InvalidArgumentException('That store has no ' . $role . '.');
+        }
+        $this->sessions->open(
+            $tenant->slug,
+            $tenant->id,
+            $row['display_name'],
+            $role,
+            $row['id'],
+            $row['version'],
+            $row['id'],
+            '',
+        );
+        $this->admins->restore($preserved);
+        $this->mallAudit($tenant, $row['display_name'], $role, $row['id']);
+        $this->audit->record(
+            $admin['id'],
+            $admin['email'],
+            'tenant.enter_as',
+            'ok',
+            $tenant->id,
+            $tenant->slug,
+            ['as_role' => $role, 'account_id' => $row['id']],
+        );
+
+        return '/' . $tenant->slug . '/pos';
+    }
+
+    /**
+     * @return array{id: string, username: string, display_name: string, version: string}|null
+     */
+    private function staffRow(TenantRecord $tenant, string $role): ?array
+    {
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $tenant->schema) !== 1) {
             throw new \RuntimeException('the mall schema is not usable');
         }
@@ -116,16 +159,7 @@ final class AdminEnterAs
             $this->roles->reset();
         }
         if (!is_array($row)) {
-            $this->audit->record(
-                $admin['id'],
-                $admin['email'],
-                'tenant.enter_as_refused',
-                'refused',
-                $tenant->id,
-                $tenant->slug,
-                ['as_role' => $role, 'reason' => 'missing_' . $role],
-            );
-            throw new \InvalidArgumentException('That store has no ' . $role . '.');
+            return null;
         }
         $id = $row['id'] ?? null;
         $username = $row['username'] ?? null;
@@ -137,20 +171,13 @@ final class AdminEnterAs
         if (!is_string($id) || !is_string($username) || !is_string($display) || !is_string($version)) {
             throw new \RuntimeException('the ' . $role . ' row is not usable');
         }
-        $this->sessions->open($tenant->slug, $tenant->id, $display, $role, $id, $version, $id, '');
-        $this->admins->restore($preserved);
-        $this->mallAudit($tenant, $display, $role, $id);
-        $this->audit->record(
-            $admin['id'],
-            $admin['email'],
-            'tenant.enter_as',
-            'ok',
-            $tenant->id,
-            $tenant->slug,
-            ['as_role' => $role, 'account_id' => $id],
-        );
 
-        return '/' . $tenant->slug . '/pos';
+        return [
+            'id' => $id,
+            'username' => $username,
+            'display_name' => $display,
+            'version' => $version,
+        ];
     }
 
     private function mallAudit(TenantRecord $tenant, string $actor, string $role, string $entityId): void

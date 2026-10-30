@@ -100,10 +100,10 @@ final class RequestCoverage
             }
             $normalized = [];
             foreach ($lines as $line => $hits) {
-                if ((!is_int($line) && !is_string($line)) || !is_int($hits)) {
+                if (!is_int($line) || !is_int($hits)) {
                     continue;
                 }
-                $normalized[(int) $line] = $hits;
+                $normalized[$line] = $hits;
             }
             if ($normalized !== []) {
                 $kept[$real] = $normalized;

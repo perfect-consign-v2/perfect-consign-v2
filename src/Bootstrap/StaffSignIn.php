@@ -141,13 +141,18 @@ final class StaffSignIn
         );
     }
 
-    private function refuse(TenantRecord $tenant, string $username, string $address): void
+    public function recordOwnerFailure(TenantRecord $tenant, string $username, string $address): void
     {
         $this->failures->pruneOwner($tenant->id, $username);
         $failed = $this->pdo->prepare(
             'INSERT INTO platform.owner_sign_in_failures (tenant_id, username, client_address) VALUES (?::uuid, ?, ?)'
         );
         $failed->execute([$tenant->id, $username, $address]);
+    }
+
+    private function refuse(TenantRecord $tenant, string $username, string $address): void
+    {
+        $this->recordOwnerFailure($tenant, $username, $address);
         $this->logger->info('staff sign-in refused', ['slug' => $tenant->slug, 'username' => $username]);
     }
 
