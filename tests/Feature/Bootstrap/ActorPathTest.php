@@ -15,6 +15,7 @@ final class ActorPathTest extends TestCase
     public function testEachRoleHasAHomePage(): void
     {
         self::assertSame('/demo/pos', $this->actor(['actor_role' => 'cashier'])->path('demo'));
+        self::assertSame('/demo/pos', $this->actor(['actor_role' => 'manager'])->path('demo'));
         self::assertSame('/demo/vendor', $this->actor(['actor_role' => 'vendor'])->path('demo'));
         self::assertSame('/demo/sales', $this->actor(['actor_role' => 'books'])->path('demo'));
         self::assertSame('/demo/dashboard', $this->actor(['actor_role' => 'owner'])->path('demo'));

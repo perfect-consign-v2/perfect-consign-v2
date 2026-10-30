@@ -55,7 +55,7 @@ class SaleCeiling
     public function second(string $action, string $entityId, string $overrideUser, string $overridePassword): void
     {
         $role = $this->actor->role() !== '' ? $this->actor->role() : 'owner';
-        if ($role === 'cashier') {
+        if ($role === 'cashier' || $role === 'manager') {
             $this->audit->record(
                 $this->override($overrideUser, $overridePassword, $this->actor->account()),
                 $role,
@@ -112,7 +112,10 @@ class SaleCeiling
         $username = strtolower(trim($username));
         $this->refuseLocked($username);
         $rows = $this->statements->bound(
-            'SELECT id::text AS id, password_hash FROM staff WHERE lower(username) = lower(?)',
+            "SELECT id::text AS id, password_hash
+             FROM staff
+             WHERE lower(username) = lower(?)
+               AND role IN ('manager', 'cashier')",
             [$username]
         );
         $row = $rows[0] ?? null;

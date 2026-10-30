@@ -26,7 +26,7 @@ final class AdminPortalTest extends TestCase
         $this->seedAdmin($pdo);
         $slug = 'admintest';
         $this->ensureDisposableTenant($root, $pdo, $slug);
-        $server = ProbeServer::start($root);
+        $server = ProbeServer::startIsolated($root);
         try {
             $client = new FormClient($server->baseUrl());
             $login = $client->get('/admin/login');
@@ -69,6 +69,25 @@ final class AdminPortalTest extends TestCase
                 || str_contains($enterCashier->body, 'Register')
                 || str_contains($enterCashier->body, 'ticket')
             );
+
+            $backAfterCashier = $client->get('/admin/tenants');
+            self::assertStringContainsString('Enter as manager', $backAfterCashier->body);
+            $enterManager = $client->post('/admin/tenants/' . $slug . '/enter', [
+                'role' => 'manager',
+            ]);
+            self::assertSame(200, $enterManager->status);
+            self::assertTrue(
+                str_contains($enterManager->body, 'Sell')
+                || str_contains($enterManager->body, 'Manager')
+                || str_contains($enterManager->body, 'Inventory'),
+                'enter-as manager should land on the floor-lead chrome'
+            );
+
+            $client->get('/admin/tenants');
+            $refusedRole = $client->post('/admin/tenants/' . $slug . '/enter', [
+                'role' => 'books',
+            ]);
+            self::assertStringContainsString('Choose owner, cashier, or manager.', $refusedRole->body);
 
             $loggedOutMall = $client->post('/' . $slug . '/logout', []);
             self::assertStringContainsString('Signed out.', $loggedOutMall->body);
@@ -155,7 +174,7 @@ final class AdminPortalTest extends TestCase
         $prior = is_file($logPath) ? file_get_contents($logPath) : false;
         $marker = 'admin-log-http-' . bin2hex(random_bytes(6));
         self::assertNotFalse(file_put_contents($logPath, $marker . "\n", LOCK_EX));
-        $server = ProbeServer::start($root);
+        $server = ProbeServer::startIsolated($root);
         try {
             $client = new FormClient($server->baseUrl());
             $client->get('/admin/login');
@@ -236,6 +255,16 @@ final class AdminPortalTest extends TestCase
                 'Cashier One',
                 (new PasswordChoice())->hash('cashier-pass-1'),
                 'cashier@example.test',
+            ]);
+            $manager = $pdo->prepare(
+                'INSERT INTO ' . $schema . '.staff (username, display_name, password_hash, role, email)
+                 VALUES (?, ?, ?, \'manager\', ?)'
+            );
+            $manager->execute([
+                'manager',
+                'Manager One',
+                (new PasswordChoice())->hash('manager-pass-1'),
+                'manager@example.test',
             ]);
         } finally {
             $pdo->exec('RESET ROLE');

@@ -29,8 +29,19 @@ final class ProbeServer
         return self::open($root, 8123, false);
     }
 
+    public static function startIsolated(string $root): self
+    {
+        return self::open($root, 8098, true);
+    }
+
+    public static function startOn(string $root, int $port): self
+    {
+        return self::open($root, $port, true);
+    }
+
     private static function open(string $root, int $port, bool $mailKey): self
     {
+        self::assertPortFree($port);
         $logFile = tempnam(sys_get_temp_dir(), 'pc-http-');
         if ($logFile === false) {
             throw new RuntimeException('the server log could not be created');
@@ -64,6 +75,31 @@ final class ProbeServer
         $server->waitUntilListening();
 
         return $server;
+    }
+
+    private static function assertPortFree(int $port): void
+    {
+        $errno = 0;
+        $errstr = '';
+        $socket = false;
+        set_error_handler(static fn (): bool => true);
+        try {
+            $socket = stream_socket_client(
+                'tcp://127.0.0.1:' . $port,
+                $errno,
+                $errstr,
+                0.25
+            );
+        } finally {
+            restore_error_handler();
+        }
+        if (!is_resource($socket)) {
+            return;
+        }
+        fclose($socket);
+        throw new RuntimeException(
+            'probe port ' . $port . ' is already in use; stop the leftover php -S before HTTP tests'
+        );
     }
 
     public function baseUrl(): string
@@ -131,13 +167,20 @@ final class ProbeServer
     {
         $deadline = microtime(true) + 30;
         while (microtime(true) < $deadline) {
+            $log = $this->log();
+            if (str_contains($log, 'Failed to listen')) {
+                throw new RuntimeException('the probe server failed to bind. ' . $log);
+            }
             if (!$this->running()) {
-                throw new RuntimeException('the probe server stopped. ' . $this->log());
+                throw new RuntimeException('the probe server stopped. ' . $log);
             }
             $page = $this->ping();
             if ($page !== null && $page->status < 500) {
                 if (!$this->running()) {
                     throw new RuntimeException('the probe server stopped. ' . $this->log());
+                }
+                if (str_contains($this->log(), 'Failed to listen')) {
+                    throw new RuntimeException('the probe server failed to bind. ' . $this->log());
                 }
 
                 return;

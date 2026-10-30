@@ -14,6 +14,7 @@ final class StaffSignIn
         private readonly PDO $pdo,
         private readonly LoggerInterface $logger,
         private readonly LoginSession $sessions,
+        private readonly SignInFailureRetention $failures,
     ) {
     }
 
@@ -139,6 +140,7 @@ final class StaffSignIn
 
     private function refuse(TenantRecord $tenant, string $username, string $address): void
     {
+        $this->failures->pruneOwner($tenant->id, $username);
         $failed = $this->pdo->prepare(
             'INSERT INTO platform.owner_sign_in_failures (tenant_id, username, client_address) VALUES (?::uuid, ?, ?)'
         );

@@ -47,7 +47,7 @@ final class CredentialStamp
 
     private function staff(TenantRecord $tenant, string $account, string $role): ?string
     {
-        if ($role !== 'cashier' && $role !== 'vendor') {
+        if ($role !== 'cashier' && $role !== 'vendor' && $role !== 'books' && $role !== 'manager') {
             return null;
         }
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $tenant->schema) !== 1) {

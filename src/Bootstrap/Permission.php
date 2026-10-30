@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 /**
- * Verb list for the four seeded roles. Path checks stay in RoleGate and must agree with this list.
+ * Verb list for the five seeded roles. Path checks stay in RoleGate and must agree with this list.
  */
 final class Permission
 {
@@ -31,6 +31,13 @@ final class Permission
         }
         if ($role === 'cashier') {
             return in_array($verb, ['sale.post', 'sale.void', 'sale.discount', 'sale.tax_free', 'register.close'], true);
+        }
+        if ($role === 'manager') {
+            return in_array(
+                $verb,
+                ['sale.post', 'sale.void', 'sale.discount', 'sale.tax_free', 'register.close', 'report.read'],
+                true
+            );
         }
         if ($role === 'books') {
             return $verb === 'report.read';

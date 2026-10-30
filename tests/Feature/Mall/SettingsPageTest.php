@@ -11,31 +11,7 @@ final class SettingsPageTest extends TestCase
 {
     public function testPayoutTimingIsLastMonth(): void
     {
-        $view = new View(dirname(__DIR__, 3) . '/src');
-        ob_start();
-        $view->render('Feature/Mall/settings', [
-            'slug' => 'demo',
-            'csrf' => 'token',
-            'timeZone' => 'America/Los_Angeles',
-            'timeZones' => ['America/Los_Angeles'],
-            'boothWidth' => 10,
-            'boothDepth' => 10,
-            'floorWidth' => 120,
-            'floorDepth' => 90,
-            'storeTake' => '25',
-            'floorDays' => '',
-            'cashRound' => '',
-            'taxRate' => '',
-            'backupHeadline' => 'None yet',
-            'catalogs' => [],
-            'stocks' => [['key' => 'sheet-30', 'label' => '30-up sheet']],
-            'labelStock' => 'sheet-30',
-            'operatingMode' => 'both',
-            'rentPrepaid' => false,
-        ]);
-        $html = ob_get_clean();
-
-        self::assertIsString($html);
+        $html = $this->page();
         self::assertStringContainsString('Rent starts on the 1st. A period is a calendar month.', $html);
         self::assertStringContainsString('id="late_fees_enabled" name="late_fees_enabled" type="checkbox" value="1">', $html);
         $day = $this->page(['cycleDay' => 28, 'lateFees' => true]);
@@ -139,31 +115,41 @@ final class SettingsPageTest extends TestCase
      */
     private function page(array $extra = []): string
     {
+        $parts = ['money', 'building', 'receipt', 'backup'];
+        if (isset($extra['settingsPart']) && is_string($extra['settingsPart'])) {
+            $parts = [$extra['settingsPart']];
+            unset($extra['settingsPart']);
+        }
         $view = new View(dirname(__DIR__, 3) . '/src');
-        ob_start();
-        $view->render('Feature/Mall/settings', [
-            'slug' => 'demo',
-            'csrf' => 'token',
-            'timeZone' => 'America/Los_Angeles',
-            'timeZones' => ['America/Los_Angeles'],
-            'boothWidth' => 10,
-            'boothDepth' => 10,
-            'floorWidth' => 120,
-            'floorDepth' => 90,
-            'storeTake' => '25',
-            'floorDays' => '',
-            'cashRound' => '',
-            'taxRate' => '',
-            'backupHeadline' => 'None yet',
-            'catalogs' => [],
-            'stocks' => [['key' => 'sheet-30', 'label' => '30-up sheet']],
-            'labelStock' => 'sheet-30',
-            'operatingMode' => 'both',
-            'rentPrepaid' => false,
-            ...$extra,
-        ]);
-        $html = ob_get_clean();
-        self::assertIsString($html);
+        $html = '';
+        foreach ($parts as $part) {
+            ob_start();
+            $view->render('Feature/Mall/settings', [
+                'slug' => 'demo',
+                'csrf' => 'token',
+                'settingsPart' => $part,
+                'timeZone' => 'America/Los_Angeles',
+                'timeZones' => ['America/Los_Angeles'],
+                'boothWidth' => 10,
+                'boothDepth' => 10,
+                'floorWidth' => 120,
+                'floorDepth' => 90,
+                'storeTake' => '25',
+                'floorDays' => '',
+                'cashRound' => '',
+                'taxRate' => '',
+                'backupHeadline' => 'None yet',
+                'catalogs' => [],
+                'stocks' => [['key' => 'sheet-30', 'label' => '30-up sheet']],
+                'labelStock' => 'sheet-30',
+                'operatingMode' => 'both',
+                'rentPrepaid' => false,
+                ...$extra,
+            ]);
+            $chunk = ob_get_clean();
+            self::assertIsString($chunk);
+            $html .= $chunk;
+        }
 
         return $html;
     }

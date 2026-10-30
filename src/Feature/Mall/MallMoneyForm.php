@@ -25,7 +25,7 @@ final class MallMoneyForm
         $taxBasis = MallMeasure::taxMillis($taxRate);
         $error = $this->problem($basis, $taxBasis);
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/settings', 'Money saved.');
+            $this->app->redirect('/' . $slug . '/settings/money', 'Money saved.');
         }
 
         return new MallMoneyOutcome(

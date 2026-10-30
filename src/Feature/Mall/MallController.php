@@ -29,6 +29,8 @@ final class MallController
 
     private ?string $postedGmail = null;
 
+    private string $settingsPart = 'money';
+
     private MallRentDraft $rentDraft;
 
     public function __construct(
@@ -42,8 +44,9 @@ final class MallController
         $this->rentDraft = new MallRentDraft($app, $payouts);
     }
 
-    public function showError(string $slug, string $error): void
+    public function showError(string $slug, string $error, string $part = 'backup'): void
     {
+        $this->settingsPart = $this->knownPart($part);
         $this->app->open($slug, true);
         $booth = $this->mall->boothSize();
         $floor = $this->mall->floorSize();
@@ -64,6 +67,14 @@ final class MallController
     public function show(string $slug): void
     {
         $this->app->open($slug, true);
+        $this->app->redirect('/' . $slug . '/settings/money');
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/settings/(money|building|receipt|backup)', ['GET'])]
+    public function showPart(string $slug, string $part): void
+    {
+        $this->settingsPart = $this->knownPart($part);
+        $this->app->open($slug, true);
         $booth = $this->mall->boothSize();
         $floor = $this->mall->floorSize();
         $this->form(
@@ -79,29 +90,36 @@ final class MallController
         );
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/settings/(money|building|receipt)', ['POST'])]
+    public function savePart(string $slug, string $part): void
+    {
+        $this->settingsPart = $this->knownPart($part);
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        if ($this->settingsPart === 'money') {
+            $this->saveMoney($slug);
+
+            return;
+        }
+        if ($this->settingsPart === 'building') {
+            $this->saveBuilding($slug);
+
+            return;
+        }
+        $this->saveReceipt($slug);
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/settings', ['POST'])]
     public function save(string $slug): void
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $part = $this->app->request()->field('settings_part');
+        if ($part === 'money' || $part === 'building' || $part === 'receipt') {
+            $this->settingsPart = $part;
+        }
         if ($part === 'money') {
-            $outcome = $this->rentDraft->money($this->mall)->apply($slug);
-            $this->postedCashRound = $outcome->cashRound;
-            $this->postedTaxRate = $outcome->taxRate;
-            $booth = $this->mall->boothSize();
-            $floor = $this->mall->floorSize();
-            $this->form(
-                $slug,
-                $this->mall->timeZone(),
-                $booth['width'],
-                $booth['depth'],
-                $floor['width'],
-                $floor['depth'],
-                $outcome->storeTake,
-                MallMeasure::dayText($this->mall->floorDays()),
-                $outcome->error,
-            );
+            $this->saveMoney($slug);
 
             return;
         }
@@ -130,8 +148,9 @@ final class MallController
         $rentError = $this->rentDraft->read();
         $error = $rentError ?? $this->refusal($basis, $taxBasis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/settings', 'Settings saved.');
+            $this->app->redirect('/' . $slug . '/settings/building', 'Settings saved.');
         }
+        $this->settingsPart = 'building';
         $this->postedCashRound = $this->postedRound();
         $this->postedTaxRate = $taxRate;
         $this->postedCatalogs = [
@@ -145,8 +164,29 @@ final class MallController
         $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
     }
 
+    private function saveMoney(string $slug): void
+    {
+        $outcome = $this->rentDraft->money($this->mall)->apply($slug);
+        $this->postedCashRound = $outcome->cashRound;
+        $this->postedTaxRate = $outcome->taxRate;
+        $booth = $this->mall->boothSize();
+        $floor = $this->mall->floorSize();
+        $this->form(
+            $slug,
+            $this->mall->timeZone(),
+            $booth['width'],
+            $booth['depth'],
+            $floor['width'],
+            $floor['depth'],
+            $outcome->storeTake,
+            MallMeasure::dayText($this->mall->floorDays()),
+            $outcome->error,
+        );
+    }
+
     private function saveReceipt(string $slug): void
     {
+        $this->settingsPart = 'receipt';
         $footer = $this->app->request()->field('receipt_footer');
         $this->postedFooter = $footer;
         $this->postedMailVia = $this->app->request()->field('receipt_mail_via');
@@ -161,19 +201,20 @@ final class MallController
                 );
             }
         } catch (DatabaseRefusal $refusal) {
-            $this->showError($slug, $this->app->catchRefusal($refusal));
+            $this->showError($slug, $this->app->catchRefusal($refusal), 'receipt');
 
             return;
         } catch (\InvalidArgumentException $error) {
-            $this->showError($slug, $error->getMessage());
+            $this->showError($slug, $error->getMessage(), 'receipt');
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/settings', 'Receipt saved.');
+        $this->app->redirect('/' . $slug . '/settings/receipt', 'Receipt saved.');
     }
 
     private function saveBuilding(string $slug): void
     {
+        $this->settingsPart = 'building';
         $this->postedStock = $this->app->request()->field('label_stock');
         $timeZone = $this->app->request()->field('time_zone');
         $width = MallMeasure::feet($this->app->request()->field('booth_width_ft'));
@@ -187,7 +228,7 @@ final class MallController
             $error = $this->writeBuilding($timeZone, $width, $depth, $floorWidth, $floorDepth, $days);
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/settings', 'Building saved.');
+            $this->app->redirect('/' . $slug . '/settings/building', 'Building saved.');
         }
         $this->postedCatalogs = [
             'use_color' => $this->app->request()->field('use_color') === '1',
@@ -385,6 +426,7 @@ final class MallController
             'title' => 'Settings',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
+            'settingsPart' => $this->settingsPart,
             'timeZone' => $timeZone,
             'timeZones' => MallMeasure::timeZones($timeZone),
             'boothWidth' => $width,
@@ -435,5 +477,14 @@ final class MallController
         $raw = $this->app->request()->field('cash_round_minor');
 
         return $raw === '' ? '0' : $raw;
+    }
+
+    private function knownPart(string $part): string
+    {
+        if (in_array($part, ['money', 'building', 'receipt', 'backup'], true)) {
+            return $part;
+        }
+
+        return 'money';
     }
 }

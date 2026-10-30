@@ -22,7 +22,9 @@ final class RequestCoverage
             XDEBUG_PATH_INCLUDE,
             [self::applicationSrc()]
         );
-        xdebug_start_code_coverage(XDEBUG_CC_UNUSED | XDEBUG_CC_DEAD_CODE);
+        // Executed lines only — UNUSED|DEAD_CODE makes long HTTP crawls under
+        // coverage take tens of minutes per suite on Windows.
+        xdebug_start_code_coverage();
 
         return true;
     }
@@ -46,11 +48,24 @@ final class RequestCoverage
 
     private static function xdebugReady(): bool
     {
-        return function_exists('xdebug_start_code_coverage')
-            && defined('XDEBUG_FILTER_CODE_COVERAGE')
-            && defined('XDEBUG_PATH_INCLUDE')
-            && defined('XDEBUG_CC_UNUSED')
-            && defined('XDEBUG_CC_DEAD_CODE');
+        if (
+            !function_exists('xdebug_start_code_coverage')
+            || !defined('XDEBUG_FILTER_CODE_COVERAGE')
+            || !defined('XDEBUG_PATH_INCLUDE')
+        ) {
+            return false;
+        }
+        $mode = getenv('XDEBUG_MODE');
+        if (!is_string($mode) || $mode === '') {
+            return true;
+        }
+        foreach (explode(',', $mode) as $part) {
+            if (trim($part) === 'coverage') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function dump(string $directory): void
@@ -69,7 +84,7 @@ final class RequestCoverage
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<string, array<int, int>>
      */
     private static function kept(mixed $coverage): array
     {
@@ -83,7 +98,16 @@ final class RequestCoverage
             if ($real === null || !is_array($lines)) {
                 continue;
             }
-            $kept[$real] = $lines;
+            $normalized = [];
+            foreach ($lines as $line => $hits) {
+                if ((!is_int($line) && !is_string($line)) || !is_int($hits)) {
+                    continue;
+                }
+                $normalized[(int) $line] = $hits;
+            }
+            if ($normalized !== []) {
+                $kept[$real] = $normalized;
+            }
         }
 
         return $kept;
@@ -112,17 +136,18 @@ final class RequestCoverage
     }
 
     /**
-     * @param array<string, mixed> $kept
+     * @param array<string, array<int, int>> $kept
      */
     private static function write(string $directory, array $kept): void
     {
         if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
             return;
         }
-        $name = bin2hex(random_bytes(8)) . '.php';
+        // serialize is far cheaper than var_export for a large request (demo seed).
+        $name = bin2hex(random_bytes(8)) . '.cov';
         $tmp = $directory . DIRECTORY_SEPARATOR . $name . '.tmp';
         $final = $directory . DIRECTORY_SEPARATOR . $name;
-        $payload = '<?php return ' . var_export($kept, true) . ";\n";
+        $payload = serialize($kept);
         if (file_put_contents($tmp, $payload, LOCK_EX) === false) {
             return;
         }

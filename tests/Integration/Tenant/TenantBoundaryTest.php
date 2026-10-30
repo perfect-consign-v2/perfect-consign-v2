@@ -71,6 +71,57 @@ final class TenantBoundaryTest extends TestCase
         $pdo->exec('RESET ROLE');
     }
 
+    public function testABooksLoginCannotSecondSignAndAManagerNeedsASecond(): void
+    {
+        ProbeMall::ensure(dirname(__DIR__, 3));
+        $pdo = LocalAdmin::open()->pdo();
+        $schema = $this->schema($pdo, ProbeMall::SLUG);
+        $role = $this->role($pdo, ProbeMall::SLUG, $schema);
+        $tenantId = $this->tenantId($pdo, ProbeMall::SLUG);
+        $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
+        $pdo->beginTransaction();
+        try {
+            $cashier = $this->staff($pdo, 'cash', 0);
+            $manager = $this->staff($pdo, 'mgr', 10000);
+            $books = $this->booksStaff($pdo, 'book', 10000);
+            $pdo->exec('SET ROLE ' . $role);
+            $asCashier = new SaleCeiling(
+                new Statements($pdo),
+                $this->actor(ProbeMall::SLUG, $tenantId, $cashier['id'], 'cashier'),
+                new AuditLog(new Statements($pdo)),
+            );
+            try {
+                $asCashier->discount(5000, $books['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce10');
+                self::fail('a books override was accepted');
+            } catch (DatabaseRefusal $error) {
+                self::assertSame('a second person has to sign this', $error->getMessage());
+            }
+            $asCashier->discount(5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce11');
+            $asManager = new SaleCeiling(
+                new Statements($pdo),
+                $this->actor(ProbeMall::SLUG, $tenantId, $manager['id'], 'manager'),
+                new AuditLog(new Statements($pdo)),
+            );
+            try {
+                $asManager->second('sale.void', '01900000-0000-7000-8000-00000000ce12', '', '');
+                self::fail('a manager void without a second was accepted');
+            } catch (DatabaseRefusal $error) {
+                self::assertSame('a second person has to sign this', $error->getMessage());
+            }
+            $asManager->second(
+                'sale.void',
+                '01900000-0000-7000-8000-00000000ce13',
+                $cashier['username'],
+                'manager-pass-word'
+            );
+        } finally {
+            $pdo->exec('RESET ROLE');
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        }
+    }
+
     public function testAPosterCannotTouchAnotherMallOrTheOwnerLockout(): void
     {
         ProbeMall::ensure(dirname(__DIR__, 3));
@@ -200,7 +251,7 @@ final class TenantBoundaryTest extends TestCase
     {
         $username = $prefix . bin2hex(random_bytes(3));
         $hash = password_hash('manager-pass-word', PASSWORD_DEFAULT);
-        $role = str_starts_with($prefix, 'cash') ? 'cashier' : 'books';
+        $role = str_starts_with($prefix, 'cash') ? 'cashier' : 'manager';
         $statement = $pdo->prepare(
             'INSERT INTO staff (username, display_name, password_hash, role, discount_ceiling_bps, tax_free_ceiling_minor)
              VALUES (?, ?, ?, ?, ?, 0)
@@ -210,6 +261,27 @@ final class TenantBoundaryTest extends TestCase
         $id = $statement->fetchColumn();
         if (!is_string($id)) {
             self::fail('staff was not saved');
+        }
+
+        return ['id' => $id, 'username' => $username];
+    }
+
+    /**
+     * @return array{id: string, username: string}
+     */
+    private function booksStaff(PDO $pdo, string $prefix, int $ceiling): array
+    {
+        $username = $prefix . bin2hex(random_bytes(3));
+        $hash = password_hash('manager-pass-word', PASSWORD_DEFAULT);
+        $statement = $pdo->prepare(
+            'INSERT INTO staff (username, display_name, password_hash, role, discount_ceiling_bps, tax_free_ceiling_minor)
+             VALUES (?, ?, ?, ?, ?, 0)
+             RETURNING id::text'
+        );
+        $statement->execute([$username, ucfirst($prefix), $hash, 'books', $ceiling]);
+        $id = $statement->fetchColumn();
+        if (!is_string($id)) {
+            self::fail('books staff was not saved');
         }
 
         return ['id' => $id, 'username' => $username];

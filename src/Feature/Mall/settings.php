@@ -34,6 +34,16 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
 /** @var array<string, bool> $catalogs */
 /** @var list<array{key: string, label: string}> $stocks */
 /** @var string $labelStock */
+$settingsPart = is_string($settingsPart ?? null) ? $settingsPart : 'money';
+if (!in_array($settingsPart, ['money', 'building', 'receipt', 'backup'], true)) {
+    $settingsPart = 'money';
+}
+$settingsTabs = [
+    'money' => 'Money',
+    'building' => 'Building',
+    'receipt' => 'Receipt',
+    'backup' => 'Backup',
+];
 ?>
 <div class="page-head">
     <div class="titles">
@@ -43,8 +53,17 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
             : 'The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, the stickers, how long items stay out, the receipt footer, and a copy of the mall.' ?></p>
     </div>
 </div>
+<div class="list-show mt-4">
+    <div class="segmented" role="navigation" aria-label="Settings">
+        <?php foreach ($settingsTabs as $tab => $label): ?>
+            <?php $selected = $settingsPart === $tab; ?>
+            <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="/<?= View::text($slug) ?>/settings/<?= View::text($tab) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
+        <?php endforeach; ?>
+    </div>
+</div>
 
-<div class="card">
+<?php if ($settingsPart === 'backup'): ?>
+<div class="card mt-6">
     <div class="card-head"><div class="h3">Backup</div></div>
     <div class="card-body stack">
         <p>Last backup you downloaded: <?= View::text($backupHeadline) ?></p>
@@ -53,13 +72,15 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
         <?php endif; ?>
         <form method="post" action="/<?= View::text($slug) ?>/backup">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <input type="hidden" name="return" value="settings">
+            <input type="hidden" name="return" value="settings/backup">
             <button class="btn" type="submit">Download backup</button>
         </form>
     </div>
 </div>
+<?php endif; ?>
 
-<form method="post" action="/<?= View::text($slug) ?>/settings" class="card mt-6">
+<?php if ($settingsPart === 'money'): ?>
+<form method="post" action="/<?= View::text($slug) ?>/settings/money" class="card mt-6">
     <div class="card-head"><div class="h3">Money</div></div>
     <div class="card-body stack">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -168,8 +189,10 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
         <button class="btn btn-primary" type="submit">Save money</button>
     </div>
 </form>
+<?php endif; ?>
 
-<form method="post" action="/<?= View::text($slug) ?>/settings" class="card mt-6">
+<?php if ($settingsPart === 'building'): ?>
+<form method="post" action="/<?= View::text($slug) ?>/settings/building" class="card mt-6">
     <div class="card-head"><div class="h3">Building</div></div>
     <div class="card-body stack">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -256,8 +279,10 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
         <button class="btn btn-primary" type="submit">Save building</button>
     </div>
 </form>
+<?php endif; ?>
 
-<form method="post" action="/<?= View::text($slug) ?>/settings" class="card mt-6">
+<?php if ($settingsPart === 'receipt'): ?>
+<form method="post" action="/<?= View::text($slug) ?>/settings/receipt" class="card mt-6">
     <div class="card-head"><div class="h3">Receipt</div></div>
     <div class="card-body stack">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -292,3 +317,4 @@ $receiptFooter = is_string($receiptFooter ?? null) ? $receiptFooter : '';
         <button class="btn btn-primary" type="submit">Save receipt</button>
     </div>
 </form>
+<?php endif; ?>

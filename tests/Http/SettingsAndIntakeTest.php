@@ -39,8 +39,8 @@ final class SettingsAndIntakeTest extends WebTestCase
         $money['booth_rentals_enabled'] = '1';
         $money['rent_cycle_day'] = '1';
         $money['late_fee_grace_days'] = '0';
-        self::assertSees('Money saved.', $this->client->post('/' . $slug . '/settings', $money));
-        $afterMoney = $this->client->get('/' . $slug . '/settings');
+        self::assertSees('Money saved.', $this->client->post('/' . $slug . '/settings/money', $money));
+        $afterMoney = $this->client->get('/' . $slug . '/settings/money');
         self::assertSees('value="5" selected', $afterMoney);
         self::assertDoesNotMatchRegularExpression('/id="cash_round_minor"[\s\S]*?value="0"[^>]*selected/', $afterMoney->body);
 
@@ -203,7 +203,7 @@ final class SettingsAndIntakeTest extends WebTestCase
 
     private function labelStock(): string
     {
-        $page = $this->client->get('/' . ProbeMall::SLUG . '/settings');
+        $page = $this->client->get('/' . ProbeMall::SLUG . '/settings/building');
         $matched = preg_match('/id="label_stock"[^>]*>.*?<option value="([^"]+)"/s', $page->body, $stock);
         self::assertSame(1, $matched);
 

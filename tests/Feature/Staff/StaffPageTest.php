@@ -17,6 +17,7 @@ final class StaffPageTest extends TestCase
             'slug' => 'demo',
             'csrf' => 'token',
             'cashiers' => [],
+            'managers' => [],
             'readers' => [[
                 'id' => '01900000-0000-7000-8000-0000000000b1',
                 'username' => 'books',
@@ -28,19 +29,23 @@ final class StaffPageTest extends TestCase
         ]);
         $html = ob_get_clean();
         self::assertIsString($html);
+        self::assertStringContainsString('People', $html);
         self::assertStringContainsString('books-password', $html);
         self::assertStringContainsString('Save books sign-in', $html);
+        self::assertStringContainsString('cannot sell, change tax, pay vendors', $html);
         ob_start();
         $view->render('Feature/Staff/staff', [
             'slug' => 'demo',
             'csrf' => 'token',
             'cashiers' => [],
+            'managers' => [],
             'readers' => [],
             'error' => null,
         ]);
         $empty = ob_get_clean();
         self::assertIsString($empty);
         self::assertStringContainsString('No books login yet', $empty);
+        self::assertStringContainsString('No managers yet', $empty);
     }
 
     public function testACashierIsListedWhenTheMallHasOne(): void
@@ -57,12 +62,22 @@ final class StaffPageTest extends TestCase
                 'role' => 'cashier',
                 'email' => 'ada@example.com',
             ]],
+            'managers' => [[
+                'id' => '01900000-0000-7000-8000-0000000000a1',
+                'username' => 'morgan',
+                'display_name' => 'Morgan Lead',
+                'role' => 'manager',
+                'email' => 'morgan@example.com',
+            ]],
             'readers' => [],
             'error' => null,
         ]);
         $html = ob_get_clean();
         self::assertIsString($html);
         self::assertStringContainsString('Ada Lane', $html);
+        self::assertStringContainsString('Morgan Lead', $html);
+        self::assertStringContainsString('manager-password', $html);
         self::assertStringNotContainsString('No cashiers yet', $html);
+        self::assertStringNotContainsString('No managers yet', $html);
     }
 }

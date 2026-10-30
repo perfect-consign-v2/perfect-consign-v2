@@ -91,4 +91,33 @@ final class RoleGateTest extends TestCase
         self::assertFalse(RoleGate::allows('books', '/settings', 'GET'));
         self::assertFalse(RoleGate::allows('', '/sales', 'GET'));
     }
+
+    public function testAManagerRunsTheFloorAndReadsMoney(): void
+    {
+        self::assertTrue(RoleGate::allows('manager', '/pos', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/pos/pay', 'POST'));
+        self::assertTrue(RoleGate::allows('manager', '/rent/payment', 'POST'));
+        self::assertTrue(RoleGate::allows('manager', '/parties', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/vendors/01900000-0000-7000-8000-000000000d10', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/inventory', 'POST'));
+        self::assertTrue(RoleGate::allows('manager', '/booths', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/customers', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/offers', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/letters', 'POST'));
+        self::assertTrue(RoleGate::allows('manager', '/month', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/payouts', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/reports', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/journals', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/payouts', 'POST'));
+        self::assertFalse(RoleGate::allows('manager', '/settings', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/settings/money', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/company', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/staff', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/export', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/close', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/adjustment', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/rent/charge', 'POST'));
+        self::assertFalse(RoleGate::allows('manager', '/registers/new', 'GET'));
+        self::assertFalse(RoleGate::allows('manager', '/registers', 'POST'));
+    }
 }

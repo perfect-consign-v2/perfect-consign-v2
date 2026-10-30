@@ -53,7 +53,7 @@ final class MallChrome
         }
         $role = $this->door->actor()->role();
         $page = match ($role) {
-            'cashier' => 'pos',
+            'cashier', 'manager' => 'pos',
             'books' => 'sales',
             default => 'dashboard',
         };

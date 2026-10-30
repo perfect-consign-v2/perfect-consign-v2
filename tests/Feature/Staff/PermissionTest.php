@@ -20,6 +20,10 @@ final class PermissionTest extends TestCase
         self::assertFalse(Permission::allows('books', 'sale.post'));
         self::assertFalse(Permission::allows('cashier', 'report.read'));
         self::assertFalse(Permission::allows('vendor', 'sale.post'));
+        self::assertTrue(Permission::allows('manager', 'sale.post'));
+        self::assertTrue(Permission::allows('manager', 'report.read'));
+        self::assertFalse(Permission::allows('manager', 'settings.edit'));
+        self::assertFalse(Permission::allows('manager', 'payout.disburse'));
         self::assertContains('sale.discount', Permission::VERBS);
     }
 }

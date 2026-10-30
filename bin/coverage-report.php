@@ -29,18 +29,52 @@ foreach ($files as $file) {
 $coverage = new CodeCoverage((new Selector())->forLineCoverage(new Filter()), $filter);
 $coverage->disableCheckForUnintentionallyCoveredCode();
 $coverage->includeUncoveredFiles();
-$dumps = glob($directory . DIRECTORY_SEPARATOR . '*.php');
-if ($dumps === false || $dumps === []) {
+$phpDumps = glob($directory . DIRECTORY_SEPARATOR . '*.php') ?: [];
+$covDumps = glob($directory . DIRECTORY_SEPARATOR . '*.cov') ?: [];
+$dumps = array_merge($phpDumps, $covDumps);
+if ($dumps === []) {
     fwrite(STDERR, "no coverage dumps in {$directory}\n");
     exit(1);
 }
+$merged = [];
 foreach ($dumps as $dump) {
-    $raw = include $dump;
+    if (str_ends_with($dump, '.cov')) {
+        $encoded = file_get_contents($dump);
+        if ($encoded === false) {
+            fwrite(STDERR, "coverage dump could not be read: {$dump}\n");
+            exit(1);
+        }
+        $raw = unserialize($encoded, ['allowed_classes' => false]);
+    } else {
+        $raw = include $dump;
+    }
     if (!is_array($raw) || $raw === []) {
         continue;
     }
-    $coverage->append(RawCodeCoverageData::fromLineCoverage($raw), $dump);
+    foreach ($raw as $file => $lines) {
+        if (!is_string($file) || !is_array($lines)) {
+            continue;
+        }
+        if (!isset($merged[$file])) {
+            $merged[$file] = [];
+        }
+        foreach ($lines as $line => $hits) {
+            if ((!is_int($line) && !is_string($line)) || !is_int($hits)) {
+                continue;
+            }
+            $lineNo = (int) $line;
+            $prior = $merged[$file][$lineNo] ?? null;
+            if ($prior === null || $hits > $prior) {
+                $merged[$file][$lineNo] = $hits;
+            }
+        }
+    }
 }
+if ($merged === []) {
+    fwrite(STDERR, "coverage dumps were empty in {$directory}\n");
+    exit(1);
+}
+$coverage->append(RawCodeCoverageData::fromLineCoverage($merged), 'merged');
 $report = $coverage->getReport();
 $executed = $report->numberOfExecutedLines();
 $executable = $report->numberOfExecutableLines();

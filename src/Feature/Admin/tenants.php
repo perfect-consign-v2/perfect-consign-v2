@@ -48,6 +48,11 @@ use PerfectConsign\Shared\Http\View;
                                         <input type="hidden" name="role" value="cashier">
                                         <button class="btn btn-sm" type="submit">Enter as cashier</button>
                                     </form>
+                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter">
+                                        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                        <input type="hidden" name="role" value="manager">
+                                        <button class="btn btn-sm" type="submit">Enter as manager</button>
+                                    </form>
                                     <a class="btn btn-sm btn-danger" href="/admin/tenants/<?= View::text($tenant['slug']) ?>/delete">Delete</a>
                                 </div>
                             </td>

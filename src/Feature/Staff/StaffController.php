@@ -47,6 +47,31 @@ final class StaffController
         $this->app->redirect('/' . $slug . '/staff', 'Cashier added.');
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/staff/managers', ['POST'])]
+    public function addManager(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $request = $this->app->request();
+        try {
+            $this->staff->addManager(
+                $request->field('username'),
+                $request->field('display_name'),
+                $request->raw('password'),
+                $request->field('email'),
+            );
+        } catch (DatabaseRefusal $refusal) {
+            $this->render($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        } catch (\InvalidArgumentException $error) {
+            $this->render($slug, $error->getMessage());
+
+            return;
+        }
+        $this->app->redirect('/' . $slug . '/staff', 'Manager added.');
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/staff/books', ['POST'])]
     public function addBooks(string $slug): void
     {
@@ -92,6 +117,26 @@ final class StaffController
         $this->app->redirect('/' . $slug . '/staff', 'Cashier password saved.');
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/staff/([0-9a-fA-F-]{36})/manager-password', ['POST'])]
+    public function replaceManager(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $request = $this->app->request();
+        try {
+            $this->staff->replaceManager($id, $request->raw('password'), $request->field('email'));
+        } catch (DatabaseRefusal $refusal) {
+            $this->render($slug, $this->app->catchRefusal($refusal));
+
+            return;
+        } catch (\InvalidArgumentException $error) {
+            $this->render($slug, $error->getMessage());
+
+            return;
+        }
+        $this->app->redirect('/' . $slug . '/staff', 'Manager password saved.');
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/staff/([0-9a-fA-F-]{36})/books-password', ['POST'])]
     public function replaceBooks(string $slug, string $id): void
     {
@@ -116,10 +161,11 @@ final class StaffController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Staff/staff', [
-            'title' => 'Cashiers',
+            'title' => 'People',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'cashiers' => $this->staff->cashiers(),
+            'managers' => $this->staff->managers(),
             'readers' => $this->staff->books(),
             'error' => $error,
         ]);

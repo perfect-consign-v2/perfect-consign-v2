@@ -28,7 +28,7 @@ final class BackupController
     {
         $this->app->checkCsrf();
         $tenant = $this->app->open($slug, true);
-        $return = $this->app->request()->field('return') === 'sign-out' ? 'sign-out' : 'settings';
+        $return = $this->returnPath($this->app->request()->field('return'));
         $archive = null;
         try {
             $archive = $this->archives->create(BackupConnection::stallBackup(), $slug);
@@ -58,6 +58,18 @@ final class BackupController
         }
     }
 
+    private function returnPath(string $return): string
+    {
+        if ($return === 'sign-out') {
+            return 'sign-out';
+        }
+        if ($return === 'settings/backup' || $return === 'settings') {
+            return 'settings/backup';
+        }
+
+        return 'settings/backup';
+    }
+
     private function showFailure(string $slug, string $return, string $error): void
     {
         $tenant = $this->app->open($slug, true);
@@ -75,6 +87,6 @@ final class BackupController
             ]);
             return;
         }
-        $this->settings->showError($slug, $error);
+        $this->settings->showError($slug, $error, 'backup');
     }
 }

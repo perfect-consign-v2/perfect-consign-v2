@@ -23,6 +23,7 @@ final class OwnerGate
         private readonly View $view,
         private readonly StaffSignIn $staff,
         private readonly LoginSession $sessions,
+        private readonly SignInFailureRetention $failures,
     ) {
     }
 
@@ -56,6 +57,7 @@ final class OwnerGate
             return $this->staff->attempt($tenant, $username, $password, $this->request->address);
         }
         if (!password_verify($password, $owner['hash'])) {
+            $this->failures->pruneOwner($tenant->id, $username);
             $failed = $this->pdo->prepare(
                 'INSERT INTO platform.owner_sign_in_failures (tenant_id, username, client_address) VALUES (?::uuid, ?, ?)'
             );

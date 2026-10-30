@@ -72,4 +72,4 @@ Upserts public HTML articles, recounts categories, clears the KB cache, and mark
 | D## | Inventory or Floor and ops |
 | E## | Tax reports and export, Floor and ops, or Platform notes |
 
-Deploy / TLS for operators: `E12-public-origin-and-tls.md`. Mail timing (web vs worker): `E13-mail-delivery.md`. Technical map: [docs/http-edge.md](../http-edge.md). Seeds that say **not in PC2 product code yet** must not be treated as live ops until rewritten and proven.
+Deploy / TLS for operators: `E12-public-origin-and-tls.md`. Mail timing (web vs worker): `E13-mail-delivery.md`. People and mall roles: `E14-people-and-roles.md`. Technical map: [docs/http-edge.md](../http-edge.md). Seeds that say **not in PC2 product code yet** must not be treated as live ops until rewritten and proven.

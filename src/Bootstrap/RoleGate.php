@@ -14,11 +14,50 @@ final class RoleGate
         if ($role === 'cashier') {
             return self::cashier($rest, $method);
         }
+        if ($role === 'manager') {
+            return self::manager($rest, $method);
+        }
         if ($role === 'vendor') {
             return self::vendor($rest, $method);
         }
         if ($role === 'books') {
             return self::books($rest, $method);
+        }
+
+        return false;
+    }
+
+    private static function manager(string $rest, string $method): bool
+    {
+        if (self::cashier($rest, $method)) {
+            return true;
+        }
+        if (self::floor($rest)) {
+            return true;
+        }
+        if ($method !== 'GET') {
+            return false;
+        }
+
+        return self::bookPage($rest) || self::reportPage($rest, 'manager');
+    }
+
+    private static function floor(string $rest): bool
+    {
+        if (in_array($rest, ['/parties', '/map', '/customers', '/wait-list', '/offers', '/letters', '/booths', '/inventory'], true)) {
+            return true;
+        }
+        if (
+            str_starts_with($rest, '/parties/')
+            || str_starts_with($rest, '/vendors/')
+            || str_starts_with($rest, '/inventory/')
+            || str_starts_with($rest, '/booths/')
+            || str_starts_with($rest, '/customers/')
+            || str_starts_with($rest, '/wait-list/')
+            || str_starts_with($rest, '/offers/')
+            || str_starts_with($rest, '/letters/')
+        ) {
+            return true;
         }
 
         return false;
@@ -102,7 +141,7 @@ final class RoleGate
             return false;
         }
 
-        return self::bookPage($rest) || self::reportPage($rest);
+        return self::bookPage($rest) || self::reportPage($rest, 'books');
     }
 
     private static function bookPage(string $rest): bool
@@ -123,9 +162,9 @@ final class RoleGate
         return str_starts_with($rest, '/pos/receipt/');
     }
 
-    private static function reportPage(string $rest): bool
+    private static function reportPage(string $rest, string $role): bool
     {
-        if (!Permission::allows('books', 'report.read')) {
+        if (!Permission::allows($role, 'report.read')) {
             return false;
         }
         if (in_array($rest, [

@@ -29,6 +29,14 @@ final class StaffStore
     /**
      * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
      */
+    public function managers(): array
+    {
+        return $this->people('manager');
+    }
+
+    /**
+     * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
+     */
     public function books(): array
     {
         return $this->people('books');
@@ -65,6 +73,11 @@ final class StaffStore
         $this->add($username, $displayName, $password, $this->addresses->parse($email), 'cashier', null);
     }
 
+    public function addManager(string $username, string $displayName, string $password, string $email): void
+    {
+        $this->add($username, $displayName, $password, $this->addresses->parse($email), 'manager', null);
+    }
+
     public function addBooks(string $username, string $displayName, string $password, string $email): void
     {
         $this->add($username, $displayName, $password, $this->addresses->parse($email), 'books', null);
@@ -83,6 +96,22 @@ final class StaffStore
         );
         if ($saved < 1) {
             throw new \InvalidArgumentException('Choose a cashier.');
+        }
+    }
+
+    public function replaceManager(string $id, string $password, string $email): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            throw new \InvalidArgumentException('Choose a manager.');
+        }
+        $saved = $this->statements->affected(
+            "UPDATE staff
+             SET password_hash = ?, email = ?, credentials_version = credentials_version + 1
+             WHERE id = ?::uuid AND role = 'manager'",
+            [$this->passwords->hash($password), $this->addresses->parse($email), $id]
+        );
+        if ($saved < 1) {
+            throw new \InvalidArgumentException('Choose a manager.');
         }
     }
 

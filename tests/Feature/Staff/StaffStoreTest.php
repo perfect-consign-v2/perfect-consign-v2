@@ -30,8 +30,11 @@ final class StaffStoreTest extends TestCase
         }
         $store->addBooks('books-one', 'Books One', 'password1', 'books@example.com');
         self::assertSame('books', $this->lastRole);
+        $store->addManager('mgr-one', 'Manager One', 'password1', 'mgr@example.com');
+        self::assertSame('manager', $this->lastRole);
         $saved = $this->store(1);
         $saved->replaceBooks('01900000-0000-7000-8000-0000000000b1', 'password1', 'books@example.com');
+        $saved->replaceManager('01900000-0000-7000-8000-0000000000a1', 'password1', 'mgr@example.com');
         $saved->replaceCashier('01900000-0000-7000-8000-0000000000c1', 'password1', 'c@example.com');
         $saved->addCashier('cashier-one', str_repeat('A', 80), 'password1', 'c@example.com');
         try {
@@ -62,6 +65,23 @@ final class StaffStoreTest extends TestCase
             self::fail('a missing cashier was updated');
         } catch (\InvalidArgumentException $error) {
             self::assertSame('Choose a cashier.', $error->getMessage());
+        }
+    }
+
+    public function testAManagerReplaceNeedsAMatchingRow(): void
+    {
+        $store = $this->store(0);
+        try {
+            $store->replaceManager('not-an-id', 'password1', 'mgr@example.com');
+            self::fail('a blank manager id was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a manager.', $error->getMessage());
+        }
+        try {
+            $store->replaceManager('01900000-0000-7000-8000-0000000000a1', 'password1', 'mgr@example.com');
+            self::fail('a missing manager was updated');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a manager.', $error->getMessage());
         }
     }
 

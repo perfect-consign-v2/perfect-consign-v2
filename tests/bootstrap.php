@@ -32,12 +32,9 @@ if (!is_dir($coverage) && !mkdir($coverage, 0755, true) && !is_dir($coverage)) {
     fwrite(STDERR, "coverage directory could not be created\n");
     exit(1);
 }
-$existing = glob($coverage . DIRECTORY_SEPARATOR . '*.php');
-if ($existing === false) {
-    fwrite(STDERR, "coverage directory could not be read\n");
-    exit(1);
-}
-foreach ($existing as $old) {
+$existingPhp = glob($coverage . DIRECTORY_SEPARATOR . '*.php') ?: [];
+$existingCov = glob($coverage . DIRECTORY_SEPARATOR . '*.cov') ?: [];
+foreach (array_merge($existingPhp, $existingCov) as $old) {
     if (is_file($old) && !unlink($old)) {
         fwrite(STDERR, "coverage dump could not be cleared\n");
         exit(1);
@@ -54,7 +51,7 @@ xdebug_set_filter(
     XDEBUG_PATH_INCLUDE,
     [dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src']
 );
-xdebug_start_code_coverage(XDEBUG_CC_UNUSED | XDEBUG_CC_DEAD_CODE);
+xdebug_start_code_coverage();
 register_shutdown_function(static function () use ($coverage): void {
     if (!function_exists('xdebug_get_code_coverage')) {
         return;

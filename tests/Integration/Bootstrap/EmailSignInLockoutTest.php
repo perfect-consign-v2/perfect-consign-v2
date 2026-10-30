@@ -7,6 +7,7 @@ namespace PerfectConsign\Tests\Integration\Bootstrap;
 use PerfectConsign\Bootstrap\EmailSignIn;
 use PerfectConsign\Bootstrap\FrontDoor;
 use PerfectConsign\Bootstrap\SignInDirectory;
+use PerfectConsign\Bootstrap\SignInFailureRetention;
 use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Tests\Support\ProbeMall;
@@ -180,6 +181,7 @@ final class EmailSignInLockoutTest extends TestCase
             new NullLogger(),
             new SignInDirectory($pdo),
             $door,
+            new SignInFailureRetention($pdo),
         );
     }
 

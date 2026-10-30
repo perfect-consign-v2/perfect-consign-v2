@@ -34,6 +34,7 @@ $boothRentals = ($boothRentals ?? true) === true;
 $consignmentOnly = ($consignmentOnly ?? false) === true;
 $partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
 $payLabel = $consignmentOnly ? 'Pay consignors' : 'Pay vendors';
+$viewPayoutsLabel = 'View payouts';
 $memoLabel = $consignmentOnly ? 'Consignor memo' : 'Vendor memo';
 $portalLabel = $consignmentOnly ? 'Consignor' : 'Vendor';
 $actorRole = is_string($actorRole ?? null) ? $actorRole : '';
@@ -78,7 +79,7 @@ if ($actorRole === 'owner') {
     }
     $groups['Setup'][] = ['/company', 'Company', 'i-settings'];
     $groups['Setup'][] = ['/settings', 'Settings', 'i-settings'];
-    $groups['Setup'][] = ['/staff', 'Cashiers', 'i-vendor'];
+    $groups['Setup'][] = ['/staff', 'People', 'i-vendor'];
     $groups['Books'] = [
         ['/adjustment', 'Fix a mistake', 'i-edit'],
         ['/missed-sale', 'Missed sale', 'i-edit'],
@@ -98,13 +99,38 @@ if ($actorRole === 'owner') {
         ['/export', 'Download records', 'i-arrow-down'],
     ];
 }
+if ($actorRole === 'manager') {
+    $groups = [
+        'Counter' => [
+            ['/dashboard', 'Home', 'i-dashboard'],
+            ['/pos', 'Sell', 'i-cart'],
+            ['/registers', 'Register', 'i-pos'],
+            ['/customers', 'Customers', 'i-vendor'],
+        ],
+        'Floor' => [
+            ['/parties', $partyLabel, 'i-vendor'],
+            ['/letters', 'Email', 'i-receipt'],
+            ['/inventory', 'Inventory', 'i-inventory'],
+            ['/booths', 'Booths', 'i-booth'],
+            ['/map', 'Map', 'i-map'],
+            ['/offers', 'Deals', 'i-percent'],
+            ['/wait-list', 'Wait list', 'i-clock'],
+        ],
+        'Money' => [
+            ['/rent', 'Rent', 'i-booth'],
+            ['/month', 'This month', 'i-report'],
+            ['/payouts', $viewPayoutsLabel, 'i-wallet'],
+            ['/reports', 'Reports', 'i-report'],
+        ],
+    ];
+}
 if ($actorRole === 'books') {
     $groups = [
         'Books' => [
             ['/sales', 'Sales', 'i-report'],
             ['/month', 'This month', 'i-report'],
             ['/rent', 'Rent', 'i-booth'],
-            ['/payouts', $payLabel, 'i-wallet'],
+            ['/payouts', $viewPayoutsLabel, 'i-wallet'],
             ['/journals', 'Money record', 'i-receipt'],
             ['/reports', 'Reports', 'i-report'],
         ],
@@ -161,6 +187,7 @@ if ($hiddenNav !== []) {
 }
 $roleLabel = match ($actorRole) {
     'owner' => 'Owner',
+    'manager' => 'Manager',
     'cashier' => 'Cashier',
     'vendor' => $portalLabel,
     'books' => 'Books',

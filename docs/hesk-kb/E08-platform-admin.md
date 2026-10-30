@@ -2,14 +2,14 @@
 title: Platform admin portal
 category: Platform notes
 hesk: published 2026-10-29
-as_of: 2026-10-28
+as_of: 2026-10-29
 ---
 
 # Platform admin portal
 
 ## As of
 
-2026-10-28 — Admin → App log, Mail worker, Signup toggles, and Tenants → Create store are live. Tenant wipe clears that mall’s password-reset rows. Admin forgot-password sends in the web request.
+2026-10-29 — Enter-as owner, cashier, or manager. Admin → App log, Mail worker, Signup toggles, and Tenants → Create store are live. Tenant wipe clears that mall’s password-reset rows. Admin forgot-password sends in the web request.
 
 ## In one sentence
 
@@ -23,7 +23,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 
 - Admin accounts with email + password hash.
 - Password-reset tokens expire; reset and audit rows are append-only. Admin forgot-password sends the reset email in that request through the platform Gmail/SMTP env.
-- Enter-as owner or cashier into a tenant store.
+- Enter-as owner, cashier, or manager into a tenant store (manager lands on the register when a manager staff row exists).
 - Tenants → Create store provisions a mall with the owner email already verified (works even when public signup is off).
 - Admin → Signup turns public `/signup` on or off and whether email confirmation is required before owner sign-in.
 - Tenant wipe removes that mall’s password-reset and email-verification rows (append-only elsewhere), then drops the store; wipe and other admin actions land in the admin audit.
@@ -35,6 +35,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 ## What is refused
 
 - Bad admin email format.
+- Unknown admin emails still hit the sign-in lockout table (rows older than fifteen minutes are pruned) but do not write `admin.sign_in_refused` to the append-only audit; wrong password for a known admin still does.
 - Editing or deleting append-only reset / audit history.
 
 ## How to check

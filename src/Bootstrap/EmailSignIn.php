@@ -16,6 +16,7 @@ final class EmailSignIn
         private readonly LoggerInterface $logger,
         private readonly SignInDirectory $directory,
         private readonly FrontDoor $door,
+        private readonly SignInFailureRetention $failures,
     ) {
     }
 
@@ -54,26 +55,11 @@ final class EmailSignIn
 
     private function failed(string $email): void
     {
-        $this->pruneStale($email);
+        $this->failures->pruneEmail($email);
         $failed = $this->pdo->prepare(
             'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
         );
         $failed->execute([$email, $this->request->address]);
-    }
-
-    private function pruneStale(string $email): void
-    {
-        $forEmail = $this->pdo->prepare(
-            "DELETE FROM platform.email_sign_in_failures
-             WHERE email = ?
-               AND failed_at <= clock_timestamp() - interval '15 minutes'"
-        );
-        $forEmail->execute([$email]);
-        $stale = $this->pdo->prepare(
-            "DELETE FROM platform.email_sign_in_failures
-             WHERE failed_at <= clock_timestamp() - interval '15 minutes'"
-        );
-        $stale->execute();
     }
 
     private function refuseLocked(string $email): void

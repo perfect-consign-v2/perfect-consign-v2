@@ -158,6 +158,16 @@ final class RouteInventory
             'colors',
             $path
         );
+        $path = preg_replace(
+            '/\(money\|building\|receipt\|backup\)/',
+            'money',
+            $path ?? ''
+        );
+        $path = preg_replace(
+            '/\(money\|building\|receipt\)/',
+            'money',
+            $path ?? ''
+        );
         if ($path === null || str_contains($path, '(') || str_contains($path, '|')) {
             return null;
         }

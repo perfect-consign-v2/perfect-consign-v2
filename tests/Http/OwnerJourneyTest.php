@@ -403,12 +403,13 @@ final class OwnerJourneyTest extends WebTestCase
 
     public function testTheOwnerSetsTheMallClock(): void
     {
-        $page = $this->client->get('/' . ProbeMall::SLUG . '/settings');
+        $money = $this->client->get('/' . ProbeMall::SLUG . '/settings/money');
+        self::assertSees('Sales tax', $money);
+        $page = $this->client->get('/' . ProbeMall::SLUG . '/settings/building');
         self::assertSees('America/Los_Angeles', $page);
         self::assertSees('value="120"', $page);
         self::assertSees('value="90"', $page);
         self::assertSees('Days on the floor', $page);
-        self::assertSees('Sales tax', $page);
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
             'time_zone' => 'Not/AZone',
             'booth_width_ft' => '10',

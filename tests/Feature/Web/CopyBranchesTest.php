@@ -132,18 +132,22 @@ final class CopyBranchesTest extends TestCase
 
     public function testSettingsKeepTheCheckedMailboxAndTheFloorDays(): void
     {
-        $on = $this->render('Feature/Mall/settings.php', $this->settings('both', true, true, 'gmail', true));
-        self::assertStringContainsString('id="store_stock_enabled" name="store_stock_enabled" type="checkbox" value="1" checked', $on);
-        self::assertStringContainsString('id="floor_days"', $on);
-        self::assertStringContainsString('value="gmail" selected', $on);
-        self::assertStringNotContainsString('value="server" selected', $on);
-        self::assertStringContainsString('An app password is saved', $on);
+        $onMoney = $this->render('Feature/Mall/settings.php', $this->settings('both', true, true, 'gmail', true, 'money'));
+        self::assertStringContainsString('id="store_stock_enabled" name="store_stock_enabled" type="checkbox" value="1" checked', $onMoney);
+        $onBuilding = $this->render('Feature/Mall/settings.php', $this->settings('both', true, true, 'gmail', true, 'building'));
+        self::assertStringContainsString('id="floor_days"', $onBuilding);
+        $onReceipt = $this->render('Feature/Mall/settings.php', $this->settings('both', true, true, 'gmail', true, 'receipt'));
+        self::assertStringContainsString('value="gmail" selected', $onReceipt);
+        self::assertStringNotContainsString('value="server" selected', $onReceipt);
+        self::assertStringContainsString('An app password is saved', $onReceipt);
 
-        $off = $this->render('Feature/Mall/settings.php', $this->settings('booth_mall', false, true, 'server', false));
-        self::assertStringNotContainsString('checked', $off);
-        self::assertStringNotContainsString('id="floor_days"', $off);
-        self::assertStringContainsString('value="server" selected', $off);
-        self::assertStringContainsString('Create an app password', $off);
+        $offMoney = $this->render('Feature/Mall/settings.php', $this->settings('booth_mall', false, true, 'server', false, 'money'));
+        self::assertStringNotContainsString('checked', $offMoney);
+        $offBuilding = $this->render('Feature/Mall/settings.php', $this->settings('booth_mall', false, true, 'server', false, 'building'));
+        self::assertStringNotContainsString('id="floor_days"', $offBuilding);
+        $offReceipt = $this->render('Feature/Mall/settings.php', $this->settings('booth_mall', false, true, 'server', false, 'receipt'));
+        self::assertStringContainsString('value="server" selected', $offReceipt);
+        self::assertStringContainsString('Create an app password', $offReceipt);
     }
 
     /**
@@ -333,11 +337,12 @@ final class CopyBranchesTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function settings(string $mode, bool $stock, bool $consignment, string $via, bool $saved): array
+    private function settings(string $mode, bool $stock, bool $consignment, string $via, bool $saved, string $part = 'money'): array
     {
         return [
             'slug' => 'demo',
             'csrf' => 'token',
+            'settingsPart' => $part,
             'timeZone' => 'UTC',
             'timeZones' => ['UTC'],
             'boothWidth' => 10,

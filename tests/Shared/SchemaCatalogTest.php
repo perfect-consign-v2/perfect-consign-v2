@@ -16,11 +16,11 @@ final class SchemaCatalogTest extends TestCase
         $catalog = new SchemaCatalog(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'sql');
         $tenant = $catalog->tenantFiles();
         $platform = $catalog->platformFiles();
-        self::assertSame(['001_tenant.sql'], $tenant);
+        self::assertSame(['001_tenant.sql', '064_staff_manager_role.sql'], $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
         self::assertSame(['000_platform.sql'], $platform);
         self::assertSame(
-            ['055_store_signup.sql', '056_wipe_email_verifications.sql', '057_mail_outbox.sql', '058_worker_runs.sql', '059_worker_heartbeat.sql', '060_worker_runs_delete.sql', '061_admin_app_log_audit.sql', '062_wipe_password_resets.sql'],
+            ['055_store_signup.sql', '056_wipe_email_verifications.sql', '057_mail_outbox.sql', '058_worker_runs.sql', '059_worker_heartbeat.sql', '060_worker_runs_delete.sql', '061_admin_app_log_audit.sql', '062_wipe_password_resets.sql', '063_sign_in_failure_stale.sql'],
             $catalog->platformAfterFiles()
         );
         $checksum = $catalog->checksum('001_tenant.sql');

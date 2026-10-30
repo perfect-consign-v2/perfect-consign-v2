@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
+use PerfectConsign\Bootstrap\SignInFailureRetention;
 use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Shared\Http\Request;
 use PDO;
@@ -17,6 +18,7 @@ final class AdminSignIn
         private readonly LoggerInterface $logger,
         private readonly AdminSession $session,
         private readonly AdminAudit $audit,
+        private readonly SignInFailureRetention $failures,
     ) {
     }
 
@@ -79,12 +81,16 @@ final class AdminSignIn
      */
     private function failed(string $email, ?array $row): void
     {
+        $this->failures->pruneAdmin($email);
         $failed = $this->pdo->prepare(
             'INSERT INTO platform.admin_sign_in_failures (email, client_address) VALUES (?, ?)'
         );
         $failed->execute([$email, $this->request->address]);
+        if ($row === null) {
+            return;
+        }
         $this->audit->record(
-            $row['id'] ?? null,
+            $row['id'],
             $email,
             'admin.sign_in_refused',
             'refused',

@@ -28,15 +28,15 @@ final class AdminEnterAs
      */
     public function enter(array $admin, TenantRecord $tenant, string $role): string
     {
-        if ($role !== 'owner' && $role !== 'cashier') {
-            throw new \InvalidArgumentException('Choose owner or cashier.');
+        if ($role !== 'owner' && $role !== 'cashier' && $role !== 'manager') {
+            throw new \InvalidArgumentException('Choose owner, cashier, or manager.');
         }
         $preserved = $this->admins->snapshot();
         if ($role === 'owner') {
             return $this->asOwner($admin, $tenant, $preserved);
         }
 
-        return $this->asCashier($admin, $tenant, $preserved);
+        return $this->asStaff($admin, $tenant, $preserved, $role);
     }
 
     /**
@@ -93,23 +93,24 @@ final class AdminEnterAs
      * @param array{id: string, email: string, version: string} $admin
      * @param array{id: string, email: string, version: string, signed_in_at?: string, last_seen_at?: string} $preserved
      */
-    private function asCashier(array $admin, TenantRecord $tenant, array $preserved): string
+    private function asStaff(array $admin, TenantRecord $tenant, array $preserved, string $role): string
     {
+        if ($role !== 'cashier' && $role !== 'manager') {
+            throw new \InvalidArgumentException('Choose owner, cashier, or manager.');
+        }
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $tenant->schema) !== 1) {
             throw new \RuntimeException('the mall schema is not usable');
         }
         $this->roles->assume($tenant->role);
         try {
-            $statement = $this->pdo->query(
+            $statement = $this->pdo->prepare(
                 'SELECT id::text AS id, username, display_name, credentials_version
                  FROM ' . $tenant->schema . '.staff
-                 WHERE role = \'cashier\'
+                 WHERE role = ?
                  ORDER BY lower(username)
                  LIMIT 1'
             );
-            if ($statement === false) {
-                throw new \RuntimeException('the cashier list could not be read');
-            }
+            $statement->execute([$role]);
             $row = $statement->fetch();
         } finally {
             $this->roles->reset();
@@ -122,9 +123,9 @@ final class AdminEnterAs
                 'refused',
                 $tenant->id,
                 $tenant->slug,
-                ['as_role' => 'cashier', 'reason' => 'missing_cashier'],
+                ['as_role' => $role, 'reason' => 'missing_' . $role],
             );
-            throw new \InvalidArgumentException('That store has no cashier.');
+            throw new \InvalidArgumentException('That store has no ' . $role . '.');
         }
         $id = $row['id'] ?? null;
         $username = $row['username'] ?? null;
@@ -134,11 +135,11 @@ final class AdminEnterAs
             $version = (string) $version;
         }
         if (!is_string($id) || !is_string($username) || !is_string($display) || !is_string($version)) {
-            throw new \RuntimeException('the cashier row is not usable');
+            throw new \RuntimeException('the ' . $role . ' row is not usable');
         }
-        $this->sessions->open($tenant->slug, $tenant->id, $display, 'cashier', $id, $version, $id, '');
+        $this->sessions->open($tenant->slug, $tenant->id, $display, $role, $id, $version, $id, '');
         $this->admins->restore($preserved);
-        $this->mallAudit($tenant, $display, 'cashier', $id);
+        $this->mallAudit($tenant, $display, $role, $id);
         $this->audit->record(
             $admin['id'],
             $admin['email'],
@@ -146,7 +147,7 @@ final class AdminEnterAs
             'ok',
             $tenant->id,
             $tenant->slug,
-            ['as_role' => 'cashier', 'account_id' => $id],
+            ['as_role' => $role, 'account_id' => $id],
         );
 
         return '/' . $tenant->slug . '/pos';
