@@ -49,6 +49,24 @@ if (!is_string($adminPassword) || $adminPassword === '') {
     $adminPassword = 'stall';
 }
 
+$pdo = new PDO(
+    'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
+    $user,
+    $adminPassword,
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+);
+$current = $pdo->prepare(
+    'SELECT id::text AS id, password_hash
+     FROM platform.admins
+     WHERE lower(email) = lower(?)'
+);
+$current->execute([$email]);
+$existing = $current->fetch(PDO::FETCH_ASSOC);
+if (is_array($existing) && passwordMatches($password, $existing['password_hash'] ?? null)) {
+    fwrite(STDOUT, "platform admin unchanged\n");
+    exit(0);
+}
+
 try {
     $hash = (new PasswordChoice())->hash($password);
 } catch (InvalidArgumentException $error) {
@@ -56,12 +74,6 @@ try {
     exit(1);
 }
 
-$pdo = new PDO(
-    'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
-    $user,
-    $adminPassword,
-    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-);
 $statement = $pdo->prepare(
     'INSERT INTO platform.admins (id, email, password_hash)
      VALUES (uuidv7(), ?, ?)
@@ -71,3 +83,8 @@ $statement = $pdo->prepare(
 );
 $statement->execute([$email, $hash]);
 fwrite(STDOUT, "platform admin saved\n");
+
+function passwordMatches(string $password, mixed $hash): bool
+{
+    return is_string($hash) && $hash !== '' && password_verify($password, $hash);
+}

@@ -51,6 +51,21 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringContainsString('idempotent', $script);
     }
 
+    public function testDeployPlantsPlatformAdminWhenEnvPasswordIsSet(): void
+    {
+        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
+        $script = file_get_contents($path);
+        self::assertIsString($script);
+        self::assertStringContainsString('set-platform-admin.php', $script);
+        self::assertStringContainsString('STALL_PLATFORM_ADMIN_PASSWORD', $script);
+        $ownerAt = strpos($script, 'set-owner.php');
+        $adminAt = strpos($script, 'set-platform-admin.php');
+        self::assertNotFalse($ownerAt);
+        self::assertNotFalse($adminAt);
+        self::assertGreaterThan($ownerAt, $adminAt);
+    }
+
+
     public function testDeployProbesTheEmailSignInRootNotSlugLogin(): void
     {
         $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';

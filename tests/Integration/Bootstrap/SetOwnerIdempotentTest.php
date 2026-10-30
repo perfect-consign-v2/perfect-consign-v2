@@ -40,10 +40,24 @@ final class SetOwnerIdempotentTest extends TestCase
 
     private function runSetOwner(string $root): void
     {
+        $previousPassword = getenv('STALL_OWNER_PASSWORD');
+        $previousEmail = getenv('STALL_OWNER_EMAIL');
+        $previousPasswordEnv = $_ENV['STALL_OWNER_PASSWORD'] ?? null;
+        $previousEmailEnv = $_ENV['STALL_OWNER_EMAIL'] ?? null;
         putenv('STALL_OWNER_PASSWORD=' . ProbeMall::PASSWORD);
         $_ENV['STALL_OWNER_PASSWORD'] = ProbeMall::PASSWORD;
         putenv('STALL_OWNER_EMAIL=' . ProbeMall::EMAIL);
         $_ENV['STALL_OWNER_EMAIL'] = ProbeMall::EMAIL;
+        try {
+            $this->executeSetOwner($root);
+        } finally {
+            $this->restoreOwnerEnv('STALL_OWNER_PASSWORD', $previousPassword, $previousPasswordEnv);
+            $this->restoreOwnerEnv('STALL_OWNER_EMAIL', $previousEmail, $previousEmailEnv);
+        }
+    }
+
+    private function executeSetOwner(string $root): void
+    {
         $php = PHP_BINARY;
         $script = $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'set-owner.php';
         $command = [
@@ -80,6 +94,20 @@ final class SetOwnerIdempotentTest extends TestCase
             str_contains($stdout, 'owner unchanged') || str_contains($stdout, 'owner profile saved') || str_contains($stdout, 'owner saved'),
             $stdout
         );
+    }
+
+    private function restoreOwnerEnv(string $name, string|false $getenvValue, mixed $envValue): void
+    {
+        if ($getenvValue !== false) {
+            putenv($name . '=' . $getenvValue);
+        } else {
+            putenv($name);
+        }
+        if (is_string($envValue)) {
+            $_ENV[$name] = $envValue;
+        } else {
+            unset($_ENV[$name]);
+        }
     }
 
     private function pdo(): PDO

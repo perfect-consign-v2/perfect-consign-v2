@@ -1,15 +1,15 @@
 ---
 title: When mail sends (web vs worker)
 category: Platform notes
-hesk: published 2026-10-29
-as_of: 2026-10-28
+hesk: published 2026-10-30
+as_of: 2026-10-30
 ---
 
 # When mail sends (web vs worker)
 
 ## As of
 
-2026-10-28 — password-reset and receipt mail send in the web request; other store mail waits in the outbox for `php bin/work.php`. Platform admin reset and signup verify also send in the request. Operator notices for failed Gmail or HTTP 500s stay immediate.
+2026-10-30 — password-reset and receipt mail send in the web request; other store mail waits in the outbox for `php bin/work.php`. Platform admin reset and signup verify also send in the request through `STALL_GMAIL_*` / `STALL_SMTP_*` (not the mall Settings mailbox). Operator notices for failed Gmail or HTTP 500s stay immediate.
 
 ## In one sentence
 

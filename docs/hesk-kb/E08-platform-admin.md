@@ -1,15 +1,15 @@
 ---
 title: Platform admin portal
 category: Platform notes
-hesk: published 2026-10-29
-as_of: 2026-10-29
+hesk: published 2026-10-30
+as_of: 2026-10-30
 ---
 
 # Platform admin portal
 
 ## As of
 
-2026-10-29 — Enter-as owner, cashier, or manager. Admin → App log, Mail worker, Signup toggles, and Tenants → Create store are live. Tenant wipe clears that mall’s password-reset rows. Admin forgot-password sends in the web request.
+2026-10-30 — Demo deploy plants the platform admin from `STALL_PLATFORM_ADMIN_*` without bumping `credentials_version` when the password already matches. Admin forgot-password needs platform `STALL_GMAIL_*` / `STALL_SMTP_*` (not the mall Settings mailbox). Enter-as, App log, Mail worker, Signup toggles, and Create store stay live.
 
 ## In one sentence
 
@@ -22,7 +22,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 ## What the books / screens do
 
 - Admin accounts with email + password hash.
-- Password-reset tokens expire; reset and audit rows are append-only. Admin forgot-password sends the reset email in that request through the platform Gmail/SMTP env.
+- Password-reset tokens expire; reset and audit rows are append-only. Admin forgot-password sends the reset email in that request through the platform Gmail/SMTP env (`STALL_GMAIL_*` or `STALL_SMTP_*`), not the mall Settings mailbox. Demo deploy plants the admin from `STALL_PLATFORM_ADMIN_EMAIL` / `STALL_PLATFORM_ADMIN_PASSWORD` when those are set.
 - Enter-as owner, cashier, or manager into a tenant store (manager lands on the register when a manager staff row exists).
 - Tenants → Create store provisions a mall with the owner email already verified (works even when public signup is off).
 - Admin → Signup turns public `/signup` on or off and whether email confirmation is required before owner sign-in.

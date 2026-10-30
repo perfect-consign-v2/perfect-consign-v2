@@ -94,6 +94,14 @@ if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
     "$php_bin" "${root}/bin/set-owner.php" mall owner
 fi
 
+# Platform admin forgot-password and operator notices need a planted admin and
+# STALL_GMAIL_* (or STALL_SMTP_*) in .env. set-platform-admin.php is idempotent
+# when the password already matches (no credentials_version bump).
+if grep -Eq '^STALL_PLATFORM_ADMIN_PASSWORD=.+' "${root}/.env"; then
+    "$php_bin" "${root}/bin/set-platform-admin.php"
+fi
+
+
 # Sign-in is only at `/`. Old /{slug}/login bookmarks redirect (303) there.
 live=https://v2.perfectconsign.com/
 code=$(curl -sS -o /dev/null -w '%{http_code}' "$live")
