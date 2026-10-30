@@ -25,6 +25,7 @@ final class SchemaCatalog
         '061_admin_app_log_audit.sql',
         '062_wipe_password_resets.sql',
         '063_sign_in_failure_stale.sql',
+        '065_stall_app_vendor_grant.sql',
     ];
 
     public function __construct(private readonly string $directory)

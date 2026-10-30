@@ -33,14 +33,6 @@ END $$;
 
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'stall_app') THEN
-        GRANT stall_vendor TO stall_app;
-    END IF;
-    EXECUTE format('GRANT stall_vendor TO %I', current_user);
-END $$;
-
-DO $$
-BEGIN
     EXECUTE format('GRANT CONNECT ON DATABASE %I TO stall_backup', current_database());
 END $$;
 

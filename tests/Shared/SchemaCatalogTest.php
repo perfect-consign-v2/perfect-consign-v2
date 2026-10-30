@@ -20,7 +20,7 @@ final class SchemaCatalogTest extends TestCase
         self::assertNotContains('000_platform.sql', $tenant);
         self::assertSame(['000_platform.sql'], $platform);
         self::assertSame(
-            ['055_store_signup.sql', '056_wipe_email_verifications.sql', '057_mail_outbox.sql', '058_worker_runs.sql', '059_worker_heartbeat.sql', '060_worker_runs_delete.sql', '061_admin_app_log_audit.sql', '062_wipe_password_resets.sql', '063_sign_in_failure_stale.sql'],
+            ['055_store_signup.sql', '056_wipe_email_verifications.sql', '057_mail_outbox.sql', '058_worker_runs.sql', '059_worker_heartbeat.sql', '060_worker_runs_delete.sql', '061_admin_app_log_audit.sql', '062_wipe_password_resets.sql', '063_sign_in_failure_stale.sql', '065_stall_app_vendor_grant.sql'],
             $catalog->platformAfterFiles()
         );
         $checksum = $catalog->checksum('001_tenant.sql');
