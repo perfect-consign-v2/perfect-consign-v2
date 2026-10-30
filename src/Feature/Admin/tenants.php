@@ -38,17 +38,17 @@ use PerfectConsign\Shared\Http\View;
                             <td><?= View::text($tenant['modeLabel']) ?></td>
                             <td>
                                 <div class="row gap-2" data-style-prop="justify-content:flex-end; flex-wrap:wrap">
-                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter">
+                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
                                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                         <input type="hidden" name="role" value="owner">
                                         <button class="btn btn-sm" type="submit">Enter as owner</button>
                                     </form>
-                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter">
+                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
                                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                         <input type="hidden" name="role" value="cashier">
                                         <button class="btn btn-sm" type="submit">Enter as cashier</button>
                                     </form>
-                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter">
+                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
                                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                         <input type="hidden" name="role" value="manager">
                                         <button class="btn btn-sm" type="submit">Enter as manager</button>

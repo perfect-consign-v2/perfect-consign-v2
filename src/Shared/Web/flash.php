@@ -57,4 +57,4 @@ $textClass = match ($flashKind) {
         <button class="btn btn-primary" type="button" id="flash-ok">OK</button>
     </div>
 </dialog>
-<script src="/assets/js/flash-dialog.js"></script>
+<script src="<?= View::asset('/assets/js/flash-dialog.js') ?>"></script>

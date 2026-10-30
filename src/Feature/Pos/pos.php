@@ -456,5 +456,5 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
 <?php require $templateDirectory . '/Feature/Pos/instant-modal.php'; ?>
 <?php require $templateDirectory . '/Feature/Pos/gift-sell.php'; ?>
 <?php require $templateDirectory . '/Feature/Pos/register-ui.php'; ?>
-<script src="/assets/js/ticket-commands.js"></script>
-<script src="/assets/js/register-outbox.js"></script>
+<script src="<?= View::asset('/assets/js/ticket-commands.js') ?>"></script>
+<script src="<?= View::asset('/assets/js/register-outbox.js') ?>"></script>

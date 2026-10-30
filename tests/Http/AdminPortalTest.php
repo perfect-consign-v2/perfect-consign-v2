@@ -47,6 +47,10 @@ final class AdminPortalTest extends TestCase
             self::assertStringContainsString('Tenants', $signedIn->body);
             self::assertStringContainsString(ProbeMall::SLUG, $signedIn->body);
             self::assertStringContainsString($slug, $signedIn->body);
+            self::assertMatchesRegularExpression(
+                '/action="\/admin\/tenants\/' . preg_quote($slug, '/') . '\/enter"[^>]*target="_blank"/',
+                $signedIn->body,
+            );
 
             $audit = $client->get('/admin/audit');
             self::assertStringContainsString('admin.sign_in', $audit->body);

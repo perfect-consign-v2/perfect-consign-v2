@@ -60,6 +60,28 @@ final class View
         return $match[2] . '-' . $match[3] . '-' . $match[1] . $match[4];
     }
 
+    /**
+     * Public asset URL with a filemtime query so browsers pick up a new file
+     * after deploy when AssetServer uses a long Cache-Control max-age.
+     */
+    public static function asset(string $path): string
+    {
+        if (preg_match('#^/assets/[A-Za-z0-9._/-]+$#', $path) !== 1) {
+            return self::text($path);
+        }
+        $file = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'public'
+            . str_replace('/', DIRECTORY_SEPARATOR, $path);
+        $version = '0';
+        if (is_file($file)) {
+            $mtime = filemtime($file);
+            if (is_int($mtime) && $mtime > 0) {
+                $version = (string) $mtime;
+            }
+        }
+
+        return self::text($path) . '?v=' . self::text($version);
+    }
+
     public static function passwordField(
         string $id,
         string $name,

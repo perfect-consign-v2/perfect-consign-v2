@@ -6,7 +6,7 @@ The storefront already shipped the same behavior in `curser-pos-web` commit `77e
 
 ## What is wrong
 
-Staff Items (`/{slug}/inventory`, table `#list-inventory`) is a client-side DataTable. `initTable` always sets `scrollY`, `scrollX`, and `scrollCollapse`. `scrollY` is the viewport minus the wrap top minus 130px, and at least 220px. The sticker form sits above the table, so the row area collapses to a few lines. The page does not scroll through the rows.
+Staff Items (`/{slug}/inventory`, table `#list-inventory`) is a client-side DataTable. `initTable` always sets `scrollY`, `scrollX`, and `scrollCollapse`. `scrollY` is the viewport minus the wrap top minus 130px, and at least 220px. Sheet fields and Print stickers live on the sticky selection bar (not a permanent card above the table). An older full sticker card above the list collapsed the row area to a few lines. The page does not scroll through the rows.
 
 DataTables removes off-page rows from the document. The print checkboxes use `form="stickers"` and `name="item[]"`. A submit only posts the boxes that are still in the document, so a check on page 1 disappears when the user checks a row on page 2, and it is not printed.
 
@@ -45,9 +45,9 @@ On each draw of `#list-inventory`, restore checks from the store. Filtering, sor
 
 Vendor home has no pages. On load, check the rows whose ids are in the store. On change, update the store. There is no select-all control unless the table later becomes paged.
 
-Sticky bar, hidden at zero: “N selected”, a submit for `#stickers`, and Clear. Clear empties the store and unchecks visible rows. Narrow screens stack the bar; from 641px it is a row. Submit buttons stay at least 2.75rem tall. `summary { display: flex }` hides the disclosure marker in some browsers; this bar is not a `<details>`.
+Sticky print dock, hidden at zero: sheet fields (`stock`, `copies`, `start_row`, `start_column` via `form="stickers"`), “N selected”, a submit for `#stickers`, and Clear. `#stickers` is a shell form (csrf + selection key only). Clear empties the store and unchecks visible rows. Narrow screens stack the dock; from 641px fields and actions sit in one wrap row. Submit buttons stay at least 2.75rem tall. `summary { display: flex }` hides the disclosure marker in some browsers; this bar is not a `<details>`.
 
-On submit of `#stickers`, disable the live `item[]` checkboxes and inject hidden `item[]` fields from the full snapshot, then save. Off-page staff rows must be in that post. Do not disable `stock`, `copies`, `start_row`, `start_column`, or `csrf`. `LabelRequest::ids()` already accepts `item` as one string or a list of UUID strings, so the post shape stays the same.
+On submit of `#stickers`, disable the live `item[]` checkboxes and inject hidden `item[]` fields from the full snapshot, then save. Off-page staff rows must be in that post. Do not disable `stock`, `copies`, `start_row`, `start_column`, or `csrf` (including when those controls are outside the form element and associated with `form=`). `LabelRequest::ids()` already accepts `item` as one string or a list of UUID strings, so the post shape stays the same.
 
 `pageshow` reloads the store and re-enables those fields so a back-forward cache does not submit a disabled empty set.
 

@@ -1,7 +1,7 @@
 ---
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
-hesk: published 2026-10-30
+hesk: pending
 as_of: 2026-10-30
 ---
 
@@ -9,7 +9,7 @@ as_of: 2026-10-30
 
 ## As of
 
-2026-10-30 — `composer test:coverage` runs unit/integration then http in separate PHPUnit processes under Xdebug; CSP-safe assets and Admin → App log clear unchanged.
+2026-10-30 — Local `APP_ENV` serves `/assets` with `Cache-Control: no-store`; production still day-caches and busts with `View::asset()` (`?v=` filemtime). Coverage process split and Admin → App log clear unchanged.
 
 ## In one sentence
 

@@ -98,14 +98,17 @@ $shows = [
         </div>
     </div>
 
+    <?php if ($stock === 'unprinted' && $items !== []): ?>
+        <p class="muted text-sm mt-3">Check items, then print from the bar at the bottom.</p>
+    <?php endif; ?>
+
     <?php if ($items !== []): ?>
         <?php
         $printId = '';
-        $lead = $stock === 'unprinted'
-            ? 'Check your items that still need stickers.'
-            : 'Check your own items.';
+        $lead = '';
         $labelAction = VendorPreview::with('/' . $slug . '/vendor/labels', $previewAs);
         $selectionStorageKey = InventorySelectionKey::vendor($slug);
+        $stickerChrome = 'shell';
         require __DIR__ . '/../Inventory/sticker-job.php';
         ?>
     <?php endif; ?>

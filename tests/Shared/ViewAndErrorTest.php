@@ -42,6 +42,16 @@ final class ViewAndErrorTest extends TestCase
         self::assertStringNotContainsString('line_subledger_type_2', $plain);
     }
 
+    public function testAssetUrlAddsFilemtimeQuery(): void
+    {
+        $path = dirname(__DIR__, 2) . '/public/assets/js/register-ui.js';
+        self::assertFileExists($path);
+        $mtime = filemtime($path);
+        self::assertIsInt($mtime);
+        self::assertSame('/assets/js/register-ui.js?v=' . $mtime, View::asset('/assets/js/register-ui.js'));
+        self::assertSame('../escape', View::asset('../escape'));
+    }
+
     public function testPasswordFieldRendersShowToggle(): void
     {
         ob_start();

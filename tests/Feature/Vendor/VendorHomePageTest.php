@@ -122,8 +122,8 @@ final class VendorHomePageTest extends TestCase
         self::assertStringContainsString('aria-current="page"', $html);
         self::assertStringContainsString('name="stock" value="out"', $html);
         self::assertStringContainsString('Your items with quantity zero', $html);
-        self::assertStringContainsString('Check your own items.', $html);
-        self::assertStringNotContainsString('Check your items that still need stickers.', $html);
+        self::assertStringContainsString('sticker-job-shell', $html);
+        self::assertStringNotContainsString('Check items, then print from the bar at the bottom.', $html);
         self::assertStringContainsString('Search tag, barcode, description, or brand', $html);
         self::assertStringContainsString('&amp;q=Coat', $html);
         self::assertStringContainsString('stock=out&amp;q=Coat', $html);
@@ -174,8 +174,10 @@ final class VendorHomePageTest extends TestCase
         ]);
         $stickers = ob_get_clean();
         self::assertIsString($stickers);
-        self::assertStringContainsString('Check your items that still need stickers.', $stickers);
-        self::assertStringNotContainsString('Check your own items.', $stickers);
+        self::assertStringContainsString('Your items that still need a sticker printed.', $stickers);
+        self::assertStringContainsString('Check items, then print from the bar at the bottom.', $stickers);
+        self::assertStringContainsString('sticker-job-shell', $stickers);
+        self::assertStringContainsString('form="stickers"', $stickers);
         ob_start();
         $view->render('Feature/Vendor/items', [
             'slug' => 'demo',

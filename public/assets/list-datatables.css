@@ -234,9 +234,9 @@ div.dt-button-collection .dt-button.dt-button-active {
     bottom: 0;
     z-index: 6;
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
     gap: var(--space-3);
     margin-top: var(--space-3);
     padding: var(--space-3) var(--space-4);
@@ -250,8 +250,35 @@ div.dt-button-collection .dt-button.dt-button-active {
     display: none !important;
 }
 
-.card:has(+ .inventory-selection-bar:not([hidden])) {
-    padding-bottom: 12rem;
+.inventory-selection-bar__fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.inventory-selection-bar__fields .sticker-pair {
+    margin: 0;
+}
+
+.inventory-selection-bar__fields .field {
+    margin: 0;
+}
+
+.inventory-selection-bar__fields .field > label {
+    font-size: 0.8125rem;
+}
+
+.inventory-selection-bar__actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.list-dt-wrap:has(+ .inventory-selection-bar:not([hidden])) {
+    padding-bottom: 16rem;
 }
 
 .inventory-selection-bar .btn {
@@ -259,9 +286,43 @@ div.dt-button-collection .dt-button.dt-button-active {
     height: auto;
 }
 
+.sticker-job-shell {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 @media (min-width: 641px) {
-    .card:has(+ .inventory-selection-bar:not([hidden])) {
-        padding-bottom: 6rem;
+    .inventory-selection-bar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-end;
+    }
+
+    .inventory-selection-bar__fields {
+        flex: 1 1 28rem;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-end;
+    }
+
+    .inventory-selection-bar__fields .sticker-pair {
+        flex: 1 1 12rem;
+    }
+
+    .inventory-selection-bar__actions {
+        flex: 0 0 auto;
+        margin-left: auto;
+    }
+
+    .list-dt-wrap:has(+ .inventory-selection-bar:not([hidden])) {
+        padding-bottom: 10rem;
     }
 }
 

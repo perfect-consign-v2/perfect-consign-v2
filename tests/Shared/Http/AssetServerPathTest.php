@@ -48,12 +48,44 @@ final class AssetServerPathTest extends WebTestCase
         self::assertStringNotContainsString('Not found', $page->body);
     }
 
+    public function testLocalEnvRefusesAssetCaching(): void
+    {
+        $previous = getenv('APP_ENV');
+        try {
+            putenv('APP_ENV=local');
+            self::assertSame('no-store', $this->cacheControl());
+            putenv('APP_ENV=development');
+            self::assertSame('no-store', $this->cacheControl());
+            putenv('APP_ENV=dev');
+            self::assertSame('no-store', $this->cacheControl());
+            putenv('APP_ENV=production');
+            self::assertSame('public, max-age=86400', $this->cacheControl());
+            putenv('APP_ENV=test');
+            self::assertSame('public, max-age=86400', $this->cacheControl());
+        } finally {
+            if ($previous === false) {
+                putenv('APP_ENV');
+            } else {
+                putenv('APP_ENV=' . $previous);
+            }
+        }
+    }
+
     private function resolvedFile(string $path): ?string
     {
         $method = new ReflectionMethod(AssetServer::class, 'resolvedFile');
 
         $result = $method->invoke(null, $path);
         self::assertTrue($result === null || is_string($result));
+
+        return $result;
+    }
+
+    private function cacheControl(): string
+    {
+        $method = new ReflectionMethod(AssetServer::class, 'cacheControl');
+        $result = $method->invoke(null);
+        self::assertIsString($result);
 
         return $result;
     }

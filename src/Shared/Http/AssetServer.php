@@ -53,7 +53,21 @@ final class AssetServer
         $extension = strtolower(pathinfo($resolved, PATHINFO_EXTENSION));
         header('Content-Type: ' . (self::TYPES[$extension] ?? 'application/octet-stream'));
         header('Content-Length: ' . (string) $size);
-        header('Cache-Control: public, max-age=86400');
+        header('Cache-Control: ' . self::cacheControl());
+    }
+
+    /**
+     * Local mall work must see JS/CSS edits on the next request. Production keeps a day cache;
+     * View::asset() still busts that after deploy with a filemtime query.
+     */
+    private static function cacheControl(): string
+    {
+        $env = getenv('APP_ENV');
+        if (is_string($env) && in_array(strtolower($env), ['local', 'development', 'dev'], true)) {
+            return 'no-store';
+        }
+
+        return 'public, max-age=86400';
     }
 
     private static function resolvedFile(string $path): ?string

@@ -203,12 +203,12 @@ $roleLabel = match ($actorRole) {
     <?php if ($robots === 'noindex'): ?>
         <meta name="robots" content="noindex">
     <?php endif; ?>
-    <link rel="stylesheet" href="/assets/boot.css">
-    <link rel="stylesheet" href="/assets/inter.css">
-    <link rel="stylesheet" href="/assets/theme.css">
-    <link rel="stylesheet" href="/assets/app.css">
-    <link rel="stylesheet" href="/assets/mall.css">
-    <script src="/assets/js/theme-boot.js"></script>
+    <link rel="stylesheet" href="<?= View::asset('/assets/boot.css') ?>">
+    <link rel="stylesheet" href="<?= View::asset('/assets/inter.css') ?>">
+    <link rel="stylesheet" href="<?= View::asset('/assets/theme.css') ?>">
+    <link rel="stylesheet" href="<?= View::asset('/assets/app.css') ?>">
+    <link rel="stylesheet" href="<?= View::asset('/assets/mall.css') ?>">
+    <script src="<?= View::asset('/assets/js/theme-boot.js') ?>"></script>
 </head>
 <body<?= $posShell ? ' class="pos-register"' : '' ?>>
 <a class="skip" href="#main">Skip to main</a>
@@ -369,7 +369,7 @@ $roleLabel = match ($actorRole) {
     </div>
     <div class="sidebar-scrim" data-mobile-toggle></div>
 </div>
-<script src="/assets/js/app.js" defer></script>
+<script src="<?= View::asset('/assets/js/app.js') ?>" defer></script>
 <?php endif; ?>
 <?php if ($nav && $priorPrompt): ?>
 <dialog class="prior-register" id="prior-register" aria-labelledby="prior-register-title">
@@ -390,12 +390,12 @@ $roleLabel = match ($actorRole) {
         </ul>
     </div>
 </dialog>
-<script src="/assets/js/prior-register.js"></script>
+<script src="<?= View::asset('/assets/js/prior-register.js') ?>"></script>
 <?php endif; ?>
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
-<script src="/assets/js/data-style.js" defer></script>
-<script src="/assets/js/password-toggle.js" defer></script>
-<script src="/assets/js/form-auto-submit.js" defer></script>
-<script src="/assets/js/register-swap.js"></script>
+<script src="<?= View::asset('/assets/js/data-style.js') ?>" defer></script>
+<script src="<?= View::asset('/assets/js/password-toggle.js') ?>" defer></script>
+<script src="<?= View::asset('/assets/js/form-auto-submit.js') ?>" defer></script>
+<script src="<?= View::asset('/assets/js/register-swap.js') ?>"></script>
 </body>
 </html>

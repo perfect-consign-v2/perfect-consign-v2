@@ -96,13 +96,16 @@ $shows = [
         </div>
     </div>
 
+    <?php if ($stock === 'unprinted' && $items !== []): ?>
+        <p class="muted text-sm mt-3">Check items, then print from the bar at the bottom.</p>
+    <?php endif; ?>
+
     <?php if ($items !== []): ?>
         <?php
         $printId = '';
-        $lead = $stock === 'unprinted'
-            ? 'Check the items that still need stickers.'
-            : 'Check the items in the list.';
+        $lead = '';
         $selectionStorageKey = InventorySelectionKey::items($slug);
+        $stickerChrome = 'shell';
         require __DIR__ . '/sticker-job.php';
         ?>
     <?php endif; ?>

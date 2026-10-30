@@ -39,12 +39,12 @@ $links = [
     <meta name="color-scheme" content="light dark">
     <meta name="robots" content="noindex">
     <title><?= View::text($title) ?> · Platform</title>
-    <link rel="stylesheet" href="/assets/boot.css">
-    <link rel="stylesheet" href="/assets/inter.css">
-    <link rel="stylesheet" href="/assets/theme.css">
-    <link rel="stylesheet" href="/assets/app.css">
-    <link rel="stylesheet" href="/assets/mall.css">
-    <script src="/assets/js/theme-boot.js"></script>
+    <link rel="stylesheet" href="<?= View::asset('/assets/boot.css') ?>">
+    <link rel="stylesheet" href="<?= View::asset('/assets/inter.css') ?>">
+    <link rel="stylesheet" href="<?= View::asset('/assets/theme.css') ?>">
+    <link rel="stylesheet" href="<?= View::asset('/assets/app.css') ?>">
+    <link rel="stylesheet" href="<?= View::asset('/assets/mall.css') ?>">
+    <script src="<?= View::asset('/assets/js/theme-boot.js') ?>"></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to main</a>
@@ -126,11 +126,11 @@ $links = [
     </div>
     <div class="sidebar-scrim" data-mobile-toggle></div>
 </div>
-<script src="/assets/js/app.js" defer></script>
+<script src="<?= View::asset('/assets/js/app.js') ?>" defer></script>
 <?php endif; ?>
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
-<script src="/assets/js/data-style.js" defer></script>
-<script src="/assets/js/password-toggle.js" defer></script>
-<script src="/assets/js/form-auto-submit.js" defer></script>
+<script src="<?= View::asset('/assets/js/data-style.js') ?>" defer></script>
+<script src="<?= View::asset('/assets/js/password-toggle.js') ?>" defer></script>
+<script src="<?= View::asset('/assets/js/form-auto-submit.js') ?>" defer></script>
 </body>
 </html>

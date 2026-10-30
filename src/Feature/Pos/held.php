@@ -109,4 +109,4 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
 </div>
 <?php ListTable::assets(); ?>
 <?php require $templateDirectory . '/Feature/Pos/register-ui.php'; ?>
-<script src="/assets/js/ticket-commands.js"></script>
+<script src="<?= View::asset('/assets/js/ticket-commands.js') ?>"></script>

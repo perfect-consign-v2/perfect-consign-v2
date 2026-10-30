@@ -9,7 +9,7 @@ as_of: 2026-10-30
 
 ## As of
 
-2026-10-30 — Demo deploy plants the platform admin from `STALL_PLATFORM_ADMIN_*` without bumping `credentials_version` when the password already matches. Admin forgot-password needs platform `STALL_GMAIL_*` / `STALL_SMTP_*` (not the mall Settings mailbox). Enter-as, App log, Mail worker, Signup toggles, and Create store stay live.
+2026-10-30 — Enter-as owner/cashier/manager opens the store in a new browser window so the admin Tenants tab stays put. Demo deploy plants the platform admin from `STALL_PLATFORM_ADMIN_*` without bumping `credentials_version` when the password already matches. Admin forgot-password needs platform `STALL_GMAIL_*` / `STALL_SMTP_*` (not the mall Settings mailbox). App log, Mail worker, Signup toggles, and Create store stay live.
 
 ## In one sentence
 
@@ -23,7 +23,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 
 - Admin accounts with email + password hash.
 - Password-reset tokens expire; reset and audit rows are append-only. Admin forgot-password sends the reset email in that request through the platform Gmail/SMTP env (`STALL_GMAIL_*` or `STALL_SMTP_*`), not the mall Settings mailbox. Demo deploy plants the admin from `STALL_PLATFORM_ADMIN_EMAIL` / `STALL_PLATFORM_ADMIN_PASSWORD` when those are set.
-- Enter-as owner, cashier, or manager into a tenant store (manager lands on the register when a manager staff row exists).
+- Enter-as owner, cashier, or manager opens the tenant store in a new browser window (manager lands on the register when a manager staff row exists); the admin Tenants list stays in the original tab.
 - Tenants → Create store provisions a mall with the owner email already verified (works even when public signup is off).
 - Admin → Signup turns public `/signup` on or off and whether email confirmation is required before owner sign-in.
 - Tenant wipe removes that mall’s password-reset and email-verification rows (append-only elsewhere), then drops the store; wipe and other admin actions land in the admin audit.
