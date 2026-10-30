@@ -1,7 +1,7 @@
 ---
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
-hesk: pending
+hesk: published 2026-10-30
 as_of: 2026-10-30
 ---
 
