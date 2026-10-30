@@ -11,7 +11,8 @@ Edits that touch deploy scripts, route registration / feature manifests, email o
 
 - `APP_ENV=production` loads `var/cache/feature-controllers.php`. A reset checkout that skips rebuild can omit new controllers or keep removed ones.
 - `bin/deploy-demo.sh` (and any automated production deploy path) must run `composer build:routes` after `composer install` / `git reset`. README alone is not a fix.
-- Permanent check: `tests/Feature/Deploy/DeployDemoScriptTest` (script contains the rebuild) and `RegisterFeaturesTest` (production reads a built manifest; scan rebuild restores a full list).
+- After `git reset --hard`, the deploy script must `exec` itself (`DEPLOY_REEXEC`) so later steps run from the tip’s file. Bash keeps the pre-reset inode open; a tip that only changes the health check otherwise still fails with the old probe.
+- Permanent check: `tests/Feature/Deploy/DeployDemoScriptTest` (rebuild, re-exec after reset, email-root probe) and `RegisterFeaturesTest` (production reads a built manifest; scan rebuild restores a full list).
 - Platform-only SQL files belong in `SchemaCatalog::PLATFORM` (or `PLATFORM_AFTER`). A numbered `sql/0xx_*.sql` that mutates `platform.*` and is left off that list will be applied as a tenant migration and can double-create objects.
 
 ## Auth / lockout abuse
@@ -34,7 +35,8 @@ For every throttle or refuse list on sign-in (email, owner, staff, admin):
 
 ```text
 BAD: deploy README mentions build:routes; script never runs it → done
+BAD: tip fixes /mall/login probe; deploy still prints old URL after reset → done (no re-exec)
 BAD: pair lock tested; one IP can still spray 100 emails → done
 BAD: every deploy bumps credentials_version though password unchanged → done
-GOOD: deploy script + spray + idempotent set-owner vectors green after the edit; composer check when they ask → then stop
+GOOD: deploy script + re-exec + spray + idempotent set-owner vectors green after the edit; composer check when they ask → then stop
 ```

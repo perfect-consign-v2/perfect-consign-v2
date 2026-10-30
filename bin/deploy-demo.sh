@@ -38,6 +38,20 @@ fi
 
 git reset --hard "$sha"
 
+# Bash keeps the pre-reset inode open. Without re-exec, later steps (including
+# the health check) still run from the script that started this process — so a
+# tip that fixed /mall/login → / still failed with the old probe after reset.
+if [[ "${DEPLOY_REEXEC:-}" != "1" ]]; then
+    export DEPLOY_REEXEC=1
+    export DEPLOY_SHA="$sha"
+    exec bash "${root}/bin/deploy-demo.sh"
+fi
+
+if [[ "$(git rev-parse HEAD)" != "$sha" ]]; then
+    echo "deploy-demo: HEAD is $(git rev-parse HEAD); expected ${sha}" >&2
+    exit 1
+fi
+
 if [[ ! -f .env ]]; then
     echo "deploy-demo: .env is missing after reset" >&2
     exit 1

@@ -68,4 +68,18 @@ final class DeployDemoScriptTest extends TestCase
         );
         self::assertStringContainsString('Sign-in is only at `/`', $script);
     }
+
+    public function testDeployReexecsAfterResetSoTipScriptRuns(): void
+    {
+        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
+        $script = file_get_contents($path);
+        self::assertIsString($script);
+        $resetAt = strpos($script, 'git reset --hard "$sha"');
+        $reexecAt = strpos($script, 'exec bash "${root}/bin/deploy-demo.sh"');
+        self::assertNotFalse($resetAt);
+        self::assertNotFalse($reexecAt);
+        self::assertGreaterThan($resetAt, $reexecAt);
+        self::assertStringContainsString('DEPLOY_REEXEC', $script);
+        self::assertStringContainsString('pre-reset inode', $script);
+    }
 }
