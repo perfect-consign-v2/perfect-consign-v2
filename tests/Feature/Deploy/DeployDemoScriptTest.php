@@ -50,4 +50,22 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringContainsString('set-owner.php', $script);
         self::assertStringContainsString('idempotent', $script);
     }
+
+    public function testDeployProbesTheEmailSignInRootNotSlugLogin(): void
+    {
+        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
+        $script = file_get_contents($path);
+        self::assertIsString($script);
+        self::assertStringContainsString('https://v2.perfectconsign.com/', $script);
+        self::assertStringContainsString("live=https://v2.perfectconsign.com/", $script);
+        self::assertDoesNotMatchRegularExpression(
+            '#curl[^\\n]*v2\\.perfectconsign\\.com/mall/login#',
+            $script
+        );
+        self::assertMatchesRegularExpression(
+            '#curl[^\\n]*"\$live"#',
+            $script
+        );
+        self::assertStringContainsString('Sign-in is only at `/`', $script);
+    }
 }

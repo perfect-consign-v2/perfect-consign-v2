@@ -80,10 +80,12 @@ if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
     "$php_bin" "${root}/bin/set-owner.php" mall owner
 fi
 
-code=$(curl -sS -o /dev/null -w '%{http_code}' https://v2.perfectconsign.com/mall/login)
+# Sign-in is only at `/`. Old /{slug}/login bookmarks redirect (303) there.
+live=https://v2.perfectconsign.com/
+code=$(curl -sS -o /dev/null -w '%{http_code}' "$live")
 if [[ "$code" != "200" ]]; then
-    echo "deploy-demo: https://v2.perfectconsign.com/mall/login returned ${code}" >&2
+    echo "deploy-demo: ${live} returned ${code}" >&2
     exit 1
 fi
 
-echo "deploy-demo: ${sha} is live at https://v2.perfectconsign.com/mall/login"
+echo "deploy-demo: ${sha} is live at ${live}"
