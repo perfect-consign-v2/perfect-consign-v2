@@ -116,16 +116,14 @@ final class RouteInventory
             if (!self::allowsMethod($route, 'GET')) {
                 continue;
             }
-            $path = self::samplePath($route['path'], $slug);
-            if ($path === null) {
-                continue;
+            foreach (self::samplePaths($route['path'], $slug) as $path) {
+                $listed[] = [
+                    'path' => $path,
+                    'pattern' => $route['path'],
+                    'controller' => $route['controller'],
+                    'action' => $route['action'],
+                ];
             }
-            $listed[] = [
-                'path' => $path,
-                'pattern' => $route['path'],
-                'controller' => $route['controller'],
-                'action' => $route['action'],
-            ];
         }
 
         return $listed;
@@ -145,7 +143,10 @@ final class RouteInventory
         return false;
     }
 
-    private static function samplePath(string $pattern, string $slug): ?string
+    /**
+     * @return list<string>
+     */
+    private static function samplePaths(string $pattern, string $slug): array
     {
         $path = $pattern;
         $path = str_replace('([a-z][a-z0-9-]{0,62})', $slug, $path);
@@ -153,25 +154,39 @@ final class RouteInventory
         $path = str_replace('([A-Za-z0-9_-]{43})', str_repeat('A', 43), $path);
         $path = str_replace('([0-9a-f]{64})', str_repeat('a', 64), $path);
         $path = str_replace('([1-9][0-9]*)', '1', $path);
-        $path = preg_replace(
-            '/\(colors\|categories\|sizes\|conditions\|departments\)/',
-            'colors',
-            $path
-        );
-        $path = preg_replace(
-            '/\(money\|building\|receipt\|backup\)/',
-            'money',
-            $path ?? ''
-        );
-        $path = preg_replace(
-            '/\(money\|building\|receipt\)/',
-            'money',
-            $path ?? ''
-        );
-        if ($path === null || str_contains($path, '(') || str_contains($path, '|')) {
-            return null;
+
+        return self::expandAlternations($path);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function expandAlternations(string $path): array
+    {
+        if (
+            preg_match(
+                '/\(([A-Za-z0-9_-]+(?:\|[A-Za-z0-9_-]+)+)\)/',
+                $path,
+                $match,
+                PREG_OFFSET_CAPTURE
+            ) !== 1
+        ) {
+            if (str_contains($path, '(') || str_contains($path, '|')) {
+                return [];
+            }
+
+            return [$path];
+        }
+        $full = $match[0][0];
+        $at = $match[0][1];
+        $listed = [];
+        foreach (explode('|', $match[1][0]) as $option) {
+            $next = substr_replace($path, $option, $at, strlen($full));
+            foreach (self::expandAlternations($next) as $expanded) {
+                $listed[] = $expanded;
+            }
         }
 
-        return $path;
+        return $listed;
     }
 }

@@ -56,6 +56,15 @@ final class StaffManagerCoverageTest extends WebTestCase
             'email' => $username . '@example.com',
         ]);
         self::assertSees('Choose a manager.', $missing);
+
+        $this->client->post('/' . self::SLUG . '/logout', []);
+        $asManager = $this->client->signInByEmail($username . '@example.com', 'manager-next');
+        self::assertSame(200, $asManager->status);
+        self::assertSees('Manager', $asManager);
+        self::assertSees('Sell', $asManager);
+        self::assertSees('View payouts', $asManager);
+        self::assertStringNotContainsString('>People<', $asManager->body);
+        self::assertStringNotContainsString('>Settings<', $asManager->body);
     }
 
     private function match(string $html, string $pattern): string

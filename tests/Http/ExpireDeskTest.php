@@ -24,7 +24,7 @@ final class ExpireDeskTest extends WebTestCase
     public function testExpiredConsignedPiecesCanBeReturnedDonatedOrBought(): void
     {
         $slug = ProbeMall::SLUG;
-        self::assertSees('Money saved.', $this->client->post('/' . $slug . '/settings', [
+        self::assertSees('Money saved.', $this->client->post('/' . $slug . '/settings/money', [
             'settings_part' => 'money',
             'default_store_take' => '10',
             'tax_rate' => '0',

@@ -76,12 +76,11 @@ final class AdminPortalTest extends TestCase
                 'role' => 'manager',
             ]);
             self::assertSame(200, $enterManager->status);
-            self::assertTrue(
-                str_contains($enterManager->body, 'Sell')
-                || str_contains($enterManager->body, 'Manager')
-                || str_contains($enterManager->body, 'Inventory'),
-                'enter-as manager should land on the floor-lead chrome'
-            );
+            self::assertStringContainsString('Manager', $enterManager->body);
+            self::assertStringContainsString('Sell', $enterManager->body);
+            self::assertStringContainsString('View payouts', $enterManager->body);
+            self::assertStringNotContainsString('>People<', $enterManager->body);
+            self::assertStringNotContainsString('>Settings<', $enterManager->body);
 
             $client->get('/admin/tenants');
             $refusedRole = $client->post('/admin/tenants/' . $slug . '/enter', [

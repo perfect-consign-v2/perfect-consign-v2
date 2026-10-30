@@ -152,7 +152,7 @@ The vendor's accepted terms are who may discount, how long goods stay (`keep_day
 
 A cashier's or manager's discount cannot pass the stored percent ceiling, and a tax-free sale cannot pass the stored tax-free ceiling, unless a second staff member signs as themselves and their ceiling covers it. A cashier or manager void, waive, or payout needs that second signature. The person who signs must be a manager or cashier whose ceiling covers the amount; a books login or vendor cannot second-sign. The audit row names that person. An owner does not need the second signature.
 
-Mall staff roles are cashier (sell, rent, drawer), manager (floor lead: counter plus floor work and read-only money pages), books (read sales, rent, payouts, journals, and reports), and vendor (portal). The owner manages People at `/{slug}/staff` for cashiers, managers, and books logins. Vendor portal sign-in stays on the vendor page. A manager cannot open Settings, Company, or People, and cannot pay vendors.
+Mall staff roles are cashier (sell, rent, drawer), manager (floor lead: counter plus floor work and read-only money pages), books (read sales, rent, payouts, journals, and reports), and vendor (portal). Email sign-in at `/` opens any of those staff roles (and the owner). The owner manages People at `/{slug}/staff` for cashiers, managers, and books logins. Vendor portal sign-in stays on the vendor page. A manager cannot open Settings, Company, or People, and cannot pay vendors. Owner Settings saves only under `/{slug}/settings/money`, `/{slug}/settings/building`, and `/{slug}/settings/receipt` (plus Backup download); a bare `POST /{slug}/settings` is refused.
 
 A bounced check is a dated journal that debits returned checks and credits checks.
 

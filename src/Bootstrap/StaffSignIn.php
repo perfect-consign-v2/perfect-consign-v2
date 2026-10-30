@@ -112,7 +112,10 @@ final class StaffSignIn
      */
     private function knownRole(array $row): bool
     {
-        return $row['role'] === 'cashier' || $row['role'] === 'vendor' || $row['role'] === 'books';
+        return $row['role'] === 'cashier'
+            || $row['role'] === 'manager'
+            || $row['role'] === 'vendor'
+            || $row['role'] === 'books';
     }
 
     /**

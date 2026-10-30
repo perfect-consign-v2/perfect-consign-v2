@@ -114,54 +114,11 @@ final class MallController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $part = $this->app->request()->field('settings_part');
-        if ($part === 'money' || $part === 'building' || $part === 'receipt') {
-            $this->settingsPart = $part;
-        }
-        if ($part === 'money') {
-            $this->saveMoney($slug);
-
-            return;
-        }
-        if ($part === 'building') {
-            $this->saveBuilding($slug);
-
-            return;
-        }
-        if ($part === 'receipt') {
-            $this->saveReceipt($slug);
-
-            return;
-        }
-        $this->postedStock = $this->app->request()->field('label_stock');
-        $timeZone = $this->app->request()->field('time_zone');
-        $width = MallMeasure::feet($this->app->request()->field('booth_width_ft'));
-        $depth = MallMeasure::feet($this->app->request()->field('booth_depth_ft'));
-        $floorWidth = MallMeasure::feet($this->app->request()->field('floor_width_ft'));
-        $floorDepth = MallMeasure::feet($this->app->request()->field('floor_depth_ft'));
-        $storeTake = $this->app->request()->field('default_store_take');
-        $taxRate = $this->app->request()->field('tax_rate');
-        $floorRaw = $this->app->request()->field('floor_days');
-        $basis = MallMeasure::basisPoints($storeTake);
-        $taxBasis = MallMeasure::taxMillis($taxRate);
-        $days = MallMeasure::wholeDays($floorRaw);
-        $rentError = $this->rentDraft->read();
-        $error = $rentError ?? $this->refusal($basis, $taxBasis, $days, $timeZone, $width, $depth, $floorWidth, $floorDepth);
-        if ($error === null) {
-            $this->app->redirect('/' . $slug . '/settings/building', 'Settings saved.');
-        }
-        $this->settingsPart = 'building';
-        $this->postedCashRound = $this->postedRound();
-        $this->postedTaxRate = $taxRate;
-        $this->postedCatalogs = [
-            'use_color' => $this->app->request()->field('use_color') === '1',
-            'use_category' => $this->app->request()->field('use_category') === '1',
-            'use_size' => $this->app->request()->field('use_size') === '1',
-            'use_condition' => $this->app->request()->field('use_condition') === '1',
-            'use_department' => $this->app->request()->field('use_department') === '1',
-            'use_brand' => $this->app->request()->field('use_brand') === '1',
-        ];
-        $this->form($slug, $timeZone, $width ?? 0, $depth ?? 0, $floorWidth ?? 0, $floorDepth ?? 0, $storeTake, $floorRaw, $error);
+        $this->app->redirect(
+            '/' . $slug . '/settings/money',
+            null,
+            'Save Money, Building, or Receipt from that Settings page.',
+        );
     }
 
     private function saveMoney(string $slug): void
@@ -299,39 +256,6 @@ final class MallController
         return $this->stickers();
     }
 
-    private function refusal(
-        ?int $basis,
-        ?int $taxBasis,
-        int|false|null $days,
-        string $timeZone,
-        ?int $width,
-        ?int $depth,
-        ?int $floorWidth,
-        ?int $floorDepth,
-    ): ?string {
-        if ($basis === null) {
-            return 'store take is a percent from 0 to 100';
-        }
-        if ($taxBasis === null) {
-            return 'tax rate is a percent from 0 to 100';
-        }
-        if ($days === false) {
-            return 'days on the floor is a whole number from 1 to 365, or empty';
-        }
-        if ($width === null || $depth === null) {
-            return 'booth size is whole feet';
-        }
-        if ($floorWidth === null || $floorDepth === null) {
-            return 'floor size is whole feet';
-        }
-        $stickers = $this->stickers();
-        if ($stickers !== null) {
-            return $stickers;
-        }
-
-        return $this->store($timeZone, $width, $depth, $floorWidth, $floorDepth, $basis, $days, $taxBasis);
-    }
-
     private function stickers(): ?string
     {
         $stock = $this->postedStock ?? '';
@@ -341,69 +265,6 @@ final class MallController
         }
         if (!$this->stocks->isKnown($stock)) {
             return 'Choose the stickers this mall uses.';
-        }
-
-        return null;
-    }
-
-    private function store(
-        string $timeZone,
-        int $width,
-        int $depth,
-        int $floorWidth,
-        int $floorDepth,
-        int $storeTake,
-        ?int $floorDays,
-        int $taxRate,
-    ): ?string {
-        $postedConsignment = MallPayoutSettings::getPostedConsignment(
-            $this->app->request()->field('operating_mode'),
-            $this->app->request()->field('consignment_enabled'),
-        );
-        $shop = $this->payouts->getPostedShop(
-            $this->app->request()->field('shop_flags'),
-            $postedConsignment,
-            $this->app->request()->field('store_stock_enabled'),
-        );
-        $consignment = $shop['consignment'];
-        $storeStock = $shop['store'];
-        $floorDays = $shop['days'] ?? $floorDays;
-        try {
-            $this->mall->save(
-                $timeZone,
-                MallWrite::posted(
-                    $width,
-                    $depth,
-                    $floorWidth,
-                    $floorDepth,
-                    [
-                        'color' => $this->app->request()->field('use_color') === '1',
-                        'category' => $this->app->request()->field('use_category') === '1',
-                        'size' => $this->app->request()->field('use_size') === '1',
-                        'condition' => $this->app->request()->field('use_condition') === '1',
-                        'department' => $this->app->request()->field('use_department') === '1',
-                        'brand' => $this->app->request()->field('use_brand') === '1',
-                    ],
-                ),
-                $storeTake,
-                $floorDays,
-                $this->postedRound(),
-                $taxRate,
-            );
-            $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
-            $this->payouts->save(
-                $this->app->request()->field('operating_mode'),
-                $this->rentDraft->prepaid ?? false,
-                $this->rentDraft->rentals ?? false,
-                $this->rentDraft->cycleDay ?? 1,
-                $consignment,
-                $storeStock,
-            );
-            $this->rentDraft->save();
-        } catch (DatabaseRefusal $refusal) {
-            return $this->app->catchRefusal($refusal);
-        } catch (\InvalidArgumentException $errorValue) {
-            return $errorValue->getMessage();
         }
 
         return null;
@@ -470,13 +331,6 @@ final class MallController
             ],
             'error' => $error,
         ]);
-    }
-
-    private function postedRound(): string
-    {
-        $raw = $this->app->request()->field('cash_round_minor');
-
-        return $raw === '' ? '0' : $raw;
     }
 
     private function knownPart(string $part): string

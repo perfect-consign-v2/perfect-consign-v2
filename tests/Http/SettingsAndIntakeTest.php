@@ -30,10 +30,10 @@ final class SettingsAndIntakeTest extends WebTestCase
             'tax_rate' => '0',
             'operating_mode' => 'both',
         ];
-        self::assertSees('store take is a percent from 0 to 100', $this->client->post('/' . $slug . '/settings', $money));
+        self::assertSees('store take is a percent from 0 to 100', $this->client->post('/' . $slug . '/settings/money', $money));
         $money['default_store_take'] = '10';
         $money['tax_rate'] = 'nope';
-        self::assertSees('tax rate is a percent from 0 to 100', $this->client->post('/' . $slug . '/settings', $money));
+        self::assertSees('tax rate is a percent from 0 to 100', $this->client->post('/' . $slug . '/settings/money', $money));
         $money['tax_rate'] = '8.5';
         $money['cash_round_minor'] = '5';
         $money['booth_rentals_enabled'] = '1';
@@ -56,31 +56,26 @@ final class SettingsAndIntakeTest extends WebTestCase
             'use_color' => '1',
             'use_brand' => '1',
         ];
-        self::assertSees('booth size is whole feet', $this->client->post('/' . $slug . '/settings', $building));
+        self::assertSees('booth size is whole feet', $this->client->post('/' . $slug . '/settings/building', $building));
         $building['booth_width_ft'] = '10';
-        self::assertSees('Building saved.', $this->client->post('/' . $slug . '/settings', $building));
+        self::assertSees('Building saved.', $this->client->post('/' . $slug . '/settings/building', $building));
 
-        self::assertSees('Receipt saved.', $this->client->post('/' . $slug . '/settings', [
+        self::assertSees('Receipt saved.', $this->client->post('/' . $slug . '/settings/receipt', [
             'settings_part' => 'receipt',
             'receipt_footer' => 'Thanks for visiting.',
         ]));
-        self::assertSees('receipt footer is 400 characters or less', $this->client->post('/' . $slug . '/settings', [
+        self::assertSees('receipt footer is 400 characters or less', $this->client->post('/' . $slug . '/settings/receipt', [
             'settings_part' => 'receipt',
             'receipt_footer' => str_repeat('Thanks. ', 80),
         ]));
-        self::assertSees('that time zone is not an IANA name', $this->client->post('/' . $slug . '/settings', [
+        self::assertSees('that time zone is not an IANA name', $this->client->post('/' . $slug . '/settings/building', [
             'time_zone' => 'Not/AZone',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
             'floor_days' => '',
-            'default_store_take' => '10',
-            'tax_rate' => '8.5',
             'label_stock' => $this->labelStock(),
-            'operating_mode' => 'both',
-            'booth_rentals_enabled' => '1',
-            'rent_cycle_day' => '1',
         ]));
     }
 

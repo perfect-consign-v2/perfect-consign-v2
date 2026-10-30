@@ -44,5 +44,14 @@ final class SettingsSubpagesTest extends WebTestCase
         ]);
         self::assertSees('Money saved.', $money);
         self::assertSees('/' . $slug . '/settings/money', $money);
+
+        $legacy = $this->client->post('/' . $slug . '/settings', [
+            'settings_part' => 'money',
+            'default_store_take' => '10',
+            'tax_rate' => '8.5',
+            'operating_mode' => 'both',
+        ]);
+        self::assertSees('Save Money, Building, or Receipt from that Settings page.', $legacy);
+        self::assertSees('/' . $slug . '/settings/money', $legacy);
     }
 }

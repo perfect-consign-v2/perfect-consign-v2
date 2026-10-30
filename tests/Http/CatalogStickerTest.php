@@ -21,23 +21,20 @@ final class CatalogStickerTest extends WebTestCase
         $this->client = self::client();
         $signedIn = $this->client->signIn(self::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         self::assertSees("Today's sales", $signedIn);
-        $saved = $this->client->post('/' . self::SLUG . '/settings', [
+        $saved = $this->client->post('/' . self::SLUG . '/settings/building', [
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
-            'default_store_take' => '0',
             'use_color' => '1',
             'use_category' => '1',
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
-            'booth_rentals_enabled' => '1',
-            'rent_cycle_day' => '1',
         ]);
-        self::assertSees('Settings saved.', $saved);
+        self::assertSees('Building saved.', $saved);
     }
 
     public function testAColorCanBeRenamedAndDeleted(): void

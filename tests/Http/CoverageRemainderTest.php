@@ -539,32 +539,35 @@ final class CoverageRemainderTest extends WebTestCase
         ]);
         self::assertSees('a tax payment credits the bank', $cashCredit);
 
-        $settings = [
+        $money = [
+            'settings_part' => 'money',
+            'default_store_take' => 'nope',
+            'tax_rate' => '0',
+            'operating_mode' => 'both',
+        ];
+        self::assertSees('store take is a percent from 0 to 100', $this->client->post('/' . self::SLUG . '/settings/money', $money));
+        $money['default_store_take'] = '0';
+        $money['tax_rate'] = 'nope';
+        self::assertSees('tax rate is a percent from 0 to 100', $this->client->post('/' . self::SLUG . '/settings/money', $money));
+        $building = [
+            'settings_part' => 'building',
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
-            'default_store_take' => 'nope',
-            'tax_rate' => '0',
-            'floor_days' => '',
+            'floor_days' => '999',
         ];
-        self::assertSees('store take is a percent from 0 to 100', $this->client->post('/' . self::SLUG . '/settings', $settings));
-        $settings['default_store_take'] = '0';
-        $settings['tax_rate'] = 'nope';
-        self::assertSees('tax rate is a percent from 0 to 100', $this->client->post('/' . self::SLUG . '/settings', $settings));
-        $settings['tax_rate'] = '0';
-        $settings['floor_days'] = '999';
-        self::assertSees('days on the floor is a whole number', $this->client->post('/' . self::SLUG . '/settings', $settings));
-        $settings['floor_days'] = '';
-        $settings['booth_width_ft'] = '0';
-        self::assertSees('booth size is whole feet', $this->client->post('/' . self::SLUG . '/settings', $settings));
-        $settings['booth_width_ft'] = '10';
-        $settings['floor_width_ft'] = 'wide';
-        self::assertSees('floor size is whole feet', $this->client->post('/' . self::SLUG . '/settings', $settings));
-        $settings['floor_width_ft'] = '120';
-        $settings['time_zone'] = 'Not/AZone';
-        self::assertLessThan(500, $this->client->post('/' . self::SLUG . '/settings', $settings)->status);
+        self::assertSees('days on the floor is a whole number', $this->client->post('/' . self::SLUG . '/settings/building', $building));
+        $building['floor_days'] = '';
+        $building['booth_width_ft'] = '0';
+        self::assertSees('booth size is whole feet', $this->client->post('/' . self::SLUG . '/settings/building', $building));
+        $building['booth_width_ft'] = '10';
+        $building['floor_width_ft'] = 'wide';
+        self::assertSees('floor size is whole feet', $this->client->post('/' . self::SLUG . '/settings/building', $building));
+        $building['floor_width_ft'] = '120';
+        $building['time_zone'] = 'Not/AZone';
+        self::assertLessThan(500, $this->client->post('/' . self::SLUG . '/settings/building', $building)->status);
 
         $brand = 'Brand ' . bin2hex(random_bytes(3));
         $this->client->get('/' . self::SLUG . '/brands/new');

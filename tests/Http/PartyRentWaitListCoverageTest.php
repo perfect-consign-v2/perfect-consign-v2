@@ -456,7 +456,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
             'late_fee_first' => '5.00',
             'late_fee_next' => '5.00',
         ];
-        self::assertSees('Money saved.', $this->client->post('/' . self::SLUG . '/settings', $lateOn));
+        self::assertSees('Money saved.', $this->client->post('/' . self::SLUG . '/settings/money', $lateOn));
         $this->client->get('/' . self::SLUG . '/rent');
         $collect = $this->client->get('/' . self::SLUG . '/rent/collect?vendor=' . $vendorId . '&booth=' . $boothId);
         self::assertSees('They owe', $collect);
@@ -565,7 +565,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         if ($prepaid) {
             $fields['rent_prepaid_from_prior_sales'] = '1';
         }
-        $saved = $this->client->post('/' . self::SLUG . '/settings', $fields);
+        $saved = $this->client->post('/' . self::SLUG . '/settings/money', $fields);
         self::assertSees('Money saved.', $saved);
     }
 

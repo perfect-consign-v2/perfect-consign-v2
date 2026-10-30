@@ -208,13 +208,12 @@ final class OwnerJourneyTest extends WebTestCase
         $brands = $this->client->get('/' . ProbeMall::SLUG . '/brands');
         $brandId = HtmlPage::taggedId($brands->body, 'tr', 'brand', $brand);
         $otherId = HtmlPage::taggedId($brands->body, 'tr', 'brand', $other);
-        $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+        $this->client->post('/' . ProbeMall::SLUG . '/settings/building', [
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
-            'default_store_take' => '0',
             'floor_days' => '30',
             'consignment_enabled' => '1',
             'use_color' => '1',
@@ -223,8 +222,6 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
-            'booth_rentals_enabled' => '1',
-            'rent_cycle_day' => '1',
         ]);
         $tag = 't' . bin2hex(random_bytes(4));
         $created = 'Blue ' . $tag;
@@ -309,13 +306,12 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSame(200, $duplicate->status);
         self::assertSees('That tag is already used.', $duplicate);
         self::assertSees($label, $duplicate);
-        $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+        $this->client->post('/' . ProbeMall::SLUG . '/settings/building', [
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
-            'default_store_take' => '0',
             'floor_days' => '',
             'use_color' => '1',
             'use_category' => '1',
@@ -323,8 +319,6 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
-            'booth_rentals_enabled' => '1',
-            'rent_cycle_day' => '1',
         ]);
     }
 
@@ -410,64 +404,65 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('value="120"', $page);
         self::assertSees('value="90"', $page);
         self::assertSees('Days on the floor', $page);
-        $refused = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+        $refused = $this->client->post('/' . ProbeMall::SLUG . '/settings/building', [
             'time_zone' => 'Not/AZone',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
-            'default_store_take' => '0',
         ]);
         self::assertSame(200, $refused->status);
         self::assertSees('that time zone is not an IANA name', $refused);
-        $days = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+        $days = $this->client->post('/' . ProbeMall::SLUG . '/settings/building', [
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
-            'default_store_take' => '0',
             'floor_days' => '0',
+            'consignment_enabled' => '1',
         ]);
         self::assertSame(200, $days->status);
         self::assertSees('days on the floor is a whole number from 1 to 365, or empty', $days);
-        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings/building', [
             'time_zone' => 'America/Chicago',
             'booth_width_ft' => '12',
             'booth_depth_ft' => '8',
             'floor_width_ft' => '100',
             'floor_depth_ft' => '80',
-            'default_store_take' => '0',
             'floor_days' => '45',
             'consignment_enabled' => '1',
-            'tax_rate' => '9.997',
             'use_color' => '1',
             'use_category' => '1',
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
-            'booth_rentals_enabled' => '1',
-            'rent_cycle_day' => '1',
         ]);
         self::assertSees('America/Chicago', $saved);
         self::assertSees('value="45"', $saved);
-        self::assertSees('value="9.997"', $saved);
-        $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', [
+        $tax = $this->client->post('/' . ProbeMall::SLUG . '/settings/money', [
+            'settings_part' => 'money',
+            'default_store_take' => '0',
+            'tax_rate' => '9.997',
+            'operating_mode' => 'both',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
+            'late_fee_grace_days' => '0',
+        ]);
+        self::assertSees('value="9.997"', $tax);
+        $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings/building', [
             'time_zone' => 'America/Los_Angeles',
             'booth_width_ft' => '10',
             'booth_depth_ft' => '10',
             'floor_width_ft' => '120',
             'floor_depth_ft' => '90',
-            'default_store_take' => '0',
             'use_color' => '1',
             'use_category' => '1',
             'use_size' => '1',
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
-            'booth_rentals_enabled' => '1',
-            'rent_cycle_day' => '1',
         ]);
         self::assertSees('America/Los_Angeles', $restored);
     }
@@ -541,21 +536,14 @@ final class OwnerJourneyTest extends WebTestCase
     public function testTheMallSplitShowsOnTheVendor(): void
     {
         $settings = [
-            'time_zone' => 'America/Los_Angeles',
-            'booth_width_ft' => '10',
-            'booth_depth_ft' => '10',
-            'floor_width_ft' => '120',
-            'floor_depth_ft' => '90',
-            'use_color' => '1',
-            'use_category' => '1',
-            'use_size' => '1',
-            'use_condition' => '1',
-            'use_department' => '1',
-            'use_brand' => '1',
+            'settings_part' => 'money',
+            'tax_rate' => '0',
+            'operating_mode' => 'both',
             'booth_rentals_enabled' => '1',
             'rent_cycle_day' => '1',
+            'late_fee_grace_days' => '0',
         ];
-        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '30']);
+        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings/money', $settings + ['default_store_take' => '30']);
         self::assertSees('value="30"', $saved);
         $code = 'v' . bin2hex(random_bytes(4));
         $created = $this->client->post('/' . ProbeMall::SLUG . '/vendors', [
@@ -575,7 +563,7 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
         self::assertSees('30%', $matched);
         self::assertMatchesRegularExpression('/<dt>Store take<\\/dt>\\s*<dd>\\s*30%\\s*<\\/dd>/', $matched->body);
-        $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings', $settings + ['default_store_take' => '0']);
+        $restored = $this->client->post('/' . ProbeMall::SLUG . '/settings/money', $settings + ['default_store_take' => '0']);
         self::assertSees('value="0"', $restored);
     }
 
@@ -613,27 +601,17 @@ final class OwnerJourneyTest extends WebTestCase
     private function roundCash(bool $on): void
     {
         $fields = [
-            'time_zone' => 'America/Los_Angeles',
-            'booth_width_ft' => '10',
-            'booth_depth_ft' => '10',
-            'floor_width_ft' => '120',
-            'floor_depth_ft' => '90',
+            'settings_part' => 'money',
             'default_store_take' => '0',
-            'floor_days' => '',
-            'use_color' => '1',
-            'use_category' => '1',
-            'use_size' => '1',
-            'use_condition' => '1',
-            'use_department' => '1',
-            'use_brand' => '1',
+            'tax_rate' => '0',
+            'operating_mode' => 'both',
             'booth_rentals_enabled' => '1',
             'rent_cycle_day' => '1',
+            'late_fee_grace_days' => '0',
+            'cash_round_minor' => $on ? '5' : '0',
         ];
-        if ($on) {
-            $fields['cash_round_minor'] = '5';
-        }
-        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings', $fields);
-        self::assertSees('Settings saved.', $saved);
+        $saved = $this->client->post('/' . ProbeMall::SLUG . '/settings/money', $fields);
+        self::assertSees('Money saved.', $saved);
     }
 
     private function openRegister(): void

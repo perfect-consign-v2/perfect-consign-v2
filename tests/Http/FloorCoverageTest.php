@@ -649,27 +649,17 @@ final class FloorCoverageTest extends WebTestCase
     private function settings(bool $round): void
     {
         $fields = [
-            'time_zone' => 'America/Los_Angeles',
-            'booth_width_ft' => '10',
-            'booth_depth_ft' => '10',
-            'floor_width_ft' => '120',
-            'floor_depth_ft' => '90',
+            'settings_part' => 'money',
             'default_store_take' => '0',
-            'floor_days' => '',
-            'use_color' => '1',
-            'use_category' => '1',
-            'use_size' => '1',
-            'use_condition' => '1',
-            'use_department' => '1',
-            'use_brand' => '1',
+            'tax_rate' => '0',
+            'operating_mode' => 'both',
             'booth_rentals_enabled' => '1',
             'rent_cycle_day' => '1',
+            'late_fee_grace_days' => '0',
+            'cash_round_minor' => $round ? '5' : '0',
         ];
-        if ($round) {
-            $fields['cash_round_minor'] = '5';
-        }
-        $saved = $this->client->post('/' . self::SLUG . '/settings', $fields);
-        self::assertSees('Settings saved.', $saved);
+        $saved = $this->client->post('/' . self::SLUG . '/settings/money', $fields);
+        self::assertSees('Money saved.', $saved);
     }
 
     private function openRegister(): void
