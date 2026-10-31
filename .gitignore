@@ -4,3 +4,5 @@
 var/
 .phpunit.result.cache
 .phpunit.cache/
+/tests/Codeception/_output/
+/tests/Codeception/Support/_generated/

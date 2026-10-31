@@ -31,7 +31,7 @@ php bin/seed-dev-tenant.php
 
 ## Application
 
-`sql/000_platform.sql` creates the `stall_app`, `stall_backup`, `stall_worker`, and `stall_vendor` login roles, stores one owner per mall, and stores owner download times. The poster grants live in `sql/001_tenant.sql` and are applied inside each mall schema by the provisioner. `php bin/provision-platform.php` applies the platform file once.
+`sql/000_platform.sql` creates the `stall_app`, `stall_backup`, `stall_worker`, and `stall_vendor` login roles, stores mall owners (username unique per mall; co-owners after `066_co_owners.sql`), and stores owner download times. The poster grants live in `sql/001_tenant.sql` and are applied inside each mall schema by the provisioner. `php bin/provision-platform.php` applies the platform file once.
 
 The web app connects as `stall_app`. Set `STALL_APP_PASSWORD`, `STALL_BACKUP_PASSWORD`, and `STALL_WORKER_PASSWORD` in the environment or in `.env`. That file stays out of git. `STALL_PG_DUMP` is `pg_dump` on `PATH`, a path to the Postgres 18 client, or `docker:perfect-consign-postgres` to use the client in that container. The host client must be 18. A Postgres 17 client cannot dump this server.
 
@@ -53,6 +53,8 @@ That demo server is HTTP. Secure cookies and HSTS stay off unless the process se
 ## Tests
 
 `composer test` runs the unit suite. `composer test:integration` runs the tests that open Postgres. `composer test:http` runs the HTTP suite (excludes the mutating surface form crawl). `composer check` runs those suites plus PHPStan, PHPMD, and the proofs. A green `check` on `master` is what deploys the demo. `composer test:mutate` and `composer test:coverage` run on a nightly GitHub Action; coverage does not block deploy. `test:coverage` sets `APP_ENV=coverage` and runs unit/integration then http as separate PHPUnit processes under Xdebug so ProbeServer HTTP dumps collect under `PC_COVERAGE` without a one-process hang (see `docs/http-edge.md`). `composer test:smoke` and `composer test:http` boot the site on `127.0.0.1:8097` and drive it over HTTP. Smoke includes the GET surface link crawl for every mall role (and owner preview `?as=`). `composer test:surface-mutate` submits safe forms on that same graph; `composer test:browser` drives Chrome JS clicks (Print, preview Back). Both run on the `surface` GitHub workflow with Chrome and `sockets`. The browser suite needs the PHP `sockets` extension; `ChromeProbe` passes `noSandbox` and `--disable-dev-shm-usage` so Actions runners can start Chrome (override the binary with `CHROME_PATH`).
+
+Codeception sits beside PHPUnit: `composer test:functional` (PhpBrowser) and `composer test:acceptance` (Chrome via chrome-php, no Chromedriver). `composer test:codeception` runs both after `codecept build`. Suites live under `tests/Codeception/` and boot mall `webprobe` on `127.0.0.1:8099`. Override with `WEB_BASE_URL` when pointing at an already-running probe.
 
 Those commands use mall `webprobe` on the local database only — never `mall`, `shop`, or a pulled tenant. The suite creates `webprobe` when it is missing and sets its owner password. It posts journals into that mall. It does not change any other mall. If `STALL_DB_USER` and `STALL_DB_PASSWORD` are unset, the suite uses the local `docker-compose.yml` login.
 

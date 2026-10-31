@@ -21,8 +21,11 @@
         }
     },
     "require-dev": {
-        "chrome-php/chrome": "1.16",
         "ext-xdebug": "*",
+        "chrome-php/chrome": "1.16",
+        "codeception/codeception": "5.3.7",
+        "codeception/module-asserts": "3.2",
+        "codeception/module-phpbrowser": "3.0",
         "phpmd/phpmd": "2.15",
         "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "13.3.5"
@@ -45,6 +48,19 @@
         "test:http": "php vendor/bin/phpunit --testsuite http --exclude-group surface-mutate",
         "test:surface-mutate": "php vendor/bin/phpunit --testsuite http --group surface-mutate",
         "test:browser": "php vendor/bin/phpunit --testsuite browser",
+        "codecept:build": "php vendor/bin/codecept build",
+        "test:functional": [
+            "@codecept:build",
+            "php -d display_errors=0 -d xdebug.mode=off vendor/bin/codecept run functional --no-ansi"
+        ],
+        "test:acceptance": [
+            "@codecept:build",
+            "php -d display_errors=0 -d xdebug.mode=off vendor/bin/codecept run acceptance --no-ansi"
+        ],
+        "test:codeception": [
+            "@codecept:build",
+            "php -d display_errors=0 -d xdebug.mode=off vendor/bin/codecept run functional,acceptance --no-ansi"
+        ],
         "test:coverage": "php bin/coverage-run.php",
         "test:mutate": "php bin/mutate.php",
         "check": [
