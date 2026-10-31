@@ -154,9 +154,59 @@ JS;
         return $this->html();
     }
 
+    /**
+     * Click, then poll until the HTML contains $needle (register-swap / fetch paths).
+     */
+    public function clickUntilSees(string $css, string $needle, int $timeoutMs = 20000): string
+    {
+        $this->clickSelector($css, false);
+        $deadline = microtime(true) + ($timeoutMs / 1000.0);
+        $html = $this->html();
+        while (!str_contains($html, $needle) && microtime(true) < $deadline) {
+            usleep(150_000);
+            $html = $this->html();
+        }
+
+        return $html;
+    }
+
+    /**
+     * Fill #scan and click Add so ticket-commands / register-swap run (not form.submit()).
+     */
+    public function scanOnRegister(string $tag, string $needle, int $timeoutMs = 20000): string
+    {
+        $js = <<<'JS'
+function (tag) {
+    const scan = document.getElementById('scan');
+    if (!scan) {
+        throw new Error('missing scan');
+    }
+    scan.value = tag;
+    const button = document.querySelector('form.register-scan button[type="submit"]');
+    if (!button) {
+        throw new Error('missing add');
+    }
+    button.click();
+}
+JS;
+        $evaluation = $this->page->callFunction($js, [$tag]);
+        $evaluation->waitForResponse(15000);
+        $deadline = microtime(true) + ($timeoutMs / 1000.0);
+        $html = $this->html();
+        while (!str_contains($html, $needle) && microtime(true) < $deadline) {
+            usleep(150_000);
+            $html = $this->html();
+        }
+
+        return $html;
+    }
+
     public function currentPath(): string
     {
         $url = $this->page->getCurrentUrl();
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
         $parts = parse_url($url);
         if (!is_array($parts) || !isset($parts['path']) || !is_string($parts['path'])) {
             return '';

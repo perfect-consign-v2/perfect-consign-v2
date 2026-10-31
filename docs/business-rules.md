@@ -116,13 +116,13 @@ Pay takes the sold quantity off the item. A void puts back the units that are st
 
 A gift certificate is sold for cash, card, or a check. That journal debits the tender and credits the certificate. The balance left on a number is its credits minus its redemptions. A charge cannot take more than that remainder.
 
-A ticket is the open cart on one register shift. It is not a journal. The shift has one open ticket. Scanning an item that is already on the open ticket adds one. Open, parked, and layaway tickets together cannot hold more than what is on hand. The sold price can change until pay. Pay posts the sale and freezes the ticket. Discard removes a ticket only before pay. Close is refused while that shift still has an open ticket.
+A ticket is the open cart on one register shift. It is not a journal. The shift has one open ticket. Scanning an item that is already on the open ticket adds one. Open, parked, and layaway tickets together cannot hold more than what is on hand. Asking for more than that (scan or qty) shows: There aren't that many left. The sold price can change until pay. Pay posts the sale and freezes the ticket. Discard removes a ticket only before pay. Close is refused while that shift still has an open ticket.
 
 When the mall rounds cash to a chosen step (cent, nickel, dime, or quarter), that round happens only when the sale is paid entirely in cash. The difference posts to cash rounding. It shows on the register once cash is the only payment, and on the receipt. Card, checks, stored value, and any mix of those with cash stay on the cent. Cash handed over above the rounded cash due is change. It is not a second tender, and the journal debits only the amount due.
 
 Void from the receipt reverses the whole sale and frees every item. A second void is refused. When the payable for that sale was already paid out, void first reclasses the shortfall to vendor receivable, then posts the exact reverse. A return is its own journal for one item. It reverses that item's discount share, store take, and tax, credits one tender, and reduces vendor payable only up to what is still open — any shortfall posts to vendor receivable. That item can be sold again. The rest of the ticket stays sold. The shopper is not blocked because payable was already cleared.
 
-Park takes the open ticket off the shift so close can finish. Recall puts it on the active shift. A parked ticket is not drawer cash. Two shifts cannot hold the same item. A parked ticket can be discarded. Its lines cannot be changed until it is recalled.
+Suspend Sale (park) takes the open ticket off the shift so close can finish, or so another shopper can be rung. The cashier names the hold in a short modal (optional); a blank name uses the customer or the first item. Suspended Sales lists those holds; Recall puts one back on the active shift. A parked ticket is not drawer cash. Two shifts cannot hold the same item. A parked ticket can be discarded. Its lines cannot be changed until it is recalled.
 
 ## Sales tax and reports
 

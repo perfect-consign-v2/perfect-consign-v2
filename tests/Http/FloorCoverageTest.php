@@ -75,6 +75,7 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees('Ticket parked.', $parked);
         $suspended = $this->client->get('/' . self::SLUG . '/pos/suspended');
         self::assertSees('name="ticket_id"', $suspended);
+        self::assertSees($first['description'], $suspended);
         $ticketId = $this->lastMatch($suspended->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/');
         $recalled = $this->client->post('/' . self::SLUG . '/pos/recall', ['ticket_id' => $ticketId]);
         self::assertSees($first['description'], $recalled);

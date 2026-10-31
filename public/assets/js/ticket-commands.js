@@ -1,11 +1,25 @@
 (function () {
     const forms = document.querySelectorAll('form.ticket-command');
     forms.forEach(function (form) {
+        // Park/recall must full-page through register-swap (HTML). JSON here leaves
+        // Suspended sales stuck with no cart paint and no redirect to the register.
+        if (isParkOrRecall(form)) {
+            return;
+        }
         form.addEventListener('submit', function (event) {
             event.preventDefault();
             send(form);
         });
     });
+
+    function isParkOrRecall(form) {
+        try {
+            const path = new URL(form.action, window.location.href).pathname;
+            return path.indexOf('/pos/park') !== -1 || path.indexOf('/pos/recall') !== -1;
+        } catch (error) {
+            return false;
+        }
+    }
 
     function send(form) {
         const posting = document.getElementById('sale-posting');

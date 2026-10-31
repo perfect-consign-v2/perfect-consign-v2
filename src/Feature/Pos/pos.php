@@ -108,6 +108,20 @@ foreach ($cart['parked'] as $held) {
         $parkedCount++;
     }
 }
+$parkSuggest = '';
+if (is_string($customerName ?? null) && $customerName !== '') {
+    $parkSuggest = $customerName;
+} elseif ($cart['buyer_name'] !== '') {
+    $parkSuggest = $cart['buyer_name'];
+} elseif ($lines !== []) {
+    $first = $lines[0];
+    $parkSuggest = is_string($first['description'] ?? null) && $first['description'] !== ''
+        ? $first['description']
+        : (is_string($first['code'] ?? null) ? $first['code'] : '');
+}
+if (strlen($parkSuggest) > 40) {
+    $parkSuggest = substr($parkSuggest, 0, 40);
+}
 require $templateDirectory . '/Feature/Pos/register-nav.php';
 ?>
 <?php require $templateDirectory . '/Feature/Pos/sale-finished.php'; ?>
@@ -139,11 +153,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <button class="btn btn-primary" type="button" data-open-modal="instant-add">Instant Inventory</button>
                     <button class="btn" type="button" data-open-modal="gift-sell">Gift Certificate</button>
                     <?php if ($open): ?>
-                        <form class="row gap-2 ticket-command" method="post" action="/<?= View::text($slug) ?>/pos/park">
-                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                            <input class="input" name="park_label" maxlength="40" placeholder="red hat" aria-label="Name for this suspended sale">
-                            <button class="btn" type="submit">Suspend Sale (<?= View::text((string) $parkedCount) ?>)</button>
-                        </form>
+                        <button class="btn" type="button" data-open-modal="suspend-sale">Suspend Sale (<?= View::text((string) $parkedCount) ?>)</button>
                         <button class="btn btn-danger" type="button" data-open-modal="clear-cart">Clear cart</button>
                     <?php endif; ?>
                 </div>
@@ -282,7 +292,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
         <div class="card-head"><h2 class="h3">Payment summary</h2></div>
         <div class="card-body stack">
             <p>Register: <strong><?= $chooseRegister ? 'Choose a register' : View::text($activeRegister) ?></strong>
-                <a class="text-link" href="/<?= View::text($slug) ?>/registers">Change</a>
+                <a class="text-link" href="/<?= View::text($slug) ?>/registers">Switch Register</a>
             </p>
             <p class="register-summary"><span>Subtotal</span><span id="summary-subtotal"><?= View::text(View::money(RowValue::integer($cart['merchandise']))) ?></span></p>
             <?php if ($cart['discount'] > 0): ?>
@@ -412,6 +422,22 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php endif; ?>
         </div>
     </div>
+</div>
+<div id="suspend-sale" class="modal" role="dialog" aria-modal="true" aria-labelledby="suspend-sale-title" hidden>
+    <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/park">
+        <div class="card-head"><div class="h3" id="suspend-sale-title">Suspend sale</div></div>
+        <div class="card-body stack">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <p>Hold this cart so you can ring someone else. Recall it later from Suspended Sales.</p>
+            <div class="field">
+                <label for="park_label">Name this hold (optional)</label>
+                <input class="input" id="park_label" name="park_label" maxlength="40" value="<?= View::text($parkSuggest) ?>" placeholder="e.g. red hat" autocomplete="off">
+            </div>
+            <p class="muted text-sm">Leave blank and we use the customer or first item name.</p>
+            <button class="btn btn-primary" type="submit">Suspend sale</button>
+            <button class="btn" type="button" data-close-modal="suspend-sale">Cancel</button>
+        </div>
+    </form>
 </div>
 <div id="clear-cart" class="modal" role="dialog" aria-modal="true" aria-labelledby="clear-cart-title" hidden>
     <form class="modal-panel card" method="post" action="/<?= View::text($slug) ?>/pos/discard">

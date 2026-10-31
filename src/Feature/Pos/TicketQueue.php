@@ -22,6 +22,9 @@ final class TicketQueue
         if (strlen($name) > 40) {
             throw new \InvalidArgumentException('Use a shorter name.');
         }
+        if ($name === '') {
+            $name = $this->defaultParkLabel($sessionId);
+        }
         $updated = $this->statements->affected(
             'UPDATE tickets SET status = ?, park_label = NULLIF(?, \'\') WHERE session_id = ?::uuid AND status = ?',
             ['parked', $name, $sessionId, 'open']
@@ -29,6 +32,42 @@ final class TicketQueue
         if ($updated !== 1) {
             throw new DatabaseRefusal('there is no open ticket');
         }
+    }
+
+    /**
+     * Customer name, else first line description/code — so Suspended sales is readable without typing.
+     */
+    private function defaultParkLabel(string $sessionId): string
+    {
+        $rows = $this->statements->bound(
+            "SELECT COALESCE(
+                    NULLIF(trim(COALESCE(customer.name, '')), ''),
+                    NULLIF(trim(COALESCE(buyer.name, '')), ''),
+                    NULLIF(trim(COALESCE(item.description, '')), ''),
+                    NULLIF(trim(COALESCE(item.code, '')), ''),
+                    'Held sale'
+                ) AS label
+             FROM tickets AS ticket
+             LEFT JOIN customers AS customer ON customer.id = ticket.customer_id
+             LEFT JOIN vendors AS buyer ON buyer.id = ticket.buyer_id
+             LEFT JOIN LATERAL (
+                 SELECT line.item_id
+                 FROM ticket_lines AS line
+                 WHERE line.ticket_id = ticket.id
+                 ORDER BY line.line_no
+                 LIMIT 1
+             ) AS first_line ON true
+             LEFT JOIN items AS item ON item.id = first_line.item_id
+             WHERE ticket.session_id = ?::uuid AND ticket.status = 'open'
+             LIMIT 1",
+            [$sessionId]
+        );
+        $label = RowValue::optionalString($rows[0]['label'] ?? null) ?? 'Held sale';
+        if (strlen($label) <= 40) {
+            return $label;
+        }
+
+        return substr($label, 0, 40);
     }
 
     /**

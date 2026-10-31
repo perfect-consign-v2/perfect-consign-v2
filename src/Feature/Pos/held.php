@@ -58,7 +58,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                                 <td>
                                     <div class="row gap-2">
                                         <a class="btn" href="/<?= View::text($slug) ?>/pos/layaway/<?= View::text($held['id']) ?>">Receipt</a>
-                                        <form class="ticket-command" method="post" action="/<?= View::text($slug) ?>/pos/recall">
+                                        <form method="post" action="/<?= View::text($slug) ?>/pos/recall">
                                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                             <input type="hidden" name="ticket_id" value="<?= View::text($held['id']) ?>">
                                             <button class="btn btn-primary" type="submit">Recall</button>
@@ -89,11 +89,11 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                     <tbody>
                         <?php foreach ($rows as $held): ?>
                             <tr>
-                                <td><?= View::text($held['label']) ?></td>
+                                <td><?= View::text($held['label'] !== '' ? $held['label'] : 'Held sale') ?></td>
                                 <td><?= View::text((string) $held['items']) ?></td>
                                 <td><?= View::text(View::money(RowValue::integer($held['sold']))) ?></td>
                                 <td>
-                                    <form class="ticket-command" method="post" action="/<?= View::text($slug) ?>/pos/recall">
+                                    <form method="post" action="/<?= View::text($slug) ?>/pos/recall">
                                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                         <input type="hidden" name="ticket_id" value="<?= View::text($held['id']) ?>">
                                         <button class="btn btn-primary" type="submit">Recall</button>
@@ -109,4 +109,3 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
 </div>
 <?php ListTable::assets(); ?>
 <?php require $templateDirectory . '/Feature/Pos/register-ui.php'; ?>
-<script src="<?= View::asset('/assets/js/ticket-commands.js') ?>"></script>
