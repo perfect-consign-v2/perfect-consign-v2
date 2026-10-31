@@ -69,6 +69,11 @@ final class DatabaseRefusalTest extends TestCase
         self::assertSame('That could not be saved.', DatabaseRefusal::fromPdo($error)->getMessage());
     }
 
+    public function testNotEnoughOnHandIsAPlainSentence(): void
+    {
+        self::assertSame('There aren\'t that many left.', DatabaseRefusal::phrase('there are not enough on hand'));
+    }
+
     public function testAnOverflowAndAUuidAreHiddenSentences(): void
     {
         self::assertSame('That amount is too big.', DatabaseRefusal::phrase('numeric field overflow'));

@@ -16,7 +16,7 @@ final class PostedRefusalTest extends TestCase
         $previous = new \RuntimeException('SQLSTATE detail');
         $error = new DatabaseRefusal('there are not enough on hand', 0, $previous);
 
-        self::assertSame('That tag is already sold.', (new PostedRefusal(new NullLogger()))->phrase($error));
+        self::assertSame('There aren\'t that many left.', (new PostedRefusal(new NullLogger()))->phrase($error));
     }
 
     public function testAPlainMessagePassesThrough(): void

@@ -1,15 +1,15 @@
 ---
 title: Ticket vs sale journal
 category: Sales and register
-hesk: published 2026-10-30
-as_of: 2026-10-25
+hesk: published 2026-10-31
+as_of: 2026-10-30
 ---
 
 # Ticket vs sale journal
 
 ## As of
 
-2026-10-25
+2026-10-30 — Qty or scan past on-hand shows “There aren't that many left” (not “already sold”).
 
 ## In one sentence
 
@@ -29,7 +29,7 @@ Scanning items, changing prices, parking, layaway deposits, and finally paying.
 ## What is refused
 
 - Posting without completing pay when tenders do not cover the amount due (except layaway deposit path).
-- Holding more units across open/parked/layaway tickets than on hand.
+- Holding more units across open/parked/layaway tickets than on hand — flash: There aren't that many left.
 
 ## How to check
 

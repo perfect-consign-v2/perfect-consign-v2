@@ -70,7 +70,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertStringNotContainsString('id="cash-round"', $cart->body);
         self::assertSame(1, preg_match('/name="line_no" value="(\d+)"/', $cart->body, $line));
         $again = $this->client->post('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => 'BC-' . $tag]);
-        self::assertSees('That tag is already sold.', $again);
+        self::assertSees('There aren\'t that many left.', $again);
         $priced = $this->client->post('/' . ProbeMall::SLUG . '/pos/price', [
             'line_no' => $line[1],
             'price' => '10.03',

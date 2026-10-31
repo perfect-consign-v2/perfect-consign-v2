@@ -382,7 +382,7 @@ final class CoverageRemainderTest extends WebTestCase
             'line_no' => $lineNo,
             'quantity' => '99',
         ]);
-        self::assertSees('That tag is already sold.', $tooMany);
+        self::assertSees('There aren\'t that many left.', $tooMany);
         $single = $this->client->post('/' . self::SLUG . '/pos/quantity', [
             'line_no' => $lineNo,
             'quantity' => '1',

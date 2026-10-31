@@ -56,7 +56,7 @@ final class DatabaseRefusal extends RuntimeException
     {
         $lower = strtolower($line);
         $known = [
-            'there are not enough on hand' => 'That tag is already sold.',
+            'there are not enough on hand' => 'There aren\'t that many left.',
             'there is no open ticket' => 'Start a sale, then try again.',
             'a layaway deposit cannot pass the amount due' => 'That amount is too big.',
         ];
