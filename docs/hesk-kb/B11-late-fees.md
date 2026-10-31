@@ -1,7 +1,7 @@
 ---
 title: Late fees on booth rent
 category: Rent
-hesk: published 2026-10-30
+hesk: published 2026-10-31
 as_of: 2026-10-25
 ---
 

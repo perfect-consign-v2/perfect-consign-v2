@@ -1,7 +1,7 @@
 ---
 title: Tag / barcode / asking price vs posted sale amount
 category: Inventory
-hesk: published 2026-10-30
+hesk: published 2026-10-31
 as_of: 2026-10-30
 ---
 
