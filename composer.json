@@ -59,7 +59,8 @@
         ],
         "test:codeception": [
             "@codecept:build",
-            "php -d display_errors=0 -d xdebug.mode=off vendor/bin/codecept run functional,acceptance --no-ansi"
+            "php -d display_errors=0 -d xdebug.mode=off vendor/bin/codecept run functional --no-ansi",
+            "php -d display_errors=0 -d xdebug.mode=off vendor/bin/codecept run acceptance --no-ansi"
         ],
         "test:coverage": "php bin/coverage-run.php",
         "test:mutate": "php bin/mutate.php",

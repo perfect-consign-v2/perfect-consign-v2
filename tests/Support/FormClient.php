@@ -41,9 +41,9 @@ final class FormClient
         }
     }
 
-    public function get(string $path): PageResponse
+    public function get(string $path, int $timeoutSeconds = 60): PageResponse
     {
-        return $this->send('GET', $path, null, true, 60, false);
+        return $this->send('GET', $path, null, true, $timeoutSeconds, false);
     }
 
     public function getWithoutRedirect(string $path): PageResponse

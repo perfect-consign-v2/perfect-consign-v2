@@ -37,8 +37,16 @@ final class SurfaceFormDenyList
             '/rent/charge',
             '/close',
             '/backup',
+            '/export',
+            '/letters',
             '/reset-test-data',
         ], true)) {
+            return true;
+        }
+        if (str_starts_with($rest, '/letters/')) {
+            return true;
+        }
+        if (str_starts_with($rest, '/export')) {
             return true;
         }
         if (preg_match('#^/pos/receipt/[0-9a-fA-F-]{36}/void$#', $rest) === 1) {
@@ -50,7 +58,10 @@ final class SurfaceFormDenyList
         if (preg_match('#^/registers/[0-9a-fA-F-]{36}/(open|close|drop)$#', $rest) === 1) {
             return true;
         }
-        if (preg_match('#^/staff/[0-9a-fA-F-]{36}/(password|books-password)$#', $rest) === 1) {
+        if (preg_match('#^/staff/[0-9a-fA-F-]{36}/(password|manager-password|books-password|suspend|restore|role)$#', $rest) === 1) {
+            return true;
+        }
+        if (preg_match('#^/staff/owners/[0-9a-fA-F-]{36}/(password|remove|suspend|restore)$#', $rest) === 1) {
             return true;
         }
         if (str_starts_with($rest, '/admin')) {

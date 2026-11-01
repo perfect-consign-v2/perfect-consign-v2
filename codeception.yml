@@ -28,7 +28,7 @@ suites:
                 - Asserts
                 - PhpBrowser:
                     url: '%WEB_BASE_URL%'
-                    timeout: 60
+                    timeout: 120
                 - PerfectConsign\Tests\Codeception\Support\Helper\Functional
     acceptance:
         actor: AcceptanceTester

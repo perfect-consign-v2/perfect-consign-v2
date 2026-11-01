@@ -124,6 +124,129 @@ final class ChromeBrowser extends Module
         return $matches[1] ?? $matches[0];
     }
 
+    /**
+     * Click every safe in-page control (nav/btn links + data-print). Skips money/destructive hrefs.
+     *
+     * @return list<string> failure messages
+     */
+    public function clickEverySafeControlOnPage(string $returnPath): array
+    {
+        $inventory = $this->evaluateJson(<<<'JS'
+(() => {
+  const nodes = Array.from(document.querySelectorAll(
+    'a.nav-item, a.menu-item, a.seg-btn, [data-print]'
+  )).filter((el) => !el.closest('table, tbody, tr[id]'));
+  return nodes.map((el, i) => {
+    el.setAttribute('data-cest-click', String(i));
+    return {
+      id: String(i),
+      href: el.getAttribute('href') || '',
+      print: el.hasAttribute('data-print'),
+      text: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 48),
+    };
+  });
+})()
+JS);
+
+        $failures = [];
+        foreach ($inventory as $item) {
+            if (!is_array($item) || !isset($item['id']) || !is_string($item['id'])) {
+                continue;
+            }
+            $href = isset($item['href']) && is_string($item['href']) ? $item['href'] : '';
+            $print = !empty($item['print']);
+            if (!$print && (self::dangerousHref($href) || self::entityRowHref($href))) {
+                continue;
+            }
+            $this->session()->open($returnPath);
+            $this->stampClickTargets();
+            try {
+                if ($print) {
+                    $this->session()->clickSelector('[data-cest-click="' . $item['id'] . '"]', false);
+                } else {
+                    $this->session()->clickSelector('[data-cest-click="' . $item['id'] . '"]', true);
+                }
+            } catch (\Throwable $retry) {
+                $failures[] = 'click #' . $item['id'] . ' (' . ($item['text'] ?? '') . '): ' . $retry->getMessage();
+                continue;
+            }
+            $html = $this->html();
+            if (str_contains($html, 'This address is not a page in')) {
+                $failures[] = 'click #' . $item['id'] . ' (' . ($item['text'] ?? '') . ') → miss page';
+            }
+            if (str_contains($html, 'Fatal error') || str_contains($html, 'Uncaught')) {
+                $failures[] = 'click #' . $item['id'] . ' (' . ($item['text'] ?? '') . ') → fatal';
+            }
+        }
+
+        return $failures;
+    }
+
+    private function stampClickTargets(): void
+    {
+        $this->evaluateJson(<<<'JS'
+(() => {
+  Array.from(document.querySelectorAll(
+    'a.nav-item, a.menu-item, a.seg-btn, [data-print]'
+  )).filter((el) => !el.closest('table, tbody, tr[id]')).forEach((el, i) => el.setAttribute('data-cest-click', String(i)));
+  return [];
+})()
+JS);
+    }
+
+    private static function entityRowHref(string $href): bool
+    {
+        $path = explode('?', $href, 2)[0];
+
+        return preg_match(
+            '#/(?:inventory|vendors|booths|journals|registers|staff)/[0-9a-fA-F-]{36}#',
+            $path
+        ) === 1;
+    }
+
+    private static function dangerousHref(string $href): bool
+    {
+        $path = explode('?', $href, 2)[0];
+        foreach ([
+            '/logout',
+            '/delete',
+            '/pay',
+            '/payout',
+            '/void',
+            '/password',
+            '/backup',
+            '/charge',
+            '/reset-test-data',
+            '/close',
+            '/undo',
+            '/remove',
+            '/dispose',
+            '/end',
+            '/export',
+            '/letters',
+            '/registers',
+        ] as $needle) {
+            if (str_contains($path, $needle)) {
+                return true;
+            }
+        }
+
+        return $href === '' || $href === '#';
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function evaluateJson(string $expression): array
+    {
+        $value = $this->session()->evaluate($expression);
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return $value;
+    }
+
     private function session(): ChromeSession
     {
         if (!$this->session instanceof ChromeSession) {

@@ -36,7 +36,7 @@ JS;
 
     public function open(string $path): string
     {
-        $this->page->navigate($this->baseUrl . $path)->waitForNavigation(Page::LOAD, 15000);
+        $this->page->navigate($this->baseUrl . $path)->waitForNavigation(Page::LOAD, 60000);
 
         return $this->html();
     }
@@ -227,5 +227,16 @@ JS;
     public function html(): string
     {
         return $this->page->getHtml(15000);
+    }
+
+    /**
+     * Run a browser expression and return the JSON-decoded result (arrays/scalars).
+     */
+    public function evaluate(string $expression): mixed
+    {
+        $evaluation = $this->page->evaluate($expression);
+        $evaluation->waitForResponse(15000);
+
+        return $evaluation->getReturnValue(15000);
     }
 }

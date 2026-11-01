@@ -6,12 +6,13 @@ namespace PerfectConsign\Tests\Codeception\Support;
 
 use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Tests\Codeception\ProbeHarness;
-use PerfectConsign\Tests\Support\PageSurfaceCrawler;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\ProbeSurfaceSeed;
 
 /**
- * Role surface crawl shared by Codeception functional Cests.
+ * Full role surface crawl for Codeception (discoverable mall hrefs + safe forms).
+ * Static route completeness is RouteCatalogCest — crawls start from hubs so table-row
+ * explosion (hundreds of vendors/items) cannot hang the suite before forms run.
  */
 final class SurfaceFailures
 {
@@ -20,7 +21,7 @@ final class SurfaceFailures
      */
     public static function linkCrawl(): array
     {
-        return self::crawl(static fn (PageSurfaceCrawler $crawler, string $start): array => $crawler->crawlGets([$start]));
+        return self::crawl(static fn (FullSurfaceCrawler $crawler, array $starts): array => $crawler->crawlGets($starts));
     }
 
     /**
@@ -28,11 +29,11 @@ final class SurfaceFailures
      */
     public static function formCrawl(): array
     {
-        return self::crawl(static fn (PageSurfaceCrawler $crawler, string $start): array => $crawler->crawlForms([$start]));
+        return self::crawl(static fn (FullSurfaceCrawler $crawler, array $starts): array => $crawler->crawlForms($starts));
     }
 
     /**
-     * @param callable(PageSurfaceCrawler, string): list<string> $walk
+     * @param callable(FullSurfaceCrawler, list<string>): list<string> $walk
      * @return list<string>
      */
     private static function crawl(callable $walk): array
@@ -41,18 +42,14 @@ final class SurfaceFailures
         $seed = $harness->seed();
         $slug = ProbeMall::SLUG;
         $failures = [];
-
-        // Cap visits below the PHPUnit surface suite (35) so Codeception stays under CI budgets.
-        $visits = 20;
+        $hubs = self::hubStarts($slug, $seed);
 
         $owner = $harness->client();
         $owner->signIn($slug, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        MallRouteCatalog::enableAllCatalogs($owner, $slug);
         $failures = array_merge(
             $failures,
-            self::label(
-                'owner',
-                $walk(new PageSurfaceCrawler($owner, $slug, 'owner', $visits), '/' . $slug . '/dashboard')
-            )
+            self::label('owner', $walk(new FullSurfaceCrawler($owner, $slug, 'owner'), $hubs['owner']))
         );
 
         $cashier = $harness->client();
@@ -61,7 +58,7 @@ final class SurfaceFailures
             $failures,
             self::label(
                 'cashier',
-                $walk(new PageSurfaceCrawler($cashier, $slug, 'cashier', $visits), '/' . $slug . '/dashboard')
+                $walk(new FullSurfaceCrawler($cashier, $slug, 'cashier'), $hubs['cashier'])
             )
         );
 
@@ -71,7 +68,7 @@ final class SurfaceFailures
             $failures,
             self::label(
                 'books',
-                $walk(new PageSurfaceCrawler($books, $slug, 'books', $visits), '/' . $slug . '/dashboard')
+                $walk(new FullSurfaceCrawler($books, $slug, 'books'), $hubs['books'])
             )
         );
 
@@ -81,22 +78,98 @@ final class SurfaceFailures
             $failures,
             self::label(
                 'vendor',
-                $walk(new PageSurfaceCrawler($vendor, $slug, 'vendor', $visits), '/' . $slug . '/vendor')
+                $walk(new FullSurfaceCrawler($vendor, $slug, 'vendor'), $hubs['vendor'])
             )
         );
 
         $preview = $harness->client();
         $preview->signIn($slug, ProbeMall::USERNAME, ProbeMall::PASSWORD);
-        $start = VendorPreview::with('/' . $slug . '/vendor', $seed->vendorId);
         $failures = array_merge(
             $failures,
             self::label(
                 'owner-preview',
-                $walk(new PageSurfaceCrawler($preview, $slug, 'owner', $visits, $seed->vendorId), $start)
+                $walk(
+                    new FullSurfaceCrawler($preview, $slug, 'owner', $seed->vendorId),
+                    $hubs['preview']
+                )
             )
         );
 
         return $failures;
+    }
+
+    /**
+     * @return array{
+     *     owner: list<string>,
+     *     cashier: list<string>,
+     *     books: list<string>,
+     *     vendor: list<string>,
+     *     preview: list<string>
+     * }
+     */
+    private static function hubStarts(string $slug, ProbeSurfaceSeed $seed): array
+    {
+        $base = '/' . $slug;
+
+        return [
+            'owner' => array_values(array_unique(array_merge(
+                [
+                    $base . '/dashboard',
+                    $base . '/inventory',
+                    $base . '/parties',
+                    $base . '/booths',
+                    $base . '/registers',
+                    $base . '/settings',
+                    $base . '/staff',
+                    $base . '/rent',
+                    $base . '/payout',
+                    $base . '/journals',
+                    $base . '/pos',
+                    $base . '/sales',
+                    $base . '/reports',
+                    $base . '/brands',
+                    $base . '/colors',
+                    $base . '/categories',
+                    $base . '/sizes',
+                    $base . '/conditions',
+                    $base . '/departments',
+                    $base . '/wait-list',
+                    $base . '/offers',
+                    $base . '/map',
+                    $base . '/company',
+                    $base . '/tax',
+                    $base . '/book',
+                ],
+                MallRouteCatalog::seededGets($slug, $seed->vendorId, $seed->itemId),
+            ))),
+            'cashier' => [
+                $base . '/dashboard',
+                $base . '/pos',
+                $base . '/inventory',
+                $base . '/parties',
+                $base . '/registers',
+            ],
+            'books' => [
+                $base . '/dashboard',
+                $base . '/journals',
+                $base . '/rent',
+                $base . '/payout',
+                $base . '/reports',
+                $base . '/tax',
+            ],
+            'vendor' => [
+                $base . '/vendor',
+                $base . '/vendor/inventory',
+                $base . '/vendor/sales',
+                $base . '/vendor/offers',
+            ],
+            'preview' => [
+                VendorPreview::with($base . '/vendor', $seed->vendorId),
+                VendorPreview::with($base . '/vendor/inventory', $seed->vendorId),
+                VendorPreview::with($base . '/vendor/sales', $seed->vendorId),
+                VendorPreview::with($base . '/vendor/offers', $seed->vendorId),
+            ],
+        ];
     }
 
     /**

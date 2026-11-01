@@ -1,6 +1,6 @@
 # Codeception (PC2)
 
-Functional (PhpBrowser) and acceptance (Chrome) suites run beside PHPUnit. Money proofs, PHPStan, and `composer check` stay on PHPUnit.
+Functional (PhpBrowser) and acceptance (Chrome) suites run beside PHPUnit. Money proofs, PHPStan, and `composer check` stay on PHPUnit — but Codeception now owns the full mall user-surface bar: every static route, every discoverable link, every safe form, explicit money paths, and Chrome clicks on safe controls.
 
 ## Commands
 
@@ -11,7 +11,7 @@ composer test:acceptance
 composer test:codeception
 ```
 
-`test:codeception` builds actors, then runs functional and acceptance.
+`test:codeception` builds actors, then runs functional and acceptance as **two processes** (so a wedged `php -S` in one suite cannot hang the other). Expect a long run (route catalog + hub crawls + Chrome).
 
 ## How it boots
 
@@ -21,10 +21,16 @@ composer test:codeception
 
 | Suite | Driver | What it covers |
 |---|---|---|
-| `functional` | PhpBrowser | Guest doors, owner sign-in, key GETs, role link crawl, safe form crawl (20 visits/role) |
-| `acceptance` | `ChromeBrowser` module (chrome-php) | Owner Chrome sign-in, POS nav click, vendor Print / preview Back |
+| `functional` | PhpBrowser | Guest doors; owner sign-in; **every static mall GET** (`RouteCatalogCest`); seeded entity GETs; **all-href link crawl** + **safe form crawl** from role hubs (owner/cashier/books/vendor/preview); cash sale + rent charge + refused payout |
+| `acceptance` | `ChromeBrowser` (chrome-php) | Owner Chrome sign-in; Sale nav; Print/Back; **click every safe nav/seg/print control** on dashboard/POS/settings, every static mall GET, vendor portal, and owner preview |
 
-Form crawl across five roles can take several minutes locally; PHPUnit `test:surface-mutate` remains the fuller 35-visit crawl.
+### Safe vs money
+
+The form/click crawls **skip** logout, delete, pay, payout, void, password, backup, rent charge, register close, export, letters, etc. (`SurfaceFormDenyList` + click deny list). Those are covered by **MoneyPathCest** (sale/pay, rent charge, payout refuse) and dedicated journeys — not by blind submits.
+
+### Link + form crawl
+
+Link crawl follows **surface** same-mall links (nav, segments, buttons — not every parties/inventory row) from role hubs plus seeded vendor/item/preview URLs, soft-capped at 120 pages/role. Form crawl submits **safe POSTs on those hub pages only**. **Every static route pattern** is covered by `RouteCatalogCest` and Chrome `everyStaticMallGetLoadsInChrome`; seeded entity GETs cover live vendor/item URLs.
 
 Acceptance uses the same Chrome binary discovery as `ChromeProbe` (`CHROME_PATH` override). Chromedriver is not required.
 
@@ -33,9 +39,10 @@ Acceptance uses the same Chrome binary discovery as `ChromeProbe` (`CHROME_PATH`
 ```text
 codeception.yml
 tests/Codeception/
-  Functional/
-  Acceptance/
+  Functional/   Guest, owner, routes, surface crawls, money paths
+  Acceptance/   Sign-in, print, click sweeps
   Module/ChromeBrowser.php
-  Support/Helper/
+  Support/FullSurfaceCrawler.php
+  Support/MallRouteCatalog.php
   ProbeHarness.php
 ```

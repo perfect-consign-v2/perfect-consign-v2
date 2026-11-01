@@ -36,6 +36,7 @@ final class ProbeSurfaceSeed
         $cashierUser = 'sc' . bin2hex(random_bytes(3));
         $cashierPass = 'cashier-surface';
         $cashier = $owner->post('/' . $slug . '/staff', [
+            'role' => 'cashier',
             'display_name' => 'Surface Cash',
             'username' => $cashierUser,
             'password' => $cashierPass,
@@ -47,7 +48,8 @@ final class ProbeSurfaceSeed
 
         $booksUser = 'sb' . bin2hex(random_bytes(3));
         $booksPass = 'books-surface';
-        $books = $owner->post('/' . $slug . '/staff/books', [
+        $books = $owner->post('/' . $slug . '/staff', [
+            'role' => 'books',
             'display_name' => 'Surface Books',
             'username' => $booksUser,
             'password' => $booksPass,
