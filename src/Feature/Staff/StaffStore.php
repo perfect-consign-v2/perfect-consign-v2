@@ -19,7 +19,7 @@ final class StaffStore
     }
 
     /**
-     * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
+     * @return list<array{id: string, username: string, display_name: string, role: string, email: string, can_sign_in: bool}>
      */
     public function cashiers(): array
     {
@@ -27,7 +27,7 @@ final class StaffStore
     }
 
     /**
-     * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
+     * @return list<array{id: string, username: string, display_name: string, role: string, email: string, can_sign_in: bool}>
      */
     public function managers(): array
     {
@@ -35,7 +35,7 @@ final class StaffStore
     }
 
     /**
-     * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
+     * @return list<array{id: string, username: string, display_name: string, role: string, email: string, can_sign_in: bool}>
      */
     public function books(): array
     {
@@ -43,12 +43,12 @@ final class StaffStore
     }
 
     /**
-     * @return list<array{id: string, username: string, display_name: string, role: string, email: string}>
+     * @return list<array{id: string, username: string, display_name: string, role: string, email: string, can_sign_in: bool}>
      */
     private function people(string $role): array
     {
         $rows = $this->statements->bound(
-            "SELECT id, username, display_name, role, email
+            "SELECT id, username, display_name, role, email, can_sign_in
              FROM staff
              WHERE role = ?
              ORDER BY lower(display_name), username",
@@ -62,10 +62,53 @@ final class StaffStore
                 'display_name' => RowValue::string($row['display_name'] ?? null),
                 'role' => RowValue::string($row['role'] ?? null),
                 'email' => RowValue::optionalString($row['email'] ?? null) ?? '',
+                'can_sign_in' => $this->flag($row['can_sign_in'] ?? null),
             ];
         }
 
         return $people;
+    }
+
+    public function setCanSignIn(string $id, bool $canSignIn): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            throw new \InvalidArgumentException('Choose a person.');
+        }
+        $sql = $canSignIn
+            ? "UPDATE staff
+               SET can_sign_in = true
+               WHERE id = ?::uuid AND role IN ('cashier', 'manager', 'books')"
+            : "UPDATE staff
+               SET can_sign_in = false, credentials_version = credentials_version + 1
+               WHERE id = ?::uuid AND role IN ('cashier', 'manager', 'books')";
+        $saved = $this->statements->affected($sql, [$id]);
+        if ($saved < 1) {
+            throw new \InvalidArgumentException('Choose a person.');
+        }
+    }
+
+    public function changeRole(string $id, string $role): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            throw new \InvalidArgumentException('Choose a person.');
+        }
+        if ($role !== 'cashier' && $role !== 'manager' && $role !== 'books') {
+            throw new \InvalidArgumentException('Choose cashier, manager, or books.');
+        }
+        $saved = $this->statements->affected(
+            "UPDATE staff
+             SET role = ?, credentials_version = credentials_version + 1
+             WHERE id = ?::uuid AND role IN ('cashier', 'manager', 'books')",
+            [$role, $id]
+        );
+        if ($saved < 1) {
+            throw new \InvalidArgumentException('Choose a person.');
+        }
+    }
+
+    private function flag(mixed $value): bool
+    {
+        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
     public function addCashier(string $username, string $displayName, string $password, string $email): void

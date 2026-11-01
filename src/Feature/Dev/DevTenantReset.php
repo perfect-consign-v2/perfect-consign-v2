@@ -17,13 +17,15 @@ final class DevTenantReset
         $connection = LocalAdmin::open();
         $this->requireTools();
         $pdo = $connection->pdo();
-        $owner = $this->owner($pdo);
+        $owners = $this->owners($pdo);
         \wipeTenant($pdo, self::SLUG, self::SLUG);
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Dev');
         $this->loadSql($pdo, $provisioner, $schema);
         MailboxSeed::plant($pdo);
-        $this->restoreOwner($pdo, $owner);
+        foreach ($owners as $owner) {
+            $this->restoreOwner($pdo, $owner);
+        }
 
         return $schema;
     }
@@ -41,19 +43,27 @@ final class DevTenantReset
     }
 
     /**
-     * @return array{username: string, password_hash: string}|null
+     * @return list<array{username: string, password_hash: string}>
      */
-    private function owner(PDO $pdo): ?array
+    private function owners(PDO $pdo): array
     {
         $statement = $pdo->prepare(
             'SELECT owners.username, owners.password_hash
              FROM platform.owners AS owners
              JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
-             WHERE tenants.slug = ?'
+             WHERE tenants.slug = ?
+             ORDER BY lower(owners.username)'
         );
         $statement->execute([self::SLUG]);
+        $owners = [];
+        while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+            $parsed = $this->ownerRow($row);
+            if ($parsed !== null) {
+                $owners[] = $parsed;
+            }
+        }
 
-        return $this->ownerRow($statement->fetch(PDO::FETCH_ASSOC));
+        return $owners;
     }
 
     /**
@@ -93,13 +103,10 @@ final class DevTenantReset
     }
 
     /**
-     * @param array{username: string, password_hash: string}|null $owner
+     * @param array{username: string, password_hash: string} $owner
      */
-    private function restoreOwner(PDO $pdo, ?array $owner): void
+    private function restoreOwner(PDO $pdo, array $owner): void
     {
-        if ($owner === null) {
-            return;
-        }
         $statement = $pdo->prepare(
             'INSERT INTO platform.owners (id, tenant_id, username, password_hash)
              SELECT uuidv7(), id, ?, ?

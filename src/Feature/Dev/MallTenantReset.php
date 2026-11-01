@@ -16,7 +16,10 @@ final class MallTenantReset
         $connection = LocalAdmin::open();
         $this->requireTools();
         $pdo = $connection->pdo();
-        $owner = $this->owner($pdo) ?? $this->replacementOwner($pdo);
+        $owners = $this->owners($pdo);
+        if ($owners === []) {
+            $owners = [$this->replacementOwner($pdo)];
+        }
         \wipeTenant($pdo, self::SLUG, self::SLUG);
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Mall');
@@ -24,7 +27,9 @@ final class MallTenantReset
             $this->keepProgress();
             (new \MallDemo($pdo, $schema))->load();
         } finally {
-            $this->restoreOwner($pdo, $owner);
+            foreach ($owners as $owner) {
+                $this->restoreOwner($pdo, $owner);
+            }
         }
         (new ShopTenantReset())->load();
 
@@ -111,19 +116,27 @@ final class MallTenantReset
     }
 
     /**
-     * @return array{username: string, password_hash: string, email: ?string}|null
+     * @return list<array{username: string, password_hash: string, email: ?string}>
      */
-    private function owner(PDO $pdo): ?array
+    private function owners(PDO $pdo): array
     {
         $statement = $pdo->prepare(
             'SELECT owners.username, owners.password_hash, owners.email
              FROM platform.owners AS owners
              JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
-             WHERE tenants.slug = ?'
+             WHERE tenants.slug = ?
+             ORDER BY lower(owners.username)'
         );
         $statement->execute([self::SLUG]);
+        $owners = [];
+        while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+            $parsed = $this->ownerRow($row);
+            if ($parsed !== null) {
+                $owners[] = $parsed;
+            }
+        }
 
-        return $this->ownerRow($statement->fetch(PDO::FETCH_ASSOC));
+        return $owners;
     }
 
     /**

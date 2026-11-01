@@ -21,7 +21,12 @@ final class StaffSignIn
     public function attempt(TenantRecord $tenant, string $username, string $password, string $address): bool
     {
         $row = $this->lookup($tenant, $username);
-        if ($row === null || !$this->passwordMatches($row, $password) || !$this->knownRole($row)) {
+        if (
+            $row === null
+            || !$row['can_sign_in']
+            || !$this->passwordMatches($row, $password)
+            || !$this->knownRole($row)
+        ) {
             $this->refuse($tenant, $username, $address);
 
             return false;
@@ -32,7 +37,7 @@ final class StaffSignIn
     }
 
     /**
-     * @return array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string}|null
+     * @return array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string, can_sign_in: bool}|null
      */
     private function lookup(TenantRecord $tenant, string $username): ?array
     {
@@ -53,12 +58,13 @@ final class StaffSignIn
     }
 
     /**
-     * @return array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string}|null
+     * @return array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string, can_sign_in: bool}|null
      */
     private function staffRow(TenantRecord $tenant, string $username): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id::text AS id, display_name, password_hash, role, vendor_id::text AS vendor_id, credentials_version
+            'SELECT id::text AS id, display_name, password_hash, role, vendor_id::text AS vendor_id,
+                    credentials_version, can_sign_in
              FROM ' . $this->schema($tenant->schema) . '.staff
              WHERE lower(username) = lower(?)'
         );
@@ -73,7 +79,15 @@ final class StaffSignIn
         $role = $row['role'] ?? null;
         $vendorId = $row['vendor_id'] ?? null;
         $version = $this->version($row['credentials_version'] ?? null);
-        if (!is_string($id) || !is_string($displayName) || !is_string($hash) || !is_string($role) || $version === null) {
+        $canSignIn = $this->flag($row['can_sign_in'] ?? null);
+        if (
+            !is_string($id)
+            || !is_string($displayName)
+            || !is_string($hash)
+            || !is_string($role)
+            || $version === null
+            || $canSignIn === null
+        ) {
             return null;
         }
 
@@ -84,7 +98,23 @@ final class StaffSignIn
             'role' => $role,
             'vendor_id' => is_string($vendorId) ? $vendorId : null,
             'version' => $version,
+            'can_sign_in' => $canSignIn,
         ];
+    }
+
+    private function flag(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if ($value === 't' || $value === 'true' || $value === 1 || $value === '1') {
+            return true;
+        }
+        if ($value === 'f' || $value === 'false' || $value === 0 || $value === '0') {
+            return false;
+        }
+
+        return null;
     }
 
     private function version(mixed $value): ?string
@@ -100,7 +130,7 @@ final class StaffSignIn
     }
 
     /**
-     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string} $row
+     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string, can_sign_in: bool} $row
      */
     private function passwordMatches(array $row, string $password): bool
     {
@@ -108,7 +138,7 @@ final class StaffSignIn
     }
 
     /**
-     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string} $row
+     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string, can_sign_in: bool} $row
      */
     private function knownRole(array $row): bool
     {
@@ -119,7 +149,7 @@ final class StaffSignIn
     }
 
     /**
-     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string} $row
+     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string, can_sign_in: bool} $row
      */
     private function openSession(TenantRecord $tenant, string $username, array $row): void
     {

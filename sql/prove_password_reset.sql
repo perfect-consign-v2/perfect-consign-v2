@@ -19,7 +19,7 @@ BEGIN
 
     INSERT INTO platform.owners (id, tenant_id, username, password_hash)
     VALUES ('01900000-0000-7000-8000-00000000e020', mall_id, 'resetowner', 'hash')
-    ON CONFLICT (tenant_id) DO NOTHING;
+    ON CONFLICT (tenant_id, username) DO NOTHING;
 
     BEGIN
         UPDATE platform.owners SET email = 'not-an-email' WHERE tenant_id = mall_id;

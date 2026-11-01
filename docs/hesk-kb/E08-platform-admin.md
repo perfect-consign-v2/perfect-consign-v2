@@ -2,14 +2,14 @@
 title: Platform admin portal
 category: Platform notes
 hesk: published 2026-10-31
-as_of: 2026-10-30
+as_of: 2026-10-31
 ---
 
 # Platform admin portal
 
 ## As of
 
-2026-10-30 — Enter-as owner/cashier/manager opens the store in a new browser window so the admin Tenants tab stays put. Demo deploy plants the platform admin from `STALL_PLATFORM_ADMIN_*` without bumping `credentials_version` when the password already matches. Admin forgot-password needs platform `STALL_GMAIL_*` / `STALL_SMTP_*` (not the mall Settings mailbox). App log, Mail worker, Signup toggles, and Create store stay live.
+2026-10-31 — Enter-as picks a mall owner by username when co-owners exist; suspended owners are refused. Cashier/manager enter-as unchanged. Opens the store in a new browser window so the admin Tenants tab stays put. Demo deploy plants the platform admin from `STALL_PLATFORM_ADMIN_*` without bumping `credentials_version` when the password already matches. Admin forgot-password needs platform `STALL_GMAIL_*` / `STALL_SMTP_*` (not the mall Settings mailbox). App log, Mail worker, Signup toggles, and Create store stay live.
 
 ## In one sentence
 
@@ -23,7 +23,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 
 - Admin accounts with email + password hash.
 - Password-reset tokens expire; reset and audit rows are append-only. Admin forgot-password sends the reset email in that request through the platform Gmail/SMTP env (`STALL_GMAIL_*` or `STALL_SMTP_*`), not the mall Settings mailbox. Demo deploy plants the admin from `STALL_PLATFORM_ADMIN_EMAIL` / `STALL_PLATFORM_ADMIN_PASSWORD` when those are set.
-- Enter-as owner, cashier, or manager opens the tenant store in a new browser window (manager lands on the register when a manager staff row exists); the admin Tenants list stays in the original tab.
+- Enter-as opens the tenant store in a new browser window (one button per owner username when the mall has co-owners; cashier and manager when those staff rows exist; manager lands on the register); a suspended owner is refused; the admin Tenants list stays in the original tab.
 - Tenants → Create store provisions a mall with the owner email already verified (works even when public signup is off).
 - Admin → Signup turns public `/signup` on or off and whether email confirmation is required before owner sign-in.
 - Tenant wipe removes that mall’s password-reset and email-verification rows (append-only elsewhere), then drops the store; wipe and other admin actions land in the admin audit.

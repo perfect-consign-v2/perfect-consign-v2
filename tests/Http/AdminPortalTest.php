@@ -55,8 +55,13 @@ final class AdminPortalTest extends TestCase
             $audit = $client->get('/admin/audit');
             self::assertStringContainsString('admin.sign_in', $audit->body);
 
+            $ownerId = $this->match(
+                $signedIn->body,
+                '#name="owner_id" value="([0-9a-fA-F-]{36})"#'
+            );
             $enterOwner = $client->post('/admin/tenants/' . $slug . '/enter', [
                 'role' => 'owner',
+                'owner_id' => $ownerId,
             ]);
             self::assertSame(200, $enterOwner->status);
             self::assertStringContainsString('Sell', $enterOwner->body);
@@ -107,7 +112,15 @@ final class AdminPortalTest extends TestCase
                 'email' => self::ADMIN_EMAIL,
                 'password' => self::ADMIN_PASSWORD,
             ]);
-            $client->post('/admin/tenants/' . $slug . '/enter', ['role' => 'owner']);
+            $tenantsAgain = $client->get('/admin/tenants');
+            $ownerIdAgain = $this->match(
+                $tenantsAgain->body,
+                '#name="owner_id" value="([0-9a-fA-F-]{36})"#'
+            );
+            $client->post('/admin/tenants/' . $slug . '/enter', [
+                'role' => 'owner',
+                'owner_id' => $ownerIdAgain,
+            ]);
             $client->post('/admin/logout', []);
             $mallAfterAdminLogout = $client->getWithoutRedirect('/' . $slug . '/dashboard');
             self::assertTrue(
@@ -241,9 +254,8 @@ final class AdminPortalTest extends TestCase
              SELECT uuidv7(), id, ?, ?, ?
              FROM platform.tenants
              WHERE slug = ?
-             ON CONFLICT (tenant_id) DO UPDATE
-                SET username = EXCLUDED.username,
-                    password_hash = EXCLUDED.password_hash'
+             ON CONFLICT (tenant_id, username) DO UPDATE
+                SET password_hash = EXCLUDED.password_hash'
         );
         $owner->execute(['owner', $hash, 'owner@example.test', $slug]);
         $role = \PerfectConsign\Shared\Tenant\TenantRecord::roleFor($slug, $schema);
@@ -314,5 +326,12 @@ final class AdminPortalTest extends TestCase
             $password,
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
+    }
+
+    private function match(string $html, string $pattern): string
+    {
+        self::assertSame(1, preg_match($pattern, $html, $match), $pattern);
+
+        return $match[1];
     }
 }

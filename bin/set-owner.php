@@ -53,9 +53,9 @@ $current = $pdo->prepare(
     'SELECT o.id, o.username, o.password_hash, o.email
      FROM platform.owners o
      INNER JOIN platform.tenants t ON t.id = o.tenant_id
-     WHERE t.slug = ?'
+     WHERE t.slug = ? AND o.username = ?'
 );
-$current->execute([$slug]);
+$current->execute([$slug, $username]);
 $existing = $current->fetch(PDO::FETCH_ASSOC);
 if (is_array($existing) && passwordMatches($password, $existing['password_hash'] ?? null)) {
     $sameUser = is_string($existing['username'] ?? null) && $existing['username'] === $username;
@@ -91,9 +91,8 @@ $statement = $pdo->prepare(
      SELECT uuidv7(), id, ?, ?, ?, clock_timestamp()
      FROM platform.tenants
      WHERE slug = ?
-     ON CONFLICT (tenant_id) DO UPDATE
-        SET username = EXCLUDED.username,
-            password_hash = EXCLUDED.password_hash,
+     ON CONFLICT (tenant_id, username) DO UPDATE
+        SET password_hash = EXCLUDED.password_hash,
             email = COALESCE(EXCLUDED.email, platform.owners.email),
             email_verified_at = COALESCE(platform.owners.email_verified_at, clock_timestamp()),
             credentials_version = platform.owners.credentials_version + 1'

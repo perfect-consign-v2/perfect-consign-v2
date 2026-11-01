@@ -129,6 +129,7 @@ final class DatabaseRefusal extends RuntimeException
             'wait_list_open_email_key' => 'That email is already on the wait list.',
             'sign_in_directory_email_key' => 'That email is already used on another sign-in.',
             'owners_email_key' => 'That email is already used on another sign-in.',
+            'owners_tenant_username_key' => 'That sign-in name is already used.',
         ];
         foreach ($names as $key => $sentence) {
             if (str_contains($raw, $key)) {

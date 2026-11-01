@@ -26,14 +26,14 @@ final class AdminEnterAs
     /**
      * @param array{id: string, email: string, version: string} $admin
      */
-    public function enter(array $admin, TenantRecord $tenant, string $role): string
+    public function enter(array $admin, TenantRecord $tenant, string $role, string $ownerId = ''): string
     {
         if ($role !== 'owner' && $role !== 'cashier' && $role !== 'manager') {
             throw new \InvalidArgumentException('Choose owner, cashier, or manager.');
         }
         $preserved = $this->admins->snapshot();
         if ($role === 'owner') {
-            return $this->asOwner($admin, $tenant, $preserved);
+            return $this->asOwner($admin, $tenant, $preserved, $ownerId);
         }
 
         return $this->asStaff($admin, $tenant, $preserved, $role);
@@ -43,14 +43,17 @@ final class AdminEnterAs
      * @param array{id: string, email: string, version: string} $admin
      * @param array{id: string, email: string, version: string, signed_in_at?: string, last_seen_at?: string} $preserved
      */
-    private function asOwner(array $admin, TenantRecord $tenant, array $preserved): string
+    private function asOwner(array $admin, TenantRecord $tenant, array $preserved, string $ownerId): string
     {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $ownerId) !== 1) {
+            throw new \InvalidArgumentException('Choose an owner.');
+        }
         $statement = $this->pdo->prepare(
-            'SELECT id::text AS id, username, credentials_version
+            'SELECT id::text AS id, username, credentials_version, can_sign_in
              FROM platform.owners
-             WHERE tenant_id = ?::uuid'
+             WHERE tenant_id = ?::uuid AND id = ?::uuid'
         );
-        $statement->execute([$tenant->id]);
+        $statement->execute([$tenant->id, $ownerId]);
         $row = $statement->fetch();
         if (!is_array($row)) {
             $this->audit->record(
@@ -67,11 +70,26 @@ final class AdminEnterAs
         $id = $row['id'] ?? null;
         $username = $row['username'] ?? null;
         $version = $row['credentials_version'] ?? null;
+        $canSignIn = $row['can_sign_in'] ?? null;
         if (is_int($version)) {
             $version = (string) $version;
         }
-        if (!is_string($id) || !is_string($username) || !is_string($version)) {
+        $allowed = $canSignIn === true || $canSignIn === 't' || $canSignIn === 'true' || $canSignIn === 1 || $canSignIn === '1';
+        $denied = $canSignIn === false || $canSignIn === 'f' || $canSignIn === 'false' || $canSignIn === 0 || $canSignIn === '0';
+        if (!is_string($id) || !is_string($username) || !is_string($version) || (!$allowed && !$denied)) {
             throw new \RuntimeException('the owner row is not usable');
+        }
+        if (!$allowed) {
+            $this->audit->record(
+                $admin['id'],
+                $admin['email'],
+                'tenant.enter_as_refused',
+                'refused',
+                $tenant->id,
+                $tenant->slug,
+                ['as_role' => 'owner', 'reason' => 'suspended_owner'],
+            );
+            throw new \InvalidArgumentException('That owner is suspended.');
         }
         $this->sessions->open($tenant->slug, $tenant->id, $username, 'owner', $id, $version, '', '');
         $this->admins->restore($preserved);

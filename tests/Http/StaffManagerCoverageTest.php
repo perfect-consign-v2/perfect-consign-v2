@@ -26,16 +26,18 @@ final class StaffManagerCoverageTest extends WebTestCase
     {
         $page = $this->client->get('/' . self::SLUG . '/staff');
         self::assertSees('People', $page);
-        self::assertSees('Add a manager', $page);
+        self::assertSees('Add a person', $page);
         $username = 'm' . bin2hex(random_bytes(4));
-        $refused = $this->client->post('/' . self::SLUG . '/staff/managers', [
+        $refused = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'manager',
             'display_name' => 'Manager',
             'username' => $username,
             'password' => 'short',
             'email' => $username . '@example.com',
         ]);
         self::assertSees('at least 8 characters', $refused);
-        $added = $this->client->post('/' . self::SLUG . '/staff/managers', [
+        $added = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'manager',
             'display_name' => 'Manager',
             'username' => $username,
             'password' => 'manager-pass',

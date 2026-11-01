@@ -26,6 +26,7 @@ final class StaffJournalOpeningTest extends WebTestCase
     {
         $username = 'c' . bin2hex(random_bytes(4));
         $short = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'cashier',
             'display_name' => 'Cash',
             'username' => $username,
             'password' => 'short',
@@ -33,6 +34,7 @@ final class StaffJournalOpeningTest extends WebTestCase
         ]);
         self::assertSees('at least 8 characters', $short);
         $added = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'cashier',
             'display_name' => 'Cash',
             'username' => $username,
             'password' => 'cashier1',
@@ -40,6 +42,7 @@ final class StaffJournalOpeningTest extends WebTestCase
         ]);
         self::assertSees('Cashier added.', $added);
         $again = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'cashier',
             'display_name' => 'Cash',
             'username' => $username,
             'password' => 'cashier1',
@@ -63,6 +66,7 @@ final class StaffJournalOpeningTest extends WebTestCase
     {
         $username = 'c' . bin2hex(random_bytes(4));
         $page = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'cashier',
             'display_name' => 'Cash',
             'username' => $username,
             'password' => 'cashier1',

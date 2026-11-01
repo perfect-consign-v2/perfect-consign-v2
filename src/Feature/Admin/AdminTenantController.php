@@ -36,8 +36,9 @@ final class AdminTenantController
             $this->app->redirect('/admin/tenants', null, 'That store was not found.');
         }
         $role = $this->app->request()->field('role');
+        $ownerId = $this->app->request()->field('owner_id');
         try {
-            $path = $this->enterAs->enter($admin, $tenant, $role);
+            $path = $this->enterAs->enter($admin, $tenant, $role, $ownerId);
         } catch (\InvalidArgumentException $error) {
             $this->app->redirect('/admin/tenants', null, $error->getMessage());
         }

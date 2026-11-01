@@ -85,6 +85,41 @@ final class StaffStoreTest extends TestCase
         }
     }
 
+    public function testSuspendAndRoleChangeNeedAMatchingFloorPerson(): void
+    {
+        $missing = $this->store(0);
+        try {
+            $missing->setCanSignIn('not-an-id', false);
+            self::fail('a blank person id was suspended');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a person.', $error->getMessage());
+        }
+        try {
+            $missing->setCanSignIn('01900000-0000-7000-8000-0000000000c1', false);
+            self::fail('a missing person was suspended');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a person.', $error->getMessage());
+        }
+        try {
+            $missing->changeRole('01900000-0000-7000-8000-0000000000c1', 'owner');
+            self::fail('an owner role was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose cashier, manager, or books.', $error->getMessage());
+        }
+        try {
+            $missing->changeRole('01900000-0000-7000-8000-0000000000c1', 'manager');
+            self::fail('a missing person role was changed');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('Choose a person.', $error->getMessage());
+        }
+        $saved = $this->store(1);
+        $saved->setCanSignIn('01900000-0000-7000-8000-0000000000c1', false);
+        $saved->setCanSignIn('01900000-0000-7000-8000-0000000000c1', true);
+        $saved->changeRole('01900000-0000-7000-8000-0000000000c1', 'manager');
+        $saved->changeRole('01900000-0000-7000-8000-0000000000c1', 'books');
+        $saved->changeRole('01900000-0000-7000-8000-0000000000c1', 'cashier');
+    }
+
     private string $lastRole = '';
 
     private function store(int $affected): StaffStore

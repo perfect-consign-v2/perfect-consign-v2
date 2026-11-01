@@ -76,6 +76,22 @@ final class ProbeMall
             self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'set-owner.php', [self::SLUG, self::USERNAME]);
         });
         self::resetMallMoney();
+        self::resetOwnerAccess();
+    }
+
+    /**
+     * Lifecycle tests may suspend the probe owner. Restore sign-in before the next HTTP suite.
+     */
+    public static function resetOwnerAccess(): void
+    {
+        $pdo = self::admin();
+        $statement = $pdo->prepare(
+            'UPDATE platform.owners o
+             SET can_sign_in = true
+             FROM platform.tenants t
+             WHERE t.id = o.tenant_id AND t.slug = ? AND o.username = ?'
+        );
+        $statement->execute([self::SLUG, self::USERNAME]);
     }
 
     /**

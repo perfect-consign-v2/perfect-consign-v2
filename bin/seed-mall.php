@@ -76,9 +76,8 @@ $owner = $pdo->prepare(
      SELECT uuidv7(), id, ?, ?, ?, CASE WHEN ?::text IS NULL THEN NULL ELSE clock_timestamp() END
      FROM platform.tenants
      WHERE slug = ?
-     ON CONFLICT (tenant_id) DO UPDATE
-        SET username = EXCLUDED.username,
-            password_hash = EXCLUDED.password_hash,
+     ON CONFLICT (tenant_id, username) DO UPDATE
+        SET password_hash = EXCLUDED.password_hash,
             email = COALESCE(EXCLUDED.email, platform.owners.email),
             email_verified_at = COALESCE(platform.owners.email_verified_at, EXCLUDED.email_verified_at)'
 );

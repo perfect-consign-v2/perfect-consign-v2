@@ -55,7 +55,7 @@ final class OwnerGate
         if ($owner === null) {
             return $this->staff->attempt($tenant, $username, $password, $this->request->address);
         }
-        if (!password_verify($password, $owner['hash'])) {
+        if (!$owner['can_sign_in'] || !password_verify($password, $owner['hash'])) {
             $this->staff->recordOwnerFailure($tenant, $username, $this->request->address);
             $this->logger->info('owner sign-in refused', ['slug' => $slug]);
 
@@ -75,12 +75,12 @@ final class OwnerGate
     }
 
     /**
-     * @return array{id: string, hash: string, version: string, verified: bool}|null
+     * @return array{id: string, hash: string, version: string, verified: bool, can_sign_in: bool}|null
      */
     private function owner(string $tenantId, string $username): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id::text AS id, password_hash, credentials_version, email_verified_at
+            'SELECT id::text AS id, password_hash, credentials_version, email_verified_at, can_sign_in
              FROM platform.owners
              WHERE tenant_id = ?::uuid AND username = ?'
         );
@@ -92,10 +92,17 @@ final class OwnerGate
         $id = $row['id'] ?? null;
         $hash = $row['password_hash'] ?? null;
         $version = $row['credentials_version'] ?? null;
+        $canSignIn = $this->flag($row['can_sign_in'] ?? null);
         if (is_int($version)) {
             $version = (string) $version;
         }
-        if (!is_string($id) || !is_string($hash) || !is_string($version) || ctype_digit($version) !== true) {
+        if (
+            !is_string($id)
+            || !is_string($hash)
+            || !is_string($version)
+            || ctype_digit($version) !== true
+            || $canSignIn === null
+        ) {
             return null;
         }
 
@@ -104,7 +111,23 @@ final class OwnerGate
             'hash' => $hash,
             'version' => $version,
             'verified' => $row['email_verified_at'] !== null,
+            'can_sign_in' => $canSignIn,
         ];
+    }
+
+    private function flag(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if ($value === 't' || $value === 'true' || $value === 1 || $value === '1') {
+            return true;
+        }
+        if ($value === 'f' || $value === 'false' || $value === 0 || $value === '0') {
+            return false;
+        }
+
+        return null;
     }
 
     public function signOut(): void

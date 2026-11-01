@@ -17,7 +17,7 @@ final class AdminTenantList
     }
 
     /**
-     * @return list<array{id: string, slug: string, displayName: string, mode: string, modeLabel: string}>
+     * @return list<array{id: string, slug: string, displayName: string, mode: string, modeLabel: string, owners: list<array{id: string, username: string}>}>
      */
     public function all(): array
     {
@@ -48,10 +48,39 @@ final class AdminTenantList
                 'displayName' => $name,
                 'mode' => $mode,
                 'modeLabel' => $this->label($mode),
+                'owners' => $this->owners($id),
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<array{id: string, username: string}>
+     */
+    private function owners(string $tenantId): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT id::text AS id, username
+             FROM platform.owners
+             WHERE tenant_id = ?::uuid
+             ORDER BY lower(username)'
+        );
+        $statement->execute([$tenantId]);
+        $owners = [];
+        while ($row = $statement->fetch()) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $id = $row['id'] ?? null;
+            $username = $row['username'] ?? null;
+            if (!is_string($id) || !is_string($username)) {
+                continue;
+            }
+            $owners[] = ['id' => $id, 'username' => $username];
+        }
+
+        return $owners;
     }
 
     public function find(string $slug): ?TenantRecord

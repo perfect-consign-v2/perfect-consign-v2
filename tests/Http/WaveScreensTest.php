@@ -88,6 +88,6 @@ final class WaveScreensTest extends WebTestCase
         $page = $this->client->get('/' . ProbeMall::SLUG . '/staff');
 
         self::assertSame(200, $page->status);
-        self::assertSees('Add a cashier', $page);
+        self::assertSees('Add a person', $page);
     }
 }

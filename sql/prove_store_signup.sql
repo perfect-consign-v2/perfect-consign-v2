@@ -112,13 +112,15 @@ BEGIN
         'signup-owner@example.test',
         NULL
     )
-    ON CONFLICT (tenant_id) DO UPDATE
+    ON CONFLICT (tenant_id, username) DO UPDATE
         SET email = EXCLUDED.email,
             email_verified_at = NULL
     RETURNING id INTO owner_id;
 
     IF owner_id IS NULL THEN
-        SELECT id INTO owner_id FROM platform.owners WHERE tenant_id = mall_id;
+        SELECT id INTO owner_id
+        FROM platform.owners
+        WHERE tenant_id = mall_id AND username = 'signupowner';
     END IF;
 
     IF (SELECT email_verified_at FROM platform.owners WHERE id = owner_id) IS NOT NULL THEN

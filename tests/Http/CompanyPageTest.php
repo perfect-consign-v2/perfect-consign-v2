@@ -77,6 +77,7 @@ final class CompanyPageTest extends WebTestCase
     {
         $username = 'c' . bin2hex(random_bytes(4));
         $added = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'cashier',
             'display_name' => 'Company Cashier',
             'username' => $username,
             'password' => 'cashier-pass',

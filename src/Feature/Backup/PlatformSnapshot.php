@@ -27,27 +27,30 @@ final class PlatformSnapshot
     }
 
     /**
-     * @return array{id: string, username: string, password_hash: string, created_at: string}|null
+     * @return list<array{id: string, username: string, password_hash: string, created_at: string}>
      */
-    public function owner(PDO $pdo, string $tenantId): ?array
+    public function owners(PDO $pdo, string $tenantId): array
     {
         $statement = $pdo->prepare(
-            'SELECT id, username, password_hash, created_at FROM platform.owners WHERE tenant_id = ?::uuid'
+            'SELECT id, username, password_hash, created_at
+             FROM platform.owners
+             WHERE tenant_id = ?::uuid
+             ORDER BY lower(username)'
         );
         $statement->execute([$tenantId]);
-        $row = $statement->fetch(PDO::FETCH_ASSOC);
-        if ($row === false) {
-            return null;
+        $owners = [];
+        while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+            $owners[] = $this->ownerRow($row);
         }
 
-        return $this->ownerRow($row);
+        return $owners;
     }
 
     /**
      * @param array{id: string, slug: string, schema: string, display_name: string, created_at: string} $tenant
-     * @param array{id: string, username: string, password_hash: string, created_at: string}|null $owner
+     * @param list<array{id: string, username: string, password_hash: string, created_at: string}> $owners
      */
-    public function platformSql(PDO $pdo, array $tenant, ?array $owner): string
+    public function platformSql(PDO $pdo, array $tenant, array $owners): string
     {
         $sql = 'INSERT INTO platform.tenants (id, slug, schema_name, display_name, created_at) VALUES ('
             . $this->quote($pdo, $tenant['id']) . ', '
@@ -56,22 +59,22 @@ final class PlatformSnapshot
             . $this->quote($pdo, $tenant['display_name']) . ', '
             . $this->quote($pdo, $tenant['created_at'])
             . ");\n";
-        if ($owner === null) {
-            return $sql;
+        foreach ($owners as $owner) {
+            $sql .= $this->ownerSql($pdo, $tenant['id'], $owner);
         }
 
-        return $sql . $this->ownerSql($pdo, $tenant['id'], $owner);
+        return $sql;
     }
 
     /**
      * @param array{id: string, slug: string, schema: string, display_name: string, created_at: string} $tenant
-     * @param array{id: string, username: string, password_hash: string, created_at: string}|null $owner
+     * @param list<array{id: string, username: string, password_hash: string, created_at: string}> $owners
      */
     public function manifest(
         string $backupId,
         string $takenAt,
         array $tenant,
-        ?array $owner,
+        array $owners,
         string $version,
         string $schemaHash,
     ): string {
@@ -81,15 +84,16 @@ final class PlatformSnapshot
             . 'slug=' . $tenant['slug'] . "\n"
             . 'schema=' . $tenant['schema'] . "\n"
             . 'postgres=' . $version . "\n"
-            . 'schema_sha256=' . $schemaHash . "\n";
-        if ($owner === null) {
-            return $text;
+            . 'schema_sha256=' . $schemaHash . "\n"
+            . 'owner_count=' . (string) count($owners) . "\n";
+        foreach ($owners as $index => $owner) {
+            $prefix = 'owner.' . (string) $index . '.';
+            $text .= $prefix . 'id=' . $owner['id'] . "\n"
+                . $prefix . 'username=' . $owner['username'] . "\n"
+                . $prefix . 'password_hash=' . $owner['password_hash'] . "\n";
         }
 
-        return $text
-            . 'owner_id=' . $owner['id'] . "\n"
-            . 'owner_username=' . $owner['username'] . "\n"
-            . 'owner_password_hash=' . $owner['password_hash'] . "\n";
+        return $text;
     }
 
     /**

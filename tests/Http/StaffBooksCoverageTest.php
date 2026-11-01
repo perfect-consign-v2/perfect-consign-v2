@@ -25,21 +25,24 @@ final class StaffBooksCoverageTest extends WebTestCase
     public function testABooksLoginIsAddedAndABadPasswordIsRefused(): void
     {
         $username = 'b' . bin2hex(random_bytes(4));
-        $refused = $this->client->post('/' . self::SLUG . '/staff/books', [
+        $refused = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'books',
             'display_name' => 'Books',
             'username' => $username,
             'password' => 'short',
             'email' => $username . '@example.com',
         ]);
         self::assertSees('at least 8 characters', $refused);
-        $added = $this->client->post('/' . self::SLUG . '/staff/books', [
+        $added = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'books',
             'display_name' => 'Books',
             'username' => $username,
             'password' => 'books-pass',
             'email' => $username . '@example.com',
         ]);
         self::assertSees('Books login added.', $added);
-        $again = $this->client->post('/' . self::SLUG . '/staff/books', [
+        $again = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'books',
             'display_name' => 'Books',
             'username' => $username,
             'password' => 'books-pass',

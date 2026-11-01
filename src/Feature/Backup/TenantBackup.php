@@ -81,11 +81,11 @@ final class TenantBackup
     ): BackupFile {
         $snapshot = $this->snapshot($pdo);
         $tenant = $this->platform->tenant($pdo, $slug);
-        $owner = $this->platform->owner($pdo, $tenant['id']);
+        $owners = $this->platform->owners($pdo, $tenant['id']);
         $backupId = $this->backupId($pdo);
         $directory = $this->workspace->make($backupId);
         $schemaHash = $this->dumpSchema($connection, $tenant['schema'], $snapshot, $directory);
-        $this->writeNotes($pdo, $directory, $backupId, $takenAt, $tenant, $owner, $schemaHash);
+        $this->writeNotes($pdo, $directory, $backupId, $takenAt, $tenant, $owners, $schemaHash);
 
         return $this->package($directory, $slug, $takenAt, $backupId);
     }
@@ -100,7 +100,7 @@ final class TenantBackup
 
     /**
      * @param array{id: string, slug: string, schema: string, display_name: string, created_at: string} $tenant
-     * @param array{id: string, username: string, password_hash: string, created_at: string}|null $owner
+     * @param list<array{id: string, username: string, password_hash: string, created_at: string}> $owners
      */
     private function writeNotes(
         PDO $pdo,
@@ -108,17 +108,17 @@ final class TenantBackup
         string $backupId,
         DateTimeImmutable $takenAt,
         array $tenant,
-        ?array $owner,
+        array $owners,
         string $schemaHash,
     ): void {
         $platformPath = $directory . DIRECTORY_SEPARATOR . 'platform.sql';
-        $this->workspace->write($platformPath, $this->platform->platformSql($pdo, $tenant, $owner));
+        $this->workspace->write($platformPath, $this->platform->platformSql($pdo, $tenant, $owners));
         $manifestPath = $directory . DIRECTORY_SEPARATOR . 'manifest.txt';
         $this->workspace->write($manifestPath, $this->platform->manifest(
             $backupId,
             $takenAt->format('Y-m-d\TH:i:s\Z'),
             $tenant,
-            $owner,
+            $owners,
             $this->version($pdo),
             $schemaHash
         ));

@@ -73,8 +73,8 @@ final class TenantBackupPartsTest extends TestCase
         self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $hash);
 
         $tenant = (new PlatformSnapshot())->tenant($pdo, ProbeMall::SLUG);
-        $owner = (new PlatformSnapshot())->owner($pdo, $tenant['id']);
-        $this->call($backup, 'writeNotes', $pdo, $directory, $id, new \DateTimeImmutable('2026-10-07 00:00:00+00'), $tenant, $owner, $hash);
+        $owners = (new PlatformSnapshot())->owners($pdo, $tenant['id']);
+        $this->call($backup, 'writeNotes', $pdo, $directory, $id, new \DateTimeImmutable('2026-10-07 00:00:00+00'), $tenant, $owners, $hash);
         $file = $this->call($backup, 'package', $directory, ProbeMall::SLUG, new \DateTimeImmutable('2026-10-07 00:00:00+00'), $id);
         self::assertInstanceOf(BackupFile::class, $file);
         self::assertFileExists($file->path);

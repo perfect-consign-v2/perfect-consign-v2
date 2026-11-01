@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
-/** @var list<array{id: string, slug: string, displayName: string, mode: string, modeLabel: string}> $tenants */
+/** @var list<array{id: string, slug: string, displayName: string, mode: string, modeLabel: string, owners: list<array{id: string, username: string}>}> $tenants */
 ?>
 <h1>Tenants</h1>
 <div class="card">
@@ -38,11 +38,14 @@ use PerfectConsign\Shared\Http\View;
                             <td><?= View::text($tenant['modeLabel']) ?></td>
                             <td>
                                 <div class="row gap-2" data-style-prop="justify-content:flex-end; flex-wrap:wrap">
-                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
-                                        <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                                        <input type="hidden" name="role" value="owner">
-                                        <button class="btn btn-sm" type="submit">Enter as owner</button>
-                                    </form>
+                                    <?php foreach ($tenant['owners'] as $owner): ?>
+                                        <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
+                                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                            <input type="hidden" name="role" value="owner">
+                                            <input type="hidden" name="owner_id" value="<?= View::text($owner['id']) ?>">
+                                            <button class="btn btn-sm" type="submit">Enter as <?= View::text($owner['username']) ?></button>
+                                        </form>
+                                    <?php endforeach; ?>
                                     <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
                                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                         <input type="hidden" name="role" value="cashier">

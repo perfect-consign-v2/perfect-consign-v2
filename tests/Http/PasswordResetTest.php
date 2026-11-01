@@ -43,6 +43,7 @@ final class PasswordResetTest extends WebTestCase
         $username = 'c' . bin2hex(random_bytes(4));
         $email = $username . '@example.com';
         $added = $owner->post('/' . $slug . '/staff', [
+            'role' => 'cashier',
             'username' => $username,
             'display_name' => 'Reset Cashier',
             'password' => 'cashier-pass',

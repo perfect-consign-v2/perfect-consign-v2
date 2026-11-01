@@ -205,36 +205,17 @@ final class StoreSignup
             $base = substr($base, 0, 63);
             $base = rtrim($base, '-');
         }
-        $candidate = $base;
-        $suffix = 2;
-        while ($this->usernameTaken($candidate)) {
-            $tail = (string) $suffix;
-            $cut = 63 - strlen($tail);
-            if ($cut < 1) {
-                throw new RuntimeException('That store could not be created.');
-            }
-            $candidate = substr($base, 0, $cut) . $tail;
-            $suffix++;
-            if ($suffix > 9999) {
-                throw new RuntimeException('That store could not be created.');
-            }
+        if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $base) !== 1) {
+            throw new RuntimeException('That store could not be created.');
         }
 
-        return $candidate;
+        return $base;
     }
 
     private function slugTaken(string $slug): bool
     {
         $statement = $this->pdo->prepare('SELECT 1 FROM platform.tenants WHERE slug = ?');
         $statement->execute([$slug]);
-
-        return $statement->fetchColumn() !== false;
-    }
-
-    private function usernameTaken(string $username): bool
-    {
-        $statement = $this->pdo->prepare('SELECT 1 FROM platform.owners WHERE username = ?');
-        $statement->execute([$username]);
 
         return $statement->fetchColumn() !== false;
     }
@@ -295,7 +276,9 @@ final class StoreSignup
             'SELECT o.id::text
              FROM platform.owners o
              INNER JOIN platform.tenants t ON t.id = o.tenant_id
-             WHERE t.slug = ?'
+             WHERE t.slug = ?
+             ORDER BY o.created_at ASC, o.username ASC
+             LIMIT 1'
         );
         $statement->execute([$slug]);
         $id = $statement->fetchColumn();
