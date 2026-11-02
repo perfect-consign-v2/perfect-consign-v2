@@ -1,0 +1,38 @@
+name: seed-demo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seed-demo
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Seed mall and shop on the demo host
+        env:
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
+          DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
+          DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+          DEMO_SSH_KNOWN_HOSTS: ${{ secrets.DEMO_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in DEMO_SSH_HOST DEMO_SSH_USER DEMO_SSH_KEY DEMO_SSH_KNOWN_HOSTS; do
+            if [[ -z "${!name}" ]]; then
+              echo "seed-demo: missing ${name}" >&2
+              exit 1
+            fi
+          done
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEMO_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          umask 077
+          printf '%s\n' "$DEMO_SSH_KEY" > ~/.ssh/demo_key
+          ssh -i ~/.ssh/demo_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
+            'cd "$HOME" && /opt/plesk/php/8.5/bin/php bin/seed-mall.php && /opt/plesk/php/8.5/bin/php bin/set-owner.php mall owner'

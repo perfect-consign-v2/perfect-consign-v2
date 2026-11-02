@@ -42,6 +42,18 @@ final class DeployDemoScriptTest extends TestCase
         );
     }
 
+    public function testSeedDemoWorkflowRunsSeedMallOnTheHost(): void
+    {
+        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . '.github' . DIRECTORY_SEPARATOR . 'workflows' . DIRECTORY_SEPARATOR . 'seed-demo.yml';
+        self::assertFileExists($path);
+        $yaml = file_get_contents($path);
+        self::assertIsString($yaml);
+        self::assertStringContainsString('workflow_dispatch', $yaml);
+        self::assertStringContainsString('bin/seed-mall.php', $yaml);
+        self::assertStringContainsString('set-owner.php mall owner', $yaml);
+        self::assertStringContainsString('/opt/plesk/php/8.5/bin/php', $yaml);
+    }
+
     public function testDeployDoesNotRequireAPasswordChangeWhenOwnerAlreadyMatches(): void
     {
         $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
