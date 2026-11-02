@@ -11,11 +11,12 @@ final class ShopTenantReset
 {
     public const SLUG = 'shop';
 
-    public function load(): string
+    public function load(?PDO $pdo = null): string
     {
-        $connection = LocalAdmin::open();
         $this->requireTools();
-        $pdo = $connection->pdo();
+        if ($pdo === null) {
+            $pdo = LocalAdmin::open()->pdo();
+        }
         \wipeTenant($pdo, self::SLUG, self::SLUG);
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Consignment');
