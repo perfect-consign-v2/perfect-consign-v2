@@ -28,6 +28,7 @@ final class SchemaCatalog
         '065_stall_app_vendor_grant.sql',
         '066_co_owners.sql',
         '068_owner_can_sign_in.sql',
+        '070_wipe_tenant_no_superuser.sql',
     ];
 
     public function __construct(private readonly string $directory)
