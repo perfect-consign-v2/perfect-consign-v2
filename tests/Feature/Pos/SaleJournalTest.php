@@ -215,6 +215,26 @@ final class SaleJournalTest extends TestCase
         ], 'v1', $credit));
     }
 
+    public function testAStoreReturnWithNoNetSaleSkipsSalesButStillRestocks(): void
+    {
+        $ledger = $this->ledger();
+        $credit = ['account_id' => 'acct-cash', 'debit' => 0, 'credit' => 200, 'subledger_type' => null, 'subledger_ref' => null];
+        $lines = SaleJournal::giveBack($ledger, [
+            'price' => 1000,
+            'commission' => 0,
+            'tax' => 0,
+            'discount' => 1000,
+            'store_discount' => 0,
+            'placement' => 'store',
+            'cost' => 200,
+        ], 'v1', $credit, 0);
+        $accounts = array_map(static fn (array $line): string => $line['account_id'], $lines);
+
+        self::assertNotContains('acct-store_sales', $accounts);
+        self::assertContains('acct-inventory', $accounts);
+        self::assertContains('acct-cost_of_goods', $accounts);
+    }
+
     public function testAStoreReturnDoesNotTouchVendorBalances(): void
     {
         $ledger = $this->ledger();

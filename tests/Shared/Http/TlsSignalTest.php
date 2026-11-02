@@ -19,6 +19,14 @@ final class TlsSignalTest extends TestCase
             'REMOTE_ADDR' => '203.0.113.10',
             'HTTP_X_FORWARDED_PROTO' => 'https',
         ], '10.0.0.1'));
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => 203,
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '10.0.0.1'));
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '10.0.0.1'));
     }
 
     public function testTrustedProxyHonorsLeftmostForwardedProto(): void
@@ -52,5 +60,69 @@ final class TlsSignalTest extends TestCase
             'REMOTE_ADDR' => '203.0.113.10',
             'HTTP_X_FORWARDED_PROTO' => 'http',
         ], ''));
+        self::assertFalse(TlsSignal::secure([
+            'HTTPS' => 'off',
+            'REMOTE_ADDR' => '203.0.113.10',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], ''));
+    }
+
+    public function testEmptyForwardedProtoFromTrustedPeerIsIgnored(): void
+    {
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '10.0.0.1',
+            'HTTP_X_FORWARDED_PROTO' => '',
+        ], '10.0.0.1'));
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '10.0.0.1',
+        ], '10.0.0.1'));
+    }
+
+    public function testInvalidCidrMaskIsRefused(): void
+    {
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '10.0.0.5',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '10.0.0.0/33'));
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '10.0.0.5',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '10.0.0.0/-1'));
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '10.0.0.5',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '10.0.0.0'));
+    }
+
+    public function testCidrBoundaryMasks(): void
+    {
+        self::assertTrue(TlsSignal::secure([
+            'REMOTE_ADDR' => '203.0.113.44',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '203.0.113.44/32'));
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '203.0.113.45',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '203.0.113.44/32'));
+        self::assertTrue(TlsSignal::secure([
+            'REMOTE_ADDR' => '198.51.100.9',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '0.0.0.0/0'));
+    }
+
+    public function testIpv6PeerDoesNotMatchIpv4Cidr(): void
+    {
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '::1',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '10.0.0.0/8'));
+    }
+
+    public function testWhitespaceOnlyAllowlistIsUntrusted(): void
+    {
+        self::assertFalse(TlsSignal::secure([
+            'REMOTE_ADDR' => '10.0.0.1',
+            'HTTP_X_FORWARDED_PROTO' => 'https',
+        ], '   '));
     }
 }

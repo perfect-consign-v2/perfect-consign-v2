@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Feature\Admin;
 
 use PerfectConsign\Feature\Admin\AppLogFile;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class AppLogFileTest extends TestCase
 {
@@ -58,6 +59,71 @@ final class AppLogFileTest extends TestCase
             self::assertTrue($snapshot['truncated']);
             self::assertStringContainsString('KEEP-ME', $snapshot['body']);
             self::assertStringNotContainsString(str_repeat('A', 120), $snapshot['body']);
+        } finally {
+            if ($prior === false) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            } else {
+                file_put_contents($path, $prior, LOCK_EX);
+            }
+        }
+    }
+
+    public function testSnapshotRefusesAZeroByteTailLimit(): void
+    {
+        $log = new AppLogFile();
+        try {
+            $log->snapshot(0);
+            self::fail('a zero tail limit was accepted');
+        } catch (RuntimeException $error) {
+            self::assertSame('Log tail size must be at least 1 byte.', $error->getMessage());
+        }
+    }
+
+    public function testSnapshotDoesNotTruncateWhenTheFileMatchesTheTailLimit(): void
+    {
+        $log = new AppLogFile();
+        $path = $log->path();
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            self::fail('could not create log directory');
+        }
+        $prior = is_file($path) ? file_get_contents($path) : false;
+        $payload = str_repeat('B', 40);
+        try {
+            self::assertNotFalse(file_put_contents($path, $payload, LOCK_EX));
+            $snapshot = $log->snapshot(40);
+            self::assertFalse($snapshot['truncated']);
+            self::assertSame($payload, $snapshot['body']);
+            self::assertSame(40, $snapshot['bytes']);
+        } finally {
+            if ($prior === false) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            } else {
+                file_put_contents($path, $prior, LOCK_EX);
+            }
+        }
+    }
+
+    public function testClearCreatesAnEmptyLogWhenTheFileIsMissing(): void
+    {
+        $log = new AppLogFile();
+        $path = $log->path();
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            self::fail('could not create log directory');
+        }
+        $prior = is_file($path) ? file_get_contents($path) : false;
+        if (is_file($path)) {
+            unlink($path);
+        }
+        try {
+            $log->clear();
+            self::assertSame(0, $log->byteCount());
+            self::assertSame('', $log->snapshot()['body']);
         } finally {
             if ($prior === false) {
                 if (is_file($path)) {

@@ -7,6 +7,7 @@ namespace PerfectConsign\Tests\Shared\Mail;
 use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\SmtpClient;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 final class SmtpStageTest extends TestCase
 {
@@ -39,6 +40,20 @@ final class SmtpStageTest extends TestCase
         self::assertSame(421, $failed->status());
         self::assertSame('rcpt', $failed->stage());
         self::assertFalse($failed->permanent());
+    }
+
+    public function testMessageIdDomainComesFromFromAddress(): void
+    {
+        $payload = new ReflectionMethod(SmtpClient::class, 'payload');
+        $client = new SmtpClient('127.0.0.1', 587, 'shop@example.test', 'secret', 'shop@example.test');
+        $text = $payload->invoke($client, 'shop@example.test', 'ada@example.test', 'Sold', "line\n");
+        self::assertIsString($text);
+        self::assertMatchesRegularExpression('/Message-ID: <[0-9a-f]{32}@example\.test>/', $text);
+
+        $fallback = new SmtpClient('127.0.0.1', 587, 'shop', 'secret', 'shop');
+        $plain = $payload->invoke($fallback, 'shop', 'ada@example.test', 'Sold', 'line');
+        self::assertIsString($plain);
+        self::assertMatchesRegularExpression('/Message-ID: <[0-9a-f]{32}@localhost>/', $plain);
     }
 
     private function stage(string $mode, int $port): MailDeliveryFailed

@@ -39,4 +39,38 @@ final class MissingPageExpiredFormTest extends TestCase
             self::assertStringContainsString('Form expired', $body);
         }
     }
+
+    public function testExpiredFormShowsMallNavOnlyWhenHomeIsSet(): void
+    {
+        $page = (new ReflectionClass(MissingPage::class))->newInstanceWithoutConstructor();
+        (new ReflectionProperty(MissingPage::class, 'view'))->setValue(
+            $page,
+            new View(dirname(__DIR__, 3) . '/src')
+        );
+        (new ReflectionProperty(MissingPage::class, 'request'))->setValue(
+            $page,
+            new Request('POST', '/demo/logout', [], [])
+        );
+
+        ob_start();
+        try {
+            $page->expiredForm('csrf-token', 'demo');
+            self::fail('expired form must stop the response');
+        } catch (ResponseSent) {
+            $withHome = ob_get_clean();
+            self::assertIsString($withHome);
+            self::assertStringContainsString('class="app"', $withHome);
+        }
+
+        ob_start();
+        try {
+            $page->expiredForm('csrf-token', '');
+            self::fail('expired form must stop the response');
+        } catch (ResponseSent) {
+            $withoutHome = ob_get_clean();
+            self::assertIsString($withoutHome);
+            self::assertStringNotContainsString('class="app"', $withoutHome);
+            self::assertStringContainsString('The form expired. Go back and try again.', $withoutHome);
+        }
+    }
 }

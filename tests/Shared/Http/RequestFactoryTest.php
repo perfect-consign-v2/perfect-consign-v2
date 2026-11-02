@@ -134,6 +134,68 @@ final class RequestFactoryTest extends TestCase
         self::assertSame('/foo', $absolute->path);
     }
 
+    public function testInvalidRequestMethodFallsBackToGet(): void
+    {
+        $this->setEnv('STALL_PUBLIC_ORIGIN', 'http://127.0.0.1');
+        $empty = RequestFactory::from([
+            'REQUEST_METHOD' => '',
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => '127.0.0.1',
+            'REMOTE_ADDR' => '127.0.0.1',
+        ], [], [], [], '');
+        self::assertSame('GET', $empty->method);
+        $nonString = RequestFactory::from([
+            'REQUEST_METHOD' => 1,
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => '127.0.0.1',
+            'REMOTE_ADDR' => '127.0.0.1',
+        ], [], [], [], '');
+        self::assertSame('GET', $nonString->method);
+    }
+
+    public function testInvalidRemoteAddressIsBlank(): void
+    {
+        $this->setEnv('STALL_PUBLIC_ORIGIN', 'http://127.0.0.1');
+        $request = RequestFactory::from([
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => '127.0.0.1',
+            'REMOTE_ADDR' => 'not an address!',
+        ], [], [], [], '');
+        self::assertSame('', $request->address);
+        $missing = RequestFactory::from([
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => '127.0.0.1',
+            'REMOTE_ADDR' => 127,
+        ], [], [], [], '');
+        self::assertSame('', $missing->address);
+    }
+
+    public function testAcceptHeaderIsTruncated(): void
+    {
+        $this->setEnv('STALL_PUBLIC_ORIGIN', 'http://127.0.0.1');
+        $long = str_repeat('a', 1100);
+        $request = RequestFactory::from([
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => '127.0.0.1',
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_ACCEPT' => $long,
+        ], [], [], [], '');
+        self::assertSame(1024, strlen($request->accept));
+        self::assertSame(substr($long, 0, 1024), $request->accept);
+
+        $nonString = RequestFactory::from([
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => '127.0.0.1',
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_ACCEPT' => ['text/html'],
+        ], [], [], [], '');
+        self::assertSame('', $nonString->accept);
+    }
+
     public function testHttpsRequestRejectsHttpRefererPath(): void
     {
         $this->setEnv('STALL_PUBLIC_ORIGIN', 'https://mall.example');

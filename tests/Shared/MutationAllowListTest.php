@@ -34,6 +34,10 @@ final class MutationAllowListTest extends TestCase
         self::assertNotNull(equivalentReason('src\\Feature\\Pos\\pos.php', 92, '>=', '>'));
         self::assertNotNull(equivalentReason('src\\Ledger\\CashRound.php', 31, '<', '<='));
         self::assertNotNull(equivalentReason('src\\Feature\\Password\\LoginAccounts.php', 79, '!', ''));
+        self::assertNotNull(equivalentReason('src\\Bootstrap\\RegisterFeatures.php', 192, '!', ''));
+        self::assertNotNull(equivalentReason('src\\Bootstrap\\RegisterFeatures.php', 192, '&&', '||'));
+        self::assertNotNull(equivalentReason('src\\Feature\\Admin\\AppLogFile.php', 83, '!', ''));
+        self::assertNotNull(equivalentReason('src\\Feature\\Admin\\AppLogFile.php', 83, '&&', '||'));
 
         $windows = relative(
             'C:\\laragon\\www\\perfect-consign',

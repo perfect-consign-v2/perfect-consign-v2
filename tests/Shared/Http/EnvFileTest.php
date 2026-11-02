@@ -39,4 +39,31 @@ final class EnvFileTest extends TestCase
         $vars = EnvFile::parse("STALL_APP_PASSWORD= abc \n");
         self::assertSame('abc', $vars['STALL_APP_PASSWORD'] ?? null);
     }
+
+    public function testBlankLinesAndCommentsAreIgnored(): void
+    {
+        $vars = EnvFile::parse("# ignore\n\nSTALL_APP_PASSWORD=secret\n# tail\n");
+        self::assertSame(['STALL_APP_PASSWORD' => 'secret'], $vars);
+    }
+
+    public function testInvalidKeysAreIgnored(): void
+    {
+        $vars = EnvFile::parse("9bad=secret\nSTALL_APP_PASSWORD=ok\n-no=pe\n");
+        self::assertSame(['STALL_APP_PASSWORD' => 'ok'], $vars);
+    }
+
+    public function testEscapedQuotesInsideQuotedValues(): void
+    {
+        $vars = EnvFile::parse('STALL_APP_PASSWORD="say \"hi\""' . "\n");
+        self::assertSame('say "hi"', $vars['STALL_APP_PASSWORD'] ?? null);
+
+        $vars = EnvFile::parse("STALL_APP_PASSWORD='it\\'s fine'\n");
+        self::assertSame("it's fine", $vars['STALL_APP_PASSWORD'] ?? null);
+    }
+
+    public function testTrailingBackslashWithoutEscapeTargetIsLiteral(): void
+    {
+        $vars = EnvFile::parse("STALL_APP_PASSWORD=\"end\\\\\"\n");
+        self::assertSame('end\\', $vars['STALL_APP_PASSWORD'] ?? null);
+    }
 }

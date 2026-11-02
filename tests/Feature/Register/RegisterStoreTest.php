@@ -215,6 +215,23 @@ final class RegisterStoreTest extends TestCase
         self::assertFalse($this->store($this->createStub(Statements::class))->drawerSource('opening'));
     }
 
+    public function testLocalTimeIgnoresBlankAndNonStringValues(): void
+    {
+        $mallRows = $this->createStub(Statements::class);
+        $mallRows->method('rows')->willReturn([['time_zone' => 'UTC']]);
+        $mall = new MallSettings(
+            $mallRows,
+            (new ReflectionClass(\PerfectConsign\Feature\Company\CompanyStore::class))->newInstanceWithoutConstructor(),
+            new \PerfectConsign\Feature\Mall\MallDay($mallRows),
+        );
+        $activity = new RegisterActivity($this->createStub(Statements::class), new MallClock($mall));
+
+        self::assertSame('', $activity->local(''));
+        self::assertSame('', $activity->local(4));
+        self::assertStringContainsString('2026', $activity->local('2026-01-02 17:00:00'));
+        self::assertStringNotContainsString('17:00:00', $activity->local('2026-01-02 17:00:00'));
+    }
+
     public function testZTapeExpectedCashLabelsLayawayDepositWithoutUnderscore(): void
     {
         $statements = $this->createStub(Statements::class);

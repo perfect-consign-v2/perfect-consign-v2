@@ -61,6 +61,84 @@ final class PlatformOperatorNoticeTest extends TestCase
         }
     }
 
+    public function testMailFailureSkipsReservedContextKeysInTheEmail(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pc-op-ctx-');
+        if ($path === false) {
+            self::fail('the mail file could not be created');
+        }
+        $previousFile = getenv('STALL_MAIL_FILE');
+        $previousAdmin = getenv('STALL_PLATFORM_ADMIN_EMAIL');
+        putenv('STALL_MAIL_FILE=' . $path);
+        putenv('STALL_PLATFORM_ADMIN_EMAIL=ops@example.com');
+        $log = new class extends AbstractLogger {
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+            }
+        };
+        try {
+            (new PlatformOperatorNotice($log))->mailFailed('test purpose', new \RuntimeException('boom'), [
+                'message' => 'hidden',
+                'status' => 'hidden',
+                'stage' => 'hidden',
+                'slug' => 'mall',
+            ]);
+            $text = file_get_contents($path);
+            self::assertIsString($text);
+            self::assertStringContainsString('slug: mall', $text);
+            self::assertStringNotContainsString('hidden', $text);
+        } finally {
+            if (is_string($previousFile) && $previousFile !== '') {
+                putenv('STALL_MAIL_FILE=' . $previousFile);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+            if (is_string($previousAdmin) && $previousAdmin !== '') {
+                putenv('STALL_PLATFORM_ADMIN_EMAIL=' . $previousAdmin);
+            } else {
+                putenv('STALL_PLATFORM_ADMIN_EMAIL');
+            }
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    public function testInvalidPlatformAdminEmailSkipsAlert(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'pc-op-admin-');
+        if ($path === false) {
+            self::fail('the mail file could not be created');
+        }
+        $previousFile = getenv('STALL_MAIL_FILE');
+        $previousAdmin = getenv('STALL_PLATFORM_ADMIN_EMAIL');
+        putenv('STALL_MAIL_FILE=' . $path);
+        putenv('STALL_PLATFORM_ADMIN_EMAIL=not-an-email');
+        $log = new class extends AbstractLogger {
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+            }
+        };
+        try {
+            (new PlatformOperatorNotice($log))->serverFailed('summary only', []);
+            self::assertSame('', file_get_contents($path));
+        } finally {
+            if (is_string($previousFile) && $previousFile !== '') {
+                putenv('STALL_MAIL_FILE=' . $previousFile);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+            if (is_string($previousAdmin) && $previousAdmin !== '') {
+                putenv('STALL_PLATFORM_ADMIN_EMAIL=' . $previousAdmin);
+            } else {
+                putenv('STALL_PLATFORM_ADMIN_EMAIL');
+            }
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
     public function testAServerFailureEmailsThePlatformAdmin(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'pc-op-');

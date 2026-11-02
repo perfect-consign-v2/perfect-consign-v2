@@ -468,6 +468,22 @@ final class SurvivorPinsTest extends TestCase
         self::assertSame('server', (new ReceiptMailSettings($statements))->via());
     }
 
+    public function testReceiptMailPasswordPresenceRequiresANonEmptyString(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturnOnConsecutiveCalls(
+            [['gmail_app_password' => 'secret']],
+            [['gmail_app_password' => '']],
+            [['gmail_app_password' => null]],
+            [['gmail_app_password' => 1]],
+        );
+
+        self::assertTrue((new ReceiptMailSettings($statements))->hasGmailPassword());
+        self::assertFalse((new ReceiptMailSettings($statements))->hasGmailPassword());
+        self::assertFalse((new ReceiptMailSettings($statements))->hasGmailPassword());
+        self::assertFalse((new ReceiptMailSettings($statements))->hasGmailPassword());
+    }
+
     public function testAZoneWithoutACityKeepsTheRawName(): void
     {
         self::assertSame('Pacific Time (Los Angeles)', ZoneName::label('America/Los_Angeles'));

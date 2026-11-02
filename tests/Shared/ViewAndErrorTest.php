@@ -76,4 +76,42 @@ final class ViewAndErrorTest extends TestCase
         self::assertStringContainsString('password-field__icon--hide', $html);
     }
 
+    public function testOptionalPasswordFieldOmitsEmptyAttributes(): void
+    {
+        ob_start();
+        View::passwordField(
+            id: 'pw',
+            name: 'pw',
+            class: '',
+            minlength: null,
+            autocomplete: '',
+            value: null,
+        );
+        $html = ob_get_clean();
+        self::assertIsString($html);
+        self::assertStringNotContainsString('class="input"', $html);
+        self::assertStringNotContainsString('minlength=', $html);
+        self::assertStringNotContainsString('autocomplete=', $html);
+        self::assertStringNotContainsString(' value=', $html);
+        self::assertStringNotContainsString(' required', $html);
+    }
+
+    public function testPasswordFieldKeepsPresetValue(): void
+    {
+        ob_start();
+        View::passwordField(
+            id: 'pw',
+            name: 'pw',
+            value: 'keep',
+        );
+        $html = ob_get_clean();
+        self::assertIsString($html);
+        self::assertStringContainsString('value="keep"', $html);
+    }
+
+    public function testAssetVersionUsesZeroWhenFileMissing(): void
+    {
+        self::assertSame('/assets/js/missing.js?v=0', View::asset('/assets/js/missing.js'));
+    }
+
 }

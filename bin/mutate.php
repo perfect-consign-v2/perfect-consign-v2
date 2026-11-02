@@ -149,6 +149,10 @@ foreach ($hits as $file => $lines) {
         fwrite(STDERR, "could not read {$file}\n");
         exit(1);
     }
+    // View scripts (no class) are scored by the HTTP suite, not operator mutants.
+    if (!preg_match('/\bclass\s+[A-Za-z_\\\\]/', $code)) {
+        continue;
+    }
     $tokens = token_get_all($code);
     $offset = 0;
     foreach ($tokens as $index => $token) {
@@ -283,22 +287,25 @@ foreach ($mutants as $mutant) {
         $command[] = '--filter';
         $command[] = $filter;
     }
-    $run = proc_open(
-        $command,
-        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-        $runPipes,
-        $root,
-        $runEnv
-    );
-    if (!is_resource($run)) {
+    $status = runMutantSuite($command, $root, $runEnv);
+    if ($status === null) {
         file_put_contents($file, $originals[$file]);
         fwrite(STDERR, "mutant run did not start\n");
         exit(1);
     }
-    fclose($runPipes[0]);
-    stream_get_contents($runPipes[1]);
-    stream_get_contents($runPipes[2]);
-    $status = proc_close($run);
+    // Covering filter is an optimization. Kill criterion is the unit suite.
+    if ($status === 0 && $filter !== null) {
+        $status = runMutantSuite(
+            [$php, $phpunit, '--testsuite', 'unit', '--stop-on-failure', '--stop-on-error'],
+            $root,
+            $runEnv
+        );
+        if ($status === null) {
+            file_put_contents($file, $originals[$file]);
+            fwrite(STDERR, "mutant confirm run did not start\n");
+            exit(1);
+        }
+    }
     file_put_contents($file, $originals[$file]);
     $label = sprintf(
         '%s:%d %s -> %s',
@@ -792,6 +799,12 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Password\\LoginAccounts.php' && $line === 79 && $from === '!' && $to === '') {
         return 'a staff row that is not a record has no id, so the later check returns the same empty result';
     }
+    if ($file === 'src\\Bootstrap\\RegisterFeatures.php' && $line === 192 && ($from === '!' && $to === '' || $from === '&&' && $to === '||')) {
+        return 'mkdir failure still fails the write, and the retry only differs if the directory appears after mkdir fails';
+    }
+    if ($file === 'src\\Feature\\Admin\\AppLogFile.php' && $line === 83 && ($from === '!' && $to === '' || $from === '&&' && $to === '||')) {
+        return 'mkdir failure still fails clear, and the retry only differs if the directory appears after mkdir fails';
+    }
 
     return null;
 }
@@ -927,4 +940,36 @@ function coveringFilter(array $tests): ?string
     }
 
     return '/' . implode('|', $parts) . '/';
+}
+
+/**
+ * @param list<string> $command
+ * @param array<string, string> $env
+ */
+function runMutantSuite(array $command, string $root, array $env): ?int
+{
+    $runPipes = [];
+    $run = proc_open(
+        $command,
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $runPipes,
+        $root,
+        $env
+    );
+    if (!is_resource($run)) {
+        return null;
+    }
+    if (isset($runPipes[0]) && is_resource($runPipes[0])) {
+        fclose($runPipes[0]);
+    }
+    if (isset($runPipes[1]) && is_resource($runPipes[1])) {
+        stream_get_contents($runPipes[1]);
+        fclose($runPipes[1]);
+    }
+    if (isset($runPipes[2]) && is_resource($runPipes[2])) {
+        stream_get_contents($runPipes[2]);
+        fclose($runPipes[2]);
+    }
+
+    return proc_close($run);
 }

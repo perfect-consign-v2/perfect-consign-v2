@@ -49,6 +49,105 @@ final class PasswordBoundaryTest extends TestCase
 
     }
 
+    public function testMailThatIsNotReadyNeverIssuesAToken(): void
+    {
+        $log = new class extends AbstractLogger {
+            public string $message = '';
+
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+                $this->message = (string) $message;
+            }
+        };
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('exec')->willReturn(1);
+        $mailbox = $this->createStub(\PerfectConsign\Shared\Mail\LetterMailbox::class);
+        $mailbox->method('ready')->willReturn(false);
+        $letters = new ResetLetter(
+            $pdo,
+            new DatabaseRole($pdo),
+            new ResetTokens($pdo),
+            $mailbox,
+            $log,
+        );
+
+        self::assertTrue($letters->sendReset(
+            $this->tenant(),
+            new LoginAccount('owner', '01900000-0000-7000-8000-0000000000c1', 'owner', 'owner@example.test'),
+            'https://example.test',
+            new LoginAccounts($pdo, new DatabaseRole($pdo)),
+        ));
+        self::assertSame('the reset mailbox could not be read', $log->message);
+    }
+
+    public function testABadTenantSchemaIsRefusedBeforeMailIsSent(): void
+    {
+        $log = new class extends AbstractLogger {
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+            }
+        };
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('exec')->willReturn(1);
+        $letters = new ResetLetter(
+            $pdo,
+            new DatabaseRole($pdo),
+            new ResetTokens($pdo),
+            $this->createStub(\PerfectConsign\Shared\Mail\LetterMailbox::class),
+            $log,
+        );
+        $tenant = new TenantRecord(
+            '01900000-0000-7000-8000-0000000000c1',
+            'demo',
+            'tenant_not_a_schema',
+            'stall_poster',
+            'Demo Mall',
+        );
+        $enter = new \ReflectionMethod(ResetLetter::class, 'enter');
+        try {
+            $enter->invoke($letters, $tenant);
+            self::fail('a bad tenant schema was accepted');
+        } catch (\RuntimeException $error) {
+            self::assertSame('the mall schema is not usable', $error->getMessage());
+        }
+    }
+
+    public function testSearchPathFailureRefusesResetDelivery(): void
+    {
+        $log = new class extends AbstractLogger {
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+            }
+        };
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('exec')->willReturnCallback(
+            static function (string $sql): int|false {
+                if ($sql === 'RESET ROLE') {
+                    return 0;
+                }
+                if (str_starts_with($sql, 'SET search_path TO')) {
+                    return false;
+                }
+
+                return 0;
+            }
+        );
+        $letters = new ResetLetter(
+            $pdo,
+            new DatabaseRole($pdo),
+            new ResetTokens($pdo),
+            $this->createStub(\PerfectConsign\Shared\Mail\LetterMailbox::class),
+            $log,
+        );
+        $enter = new \ReflectionMethod(ResetLetter::class, 'enter');
+        try {
+            $enter->invoke($letters, $this->tenant());
+            self::fail('a failed search_path was accepted');
+        } catch (\RuntimeException $error) {
+            self::assertSame('the mall schema could not be used', $error->getMessage());
+        }
+    }
+
     public function testAMissingOriginDoesNotIssueAReset(): void
     {
         $log = new class extends AbstractLogger {

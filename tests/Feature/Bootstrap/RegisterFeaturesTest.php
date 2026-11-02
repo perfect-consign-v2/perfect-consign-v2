@@ -6,6 +6,8 @@ namespace PerfectConsign\Tests\Feature\Bootstrap;
 
 use PerfectConsign\Bootstrap\RegisterFeatures;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
+use SplFileInfo;
 
 final class RegisterFeaturesTest extends TestCase
 {
@@ -148,5 +150,56 @@ final class RegisterFeaturesTest extends TestCase
         if (is_file($manifest)) {
             unlink($manifest);
         }
+    }
+
+    public function testNonProductionRescansEvenWhenAManifestExists(): void
+    {
+        RegisterFeatures::clearCache();
+        $feature = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature';
+        $manifest = RegisterFeatures::manifestPath($feature);
+        $directory = dirname($manifest);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            self::fail('could not create cache directory');
+        }
+        $poison = ['PerfectConsign\\Feature\\Home\\HomeController'];
+        $payload = "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($poison, true) . ";\n";
+        self::assertNotFalse(file_put_contents($manifest, $payload));
+        putenv('APP_ENV=test');
+        $loaded = RegisterFeatures::controllerClasses($feature);
+        self::assertContains('PerfectConsign\\Feature\\Root\\RootController', $loaded);
+        self::assertGreaterThan(count($poison), count($loaded));
+        if (is_file($manifest)) {
+            unlink($manifest);
+        }
+    }
+
+    public function testProductionIgnoresAManifestThatIsNotAClassList(): void
+    {
+        RegisterFeatures::clearCache();
+        $feature = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature';
+        $manifest = RegisterFeatures::manifestPath($feature);
+        $directory = dirname($manifest);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            self::fail('could not create cache directory');
+        }
+        $payload = "<?php\n\ndeclare(strict_types=1);\n\nreturn ['', 'missing-namespace'];\n";
+        self::assertNotFalse(file_put_contents($manifest, $payload));
+        putenv('APP_ENV=production');
+        $loaded = RegisterFeatures::controllerClasses($feature);
+        putenv('APP_ENV=test');
+        self::assertContains('PerfectConsign\\Feature\\Root\\RootController', $loaded);
+        self::assertGreaterThan(2, count($loaded));
+        if (is_file($manifest)) {
+            unlink($manifest);
+        }
+    }
+
+    public function testControllerScanSkipsDirectoriesAndNonControllers(): void
+    {
+        $method = new ReflectionMethod(RegisterFeatures::class, 'controllerClass');
+        $feature = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature';
+        self::assertNull($method->invoke(null, new \stdClass()));
+        self::assertNull($method->invoke(null, new SplFileInfo($feature . DIRECTORY_SEPARATOR . 'Admin')));
+        self::assertNull($method->invoke(null, new SplFileInfo($feature . DIRECTORY_SEPARATOR . 'Admin' . DIRECTORY_SEPARATOR . 'AppLogFile.php')));
     }
 }

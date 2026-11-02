@@ -100,6 +100,19 @@ final class AssignmentOfferTest extends TestCase
         ], $rows);
     }
 
+    public function testADatedStayDoesNotReplaceAnOpenEndedCoveringStay(): void
+    {
+        $rows = $this->offer(
+            [$this->booth(self::NORTH, 'A12')],
+            [
+                $this->stay(self::NORTH, '2020-01-01', null),
+                $this->stay(self::NORTH, '2020-01-01', '2026-12-31'),
+            ],
+        )->booths('2026-10-15');
+
+        self::assertSame([], $rows);
+    }
+
     public function testAnOpenStayWinsOverADatedStayOnTheSameDays(): void
     {
         $rows = $this->offer(
