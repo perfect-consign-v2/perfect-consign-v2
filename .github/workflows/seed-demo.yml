@@ -33,6 +33,25 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
           umask 077
           printf '%s\n' "$DEMO_SSH_KEY" > ~/.ssh/demo_key
+          # wipe_tenant must run as a superuser (SECURITY DEFINER) so it can
+          # set event_triggers when clearing append-only password_resets.
           ssh -i ~/.ssh/demo_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
-            'cd "$HOME" && /opt/plesk/php/8.5/bin/php bin/seed-mall.php && /opt/plesk/php/8.5/bin/php bin/set-owner.php mall owner'
+            'set -euo pipefail
+             cd "$HOME"
+             db_name=$(grep -E "^STALL_DB_NAME=" .env | head -n1 | cut -d= -f2- | tr -d "\"'\''")
+             db_user=$(grep -E "^STALL_DB_USER=" .env | head -n1 | cut -d= -f2- | tr -d "\"'\''")
+             if [[ -z "$db_name" || -z "$db_user" ]]; then
+               echo "seed-demo: STALL_DB_NAME/USER missing from .env" >&2
+               exit 1
+             fi
+             if [[ ! "$db_user" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+               echo "seed-demo: refusing STALL_DB_USER" >&2
+               exit 1
+             fi
+             sudo -u postgres psql -d "$db_name" -v ON_ERROR_STOP=1 \
+               -c "ALTER FUNCTION platform.wipe_tenant(text) OWNER TO CURRENT_USER;" \
+               -c "GRANT EXECUTE ON FUNCTION platform.wipe_tenant(text) TO \"$db_user\";" \
+               -c "GRANT EXECUTE ON FUNCTION platform.wipe_tenant(text) TO stall_app;"
+             /opt/plesk/php/8.5/bin/php bin/seed-mall.php
+             /opt/plesk/php/8.5/bin/php bin/set-owner.php mall owner'

@@ -52,6 +52,8 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringContainsString('bin/seed-mall.php', $yaml);
         self::assertStringContainsString('set-owner.php mall owner', $yaml);
         self::assertStringContainsString('/opt/plesk/php/8.5/bin/php', $yaml);
+        self::assertStringContainsString('ALTER FUNCTION platform.wipe_tenant(text) OWNER TO CURRENT_USER', $yaml);
+        self::assertStringContainsString('sudo -u postgres psql', $yaml);
     }
 
     public function testDeployDoesNotRequireAPasswordChangeWhenOwnerAlreadyMatches(): void
