@@ -11,12 +11,19 @@ final class ShopTenantReset
 {
     public const SLUG = 'shop';
 
-    public function load(?PDO $pdo = null): string
+    /** Local HTTP/dev reset only — refuses non-local restore targets. */
+    public function load(): string
+    {
+        return $this->rebuild(LocalAdmin::open()->pdo());
+    }
+
+    /**
+     * CLI seed path (`bin/seed-mall.php`) after mall wipe/provision on the same PDO.
+     * Not for HTTP controllers.
+     */
+    public function rebuild(PDO $pdo): string
     {
         $this->requireTools();
-        if ($pdo === null) {
-            $pdo = LocalAdmin::open()->pdo();
-        }
         \wipeTenant($pdo, self::SLUG, self::SLUG);
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Consignment');

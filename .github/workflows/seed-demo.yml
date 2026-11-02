@@ -35,15 +35,4 @@ jobs:
           printf '%s\n' "$DEMO_SSH_KEY" > ~/.ssh/demo_key
           ssh -i ~/.ssh/demo_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             "${DEMO_SSH_USER}@${DEMO_SSH_HOST}" \
-            'set -euo pipefail
-             cd "$HOME"
-             export PATH="/opt/plesk/php/8.5/bin:${PATH:-}"
-             export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/github_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
-             git fetch origin master
-             git reset --hard origin/master
-             php composer.phar --working-dir="$HOME" install --no-dev --no-interaction --prefer-dist
-             php composer.phar --working-dir="$HOME" build:routes
-             php bin/migrate.php platform
-             php bin/migrate.php platform-after
-             php bin/seed-mall.php
-             php bin/set-owner.php mall owner'
+            'cd "$HOME" && bash bin/seed-demo.sh'

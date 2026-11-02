@@ -98,7 +98,7 @@ if ($ownerEmail !== null) {
 }
 
 try {
-    $shop = (new PerfectConsign\Feature\Dev\ShopTenantReset())->load($pdo);
+    $shop = (new PerfectConsign\Feature\Dev\ShopTenantReset())->rebuild($pdo);
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);

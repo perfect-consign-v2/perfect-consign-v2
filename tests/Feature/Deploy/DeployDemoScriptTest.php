@@ -42,17 +42,24 @@ final class DeployDemoScriptTest extends TestCase
         );
     }
 
-    public function testSeedDemoWorkflowRunsSeedMallOnTheHost(): void
+    public function testSeedDemoComposesDeployThenSeedMall(): void
     {
-        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . '.github' . DIRECTORY_SEPARATOR . 'workflows' . DIRECTORY_SEPARATOR . 'seed-demo.yml';
-        self::assertFileExists($path);
-        $yaml = file_get_contents($path);
+        $root = dirname(__DIR__, 3);
+        $scriptPath = $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'seed-demo.sh';
+        self::assertFileExists($scriptPath);
+        $script = file_get_contents($scriptPath);
+        self::assertIsString($script);
+        self::assertStringContainsString('bin/deploy-demo.sh', $script);
+        self::assertStringContainsString('bin/seed-mall.php', $script);
+        self::assertStringContainsString('set-owner.php', $script);
+        self::assertStringContainsString('/opt/plesk/php/8.5/bin/php', $script);
+
+        $yamlPath = $root . DIRECTORY_SEPARATOR . '.github' . DIRECTORY_SEPARATOR . 'workflows' . DIRECTORY_SEPARATOR . 'seed-demo.yml';
+        self::assertFileExists($yamlPath);
+        $yaml = file_get_contents($yamlPath);
         self::assertIsString($yaml);
         self::assertStringContainsString('workflow_dispatch', $yaml);
-        self::assertStringContainsString('bin/seed-mall.php', $yaml);
-        self::assertStringContainsString('set-owner.php mall owner', $yaml);
-        self::assertStringContainsString('/opt/plesk/php/8.5/bin', $yaml);
-        self::assertStringContainsString('migrate.php platform-after', $yaml);
+        self::assertStringContainsString('bash bin/seed-demo.sh', $yaml);
     }
 
     public function testDeployDoesNotRequireAPasswordChangeWhenOwnerAlreadyMatches(): void
