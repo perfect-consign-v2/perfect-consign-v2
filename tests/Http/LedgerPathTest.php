@@ -23,8 +23,8 @@ final class LedgerPathTest extends WebTestCase
         $this->openRegister($client);
         $client->post('/' . self::SLUG . '/pos/discard', []);
         $vendor = $this->vendor($client, 'ada-' . bin2hex(random_bytes(3)) . '@example.test');
-        $second = $this->item($client, $vendor, 'Hat ' . bin2hex(random_bytes(2)));
-        $secondId = $this->itemId($client, $second['code']);
+        $hat = $this->item($client, $vendor, 'Hat ' . bin2hex(random_bytes(2)));
+        $hatId = $this->itemId($client, $hat['code']);
         $item = $this->item($client, $vendor, 'Coat ' . bin2hex(random_bytes(2)));
         $scan = $client->postJson('/' . self::SLUG . '/pos/scan', ['scan' => $item['code']]);
         self::assertSame(200, $scan->status);
@@ -44,41 +44,36 @@ final class LedgerPathTest extends WebTestCase
         $number = $first['journal_no'] ?? 0;
         self::assertGreaterThan(0, $number);
         $again = $client->postJson('/' . self::SLUG . '/pos/pay', ['posting_key' => $postingKey]);
-        $second = $this->payload($again->body);
-        self::assertSame($number, $second['journal_no'] ?? null, $again->status . ' ' . $again->body);
+        $replay = $this->payload($again->body);
+        self::assertSame($number, $replay['journal_no'] ?? null, $again->status . ' ' . $again->body);
 
-        $snapKey = $this->uuid();
+        $forgedKey = $this->uuid();
         $held = $client->postJson('/' . self::SLUG . '/pos/snap', [
-            'posting_key' => $snapKey,
-            'item_id' => $this->uuid(),
-            'price' => '10.00',
+            'posting_key' => $forgedKey,
+            'item_id' => $hatId,
+            'price' => '1.00',
             'tax' => '0.00',
-            'commission' => '0.00',
             'quantity' => '1',
-            'commission_bps' => '0',
-            'tax_bps' => '0',
         ]);
-        self::assertSame(200, $held->status);
-        self::assertStringContainsString('This sale is not posted.', $held->body);
-        $refused = $client->postJson('/' . self::SLUG . '/pos/sync', ['posting_key' => $snapKey]);
+        self::assertSame(422, $held->status);
+        self::assertStringContainsString('that snap is not on this register', $held->body);
+        $refused = $client->postJson('/' . self::SLUG . '/pos/sync', ['posting_key' => $forgedKey]);
         self::assertSame(422, $refused->status);
-        self::assertStringContainsString('a sale line needs an item', $refused->body);
-        self::assertStringContainsString('This sale is not posted.', $refused->body);
+        self::assertStringContainsString('that snap is not on this register', $refused->body);
 
-        $postedKey = $this->uuid();
-        $client->postJson('/' . self::SLUG . '/pos/snap', [
-            'posting_key' => $postedKey,
-            'item_id' => $secondId,
-            'price' => '10.00',
-            'tax' => '0.00',
-            'commission' => '0.00',
-            'quantity' => '1',
-            'commission_bps' => '0',
-            'tax_bps' => '0',
-        ]);
+        $client->post('/' . self::SLUG . '/pos/new', []);
+        $scan = $client->postJson('/' . self::SLUG . '/pos/scan', ['scan' => $hat['code']]);
+        self::assertSame(200, $scan->status, $scan->body);
+        $pos = $client->get('/' . self::SLUG . '/pos');
+        self::assertSame(1, preg_match(
+            '/data-snaps="\[\{&quot;posting_key&quot;:&quot;([0-9a-f-]{36})&quot;\}\]"/',
+            $pos->body,
+            $snapMatch
+        ), $pos->body);
+        $postedKey = $snapMatch[1];
         $synced = $client->postJson('/' . self::SLUG . '/pos/sync', ['posting_key' => $postedKey]);
         $sync = $this->payload($synced->body);
-        self::assertSame(200, $synced->status);
+        self::assertSame(200, $synced->status, $synced->body);
         self::assertGreaterThan(0, $sync['journal_no'] ?? 0);
         $repeat = $client->postJson('/' . self::SLUG . '/pos/sync', ['posting_key' => $postedKey]);
         $repeatPayload = $this->payload($repeat->body);

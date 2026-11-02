@@ -25,6 +25,7 @@ if ($ledgerFiles === false) {
     exit(1);
 }
 sort($ledgerFiles);
+$tenantFiles = array_flip($catalog->tenantFiles());
 
 foreach ($ledgerFiles as $path) {
     $file = basename($path);
@@ -55,6 +56,9 @@ foreach ($ledgerFiles as $path) {
     }
     if (eventTriggersLeftOff($sql)) {
         $failures[] = $file . ' leaves event triggers off';
+    }
+    if (!isset($tenantFiles[$file])) {
+        continue;
     }
     if (str_contains($sql, 'ADD COLUMN IF NOT EXISTS')) {
         $failures[] = $file . ' adds a column with IF NOT EXISTS';

@@ -1,15 +1,15 @@
 ---
 title: Commission rules win by specificity
 category: Sales and register
-hesk: published 2026-10-31
-as_of: 2026-10-25
+hesk: published 2026-11-02
+as_of: 2026-11-01
 ---
 
 # Commission rules win by specificity
 
 ## As of
 
-2026-10-25
+2026-11-01
 
 ## In one sentence
 
@@ -23,7 +23,7 @@ Pricing a sale (including an offline snap) when commission rules exist for the m
 
 - Rules win by specificity, then priority, then price bounds.
 - The posted sale line keeps that commission.
-- An offline snap may send a client commission figure; the post still uses the rule engine’s take.
+- An offline snap does not trust a client commission; the post uses the rule engine’s take.
 
 ## What is refused
 

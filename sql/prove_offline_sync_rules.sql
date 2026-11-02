@@ -1,5 +1,6 @@
--- A snap with wrong client commission still posts the rule-engine take.
--- Poster cannot rewrite or delete a posted snap.
+-- Mint from ticket; wrong client money cannot be inserted by poster.
+-- Tax mismatch on a planted row is refused. Waiver mint posts tax 0.
+-- Poster cannot rewrite or delete a posted snap. Replay still one journal.
 
 BEGIN;
 
@@ -15,7 +16,7 @@ VALUES (
     5000,
     'BC-COAT',
     DATE '2096-03-01',
-    1,
+    2,
     2000
 );
 
@@ -33,23 +34,17 @@ VALUES (
     0
 );
 
-INSERT INTO register_snaps (
-    posting_key, session_id, business_date, item_id, price_minor, tax_minor, commission_minor, commission_bps, tax_bps, quantity
-) VALUES (
-    '01900000-0000-7000-8000-00000000b101',
-    '01900000-0000-7000-8000-000000000d22',
-    DATE '2096-03-30',
-    '01900000-0000-7000-8000-0000000005a1',
-    5000,
-    0,
-    0,
-    0,
-    0,
-    1
-);
+UPDATE mall SET tax_bps = 0;
+
+INSERT INTO tickets (id, session_id)
+VALUES ('01900000-0000-7000-8000-00000000c201', '01900000-0000-7000-8000-000000000d22');
+
+INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor, quantity)
+VALUES ('01900000-0000-7000-8000-00000000c201', 1, '01900000-0000-7000-8000-0000000005a1', 5000, 1);
 
 DO $$
 DECLARE
+    minted text;
     posted bigint;
     again bigint;
     expected bigint;
@@ -58,21 +53,26 @@ BEGIN
     IF expected IS DISTINCT FROM 1000 THEN
         RAISE EXCEPTION 'the rule engine expected 1000, got %', expected;
     END IF;
-    posted := public.stall_sync_snap('01900000-0000-7000-8000-00000000b101');
+    SELECT public.stall_mint_register_snaps(
+        '01900000-0000-7000-8000-000000000d22',
+        '01900000-0000-7000-8000-00000000c201'
+    ) INTO minted;
+    UPDATE register_snaps SET business_date = DATE '2096-03-30' WHERE posting_key = minted;
+    posted := public.stall_sync_snap(minted);
     IF posted IS NULL THEN
-        RAISE EXCEPTION 'the zero-commission snap was refused';
+        RAISE EXCEPTION 'the minted snap was refused';
     END IF;
-    IF (SELECT commission_minor FROM sale_lines WHERE journal_id = (SELECT journal_id FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000b101')) IS DISTINCT FROM expected THEN
+    IF (SELECT commission_minor FROM sale_lines WHERE journal_id = (SELECT journal_id FROM register_snaps WHERE posting_key = minted)) IS DISTINCT FROM expected THEN
         RAISE EXCEPTION 'client commission zero was trusted';
     END IF;
     IF (SELECT credit_minor FROM journal_lines AS line
         JOIN chart_roles AS role ON role.account_id = line.account_id
-        WHERE line.journal_id = (SELECT journal_id FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000b101')
+        WHERE line.journal_id = (SELECT journal_id FROM register_snaps WHERE posting_key = minted)
           AND role.role = 'commission_revenue') IS DISTINCT FROM expected THEN
         RAISE EXCEPTION 'the commission journal line was wrong';
     END IF;
-    again := public.stall_sync_snap('01900000-0000-7000-8000-00000000b101');
-    IF again IS DISTINCT FROM posted OR (SELECT count(*) FROM journals WHERE posting_key = '01900000-0000-7000-8000-00000000b101') IS DISTINCT FROM 1 THEN
+    again := public.stall_sync_snap(minted);
+    IF again IS DISTINCT FROM posted OR (SELECT count(*) FROM journals WHERE posting_key = minted) IS DISTINCT FROM 1 THEN
         RAISE EXCEPTION 'a retry created a second journal';
     END IF;
 END $$;
@@ -81,18 +81,94 @@ DO $$
 BEGIN
     SET LOCAL ROLE stall_poster;
     BEGIN
-        UPDATE register_snaps SET price_minor = 1 WHERE posting_key = '01900000-0000-7000-8000-00000000b101';
+        UPDATE register_snaps SET price_minor = 1 WHERE status = 'posted';
         RAISE EXCEPTION 'poster updated a posted snap';
     EXCEPTION WHEN insufficient_privilege THEN
         NULL;
     END;
     BEGIN
-        DELETE FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000b101';
+        DELETE FROM register_snaps WHERE status = 'posted';
         RAISE EXCEPTION 'poster deleted a posted snap';
     EXCEPTION WHEN insufficient_privilege THEN
         NULL;
     END;
+    BEGIN
+        INSERT INTO register_snaps (
+            posting_key, session_id, business_date, item_id, price_minor, tax_minor, commission_minor, quantity
+        ) VALUES (
+            '01900000-0000-7000-8000-00000000b199',
+            '01900000-0000-7000-8000-000000000d22',
+            DATE '2096-03-30',
+            '01900000-0000-7000-8000-0000000005a1',
+            1,
+            0,
+            0,
+            1
+        );
+        RAISE EXCEPTION 'poster inserted a free-form snap';
+    EXCEPTION WHEN insufficient_privilege THEN
+        NULL;
+    END;
     RESET ROLE;
+END $$;
+
+INSERT INTO register_snaps (
+    posting_key, session_id, business_date, item_id, price_minor, tax_minor, commission_minor, commission_bps, tax_bps, quantity
+) VALUES (
+    '01900000-0000-7000-8000-00000000b301',
+    '01900000-0000-7000-8000-000000000d22',
+    DATE '2096-03-30',
+    '01900000-0000-7000-8000-0000000005a1',
+    5000,
+    99,
+    0,
+    0,
+    0,
+    1
+);
+
+DO $$
+BEGIN
+    IF public.stall_sync_snap('01900000-0000-7000-8000-00000000b301') IS NOT NULL THEN
+        RAISE EXCEPTION 'a tax mismatch posted';
+    END IF;
+    IF (SELECT refusal FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000b301')
+        IS DISTINCT FROM 'a sale tax does not match the mall rate' THEN
+        RAISE EXCEPTION 'the tax mismatch was not named';
+    END IF;
+END $$;
+
+INSERT INTO tickets (id, session_id, tax_waiver_reason)
+VALUES ('01900000-0000-7000-8000-00000000c202', '01900000-0000-7000-8000-000000000d22', 'charity');
+
+INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor, quantity)
+VALUES ('01900000-0000-7000-8000-00000000c202', 1, '01900000-0000-7000-8000-0000000005a1', 5000, 1);
+
+UPDATE mall SET tax_bps = 8750;
+
+DO $$
+DECLARE
+    minted text;
+    posted bigint;
+BEGIN
+    SELECT public.stall_mint_register_snaps(
+        '01900000-0000-7000-8000-000000000d22',
+        '01900000-0000-7000-8000-00000000c202'
+    ) INTO minted;
+    UPDATE register_snaps SET business_date = DATE '2096-03-30' WHERE posting_key = minted;
+    IF (SELECT tax_minor FROM register_snaps WHERE posting_key = minted) IS DISTINCT FROM 0 THEN
+        RAISE EXCEPTION 'waiver mint did not zero tax';
+    END IF;
+    IF (SELECT tax_waiver_reason FROM register_snaps WHERE posting_key = minted) IS DISTINCT FROM 'charity' THEN
+        RAISE EXCEPTION 'waiver was not copied onto the snap';
+    END IF;
+    posted := public.stall_sync_snap(minted);
+    IF posted IS NULL THEN
+        RAISE EXCEPTION 'a waived snap was refused';
+    END IF;
+    IF (SELECT tax_minor FROM sale_lines WHERE journal_id = (SELECT journal_id FROM register_snaps WHERE posting_key = minted)) IS DISTINCT FROM 0 THEN
+        RAISE EXCEPTION 'a waived snap posted tax';
+    END IF;
 END $$;
 
 ROLLBACK;

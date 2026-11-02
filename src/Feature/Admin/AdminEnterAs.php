@@ -45,6 +45,38 @@ final class AdminEnterAs
      */
     private function asOwner(array $admin, TenantRecord $tenant, array $preserved, string $ownerId): string
     {
+        $owner = $this->ownerRow($admin, $tenant, $ownerId);
+        $this->sessions->open(
+            $tenant->slug,
+            $tenant->id,
+            $owner['username'],
+            'owner',
+            $owner['id'],
+            $owner['version'],
+            '',
+            ''
+        );
+        $this->admins->restore($preserved);
+        $this->mallAudit($tenant, $owner['username'], 'owner', $owner['id']);
+        $this->audit->record(
+            $admin['id'],
+            $admin['email'],
+            'tenant.enter_as',
+            'ok',
+            $tenant->id,
+            $tenant->slug,
+            ['as_role' => 'owner', 'account_id' => $owner['id']],
+        );
+
+        return '/' . $tenant->slug . '/dashboard';
+    }
+
+    /**
+     * @param array{id: string, email: string, version: string} $admin
+     * @return array{id: string, username: string, version: string}
+     */
+    private function ownerRow(array $admin, TenantRecord $tenant, string $ownerId): array
+    {
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $ownerId) !== 1) {
             throw new \InvalidArgumentException('Choose an owner.');
         }
@@ -56,55 +88,51 @@ final class AdminEnterAs
         $statement->execute([$tenant->id, $ownerId]);
         $row = $statement->fetch();
         if (!is_array($row)) {
-            $this->audit->record(
-                $admin['id'],
-                $admin['email'],
-                'tenant.enter_as_refused',
-                'refused',
-                $tenant->id,
-                $tenant->slug,
-                ['as_role' => 'owner', 'reason' => 'missing_owner'],
-            );
+            $this->refuseEnter($admin, $tenant, 'owner', 'missing_owner');
             throw new \InvalidArgumentException('That store has no owner.');
         }
         $id = $row['id'] ?? null;
         $username = $row['username'] ?? null;
         $version = $row['credentials_version'] ?? null;
-        $canSignIn = $row['can_sign_in'] ?? null;
         if (is_int($version)) {
             $version = (string) $version;
         }
-        $allowed = $canSignIn === true || $canSignIn === 't' || $canSignIn === 'true' || $canSignIn === 1 || $canSignIn === '1';
-        $denied = $canSignIn === false || $canSignIn === 'f' || $canSignIn === 'false' || $canSignIn === 0 || $canSignIn === '0';
-        if (!is_string($id) || !is_string($username) || !is_string($version) || (!$allowed && !$denied)) {
+        $allowed = $this->truthy($row['can_sign_in'] ?? null);
+        if (!is_string($id) || !is_string($username) || !is_string($version) || $allowed === null) {
             throw new \RuntimeException('the owner row is not usable');
         }
-        if (!$allowed) {
-            $this->audit->record(
-                $admin['id'],
-                $admin['email'],
-                'tenant.enter_as_refused',
-                'refused',
-                $tenant->id,
-                $tenant->slug,
-                ['as_role' => 'owner', 'reason' => 'suspended_owner'],
-            );
+        if ($allowed === false) {
+            $this->refuseEnter($admin, $tenant, 'owner', 'suspended_owner');
             throw new \InvalidArgumentException('That owner is suspended.');
         }
-        $this->sessions->open($tenant->slug, $tenant->id, $username, 'owner', $id, $version, '', '');
-        $this->admins->restore($preserved);
-        $this->mallAudit($tenant, $username, 'owner', $id);
+
+        return ['id' => $id, 'username' => $username, 'version' => $version];
+    }
+
+    /**
+     * @param array{id: string, email: string, version: string} $admin
+     */
+    private function refuseEnter(array $admin, TenantRecord $tenant, string $role, string $reason): void
+    {
         $this->audit->record(
             $admin['id'],
             $admin['email'],
-            'tenant.enter_as',
-            'ok',
+            'tenant.enter_as_refused',
+            'refused',
             $tenant->id,
             $tenant->slug,
-            ['as_role' => 'owner', 'account_id' => $id],
+            ['as_role' => $role, 'reason' => $reason],
         );
+    }
 
-        return '/' . $tenant->slug . '/dashboard';
+    private function truthy(mixed $value): ?bool
+    {
+        return match (true) {
+            is_bool($value) => $value,
+            $value === 't', $value === 'true', $value === 1, $value === '1' => true,
+            $value === 'f', $value === 'false', $value === 0, $value === '0' => false,
+            default => null,
+        };
     }
 
     /**

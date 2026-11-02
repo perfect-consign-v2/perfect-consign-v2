@@ -1,6 +1,7 @@
--- A snap posts the captured price and collected tax. Commission comes from the rule engine.
+-- A minted snap posts ticket price and matching tax. Commission comes from the rule engine.
 -- Duplicate, closed period, quantity, a missing item, and a closed drawer are refused one at a time.
 -- The second register does not post the last unit. journal_no stays empty until the post commits.
+-- Poster cannot INSERT a free-form snap.
 
 BEGIN;
 
@@ -53,40 +54,66 @@ VALUES (
     0
 );
 
+UPDATE mall SET tax_bps = 0;
+
+INSERT INTO tickets (id, session_id)
+VALUES ('01900000-0000-7000-8000-00000000c101', '01900000-0000-7000-8000-000000000d22');
+
+INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor, quantity)
+VALUES ('01900000-0000-7000-8000-00000000c101', 1, '01900000-0000-7000-8000-0000000005a1', 10000, 1);
+
+DO $$
+DECLARE
+    minted text;
+    posted bigint;
+    again bigint;
+BEGIN
+    SELECT public.stall_mint_register_snaps(
+        '01900000-0000-7000-8000-000000000d22',
+        '01900000-0000-7000-8000-00000000c101'
+    ) INTO minted;
+    IF minted IS NULL OR minted !~ '^[0-9a-f-]{36}$' THEN
+        RAISE EXCEPTION 'mint did not return a posting key';
+    END IF;
+    UPDATE register_snaps SET business_date = DATE '2096-03-30' WHERE posting_key = minted;
+    IF (SELECT journal_no FROM register_snaps WHERE posting_key = minted) IS NOT NULL THEN
+        RAISE EXCEPTION 'a waiting snap printed a receipt number';
+    END IF;
+    IF (SELECT price_minor FROM register_snaps WHERE posting_key = minted) IS DISTINCT FROM 10000 THEN
+        RAISE EXCEPTION 'mint did not freeze the ticket price';
+    END IF;
+    IF (SELECT tax_minor FROM register_snaps WHERE posting_key = minted) IS DISTINCT FROM 0 THEN
+        RAISE EXCEPTION 'mint did not freeze tax';
+    END IF;
+    posted := public.stall_sync_snap(minted);
+    IF posted IS NULL OR (SELECT journal_no FROM register_snaps WHERE posting_key = minted) IS DISTINCT FROM posted THEN
+        RAISE EXCEPTION 'the snap did not keep its receipt number';
+    END IF;
+    IF (SELECT commission_minor FROM sale_lines WHERE journal_id = (SELECT journal_id FROM register_snaps WHERE posting_key = minted)) IS DISTINCT FROM 2000 THEN
+        RAISE EXCEPTION 'the snap did not use the rule-engine commission';
+    END IF;
+    IF (SELECT tax_variance_minor FROM register_snaps WHERE posting_key = minted) IS DISTINCT FROM 0 THEN
+        RAISE EXCEPTION 'the snap kept a tax variance';
+    END IF;
+    IF (SELECT posting_date FROM journals WHERE posting_key = minted) IS DISTINCT FROM (SELECT business_date FROM register_snaps WHERE posting_key = minted) THEN
+        RAISE EXCEPTION 'the snap did not post on its business date';
+    END IF;
+    again := public.stall_sync_snap(minted);
+    IF again IS DISTINCT FROM posted OR (SELECT count(*) FROM journals WHERE posting_key = minted) IS DISTINCT FROM 1 THEN
+        RAISE EXCEPTION 'a retry created a second journal';
+    END IF;
+END $$;
+
 INSERT INTO register_snaps (
     posting_key, session_id, business_date, item_id, price_minor, tax_minor, commission_minor, commission_bps, tax_bps, quantity
 ) VALUES
-    ('01900000-0000-7000-8000-00000000a101', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 0, 0, 0, 1),
     ('01900000-0000-7000-8000-00000000a102', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 0, 0, 0, 1),
     ('01900000-0000-7000-8000-00000000a103', '01900000-0000-7000-8000-000000000d22', DATE '2095-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 0, 0, 0, 1),
     ('01900000-0000-7000-8000-00000000a104', '01900000-0000-7000-8000-000000000d22', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a9', 10000, 0, 0, 0, 0, 1),
     ('01900000-0000-7000-8000-00000000a105', '01900000-0000-7000-8000-000000000d23', DATE '2096-03-30', '01900000-0000-7000-8000-0000000005a1', 10000, 0, 0, 0, 0, 1);
 
 DO $$
-DECLARE
-    posted bigint;
-    again bigint;
 BEGIN
-    IF (SELECT journal_no FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000a101') IS NOT NULL THEN
-        RAISE EXCEPTION 'a waiting snap printed a receipt number';
-    END IF;
-    posted := public.stall_sync_snap('01900000-0000-7000-8000-00000000a101');
-    IF posted IS NULL OR (SELECT journal_no FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000a101') IS DISTINCT FROM posted THEN
-        RAISE EXCEPTION 'the snap did not keep its receipt number';
-    END IF;
-    IF (SELECT commission_minor FROM sale_lines WHERE journal_id = (SELECT journal_id FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000a101')) IS DISTINCT FROM 2000 THEN
-        RAISE EXCEPTION 'the snap did not use the rule-engine commission';
-    END IF;
-    IF (SELECT tax_variance_minor FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000a101') IS NULL THEN
-        RAISE EXCEPTION 'the snap did not store a tax variance';
-    END IF;
-    IF (SELECT posting_date FROM journals WHERE posting_key = '01900000-0000-7000-8000-00000000a101') IS DISTINCT FROM DATE '2096-03-30' THEN
-        RAISE EXCEPTION 'the snap did not post on its business date';
-    END IF;
-    again := public.stall_sync_snap('01900000-0000-7000-8000-00000000a101');
-    IF again IS DISTINCT FROM posted OR (SELECT count(*) FROM journals WHERE posting_key = '01900000-0000-7000-8000-00000000a101') IS DISTINCT FROM 1 THEN
-        RAISE EXCEPTION 'a retry created a second journal';
-    END IF;
     IF public.stall_sync_snap('01900000-0000-7000-8000-00000000a102') IS NOT NULL THEN
         RAISE EXCEPTION 'the last unit posted twice';
     END IF;
@@ -111,6 +138,29 @@ BEGIN
     IF (SELECT refusal FROM register_snaps WHERE posting_key = '01900000-0000-7000-8000-00000000a105') IS DISTINCT FROM 'a register session is required' THEN
         RAISE EXCEPTION 'the closed drawer was not named';
     END IF;
+END $$;
+
+DO $$
+BEGIN
+    SET LOCAL ROLE stall_poster;
+    BEGIN
+        INSERT INTO register_snaps (
+            posting_key, session_id, business_date, item_id, price_minor, tax_minor, commission_minor, quantity
+        ) VALUES (
+            '01900000-0000-7000-8000-00000000a199',
+            '01900000-0000-7000-8000-000000000d22',
+            DATE '2096-03-30',
+            '01900000-0000-7000-8000-0000000005a1',
+            1,
+            0,
+            0,
+            1
+        );
+        RAISE EXCEPTION 'poster inserted a free-form snap';
+    EXCEPTION WHEN insufficient_privilege THEN
+        NULL;
+    END;
+    RESET ROLE;
 END $$;
 
 ROLLBACK;

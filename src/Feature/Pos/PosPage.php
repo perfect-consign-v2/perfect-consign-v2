@@ -6,18 +6,14 @@ namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Catalog\NameList;
-use PerfectConsign\Feature\Payout\PayoutStore;
-use PerfectConsign\Ledger\Money;
 
 final class PosPage
 {
     public function __construct(
         private readonly MallApp $app,
         private readonly PosRegister $register,
-        private readonly GiftIssue $gifts,
+        private readonly PosCartView $cartView,
         private readonly SaleHold $sales,
-        private readonly SalePoster $poster,
-        private readonly PayoutStore $payouts,
     ) {
     }
 
@@ -43,6 +39,11 @@ final class PosPage
 
     private function render(string $slug, ?string $error, bool $reopenInstant, ?string $giftError = null, ?string $payError = null, string $instantError = ''): void
     {
+        $this->paint($slug, $error, $reopenInstant, $giftError, $payError, $instantError);
+    }
+
+    private function paint(string $slug, ?string $error, bool $reopenInstant, ?string $giftError, ?string $payError, string $instantError): void
+    {
         $tenant = $this->app->open($slug, true);
         $session = $this->register->session($slug);
         $cart = $this->register->cart($session);
@@ -52,67 +53,15 @@ final class PosPage
         foreach ($tenders as $tender) {
             $applied += $tender['amount'];
         }
-        $request = $this->app->request();
-        $giftNumber = trim($request->query('gift'));
         $held = $this->sales->id($slug);
-        $gift = $this->giftForm($giftError, $reopenInstant);
-        $pay = $this->payForm($payError);
-        $instant = $this->instantForm($instantError);
-        $shopper = $this->register->shopper($cart['ticket_id']);
-        $this->app->show('Feature/Pos/pos', [
-            'title' => 'Sell',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'showSearch' => false,
-            'cart' => $cart,
-            'drafts' => $drafts,
-            'tenders' => $tenders,
-            'deposits' => $this->register->deposits($cart['ticket_id']),
-            'payments' => $this->register->payments($cart['ticket_id']),
-            'shopperId' => $shopper['id'],
-            'customerName' => $shopper['name'],
-            'salesAvailable' => $cart['buyer_id'] === '' ? 0 : max(0, $this->payouts->openPayout($cart['buyer_id'])['payable']),
-            'remaining' => $cart['due'] - $applied,
-            'giftNumber' => $giftNumber,
-            'giftBalance' => $giftNumber === '' ? null : $this->gifts->balance($giftNumber),
-            'completed' => $held === '' ? null : $this->poster->receipt($held),
-            'lastSale' => $this->sales->last($slug),
-            'change' => $this->change($slug, $held),
-            'error' => $error,
-            'openInstant' => $gift['openInstant'],
-            'openGift' => $gift['openGift'],
-            'giftError' => $gift['giftError'],
-            'giftFormNumber' => $gift['giftFormNumber'],
-            'giftFormAmount' => $gift['giftFormAmount'],
-            'giftFormTender' => $gift['giftFormTender'],
-            'giftFormCheck' => $gift['giftFormCheck'],
-            'giftCustom' => $gift['giftCustom'],
-            'openPayment' => $pay['openPayment'],
-            'payError' => $pay['payError'],
-            'payCash' => $pay['payCash'],
-            'payCard' => $pay['payCard'],
-            'payCheck' => $pay['payCheck'],
-            'payCheckNumber' => $pay['payCheckNumber'],
-            'payVendor' => $pay['payVendor'],
-            'payGift' => $pay['payGift'],
-            'payGiftNumber' => $pay['payGiftNumber'],
-            'payGiftCard' => $pay['payGiftCard'],
-            'payGiftCardNumber' => $pay['payGiftCardNumber'],
-            'payCredit' => $pay['payCredit'],
-            'payCreditNumber' => $pay['payCreditNumber'],
-            'instantError' => $instant['instantError'],
-            'instantVendorId' => $instant['instantVendorId'],
-            'instantVendorLabel' => $instant['instantVendorLabel'],
-            'instantDescription' => $instant['instantDescription'],
-            'instantPrice' => $instant['instantPrice'],
-            'instantDiscountKind' => $instant['instantDiscountKind'],
-            'instantDiscountValue' => $instant['instantDiscountValue'],
-            'instantBrandId' => $instant['instantBrandId'],
-            'instantBrandLabel' => $instant['instantBrandLabel'],
-            'instantAttributes' => $instant['instantAttributes'],
-            'instantAdded' => $request->query('added') === '1',
-            'instantAddedPage' => $request->query('instant_added') === '1',
-        ]);
+        $panel = $this->cartView->salePanel($slug, $session, $cart, $drafts, $tenders, $applied, $held);
+        $this->app->show('Feature/Pos/pos', array_merge(
+            $this->cartView->chrome($tenant, $error),
+            $panel,
+            $this->giftForm($giftError, $reopenInstant),
+            $this->payForm($payError),
+            $this->instantForm($instantError)
+        ));
     }
 
     /**
@@ -233,24 +182,6 @@ final class PosPage
         $form['instantAttributes'] = $attributes;
 
         return $form;
-    }
-
-    private function change(string $slug, string $held): ?int
-    {
-        if ($held === '') {
-            return null;
-        }
-        $tendered = $this->sales->tendered($slug);
-        if ($tendered === '' || preg_match('/^(\d+)(?:\.(\d{1,2}))?$/', $tendered) !== 1) {
-            return null;
-        }
-        $cash = $this->poster->receipt($held)['cash'];
-        $handed = Money::parseMinor($tendered);
-        if ($cash < 1 || $handed < $cash) {
-            return null;
-        }
-
-        return $handed - $cash;
     }
 
     public function held(string $slug, string $status): void

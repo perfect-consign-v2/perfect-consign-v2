@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Ledger\DatabaseRefusal;
+
 final class PosRegister
 {
     public function __construct(
@@ -12,6 +14,7 @@ final class PosRegister
         private readonly TicketDrafts $drafts,
         private readonly RegisterGate $gate,
         private readonly LayawayBook $layaways,
+        private readonly SnapSync $snaps,
     ) {
     }
 
@@ -43,6 +46,22 @@ final class PosRegister
     public function cart(string $session): array
     {
         return $this->tickets->cart($session);
+    }
+
+    /**
+     * @param array{ticket_id: string, lines: list<mixed>} $cart
+     * @return list<string>
+     */
+    public function snapKeys(string $session, array $cart): array
+    {
+        if ($cart['lines'] === []) {
+            return [];
+        }
+        try {
+            return $this->snaps->mint($session, $cart['ticket_id']);
+        } catch (DatabaseRefusal) {
+            return [];
+        }
     }
 
     /**

@@ -1,7 +1,7 @@
 ---
 title: Why we reverse instead of edit
 category: Money spine
-hesk: published 2026-10-31
+hesk: published 2026-11-02
 as_of: 2026-10-25
 ---
 

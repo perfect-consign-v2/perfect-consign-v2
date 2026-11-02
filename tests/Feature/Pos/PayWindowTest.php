@@ -31,6 +31,7 @@ final class PayWindowTest extends TestCase
                 ],
                 'buyer_id' => '',
                 'buyer_name' => '',
+                'snap_keys' => ['01900000-0000-7000-8000-00000000aa02'],
             ],
             'openPayment' => true,
             'payError' => '',
@@ -47,8 +48,9 @@ final class PayWindowTest extends TestCase
         $html = ob_get_clean();
 
         self::assertIsString($html);
-        self::assertStringContainsString('data-snaps="[{&quot;item_id&quot;:&quot;item-2&quot;', $html);
-        self::assertStringNotContainsString('item-1', $html);
+        self::assertStringContainsString('data-snaps="[{&quot;posting_key&quot;:&quot;01900000-0000-7000-8000-00000000aa02&quot;}]"', $html);
+        self::assertStringNotContainsString('item-2', $html);
+        self::assertStringNotContainsString('&quot;price&quot;', $html);
         self::assertMatchesRegularExpression(
             '/<button class="btn btn-primary" id="pay-finish" type="submit"[^>]*>Finish sale<\\/button>/',
             $html

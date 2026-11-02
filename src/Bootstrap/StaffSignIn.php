@@ -104,17 +104,12 @@ final class StaffSignIn
 
     private function flag(mixed $value): ?bool
     {
-        if (is_bool($value)) {
-            return $value;
-        }
-        if ($value === 't' || $value === 'true' || $value === 1 || $value === '1') {
-            return true;
-        }
-        if ($value === 'f' || $value === 'false' || $value === 0 || $value === '0') {
-            return false;
-        }
-
-        return null;
+        return match (true) {
+            is_bool($value) => $value,
+            $value === 't', $value === 'true', $value === 1, $value === '1' => true,
+            $value === 'f', $value === 'false', $value === 0, $value === '0' => false,
+            default => null,
+        };
     }
 
     private function version(mixed $value): ?string

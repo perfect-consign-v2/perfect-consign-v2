@@ -191,7 +191,7 @@ final class VendorPortalTest extends WebTestCase
         self::assertSees('Tender saved.', $drawn);
         $this->owner->post('/' . self::SLUG . '/pos/tender', [
             'tender_role' => 'cash',
-            'tender_amount' => $this->money($drawn->body, '/Still due <strong>([^<]+)<\/strong>/'),
+            'tender_amount' => $this->money($drawn->body, '/Still due <strong[^>]*>([^<]+)<\/strong>/'),
         ]);
         $paid = $this->owner->post('/' . self::SLUG . '/pos/pay', []);
         self::assertSees('Sale posted.', $paid);

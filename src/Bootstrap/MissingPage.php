@@ -27,6 +27,25 @@ final class MissingPage
         $this->render(MallApp::MISS_MALL, $csrf);
     }
 
+    public function expiredForm(string $csrf, string $home): never
+    {
+        http_response_code(400);
+        $this->view->render('Shared/Web/layout', [
+            'title' => 'Form expired',
+            'displayName' => '',
+            'slug' => $home,
+            'nav' => $home !== '',
+            'csrf' => $csrf,
+            'error' => 'The form expired. Go back and try again.',
+            'notice' => null,
+            'warning' => null,
+            'path' => $this->request->path,
+            'body' => 'Shared/Web/expired',
+            'showSearch' => false,
+        ]);
+        throw new ResponseSent('csrf');
+    }
+
     public function render(string $reason, string $csrf): never
     {
         http_response_code(404);

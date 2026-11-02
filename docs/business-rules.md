@@ -170,7 +170,7 @@ A missed sale pays the vendor their share and expenses that cost to the mall whe
 
 ## Commission rules
 
-Beyond the item / vendor / mall default store-take path, commission rules can win by specificity, then priority, then price bounds. A posted sale line keeps the commission from the rule that was in force. An equal tie between rules is refused. An offline register snap may send a client commission; the post still uses the rule engine's take, not the client's figure.
+Beyond the item / vendor / mall default store-take path, commission rules can win by specificity, then priority, then price bounds. A posted sale line keeps the commission from the rule that was in force. An equal tie between rules is refused. An offline register snap never trusts a client commission; the post uses the rule engine's take.
 
 ## Markdown queue
 
@@ -180,7 +180,7 @@ A scheduled markdown can wait in a queue. The asking price changes when the re-t
 
 A vendor portal session sees only the vendor named by `stall.vendor_id`. A missing setting, or another vendor's id, returns no rows.
 
-An offline register snap posts the captured sold price and collected tax when the drawer is open and the item still has quantity. Cash posted is unit price × quantity + tax. The register cards’ Unsynced snaps and Refused snaps totals use that same cash figure so the drawer can reconcile offline cash. Duplicate snaps, a closed period, a missing item, a closed drawer, and a second register taking the last unit are refused. `journal_no` stays empty until the post commits. A poster cannot rewrite or delete a posted snap.
+An offline register snap is minted on the server when the pay form is built for a payable open ticket (lines on the cart, sale not finished): price and tax come from that ticket quote (including a tax waiver or vendor tax-exempt), not from browser-edited amounts. Sync posts those frozen figures when the drawer is open and the item still has quantity. Cash posted is unit price × quantity + tax. The register cards’ Unsynced snaps and Refused snaps totals use that same cash figure so the drawer can reconcile offline cash. A tax amount that does not match the mall rate (or waiver/exempt zero) is refused. Duplicate snaps, a closed period, a missing item, a closed drawer, and a second register taking the last unit are refused. `journal_no` stays empty until the post commits. A poster cannot insert free-form snap money, and cannot rewrite or delete a posted snap.
 
 ## Sign-in
 

@@ -6,8 +6,6 @@ namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
 use PerfectConsign\Shared\Http\Request;
-use PerfectConsign\Shared\Http\ResponseSent;
-use PerfectConsign\Shared\Http\View;
 use PDO;
 use Psr\Log\LoggerInterface;
 
@@ -20,7 +18,6 @@ final class OwnerGate
         private readonly Request $request,
         private readonly TenantLookup $tenants,
         private readonly MissingPage $missing,
-        private readonly View $view,
         private readonly StaffSignIn $staff,
         private readonly LoginSession $sessions,
     ) {
@@ -117,17 +114,12 @@ final class OwnerGate
 
     private function flag(mixed $value): ?bool
     {
-        if (is_bool($value)) {
-            return $value;
-        }
-        if ($value === 't' || $value === 'true' || $value === 1 || $value === '1') {
-            return true;
-        }
-        if ($value === 'f' || $value === 'false' || $value === 0 || $value === '0') {
-            return false;
-        }
-
-        return null;
+        return match (true) {
+            is_bool($value) => $value,
+            $value === 't', $value === 'true', $value === 1, $value === '1' => true,
+            $value === 'f', $value === 'false', $value === 0, $value === '0' => false,
+            default => null,
+        };
     }
 
     public function signOut(): void
@@ -143,23 +135,9 @@ final class OwnerGate
             return;
         }
         $this->logger->warning('csrf token refused', ['path' => $this->request->path]);
-        http_response_code(400);
         $slug = $this->session->get('owner_slug');
         $home = is_string($slug) ? $slug : '';
-        $this->view->render('Shared/Web/layout', [
-            'title' => 'Form expired',
-            'displayName' => '',
-            'slug' => $home,
-            'nav' => $home !== '',
-            'csrf' => $this->token(),
-            'error' => 'The form expired. Go back and try again.',
-            'notice' => null,
-            'warning' => null,
-            'path' => $this->request->path,
-            'body' => 'Shared/Web/expired',
-            'showSearch' => false,
-        ]);
-        throw new ResponseSent('csrf');
+        $this->missing->expiredForm($this->token(), $home);
     }
 
     public function token(): string

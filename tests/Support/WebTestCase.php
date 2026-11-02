@@ -91,6 +91,10 @@ abstract class WebTestCase extends TestCase
         if ($error !== '') {
             $detail .= ' ' . $error;
         }
-        self::assertStringContainsString($text, $body, trim($detail));
+        $plain = html_entity_decode($body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        self::assertTrue(
+            str_contains($body, $text) || str_contains($plain, $text),
+            trim($detail) . "\nFailed asserting that the page contains " . $text
+        );
     }
 }

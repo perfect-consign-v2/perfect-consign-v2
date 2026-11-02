@@ -15,7 +15,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var bool $showCashDue */
 /** @var string $cashRoundText */
 /** @var int $salesAvailable */
-/** @var array{lines: list<mixed>, buyer_id: string, buyer_name: string, posting_key?: string, tax_bps?: int} $cart */
+/** @var array{lines: list<mixed>, buyer_id: string, buyer_name: string, posting_key?: string, tax_bps?: int, snap_keys?: list<string>} $cart */
 /** @var bool $openPayment */
 /** @var string $payError */
 /** @var string $payCash */
@@ -45,26 +45,14 @@ $giftFieldError = in_array($payError, [
 ], true);
 $modalError = $giftFieldError ? '' : $payError;
 $amountFocus = $modalError !== '';
-$snapLines = [];
-foreach ($cart['lines'] as $line) {
-    if (!is_array($line)) {
+$keys = [];
+foreach (is_array($cart['snap_keys'] ?? null) ? $cart['snap_keys'] : [] as $key) {
+    if (!is_string($key) || preg_match('/^[0-9a-f-]{36}$/i', $key) !== 1) {
         continue;
     }
-    $itemId = $line['item_id'] ?? '';
-    $price = $line['price'] ?? 0;
-    $tax = $line['tax'] ?? 0;
-    $quantity = $line['quantity'] ?? 1;
-    if (!is_string($itemId) || $itemId === '' || !is_int($price) || !is_int($tax) || !is_int($quantity)) {
-        continue;
-    }
-    $snapLines[] = [
-        'item_id' => $itemId,
-        'price' => $amount($price),
-        'tax' => $amount($tax),
-        'quantity' => (string) $quantity,
-    ];
+    $keys[] = ['posting_key' => strtolower($key)];
 }
-$encodedSnaps = json_encode($snapLines);
+$encodedSnaps = json_encode($keys);
 $snapJson = is_string($encodedSnaps) ? $encodedSnaps : '[]';
 $amountInvalid = static function (string $value): bool {
     $value = str_replace(['$', ',', ' '], '', trim($value));

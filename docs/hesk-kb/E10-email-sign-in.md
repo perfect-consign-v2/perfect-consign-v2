@@ -1,7 +1,7 @@
 ---
 title: Email sign-in finds the mall
 category: Platform notes
-hesk: published 2026-10-31
+hesk: published 2026-11-02
 as_of: 2026-10-29
 ---
 

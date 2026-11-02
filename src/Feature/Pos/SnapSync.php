@@ -15,50 +15,31 @@ final class SnapSync
     }
 
     /**
-     * @param array{
-     *     session_id: string,
-     *     posting_key: string,
-     *     business_date: string,
-     *     item_id: string,
-     *     price: int,
-     *     tax: int,
-     *     commission: int,
-     *     quantity: int,
-     *     commission_bps: int,
-     *     tax_bps: int
-     * } $snap
+     * @return list<string>
      */
-    public function save(array $snap): void
+    public function mint(string $sessionId, string $ticketId): array
     {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $snap['posting_key']) !== 1) {
-            throw new DatabaseRefusal('that snap is not on this register');
-        }
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $snap['business_date']) !== 1) {
-            throw new DatabaseRefusal('a snapped sale needs its business date');
-        }
-        $this->statements->change(
-            'INSERT INTO register_snaps (
-                posting_key, session_id, business_date, item_id, price_minor, tax_minor, commission_minor,
-                quantity, commission_bps, tax_bps
-             ) VALUES (?, ?::uuid, ?::date, ?::uuid, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (posting_key) DO NOTHING',
-            [
-                $snap['posting_key'],
-                $snap['session_id'],
-                $snap['business_date'],
-                $snap['item_id'],
-                $snap['price'],
-                $snap['tax'],
-                $snap['commission'],
-                $snap['quantity'],
-                $snap['commission_bps'],
-                $snap['tax_bps'],
-            ]
+        $rows = $this->statements->bound(
+            'SELECT stall_mint_register_snaps(?::uuid, ?::uuid) AS posting_key',
+            [$sessionId, $ticketId]
         );
+        $keys = [];
+        foreach ($rows as $row) {
+            $key = RowValue::optionalString($row['posting_key'] ?? null);
+            if ($key === null || $key === '') {
+                continue;
+            }
+            $keys[] = $key;
+        }
+
+        return $keys;
     }
 
     public function sync(string $postingKey): ?int
     {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $postingKey) !== 1) {
+            throw new DatabaseRefusal('that snap is not on this register');
+        }
         $rows = $this->statements->bound(
             'SELECT stall_sync_snap(?) AS journal_no',
             [$postingKey]
