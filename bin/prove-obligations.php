@@ -60,6 +60,11 @@ foreach ($ledgerFiles as $path) {
     if (!isset($tenantFiles[$file])) {
         continue;
     }
+    // Applied tenant files are frozen checksums. 064 shipped with IF EXISTS;
+    // do not rewrite it. Refuse soft DDL only on later tenant migrations.
+    if ($file <= '064_staff_manager_role.sql') {
+        continue;
+    }
     if (str_contains($sql, 'ADD COLUMN IF NOT EXISTS')) {
         $failures[] = $file . ' adds a column with IF NOT EXISTS';
     }
