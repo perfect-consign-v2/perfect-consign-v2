@@ -18,6 +18,7 @@ use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
+use PerfectConsign\Feature\Offer\OfferStore;
 use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Feature\Pos\LayawayBook;
 use PerfectConsign\Feature\Pos\ReceiptChange;
@@ -89,6 +90,18 @@ final class MallDemo
         'Upholstered bench',
     ];
 
+    /** @var list<array{name: string, phone: string, email: string}> */
+    private const SHOPPERS = [
+        ['name' => 'Helen Ward', 'phone' => '555-0201', 'email' => 'helen@example.com'],
+        ['name' => 'Marcus Lee', 'phone' => '555-0202', 'email' => 'marcus@example.com'],
+        ['name' => 'Sofia Reyes', 'phone' => '555-0203', 'email' => 'sofia@example.com'],
+        ['name' => 'Tom Briggs', 'phone' => '555-0204', 'email' => 'tom@example.com'],
+        ['name' => 'Amy Cho', 'phone' => '555-0205', 'email' => 'amy@example.com'],
+        ['name' => 'Paul Rivera', 'phone' => '555-0206', 'email' => 'paul@example.com'],
+        ['name' => 'Grace Kim', 'phone' => '555-0207', 'email' => 'grace@example.com'],
+        ['name' => 'Owen Blake', 'phone' => '555-0208', 'email' => 'owen@example.com'],
+    ];
+
     private readonly Statements $statements;
 
     private readonly LedgerStore $ledger;
@@ -98,6 +111,12 @@ final class MallDemo
     private readonly \PerfectConsign\Feature\Party\AssignmentBook $stays;
 
     private readonly TicketStore $tickets;
+
+    private readonly TicketCustomer $shoppers;
+
+    private readonly CustomerStore $customers;
+
+    private readonly OfferStore $offers;
 
     private readonly SalePoster $poster;
 
@@ -128,6 +147,8 @@ final class MallDemo
 
     private int $itemNo = 0;
 
+    private int $shopperNo = 0;
+
     private bool $roundCash = false;
 
     public function __construct(private readonly PDO $pdo, private readonly string $schema)
@@ -149,7 +170,10 @@ final class MallDemo
             new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
             new \PerfectConsign\Bootstrap\AuditLog($this->statements),
         );
-        $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), new TicketCustomer($this->statements, new CustomerStore($this->statements)), $ceiling);
+        $this->customers = new CustomerStore($this->statements);
+        $this->shoppers = new TicketCustomer($this->statements, $this->customers);
+        $this->offers = new OfferStore($this->statements);
+        $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), $this->shoppers, $ceiling);
         $attach = new \PerfectConsign\Feature\Pos\SaleTicketAttach($this->statements);
         $reversals = new \PerfectConsign\Feature\Pos\SaleReversal(
             $this->ledger,
@@ -214,6 +238,8 @@ final class MallDemo
         $this->stock('MAX', '2026-08-01', 0);
         $this->stock('NIA', '2026-08-01', 0);
         $this->itemNotes();
+        $this->directory();
+        $this->deals();
         $this->opening();
         foreach (['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'] as $month) {
             $this->month($month);
@@ -611,6 +637,7 @@ final class MallDemo
         $this->tickets->scan($sessionId, $next['barcode']);
         $cart = $this->tickets->cart($sessionId);
         $due = $cart['due'];
+        $this->nameShopper($cart['ticket_id']);
         $this->payCart($sessionId, $date, $card, null);
         $journal = $this->statements->bound(
             'SELECT posted_journal_id FROM tickets WHERE id = ?::uuid',
@@ -798,12 +825,15 @@ final class MallDemo
     {
         $this->tickets->scan($sessionId, $this->shelfBarcode('BEA'));
         $this->tickets->discount($sessionId, 'amount', 500, 'damaged');
+        $this->nameShopper($this->tickets->cart($sessionId)['ticket_id']);
         $this->payCart($sessionId, '2026-10-03', false, null);
         $this->tickets->scan($sessionId, $this->shelfBarcode('CAL'));
         $this->tickets->waive($sessionId, 'resale');
+        $this->nameShopper($this->tickets->cart($sessionId)['ticket_id']);
         $this->payCart($sessionId, '2026-10-03', false, '4402');
         $this->tickets->scan($sessionId, $this->shelfBarcode('EVE'));
         $cart = $this->tickets->cart($sessionId);
+        $this->nameShopper($cart['ticket_id']);
         (new LayawayBook($this->statements, $this->ledger))->hold($sessionId, '2026-10-03', $cart['ticket_id'], $cart['due'], [
             'lines' => [PostedLines::entry($this->ledger->roleAccount('cash'), 2000, 0, null, null)],
             'sum' => 2000,
@@ -811,6 +841,7 @@ final class MallDemo
             'cash' => 2000,
         ]);
         $this->tickets->scan($sessionId, $this->shelfBarcode('ADA'));
+        $this->nameShopper($this->tickets->cart($sessionId)['ticket_id']);
         $this->tickets->park($sessionId, '');
         (new GiftIssue($this->statements, $this->ledger))->issue($sessionId, '2026-10-03', 'GC-K7NP4R2WXM', 2500, 'cash', null);
         $drop = $this->ledger->newId();
@@ -824,6 +855,92 @@ final class MallDemo
             ],
             sessionId: $sessionId,
         ));
+    }
+
+    private function directory(): void
+    {
+        foreach (self::SHOPPERS as $shopper) {
+            $this->customers->findOrCreate($shopper['name'], $shopper['phone'], $shopper['email']);
+        }
+        $this->customers->findOrCreate('Rita Moss', '555-0210', 'rita@example.com');
+        $this->customers->findOrCreate('Ken Hale', '555-0211', '');
+        $this->customers->findOrCreate('Julia Frost', '', 'julia@example.com');
+    }
+
+    private function deals(): void
+    {
+        $this->offers->save(null, [
+            'name' => 'Store three for $25',
+            'scope' => 'store',
+            'kind' => 'bundle',
+            'threshold' => '3',
+            'price' => '25.00',
+            'funded_by' => 'store',
+            'starts_on' => '2026-09-01',
+            'ends_on' => '2026-10-31',
+            'item_code' => '',
+            'vendor_id' => '',
+        ], null);
+        $this->offers->save(null, [
+            'name' => 'Ada booth buy-two',
+            'scope' => 'vendor',
+            'kind' => 'unit_break',
+            'threshold' => '2',
+            'price' => '12.00',
+            'funded_by' => 'vendor',
+            'starts_on' => '2026-08-01',
+            'ends_on' => '',
+            'item_code' => '',
+            'vendor_id' => $this->vendors['ADA'],
+        ], null);
+        $this->offers->save(null, [
+            'name' => 'Quilt pair deal',
+            'scope' => 'item',
+            'kind' => 'bundle',
+            'threshold' => '2',
+            'price' => '30.00',
+            'funded_by' => 'vendor',
+            'starts_on' => '2026-10-01',
+            'ends_on' => '2026-12-31',
+            'item_code' => 'ADA-027',
+            'vendor_id' => '',
+        ], null);
+        $this->offers->save(null, [
+            'name' => 'Spring clear-out',
+            'scope' => 'store',
+            'kind' => 'bundle',
+            'threshold' => '4',
+            'price' => '40.00',
+            'funded_by' => 'store',
+            'starts_on' => '2026-04-01',
+            'ends_on' => '2026-05-31',
+            'item_code' => '',
+            'vendor_id' => '',
+        ], null);
+        $this->offers->save(null, [
+            'name' => 'Bea lamp break',
+            'scope' => 'vendor',
+            'kind' => 'unit_break',
+            'threshold' => '3',
+            'price' => '8.00',
+            'funded_by' => 'vendor',
+            'starts_on' => '2026-07-01',
+            'ends_on' => '',
+            'item_code' => '',
+            'vendor_id' => $this->vendors['BEA'],
+        ], null);
+    }
+
+    private function nameShopper(string $ticketId): void
+    {
+        if ($ticketId === '' || $this->shopperNo % 3 === 2) {
+            $this->shopperNo++;
+
+            return;
+        }
+        $shopper = self::SHOPPERS[$this->shopperNo % count(self::SHOPPERS)];
+        $this->shopperNo++;
+        $this->shoppers->save($ticketId, $shopper['name'], $shopper['phone'], $shopper['email']);
     }
 
     private function payCart(string $sessionId, string $date, bool $card, ?string $check): void
