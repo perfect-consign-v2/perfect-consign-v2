@@ -115,7 +115,15 @@ final class AppRoleStaffLookupTest extends TestCase
             $roles,
             new LoginAccounts($pdo, $roles),
             $tokens,
-            new ResetRequests($pdo),
+            new ResetRequests($pdo, new \PerfectConsign\Shared\Http\Request(
+                'POST',
+                '/forgot',
+                [],
+                [],
+                '',
+                'https://example.test',
+                '127.0.0.1',
+            )),
             new PasswordChoice(),
             \PerfectConsign\Tests\Support\MailTestKit::resetLetter($pdo, $logger),
         );

@@ -13,6 +13,7 @@ use PerfectConsign\Feature\Password\PasswordRecovery;
 use PerfectConsign\Feature\Password\ResetLetter;
 use PerfectConsign\Feature\Password\ResetRequests;
 use PerfectConsign\Feature\Password\ResetTokens;
+use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Mail\SealedSecret;
 use PerfectConsign\Shared\Tenant\TenantRecord;
@@ -82,15 +83,19 @@ final class PasswordRequestTest extends TestCase
         $count = $this->createStub(PDOStatement::class);
         $count->method('fetchColumn')->willReturn(5);
         $pdo = $this->createMock(PDO::class);
+        $pdo->expects($this->once())->method('exec')->willReturn(1);
         $pdo->expects($this->once())->method('prepare')->willReturn($count);
-        self::assertFalse((new ResetRequests($pdo))->allow($this->tenant(), 'owner'));
+        self::assertFalse((new ResetRequests($pdo, $this->httpRequest()))->allow($this->tenant(), 'owner'));
 
         $again = $this->createStub(PDOStatement::class);
         $again->method('fetchColumn')->willReturn(4);
+        $spray = $this->createStub(PDOStatement::class);
+        $spray->method('fetchColumn')->willReturn(0);
         $insert = $this->createStub(PDOStatement::class);
         $open = $this->createStub(PDO::class);
-        $open->method('prepare')->willReturnOnConsecutiveCalls($again, $insert);
-        self::assertTrue((new ResetRequests($open))->allow($this->tenant(), 'owner'));
+        $open->method('exec')->willReturn(1);
+        $open->method('prepare')->willReturnOnConsecutiveCalls($again, $spray, $insert);
+        self::assertTrue((new ResetRequests($open, $this->httpRequest()))->allow($this->tenant(), 'owner'));
     }
 
     public function testAStaffRowThatIsNotARecordIsRefused(): void
@@ -148,12 +153,19 @@ final class PasswordRequestTest extends TestCase
             'gmail_address' => 'shop@example.test',
             'gmail_app_password' => 'abcdefghijklmnop',
         ]);
+        $spray = $this->createStub(PDOStatement::class);
+        $spray->method('fetchColumn')->willReturn(0);
         $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturnOnConsecutiveCalls($count, $insert, $found, $staff);
+        $pdo->method('prepare')->willReturnOnConsecutiveCalls($count, $spray, $insert, $found, $staff);
         $pdo->method('query')->willReturn($mailbox);
         $pdo->method('exec')->willReturn(1);
 
         return $pdo;
+    }
+
+    private function httpRequest(): Request
+    {
+        return new Request('POST', '/forgot', [], [], '', 'https://example.test', '127.0.0.1');
     }
 
     /**
@@ -174,7 +186,7 @@ final class PasswordRequestTest extends TestCase
             new DatabaseRole($pdo),
             new LoginAccounts($pdo, new DatabaseRole($pdo)),
             new ResetTokens($pdo),
-            new ResetRequests($pdo),
+            new ResetRequests($pdo, $this->httpRequest()),
             new PasswordChoice(),
             \PerfectConsign\Tests\Support\MailTestKit::resetLetter($pdo, $log),
         );

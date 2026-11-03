@@ -17,13 +17,20 @@ final class SchemaCatalogTest extends TestCase
         $tenant = $catalog->tenantFiles();
         $platform = $catalog->platformFiles();
         self::assertSame(
-            ['001_tenant.sql', '064_staff_manager_role.sql', '067_staff_can_sign_in.sql', '069_snap_authorize.sql'],
+            [
+                '001_tenant.sql',
+                '064_staff_manager_role.sql',
+                '067_staff_can_sign_in.sql',
+                '069_snap_authorize.sql',
+                '072_snap_discounts.sql',
+                '074_vendor_entry_grants.sql',
+            ],
             $tenant
         );
         self::assertNotContains('000_platform.sql', $tenant);
         self::assertSame(['000_platform.sql'], $platform);
         self::assertSame(
-            ['055_store_signup.sql', '056_wipe_email_verifications.sql', '057_mail_outbox.sql', '058_worker_runs.sql', '059_worker_heartbeat.sql', '060_worker_runs_delete.sql', '061_admin_app_log_audit.sql', '062_wipe_password_resets.sql', '063_sign_in_failure_stale.sql', '065_stall_app_vendor_grant.sql', '066_co_owners.sql', '068_owner_can_sign_in.sql', '070_wipe_tenant_no_superuser.sql'],
+            ['055_store_signup.sql', '056_wipe_email_verifications.sql', '057_mail_outbox.sql', '058_worker_runs.sql', '059_worker_heartbeat.sql', '060_worker_runs_delete.sql', '061_admin_app_log_audit.sql', '062_wipe_password_resets.sql', '063_sign_in_failure_stale.sql', '065_stall_app_vendor_grant.sql', '066_co_owners.sql', '068_owner_can_sign_in.sql', '070_wipe_tenant_no_superuser.sql', '071_admin_sign_in_lockout.sql', '073_vendor_entry_role.sql', '075_password_reset_client.sql', '076_password_reset_delete.sql'],
             $catalog->platformAfterFiles()
         );
         $checksum = $catalog->checksum('001_tenant.sql');

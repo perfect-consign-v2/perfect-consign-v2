@@ -20,6 +20,7 @@ final class TicketStore
         private readonly TicketQueue $queue,
         private readonly TicketCustomer $customers,
         private readonly SaleCeiling $ceiling,
+        private readonly TicketPriceChange $prices,
     ) {
     }
 
@@ -134,14 +135,7 @@ final class TicketStore
     {
         $ticketId = $this->requireOpen($sessionId);
         $this->statements->transaction(function () use ($ticketId, $lineNo, $price): void {
-            $updated = $this->statements->affected(
-                'UPDATE ticket_lines SET price_minor = ? WHERE ticket_id = ?::uuid AND line_no = ?',
-                [$price, $ticketId, $lineNo]
-            );
-            if ($updated !== 1) {
-                throw new DatabaseRefusal('that item is not on the ticket');
-            }
-            $this->pricing->recheck($ticketId);
+            $this->prices->apply($ticketId, $lineNo, $price);
         });
     }
 

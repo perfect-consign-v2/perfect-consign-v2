@@ -47,6 +47,9 @@ final class ErrorHandling
             ];
             $logger->error($error['message'], $context);
             $notices?->serverFailed('fatal error', $context);
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
             if (!headers_sent()) {
                 http_response_code(500);
                 header('Content-Type: text/html; charset=utf-8');

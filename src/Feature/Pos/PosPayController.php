@@ -96,8 +96,18 @@ final class PosPayController
         $this->app->open($slug, true);
         $session = $this->gate->session($slug);
         try {
-            $credit = $this->tenders->credit($this->app->request(), $this->poster->refundAmount($id, $this->itemId()));
-            $this->poster->returnItem($session, $this->mall->today(), $id, $this->itemId(), $credit['line'], $credit['check']);
+            $request = $this->app->request();
+            $credit = $this->tenders->credit($request, $this->poster->refundAmount($id, $this->itemId()));
+            $this->poster->returnItem(
+                $session,
+                $this->mall->today(),
+                $id,
+                $this->itemId(),
+                $credit['line'],
+                $credit['check'],
+                $request->field('override_user'),
+                $request->field('override_password'),
+            );
         } catch (DatabaseRefusal $refusal) {
             $message = $this->app->catchRefusal($refusal);
             if ($this->app->request()->wantsJson()) {

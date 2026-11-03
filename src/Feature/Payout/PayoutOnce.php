@@ -33,6 +33,7 @@ final class PayoutOnce
         string $overrideUser = '',
         string $overridePassword = '',
     ): void {
+        $this->ceiling->second('payout.close', $rent, $overrideUser, $overridePassword);
         try {
             $this->statements->transaction(function () use ($from, $to, $rent, $today, $tender, $sessionId): void {
                 $runId = $this->runs->ensureDraft($from, $to, $rent, $today, $tender);
@@ -43,7 +44,6 @@ final class PayoutOnce
         } catch (PDOException $error) {
             throw DatabaseRefusal::fromPdo($error);
         }
-        $this->ceiling->second('payout.close', $rent, $overrideUser, $overridePassword);
     }
 
     /**

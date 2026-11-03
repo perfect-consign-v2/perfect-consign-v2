@@ -70,7 +70,14 @@ final class AdminTenantController
             $this->app->redirect('/admin/tenants', null, 'That store was not found.');
         }
         try {
-            $this->wipe->wipe($admin, $tenant, $this->app->request()->field('confirm_slug'));
+            $request = $this->app->request();
+            $this->wipe->wipe(
+                $admin,
+                $tenant,
+                $request->field('confirm_slug'),
+                $request->field('second_email'),
+                $request->field('second_password'),
+            );
         } catch (\InvalidArgumentException $error) {
             $this->app->show('Feature/Admin/delete', [
                 'title' => 'Delete ' . $tenant->displayName,

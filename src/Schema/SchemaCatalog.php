@@ -29,6 +29,10 @@ final class SchemaCatalog
         '066_co_owners.sql',
         '068_owner_can_sign_in.sql',
         '070_wipe_tenant_no_superuser.sql',
+        '071_admin_sign_in_lockout.sql',
+        '073_vendor_entry_role.sql',
+        '075_password_reset_client.sql',
+        '076_password_reset_delete.sql',
     ];
 
     public function __construct(private readonly string $directory)

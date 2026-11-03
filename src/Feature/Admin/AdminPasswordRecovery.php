@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectConsign\Feature\Password\PasswordChoice;
+use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Mail\PlatformMailbox;
 use PDO;
 use Psr\Log\LoggerInterface;
@@ -15,6 +16,7 @@ final class AdminPasswordRecovery
 
     public function __construct(
         private readonly PDO $pdo,
+        private readonly Request $request,
         private readonly AdminResetTokens $tokens,
         private readonly PasswordChoice $passwords,
         private readonly PlatformMailbox $platformMail,
@@ -117,6 +119,10 @@ final class AdminPasswordRecovery
 
     private function allow(string $email): bool
     {
+        $this->pdo->exec(
+            "DELETE FROM platform.admin_password_reset_requests
+             WHERE requested_at <= clock_timestamp() - interval '15 minutes'"
+        );
         $recent = $this->pdo->prepare(
             "SELECT count(*)
              FROM platform.admin_password_reset_requests
@@ -127,10 +133,20 @@ final class AdminPasswordRecovery
         if ((int) $recent->fetchColumn() >= 5) {
             return false;
         }
-        $insert = $this->pdo->prepare(
-            'INSERT INTO platform.admin_password_reset_requests (email) VALUES (?)'
+        $spray = $this->pdo->prepare(
+            "SELECT count(*)
+             FROM platform.admin_password_reset_requests
+             WHERE client_address = ?
+               AND requested_at > clock_timestamp() - interval '15 minutes'"
         );
-        $insert->execute([$email]);
+        $spray->execute([$this->request->address]);
+        if ((int) $spray->fetchColumn() >= 40) {
+            return false;
+        }
+        $insert = $this->pdo->prepare(
+            'INSERT INTO platform.admin_password_reset_requests (email, client_address) VALUES (?, ?)'
+        );
+        $insert->execute([$email, $this->request->address]);
 
         return true;
     }

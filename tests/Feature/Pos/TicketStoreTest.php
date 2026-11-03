@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Pos;
 
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Bootstrap\AuditLog;
+use PerfectConsign\Feature\Pos\TicketPriceChange;
+use PerfectConsign\Feature\Pos\TicketPricing;
 use PerfectConsign\Feature\Pos\TicketStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
@@ -27,7 +31,13 @@ final class TicketStoreTest extends TestCase
     public function testAMissingLineCannotChangePrice(): void
     {
         $statements = $this->createStub(Statements::class);
-        $statements->method('bound')->willReturn([['id' => '00000000-0000-7000-8000-0000000000t1']]);
+        $statements->method('bound')->willReturnCallback(static function (string $sql): array {
+            if (str_contains($sql, 'item_floors')) {
+                return [];
+            }
+
+            return [['id' => '00000000-0000-7000-8000-0000000000t1']];
+        });
         $statements->method('transaction')->willReturnCallback(static function (callable $work): void {
             $work();
         });
@@ -160,6 +170,19 @@ final class TicketStoreTest extends TestCase
     {
         $store = (new ReflectionClass(TicketStore::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(TicketStore::class, 'statements'))->setValue($store, $statements);
+        $pricing = (new ReflectionClass(TicketPricing::class))->newInstanceWithoutConstructor();
+        $prices = (new ReflectionClass(TicketPriceChange::class))->newInstanceWithoutConstructor();
+        (new ReflectionProperty(TicketPriceChange::class, 'statements'))->setValue($prices, $statements);
+        (new ReflectionProperty(TicketPriceChange::class, 'pricing'))->setValue($prices, $pricing);
+        (new ReflectionProperty(TicketPriceChange::class, 'actor'))->setValue(
+            $prices,
+            (new ReflectionClass(Actor::class))->newInstanceWithoutConstructor(),
+        );
+        (new ReflectionProperty(TicketPriceChange::class, 'audit'))->setValue(
+            $prices,
+            (new ReflectionClass(AuditLog::class))->newInstanceWithoutConstructor(),
+        );
+        (new ReflectionProperty(TicketStore::class, 'prices'))->setValue($store, $prices);
 
         return $store;
     }

@@ -28,6 +28,16 @@ class Statements
 
     public function transaction(callable $work): void
     {
+        if ($this->pdo->inTransaction()) {
+            $work();
+
+            return;
+        }
+        $this->ownedTransaction($work);
+    }
+
+    private function ownedTransaction(callable $work): void
+    {
         $this->pdo->beginTransaction();
         try {
             $work();

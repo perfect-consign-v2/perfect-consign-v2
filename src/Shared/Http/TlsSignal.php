@@ -47,6 +47,11 @@ final class TlsSignal
         return strtolower(trim($token)) === 'https';
     }
 
+    public static function peerIsTrusted(string $remote, string $allowlist): bool
+    {
+        return self::trustedPeer($remote, $allowlist);
+    }
+
     private static function trustedPeer(string $remote, string $allowlist): bool
     {
         $allowlist = trim($allowlist);

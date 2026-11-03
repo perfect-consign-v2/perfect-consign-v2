@@ -33,30 +33,17 @@ final class VendorEntry
         if ($email === '') {
             return;
         }
-        $this->assume($tenant);
-        if (!$this->allow($email)) {
+        $token = $this->mint($tenant, $email, $origin);
+        if ($token === null) {
             return;
         }
-        $rows = $this->statements->bound(
-            'SELECT id FROM vendors WHERE lower(email) = ? AND active IS DISTINCT FROM false LIMIT 1',
-            [$email]
-        );
-        $vendorId = is_string($rows[0]['id'] ?? null) ? $rows[0]['id'] : '';
-        if ($vendorId === '' || preg_match('#\Ahttps?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?\z#', $origin) !== 1) {
-            return;
-        }
-        if (!$this->mailbox->ready()) {
-            $this->logger->error('consignor entry mailbox is not set up', ['slug' => $tenant->slug]);
-
-            return;
-        }
-        $token = bin2hex(random_bytes(32));
-        $this->statements->change(
-            "INSERT INTO vendor_entry_tokens (vendor_id, token_hash, expires_at)
-             VALUES (?::uuid, ?, clock_timestamp() + interval '30 minutes')",
-            [$vendorId, hash('sha256', $token)]
-        );
+        $this->asPoster($tenant);
         try {
+            if (!$this->mailbox->ready()) {
+                $this->logger->error('consignor entry mailbox is not set up', ['slug' => $tenant->slug]);
+
+                return;
+            }
             $this->outbox->file(
                 $tenant->slug,
                 MailOutbox::MAILBOX_MALL,
@@ -70,19 +57,53 @@ final class VendorEntry
                 'slug' => $tenant->slug,
                 'message' => $error->getMessage(),
             ]);
+        } finally {
+            $this->roles->reset();
         }
     }
 
     public function open(TenantRecord $tenant, string $hash): string
     {
-        $this->assume($tenant);
-        $rows = $this->statements->bound(
-            'SELECT stall_vendor_open(?) AS vendor_id',
-            [$hash]
-        );
+        $this->asEntry($tenant);
+        try {
+            $rows = $this->statements->bound(
+                'SELECT stall_vendor_open(?) AS vendor_id',
+                [$hash]
+            );
+        } finally {
+            $this->roles->reset();
+        }
         $vendorId = $rows[0]['vendor_id'] ?? null;
 
         return is_string($vendorId) ? $vendorId : '';
+    }
+
+    private function mint(TenantRecord $tenant, string $email, string $origin): ?string
+    {
+        $this->asEntry($tenant);
+        try {
+            if (!$this->allow($email)) {
+                return null;
+            }
+            $rows = $this->statements->bound(
+                'SELECT id FROM vendors WHERE lower(email) = ? AND active IS DISTINCT FROM false LIMIT 1',
+                [$email]
+            );
+            $vendorId = is_string($rows[0]['id'] ?? null) ? $rows[0]['id'] : '';
+            if ($vendorId === '' || preg_match('#\Ahttps?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?\z#', $origin) !== 1) {
+                return null;
+            }
+            $token = bin2hex(random_bytes(32));
+            $this->statements->change(
+                "INSERT INTO vendor_entry_tokens (vendor_id, token_hash, expires_at)
+                 VALUES (?::uuid, ?, clock_timestamp() + interval '30 minutes')",
+                [$vendorId, hash('sha256', $token)]
+            );
+
+            return $token;
+        } finally {
+            $this->roles->reset();
+        }
     }
 
     private function allow(string $email): bool
@@ -105,7 +126,19 @@ final class VendorEntry
         return true;
     }
 
-    private function assume(TenantRecord $tenant): void
+    private function asEntry(TenantRecord $tenant): void
+    {
+        $this->prepare($tenant);
+        $this->roles->assume('stall_vendor_entry');
+    }
+
+    private function asPoster(TenantRecord $tenant): void
+    {
+        $this->prepare($tenant);
+        $this->roles->assume($tenant->role);
+    }
+
+    private function prepare(TenantRecord $tenant): void
     {
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $tenant->schema) !== 1) {
             throw new \RuntimeException('the mall schema is not usable');
@@ -114,6 +147,5 @@ final class VendorEntry
         if ($this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog, extensions') === false) {
             throw new \RuntimeException('the mall schema could not be used');
         }
-        $this->roles->assume($tenant->role);
     }
 }

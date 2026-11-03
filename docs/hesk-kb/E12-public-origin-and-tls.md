@@ -1,15 +1,15 @@
 ---
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
-hesk: published 2026-11-02
-as_of: 2026-10-30
+hesk: pending
+as_of: 2026-11-02
 ---
 
 # Public origin, proxies, TLS, and page script policy
 
 ## As of
 
-2026-10-30 — Local `APP_ENV` serves `/assets` with `Cache-Control: no-store`; production still day-caches and busts with `View::asset()` (`?v=` filemtime). Coverage process split and Admin → App log clear unchanged.
+2026-11-02 — trusted peers also supply client address from the rightmost untrusted `X-Forwarded-For` hop; HTTPS demos must list a trusted proxy when Secure cookies are required.
 
 ## In one sentence
 
@@ -23,7 +23,7 @@ You deploy PC2 behind HTTPS, a reverse proxy, or `php -S` for a local demo; or y
 
 - `STALL_PUBLIC_ORIGIN` is the canonical origin (`https://mall.example` or `http://127.0.0.1:8096`). Outbound links use that value, not a forged `Host` header.
 - Host-derived origin is allowed only when `STALL_ALLOW_HOST_ORIGIN=true` and the env is not production-like (`local` / `development` / `dev`, or `APP_DEBUG=true` outside `production` / `prod`). Production-like env always needs `STALL_PUBLIC_ORIGIN`.
-- `STALL_TRUSTED_PROXIES` lists proxy IPs or IPv4 CIDRs. Only those peers may supply `X-Forwarded-Proto` for Secure cookies and HSTS. If the list is empty, forwarded proto is ignored; only the server’s own HTTPS signal counts.
+- `STALL_TRUSTED_PROXIES` lists proxy IPs or IPv4 CIDRs. Only those peers may supply `X-Forwarded-Proto` for Secure cookies and HSTS, and the rightmost untrusted hop of `X-Forwarded-For` for lockouts and audit. If the list is empty, forwarded proto and address are ignored; only the server’s own HTTPS signal and `REMOTE_ADDR` count. `bin/deploy-demo.sh` refuses an `https://` public origin when that list is empty.
 - When TLS is trusted, HSTS is sent as `max-age=86400` without `includeSubDomains`. Mutating POSTs still need a session CSRF token; Referer is not CSRF.
 - Every page sends an enforcing Content-Security-Policy: scripts and styles must come from the same origin under `/assets/` (no inline script or style tags, no `style=` attributes, no `onclick=` handlers). Barcode sticker images may use `data:` URLs.
 - Pages load a tiny `boot.css` before the theme so the browser does not flash oversized unstyled text while theme CSS is still arriving.
@@ -38,11 +38,11 @@ You deploy PC2 behind HTTPS, a reverse proxy, or `php -S` for a local demo; or y
 
 ## How to check
 
-Set `STALL_PUBLIC_ORIGIN`, request a password reset, and confirm the mailed link host matches that origin even if `Host` is forged. Behind a proxy, list the proxy in `STALL_TRUSTED_PROXIES` and confirm Secure cookies; without the list, a forged forwarded-proto header must not set Secure. Local `php -S` without HTTPS correctly keeps Secure off. View response headers for `Content-Security-Policy` with `script-src 'self'` and without `unsafe-inline`.
+Set `STALL_PUBLIC_ORIGIN`, request a password reset, and confirm the mailed link host matches that origin even if `Host` is forged. Behind a proxy, list the proxy in `STALL_TRUSTED_PROXIES` and confirm Secure cookies and the client address used for lockouts; without the list, a forged forwarded-proto header must not set Secure. Local `php -S` without HTTPS correctly keeps Secure off. View response headers for `Content-Security-Policy` with `script-src 'self'` and without `unsafe-inline`.
 
 ## Source
 
-`README.md` — Load / Application. `docs/http-edge.md`. `.cursor/rules/hostile-bootstrap.mdc`. `src/Shared/Http/TlsSignal.php`, `RequestOrigin.php`, `public/index.php`.
+`README.md` — Load / Application. `docs/http-edge.md`. `.cursor/rules/hostile-bootstrap.mdc`. `src/Shared/Http/TlsSignal.php`, `RequestOrigin.php`, `RequestFactory.php`, `public/index.php`.
 
 ## Related
 

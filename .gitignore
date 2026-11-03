@@ -2,6 +2,7 @@
 .cursor/demo-server.local
 /vendor/
 var/
+tmp/
 .phpunit.result.cache
 .phpunit.cache/
 /tests/Codeception/_output/

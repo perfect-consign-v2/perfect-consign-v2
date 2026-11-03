@@ -7,7 +7,10 @@ if (PHP_SAPI !== 'cli' || !isset($argv[0]) || realpath($argv[0]) !== realpath(__
 }
 
 require_once __DIR__ . '/load-env.php';
+require_once dirname(__DIR__) . '/vendor/autoload.php';
 loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
+
+use PerfectConsign\Feature\Password\PasswordChoice;
 
 $slug = $argv[1] ?? '';
 $username = $argv[2] ?? '';
@@ -17,37 +20,12 @@ if (!is_string($password) || $password === '') {
     exit(1);
 }
 $email = ownerEmail(getenv('STALL_OWNER_EMAIL'));
-$host = getenv('STALL_DB_HOST');
-$port = getenv('STALL_DB_PORT');
-$name = getenv('STALL_DB_NAME');
-$user = getenv('STALL_DB_USER');
-$adminPassword = getenv('STALL_DB_PASSWORD');
-if (!is_string($host) || $host === '') {
-    $host = '127.0.0.1';
-}
-if (!is_string($port) || $port === '') {
-    $port = '5436';
-}
-if (!is_string($name) || $name === '') {
-    $name = 'consign';
-}
-if (!is_string($user) || $user === '') {
-    $user = 'stall';
-}
-if (!is_string($adminPassword) || $adminPassword === '') {
-    $adminPassword = 'stall';
-}
 if (!is_string($slug) || $slug === '' || !is_string($username) || $username === '') {
     fwrite(STDERR, "usage: php bin/set-owner.php <slug> <username>\n");
     exit(1);
 }
 
-$pdo = new PDO(
-    'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
-    $user,
-    $adminPassword,
-    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-);
+$pdo = plantPdo();
 
 $current = $pdo->prepare(
     'SELECT o.id, o.username, o.password_hash, o.email
@@ -81,9 +59,10 @@ if (is_array($existing) && passwordMatches($password, $existing['password_hash']
     exit(0);
 }
 
-$hash = password_hash($password, PASSWORD_DEFAULT);
-if ($hash === false) {
-    fwrite(STDERR, "the password hash could not be created\n");
+try {
+    $hash = (new PasswordChoice())->hash($password);
+} catch (InvalidArgumentException $error) {
+    fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);
 }
 $statement = $pdo->prepare(
@@ -108,6 +87,49 @@ if ($statement->rowCount() < 1) {
     exit(1);
 }
 fwrite(STDOUT, "owner saved\n");
+
+/**
+ * @return PDO
+ */
+function plantPdo(): PDO
+{
+    $host = getenv('STALL_DB_HOST');
+    $port = getenv('STALL_DB_PORT');
+    $name = getenv('STALL_DB_NAME');
+    $user = getenv('STALL_DB_USER');
+    $adminPassword = getenv('STALL_DB_PASSWORD');
+    if (!is_string($host) || $host === '') {
+        $host = '127.0.0.1';
+    }
+    if (!is_string($port) || $port === '') {
+        $port = '5436';
+    }
+    if (!is_string($name) || $name === '') {
+        $name = 'consign';
+    }
+    if (!is_string($user) || $user === '') {
+        $user = 'stall';
+    }
+    if (!is_string($adminPassword) || $adminPassword === '') {
+        fwrite(STDERR, "STALL_DB_PASSWORD is required\n");
+        exit(1);
+    }
+    if (str_contains($host, ';') || str_contains($name, ';')) {
+        fwrite(STDERR, "STALL_DB_HOST or STALL_DB_NAME is invalid\n");
+        exit(1);
+    }
+    if (!ctype_digit($port) || (int) $port < 1 || (int) $port > 65535) {
+        fwrite(STDERR, "STALL_DB_PORT is invalid\n");
+        exit(1);
+    }
+
+    return new PDO(
+        'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name,
+        $user,
+        $adminPassword,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+}
 
 function ownerEmail(mixed $email): ?string
 {

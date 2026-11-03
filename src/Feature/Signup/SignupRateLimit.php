@@ -32,6 +32,11 @@ final class SignupRateLimit
 
     public function remember(string $clientAddress): void
     {
+        $prune = $this->pdo->prepare(
+            'DELETE FROM platform.signup_attempts
+             WHERE attempted_at <= clock_timestamp() - make_interval(secs => ?)'
+        );
+        $prune->execute([$this->windowSeconds()]);
         $statement = $this->pdo->prepare(
             'INSERT INTO platform.signup_attempts (client_address) VALUES (?)'
         );

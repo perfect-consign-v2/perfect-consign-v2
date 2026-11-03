@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Shared\Http;
 
+use InvalidArgumentException;
+
 final class RequestUploads
 {
     /**
@@ -16,6 +18,9 @@ final class RequestUploads
         foreach ($files as $key => $file) {
             if (!is_string($key) || !is_array($file)) {
                 continue;
+            }
+            if (self::isMulti($file)) {
+                throw new InvalidArgumentException('multi-file uploads are refused');
             }
             $parsed = self::single($file);
             if ($parsed === null) {
@@ -33,9 +38,6 @@ final class RequestUploads
      */
     private static function single(array $file): ?array
     {
-        if (self::isMulti($file)) {
-            return null;
-        }
         $tmp = $file['tmp_name'] ?? null;
         $error = $file['error'] ?? null;
         $size = $file['size'] ?? null;

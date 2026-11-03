@@ -102,6 +102,16 @@ if grep -Eq '^STALL_PLATFORM_ADMIN_PASSWORD=.+' "${root}/.env"; then
 fi
 
 
+# HTTPS public origin requires Secure cookies: native HTTPS or a trusted proxy peer.
+origin=$(grep -E '^STALL_PUBLIC_ORIGIN=' "${root}/.env" | head -n1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')
+if [[ "${origin}" == https://* ]]; then
+    proxies=$(grep -E '^STALL_TRUSTED_PROXIES=' "${root}/.env" | head -n1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//' || true)
+    if [[ -z "${proxies}" ]]; then
+        echo "deploy-demo: STALL_PUBLIC_ORIGIN is https but STALL_TRUSTED_PROXIES is empty; Secure cookies need a trusted proxy or process HTTPS" >&2
+        exit 1
+    fi
+fi
+
 # Sign-in is only at `/`. Old /{slug}/login bookmarks redirect (303) there.
 live=https://v2.perfectconsign.com/
 code=$(curl -sS -o /dev/null -w '%{http_code}' "$live")

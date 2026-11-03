@@ -89,10 +89,12 @@ final class RequestFactoryTest extends TestCase
         ], [], [], [], '');
     }
 
-    public function testMultiFileUploadFieldIsSkipped(): void
+    public function testMultiFileUploadFieldIsRefused(): void
     {
         $this->setEnv('STALL_PUBLIC_ORIGIN', 'http://127.0.0.1');
-        $request = RequestFactory::from([
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('multi-file uploads are refused');
+        RequestFactory::from([
             'REQUEST_METHOD' => 'POST',
             'REQUEST_URI' => '/upload',
             'HTTP_HOST' => '127.0.0.1',
@@ -111,8 +113,6 @@ final class RequestFactoryTest extends TestCase
                 'name' => 'c.jpg',
             ],
         ], '');
-        self::assertArrayNotHasKey('photos', $request->uploads);
-        self::assertArrayHasKey('single', $request->uploads);
     }
 
     public function testProtocolRelativeAndAbsoluteUriRequestTargetsAreNormalized(): void
@@ -170,6 +170,27 @@ final class RequestFactoryTest extends TestCase
             'REMOTE_ADDR' => 127,
         ], [], [], [], '');
         self::assertSame('', $missing->address);
+    }
+
+    public function testTrustedProxyUsesForwardedClientAddress(): void
+    {
+        $this->setEnv('STALL_PUBLIC_ORIGIN', 'https://v2.perfectconsign.com');
+        $request = RequestFactory::from([
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => 'v2.perfectconsign.com',
+            'REMOTE_ADDR' => '10.0.0.1',
+            'HTTP_X_FORWARDED_FOR' => '203.0.113.50, 10.0.0.1',
+        ], [], [], [], '10.0.0.1');
+        self::assertSame('203.0.113.50', $request->address);
+        $untrusted = RequestFactory::from([
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/',
+            'HTTP_HOST' => 'v2.perfectconsign.com',
+            'REMOTE_ADDR' => '203.0.113.9',
+            'HTTP_X_FORWARDED_FOR' => '198.51.100.1',
+        ], [], [], [], '10.0.0.1');
+        self::assertSame('203.0.113.9', $untrusted->address);
     }
 
     public function testAcceptHeaderIsTruncated(): void

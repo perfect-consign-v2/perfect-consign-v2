@@ -27,6 +27,7 @@ use PerfectConsign\Feature\Pos\SaleReceipt;
 use PerfectConsign\Feature\Pos\CustomerStore;
 use PerfectConsign\Feature\Pos\TicketBuyer;
 use PerfectConsign\Feature\Pos\TicketCustomer;
+use PerfectConsign\Feature\Pos\TicketPriceChange;
 use PerfectConsign\Feature\Pos\TicketPricing;
 use PerfectConsign\Feature\Pos\TicketQueue;
 use PerfectConsign\Feature\Pos\TicketStore;
@@ -158,22 +159,28 @@ final class MallDemo
         }
         $this->statements = new Statements($pdo);
         $this->ledger = new LedgerStore($pdo, $this->statements, new LedgerPeriods($pdo), new JournalCash($pdo));
-        $audit = new \PerfectConsign\Bootstrap\JournalAudit(
+        $journalAudit = new \PerfectConsign\Bootstrap\JournalAudit(
             new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
             new \PerfectConsign\Bootstrap\AuditLog($this->statements),
         );
         $this->stays = new \PerfectConsign\Feature\Party\AssignmentBook($this->statements);
-        $this->parties = new PartyStore($this->statements, $audit, $this->stays);
+        $this->parties = new PartyStore($this->statements, $journalAudit, $this->stays);
         $pricing = new TicketPricing($this->statements);
-        $ceiling = new \PerfectConsign\Bootstrap\SaleCeiling(
-            $this->statements,
-            new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
-            new \PerfectConsign\Bootstrap\AuditLog($this->statements),
-        );
+        $actor = new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false));
+        $auditLog = new \PerfectConsign\Bootstrap\AuditLog($this->statements);
+        $ceiling = new \PerfectConsign\Bootstrap\SaleCeiling($this->statements, $actor, $auditLog);
         $this->customers = new CustomerStore($this->statements);
         $this->shoppers = new TicketCustomer($this->statements, $this->customers);
         $this->offers = new OfferStore($this->statements);
-        $this->tickets = new TicketStore($this->statements, $pricing, new TicketBuyer($this->statements), new TicketQueue($this->statements, $pricing), $this->shoppers, $ceiling);
+        $this->tickets = new TicketStore(
+            $this->statements,
+            $pricing,
+            new TicketBuyer($this->statements),
+            new TicketQueue($this->statements, $pricing),
+            $this->shoppers,
+            $ceiling,
+            new TicketPriceChange($this->statements, $pricing, $actor, $auditLog),
+        );
         $attach = new \PerfectConsign\Feature\Pos\SaleTicketAttach($this->statements);
         $reversals = new \PerfectConsign\Feature\Pos\SaleReversal(
             $this->ledger,
@@ -203,10 +210,17 @@ final class MallDemo
             $payouts,
             $this->runs,
             $lines,
-            $audit,
+            $journalAudit,
             new \PerfectConsign\Feature\Payout\VendorClawback($this->ledger, $this->statements),
         );
-        $this->disburser = new PayoutDisburser($this->ledger, $payouts, $this->runs, $lines, new PayoutRunChecks($this->statements), $audit);
+        $this->disburser = new PayoutDisburser(
+            $this->ledger,
+            $payouts,
+            $this->runs,
+            $lines,
+            new PayoutRunChecks($this->statements),
+            $journalAudit,
+        );
     }
 
     public function load(): void

@@ -119,8 +119,19 @@ final class SalePoster
         string $itemId,
         array $credit,
         ?string $check,
+        string $overrideUser = '',
+        string $overridePassword = '',
     ): string {
-        return $this->reversals->returnItem($sessionId, $date, $saleId, $itemId, $credit, $check);
+        return $this->reversals->returnItem(
+            $sessionId,
+            $date,
+            $saleId,
+            $itemId,
+            $credit,
+            $check,
+            $overrideUser,
+            $overridePassword,
+        );
     }
 
     /**

@@ -46,7 +46,16 @@ if (!is_string($user) || $user === '') {
     $user = 'stall';
 }
 if (!is_string($adminPassword) || $adminPassword === '') {
-    $adminPassword = 'stall';
+    fwrite(STDERR, "STALL_DB_PASSWORD is required\n");
+    exit(1);
+}
+if (str_contains($host, ';') || str_contains($name, ';')) {
+    fwrite(STDERR, "STALL_DB_HOST or STALL_DB_NAME is invalid\n");
+    exit(1);
+}
+if (!ctype_digit($port) || (int) $port < 1 || (int) $port > 65535) {
+    fwrite(STDERR, "STALL_DB_PORT is invalid\n");
+    exit(1);
 }
 
 $pdo = new PDO(

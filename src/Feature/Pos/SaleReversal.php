@@ -35,21 +35,31 @@ final class SaleReversal
         if ($this->ledger->reversed($journalId) || self::flag($journal['is_reversal'] ?? null)) {
             throw new DatabaseRefusal('a second void is refused');
         }
-        $this->clawbackBeforeVoid($journalId, $date);
 
-        $posted = $this->ledger->post(new JournalDraft(
-            postingKey: 'reversal:' . $journalId,
-            postingDate: $date,
-            source: new JournalSource(
-                'sale',
-                RowValue::string($journal['source_reference'] ?? null) . ':void',
-                'Void of ' . RowValue::string($journal['posting_key'] ?? null),
-            ),
-            lines: $this->swapped($journalId),
-            reversesJournalId: $journalId,
-            sessionId: $sessionId,
-        ));
-        $this->ceiling->second('sale.void', $posted, $overrideUser, $overridePassword);
+        $this->ceiling->second('sale.void', $journalId, $overrideUser, $overridePassword);
+
+        $posted = '';
+        $this->statements->transaction(function () use (
+            $sessionId,
+            $date,
+            $journalId,
+            $journal,
+            &$posted,
+        ): void {
+            $this->clawbackBeforeVoid($journalId, $date);
+            $posted = $this->ledger->post(new JournalDraft(
+                postingKey: 'reversal:' . $journalId,
+                postingDate: $date,
+                source: new JournalSource(
+                    'sale',
+                    RowValue::string($journal['source_reference'] ?? null) . ':void',
+                    'Void of ' . RowValue::string($journal['posting_key'] ?? null),
+                ),
+                lines: $this->swapped($journalId),
+                reversesJournalId: $journalId,
+                sessionId: $sessionId,
+            ));
+        });
 
         return $posted;
     }
@@ -64,9 +74,12 @@ final class SaleReversal
         string $itemId,
         array $credit,
         ?string $check,
+        string $overrideUser = '',
+        string $overridePassword = '',
     ): string {
         $item = $this->item($saleId, $itemId);
         $openPayable = $this->clawback->openPayable($item['vendor_id']);
+        $this->requireReturnTender($saleId, $credit['account_id'], $overrideUser, $overridePassword);
 
         return $this->ledger->post(new JournalDraft(
             postingKey: 'return:' . $saleId . ':' . $itemId,
@@ -83,6 +96,30 @@ final class SaleReversal
                 );
             },
         ));
+    }
+
+    private function requireReturnTender(
+        string $saleId,
+        string $creditAccount,
+        string $overrideUser,
+        string $overridePassword,
+    ): void {
+        $rows = $this->statements->bound(
+            "SELECT role.account_id
+             FROM journal_lines AS line
+             JOIN chart_roles AS role ON role.account_id = line.account_id
+             WHERE line.journal_id = ?::uuid
+               AND line.debit_minor > 0
+               AND role.role IN ('cash', 'card', 'checks', 'gift_certificate', 'gift_card', 'store_credit')
+             ORDER BY line.line_no
+             LIMIT 1",
+            [$saleId]
+        );
+        $original = RowValue::string($rows[0]['account_id'] ?? null);
+        if ($original === '' || $original === $creditAccount) {
+            return;
+        }
+        $this->ceiling->second('sale.return_tender', $saleId, $overrideUser, $overridePassword);
     }
 
     /**

@@ -34,7 +34,7 @@ final class RequestFactory
             $post,
             SameHostReferer::path($server, $https),
             RequestOrigin::resolve($server, $https),
-            self::clientAddress($server),
+            self::clientAddress($server, $trustedProxiesEnv),
             RequestUploads::normalize($files),
             self::accept($server),
         );
@@ -72,9 +72,32 @@ final class RequestFactory
     /**
      * @param array<string, mixed> $server
      */
-    private static function clientAddress(array $server): string
+    private static function clientAddress(array $server, string $trustedProxiesEnv): string
     {
-        $address = $server['REMOTE_ADDR'] ?? '';
+        $remote = self::validAddress($server['REMOTE_ADDR'] ?? '');
+        if ($remote === '' || !TlsSignal::peerIsTrusted($remote, $trustedProxiesEnv)) {
+            return $remote;
+        }
+        $forwarded = $server['HTTP_X_FORWARDED_FOR'] ?? '';
+        if (!is_string($forwarded) || trim($forwarded) === '') {
+            return $remote;
+        }
+        $hops = array_reverse(explode(',', $forwarded));
+        foreach ($hops as $hop) {
+            $candidate = self::validAddress($hop);
+            if ($candidate === '') {
+                continue;
+            }
+            if (!TlsSignal::peerIsTrusted($candidate, $trustedProxiesEnv)) {
+                return $candidate;
+            }
+        }
+
+        return $remote;
+    }
+
+    private static function validAddress(mixed $address): string
+    {
         if (!is_string($address)) {
             return '';
         }

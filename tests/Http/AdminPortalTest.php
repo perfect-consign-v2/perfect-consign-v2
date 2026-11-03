@@ -18,6 +18,10 @@ final class AdminPortalTest extends TestCase
 
     private const ADMIN_PASSWORD = 'admin-pass-1';
 
+    private const SECOND_ADMIN_EMAIL = 'platform-admin-two@example.test';
+
+    private const SECOND_ADMIN_PASSWORD = 'admin-pass-2';
+
     public function testAdminPortalLoginListEnterAndDelete(): void
     {
         $root = dirname(__DIR__, 2);
@@ -140,11 +144,24 @@ final class AdminPortalTest extends TestCase
             self::assertStringContainsString('permanently deletes', $deleteForm->body);
             $wrong = $client->post('/admin/tenants/' . $slug . '/delete', [
                 'confirm_slug' => 'not-' . $slug,
+                'second_email' => self::SECOND_ADMIN_EMAIL,
+                'second_password' => self::SECOND_ADMIN_PASSWORD,
             ]);
             self::assertStringContainsString('Type the store slug exactly', $wrong->body);
 
+            $alone = $client->post('/admin/tenants/' . $slug . '/delete', [
+                'confirm_slug' => $slug,
+                'second_email' => self::ADMIN_EMAIL,
+                'second_password' => self::ADMIN_PASSWORD,
+            ]);
+            self::assertStringContainsString('A second platform admin must sign this deletion.', $alone->body);
+
+            $this->seedSecondAdmin($pdo);
+            $this->recordOwnerBackup($pdo, $slug);
             $deleted = $client->post('/admin/tenants/' . $slug . '/delete', [
                 'confirm_slug' => $slug,
+                'second_email' => self::SECOND_ADMIN_EMAIL,
+                'second_password' => self::SECOND_ADMIN_PASSWORD,
             ]);
             self::assertStringContainsString('Deleted ' . $slug, $deleted->body);
             $still = $pdo->prepare('SELECT 1 FROM platform.tenants WHERE slug = ?');
@@ -235,6 +252,30 @@ final class AdminPortalTest extends TestCase
                     credentials_version = platform.admins.credentials_version + 1'
         );
         $statement->execute([self::ADMIN_EMAIL, $hash]);
+    }
+
+    private function seedSecondAdmin(PDO $pdo): void
+    {
+        $hash = (new PasswordChoice())->hash(self::SECOND_ADMIN_PASSWORD);
+        $statement = $pdo->prepare(
+            'INSERT INTO platform.admins (id, email, password_hash)
+             VALUES (uuidv7(), ?, ?)
+             ON CONFLICT (email) DO UPDATE
+                SET password_hash = EXCLUDED.password_hash'
+        );
+        $statement->execute([self::SECOND_ADMIN_EMAIL, $hash]);
+    }
+
+    private function recordOwnerBackup(PDO $pdo, string $slug): void
+    {
+        $tenant = $pdo->prepare('SELECT id::text FROM platform.tenants WHERE slug = ?');
+        $tenant->execute([$slug]);
+        $tenantId = $tenant->fetchColumn();
+        self::assertIsString($tenantId);
+        $statement = $pdo->prepare(
+            'SELECT platform.record_owner_backup(?::uuid, uuidv7(), ?::bigint, ?)'
+        );
+        $statement->execute([$tenantId, 1024, str_repeat('a', 64)]);
     }
 
     private function ensureDisposableTenant(string $root, PDO $pdo, string $slug): void

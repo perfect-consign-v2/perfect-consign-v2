@@ -99,6 +99,22 @@ final class AdminSignIn
 
     private function refuseLocked(string $email): void
     {
+        if ($this->recentForPair($email) >= 5) {
+            $this->logger->info('platform admin sign-in locked', ['email' => $email, 'scope' => 'pair']);
+            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+        }
+        if ($this->recentForClient() >= 40) {
+            $this->logger->info('platform admin sign-in locked', ['email' => $email, 'scope' => 'client']);
+            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+        }
+        if ($this->recentForEmail($email) >= 20) {
+            $this->logger->info('platform admin sign-in locked', ['email' => $email, 'scope' => 'email']);
+            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+        }
+    }
+
+    private function recentForPair(string $email): int
+    {
         $recent = $this->pdo->prepare(
             "SELECT count(*)
              FROM platform.admin_sign_in_failures
@@ -107,9 +123,33 @@ final class AdminSignIn
                AND failed_at > clock_timestamp() - interval '15 minutes'"
         );
         $recent->execute([$email, $this->request->address]);
-        if ((int) $recent->fetchColumn() >= 5) {
-            $this->logger->info('platform admin sign-in locked', ['email' => $email]);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-        }
+
+        return (int) $recent->fetchColumn();
+    }
+
+    private function recentForClient(): int
+    {
+        $recent = $this->pdo->prepare(
+            "SELECT count(*)
+             FROM platform.admin_sign_in_failures
+             WHERE client_address = ?
+               AND failed_at > clock_timestamp() - interval '15 minutes'"
+        );
+        $recent->execute([$this->request->address]);
+
+        return (int) $recent->fetchColumn();
+    }
+
+    private function recentForEmail(string $email): int
+    {
+        $recent = $this->pdo->prepare(
+            "SELECT count(*)
+             FROM platform.admin_sign_in_failures
+             WHERE email = ?
+               AND failed_at > clock_timestamp() - interval '15 minutes'"
+        );
+        $recent->execute([$email]);
+
+        return (int) $recent->fetchColumn();
     }
 }
