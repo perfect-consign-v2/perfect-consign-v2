@@ -80,13 +80,15 @@ export PATH="$(dirname -- "$php_bin"):${PATH:-}"
 
 "$php_bin" "${root}/bin/ensure-mail-key.php"
 "$php_bin" "${root}/bin/migrate.php" platform
+# PLATFORM_AFTER before tenants: cluster roles such as stall_vendor_entry must
+# exist before tenant files grant to them (074_vendor_entry_grants.sql).
+"$php_bin" "${root}/bin/migrate.php" platform-after
 if ! tenant_err=$("$php_bin" "${root}/bin/migrate.php" tenant mall 2>&1); then
     printf '%s\n' "$tenant_err" >&2
     echo "deploy-demo: tenant migrate failed" >&2
     exit 1
 fi
 "$php_bin" "${root}/bin/migrate.php" tenant-all
-"$php_bin" "${root}/bin/migrate.php" platform-after
 
 # Demo convenience: plant or refresh mall owner from .env. set-owner.php is
 # idempotent when the password already matches (no credentials_version bump).

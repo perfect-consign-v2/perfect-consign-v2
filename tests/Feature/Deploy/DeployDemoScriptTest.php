@@ -120,4 +120,20 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringContainsString('DEPLOY_REEXEC', $script);
         self::assertStringContainsString('pre-reset inode', $script);
     }
+
+    public function testDeployAppliesPlatformAfterBeforeTenantMigrate(): void
+    {
+        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
+        $script = file_get_contents($path);
+        self::assertIsString($script);
+        $platformAt = strpos($script, 'bin/migrate.php" platform');
+        $afterAt = strpos($script, 'bin/migrate.php" platform-after');
+        $tenantAt = strpos($script, 'bin/migrate.php" tenant mall');
+        self::assertNotFalse($platformAt);
+        self::assertNotFalse($afterAt);
+        self::assertNotFalse($tenantAt);
+        self::assertGreaterThan($platformAt, $afterAt);
+        self::assertGreaterThan($afterAt, $tenantAt);
+        self::assertStringContainsString('stall_vendor_entry', $script);
+    }
 }

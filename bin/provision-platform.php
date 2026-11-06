@@ -37,10 +37,13 @@ $pdo = new PDO(
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 try {
-    (new \PerfectConsign\Schema\SchemaMigrator(
+    $migrator = new \PerfectConsign\Schema\SchemaMigrator(
         $pdo,
         new \PerfectConsign\Schema\SchemaCatalog(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql')
-    ))->migratePlatform();
+    );
+    $migrator->migratePlatform();
+    // Roles and platform objects tenants grant to (stall_vendor_entry, etc.).
+    $migrator->migratePlatformAfter();
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     exit(1);
