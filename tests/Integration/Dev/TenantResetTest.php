@@ -104,9 +104,16 @@ final class TenantResetTest extends TestCase
         self::assertMatchesRegularExpression('/^tenant_[0-9a-f]{32}$/', $name);
         $row = $pdo->query(
             'SELECT operating_mode, booth_rentals_enabled::text AS rentals, consignment_enabled::text AS consignment,
+                    store_stock_enabled::text AS store_stock,
                     (SELECT count(*) FROM ' . $name . '.vendors) AS vendors,
                     (SELECT count(*) FROM ' . $name . '.items) AS items,
-                    (SELECT count(*) FROM ' . $name . '.booths) AS booths
+                    (SELECT count(*) FROM ' . $name . '.booths) AS booths,
+                    (SELECT count(*) FROM ' . $name . '.journals WHERE source_type = \'sale\') AS sales,
+                    (SELECT count(*) FROM ' . $name . '.payout_runs WHERE settled_at IS NOT NULL) AS payouts,
+                    (SELECT count(*) FROM ' . $name . '.journals WHERE source_type = \'rent_charge\') AS rent_charges,
+                    (SELECT count(*) FROM ' . $name . '.journal_lines AS line
+                      JOIN ' . $name . '.chart_roles AS role ON role.account_id = line.account_id
+                     WHERE role.role = \'booth_rent_receivable\') AS rent_lines
              FROM ' . $name . '.mall'
         );
         self::assertNotFalse($row);
@@ -115,9 +122,14 @@ final class TenantResetTest extends TestCase
         self::assertSame('consignor', $mall['operating_mode']);
         self::assertSame('false', $mall['rentals']);
         self::assertSame('true', $mall['consignment']);
-        self::assertSame(2, (int) $mall['vendors']);
-        self::assertSame(3, (int) $mall['items']);
+        self::assertSame('false', $mall['store_stock']);
+        self::assertGreaterThanOrEqual(4, (int) $mall['vendors']);
+        self::assertGreaterThanOrEqual(10, (int) $mall['items']);
         self::assertSame(0, (int) $mall['booths']);
+        self::assertGreaterThanOrEqual(1, (int) $mall['sales']);
+        self::assertGreaterThanOrEqual(1, (int) $mall['payouts']);
+        self::assertSame(0, (int) $mall['rent_charges']);
+        self::assertSame(0, (int) $mall['rent_lines']);
         self::assertSame(ShopTenantReset::SLUG, 'shop');
     }
 }

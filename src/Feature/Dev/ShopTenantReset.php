@@ -28,6 +28,7 @@ final class ShopTenantReset
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Consignment');
         $this->loadSql($pdo, $provisioner, $schema);
+        (new \ShopDemo($pdo, $schema))->load();
         $this->restoreOwner($pdo, $this->owner());
 
         return $schema;
@@ -38,6 +39,7 @@ final class ShopTenantReset
         $bin = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR;
         require_once $bin . 'wipe-tenant.php';
         require_once $bin . 'provision-tenant.php';
+        require_once $bin . 'ShopDemo.php';
     }
 
     private function sqlDirectory(): string

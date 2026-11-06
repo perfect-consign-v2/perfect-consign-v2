@@ -168,7 +168,12 @@ final class MallDemo
         $pricing = new TicketPricing($this->statements);
         $actor = new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false));
         $auditLog = new \PerfectConsign\Bootstrap\AuditLog($this->statements);
-        $ceiling = new \PerfectConsign\Bootstrap\SaleCeiling($this->statements, $actor, $auditLog);
+        $ceiling = new \PerfectConsign\Bootstrap\SaleCeiling(
+            $this->statements,
+            $actor,
+            $auditLog,
+            new \PerfectConsign\Shared\Http\Request('GET', '/', [], []),
+        );
         $this->customers = new CustomerStore($this->statements);
         $this->shoppers = new TicketCustomer($this->statements, $this->customers);
         $this->offers = new OfferStore($this->statements);
@@ -857,7 +862,16 @@ final class MallDemo
         $this->tickets->scan($sessionId, $this->shelfBarcode('ADA'));
         $this->nameShopper($this->tickets->cart($sessionId)['ticket_id']);
         $this->tickets->park($sessionId, '');
-        (new GiftIssue($this->statements, $this->ledger))->issue($sessionId, '2026-10-03', 'GC-K7NP4R2WXM', 2500, 'cash', null);
+        (new GiftIssue($this->statements, $this->ledger))->issue(
+            $sessionId,
+            '2026-10-03',
+            'GC-K7NP4R2WXM',
+            2500,
+            'cash',
+            null,
+            'gift_certificate',
+            '01900000000070008000000000c0ffee',
+        );
         $drop = $this->ledger->newId();
         $this->ledger->post(new JournalDraft(
             postingKey: 'cash-drop:' . $drop,
