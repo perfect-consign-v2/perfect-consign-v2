@@ -1,0 +1,6 @@
+{
+    "booth_rent_cycle_day": 1,
+    "tax_bps": 8750,
+    "store_timezone": "America/Los_Angeles",
+    "location_tax_rates": [{"rate": 0.0875}]
+}

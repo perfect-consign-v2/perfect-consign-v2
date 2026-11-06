@@ -230,6 +230,30 @@ JS;
     }
 
     /**
+     * DataTables keeps only the current page in the DOM. Expand every list table so
+     * assertions and taggedId() can see rows that would otherwise be on page 2+.
+     */
+    public function revealListRows(): string
+    {
+        $js = <<<'JS'
+function () {
+    if (!window.jQuery || !jQuery.fn.dataTable) {
+        return;
+    }
+    jQuery('table.list-dt').each(function () {
+        const api = jQuery(this).DataTable();
+        api.page.len(-1).draw(false);
+    });
+}
+JS;
+        $evaluation = $this->page->callFunction($js, []);
+        $evaluation->waitForResponse(15000);
+        usleep(200_000);
+
+        return $this->html();
+    }
+
+    /**
      * Run a browser expression and return the JSON-decoded result (arrays/scalars).
      */
     public function evaluate(string $expression): mixed

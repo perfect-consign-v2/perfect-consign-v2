@@ -1,0 +1,30 @@
+---
+description: PC1→PC2 dev mirror — read-only prod extract; wipe/load only local 5436 and v2; prove before quoting balances.
+alwaysApply: true
+---
+
+# PC1 → PC2 dev mirror
+
+Dev sandbox only. Not a cutover. Not full history replay.
+
+## Safety
+
+- **Prod** (`api.perfectconsign.com` and live customer DBs): **read-only**. Session must set `default_transaction_read_only=on` before the first query. Never write prod.
+- **Wipe/load destinations only:** local `localhost|127.0.0.1:5436` database `consign`, and the **v2** demo DB via `STALL_MIRROR_V2_DB_*` (or `STALL_DB_*` when the CLI runs on the v2 host). Never point load at `api.perfectconsign.com`.
+- Do **not** use `bin/pull-tenant.php` / `STALL_SOURCE_DB_*` against PC1 (PC2↔PC2 backup only).
+
+## Defaults
+
+| Knob | Value |
+|------|--------|
+| Source slug | `beccas-bargains` |
+| Target slug | `beccas-mirror` (wipe freely) |
+| CLI | `php bin/pc1-mirror.php` |
+
+## No drift
+
+Every load stamps an as-of. Quoting sandbox balances requires `prove` exit 0 against that extract. A failed prove is a stop, not a shrug.
+
+## Docs
+
+Operator map: `docs/pc1-mirror.md`. Keep that file, README, and the Hesk seed current with the CLI.

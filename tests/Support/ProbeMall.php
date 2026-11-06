@@ -149,7 +149,9 @@ final class ProbeMall
                  late_fees_enabled = false,
                  late_fee_grace_days = 0,
                  late_fee_first_minor = 0,
-                 late_fee_next_minor = 0'
+                 late_fee_next_minor = 0,
+                 tax_bps = 0,
+                 cash_round_minor = 0'
         );
     }
 

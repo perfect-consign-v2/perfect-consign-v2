@@ -115,6 +115,7 @@ final class OwnerJourneyTest extends WebTestCase
         ]);
 
         self::assertSees('Charged', $book);
+        $book = $this->session->revealListRows();
         self::assertSame(1, preg_match(
             '#id="booth-' . preg_quote($boothId, '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
             $book,
@@ -146,6 +147,8 @@ final class OwnerJourneyTest extends WebTestCase
         $page = $this->session->submit('/' . ProbeMall::SLUG . '/brands', [
             'name' => $name,
         ]);
+        self::assertSees('Brand created.', $page);
+        $page = $this->session->open('/' . ProbeMall::SLUG . '/brands?q=' . rawurlencode($name));
         self::assertSees($name, $page);
         $brandId = HtmlPage::taggedId($page, 'tr', 'brand', $name);
         $edit = '/' . ProbeMall::SLUG . '/brands/' . $brandId . '/edit';
@@ -155,15 +158,19 @@ final class OwnerJourneyTest extends WebTestCase
         $renamedPage = $this->session->submit($update, [
             'name' => $renamed,
         ]);
+        self::assertSees('Brand saved.', $renamedPage);
+        $renamedPage = $this->session->open('/' . ProbeMall::SLUG . '/brands?q=' . rawurlencode($renamed));
         self::assertSees($renamed, $renamedPage);
-        $this->session->open('/' . ProbeMall::SLUG . '/brands?confirm=' . $brandId);
+        $this->session->open(
+            '/' . ProbeMall::SLUG . '/brands?confirm=' . $brandId . '&q=' . rawurlencode($renamed)
+        );
         $deleted = $this->session->submit($update . '/delete', []);
-        self::assertStringNotContainsString($renamed, $deleted);
+        self::assertSees('Brand deleted.', $deleted);
         $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
         $added = $this->session->submit('/' . ProbeMall::SLUG . '/brands', [
             'name' => $name,
         ]);
-        self::assertSees($name, $added);
+        self::assertSees('Brand created.', $added);
         $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
         $duplicate = $this->session->submit('/' . ProbeMall::SLUG . '/brands', [
             'name' => $name,
@@ -216,7 +223,7 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         $vendor = $this->vendor();
-        $directory = $this->session->open('/' . ProbeMall::SLUG . '/parties');
+        $directory = $this->session->open('/' . ProbeMall::SLUG . '/parties?q=' . rawurlencode($vendor));
         $vendorId = HtmlPage::taggedId($directory, 'tr', 'vendor', $vendor);
         $brand = 'Brand ' . bin2hex(random_bytes(4));
         $other = $brand . ' other';
@@ -224,9 +231,10 @@ final class OwnerJourneyTest extends WebTestCase
         $this->session->submit('/' . ProbeMall::SLUG . '/brands', ['name' => $brand]);
         $this->session->open('/' . ProbeMall::SLUG . '/brands/new');
         $this->session->submit('/' . ProbeMall::SLUG . '/brands', ['name' => $other]);
-        $brands = $this->session->open('/' . ProbeMall::SLUG . '/brands');
+        $brands = $this->session->open('/' . ProbeMall::SLUG . '/brands?q=' . rawurlencode($brand));
         $brandId = HtmlPage::taggedId($brands, 'tr', 'brand', $brand);
-        $otherId = HtmlPage::taggedId($brands, 'tr', 'brand', $other);
+        $otherList = $this->session->open('/' . ProbeMall::SLUG . '/brands?q=' . rawurlencode($other));
+        $otherId = HtmlPage::taggedId($otherList, 'tr', 'brand', $other);
         $tag = 't' . bin2hex(random_bytes(4));
         $created = 'Blue ' . $tag;
         $renamed = 'Green ' . $tag;
@@ -242,7 +250,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('Item created.', $page);
         self::assertSees('#' . $vendor, $page);
         self::assertSees('value="2026-09-01"', $page);
-        $list = $this->session->open('/' . ProbeMall::SLUG . '/inventory');
+        $list = $this->session->open('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
         self::assertSees($created, $list);
         self::assertSees('12.50', $list);
         $itemId = HtmlPage::taggedId($list, 'tr', 'item', $tag);
@@ -260,9 +268,11 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees($renamed, $edited);
         self::assertSees($other, $edited);
         self::assertSees('15.00', $edited);
-        $this->session->open('/' . ProbeMall::SLUG . '/inventory?confirm=' . rawurlencode($itemId));
+        $this->session->open(
+            '/' . ProbeMall::SLUG . '/inventory?confirm=' . rawurlencode($itemId) . '&q=' . rawurlencode($tag)
+        );
         $deleted = $this->session->submit($update . '/delete', []);
-        self::assertStringNotContainsString($renamed, $deleted);
+        self::assertSees('Item deleted.', $deleted);
         $this->session->open('/' . ProbeMall::SLUG . '/inventory/new');
         $added = $this->session->submit('/' . ProbeMall::SLUG . '/inventory', [
             'code' => $tag,
@@ -297,6 +307,8 @@ final class OwnerJourneyTest extends WebTestCase
             'code' => $code,
             'name' => 'Front',
         ]);
+        self::assertSees('Booth created.', $page);
+        $page = $this->session->open('/' . ProbeMall::SLUG . '/booths?q=' . rawurlencode($code));
         self::assertSees($code, $page);
         $boothId = HtmlPage::taggedId($page, 'tr', 'booth', $code);
         $edit = '/' . ProbeMall::SLUG . '/booths/' . $boothId . '/edit';
@@ -308,10 +320,12 @@ final class OwnerJourneyTest extends WebTestCase
             'width_ft' => '12',
             'depth_ft' => '8',
         ]);
+        self::assertSees('Booth saved.', $renamedPage);
+        $renamedPage = $this->session->open('/' . ProbeMall::SLUG . '/booths?q=' . rawurlencode($renamed));
         self::assertSees('12 × 8 ft', $renamedPage);
-        $this->session->open('/' . ProbeMall::SLUG . '/booths?confirm=' . $boothId);
+        $this->session->open('/' . ProbeMall::SLUG . '/booths?confirm=' . $boothId . '&q=' . rawurlencode($renamed));
         $deleted = $this->session->submit($update . '/delete', []);
-        self::assertStringNotContainsString($renamed, $deleted);
+        self::assertSees('Booth deleted.', $deleted);
     }
 
     public function testTheOwnerSignsOut(): void
@@ -369,7 +383,9 @@ final class OwnerJourneyTest extends WebTestCase
             'code' => $code,
             'name' => $code,
         ]);
-        self::assertSees($code, $page);
+        self::assertSees('Booth created.', $page);
+        $listed = $this->session->open('/' . ProbeMall::SLUG . '/booths?q=' . rawurlencode($code));
+        self::assertSees($code, $listed);
 
         return $code;
     }

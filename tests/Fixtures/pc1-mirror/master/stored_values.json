@@ -1,0 +1,8 @@
+[
+    {
+        "pc1_id": "55555555-5555-4555-8555-555555555555",
+        "kind": "gift_certificate",
+        "number": "GC-TEST-001",
+        "balance_minor": 1500
+    }
+]

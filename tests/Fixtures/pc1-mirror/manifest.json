@@ -1,0 +1,9 @@
+{
+    "extractor_version": "1",
+    "source_host": "fixture",
+    "slug": "beccas-bargains",
+    "schema": "tenant_fixture",
+    "tenant_id": "00000000-0000-4000-8000-000000000001",
+    "as_of_utc": "20261105T120000Z",
+    "read_only": true
+}
