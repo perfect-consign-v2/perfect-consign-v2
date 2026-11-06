@@ -55,26 +55,56 @@ final class EmailSignIn
 
     private function failed(string $email): void
     {
-        $this->failures->pruneEmail($email);
-        $failed = $this->pdo->prepare(
-            'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
-        );
-        $failed->execute([$email, $this->request->address]);
+        $this->withLock($email, function () use ($email): void {
+            $this->failures->pruneEmail($email);
+            $failed = $this->pdo->prepare(
+                'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
+            );
+            $failed->execute([$email, $this->request->address]);
+        });
     }
 
     private function refuseLocked(string $email): void
     {
-        if ($this->recentForPair($email) >= 5) {
-            $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'pair']);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+        $this->withLock($email, function () use ($email): void {
+            if ($this->recentForPair($email) >= 5) {
+                $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'pair']);
+                throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+            }
+            if ($this->recentForClient() >= 40) {
+                $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'client']);
+                throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+            }
+            if ($this->recentForEmail($email) >= 20) {
+                $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'email']);
+                throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+            }
+        });
+    }
+
+    /**
+     * @param callable(): void $work
+     */
+    private function withLock(string $email, callable $work): void
+    {
+        $own = !$this->pdo->inTransaction();
+        if ($own) {
+            $this->pdo->beginTransaction();
         }
-        if ($this->recentForClient() >= 40) {
-            $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'client']);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-        }
-        if ($this->recentForEmail($email) >= 20) {
-            $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'email']);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
+        try {
+            $lock = $this->pdo->prepare(
+                'SELECT pg_advisory_xact_lock(87241, hashtext(?)), pg_advisory_xact_lock(87242, hashtext(?))'
+            );
+            $lock->execute([$email, $this->request->address]);
+            $work();
+            if ($own) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $error) {
+            if ($own && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $error;
         }
     }
 

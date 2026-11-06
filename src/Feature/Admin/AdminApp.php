@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectApp\Session\Session;
+use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
@@ -21,7 +22,16 @@ final class AdminApp
         private readonly LoggerInterface $logger,
         private readonly AdminSession $admins,
         private readonly AdminAudit $audit,
+        private readonly LoginSession $tenants,
     ) {
+    }
+
+    public function endSurface(): void
+    {
+        $this->tenants->clear();
+        $this->admins->clear();
+        $this->session->regenerateId(true);
+        $this->session->set('csrf', bin2hex(random_bytes(16)));
     }
 
     public function request(): Request
@@ -61,7 +71,7 @@ final class AdminApp
         $statement->execute([$current['id']]);
         $row = $statement->fetch();
         if (!is_array($row)) {
-            $this->admins->clear();
+            $this->endSurface();
             $this->redirect('/admin/login');
         }
         $version = $row['credentials_version'] ?? null;
@@ -71,11 +81,11 @@ final class AdminApp
         $email = $row['email'] ?? null;
         $id = $row['id'] ?? null;
         if (!is_string($id) || !is_string($email) || !is_string($version) || $version !== $current['version']) {
-            $this->admins->clear();
+            $this->endSurface();
             $this->redirect('/admin/login');
         }
         if ($this->admins->stale(time())) {
-            $this->admins->clear();
+            $this->endSurface();
             $this->redirect('/admin/login');
         }
         $this->admins->touch();

@@ -193,9 +193,9 @@ final class AdminEnterAs
         $this->roles->assume($tenant->role);
         try {
             $statement = $this->pdo->prepare(
-                'SELECT id::text AS id, username, display_name, credentials_version
+                'SELECT id::text AS id, username, display_name, credentials_version, can_sign_in
                  FROM ' . $tenant->schema . '.staff
-                 WHERE role = ?
+                 WHERE role = ? AND can_sign_in = true
                  ORDER BY lower(username)
                  LIMIT 1'
             );

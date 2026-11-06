@@ -20,6 +20,7 @@ use PerfectConsign\Ledger\LedgerPeriods;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
 
@@ -36,6 +37,10 @@ final class VoidSecondSignatureTest extends TestCase
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $pdo->beginTransaction();
         try {
+            $statements->change(
+                'UPDATE mall SET require_second_signature = true',
+                []
+            );
             $cashier = $this->staff($pdo, 'cash', 0);
             $date = $this->openDate($statements);
             $registerId = $ledger->newId();
@@ -102,6 +107,7 @@ final class VoidSecondSignatureTest extends TestCase
                     $statements,
                     $this->actor(ProbeMall::SLUG, $tenantId, $cashier['id'], 'cashier'),
                     new AuditLog($statements),
+                    $this->request(),
                 ),
                 new VendorClawback($ledger, $statements),
             );
@@ -186,6 +192,11 @@ final class VoidSecondSignatureTest extends TestCase
             'signed_in_at' => $now,
             'last_seen_at' => $now,
         ]));
+    }
+
+    private function request(): Request
+    {
+        return new Request('POST', '/pos', [], [], '', '', '127.0.0.1');
     }
 
     /**

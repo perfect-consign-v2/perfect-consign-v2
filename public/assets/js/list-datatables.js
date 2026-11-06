@@ -14,12 +14,15 @@
             return '';
         }
         var raw = String(data);
-        if (raw.indexOf('<') === -1) {
+        if (raw.indexOf('<') === -1 && raw.indexOf('&') === -1) {
             return raw.trim();
         }
-        var holder = document.createElement('div');
-        holder.innerHTML = raw;
-        return holder.textContent === null ? '' : holder.textContent.trim();
+        // Decode entities / strip markup without assigning to a live element's innerHTML
+        // (avoids re-creating elements from escaped attacker text).
+        var template = document.createElement('template');
+        template.innerHTML = raw;
+        var text = template.content.textContent;
+        return text === null ? '' : text.trim();
     }
 
     function numberFromData(data) {

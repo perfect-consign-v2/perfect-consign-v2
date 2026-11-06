@@ -23,6 +23,7 @@ final class DailyBackupFiles
         if ($real === false || str_contains($real, 'perfect_consign_pg')) {
             throw new BackupException('STALL_BACKUP_DIR must be outside the database volume');
         }
+        $this->refuseWebTree($real);
         $this->root = $real;
     }
 
@@ -40,6 +41,18 @@ final class DailyBackupFiles
         $cutoff = $today->setTimezone(new DateTimeZone('UTC'))->setTime(0, 0)->modify('-30 days')->format('Y-m-d');
         foreach ($this->names($this->root) as $name) {
             $this->pruneTenant($name, $cutoff);
+        }
+    }
+
+    private function refuseWebTree(string $real): void
+    {
+        $repo = dirname(__DIR__, 3);
+        $public = realpath($repo . DIRECTORY_SEPARATOR . 'public');
+        if ($public !== false && ($real === $public || str_starts_with($real, $public . DIRECTORY_SEPARATOR))) {
+            throw new BackupException('STALL_BACKUP_DIR must be outside the web tree');
+        }
+        if ($real === $repo || str_starts_with($real, $repo . DIRECTORY_SEPARATOR . 'public')) {
+            throw new BackupException('STALL_BACKUP_DIR must be outside the web tree');
         }
     }
 
@@ -67,7 +80,7 @@ final class DailyBackupFiles
     private function tenantDirectory(string $schema): string
     {
         $directory = $this->root . DIRECTORY_SEPARATOR . $schema;
-        if (!is_dir($directory) && !mkdir($directory, 0755) && !is_dir($directory)) {
+        if (!is_dir($directory) && !mkdir($directory, 0700) && !is_dir($directory)) {
             throw new BackupException('The backup could not be stored.');
         }
 

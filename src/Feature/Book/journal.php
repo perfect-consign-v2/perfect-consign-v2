@@ -42,6 +42,9 @@ $issued = $sourceType === 'gift_certificate_issue'
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
         <label for="posting_date">Void posting date</label>
         <input id="posting_date" name="posting_date" type="date" required min="<?= View::text($journal['posting_date']) ?>" value="<?= View::text($journal['posting_date']) ?>">
+        <p class="muted text-sm">Use the original date or today.</p>
         <p><button type="submit">Void</button></p>
     </form>
+<?php elseif (in_array($sourceType, ['check_disbursement', 'cash_disbursement', 'safe_disbursement', 'settlement'], true)): ?>
+    <p class="muted">Undo a payout run with payout reverse. This entry cannot be voided from here.</p>
 <?php endif; ?>

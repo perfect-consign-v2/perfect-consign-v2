@@ -27,8 +27,17 @@ final class SaleCheckout
      */
     public function pay(string $slug, string $session, Request $request): array
     {
+        $this->sales->refuse($slug);
+        if ($this->basket->hasDrafts($session)) {
+            throw new DatabaseRefusal('Complete Instant Add lines before pay.');
+        }
+        $cart = $this->basket->cart($session);
+        $ticketKey = is_string($cart['posting_key'] ?? null) ? $cart['posting_key'] : '';
         $offered = $request->field('posting_key');
-        $replay = $this->poster->replay($offered);
+        if ($offered !== '' && $offered !== $ticketKey) {
+            throw new DatabaseRefusal('the ticket key does not match');
+        }
+        $replay = $this->poster->replay($ticketKey);
         if ($replay !== null) {
             return [
                 'path' => '/' . $slug . '/pos',
@@ -36,14 +45,6 @@ final class SaleCheckout
                 'journal_id' => $replay,
                 'journal_no' => $this->poster->number($replay),
             ];
-        }
-        $this->sales->refuse($slug);
-        if ($this->basket->hasDrafts($session)) {
-            throw new DatabaseRefusal('Complete Instant Add lines before pay.');
-        }
-        $cart = $this->basket->cart($session);
-        if ($offered !== '') {
-            $cart['posting_key'] = $offered;
         }
         $deposits = $this->basket->deposits($cart['ticket_id']);
         $holding = $request->field('hold') === '1';

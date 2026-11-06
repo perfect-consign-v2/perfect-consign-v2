@@ -43,6 +43,8 @@ final class PosAddController
                 $this->postedAttributes($request),
                 $request->field('discount_kind'),
                 $request->field('discount_value'),
+                $request->field('override_user'),
+                $request->field('override_password'),
             );
             if ($draftNo > 0) {
                 $this->instant->complete($session, $today, $draftNo, $add);

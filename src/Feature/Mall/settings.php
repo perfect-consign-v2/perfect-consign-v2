@@ -165,6 +165,19 @@ $settingsTabs = [
             <?php endif; ?>
         </div>
         <div class="field">
+            <div class="catalog-switches">
+                <label class="switch-row" for="require_second_signature">
+                    <span class="switch">
+                        <input id="require_second_signature" name="require_second_signature" type="checkbox" value="1"<?= !empty($requireSecondSignature) ? ' checked' : '' ?>>
+                        <span class="switch-track" aria-hidden="true"></span>
+                        <span class="switch-knob" aria-hidden="true"></span>
+                    </span>
+                    Require second signature
+                </label>
+            </div>
+            <p class="muted text-sm">When on, a cashier or manager over the discount or tax-free ceiling — and any void, waive, payout, or booth correction — needs another staff member to sign. Family-run stores can leave this off.</p>
+        </div>
+        <div class="field">
             <label for="cash_round_minor">Round cash sales to</label>
             <select class="select" id="cash_round_minor" name="cash_round_minor">
                 <?php

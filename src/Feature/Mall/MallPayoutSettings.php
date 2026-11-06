@@ -57,6 +57,11 @@ final class MallPayoutSettings
         return $this->flag('booth_rentals_enabled');
     }
 
+    public function requireSecondSignature(): bool
+    {
+        return $this->flag('require_second_signature');
+    }
+
     /**
      * @return array{consignment: bool, store: bool}
      */
@@ -127,6 +132,7 @@ final class MallPayoutSettings
         int $cycleDay,
         bool $consignmentEnabled,
         bool $storeStockEnabled,
+        bool $requireSecondSignature = false,
     ): void {
         $mode = in_array($operatingMode, ['consignor', 'booth_mall', 'both'], true) ? $operatingMode : 'both';
         $day = $cycleDay >= 1 && $cycleDay <= 28 ? $cycleDay : 1;
@@ -134,7 +140,8 @@ final class MallPayoutSettings
             'UPDATE mall
              SET operating_mode = ?, payout_cadence = ?, rent_prepaid_from_prior_sales = ?::boolean,
                  booth_rentals_enabled = ?::boolean, rent_cycle_day = ?,
-                 consignment_enabled = ?::boolean, store_stock_enabled = ?::boolean',
+                 consignment_enabled = ?::boolean, store_stock_enabled = ?::boolean,
+                 require_second_signature = ?::boolean',
             [
                 $mode,
                 'monthly',
@@ -143,6 +150,7 @@ final class MallPayoutSettings
                 $day,
                 $consignmentEnabled ? 'true' : 'false',
                 $storeStockEnabled ? 'true' : 'false',
+                $requireSecondSignature ? 'true' : 'false',
             ]
         );
     }
@@ -199,7 +207,7 @@ final class MallPayoutSettings
             'SELECT operating_mode, payout_cadence, rent_prepaid_from_prior_sales,
                     booth_rentals_enabled, rent_cycle_day, consignment_enabled, store_stock_enabled,
                     late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor,
-                    late_fee_effective_on
+                    late_fee_effective_on, require_second_signature
              FROM mall'
         );
         $row = $rows[0] ?? null;

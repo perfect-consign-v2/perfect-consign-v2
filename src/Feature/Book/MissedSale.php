@@ -28,16 +28,26 @@ final class MissedSale
         return MissedSaleQuote::vendorShare($price, $rate['bps']);
     }
 
-    public function record(string $vendorId, string $itemCode, int $price, string $postingDate, string $description, string $memo): string
+    public function record(string $vendorId, string $itemCode, int $price, string $postingDate, string $description, string $memo, string $token): string
     {
         $trimmedDescription = trim($description);
         $trimmedMemo = trim($memo);
         if ($trimmedDescription === '' || $trimmedMemo === '') {
             throw new InvalidArgumentException('a missed sale names the piece');
         }
+        if (preg_match('/^[0-9a-f]{32}$/', $token) !== 1) {
+            throw new InvalidArgumentException('this form has expired');
+        }
         $rate = $this->rate($vendorId, $itemCode);
         $share = MissedSaleQuote::vendorShare($price, $rate['bps']);
-        $reference = bin2hex(random_bytes(16));
+        $reference = $token;
+        $existing = $this->statements->bound(
+            'SELECT id::text AS id FROM journals WHERE posting_key = ?',
+            ['missed-sale:' . $reference]
+        );
+        if ($existing !== []) {
+            return RowValue::string($existing[0]['id'] ?? null);
+        }
         $itemId = $rate['item_id'];
 
         return $this->ledger->post(new JournalDraft(

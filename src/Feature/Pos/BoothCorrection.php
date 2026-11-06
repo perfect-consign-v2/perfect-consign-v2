@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -17,11 +18,18 @@ final class BoothCorrection
     public function __construct(
         private readonly Statements $statements,
         private readonly LedgerStore $ledger,
+        private readonly SaleCeiling $ceiling,
     ) {
     }
 
-    public function move(string $date, string $journalId, string $itemId, string $toVendorId): string
-    {
+    public function move(
+        string $date,
+        string $journalId,
+        string $itemId,
+        string $toVendorId,
+        string $overrideUser = '',
+        string $overridePassword = '',
+    ): string {
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $toVendorId) !== 1) {
             throw new DatabaseRefusal('Choose the booth that should have been paid.');
         }
@@ -32,6 +40,7 @@ final class BoothCorrection
         if ($line['commission'] < 1) {
             throw new DatabaseRefusal('That item did not pay a vendor.');
         }
+        $this->ceiling->second('booth.correct', $journalId, $overrideUser, $overridePassword);
 
         return $this->ledger->post(new JournalDraft(
             'booth-correction:' . $journalId . ':' . $itemId,

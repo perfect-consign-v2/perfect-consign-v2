@@ -80,6 +80,7 @@ final class MallMoneyForm
                 $this->rentDraft->cycleDay ?? 1,
                 $shop['consignment'],
                 $shop['store'],
+                $this->app->request()->field('require_second_signature') === '1',
             );
             $this->rentDraft->save();
         } catch (DatabaseRefusal $refusal) {

@@ -68,6 +68,14 @@ $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false
                 <p class="muted text-sm"><?= !empty($consignmentOnly)
                     ? 'Consignor default applies the consignor’s default POS line discount when set. Choose None for no discount, or enter a percent or flat amount.'
                     : 'Consignor default applies the vendor’s default POS line discount when set. Choose None for no discount, or enter a percent or flat amount.' ?></p>
+                <div class="field">
+                    <label for="instant_override_user">Second person</label>
+                    <input class="input" id="instant_override_user" name="override_user" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label for="instant_override_password">Their password</label>
+                    <?php View::passwordField(id: 'instant_override_password', name: 'override_password', autocomplete: 'off'); ?>
+                </div>
             </div>
             <?php if ($showBrand): ?>
             <div class="field combo">

@@ -47,4 +47,16 @@ final class CloseStore
     {
         $this->statements->change('SELECT stall_close_quiet_period(?::uuid)', [$periodId]);
     }
+
+    public function periodEndsOn(string $periodId): string
+    {
+        $rows = $this->statements->bound(
+            "SELECT to_char(ends_on, 'YYYY-MM-DD') AS ends_on
+             FROM accounting_periods
+             WHERE id = ?::uuid",
+            [$periodId]
+        );
+
+        return is_string($rows[0]['ends_on'] ?? null) ? $rows[0]['ends_on'] : '';
+    }
 }

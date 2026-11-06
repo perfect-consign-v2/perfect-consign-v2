@@ -1,6 +1,9 @@
 RewriteEngine On
 Options -Indexes
 
+# Force HTTPS (and strip www). Skip when a reverse proxy already terminated TLS.
+# Only trust X-Forwarded-Proto from allowlisted peers (mod_remoteip / unset spoofed headers).
+RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
 RewriteCond %{HTTPS} off [OR]
 RewriteCond %{HTTP_HOST} ^www\. [NC]
 RewriteCond %{HTTP_HOST} ^(?:www\.)?(.+)$ [NC]

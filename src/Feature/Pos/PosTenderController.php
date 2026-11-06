@@ -88,6 +88,7 @@ final class PosTenderController
                 $request->field('gift_tender'),
                 $check === '' ? null : $check,
                 $kind,
+                $request->field('form_token'),
             );
         } catch (DatabaseRefusal $refusal) {
             $this->page->gift($slug, $this->app->catchRefusal($refusal));

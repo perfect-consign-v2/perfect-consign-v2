@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Close;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -17,6 +18,7 @@ final class CloseController
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
         private readonly CloseStore $close,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -32,7 +34,7 @@ final class CloseController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $periodId = $this->app->request()->field('period_id');
-        $endsOn = $this->app->request()->field('ends_on');
+        $endsOn = $this->closeDate($periodId, $this->app->request()->field('ends_on'));
         try {
             $movement = $this->close->periodMovement($periodId);
             if ($movement === []) {
@@ -72,6 +74,20 @@ final class CloseController
             return;
         }
         $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Period closed.');
+    }
+
+    private function closeDate(string $periodId, string $posted): string
+    {
+        $ends = $this->close->periodEndsOn($periodId);
+        $today = $this->mall->today();
+        if ($posted === $ends || $posted === $today) {
+            return $posted;
+        }
+        if ($ends !== '') {
+            return $ends;
+        }
+
+        return $today;
     }
 
     private function render(string $slug, ?string $error): void

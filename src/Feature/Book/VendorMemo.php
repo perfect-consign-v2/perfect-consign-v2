@@ -43,7 +43,7 @@ final class VendorMemo
         return RowValue::integer($rows[0]['owed'] ?? null);
     }
 
-    public function record(string $vendorId, string $direction, int $amount, string $postingDate, string $reason): string
+    public function record(string $vendorId, string $direction, int $amount, string $postingDate, string $reason, string $token): string
     {
         $trimmed = trim($reason);
         if ($trimmed === '') {
@@ -55,7 +55,17 @@ final class VendorMemo
         if ($amount < 1) {
             throw new InvalidArgumentException('a vendor memo is a positive amount');
         }
-        $reference = bin2hex(random_bytes(16));
+        if (preg_match('/^[0-9a-f]{32}$/', $token) !== 1) {
+            throw new InvalidArgumentException('this form has expired');
+        }
+        $reference = $token;
+        $existing = $this->statements->bound(
+            'SELECT id::text AS id FROM journals WHERE posting_key = ?',
+            ['vendor-memo:' . $reference]
+        );
+        if ($existing !== []) {
+            return RowValue::string($existing[0]['id'] ?? null);
+        }
         $lines = $direction === 'credit'
             ? [
                 PostedLines::entry($this->ledger->roleAccount('vendor_allowance'), $amount, 0, null, null),

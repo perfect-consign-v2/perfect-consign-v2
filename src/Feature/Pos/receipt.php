@@ -163,6 +163,14 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         </select>
+                        <div class="field">
+                            <label for="booth-override-user-<?= View::text($line['item_id']) ?>">Second person</label>
+                            <input class="input" id="booth-override-user-<?= View::text($line['item_id']) ?>" name="override_user" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <label for="booth-override-password-<?= View::text($line['item_id']) ?>">Their password</label>
+                            <?php View::passwordField(id: 'booth-override-password-' . $line['item_id'], name: 'override_password', autocomplete: 'off'); ?>
+                        </div>
                         <p><button class="btn" type="submit">Move the payable</button></p>
                     </form>
                 <?php endforeach; ?>

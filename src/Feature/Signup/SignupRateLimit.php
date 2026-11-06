@@ -19,28 +19,53 @@ final class SignupRateLimit
 
     public function refuse(string $clientAddress): bool
     {
-        $statement = $this->pdo->prepare(
-            'SELECT COUNT(*)::int
-             FROM platform.signup_attempts
-             WHERE client_address = ?
-               AND attempted_at > clock_timestamp() - make_interval(secs => ?)'
-        );
-        $statement->execute([$clientAddress, $this->windowSeconds()]);
-
-        return RowValue::integer($statement->fetchColumn()) >= $this->maxAttempts();
+        return !$this->claim($clientAddress, false);
     }
 
     public function remember(string $clientAddress): void
     {
-        $prune = $this->pdo->prepare(
-            'DELETE FROM platform.signup_attempts
-             WHERE attempted_at <= clock_timestamp() - make_interval(secs => ?)'
-        );
-        $prune->execute([$this->windowSeconds()]);
-        $statement = $this->pdo->prepare(
-            'INSERT INTO platform.signup_attempts (client_address) VALUES (?)'
-        );
-        $statement->execute([$clientAddress]);
+        $this->claim($clientAddress, true);
+    }
+
+    private function claim(string $clientAddress, bool $insert): bool
+    {
+        $this->pdo->beginTransaction();
+        try {
+            $lock = $this->pdo->prepare('SELECT pg_advisory_xact_lock(87231, hashtext(?))');
+            $lock->execute([$clientAddress]);
+            $prune = $this->pdo->prepare(
+                'DELETE FROM platform.signup_attempts
+                 WHERE attempted_at <= clock_timestamp() - make_interval(secs => ?)'
+            );
+            $prune->execute([$this->windowSeconds()]);
+            $statement = $this->pdo->prepare(
+                'SELECT COUNT(*)::int
+                 FROM platform.signup_attempts
+                 WHERE client_address = ?
+                   AND attempted_at > clock_timestamp() - make_interval(secs => ?)'
+            );
+            $statement->execute([$clientAddress, $this->windowSeconds()]);
+            $count = RowValue::integer($statement->fetchColumn());
+            if ($count >= $this->maxAttempts()) {
+                $this->pdo->commit();
+
+                return false;
+            }
+            if ($insert) {
+                $insertRow = $this->pdo->prepare(
+                    'INSERT INTO platform.signup_attempts (client_address) VALUES (?)'
+                );
+                $insertRow->execute([$clientAddress]);
+            }
+            $this->pdo->commit();
+
+            return true;
+        } catch (\Throwable $error) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $error;
+        }
     }
 
     private function maxAttempts(): int

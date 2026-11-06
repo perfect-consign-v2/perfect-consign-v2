@@ -7,6 +7,7 @@ namespace PerfectConsign\Bootstrap;
 use PerfectApp\Session\Session;
 use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PDO;
 
 final class ActiveRegister
@@ -52,11 +53,21 @@ final class ActiveRegister
 
     public function posted(string $slug, string $requested, bool $roled): string
     {
-        if ($requested !== '') {
+        $current = $this->current($slug, $roled);
+        if ($requested === '') {
+            return $current;
+        }
+        if ($requested === $current) {
+            return $requested;
+        }
+        $open = $this->openDrawers($roled) ?? [];
+        if (count($open) === 1 && $open[0]['id'] === $requested) {
+            $this->use($slug, $requested, $open[0]['name']);
+
             return $requested;
         }
 
-        return $this->current($slug, $roled);
+        throw new DatabaseRefusal('Choose the active register.');
     }
 
     /**

@@ -4,6 +4,12 @@ Operators and deployers: start with [hesk-kb/E12-public-origin-and-tls.md](hesk-
 
 ## Entry
 
+Apache (or equivalent) **DocumentRoot must be `public/`**. The repo-root `.htaccess` denies `.env`, `sql/`, `src/`, `vendor/`, and similar paths if a misconfigured vhost still points at the repository root. Prefer fixing DocumentRoot over relying on that deny list.
+
+`public/.htaccess` forces HTTPS and strips `www` unless `X-Forwarded-Proto: https` is already set (TLS terminated at a reverse proxy). Only allowlisted peers may send that header (`STALL_TRUSTED_PROXIES` / `mod_remoteip`); otherwise Apache would trust a client-spoofed value.
+
+`STALL_BACKUP_DIR` must sit outside the Postgres volume **and** outside the web tree (`public/` and the repo). Nightly tenant dirs are created mode `0700`.
+
 `public/index.php` wires env, TLS, cookies, headers, coverage, and dispatch. Edge helpers live under `src/Shared/Http/`:
 
 | Unit | Role |

@@ -31,6 +31,7 @@ $giftFormError = ($giftError !== '' && !$giftCheckError && !$giftNumberError) ? 
         </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <input type="hidden" name="form_token" value="<?= View::text($giftFormToken ?? bin2hex(random_bytes(16))) ?>">
             <div class="field">
                 <label for="gift_kind">Kind</label>
                 <select class="select" id="gift_kind" name="gift_kind">

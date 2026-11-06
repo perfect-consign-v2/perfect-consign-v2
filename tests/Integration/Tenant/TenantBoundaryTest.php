@@ -12,6 +12,7 @@ use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Feature\Dev\LocalAdmin;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Mail\MailProgress;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
@@ -31,10 +32,12 @@ final class TenantBoundaryTest extends TestCase
             $cashier = $this->staff($pdo, 'cash', 0);
             $manager = $this->staff($pdo, 'mgr', 10000);
             $pdo->exec('SET ROLE ' . $role);
+            $pdo->exec('UPDATE mall SET require_second_signature = true');
             $ceiling = new SaleCeiling(
                 new Statements($pdo),
                 $this->actor(ProbeMall::SLUG, $tenantId, $cashier['id'], 'cashier'),
                 new AuditLog(new Statements($pdo)),
+                $this->request(),
             );
             $ceiling->discount(5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce01');
             for ($i = 0; $i < 5; $i++) {
@@ -85,10 +88,12 @@ final class TenantBoundaryTest extends TestCase
             $manager = $this->staff($pdo, 'mgr', 10000);
             $books = $this->booksStaff($pdo, 'book', 10000);
             $pdo->exec('SET ROLE ' . $role);
+            $pdo->exec('UPDATE mall SET require_second_signature = true');
             $asCashier = new SaleCeiling(
                 new Statements($pdo),
                 $this->actor(ProbeMall::SLUG, $tenantId, $cashier['id'], 'cashier'),
                 new AuditLog(new Statements($pdo)),
+                $this->request(),
             );
             try {
                 $asCashier->discount(5000, $books['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce10');
@@ -101,6 +106,7 @@ final class TenantBoundaryTest extends TestCase
                 new Statements($pdo),
                 $this->actor(ProbeMall::SLUG, $tenantId, $manager['id'], 'manager'),
                 new AuditLog(new Statements($pdo)),
+                $this->request(),
             );
             try {
                 $asManager->second('sale.void', '01900000-0000-7000-8000-00000000ce12', '', '');
@@ -285,6 +291,11 @@ final class TenantBoundaryTest extends TestCase
         }
 
         return ['id' => $id, 'username' => $username];
+    }
+
+    private function request(): Request
+    {
+        return new Request('POST', '/pos', [], [], '', '', '127.0.0.1');
     }
 
     private function actor(string $slug, string $tenantId, string $account, string $role): Actor

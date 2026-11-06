@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Vendor;
 
 use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Mail\LetterMailbox;
 use PerfectConsign\Shared\Mail\MailOutbox;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -24,6 +25,7 @@ final class VendorEntry
         private readonly LetterMailbox $mailbox,
         private readonly MailOutbox $outbox,
         private readonly LoggerInterface $logger,
+        private readonly Request $request,
     ) {
     }
 
@@ -108,22 +110,53 @@ final class VendorEntry
 
     private function allow(string $email): bool
     {
-        $rows = $this->statements->bound(
-            "SELECT count(*) AS requests
-             FROM vendor_entry_requests
-             WHERE email = ?
-               AND requested_at > clock_timestamp() - interval '15 minutes'",
-            [$email]
-        );
-        if (RowValue::integer($rows[0]['requests'] ?? 0) >= 5) {
-            return false;
-        }
-        $this->statements->change(
-            'INSERT INTO vendor_entry_requests (email) VALUES (?)',
-            [$email]
-        );
+        $address = $this->request->address;
+        $this->pdo->beginTransaction();
+        try {
+            $lock = $this->pdo->prepare('SELECT pg_advisory_xact_lock(87201, hashtext(?)), pg_advisory_xact_lock(87202, hashtext(?))');
+            $lock->execute([$email, $address]);
+            $this->statements->change(
+                "DELETE FROM vendor_entry_requests
+                 WHERE requested_at <= clock_timestamp() - interval '15 minutes'",
+                []
+            );
+            $emailRows = $this->statements->bound(
+                "SELECT count(*) AS requests
+                 FROM vendor_entry_requests
+                 WHERE email = ?
+                   AND requested_at > clock_timestamp() - interval '15 minutes'",
+                [$email]
+            );
+            if (RowValue::integer($emailRows[0]['requests'] ?? 0) >= 5) {
+                $this->pdo->commit();
 
-        return true;
+                return false;
+            }
+            $clientRows = $this->statements->bound(
+                "SELECT count(*) AS requests
+                 FROM vendor_entry_requests
+                 WHERE client_address = ?
+                   AND requested_at > clock_timestamp() - interval '15 minutes'",
+                [$address]
+            );
+            if (RowValue::integer($clientRows[0]['requests'] ?? 0) >= 40) {
+                $this->pdo->commit();
+
+                return false;
+            }
+            $this->statements->change(
+                'INSERT INTO vendor_entry_requests (email, client_address) VALUES (?, ?)',
+                [$email, $address]
+            );
+            $this->pdo->commit();
+
+            return true;
+        } catch (\Throwable $error) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $error;
+        }
     }
 
     private function asEntry(TenantRecord $tenant): void

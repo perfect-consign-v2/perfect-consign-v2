@@ -65,11 +65,15 @@ final class PosPage
     }
 
     /**
-     * @return array{openInstant: bool, openGift: bool, giftError: string, giftFormNumber: string, giftFormAmount: string, giftFormTender: string, giftFormCheck: string, giftCustom: bool}
+     * @return array{openInstant: bool, openGift: bool, giftError: string, giftFormNumber: string, giftFormAmount: string, giftFormTender: string, giftFormCheck: string, giftCustom: bool, giftFormToken: string}
      */
     private function giftForm(?string $giftError, bool $reopenInstant): array
     {
         $request = $this->app->request();
+        $token = $request->field('form_token');
+        if (preg_match('/^[0-9a-f]{32}$/', $token) !== 1) {
+            $token = bin2hex(random_bytes(16));
+        }
         $form = [
             'openInstant' => $reopenInstant || $request->query('instant') === '1',
             'openGift' => false,
@@ -79,6 +83,7 @@ final class PosPage
             'giftFormTender' => 'cash',
             'giftFormCheck' => '',
             'giftCustom' => false,
+            'giftFormToken' => $token,
         ];
         if ($giftError === null) {
             return $form;

@@ -48,7 +48,15 @@ final class MissedSaleController
                 ));
                 return;
             }
-            $journalId = $this->sales->record($vendorId, $itemCode, $price, $date, $description, $memo);
+            $journalId = $this->sales->record(
+                $vendorId,
+                $itemCode,
+                $price,
+                $date,
+                $description,
+                $memo,
+                $this->formToken(),
+            );
             $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Missed sale posted.');
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Book/missed-sale', $this->page(
@@ -70,7 +78,7 @@ final class MissedSaleController
     }
 
     /**
-     * @return array{title: string, displayName: string, slug: string, vendors: list<array{id: string, name: string}>, error: ?string, share: ?string, vendorId: string, itemCode: string, description: string, price: string, memo: string, postingDate: string}
+     * @return array{title: string, displayName: string, slug: string, vendors: list<array{id: string, name: string}>, error: ?string, share: ?string, vendorId: string, itemCode: string, description: string, price: string, memo: string, postingDate: string, formToken: string}
      */
     private function page(string $displayName, string $slug, ?string $error, ?int $share): array
     {
@@ -87,6 +95,17 @@ final class MissedSaleController
             'price' => $this->app->request()->field('price'),
             'memo' => $this->app->request()->field('memo'),
             'postingDate' => $this->app->request()->field('posting_date'),
+            'formToken' => $this->formToken(),
         ];
+    }
+
+    private function formToken(): string
+    {
+        $token = $this->app->request()->field('form_token');
+        if (preg_match('/^[0-9a-f]{32}$/', $token) === 1) {
+            return $token;
+        }
+
+        return bin2hex(random_bytes(16));
     }
 }

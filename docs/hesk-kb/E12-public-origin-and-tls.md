@@ -1,15 +1,15 @@
 ---
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
-hesk: pending
-as_of: 2026-11-05
+hesk: published 2026-11-06
+as_of: 2026-11-06
 ---
 
 # Public origin, proxies, TLS, and page script policy
 
 ## As of
 
-2026-11-05 — deploy accepts an empty trusted-proxy list when the live HTTPS origin already sets a Secure session cookie (native HTTPS / Plesk).
+2026-11-06 — DocumentRoot must be `public/`; repo-root `.htaccess` denies `.env` and app paths; `public/.htaccess` skips HTTPS redirect when `X-Forwarded-Proto` is already `https`; nightly backups refuse a web-reachable `STALL_BACKUP_DIR`.
 
 ## In one sentence
 
@@ -21,6 +21,7 @@ You deploy PC2 behind HTTPS, a reverse proxy, or `php -S` for a local demo; or y
 
 ## What the books / screens do
 
+- Apache DocumentRoot is `public/`. Do not serve the repository root.
 - `STALL_PUBLIC_ORIGIN` is the canonical origin (`https://mall.example` or `http://127.0.0.1:8096`). Outbound links use that value, not a forged `Host` header.
 - Host-derived origin is allowed only when `STALL_ALLOW_HOST_ORIGIN=true` and the env is not production-like (`local` / `development` / `dev`, or `APP_DEBUG=true` outside `production` / `prod`). Production-like env always needs `STALL_PUBLIC_ORIGIN`.
 - `STALL_TRUSTED_PROXIES` lists proxy IPs or IPv4 CIDRs. Only those peers may supply `X-Forwarded-Proto` for Secure cookies and HSTS, and the rightmost untrusted hop of `X-Forwarded-For` for lockouts and audit. If the list is empty, forwarded proto and address are ignored; only the server’s own HTTPS signal and `REMOTE_ADDR` count. `bin/deploy-demo.sh` refuses an `https://` public origin when that list is empty and the live origin does not already set a Secure session cookie.

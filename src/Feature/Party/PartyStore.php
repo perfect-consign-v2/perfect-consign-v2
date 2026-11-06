@@ -107,13 +107,24 @@ class PartyStore
 
     public function setActive(string $id, bool $active): void
     {
-        $count = $this->statements->affected(
-            'UPDATE vendors SET active = ?::boolean WHERE id = ?::uuid',
-            [$active ? 'true' : 'false', $id]
-        );
-        if ($count === 0) {
-            throw new \InvalidArgumentException('that vendor is not in this mall');
-        }
+        $this->statements->transaction(function () use ($id, $active): void {
+            $count = $this->statements->affected(
+                'UPDATE vendors SET active = ?::boolean WHERE id = ?::uuid',
+                [$active ? 'true' : 'false', $id]
+            );
+            if ($count === 0) {
+                throw new \InvalidArgumentException('that vendor is not in this mall');
+            }
+            if ($active) {
+                return;
+            }
+            $this->statements->change(
+                "UPDATE staff
+                 SET credentials_version = credentials_version + 1
+                 WHERE role = 'vendor' AND vendor_id = ?::uuid",
+                [$id]
+            );
+        });
     }
 
     public function removeVendor(string $id): void

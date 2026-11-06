@@ -1,7 +1,7 @@
 ---
 title: Open shift required; Z-tape and over/short
 category: Sales and register
-hesk: published 2026-11-02
+hesk: published 2026-11-06
 as_of: 2026-10-25
 ---
 

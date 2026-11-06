@@ -6,7 +6,7 @@ Add a rule here when it is decided. A rule stays in this list after the code tha
 
 ## Vendors
 
-A vendor is Active or Inactive. That is the vendor's own standing. It is not the same fact as which booth they hold.
+A vendor is Active or Inactive. That is the vendor's own standing. It is not the same fact as which booth they hold. Making a vendor Inactive ends open consignor portal sessions on the next request, burns unused entry links, and bumps credentials on that vendor's password login so open staff sessions end.
 
 A vendor with no booth is still Active. The booth column says Unassigned.
 
@@ -40,7 +40,7 @@ A rent charge for the period a vendor moves in counts the days from the start da
 
 A payout no longer clears payable and rent against cash. Close posts a settlement: the smaller of the open payable and the open rent, with no cash. A check, a drawer payment, or a payment from the safe is a later disbursement. A vendor with nothing open gets a report and no journal. Before settlement, close applies open vendor receivable (clawback) against open payable for that vendor — the smaller of the two — with no cash.
 
-A settled or paid run refuses a new journal dated inside its sales window. A reversal is dated after that window. Settlement, rent charged, checks already written, and rent paid in a later window are the net of those journals, reversals included. Two check disbursements cannot share a check number.
+A settled or paid run refuses a new journal dated inside its sales window. A reversal is dated after that window. Settlement, rent charged, checks already written, and rent paid in a later window are the net of those journals, reversals included. Two check disbursements cannot share a check number. The Money record Void button refuses settlement and check / cash / safe disbursement journals — undo a paid run with payout reverse, not a generic journal void.
 
 A vendor is pay, credit only, or hold. Credit only and hold are left out of a run. Rent for a credit-only vendor is paid at the desk.
 
@@ -150,7 +150,7 @@ The assignment is the lease: the contracted rent is locked when the stay starts 
 
 The vendor's accepted terms are who may discount, how long goods stay (`keep_days`, a day count from 1 to 3650 when set), and what happens at expiry.
 
-A cashier's or manager's discount cannot pass the stored percent ceiling, and a tax-free sale cannot pass the stored tax-free ceiling, unless a second staff member signs as themselves and their ceiling covers it. A cashier or manager void, waive, or payout needs that second signature. The person who signs must be a manager or cashier whose ceiling covers the amount; a books login or vendor cannot second-sign. The audit row names that person. An owner does not need the second signature.
+Owner Settings Money has **Require second signature** (off by default). When it is off, a cashier or manager may discount (ticket or line), waive tax, void, change a return tender, waive rent, pay vendors, and correct a booth payable alone; the audit names that person. When it is on, a cashier's or manager's discount cannot pass the stored percent ceiling, and a tax-free sale cannot pass the stored tax-free ceiling, unless a second staff member signs as themselves and their ceiling covers it. A cashier or manager void, waive, payout, or booth correction then needs that second signature. The person who signs must be a manager or cashier whose ceiling covers the amount; a books login or vendor cannot second-sign. The audit row names that person. An owner does not need the second signature either way.
 
 Mall staff roles are cashier (sell, rent, drawer), manager (floor lead: counter plus floor work and read-only money pages), books (read sales, rent, payouts, journals, and reports), and vendor (portal). Email sign-in at `/` opens any of those staff roles and any owner. An owner manages People at `/{slug}/staff` with one Add person form (cashier, manager, books, or co-owner) and typed password. Co-owners have the same mall powers as the first owner. People can Suspend or Restore a person (blocks sign-in; open sessions end). An owner can change a cashier, manager, or books login among those three roles (not into owner or vendor). An owner may remove another owner; they cannot remove themselves or the last owner on the mall. Suspending must leave at least one active owner. Platform `/admin` operators are not created on People. Vendor portal sign-in stays on the vendor page. A manager cannot open Settings, Company, or People, and cannot pay vendors. Owner Settings saves only under `/{slug}/settings/money`, `/{slug}/settings/building`, and `/{slug}/settings/receipt` (plus Backup download); a bare `POST /{slug}/settings` is refused.
 

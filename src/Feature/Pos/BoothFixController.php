@@ -32,6 +32,8 @@ final class BoothFixController
                 $id,
                 $this->itemId(),
                 $this->app->request()->field('vendor_id'),
+                $this->app->request()->field('override_user'),
+                $this->app->request()->field('override_password'),
             );
         } catch (DatabaseRefusal $refusal) {
             $this->receipts->show($slug, $id, $this->app->catchRefusal($refusal));

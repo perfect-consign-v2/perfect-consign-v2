@@ -315,6 +315,7 @@ final class MallController
             'lateGrace' => $this->rentDraft->lateGrace ?? $late['grace'],
             'lateFirst' => $this->rentDraft->dollars($this->rentDraft->lateFirst ?? $late['first']),
             'lateNext' => $this->rentDraft->dollars($this->rentDraft->lateNext ?? $late['next']),
+            'requireSecondSignature' => $this->payouts->requireSecondSignature(),
             'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
             'receiptFooter' => $this->postedFooter ?? $this->mall->getReceiptFooter(),
             'receiptMailVia' => $this->postedMailVia ?? $this->mall->getReceiptMailVia(),

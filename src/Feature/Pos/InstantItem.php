@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Feature\Inventory\InventoryStore;
 use PerfectConsign\Feature\Inventory\ItemWriter;
 
@@ -15,6 +16,7 @@ final class InstantItem
         private readonly TicketStore $tickets,
         private readonly TicketLines $lines,
         private readonly TicketDrafts $drafts,
+        private readonly SaleCeiling $ceiling,
     ) {
     }
 
@@ -76,17 +78,17 @@ final class InstantItem
         ]);
         $this->items->add($saved, $today);
         $this->tickets->scan($session, $saved->code);
-        $this->finish($session, $saved->code, $saved->sale->quantity, $item->discountKind, $item->discountValue);
+        $this->finish($session, $saved->code, $saved->sale->quantity, $item);
     }
 
-    private function finish(string $session, string $code, int $quantity, string $discountKind, string $discountValue): void
+    private function finish(string $session, string $code, int $quantity, InstantAdd $item): void
     {
         $cart = $this->tickets->cart($session);
         $lineNo = $this->lineNo($cart['lines'], $code);
         if ($quantity > 1) {
             $this->lines->quantity($cart['ticket_id'], $lineNo, $quantity);
         }
-        $this->discount($cart['ticket_id'], $lineNo, $discountKind, $discountValue);
+        $this->discount($session, $cart['ticket_id'], $lineNo, $item);
     }
 
     /**
@@ -107,22 +109,29 @@ final class InstantItem
         return $lineNo;
     }
 
-    private function discount(string $ticketId, int $lineNo, string $discountKind, string $discountValue): void
+    private function discount(string $session, string $ticketId, int $lineNo, InstantAdd $item): void
     {
-        $kind = strtolower(trim($discountKind));
+        $kind = strtolower(trim($item->discountKind));
         if ($kind === 'flat') {
             $kind = 'amount';
         }
         if ($kind !== 'percent' && $kind !== 'amount') {
             return;
         }
-        if (trim($discountValue) === '') {
+        if (trim($item->discountValue) === '') {
             throw new \InvalidArgumentException('Enter a line discount.');
         }
-        $posted = TicketAdjustment::discount('apply', $kind, $discountValue, 'other');
+        $posted = TicketAdjustment::discount('apply', $kind, $item->discountValue, 'other');
         if ($posted['kind'] === null) {
             return;
         }
+        $this->ceiling->priced(
+            $posted['kind'],
+            $posted['value'],
+            $item->overrideUser,
+            $item->overridePassword,
+            $session,
+        );
         $this->lines->discount($ticketId, $lineNo, $posted['kind'], $posted['value'], $posted['reason']);
     }
 

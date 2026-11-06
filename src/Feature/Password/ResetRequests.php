@@ -18,20 +18,33 @@ final class ResetRequests
 
     public function allow(TenantRecord $tenant, string $username): bool
     {
-        $this->prune();
-        if ($this->recentForIdentity($tenant->id, $username) >= 5) {
-            return false;
-        }
-        if ($this->recentForClient() >= 40) {
-            return false;
-        }
-        $insert = $this->pdo->prepare(
-            'INSERT INTO platform.password_reset_requests (tenant_id, username, client_address)
-             VALUES (?::uuid, ?, ?)'
-        );
-        $insert->execute([$tenant->id, $username, $this->request->address]);
+        $address = $this->request->address;
+        $this->pdo->beginTransaction();
+        try {
+            $lock = $this->pdo->prepare(
+                'SELECT pg_advisory_xact_lock(87211, hashtext(?)), pg_advisory_xact_lock(87212, hashtext(?))'
+            );
+            $lock->execute([$tenant->id . ':' . $username, $address]);
+            $this->prune();
+            if ($this->recentForIdentity($tenant->id, $username) >= 5 || $this->recentForClient() >= 40) {
+                $this->pdo->commit();
 
-        return true;
+                return false;
+            }
+            $insert = $this->pdo->prepare(
+                'INSERT INTO platform.password_reset_requests (tenant_id, username, client_address)
+                 VALUES (?::uuid, ?, ?)'
+            );
+            $insert->execute([$tenant->id, $username, $address]);
+            $this->pdo->commit();
+
+            return true;
+        } catch (\Throwable $error) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $error;
+        }
     }
 
     private function prune(): void

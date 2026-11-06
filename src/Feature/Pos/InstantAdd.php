@@ -17,6 +17,8 @@ final class InstantAdd
         public readonly array $attributes,
         public readonly string $discountKind,
         public readonly string $discountValue,
+        public readonly string $overrideUser = '',
+        public readonly string $overridePassword = '',
     ) {
     }
 }

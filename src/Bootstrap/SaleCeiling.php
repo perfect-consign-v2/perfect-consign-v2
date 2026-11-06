@@ -6,6 +6,7 @@ namespace PerfectConsign\Bootstrap;
 
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 class SaleCeiling
@@ -14,7 +15,18 @@ class SaleCeiling
         private readonly Statements $statements,
         private readonly Actor $actor,
         private readonly AuditLog $audit,
+        private readonly Request $request,
     ) {
+    }
+
+    public function required(): bool
+    {
+        $rows = $this->statements->rows(
+            'SELECT require_second_signature FROM mall'
+        );
+        $value = $rows[0]['require_second_signature'] ?? null;
+
+        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
     public function priced(?string $kind, ?int $value, string $overrideUser, string $overridePassword, string $entityId): void
@@ -55,7 +67,7 @@ class SaleCeiling
     public function second(string $action, string $entityId, string $overrideUser, string $overridePassword): void
     {
         $role = $this->actor->role() !== '' ? $this->actor->role() : 'owner';
-        if ($role === 'cashier' || $role === 'manager') {
+        if (($role === 'cashier' || $role === 'manager') && $this->required()) {
             $this->audit->record(
                 $this->override($overrideUser, $overridePassword, $this->actor->account()),
                 $role,
@@ -72,7 +84,7 @@ class SaleCeiling
 
     private function cover(int $amount, string $column, string $overrideUser, string $overridePassword): string
     {
-        if ($this->actor->role() === 'owner') {
+        if ($this->actor->role() === 'owner' || !$this->required()) {
             $account = $this->actor->account();
 
             return $account !== '' ? $account : 'owner';
@@ -136,8 +148,8 @@ class SaleCeiling
             throw new DatabaseRefusal('a second person has to sign this');
         }
         $rows = $this->statements->bound(
-            'SELECT stall_override_attempts(?) AS attempts',
-            [$username]
+            'SELECT stall_override_attempts(?, ?) AS attempts',
+            [$username, $this->request->address]
         );
         if (RowValue::integer($rows[0]['attempts'] ?? null) >= 5) {
             throw new DatabaseRefusal('too many sign-in attempts');
@@ -149,7 +161,10 @@ class SaleCeiling
         if ($this->actor->slug() === null || preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
             return;
         }
-        $this->statements->bound('SELECT stall_override_record(?)', [$username]);
+        $this->statements->bound(
+            'SELECT stall_override_record(?, ?)',
+            [$username, $this->request->address]
+        );
     }
 
     private function clearFailures(string $username): void

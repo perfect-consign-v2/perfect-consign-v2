@@ -26,6 +26,7 @@ final class StaffSignIn
             || !$row['can_sign_in']
             || !$this->passwordMatches($row, $password)
             || !$this->knownRole($row)
+            || !$this->vendorActive($tenant, $row)
         ) {
             $this->refuse($tenant, $username, $address);
 
@@ -141,6 +142,40 @@ final class StaffSignIn
             || $row['role'] === 'manager'
             || $row['role'] === 'vendor'
             || $row['role'] === 'books';
+    }
+
+    /**
+     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string, can_sign_in: bool} $row
+     */
+    private function vendorActive(TenantRecord $tenant, array $row): bool
+    {
+        if ($row['role'] !== 'vendor') {
+            return true;
+        }
+        $vendorId = $row['vendor_id'];
+        if (!is_string($vendorId) || preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
+            return false;
+        }
+        $role = $tenant->role;
+        if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {
+            throw new \RuntimeException('the mall role is not usable');
+        }
+        if ($this->pdo->exec('SET ROLE ' . $role) === false) {
+            throw new \RuntimeException('the mall role could not be used');
+        }
+        try {
+            $statement = $this->pdo->prepare(
+                'SELECT active FROM ' . $this->schema($tenant->schema) . '.vendors WHERE id = ?::uuid'
+            );
+            $statement->execute([$vendorId]);
+            $active = $statement->fetchColumn();
+        } finally {
+            if ($this->pdo->exec('RESET ROLE') === false) {
+                throw new \RuntimeException('the database role could not be reset');
+            }
+        }
+
+        return $active === true || $active === 't' || $active === '1' || $active === 1;
     }
 
     /**

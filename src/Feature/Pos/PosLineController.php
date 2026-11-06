@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Pos;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class PosLineController
@@ -17,6 +18,7 @@ final class PosLineController
         private readonly TicketStore $tickets,
         private readonly TicketLines $lines,
         private readonly SaleHold $sales,
+        private readonly SaleCeiling $ceiling,
     ) {
     }
 
@@ -39,6 +41,13 @@ final class PosLineController
                 $request->field('discount_kind'),
                 $request->field('discount_value'),
                 $request->field('discount_reason'),
+            );
+            $this->ceiling->priced(
+                $posted['kind'],
+                $posted['value'],
+                $request->field('override_user'),
+                $request->field('override_password'),
+                $session,
             );
             $this->lines->discount(
                 $this->tickets->cart($session)['ticket_id'],

@@ -49,7 +49,14 @@ final class VendorMemoController
                 ));
                 return;
             }
-            $journalId = $this->memos->record($vendorId, $direction, $amount, $date, $reason);
+            $journalId = $this->memos->record(
+                $vendorId,
+                $direction,
+                $amount,
+                $date,
+                $reason,
+                $this->formToken(),
+            );
             $this->app->redirect('/' . $slug . '/journals/' . $journalId, $this->mall->getPartyLabel('Vendor memo posted.', 'Consignor memo posted.'));
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Book/vendor-memo', $this->page(
@@ -71,7 +78,7 @@ final class VendorMemoController
     }
 
     /**
-     * @return array{title: string, displayName: string, slug: string, vendors: list<array{id: string, name: string}>, error: ?string, owed: ?string, vendorId: string, direction: string, amount: string, reason: string, postingDate: string}
+     * @return array{title: string, displayName: string, slug: string, vendors: list<array{id: string, name: string}>, error: ?string, owed: ?string, vendorId: string, direction: string, amount: string, reason: string, postingDate: string, formToken: string}
      */
     private function page(string $displayName, string $slug, ?string $error, ?int $owed): array
     {
@@ -87,6 +94,17 @@ final class VendorMemoController
             'amount' => $this->app->request()->field('amount'),
             'reason' => $this->app->request()->field('reason'),
             'postingDate' => $this->app->request()->field('posting_date'),
+            'formToken' => $this->formToken(),
         ];
+    }
+
+    private function formToken(): string
+    {
+        $token = $this->app->request()->field('form_token');
+        if (preg_match('/^[0-9a-f]{32}$/', $token) === 1) {
+            return $token;
+        }
+
+        return bin2hex(random_bytes(16));
     }
 }

@@ -1,15 +1,15 @@
 ---
 title: Settlement vs check / drawer / safe disbursement
 category: Payouts and settlement
-hesk: published 2026-11-02
-as_of: 2026-10-25
+hesk: published 2026-11-06
+as_of: 2026-11-06
 ---
 
 # Settlement vs check / drawer / safe disbursement
 
 ## As of
 
-2026-10-25
+2026-11-06 — Money record Void refuses settlement and check / cash / safe disbursement journals; undo a paid run with payout reverse.
 
 ## In one sentence
 
@@ -28,6 +28,7 @@ Closing a payout run, then writing a check, paying from the drawer, or paying fr
 - Settled or paid run refuses a new journal dated inside its sales window; a reversal is dated after that window.
 - Settlement, rent charged, checks already written, and rent paid in a later window are net of those journals (reversals included).
 - Two check disbursements cannot share a check number.
+- The Money record Void button refuses settlement and disbursement journals — use payout reverse, then re-pay if needed.
 
 Note: older Stall PLAN text described payout clearing payable and rent against cash in one step. Current mall rules use clawback apply, then settlement, then cash later.
 
@@ -36,6 +37,7 @@ Note: older Stall PLAN text described payout clearing payable and rent against c
 - A second payout/settlement for the same closed window when rules say the run is done.
 - Duplicate check numbers on disbursements.
 - Dating new money journals inside a settled/paid sales window (except reversal after the window).
+- Journal void of settlement or check / cash / safe disbursement (payout reverse is the undo path).
 
 ## How to check
 

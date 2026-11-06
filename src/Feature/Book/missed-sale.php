@@ -27,6 +27,7 @@ $dateValue = $postingDate !== '' ? $postingDate : $today;
     <p class="error"><?= View::text($error) ?></p>
 <?php } ?>
 <form method="post" action="/<?= View::text($slug) ?>/missed-sale">
+    <input type="hidden" name="form_token" value="<?= View::text($formToken ?? '') ?>">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
     <label for="vendor_id"><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?></label>
     <select id="vendor_id" name="vendor_id" required>

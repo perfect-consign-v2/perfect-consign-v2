@@ -19,13 +19,21 @@ $rentHistories ??= [];
 $sections = [
     'Current Booths' => $vendor['current'],
     'Upcoming Booths' => $vendor['upcoming'],
-    'Past' => $vendor['past'],
+    'Past Booths' => $vendor['past'],
 ];
-$currentBooth = $vendor['current'][0]['booth_code'] ?? '';
 $blank = '—';
 $consignmentOnly = ($consignmentOnly ?? false) === true;
 $partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
 $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
+$boothCodes = [];
+foreach ($vendor['current'] as $stay) {
+    $boothCodes[] = $stay['booth_code'];
+}
+$boothLine = match (count($boothCodes)) {
+    0 => 'No booth',
+    1 => 'Booth ' . $boothCodes[0],
+    default => 'Booths ' . implode(' · ', $boothCodes),
+};
 
 ?>
 <article id="vendor-<?= View::text($vendor['id']) ?>">
@@ -37,13 +45,9 @@ $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
             </nav>
             <h1 class="h1"><?= View::text($vendor['name']) ?></h1>
             <ul class="vendor-pills">
-                <li><span class="badge badge-accent"><?= View::text($vendor['code']) ?></span></li>
                 <li><span class="badge <?= View::text($vendor['status_badge']) ?>"><?= View::text($vendor['status_label']) ?></span></li>
                 <?php if (!$consignmentOnly): ?>
-                <li><span class="badge"><?= $currentBooth === '' ? 'Unassigned' : View::text($currentBooth) ?></span></li>
-                <?php endif; ?>
-                <?php if ($vendor['store_take_overridden']): ?>
-                    <li><span class="badge badge-warning">Overridden</span></li>
+                <li><span class="badge"><?= View::text($boothLine) ?></span></li>
                 <?php endif; ?>
             </ul>
         </div>

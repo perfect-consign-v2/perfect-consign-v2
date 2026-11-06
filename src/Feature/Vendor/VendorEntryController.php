@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Vendor;
 use PerfectApp\Routing\Route;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Shared\Database\Statements;
 
 final class VendorEntryController
 {
@@ -15,6 +16,7 @@ final class VendorEntryController
         private readonly Session $session,
         private readonly VendorEntry $entry,
         private readonly VendorPortal $portal,
+        private readonly Statements $statements,
     ) {
     }
 
@@ -47,6 +49,8 @@ final class VendorEntryController
         if ($vendorId === '') {
             $this->app->redirect('/' . $slug . '/consignor/enter', 'That link has expired.');
         }
+        $this->session->regenerateId(true);
+        $this->session->set('csrf', bin2hex(random_bytes(16)));
         $now = (string) time();
         $this->session->set($this->key($slug), $vendorId);
         $this->session->set($this->seenKey($slug), $now);
@@ -92,13 +96,24 @@ final class VendorEntryController
             $this->clear($slug);
             $this->app->redirect('/' . $slug . '/consignor/enter');
         }
-        if ($this->stale($slug)) {
+        if ($this->stale($slug) || !$this->stillActive($vendorId)) {
             $this->clear($slug);
             $this->app->redirect('/' . $slug . '/consignor/enter');
         }
         $this->session->set($this->seenKey($slug), (string) time());
 
         return $vendorId;
+    }
+
+    private function stillActive(string $vendorId): bool
+    {
+        $rows = $this->statements->bound(
+            'SELECT active FROM vendors WHERE id = ?::uuid',
+            [$vendorId]
+        );
+        $active = $rows[0]['active'] ?? null;
+
+        return $active === true || $active === 't' || $active === '1' || $active === 1;
     }
 
     private function stale(string $slug): bool

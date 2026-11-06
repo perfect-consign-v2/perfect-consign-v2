@@ -48,6 +48,14 @@ $lines = $cart['lines'];
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <div class="field">
+                    <label for="<?= View::text($modalId) ?>-override-user">Second person</label>
+                    <input class="input" id="<?= View::text($modalId) ?>-override-user" name="override_user" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label for="<?= View::text($modalId) ?>-override-password">Their password</label>
+                    <?php View::passwordField(id: $modalId . '-override-password', name: 'override_password', autocomplete: 'off'); ?>
+                </div>
                 <div class="row between">
                     <button class="btn" type="submit" name="discount_action" value="remove" formnovalidate>Remove discount</button>
                     <button class="btn btn-primary" type="submit" name="discount_action" value="apply">Apply</button>

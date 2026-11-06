@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
+use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Feature\Password\PasswordChoice;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Mail\PlatformMailbox;
@@ -23,6 +24,7 @@ final class AdminPasswordRecovery
         private readonly LoggerInterface $logger,
         private readonly AdminAudit $audit,
         private readonly AdminSession $session,
+        private readonly LoginSession $tenants,
     ) {
     }
 
@@ -81,6 +83,7 @@ final class AdminPasswordRecovery
             $clear->execute([$row['email']]);
             $this->audit->record($row['id'], $row['email'], 'admin.password_reset', 'ok');
             $this->pdo->commit();
+            $this->tenants->clear();
             $this->session->clear();
         } catch (\Throwable $error) {
             if ($this->pdo->inTransaction()) {
@@ -119,36 +122,54 @@ final class AdminPasswordRecovery
 
     private function allow(string $email): bool
     {
-        $this->pdo->exec(
-            "DELETE FROM platform.admin_password_reset_requests
-             WHERE requested_at <= clock_timestamp() - interval '15 minutes'"
-        );
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.admin_password_reset_requests
-             WHERE email = ?
-               AND requested_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$email]);
-        if ((int) $recent->fetchColumn() >= 5) {
-            return false;
-        }
-        $spray = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.admin_password_reset_requests
-             WHERE client_address = ?
-               AND requested_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $spray->execute([$this->request->address]);
-        if ((int) $spray->fetchColumn() >= 40) {
-            return false;
-        }
-        $insert = $this->pdo->prepare(
-            'INSERT INTO platform.admin_password_reset_requests (email, client_address) VALUES (?, ?)'
-        );
-        $insert->execute([$email, $this->request->address]);
+        $address = $this->request->address;
+        $this->pdo->beginTransaction();
+        try {
+            $lock = $this->pdo->prepare(
+                'SELECT pg_advisory_xact_lock(87221, hashtext(?)), pg_advisory_xact_lock(87222, hashtext(?))'
+            );
+            $lock->execute([$email, $address]);
+            $this->pdo->exec(
+                "DELETE FROM platform.admin_password_reset_requests
+                 WHERE requested_at <= clock_timestamp() - interval '15 minutes'"
+            );
+            $recent = $this->pdo->prepare(
+                "SELECT count(*)
+                 FROM platform.admin_password_reset_requests
+                 WHERE email = ?
+                   AND requested_at > clock_timestamp() - interval '15 minutes'"
+            );
+            $recent->execute([$email]);
+            if ((int) $recent->fetchColumn() >= 5) {
+                $this->pdo->commit();
 
-        return true;
+                return false;
+            }
+            $spray = $this->pdo->prepare(
+                "SELECT count(*)
+                 FROM platform.admin_password_reset_requests
+                 WHERE client_address = ?
+                   AND requested_at > clock_timestamp() - interval '15 minutes'"
+            );
+            $spray->execute([$address]);
+            if ((int) $spray->fetchColumn() >= 40) {
+                $this->pdo->commit();
+
+                return false;
+            }
+            $insert = $this->pdo->prepare(
+                'INSERT INTO platform.admin_password_reset_requests (email, client_address) VALUES (?, ?)'
+            );
+            $insert->execute([$email, $address]);
+            $this->pdo->commit();
+
+            return true;
+        } catch (\Throwable $error) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $error;
+        }
     }
 
     /**

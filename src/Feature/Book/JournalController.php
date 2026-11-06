@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Book;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
@@ -17,11 +18,21 @@ use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class JournalController
 {
+    /** @var list<string> */
+    private const NO_VOID = [
+        'period_close',
+        'check_disbursement',
+        'cash_disbursement',
+        'safe_disbursement',
+        'settlement',
+    ];
+
     public function __construct(
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
         private readonly RegisterStore $registers,
         private readonly ActiveRegister $drawers,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -93,12 +104,17 @@ final class JournalController
      */
     private function postingDate(array $journal): string
     {
+        $original = RowValue::string($journal['posting_date'] ?? null);
         $posted = $this->app->request()->field('posting_date');
-        if ($posted !== '') {
-            return $posted;
+        if ($posted === '' || $posted === $original) {
+            return $original;
+        }
+        $today = $this->mall->today();
+        if ($posted === $today && $today >= $original) {
+            return $today;
         }
 
-        return RowValue::string($journal['posting_date'] ?? null);
+        throw new DatabaseRefusal('void posting date must be the original date or today');
     }
 
     /**
@@ -141,7 +157,11 @@ final class JournalController
      */
     private function canVoid(array $journal, bool $alreadyReversed): bool
     {
-        if ($alreadyReversed || $journal['source_type'] === 'period_close') {
+        if ($alreadyReversed) {
+            return false;
+        }
+        $source = $journal['source_type'] ?? null;
+        if (is_string($source) && in_array($source, self::NO_VOID, true)) {
             return false;
         }
         $reversal = $journal['is_reversal'];

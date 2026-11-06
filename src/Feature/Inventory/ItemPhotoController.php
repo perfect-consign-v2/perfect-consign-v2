@@ -39,8 +39,15 @@ final class ItemPhotoController
         if ($kind === null) {
             $this->app->notFound();
         }
+        $ext = match ($kind) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => 'bin',
+        };
         header('Content-Type: ' . $kind);
         header('Content-Length: ' . (string) strlen($bytes));
+        header('Content-Disposition: inline; filename="photo.' . $ext . '"');
         header('Cache-Control: private, max-age=3600');
         echo $bytes;
         throw new ResponseSent('photo');

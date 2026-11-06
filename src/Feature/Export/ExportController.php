@@ -38,9 +38,33 @@ final class ExportController
             $to = $from;
         }
         $system = $this->app->request()->field('system');
+        if (!in_array($system, ['quickbooks', 'xero'], true)) {
+            $this->app->show('Feature/Export/export', [
+                'title' => 'Download records',
+                'displayName' => $tenant->displayName,
+                'slug' => $tenant->slug,
+                'error' => 'Choose QuickBooks or Xero.',
+                'from' => $from,
+                'to' => $to,
+            ]);
+
+            return;
+        }
         $taxRate = $this->app->request()->field('tax_rate');
         if ($taxRate === '') {
             $taxRate = 'Tax Exempt';
+        }
+        if (strlen($taxRate) > 40 || preg_match('/^[\x20-\x7E]+$/', $taxRate) !== 1) {
+            $this->app->show('Feature/Export/export', [
+                'title' => 'Download records',
+                'displayName' => $tenant->displayName,
+                'slug' => $tenant->slug,
+                'error' => 'Tax rate label is too long or has characters we cannot export.',
+                'from' => $from,
+                'to' => $to,
+            ]);
+
+            return;
         }
         try {
             $statement = $this->exports->exportCsv($system, $from, $to, $taxRate);

@@ -27,11 +27,32 @@ final class GiftIssue
     ) {
     }
 
-    public function issue(string $session, string $date, string $number, int $amount, string $tender, ?string $check, string $kind = 'gift_certificate'): string
-    {
+    public function issue(
+        string $session,
+        string $date,
+        string $number,
+        int $amount,
+        string $tender,
+        ?string $check,
+        string $kind = 'gift_certificate',
+        string $formToken = '',
+    ): string {
         $kind = $this->kind($kind);
         $requested = $this->number($number);
         $this->tender($amount, $tender, $check);
+        if (preg_match('/^[0-9a-f]{32}$/', $formToken) !== 1) {
+            throw new DatabaseRefusal('this form has expired');
+        }
+        $tokenKey = str_replace('_', '-', $kind) . ':token:' . $formToken;
+        if ($requested === '') {
+            $existing = $this->statements->bound(
+                'SELECT id::text AS id FROM journals WHERE posting_key = ?',
+                [$tokenKey]
+            );
+            if ($existing !== []) {
+                return RowValue::string($existing[0]['id'] ?? null);
+            }
+        }
         $attempt = 0;
         $refusal = new DatabaseRefusal(DatabaseRefusal::CERTIFICATE_NUMBER_USED);
         while ($attempt < 5) {
@@ -39,8 +60,28 @@ final class GiftIssue
             $assigned = $requested !== '' ? $requested : $this->allocate($kind);
             $journalId = '';
             try {
-                $this->statements->isolated(function () use ($session, $date, $assigned, $amount, $tender, $check, $kind, &$journalId): void {
-                    $journalId = $this->store($session, $date, $assigned, $amount, $tender, $check, $kind);
+                $this->statements->isolated(function () use (
+                    $session,
+                    $date,
+                    $assigned,
+                    $amount,
+                    $tender,
+                    $check,
+                    $kind,
+                    $requested,
+                    $tokenKey,
+                    &$journalId,
+                ): void {
+                    $journalId = $this->store(
+                        $session,
+                        $date,
+                        $assigned,
+                        $amount,
+                        $tender,
+                        $check,
+                        $kind,
+                        $requested === '' ? $tokenKey : null,
+                    );
                 });
                 if ($journalId === '') {
                     throw new DatabaseRefusal('that journal is not a gift certificate');
@@ -119,16 +160,25 @@ final class GiftIssue
         ];
     }
 
-    private function store(string $session, string $date, string $number, int $amount, string $tender, ?string $check, string $kind): string
-    {
+    private function store(
+        string $session,
+        string $date,
+        string $number,
+        int $amount,
+        string $tender,
+        ?string $check,
+        string $kind,
+        ?string $postingKey = null,
+    ): string {
         $created = $this->statements->bound(
             'INSERT INTO stored_values (kind, number) VALUES (?, ?) RETURNING id',
             [$kind, $number]
         );
         $storedId = RowValue::string($created[0]['id'] ?? null);
+        $key = $postingKey ?? (str_replace('_', '-', $kind) . ':' . strtolower($number));
         try {
             return $this->ledger->post(new JournalDraft(
-                str_replace('_', '-', $kind) . ':' . strtolower($number),
+                $key,
                 $date,
                 new JournalSource($kind . '_issue', $number, $this->label($kind)),
                 [

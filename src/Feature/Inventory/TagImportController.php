@@ -33,6 +33,18 @@ final class TagImportController
 
             return;
         }
+        $size = filesize($file['tmp_name']);
+        if ($size === false || $size < 1 || $size > 2_000_000) {
+            $this->page($slug, 'That CSV is too large.');
+
+            return;
+        }
+        $sample = file_get_contents($file['tmp_name'], false, null, 0, 512);
+        if ($sample === false || str_contains($sample, "\0")) {
+            $this->page($slug, 'Choose a CSV file.');
+
+            return;
+        }
         try {
             $count = $this->import->load($file['tmp_name']);
         } catch (DatabaseRefusal $refusal) {
