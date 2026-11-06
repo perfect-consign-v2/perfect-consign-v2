@@ -4282,7 +4282,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION public.stall_override_attempts(who text, addr text DEFAULT ''::text) RETURNS integer
+CREATE FUNCTION public.stall_override_attempts(who text) RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $_$
@@ -4294,7 +4294,6 @@ BEGIN
         SELECT count(*)::integer
         FROM public.override_sign_in_failures
         WHERE username = who
-          AND client_address = COALESCE(addr, '')
           AND failed_at > clock_timestamp() - interval '15 minutes'
     );
 END;
@@ -4312,7 +4311,7 @@ BEGIN
 END;
 $_$;
 
-CREATE FUNCTION public.stall_override_record(who text, addr text DEFAULT ''::text) RETURNS void
+CREATE FUNCTION public.stall_override_record(who text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $_$
@@ -4322,8 +4321,7 @@ BEGIN
     END IF;
     DELETE FROM public.override_sign_in_failures
     WHERE failed_at <= clock_timestamp() - interval '15 minutes';
-    INSERT INTO public.override_sign_in_failures (username, client_address)
-    VALUES (who, COALESCE(addr, ''));
+    INSERT INTO public.override_sign_in_failures (username) VALUES (who);
 END;
 $_$;
 
@@ -4636,7 +4634,6 @@ CREATE TABLE public.mall (
     gmail_app_password text,
     late_fee_effective_on date,
     cash_round_minor integer DEFAULT 0 NOT NULL,
-    require_second_signature boolean DEFAULT false NOT NULL,
     CONSTRAINT mall_booth_size_chk CHECK (((booth_width_ft > 0) AND (booth_depth_ft > 0))),
     CONSTRAINT mall_cash_round_minor_chk CHECK ((cash_round_minor = ANY (ARRAY[0, 1, 5, 10, 25]))),
     CONSTRAINT mall_city_chk CHECK (((city IS NULL) OR ((city = btrim(city)) AND (city <> ''::text) AND (char_length(city) <= 80)))),
@@ -7376,7 +7373,6 @@ CREATE FUNCTION public.stall_vendor_open(entry_hash text) RETURNS uuid
 DECLARE
     vendor uuid;
     token_id uuid;
-    is_active boolean;
 BEGIN
     SELECT link.id, link.vendor_id
     INTO token_id, vendor
@@ -7387,18 +7383,6 @@ BEGIN
     FOR UPDATE;
 
     IF token_id IS NULL THEN
-        RETURN NULL;
-    END IF;
-
-    SELECT vendor_row.active
-    INTO is_active
-    FROM public.vendors AS vendor_row
-    WHERE vendor_row.id = vendor;
-
-    IF is_active IS DISTINCT FROM true THEN
-        UPDATE public.vendor_entry_tokens
-        SET used_at = clock_timestamp()
-        WHERE id = token_id;
         RETURN NULL;
     END IF;
 
@@ -7798,7 +7782,6 @@ CREATE TABLE public.override_sign_in_failures (
     id uuid DEFAULT uuidv7() NOT NULL,
     username text NOT NULL,
     failed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    client_address text DEFAULT ''::text NOT NULL,
     CONSTRAINT override_sign_in_failures_username_chk CHECK (((username = btrim(username)) AND (username ~ '^[a-z][a-z0-9-]{0,62}$'::text)))
 );
 
@@ -8159,7 +8142,6 @@ CREATE TABLE public.vendor_entry_requests (
     id uuid DEFAULT uuidv7() NOT NULL,
     email text NOT NULL,
     requested_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    client_address text DEFAULT ''::text NOT NULL,
     CONSTRAINT vendor_entry_requests_email_chk CHECK (((email = btrim(email)) AND (email <> ''::text)))
 );
 
@@ -8476,7 +8458,7 @@ INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero',
 
 INSERT INTO public.ledger_books (id, code, name, currency, currency_scale, is_default, created_at) VALUES ('01900000-0000-7000-8000-000000000001', 'mall', 'Mall', 'USD', 2, true, '2026-10-21 00:42:50.440076+00');
 
-INSERT INTO public.mall (id, time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, tax_bps, operating_mode, payout_cadence, rent_prepaid_from_prior_sales, use_color, use_category, use_size, use_condition, use_department, label_stock, use_brand, booth_rentals_enabled, rent_cycle_day, street, street2, city, state, postal, phone, email, late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor, receipt_footer, consignment_enabled, store_stock_enabled, receipt_mail_via, gmail_address, gmail_app_password, late_fee_effective_on, cash_round_minor, require_second_signature) VALUES (true, 'America/Los_Angeles', 10, 10, 120, 90, 0, NULL, 0, 'both', 'monthly', false, true, true, true, true, true, 'avery_8160', true, true, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 0, 0, 0, 'Thank you', true, false, 'server', NULL, NULL, NULL, 0, false);
+INSERT INTO public.mall (id, time_zone, booth_width_ft, booth_depth_ft, floor_width_ft, floor_depth_ft, commission_bps, floor_days, tax_bps, operating_mode, payout_cadence, rent_prepaid_from_prior_sales, use_color, use_category, use_size, use_condition, use_department, label_stock, use_brand, booth_rentals_enabled, rent_cycle_day, street, street2, city, state, postal, phone, email, late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor, receipt_footer, consignment_enabled, store_stock_enabled, receipt_mail_via, gmail_address, gmail_app_password, late_fee_effective_on, cash_round_minor) VALUES (true, 'America/Los_Angeles', 10, 10, 120, 90, 0, NULL, 0, 'both', 'monthly', false, true, true, true, true, true, 'avery_8160', true, true, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, 0, 0, 0, 'Thank you', true, false, 'server', NULL, NULL, NULL, 0);
 
 INSERT INTO public.map_floors (id, name, sort_order) VALUES ('01a15be9-2e20-73a5-85ed-43ebc7a867f3', 'Main Floor', 0);
 
@@ -9963,15 +9945,15 @@ GRANT SELECT ON TABLE public.job_mail_sent TO stall_backup;
 
 REVOKE ALL ON TABLE public.override_sign_in_failures FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION public.stall_override_attempts(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_override_attempts(text) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION public.stall_override_record(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_override_record(text) FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION public.stall_override_clear(text) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION public.stall_override_attempts(text, text) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_override_attempts(text) TO stall_poster;
 
-GRANT EXECUTE ON FUNCTION public.stall_override_record(text, text) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_override_record(text) TO stall_poster;
 
 GRANT EXECUTE ON FUNCTION public.stall_override_clear(text) TO stall_poster;
 
