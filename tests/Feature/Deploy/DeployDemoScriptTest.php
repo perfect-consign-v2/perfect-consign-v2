@@ -102,6 +102,9 @@ final class DeployDemoScriptTest extends TestCase
             $script
         );
         self::assertStringContainsString('Sign-in is only at `/`', $script);
+        self::assertStringContainsString('STALL_TRUSTED_PROXIES', $script);
+        self::assertStringContainsString('Secure cookie', $script);
+        self::assertMatchesRegularExpression('/\\[Ss\\]et-\\[Cc\\]ookie/', $script);
     }
 
     public function testDeployReexecsAfterResetSoTipScriptRuns(): void

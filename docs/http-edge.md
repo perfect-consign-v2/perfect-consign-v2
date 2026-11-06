@@ -24,7 +24,7 @@ Agent gate: `.cursor/rules/hostile-bootstrap.mdc` (always apply). Deploy/auth ab
 ## Product defaults
 
 - **TLS:** Honor forwarded proto only when `REMOTE_ADDR` is in `STALL_TRUSTED_PROXIES`. Unset/empty → ignore forwarded headers.
-- **Client address:** When the TCP peer is on that allowlist, take the rightmost untrusted hop of `X-Forwarded-For` for lockouts and audit. Empty allowlist keeps `REMOTE_ADDR` only and ignores forwarded addresses. `bin/deploy-demo.sh` refuses an `https://` `STALL_PUBLIC_ORIGIN` when `STALL_TRUSTED_PROXIES` is empty.
+- **Client address:** When the TCP peer is on that allowlist, take the rightmost untrusted hop of `X-Forwarded-For` for lockouts and audit. Empty allowlist keeps `REMOTE_ADDR` only and ignores forwarded addresses. `bin/deploy-demo.sh` refuses an `https://` `STALL_PUBLIC_ORIGIN` when `STALL_TRUSTED_PROXIES` is empty **and** the live origin does not set a Secure session cookie (native HTTPS such as Plesk is enough).
 - **Origin:** Never pass `''`. Production-like `APP_ENV` refuses Host fallback.
 - **Debug vs origin:** `APP_DEBUG` / local env control disclosure and `display_errors`. Host origin needs `STALL_ALLOW_HOST_ORIGIN=true` separately.
 - **CSRF:** Session token + `SameSite=Lax`. Referer is back-link hygiene only.

@@ -102,22 +102,25 @@ if grep -Eq '^STALL_PLATFORM_ADMIN_PASSWORD=.+' "${root}/.env"; then
 fi
 
 
-# HTTPS public origin requires Secure cookies: native HTTPS or a trusted proxy peer.
-origin=$(grep -E '^STALL_PUBLIC_ORIGIN=' "${root}/.env" | head -n1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')
-if [[ "${origin}" == https://* ]]; then
-    proxies=$(grep -E '^STALL_TRUSTED_PROXIES=' "${root}/.env" | head -n1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//' || true)
-    if [[ -z "${proxies}" ]]; then
-        echo "deploy-demo: STALL_PUBLIC_ORIGIN is https but STALL_TRUSTED_PROXIES is empty; Secure cookies need a trusted proxy or process HTTPS" >&2
-        exit 1
-    fi
-fi
-
 # Sign-in is only at `/`. Old /{slug}/login bookmarks redirect (303) there.
 live=https://v2.perfectconsign.com/
-code=$(curl -sS -o /dev/null -w '%{http_code}' "$live")
+headers=$(curl -sS -D - -o /dev/null "$live")
+code=$(printf '%s' "$headers" | awk 'BEGIN{c=""} /^HTTP\//{c=$2} END{print c}')
 if [[ "$code" != "200" ]]; then
     echo "deploy-demo: ${live} returned ${code}" >&2
     exit 1
+fi
+
+# HTTPS public origin requires Secure cookies: native HTTPS (Plesk sets HTTPS) or a
+# trusted proxy peer. Empty STALL_TRUSTED_PROXIES is valid when the live origin
+# already marks the session cookie Secure.
+origin=$(grep -E '^STALL_PUBLIC_ORIGIN=' "${root}/.env" | head -n1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')
+if [[ "${origin}" == https://* ]]; then
+    proxies=$(grep -E '^STALL_TRUSTED_PROXIES=' "${root}/.env" | head -n1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//' || true)
+    if [[ -z "${proxies}" ]] && ! printf '%s' "$headers" | grep -qiE '^[Ss]et-[Cc]ookie:.*[;[:space:]][Ss]ecure([;[:space:]]|$)'; then
+        echo "deploy-demo: STALL_PUBLIC_ORIGIN is https but STALL_TRUSTED_PROXIES is empty and ${live} did not set a Secure cookie; Secure cookies need a trusted proxy or process HTTPS" >&2
+        exit 1
+    fi
 fi
 
 echo "deploy-demo: ${sha} is live at ${live}"
