@@ -11,6 +11,9 @@ final class ShopTenantReset
 {
     public const SLUG = 'shop';
 
+    /** Default sign-in email (platform-unique; mall uses STALL_OWNER_EMAIL). */
+    public const OWNER_EMAIL = 'desk@cedar-consign.test';
+
     /** Local HTTP/dev reset only — refuses non-local restore targets. */
     public function load(): string
     {
@@ -29,7 +32,7 @@ final class ShopTenantReset
         $schema = $provisioner->provision(self::SLUG, 'Consignment');
         $this->loadSql($pdo, $provisioner, $schema);
         (new \ShopDemo($pdo, $schema))->load();
-        $this->restoreOwner($pdo, $this->owner());
+        $this->restoreOwner($pdo, $this->owner($pdo));
 
         return $schema;
     }
@@ -48,18 +51,57 @@ final class ShopTenantReset
     }
 
     /**
-     * @return array{username: string, password_hash: string}
+     * @return array{username: string, password_hash: string, email: string}
      */
-    private function owner(): array
+    private function owner(PDO $pdo): array
     {
         $password = getenv('STALL_OWNER_PASSWORD');
         if (!is_string($password) || $password === '') {
             throw new RuntimeException('STALL_OWNER_PASSWORD is required');
         }
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        if ($hash === false) {
+            throw new RuntimeException('the shop owner password could not be hashed');
+        }
+
         return [
             'username' => 'owner',
-            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'password_hash' => $hash,
+            'email' => $this->ownerEmail($pdo),
         ];
+    }
+
+    private function ownerEmail(PDO $pdo): string
+    {
+        $configured = getenv('STALL_SHOP_OWNER_EMAIL');
+        if (is_string($configured) && trim($configured) !== '') {
+            $email = strtolower(trim($configured));
+        } else {
+            $email = self::OWNER_EMAIL;
+        }
+        if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1 || strlen($email) > 200) {
+            throw new RuntimeException('STALL_SHOP_OWNER_EMAIL is not an email address');
+        }
+        if ($this->emailTakenByOtherTenant($pdo, $email)) {
+            throw new RuntimeException('the shop owner email is already used on another sign-in');
+        }
+
+        return $email;
+    }
+
+    private function emailTakenByOtherTenant(PDO $pdo, string $email): bool
+    {
+        $statement = $pdo->prepare(
+            'SELECT 1
+             FROM platform.owners AS owners
+             JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
+             WHERE lower(owners.email) = ?
+               AND tenants.slug <> ?
+             LIMIT 1'
+        );
+        $statement->execute([$email, self::SLUG]);
+
+        return $statement->fetchColumn() !== false;
     }
 
     private function loadSql(PDO $pdo, \TenantProvisioner $provisioner, string $schema): void
@@ -82,17 +124,30 @@ final class ShopTenantReset
     }
 
     /**
-     * @param array{username: string, password_hash: string} $owner
+     * @param array{username: string, password_hash: string, email: string} $owner
      */
     private function restoreOwner(PDO $pdo, array $owner): void
     {
         $statement = $pdo->prepare(
-            'INSERT INTO platform.owners (id, tenant_id, username, password_hash)
-             SELECT uuidv7(), id, ?, ?
+            'INSERT INTO platform.owners (id, tenant_id, username, password_hash, email, email_verified_at)
+             SELECT uuidv7(), id, ?, ?, ?, clock_timestamp()
              FROM platform.tenants
              WHERE slug = ?'
         );
-        $statement->execute([$owner['username'], $owner['password_hash'], self::SLUG]);
+        try {
+            $statement->execute([
+                $owner['username'],
+                $owner['password_hash'],
+                $owner['email'],
+                self::SLUG,
+            ]);
+        } catch (\PDOException $error) {
+            $state = $error->errorInfo[0] ?? '';
+            if ($state === '23505') {
+                throw new RuntimeException('the shop owner email is already used on another sign-in', 0, $error);
+            }
+            throw $error;
+        }
         if ($statement->rowCount() < 1) {
             throw new RuntimeException('the shop owner could not be restored');
         }

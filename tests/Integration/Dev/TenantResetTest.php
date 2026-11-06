@@ -131,5 +131,16 @@ final class TenantResetTest extends TestCase
         self::assertSame(0, (int) $mall['rent_charges']);
         self::assertSame(0, (int) $mall['rent_lines']);
         self::assertSame(ShopTenantReset::SLUG, 'shop');
+        $owner = $pdo->query(
+            "SELECT owners.email, owners.email_verified_at IS NOT NULL AS verified
+             FROM platform.owners AS owners
+             JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
+             WHERE tenants.slug = 'shop' AND owners.username = 'owner'"
+        );
+        self::assertNotFalse($owner);
+        $row = $owner->fetch(\PDO::FETCH_ASSOC);
+        self::assertIsArray($row);
+        self::assertSame(ShopTenantReset::OWNER_EMAIL, $row['email']);
+        self::assertTrue((bool) $row['verified']);
     }
 }

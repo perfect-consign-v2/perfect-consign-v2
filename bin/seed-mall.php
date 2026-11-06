@@ -104,4 +104,10 @@ try {
     exit(1);
 }
 fwrite(STDOUT, $shop . "\n");
-fwrite(STDOUT, "sign in at /shop as owner. The password is STALL_OWNER_PASSWORD.\n");
+$shopEmail = getenv('STALL_SHOP_OWNER_EMAIL');
+if (!is_string($shopEmail) || trim($shopEmail) === '') {
+    $shopEmail = PerfectConsign\Feature\Dev\ShopTenantReset::OWNER_EMAIL;
+} else {
+    $shopEmail = strtolower(trim($shopEmail));
+}
+fwrite(STDOUT, "sign in at / with {$shopEmail} for /shop. The password is STALL_OWNER_PASSWORD.\n");
