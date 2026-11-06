@@ -104,11 +104,14 @@ function clearShardDir(string $dir, string $root): bool
     if (!is_dir($dir)) {
         return true;
     }
-    run(['git', 'worktree', 'remove', '--force', $dir], $root, processEnv());
-    if (!is_dir($dir)) {
-        return true;
+    $listed = listedWorktrees($root);
+    if (isset($listed[strtolower(str_replace('\\', '/', $dir))])) {
+        run(['git', 'worktree', 'remove', '--force', $dir], $root, processEnv());
+        if (!is_dir($dir)) {
+            return true;
+        }
+        run(['git', 'worktree', 'prune'], $root, processEnv());
     }
-    run(['git', 'worktree', 'prune'], $root, processEnv());
     if (!dropVendorLink($dir . DIRECTORY_SEPARATOR . 'vendor')) {
         return false;
     }
@@ -116,17 +119,54 @@ function clearShardDir(string $dir, string $root): bool
     return removeTree($dir);
 }
 
+/**
+ * @return array<string, true>
+ */
+function listedWorktrees(string $root): array
+{
+    $pipes = [];
+    $proc = proc_open(
+        ['git', 'worktree', 'list', '--porcelain'],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root,
+        processEnv()
+    );
+    if (!is_resource($proc) || !isset($pipes[0], $pipes[1], $pipes[2])) {
+        return [];
+    }
+    fclose($pipes[0]);
+    $output = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    proc_close($proc);
+    if (!is_string($output) || $output === '') {
+        return [];
+    }
+    $paths = [];
+    foreach (preg_split("/\\r\\n|\\n|\\r/", $output) ?: [] as $line) {
+        if (!str_starts_with($line, 'worktree ')) {
+            continue;
+        }
+        $paths[strtolower(str_replace('\\', '/', substr($line, 9)))] = true;
+    }
+
+    return $paths;
+}
+
 function dropVendorLink(string $vendor): bool
 {
     if (!file_exists($vendor) && !is_link($vendor) && !is_dir($vendor)) {
         return true;
     }
+    // Windows mklink /J junctions are directories to PHP: is_link() is false, and
+    // unlink() warns "Is a directory". Always rmdir the junction name.
+    if (PHP_OS_FAMILY === 'Windows') {
+        return runLine('cmd.exe /d /c rmdir ' . windowsQuote($vendor), dirname($vendor), processEnv()) === 0
+            || (!file_exists($vendor) && !is_link($vendor) && !is_dir($vendor));
+    }
     if (is_link($vendor)) {
         return unlink($vendor);
-    }
-    if (PHP_OS_FAMILY === 'Windows' && is_dir($vendor)) {
-        return runLine('cmd.exe /d /c rmdir ' . windowsQuote($vendor), dirname($vendor), processEnv()) === 0
-            || !is_dir($vendor);
     }
 
     return is_dir($vendor) ? rmdir($vendor) : unlink($vendor);

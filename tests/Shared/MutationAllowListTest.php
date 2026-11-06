@@ -51,10 +51,10 @@ final class MutationAllowListTest extends TestCase
     {
         $this->loadHarness();
         self::assertFalse(harnessWasInvoked());
-        self::assertSame(313, mutantMinimum());
+        self::assertSame(2619, mutantMinimum());
         self::assertNotNull(tooFewMutants(0));
-        self::assertNotNull(tooFewMutants(312));
-        self::assertNull(tooFewMutants(313));
+        self::assertNotNull(tooFewMutants(2618));
+        self::assertNull(tooFewMutants(2619));
 
         $root = dirname(__DIR__, 2);
         $env = getenv();
