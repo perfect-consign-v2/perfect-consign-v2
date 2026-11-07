@@ -71,13 +71,28 @@ final class TicketQueue
     }
 
     /**
-     * @return list<array{id: string, customer: string, items: int, deposits: int, balance: int, last: string}>
+     * @return list<array{id: string, customer: string, phone: string, email: string, items: int, deposits: int, balance: int, last: string}>
      */
     public function layaways(): array
     {
         $tax = $this->taxRate();
         $rows = $this->statements->rows(
-            "SELECT ticket.id, COALESCE(vendor.name, '') AS customer,
+            "SELECT ticket.id,
+                    COALESCE(
+                        NULLIF(trim(COALESCE(customer.name, '')), ''),
+                        NULLIF(trim(COALESCE(buyer.name, '')), ''),
+                        ''
+                    ) AS customer,
+                    COALESCE(
+                        NULLIF(trim(COALESCE(customer.phone, '')), ''),
+                        NULLIF(trim(COALESCE(buyer.phone, '')), ''),
+                        ''
+                    ) AS phone,
+                    COALESCE(
+                        NULLIF(trim(COALESCE(customer.email, '')), ''),
+                        NULLIF(trim(COALESCE(buyer.email, '')), ''),
+                        ''
+                    ) AS email,
                     count(line.line_no) AS items,
                     COALESCE((
                         SELECT sum(journal_line.credit_minor - journal_line.debit_minor)
@@ -94,10 +109,11 @@ final class TicketQueue
                           AND journal.source_reference = ticket.id::text
                     ) AS last_deposit
              FROM tickets AS ticket
-             LEFT JOIN vendors AS vendor ON vendor.id = ticket.buyer_id
+             LEFT JOIN customers AS customer ON customer.id = ticket.customer_id
+             LEFT JOIN vendors AS buyer ON buyer.id = ticket.buyer_id
              LEFT JOIN ticket_lines AS line ON line.ticket_id = ticket.id
              WHERE ticket.status = 'layaway'
-             GROUP BY ticket.id, vendor.name
+             GROUP BY ticket.id, customer.name, buyer.name, customer.phone, customer.email, buyer.phone, buyer.email
              ORDER BY ticket.id"
         );
         $held = [];
@@ -113,6 +129,8 @@ final class TicketQueue
             $held[] = [
                 'id' => $id,
                 'customer' => RowValue::string(is_string($row['customer'] ?? null) ? $row['customer'] : ''),
+                'phone' => RowValue::string(is_string($row['phone'] ?? null) ? $row['phone'] : ''),
+                'email' => RowValue::string(is_string($row['email'] ?? null) ? $row['email'] : ''),
                 'items' => RowValue::integer($row['items'] ?? null),
                 'deposits' => $deposits,
                 'balance' => max(0, $due - $deposits),

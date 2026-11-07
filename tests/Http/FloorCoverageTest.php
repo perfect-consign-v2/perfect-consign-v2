@@ -627,6 +627,7 @@ final class FloorCoverageTest extends WebTestCase
         $stillThere = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $heldItem['code']]);
         self::assertSees('an item is already on a ticket', $stillThere);
         $layaways = $this->client->get('/' . self::SLUG . '/pos/layaways');
+        self::assertSees('Bea ' . $buyerCode, $layaways);
         $recalledLayaway = $this->client->post('/' . self::SLUG . '/pos/recall', [
             'ticket_id' => $this->match($layaways->body, '/' . preg_quote($buyerCode, '/') . '[\\s\\S]*?name="ticket_id" value="([0-9a-fA-F-]{36})"/'),
         ]);

@@ -1,15 +1,15 @@
 ---
 title: Park / recall / layaway
 category: Sales and register
-hesk: published 2026-11-06
-as_of: 2026-10-30
+hesk: pending
+as_of: 2026-11-06
 ---
 
 # Park / recall / layaway
 
 ## As of
 
-2026-10-30 — Suspend Sale uses a modal (optional name; blank → customer or first item). Recall from Suspended Sales returns the cart to the register.
+2026-11-06 — Layaways list shows customer phone and email. Suspend Sale uses a modal (optional name; blank → customer or first item). Recall from Suspended Sales returns the cart to the register.
 
 ## In one sentence
 
@@ -23,7 +23,7 @@ Need to close the register with a cart open, or customer pays a deposit toward a
 
 - **Suspend Sale (park):** modal asks for an optional hold name; blank uses the customer or first item. Ticket off the shift; not drawer cash. Suspended Sales → Recall puts it on the active shift. Lines cannot change until recalled. Parked ticket can be discarded.
 - Two shifts cannot hold the same item.
-- **Layaway:** cash/card/check under amount due with a customer on the ticket. Debits tender, credits layaway deposits. Items stay unsold. Sale journal posts only when deposits and later tenders cover the due. Deposit above due is a sale. Cancel refunds deposits and frees the ticket.
+- **Layaway:** cash/card/check under amount due with a customer on the ticket. Debits tender, credits layaway deposits. Items stay unsold. Sale journal posts only when deposits and later tenders cover the due. Deposit above due is a sale. Cancel refunds deposits and frees the ticket. The Layaways list shows customer, phone, and email.
 - Gift certificates, store credit, and draw-on-sales cannot hold a layaway ticket.
 
 ## What is refused

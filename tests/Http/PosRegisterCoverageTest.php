@@ -186,6 +186,7 @@ final class PosRegisterCoverageTest extends WebTestCase
         ]);
         self::assertSees('Layaway held', $deposit);
         $layaways = $this->client->get('/' . self::SLUG . '/pos/layaways');
+        self::assertSees('Lay ' . $held['code'], $layaways);
         $ticketId = $this->match($layaways->body, '/name="ticket_id" value="([0-9a-fA-F-]{36})"/');
         $slip = $this->client->get('/' . self::SLUG . '/pos/layaway/' . $ticketId);
         self::assertSees('Layaway receipt', $slip);

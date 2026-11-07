@@ -183,7 +183,7 @@ final class TicketStore
     }
 
     /**
-     * @return list<array{id: string, customer: string, items: int, deposits: int, balance: int, last: string}>
+     * @return list<array{id: string, customer: string, phone: string, email: string, items: int, deposits: int, balance: int, last: string}>
      */
     public function layaways(): array
     {

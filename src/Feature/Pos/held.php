@@ -13,7 +13,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var array{
  *     parked: list<array{id: string, items: int, sold: int, status: string, label: string}>
  * } $cart */
-/** @var list<array{id: string, customer: string, items: int, deposits: int, balance: int, last: string}> $layaways */
+/** @var list<array{id: string, customer: string, phone: string, email: string, items: int, deposits: int, balance: int, last: string}> $layaways */
 
 $layaway = $heldStatus === 'layaway';
 $rows = [];
@@ -40,6 +40,8 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 ListTable::open(['id' => 'layaways', 'export' => 'layaways']);
                 ListTable::head([
                     ['label' => 'Customer'],
+                    ['label' => 'Phone'],
+                    ['label' => 'Email'],
                     ['label' => 'Items', 'sort' => 'num'],
                     ['label' => 'Deposits', 'sort' => 'num'],
                     ['label' => 'Balance', 'sort' => 'num'],
@@ -51,6 +53,8 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                         <?php foreach ($layaways as $held): ?>
                             <tr>
                                 <td><?= View::text($held['customer']) ?></td>
+                                <td><?= View::text($held['phone']) ?></td>
+                                <td><?= View::text($held['email']) ?></td>
                                 <td><?= View::text((string) $held['items']) ?></td>
                                 <td><?= View::text(View::money($held['deposits'])) ?></td>
                                 <td><?= View::text(View::money($held['balance'])) ?></td>
