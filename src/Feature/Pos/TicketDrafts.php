@@ -95,8 +95,8 @@ final class TicketDrafts
                 trim($item->price),
                 $brandId !== '' ? $brandId : null,
                 trim($item->brand->label),
-                $item->discountKind !== '' ? $item->discountKind : 'consignor_default',
-                $item->discountValue,
+                $item->discount->kind !== '' ? $item->discount->kind : 'consignor_default',
+                $item->discount->value,
                 json_encode($item->attributes, JSON_THROW_ON_ERROR),
             ]
         );

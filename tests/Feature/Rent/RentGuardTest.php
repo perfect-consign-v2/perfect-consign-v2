@@ -52,7 +52,7 @@ final class RentGuardTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('the mall has no payout settings');
-        (new MallPayoutSettings(new Statements($pdo)))->cycleDay();
+        (new MallPayoutSettings(new Statements($pdo)))->getCycleDay();
     }
 
     private function store(): RentStore

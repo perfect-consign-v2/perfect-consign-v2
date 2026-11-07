@@ -33,19 +33,17 @@ final class PosAddController
         try {
             $this->sales->refuse($slug);
             $today = $this->mall->today();
-            $add = new InstantAdd(
-                $request->field('vendor_id'),
-                $request->field('description'),
-                $request->field('price'),
-                '',
-                '1',
-                new InstantBrand($request->field('brand_id'), $request->field('brand_label')),
-                $this->postedAttributes($request),
-                $request->field('discount_kind'),
-                $request->field('discount_value'),
-                $request->field('override_user'),
-                $request->field('override_password'),
-            );
+            $add = InstantAdd::posted([
+                'vendor_id' => $request->field('vendor_id'),
+                'description' => $request->field('description'),
+                'price' => $request->field('price'),
+                'brand_id' => $request->field('brand_id'),
+                'brand_label' => $request->field('brand_label'),
+                'discount_kind' => $request->field('discount_kind'),
+                'discount_value' => $request->field('discount_value'),
+                'override_user' => $request->field('override_user'),
+                'override_password' => $request->field('override_password'),
+            ], $this->postedAttributes($request));
             if ($draftNo > 0) {
                 $this->instant->complete($session, $today, $draftNo, $add);
             } else {

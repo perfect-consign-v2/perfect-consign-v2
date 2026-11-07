@@ -21,7 +21,6 @@ final class AdminApp
         private readonly Request $request,
         private readonly LoggerInterface $logger,
         private readonly AdminSession $admins,
-        private readonly AdminAudit $audit,
         private readonly LoginSession $tenants,
     ) {
     }
@@ -39,19 +38,9 @@ final class AdminApp
         return $this->request;
     }
 
-    public function audit(): AdminAudit
-    {
-        return $this->audit;
-    }
-
     public function session(): AdminSession
     {
         return $this->admins;
-    }
-
-    public function pdo(): PDO
-    {
-        return $this->pdo;
     }
 
     /**

@@ -41,7 +41,7 @@ final class RentController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        if ($this->settings->rentPrepaid()) {
+        if ($this->settings->isRentPrepaid()) {
             $this->render($slug, 'this rent comes out of sales');
 
             return;
@@ -212,8 +212,8 @@ final class RentController
         $tenant = $this->app->open($slug, true);
         $today = $this->rent->today();
         $month = $this->book->month($this->chosen('month'), $today);
-        $fromSales = $this->settings->rentPrepaid();
-        $book = $this->book->assemble($this->rent->facts($month), $month, $today, $this->settings->cycleDay());
+        $fromSales = $this->settings->isRentPrepaid();
+        $book = $this->book->assemble($this->rent->facts($month), $month, $today, $this->settings->getCycleDay());
         $visible = $this->book->narrow($book['rows'], $this->chosen('q'), $fromSales ? '' : $this->chosen('standing'));
         $this->app->show('Feature/Rent/rent', [
             'title' => 'Rent',

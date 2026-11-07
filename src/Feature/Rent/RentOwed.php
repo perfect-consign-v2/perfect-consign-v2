@@ -24,7 +24,7 @@ final class RentOwed
      */
     public function figure(string $vendorId, string $boothId, string $today): ?array
     {
-        if ($this->settings->rentPrepaid()) {
+        if ($this->settings->isRentPrepaid()) {
             return $this->figurePrepaid($vendorId, $today);
         }
 

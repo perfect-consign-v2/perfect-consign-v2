@@ -134,7 +134,7 @@ final class SurvivorPinsTest extends TestCase
             self::assertSame('a check sale needs a check number', $error->getMessage());
         }
         try {
-            $gifts->issue('session', '2026-06-01', 'GC-1', 100, 'checks', '1001');
+            $gifts->issue('session', '2026-06-01', 'GC-1', 100, 'checks', '1001', formToken: '0123456789abcdef0123456789abcdef');
             self::fail('the ledger was not required');
         } catch (\Throwable) {
             self::assertTrue(true);
@@ -400,7 +400,15 @@ final class SurvivorPinsTest extends TestCase
         $ledger->method('roleAccount')->willReturn('acct');
         $ledger->method('post')->willReturn('journal');
 
-        $id = (new GiftIssue($statements, $ledger))->issue('session', '2026-06-01', '1001', 100, 'cash', null);
+        $id = (new GiftIssue($statements, $ledger))->issue(
+            'session',
+            '2026-06-01',
+            '1001',
+            100,
+            'cash',
+            null,
+            formToken: '0123456789abcdef0123456789abcdef',
+        );
 
         self::assertSame('journal', $id);
     }

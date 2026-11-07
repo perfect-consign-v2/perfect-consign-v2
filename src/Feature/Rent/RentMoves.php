@@ -89,7 +89,7 @@ final class RentMoves
         $params = [$vendorId, $vendorId];
         $sql .= ' ORDER BY journal.posting_date, journal.journal_no, line.line_no';
         $moves = [];
-        $cycleDay = $this->settings->cycleDay();
+        $cycleDay = $this->settings->getCycleDay();
         foreach ($this->statements->bound($sql, $params) as $row) {
             $source = RowValue::string($row['source'] ?? null);
             $postedOn = RowValue::string($row['posted_on'] ?? null);
@@ -113,7 +113,7 @@ final class RentMoves
      */
     private function uncovered(string $vendorId, string $today): array
     {
-        if (!$this->settings->rentPrepaid() || preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
+        if (!$this->settings->isRentPrepaid() || preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
             return [];
         }
         $sql = "SELECT booth.code AS booth, assignment.booth_id::text AS booth_id,
@@ -151,7 +151,7 @@ final class RentMoves
                   )";
         $params = [$today, $vendorId];
         $sql .= ' ORDER BY series.period_start, booth.code';
-        $cycle = new RentCycle($this->settings->cycleDay());
+        $cycle = new RentCycle($this->settings->getCycleDay());
         $moves = [];
         foreach ($this->statements->bound($sql, $params) as $row) {
             $move = $this->unposted($row, $cycle);

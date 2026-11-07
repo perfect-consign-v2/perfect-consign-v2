@@ -16,37 +16,37 @@ final class MallPayoutSettingsTest extends TestCase
 {
     public function testLateFeeGraceKeepsZeroAndTwentyEight(): void
     {
-        self::assertSame(28, $this->settings($this->row(28, false))->lateFee()['grace']);
-        self::assertSame(0, $this->settings($this->row(-1, false))->lateFee()['grace']);
-        self::assertSame(0, $this->settings($this->row(0, false))->lateFee()['grace']);
+        self::assertSame(28, $this->settings($this->row(28, false))->getLateFee()['grace']);
+        self::assertSame(0, $this->settings($this->row(-1, false))->getLateFee()['grace']);
+        self::assertSame(0, $this->settings($this->row(0, false))->getLateFee()['grace']);
     }
 
     public function testEachStoredFlagCountsAsOn(): void
     {
         foreach ([true, 1, '1', 't', 'true'] as $flag) {
-            self::assertTrue($this->settings($this->row(0, $flag))->rentPrepaid());
+            self::assertTrue($this->settings($this->row(0, $flag))->isRentPrepaid());
         }
-        self::assertFalse($this->settings($this->row(0, 'f'))->rentPrepaid());
-        self::assertFalse($this->settings($this->row(0, 0))->rentPrepaid());
+        self::assertFalse($this->settings($this->row(0, 'f'))->isRentPrepaid());
+        self::assertFalse($this->settings($this->row(0, 0))->isRentPrepaid());
     }
 
     public function testTheOperatingModeSetsRentAndConsignment(): void
     {
         self::assertSame(
             ['rentals' => false, 'consignment' => true],
-            MallPayoutSettings::capabilities('consignor')
+            MallPayoutSettings::getCapabilities('consignor')
         );
         self::assertSame(
             ['rentals' => true, 'consignment' => false],
-            MallPayoutSettings::capabilities('booth_mall')
+            MallPayoutSettings::getCapabilities('booth_mall')
         );
         self::assertSame(
             ['rentals' => true, 'consignment' => true],
-            MallPayoutSettings::capabilities('both')
+            MallPayoutSettings::getCapabilities('both')
         );
         self::assertSame(
             ['rentals' => true, 'consignment' => true],
-            MallPayoutSettings::capabilities('other')
+            MallPayoutSettings::getCapabilities('other')
         );
         self::assertSame('1', MallPayoutSettings::getPostedConsignment('', '1'));
         self::assertSame('', MallPayoutSettings::getPostedConsignment('', ''));

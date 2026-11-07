@@ -33,8 +33,8 @@ final class LateFeeDue
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $today) !== 1) {
             return;
         }
-        $policy = $this->settings->lateFee();
-        if (!$this->settings->rentalsEnabled() || !$policy['enabled']) {
+        $policy = $this->settings->getLateFee();
+        if (!$this->settings->isRentalsEnabled() || !$policy['enabled']) {
             return;
         }
         $first = $policy['first'];

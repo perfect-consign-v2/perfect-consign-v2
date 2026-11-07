@@ -28,7 +28,7 @@ final class RentDue
             $this->rent->facts($month),
             $month,
             $today,
-            $this->settings->cycleDay(),
+            $this->settings->getCycleDay(),
         );
         $rows = [];
         foreach ($assembled['rows'] as $row) {

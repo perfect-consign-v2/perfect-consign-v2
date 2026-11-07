@@ -55,7 +55,7 @@ final class RentPosting
         array $tender,
         array $debits,
     ): string {
-        if ($this->settings->rentPrepaid()) {
+        if ($this->settings->isRentPrepaid()) {
             $quote = $this->payouts->quotedRun($vendorId, $today);
             if ($quote === null) {
                 throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');

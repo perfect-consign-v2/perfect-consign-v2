@@ -13,6 +13,8 @@ use PHPUnit\Framework\TestCase;
 
 final class GiftIssueTest extends TestCase
 {
+    private const FORM_TOKEN = '0123456789abcdef0123456789abcdef';
+
     public function testAUnknownKindIsRefusedOnTheBalance(): void
     {
         $gifts = new GiftIssue(
@@ -74,7 +76,13 @@ final class GiftIssueTest extends TestCase
         $statements->method('isolated')->willReturnCallback(static function (callable $work): void {
             $work();
         });
-        $statements->method('bound')->willReturn([['id' => '00000000-0000-7000-8000-0000000000aa']]);
+        $statements->method('bound')->willReturnCallback(static function (string $sql): array {
+            if (str_contains($sql, 'posting_key')) {
+                return [];
+            }
+
+            return [['id' => '00000000-0000-7000-8000-0000000000aa']];
+        });
         $ledger = $this->createStub(LedgerStore::class);
         $ledger->method('roleAccount')->willReturn('00000000-0000-7000-8000-0000000000ac');
         $ledger->method('post')->willReturn('00000000-0000-7000-8000-0000000000j1');
@@ -82,7 +90,7 @@ final class GiftIssueTest extends TestCase
 
         self::assertSame(
             '00000000-0000-7000-8000-0000000000j1',
-            $gifts->issue('sess', '2026-10-01', '', 500, 'card', null, 'gift_card'),
+            $gifts->issue('sess', '2026-10-01', '', 500, 'card', null, 'gift_card', self::FORM_TOKEN),
         );
     }
 
@@ -132,7 +140,7 @@ final class GiftIssueTest extends TestCase
         $ledger->method('post')->willReturn('');
         $gifts = new GiftIssue($statements, $ledger);
         try {
-            $gifts->issue('sess', '2026-10-01', 'GC-empty', 100, 'cash', null);
+            $gifts->issue('sess', '2026-10-01', 'GC-empty', 100, 'cash', null, formToken: self::FORM_TOKEN);
             self::fail('an empty journal id was accepted');
         } catch (DatabaseRefusal $error) {
             self::assertSame('that journal is not a gift certificate', $error->getMessage());
@@ -147,7 +155,7 @@ final class GiftIssueTest extends TestCase
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {
-            $gifts->issue('sess', '2026-10-01', 'GC-used', 100, 'cash', null);
+            $gifts->issue('sess', '2026-10-01', 'GC-used', 100, 'cash', null, formToken: self::FORM_TOKEN);
             self::fail('a used certificate number was retried');
         } catch (DatabaseRefusal $error) {
             self::assertSame(DatabaseRefusal::CERTIFICATE_NUMBER_USED, $error->getMessage());
@@ -162,7 +170,7 @@ final class GiftIssueTest extends TestCase
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {
-            $gifts->issue('sess', '2026-10-01', '', 100, 'cash', null);
+            $gifts->issue('sess', '2026-10-01', '', 100, 'cash', null, formToken: self::FORM_TOKEN);
             self::fail('five collisions were accepted');
         } catch (DatabaseRefusal $error) {
             self::assertSame(DatabaseRefusal::CERTIFICATE_NUMBER_USED, $error->getMessage());
@@ -187,7 +195,7 @@ final class GiftIssueTest extends TestCase
         });
         $gifts = new GiftIssue($statements, $ledger);
         try {
-            $gifts->issue('sess', '2026-10-01', 'GC-fail', 100, 'cash', null);
+            $gifts->issue('sess', '2026-10-01', 'GC-fail', 100, 'cash', null, formToken: self::FORM_TOKEN);
             self::fail('a failed post was accepted');
         } catch (\RuntimeException $error) {
             self::assertSame('post failed', $error->getMessage());
@@ -272,7 +280,7 @@ final class GiftIssueTest extends TestCase
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {
-            $gifts->issue('sess', '2026-10-01', '', 100, 'cash', null);
+            $gifts->issue('sess', '2026-10-01', '', 100, 'cash', null, formToken: self::FORM_TOKEN);
             self::fail('five collisions were accepted');
         } catch (DatabaseRefusal $error) {
             self::assertSame(DatabaseRefusal::CERTIFICATE_NUMBER_USED, $error->getMessage());
@@ -305,7 +313,7 @@ final class GiftIssueTest extends TestCase
 
         self::assertSame(
             '00000000-0000-7000-8000-0000000000j1',
-            $gifts->issue('sess', '2026-10-01', $number, 1, 'cash', '999'),
+            $gifts->issue('sess', '2026-10-01', $number, 1, 'cash', '999', formToken: self::FORM_TOKEN),
         );
         self::assertIsArray($stored);
         self::assertSame('gift_certificate', $stored[0]);
@@ -325,7 +333,7 @@ final class GiftIssueTest extends TestCase
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {
-            $gifts->issue('sess', '2026-10-01', 'GC-used', 100, 'cash', null);
+            $gifts->issue('sess', '2026-10-01', 'GC-used', 100, 'cash', null, formToken: self::FORM_TOKEN);
             self::fail('a used certificate number was retried');
         } catch (DatabaseRefusal $error) {
             self::assertSame(DatabaseRefusal::CERTIFICATE_NUMBER_USED, $error->getMessage());
@@ -343,7 +351,7 @@ final class GiftIssueTest extends TestCase
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {
-            $gifts->issue('sess', '2026-10-01', '', 100, 'cash', null);
+            $gifts->issue('sess', '2026-10-01', '', 100, 'cash', null, formToken: self::FORM_TOKEN);
             self::fail('a mall refusal was retried');
         } catch (DatabaseRefusal $error) {
             self::assertSame('the mall has no clock', $error->getMessage());

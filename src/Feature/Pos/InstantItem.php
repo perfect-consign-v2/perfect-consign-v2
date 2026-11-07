@@ -111,25 +111,25 @@ final class InstantItem
 
     private function discount(string $session, string $ticketId, int $lineNo, InstantAdd $item): void
     {
-        $kind = strtolower(trim($item->discountKind));
+        $kind = strtolower(trim($item->discount->kind));
         if ($kind === 'flat') {
             $kind = 'amount';
         }
         if ($kind !== 'percent' && $kind !== 'amount') {
             return;
         }
-        if (trim($item->discountValue) === '') {
+        if (trim($item->discount->value) === '') {
             throw new \InvalidArgumentException('Enter a line discount.');
         }
-        $posted = TicketAdjustment::discount('apply', $kind, $item->discountValue, 'other');
+        $posted = TicketAdjustment::discount('apply', $kind, $item->discount->value, 'other');
         if ($posted['kind'] === null) {
             return;
         }
         $this->ceiling->priced(
             $posted['kind'],
             $posted['value'],
-            $item->overrideUser,
-            $item->overridePassword,
+            $item->override->user,
+            $item->override->password,
             $session,
         );
         $this->lines->discount($ticketId, $lineNo, $posted['kind'], $posted['value'], $posted['reason']);

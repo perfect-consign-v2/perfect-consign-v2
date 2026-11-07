@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\JournalDraft;
-use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
-use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -18,13 +15,13 @@ final class GiftIssue
 
     public const NUMBER_REQUIRED = 'Enter the certificate number.';
 
-    /** @var list<string> */
-    private const TENDERS = ['cash', 'card', 'checks'];
+    private readonly GiftIssuePosting $posting;
 
     public function __construct(
         private readonly Statements $statements,
         private readonly LedgerStore $ledger,
     ) {
+        $this->posting = new GiftIssuePosting($statements, $ledger);
     }
 
     public function issue(
@@ -37,72 +34,13 @@ final class GiftIssue
         string $kind = 'gift_certificate',
         string $formToken = '',
     ): string {
-        $kind = $this->kind($kind);
-        $requested = $this->number($number);
-        $this->tender($amount, $tender, $check);
-        if (preg_match('/^[0-9a-f]{32}$/', $formToken) !== 1) {
-            throw new DatabaseRefusal('this form has expired');
-        }
-        $tokenKey = str_replace('_', '-', $kind) . ':token:' . $formToken;
-        if ($requested === '') {
-            $existing = $this->statements->bound(
-                'SELECT id::text AS id FROM journals WHERE posting_key = ?',
-                [$tokenKey]
-            );
-            if ($existing !== []) {
-                return RowValue::string($existing[0]['id'] ?? null);
-            }
-        }
-        $attempt = 0;
-        $refusal = new DatabaseRefusal(DatabaseRefusal::CERTIFICATE_NUMBER_USED);
-        while ($attempt < 5) {
-            $attempt++;
-            $assigned = $requested !== '' ? $requested : $this->allocate($kind);
-            $journalId = '';
-            try {
-                $this->statements->isolated(function () use (
-                    $session,
-                    $date,
-                    $assigned,
-                    $amount,
-                    $tender,
-                    $check,
-                    $kind,
-                    $requested,
-                    $tokenKey,
-                    &$journalId,
-                ): void {
-                    $journalId = $this->store(
-                        $session,
-                        $date,
-                        $assigned,
-                        $amount,
-                        $tender,
-                        $check,
-                        $kind,
-                        $requested === '' ? $tokenKey : null,
-                    );
-                });
-                if ($journalId === '') {
-                    throw new DatabaseRefusal('that journal is not a gift certificate');
-                }
-
-                return $journalId;
-            } catch (DatabaseRefusal $error) {
-                $refusal = $error;
-                if ($requested !== '' || $error->getMessage() !== DatabaseRefusal::CERTIFICATE_NUMBER_USED) {
-                    throw $error;
-                }
-            }
-        }
-
-        throw $refusal;
+        return $this->posting->issue($session, $date, $number, $amount, $tender, $check, $kind, $formToken);
     }
 
     public function balance(string $number, string $kind = 'gift_certificate'): ?int
     {
         $number = trim($number);
-        $kind = $this->kind($kind);
+        $kind = GiftKinds::normalize($kind);
         if ($number === '') {
             return null;
         }
@@ -135,7 +73,7 @@ final class GiftIssue
         }
         $reference = $journal['source_reference'] ?? null;
         $source = $journal['source_type'] ?? null;
-        $kind = $this->kindFromSource(is_string($source) ? $source : '');
+        $kind = GiftKinds::fromSource(is_string($source) ? $source : '');
         if (
             !is_string($reference)
             || $kind === null
@@ -156,81 +94,8 @@ final class GiftIssue
             'amount' => $amount,
             'balance' => $left,
             'voided' => $this->ledger->reversed($journalId),
-            'label' => $this->label($kind),
+            'label' => GiftKinds::label($kind),
         ];
-    }
-
-    private function store(
-        string $session,
-        string $date,
-        string $number,
-        int $amount,
-        string $tender,
-        ?string $check,
-        string $kind,
-        ?string $postingKey = null,
-    ): string {
-        $created = $this->statements->bound(
-            'INSERT INTO stored_values (kind, number) VALUES (?, ?) RETURNING id',
-            [$kind, $number]
-        );
-        $storedId = RowValue::string($created[0]['id'] ?? null);
-        $key = $postingKey ?? (str_replace('_', '-', $kind) . ':' . strtolower($number));
-        try {
-            return $this->ledger->post(new JournalDraft(
-                $key,
-                $date,
-                new JournalSource($kind . '_issue', $number, $this->label($kind)),
-                [
-                    PostedLines::entry($this->ledger->roleAccount($tender), $amount, 0, null, null),
-                    PostedLines::entry($this->ledger->roleAccount($kind), 0, $amount, $kind, $storedId),
-                ],
-                sessionId: $session,
-                checkNumber: $tender === 'checks' ? $check : null,
-            ));
-        } catch (\Throwable $error) {
-            $this->statements->change(
-                'DELETE FROM stored_values WHERE id = ?::uuid
-                 AND NOT EXISTS (SELECT 1 FROM journal_lines WHERE subledger_ref = ?::uuid)',
-                [$storedId, $storedId]
-            );
-            throw $error;
-        }
-    }
-
-    private function allocate(string $kind): string
-    {
-        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        $bytes = random_bytes(10);
-        $body = '';
-        for ($i = 0; $i < 10; $i++) {
-            $body .= $alphabet[ord($bytes[$i]) % 32];
-        }
-
-        return $this->prefix($kind) . '-' . $body;
-    }
-
-    private function number(string $number): string
-    {
-        $number = trim($number);
-        if ($number === '') {
-            return '';
-        }
-        if (strlen($number) > 40) {
-            throw new DatabaseRefusal('a stored value number is required');
-        }
-
-        return $number;
-    }
-
-    private function tender(int $amount, string $tender, ?string $check): void
-    {
-        if ($amount < 1 || !in_array($tender, self::TENDERS, true)) {
-            throw new DatabaseRefusal('stored value is issued for cash, card, or a check');
-        }
-        if ($tender === 'checks' && ($check === null || $check === '')) {
-            throw new DatabaseRefusal(self::CHECK_REQUIRED);
-        }
     }
 
     private function issuedAmount(string $journalId, string $kind): int
@@ -246,42 +111,5 @@ final class GiftIssue
         }
 
         return 0;
-    }
-
-    private function kind(string $kind): string
-    {
-        if (!in_array($kind, ['gift_certificate', 'gift_card', 'store_credit'], true)) {
-            throw new DatabaseRefusal('Choose a gift certificate, a gift card, or store credit.');
-        }
-
-        return $kind;
-    }
-
-    private function kindFromSource(string $source): ?string
-    {
-        return match ($source) {
-            'gift_certificate_issue' => 'gift_certificate',
-            'gift_card_issue' => 'gift_card',
-            'store_credit_issue' => 'store_credit',
-            default => null,
-        };
-    }
-
-    private function prefix(string $kind): string
-    {
-        return match ($kind) {
-            'gift_card' => 'GD',
-            'store_credit' => 'SC',
-            default => 'GC',
-        };
-    }
-
-    private function label(string $kind): string
-    {
-        return match ($kind) {
-            'gift_card' => 'Gift card',
-            'store_credit' => 'Store credit',
-            default => 'Gift certificate',
-        };
     }
 }

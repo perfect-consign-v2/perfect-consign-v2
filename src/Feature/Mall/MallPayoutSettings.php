@@ -13,7 +13,7 @@ final class MallPayoutSettings
     {
     }
 
-    public function operatingMode(): string
+    public function getOperatingMode(): string
     {
         return RowValue::string($this->row()['operating_mode'] ?? null);
     }
@@ -21,7 +21,7 @@ final class MallPayoutSettings
     /**
      * @return array{rentals: bool, consignment: bool}
      */
-    public static function capabilities(string $operatingMode): array
+    public static function getCapabilities(string $operatingMode): array
     {
         return match ($operatingMode) {
             'consignor' => ['rentals' => false, 'consignment' => true],
@@ -35,29 +35,29 @@ final class MallPayoutSettings
         if ($operatingMode === '') {
             return $field;
         }
-        if (self::capabilities($operatingMode)['consignment']) {
+        if (self::getCapabilities($operatingMode)['consignment']) {
             return '1';
         }
 
         return '0';
     }
 
-    public function payoutCadence(): string
+    public function getPayoutCadence(): string
     {
         return RowValue::string($this->row()['payout_cadence'] ?? null);
     }
 
-    public function rentPrepaid(): bool
+    public function isRentPrepaid(): bool
     {
         return $this->flag('rent_prepaid_from_prior_sales');
     }
 
-    public function rentalsEnabled(): bool
+    public function isRentalsEnabled(): bool
     {
         return $this->flag('booth_rentals_enabled');
     }
 
-    public function requireSecondSignature(): bool
+    public function isSecondSignatureRequired(): bool
     {
         return $this->flag('require_second_signature');
     }
@@ -100,14 +100,14 @@ final class MallPayoutSettings
         return $days;
     }
 
-    public function cycleDay(): int
+    public function getCycleDay(): int
     {
         $day = RowValue::integer($this->row()['rent_cycle_day'] ?? null);
 
         return $day >= 1 && $day <= 28 ? $day : 1;
     }
 
-    public function cycleFrozen(): bool
+    public function isCycleFrozen(): bool
     {
         $rows = $this->statements->rows(
             "SELECT 1
@@ -125,17 +125,12 @@ final class MallPayoutSettings
         return $rows !== [];
     }
 
-    public function save(
-        string $operatingMode,
-        bool $rentPrepaid,
-        bool $rentalsEnabled,
-        int $cycleDay,
-        bool $consignmentEnabled,
-        bool $storeStockEnabled,
-        bool $requireSecondSignature = false,
-    ): void {
-        $mode = in_array($operatingMode, ['consignor', 'booth_mall', 'both'], true) ? $operatingMode : 'both';
-        $day = $cycleDay >= 1 && $cycleDay <= 28 ? $cycleDay : 1;
+    public function save(MallPayoutWrite $write): void
+    {
+        $mode = in_array($write->operatingMode, ['consignor', 'booth_mall', 'both'], true)
+            ? $write->operatingMode
+            : 'both';
+        $day = $write->cycleDay >= 1 && $write->cycleDay <= 28 ? $write->cycleDay : 1;
         $this->statements->change(
             'UPDATE mall
              SET operating_mode = ?, payout_cadence = ?, rent_prepaid_from_prior_sales = ?::boolean,
@@ -145,12 +140,12 @@ final class MallPayoutSettings
             [
                 $mode,
                 'monthly',
-                $rentPrepaid ? 'true' : 'false',
-                $rentalsEnabled ? 'true' : 'false',
+                $write->rentPrepaid ? 'true' : 'false',
+                $write->rentalsEnabled ? 'true' : 'false',
                 $day,
-                $consignmentEnabled ? 'true' : 'false',
-                $storeStockEnabled ? 'true' : 'false',
-                $requireSecondSignature ? 'true' : 'false',
+                $write->consignmentEnabled ? 'true' : 'false',
+                $write->storeStockEnabled ? 'true' : 'false',
+                $write->requireSecondSignature ? 'true' : 'false',
             ]
         );
     }
@@ -158,7 +153,7 @@ final class MallPayoutSettings
     /**
      * @return array{enabled: bool, grace: int, first: int, next: int, effective: string}
      */
-    public function lateFee(): array
+    public function getLateFee(): array
     {
         $days = RowValue::integer($this->row()['late_fee_grace_days'] ?? null);
         $effective = $this->row()['late_fee_effective_on'] ?? null;
@@ -174,12 +169,12 @@ final class MallPayoutSettings
         ];
     }
 
-    public function saveLateFees(bool $enabled, int $grace, int $first, int $next): void
+    public function saveLateFees(MallLateFeeWrite $write): void
     {
-        $days = $grace >= 0 && $grace <= 28 ? $grace : 0;
-        $current = $this->lateFee();
+        $days = $write->grace >= 0 && $write->grace <= 28 ? $write->grace : 0;
+        $current = $this->getLateFee();
         $effective = null;
-        if ($enabled) {
+        if ($write->enabled) {
             $effective = $current['enabled'] && $current['effective'] !== '' ? $current['effective'] : date('Y-m-d');
         }
         $this->statements->change(
@@ -187,7 +182,7 @@ final class MallPayoutSettings
              SET late_fees_enabled = ?::boolean, late_fee_grace_days = ?,
                  late_fee_first_minor = ?, late_fee_next_minor = ?,
                  late_fee_effective_on = ?::date',
-            [$enabled ? 'true' : 'false', $days, max(0, $first), max(0, $next), $effective]
+            [$write->enabled ? 'true' : 'false', $days, max(0, $write->first), max(0, $write->next), $effective]
         );
     }
 

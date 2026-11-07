@@ -73,7 +73,7 @@ final class MallMoneyForm
                 ),
                 $this->app->request()->field('store_stock_enabled'),
             );
-            $this->payouts->save(
+            $this->payouts->save(new MallPayoutWrite(
                 $this->app->request()->field('operating_mode'),
                 $this->rentDraft->prepaid ?? false,
                 $this->rentDraft->rentals ?? false,
@@ -81,7 +81,7 @@ final class MallMoneyForm
                 $shop['consignment'],
                 $shop['store'],
                 $this->app->request()->field('require_second_signature') === '1',
-            );
+            ));
             $this->rentDraft->save();
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);

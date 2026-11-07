@@ -59,14 +59,9 @@ final class ShopTenantReset
         if (!is_string($password) || $password === '') {
             throw new RuntimeException('STALL_OWNER_PASSWORD is required');
         }
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        if ($hash === false) {
-            throw new RuntimeException('the shop owner password could not be hashed');
-        }
-
         return [
             'username' => 'owner',
-            'password_hash' => $hash,
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'email' => $this->ownerEmail($pdo),
         ];
     }

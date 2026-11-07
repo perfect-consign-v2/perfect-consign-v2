@@ -42,20 +42,7 @@ final class StaffSignIn
      */
     private function lookup(TenantRecord $tenant, string $username): ?array
     {
-        $role = $tenant->role;
-        if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {
-            throw new \RuntimeException('the mall role is not usable');
-        }
-        if ($this->pdo->exec('SET ROLE ' . $role) === false) {
-            throw new \RuntimeException('the mall role could not be used');
-        }
-        try {
-            return $this->staffRow($tenant, $username);
-        } finally {
-            if ($this->pdo->exec('RESET ROLE') === false) {
-                throw new \RuntimeException('the database role could not be reset');
-            }
-        }
+        return $this->asTenantRole($tenant, fn (): ?array => $this->staffRow($tenant, $username));
     }
 
     /**
@@ -156,6 +143,29 @@ final class StaffSignIn
         if (!is_string($vendorId) || preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
             return false;
         }
+
+        return $this->vendorMarkedActive($tenant, $vendorId);
+    }
+
+    private function vendorMarkedActive(TenantRecord $tenant, string $vendorId): bool
+    {
+        return $this->asTenantRole($tenant, function () use ($tenant, $vendorId): bool {
+            $statement = $this->pdo->prepare(
+                'SELECT active FROM ' . $this->schema($tenant->schema) . '.vendors WHERE id = ?::uuid'
+            );
+            $statement->execute([$vendorId]);
+
+            return $this->flag($statement->fetchColumn()) === true;
+        });
+    }
+
+    /**
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    private function asTenantRole(TenantRecord $tenant, callable $work): mixed
+    {
         $role = $tenant->role;
         if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {
             throw new \RuntimeException('the mall role is not usable');
@@ -164,18 +174,12 @@ final class StaffSignIn
             throw new \RuntimeException('the mall role could not be used');
         }
         try {
-            $statement = $this->pdo->prepare(
-                'SELECT active FROM ' . $this->schema($tenant->schema) . '.vendors WHERE id = ?::uuid'
-            );
-            $statement->execute([$vendorId]);
-            $active = $statement->fetchColumn();
+            return $work();
         } finally {
             if ($this->pdo->exec('RESET ROLE') === false) {
                 throw new \RuntimeException('the database role could not be reset');
             }
         }
-
-        return $active === true || $active === 't' || $active === '1' || $active === 1;
     }
 
     /**

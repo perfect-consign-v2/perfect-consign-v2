@@ -198,10 +198,10 @@ final class PayoutRunTest extends TestCase
             $settler->chargeMissing($runId, $vendorId);
             $parties->setPayoutMode($vendorId, 'nope');
         // assignments( row(
-            $mall->save('nope', true, true, 1, true, true);
-            self::assertSame('both', $mall->operatingMode());
-            self::assertSame('monthly', $mall->payoutCadence());
-            self::assertTrue($mall->rentPrepaid());
+            $mall->save(new \PerfectConsign\Feature\Mall\MallPayoutWrite('nope', true, true, 1, true, true, false));
+            self::assertSame('both', $mall->getOperatingMode());
+            self::assertSame('monthly', $mall->getPayoutCadence());
+            self::assertTrue($mall->isRentPrepaid());
             try {
                 $purchases->record($vendorId, $date, 0, 'zero');
                 self::fail('a zero store purchase was accepted');

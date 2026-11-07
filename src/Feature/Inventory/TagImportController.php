@@ -28,20 +28,9 @@ final class TagImportController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $file = $this->app->request()->upload('tags');
-        if ($file === null || $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
-            $this->page($slug, 'Choose a CSV file.');
-
-            return;
-        }
-        $size = filesize($file['tmp_name']);
-        if ($size === false || $size < 1 || $size > 2_000_000) {
-            $this->page($slug, 'That CSV is too large.');
-
-            return;
-        }
-        $sample = file_get_contents($file['tmp_name'], false, null, 0, 512);
-        if ($sample === false || str_contains($sample, "\0")) {
-            $this->page($slug, 'Choose a CSV file.');
+        $error = $this->uploadError($file);
+        if ($error !== null || $file === null) {
+            $this->page($slug, $error ?? 'Choose a CSV file.');
 
             return;
         }
@@ -51,13 +40,33 @@ final class TagImportController
             $this->page($slug, $this->app->catchRefusal($refusal));
 
             return;
-        } catch (\InvalidArgumentException $error) {
-            $this->page($slug, $error->getMessage());
+        } catch (\InvalidArgumentException $caught) {
+            $this->page($slug, $caught->getMessage());
 
             return;
         }
         $label = $count === 1 ? '1 tag brought in.' : $count . ' tags brought in.';
         $this->app->redirect('/' . $slug . '/inventory', $label);
+    }
+
+    /**
+     * @param array{tmp_name: string, error: int, size: int, name: string}|null $file
+     */
+    private function uploadError(?array $file): ?string
+    {
+        if ($file === null || $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+            return 'Choose a CSV file.';
+        }
+        $size = filesize($file['tmp_name']);
+        if ($size === false || $size < 1 || $size > 2_000_000) {
+            return 'That CSV is too large.';
+        }
+        $sample = file_get_contents($file['tmp_name'], false, null, 0, 512);
+        if ($sample === false || str_contains($sample, "\0")) {
+            return 'Choose a CSV file.';
+        }
+
+        return null;
     }
 
     private function page(string $slug, ?string $error): void

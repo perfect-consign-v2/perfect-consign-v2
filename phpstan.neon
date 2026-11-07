@@ -7,5 +7,6 @@ parameters:
         - bin/wipe-tenant.php
         - bin/provision-tenant.php
         - bin/MallDemo.php
+        - bin/ShopDemo.php
     reportUnmatchedIgnoredErrors: true
     treatPhpDocTypesAsCertain: false

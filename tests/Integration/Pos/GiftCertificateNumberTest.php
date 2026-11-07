@@ -43,7 +43,15 @@ final class GiftCertificateNumberTest extends TestCase
                 "INSERT INTO stored_values (kind, number) VALUES ('gift_certificate', ?)",
                 [$lower]
             );
-            $journalId = $gifts->issue($sessionId, $this->openDate($statements), '', 100, 'cash', null);
+            $journalId = $gifts->issue(
+                $sessionId,
+                $this->openDate($statements),
+                '',
+                100,
+                'cash',
+                null,
+                formToken: '0123456789abcdef0123456789abcdef',
+            );
             $journal = $ledger->journal($journalId);
             self::assertNotNull($journal);
             $assigned = $journal['source_reference'] ?? null;

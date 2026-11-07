@@ -282,7 +282,7 @@ final class MallController
         ?string $error,
     ): void {
         $tenant = $this->app->open($slug, true);
-        $late = $this->payouts->lateFee();
+        $late = $this->payouts->getLateFee();
         $this->app->show('Feature/Mall/settings', [
             'title' => 'Settings',
             'displayName' => $tenant->displayName,
@@ -303,19 +303,19 @@ final class MallController
                 BackupHeadline::now(),
             ),
             'nightlyHeadline' => $this->nightly->headline($tenant->schema),
-            'operatingMode' => $this->payouts->operatingMode(),
-            'payoutCadence' => $this->payouts->payoutCadence(),
-            'rentPrepaid' => $this->rentDraft->prepaid ?? $this->payouts->rentPrepaid(),
-            'boothRentals' => $this->rentDraft->rentals ?? $this->payouts->rentalsEnabled(),
+            'operatingMode' => $this->payouts->getOperatingMode(),
+            'payoutCadence' => $this->payouts->getPayoutCadence(),
+            'rentPrepaid' => $this->rentDraft->prepaid ?? $this->payouts->isRentPrepaid(),
+            'boothRentals' => $this->rentDraft->rentals ?? $this->payouts->isRentalsEnabled(),
             'consignmentEnabled' => $this->payouts->getShop()['consignment'],
             'storeStockEnabled' => $this->payouts->getShop()['store'],
-            'cycleDay' => $this->rentDraft->cycleDay ?? $this->payouts->cycleDay(),
-            'cycleFrozen' => $this->payouts->cycleFrozen(),
+            'cycleDay' => $this->rentDraft->cycleDay ?? $this->payouts->getCycleDay(),
+            'cycleFrozen' => $this->payouts->isCycleFrozen(),
             'lateFees' => $this->rentDraft->lateFees ?? $late['enabled'],
             'lateGrace' => $this->rentDraft->lateGrace ?? $late['grace'],
             'lateFirst' => $this->rentDraft->dollars($this->rentDraft->lateFirst ?? $late['first']),
             'lateNext' => $this->rentDraft->dollars($this->rentDraft->lateNext ?? $late['next']),
-            'requireSecondSignature' => $this->payouts->requireSecondSignature(),
+            'requireSecondSignature' => $this->payouts->isSecondSignatureRequired(),
             'labelStock' => $this->postedStock ?? $this->mall->getLabelStock(),
             'receiptFooter' => $this->postedFooter ?? $this->mall->getReceiptFooter(),
             'receiptMailVia' => $this->postedMailVia ?? $this->mall->getReceiptMailVia(),
