@@ -231,6 +231,7 @@ final class ShopDemo
     {
         if (PHP_SAPI === 'cli') {
             fwrite(STDOUT, $line);
+            fflush(STDOUT);
         }
     }
 

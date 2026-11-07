@@ -31,8 +31,9 @@ final class ShopTenantReset
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Consignment');
         $this->loadSql($pdo, $provisioner, $schema);
-        (new \ShopDemo($pdo, $schema))->load();
+        // Plant sign-in before the long demo post so a hung/killed seed still leaves /shop usable.
         $this->restoreOwner($pdo, $this->owner($pdo));
+        (new \ShopDemo($pdo, $schema))->load();
 
         return $schema;
     }
