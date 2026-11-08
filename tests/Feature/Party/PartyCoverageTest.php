@@ -177,6 +177,35 @@ final class PartyCoverageTest extends TestCase
         }
     }
 
+    public function testThePartyListKeepsPartiesWithNoActiveRoles(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturn([
+            [
+                'id' => '00000000-0000-7000-8000-0000000000p1',
+                'name' => 'Dana Shah',
+                'kind' => 'person',
+                'roles' => '',
+            ],
+        ]);
+        $stays = new \PerfectConsign\Feature\Party\AssignmentBook($statements);
+        $store = new PartyStore(
+            $statements,
+            QuietAudit::make($statements),
+            $stays,
+            new PartyIdentity($statements),
+        );
+
+        self::assertSame([
+            [
+                'id' => '00000000-0000-7000-8000-0000000000p1',
+                'name' => 'Dana Shah',
+                'kind' => 'person',
+                'roles' => '',
+            ],
+        ], $store->parties());
+    }
+
     public function testTheMapStoreRefusesMissingFloorsAndBooths(): void
     {
         $statements = $this->createStub(Statements::class);

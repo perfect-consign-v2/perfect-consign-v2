@@ -45,15 +45,15 @@ class PartyStore
     {
         $rows = $this->statements->rows(
             "SELECT party.id::text AS id,
-                    stall_party_display_name(party.id) AS name,
+                    COALESCE(stall_party_display_name(party.id), '') AS name,
                     CASE WHEN person.party_id IS NOT NULL THEN 'person' ELSE 'organization' END AS kind,
-                    string_agg(roles.role_type, ', ' ORDER BY roles.role_type) AS roles
+                    COALESCE(string_agg(roles.role_type, ', ' ORDER BY roles.role_type), '') AS roles
              FROM parties AS party
              LEFT JOIN persons AS person ON person.party_id = party.id
              LEFT JOIN organizations AS org ON org.party_id = party.id
              LEFT JOIN party_roles AS roles ON roles.party_id = party.id AND roles.status = 'active'
              GROUP BY party.id, person.party_id, org.party_id
-             ORDER BY lower(stall_party_display_name(party.id)), party.id
+             ORDER BY lower(COALESCE(stall_party_display_name(party.id), '')), party.id
              LIMIT 500"
         );
         $list = [];
