@@ -27,11 +27,17 @@ final class PartyController
     public function show(string $slug): void
     {
         $tenant = $this->app->open($slug, true);
+        $consignmentOnly = $this->mall->isConsignmentOnly();
+        $parties = [];
+        foreach ($this->parties->parties() as $party) {
+            $party['roles'] = PartyRoleType::displayCsv($party['roles'], $consignmentOnly);
+            $parties[] = $party;
+        }
         $this->app->show('Feature/Party/party-list', [
             'title' => 'Parties',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'parties' => $this->parties->parties(),
+            'parties' => $parties,
             'sellerList' => $this->sellerList($slug),
             'sellerLabel' => $this->mall->getPartyLabel('Vendors', 'Consignors'),
         ]);
@@ -57,11 +63,15 @@ final class PartyController
         if (in_array(PartyRoleType::WAIT_LIST, $party['roles'], true)) {
             $this->app->redirect('/' . $slug . '/wait-list/' . $partyId);
         }
+        $consignmentOnly = $this->mall->isConsignmentOnly();
+        $sellerWord = $this->mall->getPartyLabel('vendor', 'consignor');
         $this->app->show('Feature/Party/party', [
             'title' => $party['name'] !== '' ? $party['name'] : 'Party',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'party' => $party,
+            'rolesLabel' => PartyRoleType::displayNames($party['roles'], $consignmentOnly),
+            'emptyRolesHint' => 'This party has no ' . $sellerWord . ', customer, or wait-list record to open.',
         ]);
     }
 

@@ -6,9 +6,11 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var array{id: string, name: string, kind: string, roles: list<string>} $party */
+/** @var string $rolesLabel */
+/** @var string $emptyRolesHint */
 
 $name = $party['name'] !== '' ? $party['name'] : 'Party';
-$roles = $party['roles'] === [] ? 'none' : implode(', ', $party['roles']);
+$roles = $rolesLabel !== '' ? $rolesLabel : 'none';
 ?>
 <div class="page-head">
     <div class="titles">
@@ -17,7 +19,7 @@ $roles = $party['roles'] === [] ? 'none' : implode(', ', $party['roles']);
             <span><?= View::text($name) ?></span>
         </nav>
         <h1 class="h1"><?= View::text($name) ?></h1>
-        <p class="muted">This party has no vendor, customer, or wait-list record to open.</p>
+        <p class="muted"><?= View::text($emptyRolesHint) ?></p>
     </div>
 </div>
 <div class="card mt-6">
