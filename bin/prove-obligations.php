@@ -60,9 +60,9 @@ foreach ($ledgerFiles as $path) {
     if (!isset($tenantFiles[$file])) {
         continue;
     }
-    // Applied tenant files are frozen checksums. 064/077 shipped with IF EXISTS;
-    // do not rewrite them. Refuse soft DDL only on later tenant migrations.
-    if ($file <= '077_second_signature_toggle.sql') {
+    // Applied tenant files are frozen checksums. 064–079 shipped with IF EXISTS /
+    // CREATE FUNCTION; do not rewrite them. Refuse soft DDL only on later files.
+    if ($file <= '079_override_client_address.sql') {
         continue;
     }
     if (str_contains($sql, 'ADD COLUMN IF NOT EXISTS')) {
@@ -286,9 +286,14 @@ function duplicateFunctions(string $sqlDirectory): array
                 $failures[] = $file . ' creates ' . $name . ' twice';
             }
             $seen[$key] = true;
-            // A later file may replace a checksum-locked function. A bare second CREATE may not.
+            // A later file may replace a checksum-locked function via CREATE OR REPLACE
+            // or DROP FUNCTION … then CREATE (079 ships that shape; do not rewrite it).
             $replacing = isset($match[1]) && is_string($match[1]) && $match[1] !== '';
-            if (isset($defined[$key]) && !$replacing) {
+            $droppedFirst = preg_match(
+                '/DROP\\s+FUNCTION\\s+IF\\s+EXISTS\\s+' . preg_quote($name, '/') . '\\s*\\(/i',
+                $sql
+            ) === 1;
+            if (isset($defined[$key]) && !$replacing && !$droppedFirst) {
                 $failures[] = $file . ' creates ' . $name . ' and ' . $defined[$key] . ' already creates it';
                 continue;
             }

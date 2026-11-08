@@ -1,12 +1,12 @@
 -- Override lockout is per username + client address (same shape as email sign-in).
 
 ALTER TABLE override_sign_in_failures
-    ADD COLUMN client_address text NOT NULL DEFAULT '';
+    ADD COLUMN IF NOT EXISTS client_address text NOT NULL DEFAULT '';
 
 DROP FUNCTION IF EXISTS public.stall_override_attempts(text);
 DROP FUNCTION IF EXISTS public.stall_override_record(text);
 
-CREATE OR REPLACE FUNCTION public.stall_override_attempts(who text, addr text DEFAULT ''::text) RETURNS integer
+CREATE FUNCTION public.stall_override_attempts(who text, addr text DEFAULT ''::text) RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $_$
@@ -24,7 +24,7 @@ BEGIN
 END;
 $_$;
 
-CREATE OR REPLACE FUNCTION public.stall_override_record(who text, addr text DEFAULT ''::text) RETURNS void
+CREATE FUNCTION public.stall_override_record(who text, addr text DEFAULT ''::text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'public'
     AS $_$

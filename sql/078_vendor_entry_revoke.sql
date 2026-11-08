@@ -1,7 +1,7 @@
 -- Inactive vendors cannot redeem entry links. Entry request rows record client address for spray caps.
 
 ALTER TABLE vendor_entry_requests
-    ADD COLUMN client_address text NOT NULL DEFAULT '';
+    ADD COLUMN IF NOT EXISTS client_address text NOT NULL DEFAULT '';
 
 CREATE OR REPLACE FUNCTION public.stall_vendor_open(entry_hash text) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
