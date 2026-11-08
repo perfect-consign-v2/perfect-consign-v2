@@ -2,4 +2,4 @@
 -- Default false for family-run stores; turn on for multi-staff malls that use ceilings.
 
 ALTER TABLE mall
-    ADD COLUMN require_second_signature boolean NOT NULL DEFAULT false;
+    ADD COLUMN IF NOT EXISTS require_second_signature boolean NOT NULL DEFAULT false;
