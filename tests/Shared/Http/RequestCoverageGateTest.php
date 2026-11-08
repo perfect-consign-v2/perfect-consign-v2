@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Shared\Http;
 
+use PerfectConsign\Bootstrap\RolePaths;
 use PerfectConsign\Shared\Http\RequestCoverage;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -67,6 +68,40 @@ final class RequestCoverageGateTest extends TestCase
         self::assertTrue($this->coverageWritten());
         RequestCoverage::flush(true, $dir);
         self::assertTrue($this->coverageWritten());
+    }
+
+    public function testFlushDoesNotStopSuiteCoverageCollection(): void
+    {
+        if (!function_exists('xdebug_get_code_coverage') || !function_exists('xdebug_start_code_coverage')) {
+            self::markTestSkipped('xdebug coverage is required');
+        }
+        $mode = getenv('XDEBUG_MODE');
+        if (!is_string($mode) || !str_contains($mode, 'coverage')) {
+            self::markTestSkipped('XDEBUG_MODE=coverage is required');
+        }
+        xdebug_start_code_coverage();
+        $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-cov-flush-keeps-session';
+        RequestCoverage::flush(true, $dir);
+        self::assertTrue($this->coverageWritten());
+        self::assertTrue(RolePaths::underFloor('/customers/new'));
+        $after = xdebug_get_code_coverage();
+        self::assertIsArray($after);
+        $hit = false;
+        foreach ($after as $file => $lines) {
+            if (!is_string($file) || !str_contains(str_replace('\\', '/', $file), '/Bootstrap/RolePaths.php')) {
+                continue;
+            }
+            if (!is_array($lines)) {
+                continue;
+            }
+            foreach ($lines as $count) {
+                if (is_int($count) && $count > 0) {
+                    $hit = true;
+                    break 2;
+                }
+            }
+        }
+        self::assertTrue($hit, 'flush must not stop xdebug so later lines still record');
     }
 
     private function coverageWritten(): bool

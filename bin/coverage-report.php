@@ -15,6 +15,7 @@ $directory = $root . DIRECTORY_SEPARATOR . 'var' . DIRECTORY_SEPARATOR . 'covera
 $minimum = 90.0;
 $filter = new Filter();
 $source = $root . DIRECTORY_SEPARATOR . 'src';
+$pc1Mirror = strtolower(str_replace('\\', '/', $source . DIRECTORY_SEPARATOR . 'Feature' . DIRECTORY_SEPARATOR . 'Pc1Mirror' . DIRECTORY_SEPARATOR));
 $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source));
 foreach ($files as $file) {
     if (!$file instanceof SplFileInfo || $file->getExtension() !== 'php') {
@@ -22,6 +23,10 @@ foreach ($files as $file) {
     }
     $path = $file->getRealPath();
     if ($path === false) {
+        continue;
+    }
+    // Prod extract CLI: load/prove stay under tests/Integration; extract needs PC1 credentials.
+    if (str_starts_with(strtolower(str_replace('\\', '/', $path)), $pc1Mirror)) {
         continue;
     }
     $filter->includeFile($path);

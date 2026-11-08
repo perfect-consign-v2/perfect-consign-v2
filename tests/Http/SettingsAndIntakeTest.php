@@ -92,6 +92,22 @@ final class SettingsAndIntakeTest extends WebTestCase
         self::assertSame(200, $form->status);
         self::assertSees('New customer', $form);
         $tag = 'Cust' . bin2hex(random_bytes(3));
+        self::assertSees(
+            'Enter the customer name.',
+            $this->client->post('/' . $slug . '/customers', [
+                'customer_name' => '',
+                'customer_phone' => '',
+                'customer_email' => '',
+            ]),
+        );
+        self::assertSees(
+            'Enter a real email or leave it blank.',
+            $this->client->post('/' . $slug . '/customers', [
+                'customer_name' => $tag . ' Bad',
+                'customer_phone' => '',
+                'customer_email' => 'not-an-email',
+            ]),
+        );
         $created = $this->client->post('/' . $slug . '/customers', [
             'customer_name' => $tag . ' Buyer',
             'customer_phone' => '555-' . substr($tag, -4),
@@ -99,6 +115,30 @@ final class SettingsAndIntakeTest extends WebTestCase
         ]);
         self::assertSees('Customer created.', $created);
         self::assertSees($tag . ' Buyer', $created);
+        $partyId = $this->customerPartyId($created->body);
+        self::assertNotSame('', $partyId);
+        self::assertSame(404, $this->client->get('/' . $slug . '/customers/01900000-0000-7000-8000-00000000dead')->status);
+        self::assertSees(
+            'Enter a seller code.',
+            $this->client->post('/' . $slug . '/customers/' . $partyId . '/vendor-role', [
+                'code' => '',
+            ]),
+        );
+        self::assertSees(
+            'Enter a real email or leave it blank.',
+            $this->client->post('/' . $slug . '/customers/' . $partyId, [
+                'customer_name' => $tag . ' Buyer',
+                'customer_phone' => '555-0000',
+                'customer_email' => 'still-bad',
+            ]),
+        );
+        $sellerCode = 'c' . substr($tag, -5);
+        self::assertSees(
+            'Vendor role added.',
+            $this->client->post('/' . $slug . '/customers/' . $partyId . '/vendor-role', [
+                'code' => $sellerCode,
+            ]),
+        );
         $sales = $this->client->get('/' . $slug . '/sales');
         self::assertSame(200, $sales->status);
         self::assertSees('Sales', $sales);
@@ -206,6 +246,15 @@ final class SettingsAndIntakeTest extends WebTestCase
             'expires_on' => '2026-08-01',
         ]);
         self::assertSees('The expire date is before the intake date.', $expired);
+    }
+
+    private function customerPartyId(string $body): string
+    {
+        if (preg_match('#/customers/([0-9a-fA-F-]{36})#', $body, $match) !== 1) {
+            return '';
+        }
+
+        return $match[1];
     }
 
     private function labelStock(): string

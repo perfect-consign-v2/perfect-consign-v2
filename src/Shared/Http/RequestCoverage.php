@@ -73,10 +73,10 @@ final class RequestCoverage
         if (!function_exists('xdebug_get_code_coverage')) {
             return;
         }
+        // Do not stop coverage here. The PHPUnit bootstrap starts one suite-wide
+        // session; stopping mid-suite left process dumps nearly empty. The next
+        // enable() clears before a new HTTP request.
         $kept = self::kept(xdebug_get_code_coverage());
-        if (function_exists('xdebug_stop_code_coverage')) {
-            xdebug_stop_code_coverage(false);
-        }
         if ($kept === []) {
             return;
         }
