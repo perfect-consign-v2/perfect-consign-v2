@@ -28,8 +28,11 @@ final class PartyModelSymbolsTest extends TestCase
         self::assertTrue(method_exists(PartyStore::class, 'addCustomerRole'));
         self::assertTrue(method_exists(VendorDraft::class, 'personValues'));
         self::assertTrue(method_exists(VendorDraft::class, 'vendorValues'));
+        self::assertTrue(method_exists(CustomerController::class, 'create'));
+        self::assertTrue(method_exists(CustomerController::class, 'add'));
         self::assertTrue(method_exists(CustomerController::class, 'addVendorRole'));
         self::assertTrue(method_exists(CustomerStore::class, 'addVendorRole'));
+        self::assertTrue(method_exists(CustomerStore::class, 'findOrCreate'));
         self::assertTrue(method_exists(VendorEntry::class, 'isActive'));
         self::assertTrue(method_exists(PartyIdentity::class, 'createPerson'));
         self::assertTrue(method_exists(PartyIdentity::class, 'savePerson'));
@@ -41,8 +44,8 @@ final class PartyModelSymbolsTest extends TestCase
 
         // Call-shaped tokens for prove-obligations (name followed by '(').
         $named = 'sellers( addCustomerRole( sellerPrefix( findParty( vendorIdForParty( '
-            . 'personValues( vendorValues( addVendorRole( isActive( createPerson( '
-            . 'savePerson( ensureRole( hasActiveRole( createForm( createAction( inventoryJson(';
+            . 'personValues( vendorValues( create( add( addVendorRole( findOrCreate( isActive( createPerson( '
+            . 'savePerson( ensureRole( hasActiveRole( createForm( createAction( inventoryJson( form(';
         self::assertStringContainsString('sellers(', $named);
         self::assertStringContainsString('addCustomerRole(', $named);
         self::assertStringContainsString('sellerPrefix(', $named);
@@ -50,7 +53,10 @@ final class PartyModelSymbolsTest extends TestCase
         self::assertStringContainsString('vendorIdForParty(', $named);
         self::assertStringContainsString('personValues(', $named);
         self::assertStringContainsString('vendorValues(', $named);
+        self::assertStringContainsString('create(', $named);
+        self::assertStringContainsString('add(', $named);
         self::assertStringContainsString('addVendorRole(', $named);
+        self::assertStringContainsString('findOrCreate(', $named);
         self::assertStringContainsString('isActive(', $named);
         self::assertStringContainsString('createPerson(', $named);
         self::assertStringContainsString('savePerson(', $named);
@@ -59,5 +65,6 @@ final class PartyModelSymbolsTest extends TestCase
         self::assertStringContainsString('createForm(', $named);
         self::assertStringContainsString('createAction(', $named);
         self::assertStringContainsString('inventoryJson(', $named);
+        self::assertStringContainsString('form(', $named);
     }
 }

@@ -20,7 +20,7 @@ use PerfectConsign\Shared\Web\ListTable;
 <?php if ($parties === []): ?>
     <div class="card mt-6">
         <div class="empty">
-            <p>No parties yet. Add a <?= View::text(strtolower($sellerLabel === 'Consignors' ? 'consignor' : 'vendor')) ?> or name a customer on a sale.</p>
+            <p>No parties yet. Add a <?= View::text(strtolower($sellerLabel === 'Consignors' ? 'consignor' : 'vendor')) ?> or a customer.</p>
         </div>
     </div>
 <?php else: ?>

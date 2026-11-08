@@ -14,7 +14,7 @@ use PerfectConsign\Shared\Web\ListTable;
         <h1 class="h1">Customers</h1>
         <p class="muted">Parties with the customer role. A search matches the phone exactly.</p>
     </div>
-    <a class="btn btn-primary" href="/<?= View::text($slug) ?>/pos">Sell</a>
+    <a class="btn btn-primary" href="/<?= View::text($slug) ?>/customers/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New customer</a>
 </div>
 <form class="row gap-2 mt-6" method="get" action="/<?= View::text($slug) ?>/customers" role="search">
     <div class="field">
@@ -26,8 +26,10 @@ use PerfectConsign\Shared\Web\ListTable;
 <?php if ($customers === []): ?>
     <div class="card mt-6">
         <div class="empty">
-            <p><?= $phone === '' ? 'No customers yet. A customer is saved when a sale names them.' : 'No customer has that phone.' ?></p>
-            <p><a class="btn btn-primary" href="/<?= View::text($slug) ?>/pos">Sell</a></p>
+            <p><?= $phone === '' ? 'No customers yet.' : 'No customer has that phone.' ?></p>
+            <?php if ($phone === ''): ?>
+                <p><a class="btn btn-primary" href="/<?= View::text($slug) ?>/customers/new">New customer</a></p>
+            <?php endif; ?>
         </div>
     </div>
 <?php else: ?>

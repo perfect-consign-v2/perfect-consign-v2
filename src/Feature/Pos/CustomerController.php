@@ -33,6 +33,39 @@ final class CustomerController
         ]);
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/customers/new', ['GET'])]
+    public function create(string $slug): void
+    {
+        $tenant = $this->app->open($slug, true);
+        $this->form($tenant->displayName, $tenant->slug, [
+            'id' => '',
+            'name' => '',
+            'phone' => '',
+            'email' => '',
+        ], null);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/customers', ['POST'])]
+    public function add(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $tenant = $this->app->open($slug, true);
+        $name = $this->app->request()->field('customer_name');
+        $phone = $this->app->request()->field('customer_phone');
+        $email = $this->app->request()->field('customer_email');
+        try {
+            $partyId = $this->customers->findOrCreate($name, $phone, $email);
+            $this->app->redirect('/' . $slug . '/customers/' . $partyId, 'Customer created.');
+        } catch (DatabaseRefusal $refusal) {
+            $this->form($tenant->displayName, $slug, [
+                'id' => '',
+                'name' => $name,
+                'phone' => $phone,
+                'email' => $email,
+            ], $this->app->catchRefusal($refusal));
+        }
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/customers/([0-9a-fA-F-]{36})(?:/edit)?', ['GET'])]
     public function edit(string $slug, string $id): void
     {
@@ -41,15 +74,7 @@ final class CustomerController
         if ($customer === null) {
             $this->app->notFound();
         }
-        $this->app->show('Feature/Pos/customer-form', [
-            'title' => 'Customer',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'customer' => $customer,
-            'error' => null,
-            'sellerList' => $this->sellerPaths->list($slug),
-            'sellerRoleAction' => $this->sellerRoleAction($slug, $id),
-        ]);
+        $this->form($tenant->displayName, $tenant->slug, $customer, null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/customers/([0-9a-fA-F-]{36})', ['POST'])]
@@ -70,20 +95,12 @@ final class CustomerController
                 'phone' => $phone,
                 'email' => $email,
             ];
-            $this->app->show('Feature/Pos/customer-form', [
-                'title' => 'Customer',
-                'displayName' => $this->app->open($slug, true)->displayName,
-                'slug' => $slug,
-                'customer' => [
-                    'id' => $customer['id'],
-                    'name' => $name,
-                    'phone' => $phone,
-                    'email' => $email,
-                ],
-                'error' => $this->app->catchRefusal($refusal),
-                'sellerList' => $this->sellerPaths->list($slug),
-                'sellerRoleAction' => $this->sellerRoleAction($slug, $id),
-            ]);
+            $this->form($this->app->open($slug, true)->displayName, $slug, [
+                'id' => $customer['id'],
+                'name' => $name,
+                'phone' => $phone,
+                'email' => $email,
+            ], $this->app->catchRefusal($refusal));
         }
     }
 
@@ -102,6 +119,23 @@ final class CustomerController
         } catch (DatabaseRefusal $refusal) {
             $this->app->redirect('/' . $slug . '/customers/' . $id . '/edit', null, $this->app->catchRefusal($refusal));
         }
+    }
+
+    /**
+     * @param array{id: string, name: string, phone: string, email: string} $customer
+     */
+    private function form(string $displayName, string $slug, array $customer, ?string $error): void
+    {
+        $creating = $customer['id'] === '';
+        $this->app->show('Feature/Pos/customer-form', [
+            'title' => $creating ? 'New customer' : 'Customer',
+            'displayName' => $displayName,
+            'slug' => $slug,
+            'customer' => $customer,
+            'error' => $error,
+            'sellerList' => $creating ? '' : $this->sellerPaths->list($slug),
+            'sellerRoleAction' => $creating ? '' : $this->sellerRoleAction($slug, $customer['id']),
+        ]);
     }
 
     private function sellerRoleAction(string $slug, string $customerId): string

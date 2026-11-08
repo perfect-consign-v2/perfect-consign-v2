@@ -90,7 +90,7 @@ A row can be edited or deleted. Deleting it does not change a vendor or a booth.
 
 ## Customers
 
-A customer is a party with the customer role. There is no customers table. A ticket stores that party's id. Naming someone on a sale saves the person and the customer role when that name, phone, and email are new. Staff open the list at `/{slug}/customers` and one customer at `/{slug}/customers/{party id}`.
+A customer is a party with the customer role. There is no customers table. A ticket stores that party's id. Staff add a customer from `/{slug}/customers` (New customer) or by naming someone on a sale. Either path saves the person and the customer role when that name, phone, and email are new; the same contact opens the existing party. Staff open the list at `/{slug}/customers` and one customer at `/{slug}/customers/{party id}`.
 
 A vendor can be given the customer role from the seller page. A customer who is a person can be given the vendor role from the customer page. That is the same party with both roles. The vendor id does not change. An organization cannot take the vendor role, and an organization customer is not edited as a first and last name.
 

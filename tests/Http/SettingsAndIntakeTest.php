@@ -85,8 +85,20 @@ final class SettingsAndIntakeTest extends WebTestCase
         $customers = $this->client->get('/' . $slug . '/customers');
         self::assertSame(200, $customers->status);
         self::assertSees('Customers', $customers);
+        self::assertSees('New customer', $customers);
         $phone = $this->client->get('/' . $slug . '/customers?phone=000');
         self::assertSees('No customer has that phone.', $phone);
+        $form = $this->client->get('/' . $slug . '/customers/new');
+        self::assertSame(200, $form->status);
+        self::assertSees('New customer', $form);
+        $tag = 'Cust' . bin2hex(random_bytes(3));
+        $created = $this->client->post('/' . $slug . '/customers', [
+            'customer_name' => $tag . ' Buyer',
+            'customer_phone' => '555-' . substr($tag, -4),
+            'customer_email' => strtolower($tag) . '@example.test',
+        ]);
+        self::assertSees('Customer created.', $created);
+        self::assertSees($tag . ' Buyer', $created);
         $sales = $this->client->get('/' . $slug . '/sales');
         self::assertSame(200, $sales->status);
         self::assertSees('Sales', $sales);

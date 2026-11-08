@@ -104,6 +104,8 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('manager', '/inventory', 'POST'));
         self::assertTrue(RoleGate::allows('manager', '/booths', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/customers', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/customers/new', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/customers', 'POST'));
         self::assertTrue(RoleGate::allows('manager', '/offers', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/letters', 'POST'));
         self::assertTrue(RoleGate::allows('manager', '/month', 'GET'));

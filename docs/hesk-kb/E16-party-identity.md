@@ -2,14 +2,14 @@
 title: Party identity, customers, and the wait list
 category: Floor and ops
 hesk: published 2026-11-08
-as_of: 2026-11-07
+as_of: 2026-11-08
 ---
 
 # Party identity, customers, and the wait list
 
 ## As of
 
-2026-11-07 — A party is a person or an organization. Vendor, customer, and wait list are roles. Money still uses the vendor id.
+2026-11-08 — A party is a person or an organization. Vendor, customer, and wait list are roles. Money still uses the vendor id. Staff can add a customer from the customer list.
 
 ## In one sentence
 
@@ -17,7 +17,7 @@ Staff open identity at `/{slug}/parties`; the seller roster is `/{slug}/vendors`
 
 ## When it happens
 
-Adding a seller, naming a customer on a ticket, capturing a booth wait-list person, or giving one person both the vendor role and the customer role.
+Adding a seller, adding a customer from the list or naming one on a ticket, capturing a booth wait-list person, or giving one person both the vendor role and the customer role.
 
 ## What the books / screens do
 
@@ -25,8 +25,8 @@ Adding a seller, naming a customer on a ticket, capturing a booth wait-list pers
 - The money key stays the vendor id. The vendor row is that role's books and points at the party. Name, phone, email, and address live on the person.
 - `/{slug}/parties` is identity (person or organization, and which roles they hold). It is not the seller roster.
 - The seller roster is `/{slug}/vendors` in a mall and `/{slug}/consignors` in a consignment-only store.
-- A customer is a party with the customer role. There is no customers table. A ticket stores that party's id. Staff open `/{slug}/customers` and `/{slug}/customers/{party id}`.
-- Naming someone on a sale saves the person and the customer role when that name, phone, and email are new.
+- A customer is a party with the customer role. There is no customers table. A ticket stores that party's id. Staff open `/{slug}/customers`, add at `/{slug}/customers/new`, and open one customer at `/{slug}/customers/{party id}`.
+- New customer from the list, or naming someone on a sale, saves the person and the customer role when that name, phone, and email are new. The same contact opens the existing party.
 - A wait-list row is keyed by the person's party. Name, email, and phone live on the person. Staff open `/{slug}/wait-list` and `/{slug}/wait-list/{party id}`.
 - A vendor (a person) can also be given the customer role. A customer who is a person can be given the vendor role. The vendor id does not change.
 - People at `/{slug}/staff` is staff sign-in, not this list.
@@ -40,7 +40,7 @@ Adding a seller, naming a customer on a ticket, capturing a booth wait-list pers
 
 ## How to check
 
-Open Parties and confirm the title is Parties, with people and organizations and their roles, and no seller-roster heading. Open Vendors (or Consignors on a consignment-only store) and confirm that list is who sells here. Open a customer and a wait-list row by party id.
+Open Parties and confirm the title is Parties, with people and organizations and their roles, and no seller-roster heading. Open Vendors (or Consignors on a consignment-only store) and confirm that list is who sells here. On Customers, use New customer, then open that party. Open a wait-list row by party id.
 
 ## Source
 
