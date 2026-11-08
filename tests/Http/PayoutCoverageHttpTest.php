@@ -227,8 +227,7 @@ final class PayoutCoverageHttpTest extends WebTestCase
         try {
             $vendorId = $this->uuid($pdo);
             $code = 'ck' . substr($vendorId, 0, 6);
-            $pdo->prepare('INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)')
-                ->execute([$vendorId, $code, 'Check', $code]);
+            \PerfectConsign\Tests\Support\SeedVendor::withIdPdo($pdo, $vendorId, $code, 'Check', $code);
             $blank = $this->insertCheckRun($pdo, $vendorId, 2500, null, 'paid', '2021-01-01', '2021-01-31');
             $faces = $this->insertCheckRun($pdo, $vendorId, 2500, '6104', 'paid', '2021-02-01', '2021-02-28');
             $empty = $this->insertCheckRun($pdo, $vendorId, 0, null, 'paid', '2021-03-01', '2021-03-31');

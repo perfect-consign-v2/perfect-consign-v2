@@ -165,7 +165,7 @@ final class RentOwed
     private function vendorName(string $vendorId): ?string
     {
         $rows = $this->statements->bound(
-            "SELECT btrim(first_name || ' ' || last_name) AS vendor_name FROM vendors WHERE id = ?::uuid",
+            "SELECT name AS vendor_name FROM vendors WHERE id = ?::uuid",
             [$vendorId]
         );
         $row = $rows[0] ?? null;

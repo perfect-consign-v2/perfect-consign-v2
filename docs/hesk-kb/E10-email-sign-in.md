@@ -1,15 +1,15 @@
 ---
 title: Email sign-in finds the mall
 category: Platform notes
-hesk: published 2026-11-06
-as_of: 2026-10-29
+hesk: published 2026-11-08
+as_of: 2026-11-08
 ---
 
 # Email sign-in finds the mall
 
 ## As of
 
-2026-10-29 — staff roles in the directory include cashier, manager, books, and vendor; sign-in is only at `/`; forgot-password reset mail sends in the web request through the mall mailbox.
+2026-11-08 — local wipe of demo stores `mall` / `shop` re-provisions empty tenants and re-plants owners from `.env` via `php bin/ensure-demo-logins.php` (also after `composer check` and CLI `wipe-tenant` for those slugs) so email sign-in keeps working without a full seed.
 
 ## In one sentence
 
@@ -37,11 +37,11 @@ An owner, manager, cashier, books login, or vendor opens the site root, or uses 
 
 ## How to check
 
-Plant an owner with `STALL_OWNER_EMAIL`, open `/`, sign in with that email. Open `/{slug}/login` and confirm it redirects to `/`. Try the same email on another mall’s staff — refused. Run `sql/prove_sign_in_directory.sql`.
+Plant an owner with `STALL_OWNER_EMAIL`, open `/`, sign in with that email. Open `/{slug}/login` and confirm it redirects to `/`. Try the same email on another mall’s staff — refused. Run `sql/prove_sign_in_directory.sql`. After wiping local `mall` or `shop`, confirm `php bin/ensure-demo-logins.php` restores sign-in for `STALL_OWNER_EMAIL` and `desk@cedar-consign.test` (or `STALL_SHOP_OWNER_EMAIL`) with `STALL_OWNER_PASSWORD`.
 
 ## Source
 
-`docs/business-rules.md` — Sign-in. `sql/000_platform.sql`, `sql/001_tenant.sql`, `sql/prove_sign_in_directory.sql`. `src/Bootstrap/EmailSignIn.php`.
+`docs/business-rules.md` — Sign-in. `sql/000_platform.sql`, `sql/001_tenant.sql`, `sql/prove_sign_in_directory.sql`. `src/Bootstrap/EmailSignIn.php`. `src/Feature/Dev/DemoLoginEnsure.php`. `bin/ensure-demo-logins.php`.
 
 ## Related
 

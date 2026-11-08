@@ -53,10 +53,7 @@ final class RentChargeTest extends TestCase
             self::assertIsArray((new CatalogLinks($statements))->referenced('items'));
             $vendorId = $ledger->newId();
             $tag = substr(str_replace('-', '', $vendorId), 0, 6);
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$vendorId, 'r' . $tag, 'Ada', 'Lane']
-            );
+            \PerfectConsign\Tests\Support\SeedVendor::withId($statements, $vendorId, 'r' . $tag, 'Ada', 'Lane');
             $moveIn = $this->booth($statements, $ledger, 'm' . $tag, 9000);
             $this->assign($statements, $moveIn, $vendorId, '2026-06-15', null);
             $prorated = $rent->chargeAmount($moveIn, '2026-06-15');
@@ -123,10 +120,7 @@ final class RentChargeTest extends TestCase
             $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = false', []);
             $vendorId = $ledger->newId();
             $tag = substr(str_replace('-', '', $vendorId), 0, 6);
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$vendorId, 'c' . $tag, 'Sam', 'Sun']
-            );
+            \PerfectConsign\Tests\Support\SeedVendor::withId($statements, $vendorId, 'c' . $tag, 'Sam', 'Sun');
             $boothId = $this->booth($statements, $ledger, 'q' . $tag, 9000);
             $this->assign($statements, $boothId, $vendorId, '2026-06-15', null);
             $charged = $rent->chargeAmount($boothId, '2026-06-15');
@@ -297,10 +291,7 @@ final class RentChargeTest extends TestCase
             $statements->change('UPDATE mall SET rent_prepaid_from_prior_sales = false', []);
             $vendorId = $ledger->newId();
             $tag = substr(str_replace('-', '', $vendorId), 0, 6);
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$vendorId, 'd' . $tag, 'Ada', 'Lane']
-            );
+            \PerfectConsign\Tests\Support\SeedVendor::withId($statements, $vendorId, 'd' . $tag, 'Ada', 'Lane');
             $olderBooth = $this->booth($statements, $ledger, 'a' . $tag, 15000);
             $newerBooth = $this->booth($statements, $ledger, 'b' . $tag, 30000);
             $this->assign($statements, $olderBooth, $vendorId, '2026-08-01', 15000);

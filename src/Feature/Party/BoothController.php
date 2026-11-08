@@ -217,6 +217,7 @@ final class BoothController
             'counts' => $counts,
             'confirm' => $this->filter->confirming($visible, $this->app->request()->query('confirm')),
             'error' => $error,
+            'sellerPrefix' => $this->mall->isConsignmentOnly() ? 'consignors' : 'vendors',
         ]);
     }
 

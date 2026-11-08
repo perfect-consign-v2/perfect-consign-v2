@@ -50,14 +50,22 @@ final class PayoutRunTest extends TestCase
         $reverser = new PayoutReverser($ledger, $statements);
         $purchases = new StorePurchase($ledger);
         $mall = new MallPayoutSettings($statements);
-        $parties = new PartyStore($statements, QuietAudit::make($statements), new \PerfectConsign\Feature\Party\AssignmentBook($statements));
+        $parties = new PartyStore(
+            $statements,
+            QuietAudit::make($statements),
+            new \PerfectConsign\Feature\Party\AssignmentBook($statements),
+            new \PerfectConsign\Feature\Party\PartyIdentity($statements),
+        );
         $date = $this->openDate($statements);
         $pdo->beginTransaction();
         try {
             $vendorId = $ledger->newId();
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$vendorId, 'pay' . substr($vendorId, 0, 6), 'Ada', 'Booth']
+            \PerfectConsign\Tests\Support\SeedVendor::withId(
+                $statements,
+                $vendorId,
+                'pay' . substr($vendorId, 0, 6),
+                'Ada',
+                'Booth'
             );
             $boothId = $ledger->newId();
             $statements->change(
@@ -123,9 +131,12 @@ final class PayoutRunTest extends TestCase
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             self::assertSame(1000, $payouts->boothRent($vendorId)[0]['open_minor'] ?? 0);
             $quiet = $ledger->newId();
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$quiet, 'qz' . substr($quiet, 0, 6), 'Nia', 'Cole']
+            \PerfectConsign\Tests\Support\SeedVendor::withId(
+                $statements,
+                $quiet,
+                'qz' . substr($quiet, 0, 6),
+                'Nia',
+                'Cole'
             );
             $runs->review($runId);
             $settler->close($runId, $date);
@@ -142,15 +153,21 @@ final class PayoutRunTest extends TestCase
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
             $reversed = $reverser->reverse($check, $date);
             $idle = $ledger->newId();
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$idle, 'idle' . substr($idle, 0, 4), 'Bea', 'Idle']
+            \PerfectConsign\Tests\Support\SeedVendor::withId(
+                $statements,
+                $idle,
+                'idle' . substr($idle, 0, 4),
+                'Bea',
+                'Idle'
             );
             self::assertSame('', $settler->settle($runId, $idle, $date, 0));
             $backdated = $ledger->newId();
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$backdated, 'old' . substr($backdated, 0, 4), 'Nell', 'Owes']
+            \PerfectConsign\Tests\Support\SeedVendor::withId(
+                $statements,
+                $backdated,
+                'old' . substr($backdated, 0, 4),
+                'Nell',
+                'Owes'
             );
             $oldBooth = $ledger->newId();
             $oldStart = (new \DateTimeImmutable(substr($date, 0, 7) . '-01'))->modify('-2 months')->format('Y-m-d');

@@ -11,6 +11,7 @@ final class RolePaths
         return self::underPrefix($rest, [
             '/parties/',
             '/vendors/',
+            '/consignors/',
             '/inventory/',
             '/booths/',
             '/customers/',

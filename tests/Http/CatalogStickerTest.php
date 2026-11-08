@@ -91,7 +91,7 @@ final class CatalogStickerTest extends WebTestCase
             'last_name' => $code,
         ]);
         self::assertSees($code, $vendor);
-        $directory = $this->client->get('/' . self::SLUG . '/parties');
+        $directory = $this->client->get('/' . self::SLUG . '/vendors');
         $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
         $color = 'cove-ink-' . bin2hex(random_bytes(2));
         $painted = $this->client->post('/' . self::SLUG . '/colors', ['name' => $color]);

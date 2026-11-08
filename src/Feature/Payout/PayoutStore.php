@@ -135,7 +135,7 @@ final class PayoutStore
         $taken = [];
         foreach ($this->statements->bound(
             "SELECT missing.booth_id::text AS booth_id, booth.code,
-                    btrim(vendor.first_name || ' ' || vendor.last_name) AS vendor_name,
+                    vendor.name AS vendor_name,
                     stall_rent_charge_suffix(missing.month_start) AS month, missing.amount
              FROM payout_missing_rent AS missing
              JOIN booths AS booth ON booth.id = missing.booth_id

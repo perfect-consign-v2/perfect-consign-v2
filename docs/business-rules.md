@@ -6,6 +6,12 @@ Add a rule here when it is decided. A rule stays in this list after the code tha
 
 ## Vendors
 
+A party is one person or one organization, not both. Roles hang off that party: vendor, customer, or wait list. The money key stays the vendor id. The vendor row is the vendor role's books (store take, tax, standing, and booths) and it points at the party. Name, phone, email, and address live on the person.
+
+Staff open everyone at `/{slug}/parties`. That list is identity: person or organization, and which roles they hold. It is not the seller roster. The seller roster is `/{slug}/vendors` in a mall and `/{slug}/consignors` in a consignment-only store. A customer page is `/{slug}/customers/{party id}`. A wait-list page is `/{slug}/wait-list/{party id}`.
+
+A vendor role has to be a person. An organization cannot be a vendor. A vendor can also be given the customer role, so the same person can buy at the register. A customer who is a person can be given the vendor role. An organization customer cannot. The vendor id does not change when a second role is added.
+
 A vendor is Active or Inactive. That is the vendor's own standing. It is not the same fact as which booth they hold. Making a vendor Inactive ends open consignor portal sessions on the next request, burns unused entry links, and bumps credentials on that vendor's password login so open staff sessions end.
 
 A vendor with no booth is still Active. The booth column says Unassigned.
@@ -72,7 +78,7 @@ A vendor or brand that an item still names cannot be deleted. An inactive vendor
 
 ## Wait list
 
-A wait list row is a person who wants a booth when none are open. It is not a vendor and it is not a journal. Staff still create the vendor and the assignment by hand when a booth opens.
+A wait list row is a person who wants a booth when none are open. It is not a vendor and it is not a journal. The row is keyed by that person's party. Name, email, and phone live on the person. The wait-list row holds preferred size, status, and notes. Staff still create the vendor and the assignment by hand when a booth opens. Staff open the list at `/{slug}/wait-list` and one person at `/{slug}/wait-list/{party id}`.
 
 First name, last name, email, and phone are required. An email has to be an email address. Phone is at most 40 characters. Notes may be empty. Notes that are present are at most 2000 characters.
 
@@ -81,6 +87,12 @@ Preferred booth size is a width and a depth in whole feet, or both empty. One si
 Status is Waiting, Contacted, Placed, or Declined. A new row starts at Waiting. The open list is Waiting and Contacted, oldest first. The same email cannot be Waiting or Contacted twice. After the row is Placed or Declined, that email can be added again.
 
 A row can be edited or deleted. Deleting it does not change a vendor or a booth.
+
+## Customers
+
+A customer is a party with the customer role. There is no customers table. A ticket stores that party's id. Naming someone on a sale saves the person and the customer role when that name, phone, and email are new. Staff open the list at `/{slug}/customers` and one customer at `/{slug}/customers/{party id}`.
+
+A vendor can be given the customer role from the seller page. A customer who is a person can be given the vendor role from the customer page. That is the same party with both roles. The vendor id does not change. An organization cannot take the vendor role, and an organization customer is not edited as a first and last name.
 
 ## Registers
 
@@ -188,7 +200,7 @@ The site root `/` is the only sign-in page: email and password. The directory ma
 
 Bare `/{slug}` and old `/{slug}/login` bookmarks redirect to `/` (or to the signed-in role’s home when the session already belongs to that mall). Forgot password is only `/forgot` (old `/{slug}/forgot` redirects there). It looks up the email in the directory and, when found, sends the reset email in that request through the mall mailbox. The success message is the same whether the email is known or not.
 
-An owner or staff email is required for email sign-in. Setting or changing that email is refused when another sign-in already holds it. The account menu Change password screen updates the password and that sign-in email; the mall company email is not a reset fallback. `php bin/set-owner.php` may set `STALL_OWNER_EMAIL` when planting the owner.
+An owner or staff email is required for email sign-in. Setting or changing that email is refused when another sign-in already holds it. The account menu Change password screen updates the password and that sign-in email; the mall company email is not a reset fallback. `php bin/set-owner.php` may set `STALL_OWNER_EMAIL` when planting the owner. On the local Docker database, wiping demo stores `mall` or `shop` (CLI wipe, seed reset, or proof cleanup) must leave those owners signable again from `.env` (`STALL_OWNER_PASSWORD` plus `STALL_OWNER_EMAIL` for mall and `desk@cedar-consign.test` / `STALL_SHOP_OWNER_EMAIL` for shop) via `php bin/ensure-demo-logins.php` — empty books are fine until `seed-mall` runs; a wiped store with a dead login is not.
 
 Password-reset and consignor magic links use `STALL_PUBLIC_ORIGIN` (not the request `Host`). Mutating POSTs need a session CSRF token. Secure cookies and HSTS follow trusted TLS only — see `docs/http-edge.md`.
 

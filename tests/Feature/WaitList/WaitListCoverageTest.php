@@ -100,7 +100,7 @@ final class WaitListCoverageTest extends TestCase
             $store->add('Ada', 'Lane', 'ada@example.test', '555', '', '', '');
             self::fail('an empty wait list insert was accepted');
         } catch (InvalidArgumentException $error) {
-            self::assertSame('the wait list row was not created', $error->getMessage());
+            self::assertSame('the party was not saved', $error->getMessage());
         }
         $numeric = $this->recording([]);
         $numeric->insertId = 4;
@@ -108,7 +108,7 @@ final class WaitListCoverageTest extends TestCase
             (new WaitListStore($numeric, new WaitListFields(), $logger))->add('Ada', 'Lane', 'ada@example.test', '555', '', '', '');
             self::fail('a numeric wait list id was accepted');
         } catch (InvalidArgumentException $error) {
-            self::assertSame('the wait list row was not created', $error->getMessage());
+            self::assertSame('expected a string', $error->getMessage());
         }
         try {
             $store->save('00000000-0000-7000-8000-000000000001', 'Ada', 'Lane', 'ada@example.test', '555', '', '', 'waiting', '');
@@ -178,9 +178,21 @@ final class WaitListRecorder extends Statements
         parent::__construct($pdo);
     }
 
+    public function transaction(callable $work): void
+    {
+        $work();
+    }
+
+    public function change(string $sql, array $params): void
+    {
+    }
+
     public function rows(string $sql): array
     {
         $this->sql = $sql;
+        if (str_contains($sql, 'INSERT INTO parties')) {
+            return [['id' => $this->insertId]];
+        }
 
         return $this->listed;
     }

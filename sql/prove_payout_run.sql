@@ -4,8 +4,7 @@ BEGIN;
 
 UPDATE mall SET rent_prepaid_from_prior_sales = true;
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-00000000f201', 'lock', 'Cal', 'Lane');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000f201', 'lock', 'Cal', 'Lane');
 
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-00000000f301', 'L1', 'Lock booth');
@@ -131,8 +130,7 @@ VALUES (
 );
 INSERT INTO register_checks (journal_id, check_number) VALUES ('01900000-0000-7000-8000-00000000f814', '1402');
 
-INSERT INTO vendors (id, code, first_name, last_name, payout_mode)
-VALUES ('01900000-0000-7000-8000-00000000f202', 'idle', 'Bea', 'Idle', 'pay');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000f202', 'idle', 'Bea', 'Idle', payout_mode => 'pay');
 
 INSERT INTO payout_runs (
     id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date, reviewed_checksum
@@ -316,20 +314,102 @@ VALUES (
     0
 );
 
-INSERT INTO vendors (id, code, first_name, last_name, payout_mode, commission_bps)
-VALUES
-    ('01900000-0000-7000-8000-00000000f210', 'credit', 'Cora', 'Credit', 'credit_only', 0),
-    ('01900000-0000-7000-8000-00000000f211', 'short', 'Sid', 'Short', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f212', 'clear', 'Clem', 'Clear', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f213', 'forward', 'Fern', 'Forward', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f214', 'sweep', 'Sue', 'Sweep', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f215', 'ident', 'Ida', 'Ident', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f216', 'drift', 'Dee', 'Drift', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f217', 'pair', 'Pat', 'Pair', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f218', 'drawer', 'Drew', 'Drawer', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f219', 'safe', 'Sam', 'Safe', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f21a', 'prior', 'Pri', 'Prior', 'pay', 0),
-    ('01900000-0000-7000-8000-00000000f21c', 'rentid', 'Ren', 'Rentid', 'pay', 0);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f210',
+    'credit',
+    'Cora',
+    'Credit',
+    0,
+    payout_mode => 'credit_only'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f211',
+    'short',
+    'Sid',
+    'Short',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f212',
+    'clear',
+    'Clem',
+    'Clear',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f213',
+    'forward',
+    'Fern',
+    'Forward',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f214',
+    'sweep',
+    'Sue',
+    'Sweep',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f215',
+    'ident',
+    'Ida',
+    'Ident',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f216',
+    'drift',
+    'Dee',
+    'Drift',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f217',
+    'pair',
+    'Pat',
+    'Pair',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f218',
+    'drawer',
+    'Drew',
+    'Drawer',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f219',
+    'safe',
+    'Sam',
+    'Safe',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f21a',
+    'prior',
+    'Pri',
+    'Prior',
+    0,
+    payout_mode => 'pay'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000f21c',
+    'rentid',
+    'Ren',
+    'Rentid',
+    0,
+    payout_mode => 'pay'
+);
 
 INSERT INTO booths (id, code, name)
 VALUES
@@ -2185,8 +2265,7 @@ END $$;
 
 UPDATE mall SET rent_prepaid_from_prior_sales = false;
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-00000000f220', 'apart', 'Ada', 'Separate');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000f220', 'apart', 'Ada', 'Separate');
 
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-00000000f320', 'Z9', 'Separate booth');

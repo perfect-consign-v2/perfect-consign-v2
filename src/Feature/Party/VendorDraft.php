@@ -38,19 +38,58 @@ final class VendorDraft
     }
 
     /**
+     * Flat insert values for tests and legacy callers: person contact then vendor extension facts.
+     *
      * @return list<int|string|null>
      */
     public function values(): array
+    {
+        $person = $this->personValues();
+
+        return [
+            $this->fields['code'],
+            $person['first_name'],
+            $person['last_name'],
+            $person['phone'],
+            $person['email'],
+            $person['address'],
+            ...array_slice($this->vendorValues(), 1),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     first_name: string,
+     *     last_name: string,
+     *     display_name: ?string,
+     *     phone: ?string,
+     *     email: ?string,
+     *     address: ?string
+     * }
+     */
+    public function personValues(): array
+    {
+        return [
+            'first_name' => $this->personName($this->fields['first_name'], 'first'),
+            'last_name' => $this->personName($this->fields['last_name'], 'last'),
+            'display_name' => $this->optionalText($this->fields['business_name'] ?? '', 120, 'that business name is too long'),
+            'phone' => $this->contact($this->fields['phone'], 'phone'),
+            'email' => $this->contact($this->fields['email'], 'email'),
+            'address' => $this->contact($this->fields['address'], 'address'),
+        ];
+    }
+
+    /**
+     * Vendor extension columns only (party identity is separate).
+     *
+     * @return list<int|string|null>
+     */
+    public function vendorValues(): array
     {
         $facts = $this->identityFacts();
 
         return [
             $this->fields['code'],
-            $this->personName($this->fields['first_name'], 'first'),
-            $this->personName($this->fields['last_name'], 'last'),
-            $this->contact($this->fields['phone'], 'phone'),
-            $this->contact($this->fields['email'], 'email'),
-            $this->contact($this->fields['address'], 'address'),
             $facts[0],
             $facts[1],
             $facts[2],
@@ -58,7 +97,6 @@ final class VendorDraft
             $facts[4],
             $facts[5] ? 'true' : 'false',
             $facts[6],
-            $this->optionalText($this->fields['business_name'] ?? '', 120, 'that business name is too long'),
             ...$this->terms(),
         ];
     }

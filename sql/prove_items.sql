@@ -109,11 +109,9 @@ BEGIN
     END IF;
 END $$;
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-000000000c10', 'item-ada', 'Ada', 'Item');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000c10', 'item-ada', 'Ada', 'Item');
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-000000000c11', 'item-bee', 'Bee', 'Item');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000c11', 'item-bee', 'Bee', 'Item');
 
 INSERT INTO brands (id, name)
 VALUES ('01900000-0000-7000-8000-000000000c20', 'Item brand');

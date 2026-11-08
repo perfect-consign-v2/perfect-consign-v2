@@ -4,10 +4,8 @@ BEGIN;
 
 UPDATE mall SET tax_bps = 8000, commission_bps = 0;
 
-INSERT INTO vendors (id, code, first_name, last_name, commission_bps, tax_exempt, tax_exempt_number)
-VALUES
-    ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane', 2500, false, NULL),
-    ('01900000-0000-7000-8000-000000000102', 'bea', 'Bea', 'Lane', NULL, true, 'EX-1');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane', 2500, false, NULL);
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000102', 'bea', 'Bea', 'Lane', NULL, true, 'EX-1');
 
 INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
 VALUES (

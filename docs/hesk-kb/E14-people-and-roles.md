@@ -1,15 +1,15 @@
 ---
 title: People and mall roles
 category: Floor and ops
-hesk: published 2026-11-06
-as_of: 2026-10-31
+hesk: published 2026-11-08
+as_of: 2026-11-07
 ---
 
 # People and mall roles
 
 ## As of
 
-2026-10-31 — Suspend/Restore for staff and owners. Change role among cashier, manager, and books. Co-owners and one Add person form unchanged.
+2026-11-07 — People (`/{slug}/staff`) is staff sign-in. Shoppers, sellers, and the wait list are parties, not People rows. Suspend/Restore and change-role among cashier, manager, and books are unchanged.
 
 ## In one sentence
 
@@ -27,6 +27,7 @@ An owner opens Setup → People (`/{slug}/staff`), or a staff member or owner si
 - **Books** — read sales, this month, rent, payouts, money record, and reports. Home is Sales. Cannot sell or disburse.
 - **Vendor** — portal Check / Sales / Inventory / Deals. Sign-in is set on that vendor’s page, not on People.
 - People: one Add person form; roster sections with Suspend/Restore, Change role (cashier/manager/books), and password reset. Suspended people cannot sign in.
+- People is staff and owners. Party identity (a person or an organization, and the vendor, customer, and wait-list roles) is `/{slug}/parties`, not this screen.
 - Platform `/admin` is not managed on People.
 
 ## What is refused
@@ -51,3 +52,4 @@ Add a manager on People, sign in, confirm Floor links and no Settings. Suspend t
 - Second-signature ceilings
 - Email sign-in finds the mall
 - Platform admin portal
+- Party identity, customers, and the wait list

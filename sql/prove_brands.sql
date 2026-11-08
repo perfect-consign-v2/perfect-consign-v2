@@ -175,8 +175,7 @@ DECLARE
     kept_id uuid := '01900000-0000-7000-8000-0000000000c3';
     other_id uuid := '01900000-0000-7000-8000-0000000000c4';
 BEGIN
-    INSERT INTO vendors (id, code, first_name, last_name)
-    VALUES (vendor_id, 'brand-off', 'Ada', 'Off');
+    PERFORM stall_seed_vendor(vendor_id, 'brand-off', 'Ada', 'Off');
     INSERT INTO brands (id, name) VALUES (kept_id, 'Kept');
     INSERT INTO brands (id, name) VALUES (other_id, 'Other brand');
     UPDATE mall SET use_brand = false;

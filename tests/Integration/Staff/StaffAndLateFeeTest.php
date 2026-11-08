@@ -90,16 +90,12 @@ final class StaffAndLateFeeTest extends TestCase
 
     private function vendorId(Statements $statements): string
     {
-        $rows = $statements->bound(
-            'INSERT INTO vendors (code, first_name, last_name) VALUES (?, ?, ?) RETURNING id',
-            ['V' . bin2hex(random_bytes(3)), 'Ada', 'Lane']
+        return \PerfectConsign\Tests\Support\SeedVendor::create(
+            $statements,
+            'V' . bin2hex(random_bytes(3)),
+            'Ada',
+            'Lane'
         );
-        $id = $rows[0]['id'] ?? null;
-        if (!is_string($id)) {
-            self::fail('the vendor was not saved');
-        }
-
-        return $id;
     }
 
     private function schema(PDO $pdo): string

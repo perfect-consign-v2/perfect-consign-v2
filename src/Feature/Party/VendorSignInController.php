@@ -15,10 +15,11 @@ final class VendorSignInController
         private readonly MallApp $app,
         private readonly StaffStore $staff,
         private readonly VendorPage $pages,
+        private readonly SellerPaths $sellerPaths,
     ) {
     }
 
-    #[Route('/([a-z][a-z0-9-]{0,62})/vendors/([0-9a-fA-F-]{36})/sign-in', ['POST'])]
+    #[Route('/([a-z][a-z0-9-]{0,62})/(?:vendors|consignors)/([0-9a-fA-F-]{36})/sign-in', ['POST'])]
     public function add(string $slug, string $id): void
     {
         $this->app->checkCsrf();
@@ -43,6 +44,6 @@ final class VendorSignInController
             return;
         }
         $notice = $replaced ? 'Vendor sign-in saved.' : 'Vendor sign-in added.';
-        $this->app->redirect('/' . $slug . '/vendors/' . $id, $notice);
+        $this->app->redirect($this->sellerPaths->record($slug, $id), $notice);
     }
 }

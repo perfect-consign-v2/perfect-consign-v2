@@ -4,11 +4,33 @@
 
 BEGIN;
 
-INSERT INTO vendors (id, code, first_name, last_name, email, active, email_bounced)
-VALUES
-    ('01900000-0000-7000-8000-00000000c101', 'lettera', 'Ada', 'Letter', 'ada@example.test', true, false),
-    ('01900000-0000-7000-8000-00000000c102', 'letterb', 'Bea', 'Letter', 'bea@example.test', true, true),
-    ('01900000-0000-7000-8000-00000000c103', 'letterc', 'Cara', 'Letter', 'cara@example.test', false, false);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000c101',
+    'lettera',
+    'Ada',
+    'Letter',
+    email => 'ada@example.test',
+    active => true,
+    email_bounced => false
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000c102',
+    'letterb',
+    'Bea',
+    'Letter',
+    email => 'bea@example.test',
+    active => true,
+    email_bounced => true
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000c103',
+    'letterc',
+    'Cara',
+    'Letter',
+    email => 'cara@example.test',
+    active => false,
+    email_bounced => false
+);
 
 INSERT INTO vendor_letters (id, subject, body)
 VALUES ('01900000-0000-7000-8000-00000000c201', 'Pickup', 'Your items are ready.');

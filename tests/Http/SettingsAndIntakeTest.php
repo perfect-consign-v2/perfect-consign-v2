@@ -140,7 +140,7 @@ final class SettingsAndIntakeTest extends WebTestCase
             'last_name' => $code,
             'store_take' => '0',
         ]);
-        $directory = $this->client->get('/' . $slug . '/parties');
+        $directory = $this->client->get('/' . $slug . '/vendors');
         $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
         $tag = 't' . bin2hex(random_bytes(3));
         $created = $this->client->post('/' . $slug . '/inventory', [

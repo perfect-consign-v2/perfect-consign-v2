@@ -25,6 +25,7 @@ final class OwnerSignInCest
             '/' . $slug . '/dashboard',
             '/' . $slug . '/pos',
             '/' . $slug . '/inventory',
+            '/' . $slug . '/vendors',
             '/' . $slug . '/parties',
             '/' . $slug . '/booths',
             '/' . $slug . '/journals',

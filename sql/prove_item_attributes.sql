@@ -15,8 +15,7 @@ DECLARE
     item_column text;
     flag_name text;
 BEGIN
-    INSERT INTO vendors (id, code, first_name, last_name)
-    VALUES (vendor_id, 'attr-proof', 'Ada', 'Proof');
+    PERFORM stall_seed_vendor(vendor_id, 'attr-proof', 'Ada', 'Proof');
 
     FOREACH catalog IN ARRAY ARRAY['colors', 'categories', 'sizes', 'conditions', 'departments']
     LOOP

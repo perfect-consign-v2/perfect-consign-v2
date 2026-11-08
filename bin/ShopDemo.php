@@ -141,7 +141,12 @@ final class ShopDemo
             new \PerfectConsign\Bootstrap\AuditLog($this->statements),
         );
         $stays = new \PerfectConsign\Feature\Party\AssignmentBook($this->statements);
-        $this->parties = new PartyStore($this->statements, $journalAudit, $stays);
+        $this->parties = new PartyStore(
+            $this->statements,
+            $journalAudit,
+            $stays,
+            new \PerfectConsign\Feature\Party\PartyIdentity($this->statements),
+        );
         $pricing = new TicketPricing($this->statements);
         $actor = new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false));
         $auditLog = new \PerfectConsign\Bootstrap\AuditLog($this->statements);
@@ -151,7 +156,8 @@ final class ShopDemo
             $auditLog,
             new \PerfectConsign\Shared\Http\Request('GET', '/', [], []),
         );
-        $this->customers = new CustomerStore($this->statements);
+        $identity = new \PerfectConsign\Feature\Party\PartyIdentity($this->statements);
+        $this->customers = new CustomerStore($this->statements, $identity);
         $this->shoppers = new TicketCustomer($this->statements, $this->customers);
         $this->offers = new OfferStore($this->statements);
         $this->tickets = new TicketStore(

@@ -24,7 +24,7 @@ final class IntakeController
     ) {
     }
 
-    #[Route('/([a-z][a-z0-9-]{0,62})/inventory/vendors\.json', ['GET'])]
+    #[Route('/([a-z][a-z0-9-]{0,62})/inventory/(?:vendors|consignors)\.json', ['GET'])]
     public function findVendors(string $slug): void
     {
         $this->app->open($slug, true);

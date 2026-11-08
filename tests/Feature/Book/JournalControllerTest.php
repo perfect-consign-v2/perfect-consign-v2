@@ -6,7 +6,10 @@ namespace PerfectConsign\Tests\Feature\Book;
 
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Book\JournalController;
+use PerfectConsign\Feature\Mall\MallDay;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Http\Request;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -63,13 +66,20 @@ final class JournalControllerTest extends TestCase
             'posting_date' => '2026-10-01',
         ]);
         self::assertSame('2026-10-01', $date);
+        $clock = $this->createStub(Statements::class);
+        $clock->method('rows')->willReturn([['time_zone' => 'UTC']]);
+        $day = new MallDay($clock);
+        $today = $day->today();
         $second = (new ReflectionClass(MallApp::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(MallApp::class, 'request'))->setValue($second, new Request('POST', '/journals', [], [
-            'posting_date' => '2026-10-02',
+            'posting_date' => $today,
         ]));
         $later = (new ReflectionClass(JournalController::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(JournalController::class, 'app'))->setValue($later, $second);
-        self::assertSame('2026-10-02', (new ReflectionMethod(JournalController::class, 'postingDate'))->invoke($later, [
+        $mall = (new ReflectionClass(MallSettings::class))->newInstanceWithoutConstructor();
+        (new ReflectionProperty(MallSettings::class, 'day'))->setValue($mall, $day);
+        (new ReflectionProperty(JournalController::class, 'mall'))->setValue($later, $mall);
+        self::assertSame($today, (new ReflectionMethod(JournalController::class, 'postingDate'))->invoke($later, [
             'posting_date' => '2026-10-01',
         ]));
     }

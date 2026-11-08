@@ -6,8 +6,7 @@ BEGIN;
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-00000000b901', 'B9', 'Policy booth');
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-00000000b902', 'b9', 'Rae', 'Policy');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000b902', 'b9', 'Rae', 'Policy');
 
 INSERT INTO booth_assignments (booth_id, vendor_id, starts_on)
 VALUES (

@@ -122,7 +122,7 @@ final class StaffJournalOpeningTest extends WebTestCase
             'last_name' => $code,
             'store_take' => '0',
         ]);
-        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $code);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', $code);
         $tag = 't' . bin2hex(random_bytes(3));
         $item = $this->client->post('/' . self::SLUG . '/inventory', [
             'code' => $tag,

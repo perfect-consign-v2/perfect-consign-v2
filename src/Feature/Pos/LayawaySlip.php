@@ -90,9 +90,8 @@ final class LayawaySlip
             throw new DatabaseRefusal('that ticket is not parked');
         }
         $rows = $this->statements->bound(
-            "SELECT COALESCE(vendor.name, '') AS customer
+            "SELECT COALESCE(stall_party_display_name(ticket.customer_party_id), '') AS customer
              FROM tickets AS ticket
-             LEFT JOIN vendors AS vendor ON vendor.id = ticket.buyer_id
              WHERE ticket.id = ?::uuid
                AND ticket.status IN ('open', 'layaway', 'posted')",
             [$ticketId]

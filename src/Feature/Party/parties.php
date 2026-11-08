@@ -13,6 +13,10 @@ use PerfectConsign\Shared\Web\ListTable;
 $consignmentOnly = ($consignmentOnly ?? false) === true;
 $partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
 $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
+$sellerPrefix = is_string($sellerPrefix ?? null) && $sellerPrefix !== ''
+    ? $sellerPrefix
+    : ($consignmentOnly ? 'consignors' : 'vendors');
+$sellerBase = '/' . $slug . '/' . $sellerPrefix;
 
 $shows = [
     '' => 'All',
@@ -27,7 +31,7 @@ $shows = [
         <h1 class="h1"><?= View::text($partyLabel) ?></h1>
         <p class="muted"><?= $consignmentOnly ? 'Who sells here.' : 'Who sells here, and which booth they hold.' ?></p>
     </div>
-    <a class="btn btn-primary" href="/<?= View::text($slug) ?>/vendors/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New <?= View::text($partyOne) ?></a>
+    <a class="btn btn-primary" href="<?= View::text($sellerBase) ?>/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New <?= View::text($partyOne) ?></a>
 </div>
 
 <?php if ($stats['vendors'] === 0): ?>
@@ -50,7 +54,7 @@ $shows = [
                 if ($query !== '') {
                     $params['q'] = $query;
                 }
-                $href = '/' . $slug . '/parties';
+                $href = $sellerBase;
                 if ($params !== []) {
                     $href .= '?' . http_build_query($params);
                 }
@@ -94,8 +98,8 @@ $shows = [
                 <tbody>
                 <?php foreach ($vendors as $vendor): ?>
                     <tr id="vendor-<?= View::text($vendor['id']) ?>">
-                        <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>"><?= View::text($vendor['code']) ?></a></td>
-                        <td><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>"><?= View::text($vendor['name']) ?></a></td>
+                        <td><a class="strong" href="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>"><?= View::text($vendor['code']) ?></a></td>
+                        <td><a class="strong" href="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>"><?= View::text($vendor['name']) ?></a></td>
                         <?php if (!$consignmentOnly): ?>
                         <td>
                             <?php if ($vendor['booths'] === []): ?>
@@ -109,7 +113,7 @@ $shows = [
                         <?php endif; ?>
                         <td><?= View::text($vendor['since']) ?></td>
                         <td><span class="badge <?= View::text($vendor['status_badge']) ?>"><?= View::text($vendor['status_label']) ?></span></td>
-                        <td><a class="btn btn-sm" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit">Edit</a></td>
+                        <td><a class="btn btn-sm" href="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/edit">Edit</a></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

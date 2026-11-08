@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pc1Mirror;
 
 use PerfectConsign\Feature\Party\VendorDraft;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 final class MasterLoader
 {
@@ -18,9 +20,15 @@ final class MasterLoader
     private array $usedStoredNumbers = [];
 
     public function __construct(
+        private readonly LoggerInterface $logger = new NullLogger(),
         private readonly ItemMasterLoader $items = new ItemMasterLoader(),
-        private readonly AssignmentMasterLoader $assignments = new AssignmentMasterLoader(),
+        private readonly ?AssignmentMasterLoader $assignments = null,
     ) {
+    }
+
+    private function assignmentLoader(): AssignmentMasterLoader
+    {
+        return $this->assignments ?? new AssignmentMasterLoader($this->logger);
     }
 
     /**
@@ -29,19 +37,23 @@ final class MasterLoader
      *     booths: array<string, string>,
      *     stored_values: array<string, string>,
      *     items: int,
-     *     assignments: int
+     *     assignments: int,
+     *     assignment_skips: int
      * }
      */
     public function load(MirrorMall $mall, MirrorArtifact $artifact): array
     {
         $vendorMap = $this->vendors($mall, $this->objectRows($artifact->readJson('master/vendors.json')));
         $boothMap = $this->booths($mall, $this->objectRows($artifact->readJson('master/booths.json')));
-        $assignmentCount = $this->assignments->load(
+        $assignmentResult = $this->assignmentLoader()->load(
             $mall,
             $this->objectRows($artifact->readJson('master/assignments.json')),
             $vendorMap,
             $boothMap
         );
+        if ($assignmentResult['skips'] !== []) {
+            $artifact->writeJson('assignment-skips.json', $assignmentResult['skips']);
+        }
         $storedMap = $this->storedValues($mall, $this->objectRows($artifact->readJson('master/stored_values.json')));
         $itemCount = $this->items->load($mall, $this->objectRows($artifact->readJson('master/items.json')), $vendorMap);
         $this->settings($mall, MirrorFields::stringKeyed($artifact->readJson('master/settings.json')));
@@ -51,7 +63,8 @@ final class MasterLoader
             'booths' => $boothMap,
             'stored_values' => $storedMap,
             'items' => $itemCount,
-            'assignments' => $assignmentCount,
+            'assignments' => $assignmentResult['loaded'],
+            'assignment_skips' => count($assignmentResult['skips']),
         ];
         $artifact->writeJson('id-map.json', $map);
 
@@ -183,8 +196,11 @@ final class MasterLoader
         }
         try {
             $mall->statements->change('UPDATE mall SET time_zone = ?', [$zone]);
-        } catch (\Throwable) {
-            // Keep seeded zone when PC1 name is not a Postgres time zone.
+        } catch (\Throwable $error) {
+            $this->logger->warning('pc1 mirror kept seed time zone; PC1 zone not usable', [
+                'pc1_time_zone' => $zone,
+                'reason' => $error->getMessage(),
+            ]);
         }
     }
 

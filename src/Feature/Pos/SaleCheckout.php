@@ -25,27 +25,31 @@ final class SaleCheckout
     /**
      * @return array{path: string, notice: string, journal_id: string, journal_no: int}
      */
-    public function pay(string $slug, string $session, Request $request): array
+    private function collect(string $slug, string $session, Request $request): array
+    {
+        $cart = $this->basket->cart($session);
+        $replayed = $this->replayed($slug, $cart, $request);
+        if ($replayed !== null) {
+            return $replayed;
+        }
+
+        return $this->take($slug, $session, $request, $cart);
+    }
+
+    /**
+     * @param array{
+     *     ticket_id: string,
+     *     posting_key: string,
+     *     lines: list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int}>,
+     *     due: int,
+     *     buyer_id: string,
+     *     buyer_name: string
+     * } $cart
+     * @return array{path: string, notice: string, journal_id: string, journal_no: int}
+     */
+    private function take(string $slug, string $session, Request $request, array $cart): array
     {
         $this->sales->refuse($slug);
-        if ($this->basket->hasDrafts($session)) {
-            throw new DatabaseRefusal('Complete Instant Add lines before pay.');
-        }
-        $cart = $this->basket->cart($session);
-        $ticketKey = is_string($cart['posting_key'] ?? null) ? $cart['posting_key'] : '';
-        $offered = $request->field('posting_key');
-        if ($offered !== '' && $offered !== $ticketKey) {
-            throw new DatabaseRefusal('the ticket key does not match');
-        }
-        $replay = $this->poster->replay($ticketKey);
-        if ($replay !== null) {
-            return [
-                'path' => '/' . $slug . '/pos',
-                'notice' => 'Sale posted.',
-                'journal_id' => $replay,
-                'journal_no' => $this->poster->number($replay),
-            ];
-        }
         $deposits = $this->basket->deposits($cart['ticket_id']);
         $holding = $request->field('hold') === '1';
         $entered = $this->entered($request, $holding, $cart['ticket_id'], $cart['due'], $deposits);
@@ -54,6 +58,34 @@ final class SaleCheckout
         }
 
         return $this->settle($slug, $session, $request, $cart, $deposits, $entered);
+    }
+
+    /**
+     * @param array{ticket_id: string, posting_key: string, due: int} $cart
+     * @return array{path: string, notice: string, journal_id: string, journal_no: int}|null
+     */
+    private function replayed(string $slug, array $cart, Request $request): ?array
+    {
+        $ticketKey = is_string($cart['posting_key'] ?? null) ? $cart['posting_key'] : '';
+        $offered = $request->field('posting_key');
+        if ($offered !== '' && $ticketKey !== '' && $offered !== $ticketKey) {
+            throw new DatabaseRefusal('the ticket key does not match');
+        }
+        $replayKey = $ticketKey !== '' ? $ticketKey : $offered;
+        if ($replayKey === '') {
+            return null;
+        }
+        $replay = $this->poster->replay($replayKey);
+        if ($replay === null) {
+            return null;
+        }
+
+        return [
+            'path' => '/' . $slug . '/pos',
+            'notice' => 'Sale posted.',
+            'journal_id' => $replay,
+            'journal_no' => $this->poster->number($replay),
+        ];
     }
 
     /**
@@ -204,5 +236,17 @@ final class SaleCheckout
     private function dollars(int $minor): string
     {
         return intdiv($minor, 100) . '.' . str_pad((string) ($minor % 100), 2, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * @return array{path: string, notice: string, journal_id: string, journal_no: int}
+     */
+    public function pay(string $slug, string $session, Request $request): array
+    {
+        if ($this->basket->hasDrafts($session)) {
+            throw new DatabaseRefusal('Complete Instant Add lines before pay.');
+        }
+
+        return $this->collect($slug, $session, $request);
     }
 }

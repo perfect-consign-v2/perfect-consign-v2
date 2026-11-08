@@ -24,9 +24,12 @@ $instantBrandLabel = is_string($instantBrandLabel ?? null) ? $instantBrandLabel 
 $instantAttributes = is_array($instantAttributes ?? null) ? $instantAttributes : [];
 $instantPriceError = in_array($instantError, ['Enter a price.', 'enter an amount in dollars and cents', 'the amount is too large', 'the amount must be greater than zero'], true);
 $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false) === true;
+$sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
+    ? $sellersJsonUrl
+    : '/' . $slug . '/inventory/' . (!empty($consignmentOnly) ? 'consignors' : 'vendors') . '.json';
 ?>
 <div id="instant-add" class="modal" role="dialog" aria-modal="true" aria-labelledby="instant-add-title"<?= $openInstant ? '' : ' hidden' ?>>
-    <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" data-brands="/<?= View::text($slug) ?>/inventory/brands.json" data-brand-create="/<?= View::text($slug) ?>/inventory/brands">
+    <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="<?= View::text($sellersJsonUrl) ?>" data-brands="/<?= View::text($slug) ?>/inventory/brands.json" data-brand-create="/<?= View::text($slug) ?>/inventory/brands">
         <div class="card-head">
             <div class="h3" id="instant-add-title">Instant inventory</div>
             <button class="btn" type="button" data-close-modal="instant-add">Close</button>

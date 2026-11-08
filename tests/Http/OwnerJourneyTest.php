@@ -33,6 +33,18 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('Qty 0', $signedIn);
     }
 
+    public function testPartiesIsTheIdentityListNotTheSellerRoster(): void
+    {
+        $page = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+
+        self::assertSame(200, $page->status);
+        self::assertSees('<h1 class="h1">Parties</h1>', $page);
+        self::assertSees('People and organizations', $page);
+        self::assertStringNotContainsString('Who sells here', $page->body);
+        self::assertStringNotContainsString('<h1 class="h1">Vendors</h1>', $page->body);
+        self::assertStringNotContainsString('id="vendor-', $page->body);
+    }
+
     public function testTheDashboardShowsOnHandAskingPrice(): void
     {
         $page = $this->client->get('/' . ProbeMall::SLUG . '/dashboard');
@@ -50,7 +62,7 @@ final class OwnerJourneyTest extends WebTestCase
         $this->openRegister();
         $this->roundCash(true);
         $vendor = $this->vendor();
-        $directory = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $directory = $this->client->get('/' . ProbeMall::SLUG . '/vendors');
         $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $vendor);
         $tag = 't' . bin2hex(random_bytes(4));
         $description = 'Coat ' . $tag;
@@ -122,7 +134,7 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $vendor = $this->vendor();
         $booth = $this->booth();
-        $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $parties = $this->client->get('/' . ProbeMall::SLUG . '/vendors');
         $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
         $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
@@ -156,7 +168,7 @@ final class OwnerJourneyTest extends WebTestCase
     public function testAPayoutWithNothingOpenIsRefused(): void
     {
         $code = $this->vendor();
-        $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $parties = $this->client->get('/' . ProbeMall::SLUG . '/vendors');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $code);
         $form = $this->client->get('/' . ProbeMall::SLUG . '/payout?vendor=' . $vendorId);
         self::assertSees('Their share of sales $0.00', $form);
@@ -199,7 +211,7 @@ final class OwnerJourneyTest extends WebTestCase
     public function testTheOwnerAddsEditsAndDeletesAnItem(): void
     {
         $vendor = $this->vendor();
-        $directory = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $directory = $this->client->get('/' . ProbeMall::SLUG . '/vendors');
         $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $vendor);
         $brand = 'Brand ' . bin2hex(random_bytes(4));
         $other = $brand . ' other';
@@ -483,7 +495,7 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('555-0100', $created);
         self::assertSees('ada@example.com', $created);
         self::assertSees('Active', $created);
-        $directory = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $directory = $this->client->get('/' . ProbeMall::SLUG . '/vendors');
         self::assertSees($name, $directory);
         $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $code);
         $booth = $this->booth();
@@ -571,7 +583,7 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $vendor = $this->vendor();
         $booth = $this->booth();
-        $parties = $this->client->get('/' . ProbeMall::SLUG . '/parties');
+        $parties = $this->client->get('/' . ProbeMall::SLUG . '/vendors');
         $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
         $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);

@@ -14,8 +14,7 @@ VALUES (
     0
 );
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
 UPDATE mall SET tax_bps = 8000;
 

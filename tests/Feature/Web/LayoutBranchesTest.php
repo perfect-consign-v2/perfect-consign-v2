@@ -88,6 +88,8 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringNotContainsString('href="/demo/mall-sale"', $html);
         self::assertStringNotContainsString('href="/demo/booth-extras"', $html);
         self::assertStringContainsString('href="/demo/parties"', $html);
+        self::assertStringContainsString('href="/demo/consignors"', $html);
+        self::assertStringNotContainsString('href="/demo/vendors"', $html);
         self::assertStringContainsString('href="/demo/payouts"', $html);
     }
 

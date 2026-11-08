@@ -37,7 +37,7 @@ final class TicketCustomerTest extends TestCase
     public function testMalformedCustomerRowsReturnEmptyShopper(): void
     {
         $statements = $this->createStub(Statements::class);
-        $statements->method('bound')->willReturn([['customer_id' => 12, 'name' => 'Ada']]);
+        $statements->method('bound')->willReturn([['customer_party_id' => 12, 'name' => 'Ada']]);
         $customers = $this->customer($statements);
 
         self::assertSame(['id' => '', 'name' => ''], $customers->current(self::TICKET));
@@ -47,7 +47,7 @@ final class TicketCustomerTest extends TestCase
     {
         $statements = $this->createStub(Statements::class);
         $statements->method('bound')->willReturn([[
-            'customer_id' => '01900000-0000-7000-8000-0000000000c1',
+            'customer_party_id' => '01900000-0000-7000-8000-0000000000c1',
             'name' => 'Ada Lovelace',
         ]]);
         $customers = $this->customer($statements);

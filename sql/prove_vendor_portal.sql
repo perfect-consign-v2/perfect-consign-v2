@@ -3,10 +3,22 @@
 
 BEGIN;
 
-INSERT INTO vendors (id, code, first_name, last_name, email, agreement_starts_on)
-VALUES
-    ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane', 'ada@example.test', DATE '2026-01-01'),
-    ('01900000-0000-7000-8000-000000000102', 'bea', 'Bea', 'Lane', 'bea@example.test', DATE '2026-01-01');
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-000000000101',
+    'ada',
+    'Ada',
+    'Lane',
+    email => 'ada@example.test',
+    agreement_starts_on => DATE '2026-01-01'
+);
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-000000000102',
+    'bea',
+    'Bea',
+    'Lane',
+    email => 'bea@example.test',
+    agreement_starts_on => DATE '2026-01-01'
+);
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, expires_on)
 VALUES (

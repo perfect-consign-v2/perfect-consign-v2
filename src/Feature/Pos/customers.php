@@ -12,7 +12,7 @@ use PerfectConsign\Shared\Web\ListTable;
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Customers</h1>
-        <p class="muted">People already stored on a sale. A search matches the phone exactly.</p>
+        <p class="muted">Parties with the customer role. A search matches the phone exactly.</p>
     </div>
     <a class="btn btn-primary" href="/<?= View::text($slug) ?>/pos">Sell</a>
 </div>
@@ -43,7 +43,7 @@ use PerfectConsign\Shared\Web\ListTable;
             <tbody>
             <?php foreach ($customers as $customer): ?>
                 <tr>
-                    <td><?= View::text($customer['name']) ?></td>
+                    <td><a href="/<?= View::text($slug) ?>/customers/<?= View::text($customer['id']) ?>"><?= View::text($customer['name']) ?></a></td>
                     <td><?= View::text($customer['phone']) ?></td>
                     <td><?= View::text($customer['email']) ?></td>
                 </tr>

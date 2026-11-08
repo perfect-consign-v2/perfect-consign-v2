@@ -19,7 +19,12 @@ $phone = is_array($vendor) ? ($vendor['phone'] ?? '') : '';
 $email = is_array($vendor) ? ($vendor['email'] ?? '') : '';
 $address = is_array($vendor) ? ($vendor['address'] ?? '') : '';
 $editing = is_string($id) && $id !== '';
-$action = $editing ? '/' . $slug . '/vendors/' . $id : '/' . $slug . '/vendors';
+$consignmentOnly = ($consignmentOnly ?? false) === true;
+$sellerPrefix = is_string($sellerPrefix ?? null) && $sellerPrefix !== ''
+    ? $sellerPrefix
+    : ($consignmentOnly ? 'consignors' : 'vendors');
+$sellerBase = '/' . $slug . '/' . $sellerPrefix;
+$action = $editing ? $sellerBase . '/' . $id : $sellerBase;
 $crumb = $editing && is_string($code) && $code !== '' ? $code : 'New';
 $codeText = is_string($code) ? $code : '';
 $firstText = is_string($firstName) ? $firstName : '';
@@ -28,7 +33,6 @@ $phoneText = is_string($phone) ? $phone : '';
 $emailText = is_string($email) ? $email : '';
 $addressText = is_string($address) ? $address : '';
 $display = $firstText !== '' && $firstText === $lastText ? $firstText : trim($firstText . ' ' . $lastText);
-$consignmentOnly = ($consignmentOnly ?? false) === true;
 $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
 $partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
 $heading = $editing && $display !== '' ? $display : ($editing ? 'Edit ' . $partyOne : 'New ' . $partyOne);
@@ -50,9 +54,9 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
 <div class="page-head">
     <div class="titles">
         <nav class="breadcrumb">
-            <a href="/<?= View::text($slug) ?>/parties"><?= View::text($partyLabel) ?></a><span class="sep">/</span>
+            <a href="<?= View::text($sellerBase) ?>"><?= View::text($partyLabel) ?></a><span class="sep">/</span>
             <?php if ($editing): ?>
-                <a href="/<?= View::text($slug) ?>/vendors/<?= View::text($id) ?>"><?= View::text($crumb) ?></a><span class="sep">/</span>
+                <a href="<?= View::text($sellerBase) ?>/<?= View::text($id) ?>"><?= View::text($crumb) ?></a><span class="sep">/</span>
             <?php endif; ?>
             <span><?= $editing ? 'Edit' : 'New' ?></span>
         </nav>
@@ -223,12 +227,12 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
                 ? 'A consignor who is still owed cannot be made inactive. Delete is refused once this consignor has a posted line.'
                 : 'A vendor who is still owed, or who still owes rent, cannot be made inactive. Delete is refused once this vendor has a booth assignment or a posted line.' ?></p>
             <div class="row gap-3 wrap">
-                <form method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($id) ?>/standing">
+                <form method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($id) ?>/standing">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <input type="hidden" name="standing" value="<?= $active ? 'inactive' : 'active' ?>">
                     <button class="btn btn-sm" type="submit"><?= $active ? 'Make inactive' : 'Make active' ?></button>
                 </form>
-                <form method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($id) ?>/delete">
+                <form method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($id) ?>/delete">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <button class="btn btn-danger btn-sm" type="submit"><svg aria-hidden="true"><use href="#i-trash"></use></svg> Delete</button>
                 </form>

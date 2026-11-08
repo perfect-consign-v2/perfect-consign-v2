@@ -1,5 +1,6 @@
 -- Proof for the wait list. One transaction, then ROLLBACK.
 -- Run with search_path set to the mall schema. The poster role is stall_poster.
+-- A person holds the name, email, and phone. The wait list row is the role extension.
 
 BEGIN;
 
@@ -12,6 +13,7 @@ BEGIN
     FROM information_schema.columns
     WHERE table_schema = current_schema()
       AND table_name = 'wait_list'
+      AND column_name NOT IN ('width_ft', 'depth_ft')
       AND (
           data_type IN ('numeric', 'money')
           OR column_name ~* '(amount|balance|minor|rate|price|total)'
@@ -35,7 +37,7 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone) VALUES ('', 'Lane', 'ada@example.com', '555-0100');
+    PERFORM stall_seed_wait_person('', 'Lane', 'ada@example.com', '555-0100');
     RAISE EXCEPTION 'blank first name was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -44,7 +46,7 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone) VALUES ('Ada', '', 'ada@example.com', '555-0100');
+    PERFORM stall_seed_wait_person('Ada', '', 'ada@example.com', '555-0100');
     RAISE EXCEPTION 'blank last name was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -53,7 +55,7 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone) VALUES ('  Ada', 'Lane', 'ada@example.com', '555-0100');
+    PERFORM stall_seed_wait_person('  Ada', 'Lane', 'ada@example.com', '555-0100');
     RAISE EXCEPTION 'padded first name was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -62,7 +64,7 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone) VALUES ('Ada', 'Lane  ', 'ada@example.com', '555-0100');
+    PERFORM stall_seed_wait_person('Ada', 'Lane  ', 'ada@example.com', '555-0100');
     RAISE EXCEPTION 'padded last name was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -71,7 +73,7 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone) VALUES ('Ada', 'Lane', 'not-an-email', '555-0100');
+    PERFORM stall_seed_wait_person('Ada', 'Lane', 'not-an-email', '555-0100');
     RAISE EXCEPTION 'bad email was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -80,7 +82,7 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone) VALUES ('Ada', 'Lane', 'ada@example.com', '');
+    PERFORM stall_seed_wait_person('Ada', 'Lane', 'ada@example.com', '');
     RAISE EXCEPTION 'empty phone was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -89,7 +91,7 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone) VALUES ('Ada', 'Lane', 'ada@example.com', '  555');
+    PERFORM stall_seed_wait_person('Ada', 'Lane', 'ada@example.com', '  555');
     RAISE EXCEPTION 'padded phone was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -98,8 +100,13 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone, notes)
-    VALUES ('Ada', 'Lane', 'ada@example.com', '555-0100', '  ');
+    PERFORM stall_seed_wait_person(
+        'Ada',
+        'Lane',
+        'ada@example.com',
+        '555-0100',
+        notes => '  '
+    );
     RAISE EXCEPTION 'blank notes were accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -108,8 +115,13 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone, width_ft)
-    VALUES ('Ada', 'Lane', 'ada@example.com', '555-0100', 10);
+    PERFORM stall_seed_wait_person(
+        'Ada',
+        'Lane',
+        'ada@example.com',
+        '555-0100',
+        width_ft => 10
+    );
     RAISE EXCEPTION 'one-sided size was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -118,8 +130,14 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone, width_ft, depth_ft)
-    VALUES ('Ada', 'Lane', 'ada@example.com', '555-0100', 0, 10);
+    PERFORM stall_seed_wait_person(
+        'Ada',
+        'Lane',
+        'ada@example.com',
+        '555-0100',
+        width_ft => 0,
+        depth_ft => 10
+    );
     RAISE EXCEPTION 'zero size was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
@@ -128,21 +146,25 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone, status)
-    VALUES ('Ada', 'Lane', 'ada@example.com', '555-0100', 'queued');
+    PERFORM stall_seed_wait_person(
+        'Ada',
+        'Lane',
+        'ada@example.com',
+        '555-0100',
+        status => 'queued'
+    );
     RAISE EXCEPTION 'unknown status was accepted';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         NULL;
 END $$;
 
-INSERT INTO wait_list (id, first_name, last_name, email, phone, width_ft, depth_ft)
-VALUES (
-    '01900000-0000-7000-8000-000000000e01',
+SELECT stall_seed_wait_person(
     'Ada',
     'Lane',
     'Ada@Example.com',
     '555-0100',
+    '01900000-0000-7000-8000-000000000e01'::uuid,
     10,
     8
 );
@@ -153,7 +175,7 @@ DECLARE
 BEGIN
     SELECT status INTO row_status
     FROM wait_list
-    WHERE id = '01900000-0000-7000-8000-000000000e01';
+    WHERE party_id = '01900000-0000-7000-8000-000000000e01';
     IF row_status <> 'waiting' THEN
         RAISE EXCEPTION 'a new row did not start waiting';
     END IF;
@@ -161,28 +183,29 @@ END $$;
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone)
-    VALUES ('Bea', 'Lane', 'ada@example.com', '555-0101');
+    PERFORM stall_seed_wait_person('Bea', 'Lane', 'ada@example.com', '555-0101');
     RAISE EXCEPTION 'a second open email was accepted';
 EXCEPTION
     WHEN SQLSTATE '23505' THEN
         NULL;
 END $$;
 
-INSERT INTO wait_list (id, first_name, last_name, email, phone)
-VALUES (
-    '01900000-0000-7000-8000-000000000e02',
+SELECT stall_seed_wait_person(
     'Bea',
     'Cole',
     'bea@example.com',
-    '555-0101'
+    '555-0101',
+    '01900000-0000-7000-8000-000000000e02'::uuid
 );
 
 DO $$
 BEGIN
-    UPDATE wait_list
+    UPDATE persons
     SET email = 'ada@example.com'
-    WHERE id = '01900000-0000-7000-8000-000000000e02';
+    WHERE party_id = '01900000-0000-7000-8000-000000000e02';
+    UPDATE wait_list
+    SET status = status
+    WHERE party_id = '01900000-0000-7000-8000-000000000e02';
     RAISE EXCEPTION 'an open email collision was accepted';
 EXCEPTION
     WHEN SQLSTATE '23505' THEN
@@ -191,12 +214,11 @@ END $$;
 
 UPDATE wait_list
 SET status = 'contacted'
-WHERE id = '01900000-0000-7000-8000-000000000e01';
+WHERE party_id = '01900000-0000-7000-8000-000000000e01';
 
 DO $$
 BEGIN
-    INSERT INTO wait_list (first_name, last_name, email, phone)
-    VALUES ('Cia', 'Lane', 'ada@example.com', '555-0102');
+    PERFORM stall_seed_wait_person('Cia', 'Lane', 'ada@example.com', '555-0102');
     RAISE EXCEPTION 'a contacted email was accepted again';
 EXCEPTION
     WHEN SQLSTATE '23505' THEN
@@ -205,28 +227,26 @@ END $$;
 
 UPDATE wait_list
 SET status = 'placed'
-WHERE id = '01900000-0000-7000-8000-000000000e01';
+WHERE party_id = '01900000-0000-7000-8000-000000000e01';
 
-INSERT INTO wait_list (id, first_name, last_name, email, phone)
-VALUES (
-    '01900000-0000-7000-8000-000000000e03',
+SELECT stall_seed_wait_person(
     'Cia',
     'Lane',
     'ada@example.com',
-    '555-0102'
+    '555-0102',
+    '01900000-0000-7000-8000-000000000e03'::uuid
 );
 
 UPDATE wait_list
 SET status = 'declined'
-WHERE id = '01900000-0000-7000-8000-000000000e03';
+WHERE party_id = '01900000-0000-7000-8000-000000000e03';
 
-INSERT INTO wait_list (id, first_name, last_name, email, phone)
-VALUES (
-    '01900000-0000-7000-8000-000000000e04',
+SELECT stall_seed_wait_person(
     'Dia',
     'Lane',
     'ada@example.com',
-    '555-0103'
+    '555-0103',
+    '01900000-0000-7000-8000-000000000e04'::uuid
 );
 
 DO $$
@@ -288,9 +308,9 @@ END $$;
 DO $$
 BEGIN
     SET LOCAL ROLE stall_poster;
-    DELETE FROM wait_list WHERE id = '01900000-0000-7000-8000-000000000e04';
+    DELETE FROM wait_list WHERE party_id = '01900000-0000-7000-8000-000000000e04';
     IF EXISTS (
-        SELECT 1 FROM wait_list WHERE id = '01900000-0000-7000-8000-000000000e04'
+        SELECT 1 FROM wait_list WHERE party_id = '01900000-0000-7000-8000-000000000e04'
     ) THEN
         RAISE EXCEPTION 'poster did not delete the wait list row';
     END IF;

@@ -57,10 +57,15 @@ final class VoidSecondSignatureTest extends TestCase
                  VALUES (?::uuid, ?::uuid, ?, ?::jsonb, 0)',
                 [$sessionId, $registerId, 'Cash', '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}']
             );
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name, tax_exempt, tax_exempt_number)
-                 VALUES (?::uuid, ?, ?, ?, true, ?)',
-                [$vendorId, $code, 'Void', 'Proof', 'TX-' . $code]
+            \PerfectConsign\Tests\Support\SeedVendor::withId(
+                $statements,
+                $vendorId,
+                $code,
+                'Void',
+                'Proof',
+                null,
+                true,
+                'TX-' . $code
             );
             $statements->change(
                 'INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity, commission_bps)

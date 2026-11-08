@@ -18,6 +18,10 @@ final class MirrorProver
         $vendors = $this->stringMap($idMap['vendors'] ?? null);
         $booths = $this->stringMap($idMap['booths'] ?? null);
         $failures = [];
+        $assignmentSkips = MirrorFields::cents($idMap['assignment_skips'] ?? 0);
+        if ($assignmentSkips > 0) {
+            $failures[] = 'assignment skips must be 0; got ' . $assignmentSkips;
+        }
         $this->checkMapped($mall, $vendors, $this->rows($balances['vendor_payable'] ?? null), AccountMap::VENDOR_PAYABLE, 'vendor', true, 'pc1_id', 'vendor payable', $failures);
         $this->checkMapped($mall, $vendors, $this->rows($balances['vendor_receivable'] ?? null), AccountMap::VENDOR_RECEIVABLE, 'vendor', false, 'pc1_id', 'vendor receivable', $failures);
         $this->checkMapped(

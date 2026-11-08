@@ -41,14 +41,13 @@ final class TicketQueue
     {
         $rows = $this->statements->bound(
             "SELECT COALESCE(
-                    NULLIF(trim(COALESCE(customer.name, '')), ''),
+                    NULLIF(trim(COALESCE(stall_party_display_name(ticket.customer_party_id), '')), ''),
                     NULLIF(trim(COALESCE(buyer.name, '')), ''),
                     NULLIF(trim(COALESCE(item.description, '')), ''),
                     NULLIF(trim(COALESCE(item.code, '')), ''),
                     'Held sale'
                 ) AS label
              FROM tickets AS ticket
-             LEFT JOIN customers AS customer ON customer.id = ticket.customer_id
              LEFT JOIN vendors AS buyer ON buyer.id = ticket.buyer_id
              LEFT JOIN LATERAL (
                  SELECT line.item_id
@@ -79,18 +78,16 @@ final class TicketQueue
         $rows = $this->statements->rows(
             "SELECT ticket.id,
                     COALESCE(
-                        NULLIF(trim(COALESCE(customer.name, '')), ''),
+                        NULLIF(trim(COALESCE(stall_party_display_name(ticket.customer_party_id), '')), ''),
                         NULLIF(trim(COALESCE(buyer.name, '')), ''),
                         ''
                     ) AS customer,
                     COALESCE(
-                        NULLIF(trim(COALESCE(customer.phone, '')), ''),
-                        NULLIF(trim(COALESCE(buyer.phone, '')), ''),
+                        NULLIF(trim(COALESCE(person.phone, '')), ''),
                         ''
                     ) AS phone,
                     COALESCE(
-                        NULLIF(trim(COALESCE(customer.email, '')), ''),
-                        NULLIF(trim(COALESCE(buyer.email, '')), ''),
+                        NULLIF(trim(COALESCE(person.email, '')), ''),
                         ''
                     ) AS email,
                     count(line.line_no) AS items,
@@ -109,11 +106,11 @@ final class TicketQueue
                           AND journal.source_reference = ticket.id::text
                     ) AS last_deposit
              FROM tickets AS ticket
-             LEFT JOIN customers AS customer ON customer.id = ticket.customer_id
+             LEFT JOIN persons AS person ON person.party_id = ticket.customer_party_id
              LEFT JOIN vendors AS buyer ON buyer.id = ticket.buyer_id
              LEFT JOIN ticket_lines AS line ON line.ticket_id = ticket.id
              WHERE ticket.status = 'layaway'
-             GROUP BY ticket.id, customer.name, buyer.name, customer.phone, customer.email, buyer.phone, buyer.email
+             GROUP BY ticket.id, ticket.customer_party_id, person.phone, person.email, buyer.name
              ORDER BY ticket.id"
         );
         $held = [];

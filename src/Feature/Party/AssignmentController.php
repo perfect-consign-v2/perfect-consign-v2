@@ -21,6 +21,7 @@ final class AssignmentController
         private readonly VendorMove $moves,
         private readonly MallSettings $mall,
         private readonly VendorRoster $roster,
+        private readonly SellerPaths $sellerPaths,
     ) {
     }
 
@@ -68,7 +69,7 @@ final class AssignmentController
         });
     }
 
-    #[Route('/([a-z][a-z0-9-]{0,62})/vendors/([0-9a-fA-F-]{36})/move', ['POST'])]
+    #[Route('/([a-z][a-z0-9-]{0,62})/(?:vendors|consignors)/([0-9a-fA-F-]{36})/move', ['POST'])]
     public function moveVendor(string $slug, string $id): void
     {
         $this->app->checkCsrf();
@@ -117,6 +118,7 @@ final class AssignmentController
             'status' => $status,
             'query' => $query,
             'error' => $error,
+            'sellerPrefix' => $this->sellerPaths->prefix(),
         ]);
     }
 
@@ -138,9 +140,9 @@ final class AssignmentController
     private function vendorPath(string $slug, string $vendorId): string
     {
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
-            return '/' . $slug . '/parties';
+            return $this->sellerPaths->list($slug);
         }
 
-        return '/' . $slug . '/vendors/' . $vendorId;
+        return $this->sellerPaths->record($slug, $vendorId);
     }
 }

@@ -40,10 +40,7 @@ final class LineDiscountShareTest extends TestCase
                 [$sessionId, $registerId, 'Ada', '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}']
             );
             $open = true;
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$vendorId, $code, 'Share', 'Proof']
-            );
+            \PerfectConsign\Tests\Support\SeedVendor::withId($statements, $vendorId, $code, 'Share', 'Proof');
             $this->item($statements, $firstId, $vendorId, $code . 'a', 300, 'BC-' . $code . 'a');
             $this->item($statements, $secondId, $vendorId, $code . 'b', 700, 'BC-' . $code . 'b');
             $statements->change(

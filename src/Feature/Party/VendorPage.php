@@ -10,6 +10,8 @@ use PerfectConsign\Feature\Staff\StaffStore;
 
 final class VendorPage
 {
+    private readonly SellerPaths $sellerPaths;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly PartyStore $parties,
@@ -21,6 +23,7 @@ final class VendorPage
         private readonly VendorForm $forms,
         private readonly StaffStore $staff,
     ) {
+        $this->sellerPaths = new SellerPaths($mall);
     }
 
     public function show(string $slug, string $id, ?string $error): void
@@ -49,6 +52,8 @@ final class VendorPage
             'rentHistories' => $histories,
             'today' => $this->mall->today(),
             'error' => $error,
+            'sellerPrefix' => $this->sellerPaths->prefix(),
+            'sellerBase' => $this->sellerPaths->list($slug),
         ]);
     }
 

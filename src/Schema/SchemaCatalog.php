@@ -33,6 +33,7 @@ final class SchemaCatalog
         '073_vendor_entry_role.sql',
         '075_password_reset_client.sql',
         '076_password_reset_delete.sql',
+        '086_owner_duplicate_username.sql',
     ];
 
     public function __construct(private readonly string $directory)

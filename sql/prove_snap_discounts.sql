@@ -2,14 +2,13 @@
 
 BEGIN;
 
-INSERT INTO vendors (id, code, first_name, last_name, tax_exempt, tax_exempt_number)
-VALUES (
+SELECT stall_seed_vendor(
     '01900000-0000-7000-8000-00000000a501',
     'snapd',
     'Snap',
     'Discount',
-    true,
-    'TX-SNAPD'
+    tax_exempt => true,
+    tax_exempt_number => 'TX-SNAPD'
 );
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity, commission_bps)

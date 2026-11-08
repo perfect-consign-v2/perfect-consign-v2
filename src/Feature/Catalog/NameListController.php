@@ -202,15 +202,7 @@ final class NameListController
 
     private function listError(NameList $list, string $message): string
     {
-        if (str_contains($message, $list->table . '_name_key')) {
-            return 'That name is already used.';
-        }
-        if (str_contains($message, $list->table . '_name_chk')) {
-            return 'Enter a ' . $list->singular . ' name.';
-        }
-        if (str_contains($message, 'foreign key constraint') || str_contains($message, 'is still referenced')) {
-            return 'That ' . $list->singular . ' is in use.';
-        }
+        unset($list);
 
         return $message;
     }

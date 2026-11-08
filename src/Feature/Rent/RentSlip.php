@@ -78,7 +78,7 @@ final class RentSlip
         $booths = [];
         foreach ($this->statements->bound(
             "SELECT booth.code AS booth,
-                    COALESCE(btrim(vendor.first_name || ' ' || vendor.last_name), '') AS vendor_name
+                    COALESCE(vendor.name, '') AS vendor_name
              FROM journal_lines AS line
              JOIN journals AS posted ON posted.id = line.journal_id
              JOIN booths AS booth ON booth.id = line.subledger_ref::uuid

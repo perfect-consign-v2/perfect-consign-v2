@@ -15,7 +15,7 @@ use PerfectConsign\Tests\Support\SurfaceFormDenyList;
  */
 final class FullSurfaceCrawler
 {
-    /** Safety rail so row-link explosion (parties/inventory) cannot hang the suite. */
+    /** Safety rail so row-link explosion (parties, vendors, consignors, inventory) cannot hang the suite. */
     private const MAX_PAGES = 120;
 
     private const REQUEST_TIMEOUT_SECONDS = 30;
@@ -39,7 +39,7 @@ final class FullSurfaceCrawler
         $failures = [];
         while ($queue !== []) {
             if (count($seen) >= self::MAX_PAGES) {
-                // Intentional bound — row links on parties/inventory are not the surface bar.
+                // Intentional bound — row links on parties, sellers, and inventory are not the surface bar.
                 break;
             }
             $path = array_shift($queue);
@@ -66,7 +66,7 @@ final class FullSurfaceCrawler
             foreach (HtmlPage::deadMallAnchors($page->body) as $dead) {
                 $failures[] = $path . ' has dead anchor ' . $dead;
             }
-            // Nav / segment / button links — not every parties or inventory row.
+            // Nav / segment / button links — not every party, seller, or inventory row.
             foreach (HtmlPage::mallSurfaceHrefs($page->body, $this->slug) as $href) {
                 $href = $this->normalize($href);
                 if ($href === null || isset($seen[$href])) {
@@ -195,7 +195,7 @@ final class FullSurfaceCrawler
         // Row Edit/Open buttons — entity GETs come from seededStarts, not every list row.
         if (preg_match(
             '#^/' . preg_quote($this->slug, '#')
-            . '/(?:inventory|vendors|booths|journals|registers|staff|parties)/[0-9a-fA-F-]{36}#',
+            . '/(?:inventory|vendors|consignors|booths|journals|registers|staff|parties)/[0-9a-fA-F-]{36}#',
             $pathOnly
         ) === 1) {
             return null;

@@ -11,8 +11,7 @@ VALUES (
     'open'
 );
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-00000000ea02', 'ea02', 'Rate', 'History');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000ea02', 'ea02', 'Rate', 'History');
 
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-00000000ea03', 'ea03', 'Rate booth');

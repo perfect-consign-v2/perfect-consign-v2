@@ -139,8 +139,7 @@ BEGIN
     END;
     RESET ROLE;
 END $$;
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-00000000e101', 'poster', 'Poster', 'Vendor');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000e101', 'poster', 'Poster', 'Vendor');
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps)
 VALUES (
     '01900000-0000-7000-8000-00000000e102',

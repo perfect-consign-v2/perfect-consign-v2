@@ -11,10 +11,8 @@ VALUES (
     'open'
 );
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES
-    ('01900000-0000-7000-8000-00000000e822', 'e822', 'Wrong', 'Booth'),
-    ('01900000-0000-7000-8000-00000000e823', 'e823', 'Right', 'Booth');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000e822', 'e822', 'Wrong', 'Booth');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000e823', 'e823', 'Right', 'Booth');
 
 DO $$
 BEGIN

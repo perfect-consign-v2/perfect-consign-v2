@@ -32,6 +32,7 @@ $showBrand = ($showBrand ?? true) === true;
 $boothRentals = ($boothRentals ?? true) === true;
 $consignmentOnly = ($consignmentOnly ?? false) === true;
 $partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
+$sellerNav = $consignmentOnly ? '/consignors' : '/vendors';
 $payLabel = $consignmentOnly ? 'Pay consignors' : 'Pay vendors';
 $viewPayoutsLabel = 'View payouts';
 $memoLabel = $consignmentOnly ? 'Consignor memo' : 'Vendor memo';
@@ -51,7 +52,8 @@ if ($actorRole === 'owner') {
             ['/customers', 'Customers', 'i-vendor'],
         ],
         'Floor' => [
-            ['/parties', $partyLabel, 'i-vendor'],
+            [$sellerNav, $partyLabel, 'i-vendor'],
+            ['/parties', 'Parties', 'i-vendor'],
             ['/letters', 'Email', 'i-receipt'],
             ['/inventory', 'Inventory', 'i-inventory'],
             ['/booths', 'Booths', 'i-booth'],
@@ -72,9 +74,20 @@ if ($actorRole === 'owner') {
     }
     $catalogNav = is_array($catalogNav ?? null) ? $catalogNav : [];
     foreach ($catalogNav as $link) {
-        if (is_array($link)) {
-            $groups['Setup'][] = $link;
+        if (!is_array($link)) {
+            continue;
         }
+        $catalogPath = $link[0] ?? null;
+        $catalogLabel = $link[1] ?? null;
+        $catalogIcon = $link[2] ?? null;
+        if (
+            !is_string($catalogPath) || $catalogPath === ''
+            || !is_string($catalogLabel) || $catalogLabel === ''
+            || !is_string($catalogIcon) || $catalogIcon === ''
+        ) {
+            continue;
+        }
+        $groups['Setup'][] = [$catalogPath, $catalogLabel, $catalogIcon];
     }
     $groups['Setup'][] = ['/company', 'Company', 'i-settings'];
     $groups['Setup'][] = ['/settings', 'Settings', 'i-settings'];
@@ -107,7 +120,8 @@ if ($actorRole === 'manager') {
             ['/customers', 'Customers', 'i-vendor'],
         ],
         'Floor' => [
-            ['/parties', $partyLabel, 'i-vendor'],
+            [$sellerNav, $partyLabel, 'i-vendor'],
+            ['/parties', 'Parties', 'i-vendor'],
             ['/letters', 'Email', 'i-receipt'],
             ['/inventory', 'Inventory', 'i-inventory'],
             ['/booths', 'Booths', 'i-booth'],
@@ -176,7 +190,7 @@ if ($hiddenNav !== []) {
     foreach ($groups as $name => $links) {
         $kept = [];
         foreach ($links as $link) {
-            $navPath = is_string($link[0] ?? null) ? $link[0] : '';
+            $navPath = $link[0];
             if (!in_array($navPath, $hiddenNav, true)) {
                 $kept[] = $link;
             }
@@ -246,12 +260,9 @@ $roleLabel = match ($actorRole) {
                 <?php endif; ?>
                 <?php foreach ($links as $link): ?>
                     <?php
-                    $navPath = is_string($link[0] ?? null) ? $link[0] : '';
-                    $navLabel = is_string($link[1] ?? null) ? $link[1] : '';
-                    $navIcon = is_string($link[2] ?? null) ? $link[2] : '';
-                    if ($navPath === '' || $navLabel === '' || $navIcon === '') {
-                        continue;
-                    }
+                    $navPath = $link[0];
+                    $navLabel = $link[1];
+                    $navIcon = $link[2];
                     $href = '/' . $slug . $navPath;
                     if ($previewAs !== '' && str_starts_with($navPath, '/vendor')) {
                         $href = VendorPreview::with($href, $previewAs);
@@ -356,7 +367,7 @@ $roleLabel = match ($actorRole) {
         </header>
         <main class="content" id="main">
             <?php if ($previewAs !== ''): ?>
-                <p class="muted">You are signed in as the owner, looking at this <?= $consignmentOnly ? 'consignor' : 'vendor' ?>'s portal. <a href="/<?= View::text($slug) ?>/vendors/<?= View::text($previewAs) ?>">Back to their record</a></p>
+                <p class="muted">You are signed in as the owner, looking at this <?= $consignmentOnly ? 'consignor' : 'vendor' ?>'s portal. <a href="/<?= View::text($slug) ?><?= View::text($sellerNav) ?>/<?= View::text($previewAs) ?>">Back to their record</a></p>
             <?php endif; ?>
 <?php else: ?>
 <main id="main">

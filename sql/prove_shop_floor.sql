@@ -29,8 +29,13 @@ END $$;
 
 UPDATE mall SET consignment_enabled = true, store_stock_enabled = true, floor_days = 30;
 
-INSERT INTO vendors (id, code, first_name, last_name, business_name)
-VALUES ('01900000-0000-7000-8000-00000000e901', 'shop', 'Ada', 'Lane', 'Lane Goods');
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-00000000e901',
+    'shop',
+    'Ada',
+    'Lane',
+    display_name => 'Lane Goods'
+);
 
 DO $$
 BEGIN

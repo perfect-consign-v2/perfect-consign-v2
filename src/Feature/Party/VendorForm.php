@@ -13,18 +13,12 @@ final class VendorForm
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
+        private readonly SellerPaths $sellerPaths,
     ) {
     }
 
     public function vendorError(string $message): string
     {
-        if (str_contains($message, 'vendors_code_key')) {
-            return 'That code is already used.';
-        }
-        if (str_contains($message, 'items_vendor_id_fkey')) {
-            return 'That vendor still has inventory.';
-        }
-
         return $message;
     }
 
@@ -130,6 +124,7 @@ final class VendorForm
             'defaultStoreTake' => $this->percent($mallBasis),
             'overridden' => $shown['overridden'],
             'error' => $error,
+            'sellerPrefix' => $this->sellerPaths->prefix(),
         ]);
     }
 

@@ -7,6 +7,7 @@ namespace PerfectConsign\Tests\Feature\Party;
 use InvalidArgumentException;
 use PerfectConsign\Feature\Party\BoothMeasures;
 use PerfectConsign\Feature\Party\MapStore;
+use PerfectConsign\Feature\Party\PartyIdentity;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
 use PerfectConsign\Feature\Party\VendorMove;
@@ -89,19 +90,25 @@ final class PartyCoverageTest extends TestCase
     public function testThePartyStoreRefusesAMissingRow(): void
     {
         $statements = $this->createStub(Statements::class);
-        $statements->method('bound')->willReturn([['id' => '']]);
+        $statements->method('rows')->willReturn([['id' => '']]);
+        $statements->method('bound')->willReturn([]);
         $statements->method('affected')->willReturn(0);
         $statements->method('transaction')->willReturnCallback(static function (callable $work): mixed {
             return $work();
         });
         $stays = new \PerfectConsign\Feature\Party\AssignmentBook($statements);
-        $store = new PartyStore($statements, QuietAudit::make($statements), $stays);
+        $store = new PartyStore(
+            $statements,
+            QuietAudit::make($statements),
+            $stays,
+            new PartyIdentity($statements),
+        );
         $vendor = new VendorDraft($this->fields([]), null);
         try {
             $store->addVendor($vendor);
             self::fail('an empty insert was accepted');
         } catch (InvalidArgumentException $error) {
-            self::assertSame('the vendor was not saved', $error->getMessage());
+            self::assertSame('the party was not saved', $error->getMessage());
         }
         try {
             $store->saveVendor('00000000-0000-7000-8000-000000000001', $vendor);
@@ -267,19 +274,29 @@ final class PartyCoverageTest extends TestCase
             return $work();
         });
         $seen = ['sql' => '', 'count' => 0, 'id' => 4];
+        $statements->method('rows')->willReturnCallback(static function () use (&$seen): array {
+            return [['id' => $seen['id']]];
+        });
         $statements->method('bound')->willReturnCallback(static function (string $sql, array $params) use (&$seen): array {
             $seen = ['sql' => $sql, 'count' => count($params), 'id' => $seen['id']];
 
             return [['id' => $seen['id']]];
         });
+        $statements->method('change');
         $stays = new \PerfectConsign\Feature\Party\AssignmentBook($statements);
-        $store = new PartyStore($statements, QuietAudit::make($statements), $stays);
+        $store = new PartyStore(
+            $statements,
+            QuietAudit::make($statements),
+            $stays,
+            new PartyIdentity($statements),
+        );
         try {
             $store->addVendor(new VendorDraft($this->fields([]), null));
             self::fail('a numeric vendor id was accepted');
         } catch (InvalidArgumentException $error) {
-            self::assertSame('the vendor was not saved', $error->getMessage());
+            self::assertSame('expected a string', $error->getMessage());
         }
+        $usedTransaction = false;
         try {
             $store->addBooth('A1', 'North', 10, 10, null);
             self::fail('a numeric booth id was accepted');

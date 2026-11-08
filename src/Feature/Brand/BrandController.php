@@ -191,16 +191,6 @@ final class BrandController
 
     private function brandError(string $message): string
     {
-        if (str_contains($message, 'brands_name_key')) {
-            return 'That name is already used.';
-        }
-        if (str_contains($message, 'brands_name_chk')) {
-            return 'Enter a brand name.';
-        }
-        if (str_contains($message, 'foreign key constraint') || str_contains($message, 'is still referenced')) {
-            return 'That brand is in use.';
-        }
-
         return $message;
     }
 }

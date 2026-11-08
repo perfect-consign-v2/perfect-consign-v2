@@ -95,9 +95,14 @@ final class LetterDeskTest extends TestCase
     {
         $rows = $statements->rows('SELECT uuidv7() AS id');
         $id = RowValue::string($rows[0]['id'] ?? null);
-        $statements->change(
-            'INSERT INTO vendors (id, code, first_name, last_name, email) VALUES (?::uuid, ?, ?, ?, ?)',
-            [$id, 'l' . substr(str_replace('-', '', $id), -12), 'Ada', 'Letter', 'ada-' . substr(str_replace('-', '', $id), -12) . '@example.test']
+        $email = 'ada-' . substr(str_replace('-', '', $id), -12) . '@example.test';
+        \PerfectConsign\Tests\Support\SeedVendor::withId(
+            $statements,
+            $id,
+            'l' . substr(str_replace('-', '', $id), -12),
+            'Ada',
+            'Letter',
+            $email
         );
 
         return $id;

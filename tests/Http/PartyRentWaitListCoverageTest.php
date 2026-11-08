@@ -73,7 +73,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         $emptyFloor = $this->client->post('/' . self::SLUG . '/map/floors', ['name' => '']);
         self::assertSees('a floor name is 1 to 40 characters', $emptyFloor);
         $this->client->get('/' . self::SLUG . '/map');
-        $this->client->get('/' . self::SLUG . '/parties?status=incoming&q=nobody-here');
+        $this->client->get('/' . self::SLUG . '/vendors?status=incoming&q=nobody-here');
         $this->client->get('/' . self::SLUG . '/booths?standing=incoming&q=nobody-here');
         $this->client->get('/' . self::SLUG . '/booths?standing=ending&q=nobody-here');
         $this->client->get('/' . self::SLUG . '/booths?standing=occupied&q=nobody-here');
@@ -168,7 +168,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
             'store_take' => '12.05',
         ]);
         self::assertSees('Vendor created.', $vendor);
-        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', 'd' . $tag);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', 'd' . $tag);
         $edit = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId . '/edit');
         self::assertSees('Overridden', $edit);
         $badSave = $this->client->post('/' . self::SLUG . '/vendors/' . $vendorId, [
@@ -342,7 +342,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
             'last_name' => $tag,
         ]);
         self::assertSees('Vendor created.', $vendor);
-        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', 'h' . $tag);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', 'h' . $tag);
         $booth = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => 'rh' . $tag,
             'name' => 'History ' . $tag,
@@ -423,7 +423,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
             'last_name' => $tag,
         ]);
         self::assertSees('Vendor created.', $vendor);
-        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', 'r' . $tag);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', 'r' . $tag);
         $booth = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => 'b' . $tag,
             'name' => 'Rent ' . $tag,

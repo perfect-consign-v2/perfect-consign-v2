@@ -22,7 +22,7 @@ final class DatabaseRefusal extends RuntimeException
             $text = preg_split('/\r?\n|DETAIL:|CONTEXT:/', $matches[1]) ?: [];
             $first = trim((string) ($text[0] ?? ''));
             if ($first !== '') {
-                return new self(self::shown($first, $message), 0, $error);
+                return new self(self::phrase($first), 0, $error);
             }
         }
 
@@ -35,21 +35,11 @@ final class DatabaseRefusal extends RuntimeException
         if ($named !== null) {
             return $named;
         }
-        if (self::databaseShaped($message)) {
+        if (self::rawDatabaseNoise($message)) {
             return 'That could not be saved.';
         }
 
         return $message;
-    }
-
-    private static function shown(string $first, string $raw): string
-    {
-        $named = self::uniqueName($raw) ?? self::requiredName($raw);
-        if ($named !== null) {
-            return $named;
-        }
-
-        return self::phrase($first);
     }
 
     private static function cashier(string $line): ?string
@@ -72,71 +62,26 @@ final class DatabaseRefusal extends RuntimeException
         return null;
     }
 
-    private static function requiredName(string $raw): ?string
-    {
-        $names = [
-            'brands_name_chk' => 'Enter a brand name.',
-            'colors_name_chk' => 'Enter a color name.',
-            'categories_name_chk' => 'Enter a category name.',
-            'sizes_name_chk' => 'Enter a size name.',
-            'conditions_name_chk' => 'Enter a condition name.',
-            'departments_name_chk' => 'Enter a department name.',
-        ];
-        foreach ($names as $key => $sentence) {
-            if (str_contains($raw, $key)) {
-                return $sentence;
-            }
-        }
-
-        return null;
-    }
-
-    private static function databaseShaped(string $line): bool
+    /** Hide SQLSTATE / constraint-name dumps; plain English ERROR text passes through. */
+    private static function rawDatabaseNoise(string $line): bool
     {
         $lower = strtolower($line);
-        if (str_contains($lower, 'duplicate key') || str_contains($lower, 'violates') || str_contains($lower, 'sqlstate')) {
+        if (str_starts_with($lower, 'duplicate key value')) {
             return true;
         }
-        if (preg_match('/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i', $line) === 1) {
+        if (str_contains($lower, 'violates check constraint') || str_contains($lower, 'violates unique constraint')) {
+            return true;
+        }
+        if (str_contains($lower, 'sqlstate[')) {
             return true;
         }
         if (preg_match('/\b[a-z0-9_]+_(?:chk|key|pkey|fkey|idx)\b/i', $line) === 1) {
-            return true;
-        }
-
-        return preg_match('/\b[a-z0-9_]+:[0-9a-f-]{8,}/i', $line) === 1;
-    }
-
-    private static function uniqueName(string $raw): ?string
-    {
-        $names = [
-            'staff_username_key' => 'That sign-in name is already used.',
-            'registers_name_key' => 'Another register already has that name.',
-            'stored_values_number_key' => self::CERTIFICATE_NUMBER_USED,
-            'vendors_code_key' => 'That code is already used.',
-            'booths_code_key' => 'That booth is already used.',
-            'booth_assignments_no_overlap' => 'That booth is already taken on those dates.',
-            'assignment_rent_rates_assignment_starts_key' => 'That stay already has a rent rate on that date.',
-            'items_code_key' => 'That tag is already used.',
-            'items_barcode_key' => self::BARCODE_USED,
-            'brands_name_key' => 'That name is already used.',
-            'colors_name_key' => 'That name is already used.',
-            'categories_name_key' => 'That name is already used.',
-            'sizes_name_key' => 'That name is already used.',
-            'conditions_name_key' => 'That name is already used.',
-            'departments_name_key' => 'That name is already used.',
-            'map_floors_name_key' => 'That floor name is already used.',
-            'wait_list_open_email_key' => 'That email is already on the wait list.',
-            'sign_in_directory_email_key' => 'That email is already used on another sign-in.',
-            'owners_email_key' => 'That email is already used on another sign-in.',
-            'owners_tenant_username_key' => 'That sign-in name is already used.',
-        ];
-        foreach ($names as $key => $sentence) {
-            if (str_contains($raw, $key)) {
-                return $sentence;
+            $first = substr($line, 0, 1);
+            if ($first === '' || strtolower($first) === $first) {
+                return true;
             }
         }
 
-        return null;
+        return false;
     }
 }

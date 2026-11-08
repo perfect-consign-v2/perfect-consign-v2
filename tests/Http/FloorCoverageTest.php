@@ -510,6 +510,7 @@ final class FloorCoverageTest extends WebTestCase
             'gift_number' => ' ',
             'gift_amount' => '3.00',
             'gift_tender' => 'cash',
+            'form_token' => bin2hex(random_bytes(16)),
         ]);
         self::assertStringContainsString('Enter the certificate number.', $blankNumber->body);
         $missingCheck = $this->gift('12.00', 'checks');
@@ -703,6 +704,7 @@ final class FloorCoverageTest extends WebTestCase
         $fields = [
             'gift_amount' => $amount,
             'gift_tender' => $tender,
+            'form_token' => bin2hex(random_bytes(16)),
         ];
         if ($number !== '') {
             $fields['gift_number'] = $number;

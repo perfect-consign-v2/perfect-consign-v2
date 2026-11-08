@@ -53,7 +53,7 @@ final class PayoutRunStore
     {
         return $this->lines(
             "SELECT line.vendor_id, vendor.code,
-                    btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
+                    vendor.name AS name,
                     '' AS booth,
                     (
                         SELECT booth.id::text
@@ -90,7 +90,7 @@ final class PayoutRunStore
     public function excluded(): array
     {
         $rows = $this->statements->rows(
-            "SELECT code, first_name, last_name, payout_mode
+            "SELECT code, name, payout_mode
              FROM vendors
              WHERE active AND payout_mode IN ('credit_only', 'hold')
              ORDER BY code"
@@ -99,7 +99,7 @@ final class PayoutRunStore
         foreach ($rows as $row) {
             $excluded[] = [
                 'code' => RowValue::string($row['code'] ?? null),
-                'name' => trim(RowValue::string($row['first_name'] ?? null) . ' ' . RowValue::string($row['last_name'] ?? null)),
+                'name' => RowValue::string($row['name'] ?? null),
                 'mode' => RowValue::string($row['payout_mode'] ?? null),
             ];
         }
@@ -153,7 +153,7 @@ final class PayoutRunStore
                  LIMIT 1
              ) AS reversal ON true
              LEFT JOIN LATERAL (
-                 SELECT btrim(vendor.first_name || \' \' || vendor.last_name) AS vendor_name,
+                 SELECT vendor.name AS vendor_name,
                         CASE
                             WHEN line.check_minor <> 0 THEN line.check_minor
                             ELSE COALESCE((

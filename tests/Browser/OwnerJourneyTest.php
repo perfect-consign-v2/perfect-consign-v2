@@ -223,7 +223,7 @@ final class OwnerJourneyTest extends WebTestCase
     {
         $this->session->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         $vendor = $this->vendor();
-        $directory = $this->session->open('/' . ProbeMall::SLUG . '/parties?q=' . rawurlencode($vendor));
+        $directory = $this->session->open('/' . ProbeMall::SLUG . '/vendors?q=' . rawurlencode($vendor));
         $vendorId = HtmlPage::taggedId($directory, 'tr', 'vendor', $vendor);
         $brand = 'Brand ' . bin2hex(random_bytes(4));
         $other = $brand . ' other';

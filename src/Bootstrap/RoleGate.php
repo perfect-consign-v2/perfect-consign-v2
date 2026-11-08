@@ -41,7 +41,7 @@ final class RoleGate
 
     private static function floor(string $rest): bool
     {
-        if (in_array($rest, ['/parties', '/map', '/customers', '/wait-list', '/offers', '/letters', '/booths', '/inventory'], true)) {
+        if (in_array($rest, ['/parties', '/vendors', '/consignors', '/map', '/customers', '/wait-list', '/offers', '/letters', '/booths', '/inventory'], true)) {
             return true;
         }
 

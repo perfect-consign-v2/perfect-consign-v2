@@ -164,7 +164,12 @@ final class MallDemo
             new \PerfectConsign\Bootstrap\AuditLog($this->statements),
         );
         $this->stays = new \PerfectConsign\Feature\Party\AssignmentBook($this->statements);
-        $this->parties = new PartyStore($this->statements, $journalAudit, $this->stays);
+        $this->parties = new PartyStore(
+            $this->statements,
+            $journalAudit,
+            $this->stays,
+            new \PerfectConsign\Feature\Party\PartyIdentity($this->statements),
+        );
         $pricing = new TicketPricing($this->statements);
         $actor = new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false));
         $auditLog = new \PerfectConsign\Bootstrap\AuditLog($this->statements);
@@ -174,7 +179,8 @@ final class MallDemo
             $auditLog,
             new \PerfectConsign\Shared\Http\Request('GET', '/', [], []),
         );
-        $this->customers = new CustomerStore($this->statements);
+        $identity = new \PerfectConsign\Feature\Party\PartyIdentity($this->statements);
+        $this->customers = new CustomerStore($this->statements, $identity);
         $this->shoppers = new TicketCustomer($this->statements, $this->customers);
         $this->offers = new OfferStore($this->statements);
         $this->tickets = new TicketStore(
@@ -1016,11 +1022,21 @@ final class MallDemo
             ['Sam', 'Ito', 'sam@example.com', '555-0164', 12, 12, 'declined', 'Needed a larger booth than we have.', '2026-06-01 15:00:00-07'],
         ];
         foreach ($people as $person) {
-            $this->statements->change(
-                'INSERT INTO wait_list (first_name, last_name, email, phone, width_ft, depth_ft, status, notes, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::timestamptz)',
-                $person
+            $saved = $this->statements->bound(
+                'SELECT stall_seed_wait_person(?, ?, ?, ?, NULL, ?, ?, ?, ?) AS id',
+                [$person[0], $person[1], $person[2], $person[3], $person[4], $person[5], $person[6], $person[7]]
+            )[0] ?? null;
+            if (!is_array($saved)) {
+                throw new RuntimeException('wait list seed did not return a party');
+            }
+            $partyId = RowValue::string($saved['id'] ?? null);
+            $stamped = $this->statements->affected(
+                'UPDATE wait_list SET created_at = ?::timestamptz WHERE party_id = ?::uuid',
+                [$person[8], $partyId]
             );
+            if ($stamped !== 1) {
+                throw new RuntimeException('wait list seed did not stamp created_at');
+            }
         }
     }
 

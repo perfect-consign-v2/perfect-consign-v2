@@ -116,6 +116,7 @@ final class SurfaceFailures
                 [
                     $base . '/dashboard',
                     $base . '/inventory',
+                    $base . '/vendors',
                     $base . '/parties',
                     $base . '/booths',
                     $base . '/registers',
@@ -146,7 +147,7 @@ final class SurfaceFailures
                 $base . '/dashboard',
                 $base . '/pos',
                 $base . '/inventory',
-                $base . '/parties',
+                $base . '/vendors',
                 $base . '/registers',
             ],
             'books' => [

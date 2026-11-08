@@ -77,9 +77,6 @@ final class PosTenderController
             }
             $check = $request->field('check_number');
             $kind = $request->field('gift_kind');
-            if (!in_array($kind, ['gift_certificate', 'gift_card'], true)) {
-                $kind = 'gift_certificate';
-            }
             $journalId = $this->gifts->issue(
                 $session,
                 $this->mall->today(),
@@ -87,7 +84,7 @@ final class PosTenderController
                 Money::parseMinor($request->field('gift_amount')),
                 $request->field('gift_tender'),
                 $check === '' ? null : $check,
-                $kind,
+                $kind === '' ? 'gift_certificate' : $kind,
                 $request->field('form_token'),
             );
         } catch (DatabaseRefusal $refusal) {

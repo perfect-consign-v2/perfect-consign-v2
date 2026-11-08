@@ -4,8 +4,7 @@
 
 BEGIN;
 
-INSERT INTO vendors (id, code, first_name, last_name, commission_bps)
-VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane', 2000);
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane', 2000);
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity, commission_bps)
 VALUES (

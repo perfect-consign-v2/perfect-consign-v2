@@ -6,14 +6,19 @@ namespace PerfectConsign\Feature\Party;
 
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\RowValue;
 
 class PartyStore
 {
+    private readonly PartyIdentity $identity;
+
     public function __construct(
         private readonly Statements $statements,
         private readonly JournalAudit $audit,
         private readonly AssignmentBook $assignments,
+        ?PartyIdentity $identity = null,
     ) {
+        $this->identity = $identity ?? new PartyIdentity($statements);
     }
 
     /**
@@ -22,8 +27,97 @@ class PartyStore
     public function vendors(): array
     {
         return $this->statements->rows(
-            'SELECT id, code, first_name, last_name, name, phone, email, address FROM vendors ORDER BY name, code'
+            "SELECT vendor.id, vendor.code, vendor.name, vendor.party_id,
+                    person.first_name, person.last_name, person.display_name AS business_name,
+                    person.phone, person.email, person.address
+             FROM vendors AS vendor
+             JOIN persons AS person ON person.party_id = vendor.party_id
+             ORDER BY vendor.name, vendor.code"
         );
+    }
+
+    /**
+     * Parties with any role (identity hub).
+     *
+     * @return list<array{id: string, name: string, kind: string, roles: string}>
+     */
+    public function parties(): array
+    {
+        $rows = $this->statements->rows(
+            "SELECT party.id::text AS id,
+                    stall_party_display_name(party.id) AS name,
+                    CASE WHEN person.party_id IS NOT NULL THEN 'person' ELSE 'organization' END AS kind,
+                    string_agg(roles.role_type, ', ' ORDER BY roles.role_type) AS roles
+             FROM parties AS party
+             LEFT JOIN persons AS person ON person.party_id = party.id
+             LEFT JOIN organizations AS org ON org.party_id = party.id
+             LEFT JOIN party_roles AS roles ON roles.party_id = party.id AND roles.status = 'active'
+             GROUP BY party.id, person.party_id, org.party_id
+             ORDER BY lower(stall_party_display_name(party.id)), party.id
+             LIMIT 500"
+        );
+        $list = [];
+        foreach ($rows as $row) {
+            $list[] = [
+                'id' => RowValue::string($row['id'] ?? null),
+                'name' => RowValue::string($row['name'] ?? null),
+                'kind' => RowValue::string($row['kind'] ?? null),
+                'roles' => RowValue::string($row['roles'] ?? null),
+            ];
+        }
+
+        return $list;
+    }
+
+    /**
+     * @return array{id: string, name: string, kind: string, roles: list<string>}|null
+     */
+    public function findParty(string $partyId): ?array
+    {
+        $rows = $this->statements->bound(
+            "SELECT party.id::text AS id,
+                    COALESCE(stall_party_display_name(party.id), '') AS name,
+                    CASE WHEN person.party_id IS NOT NULL THEN 'person' ELSE 'organization' END AS kind
+             FROM parties AS party
+             LEFT JOIN persons AS person ON person.party_id = party.id
+             WHERE party.id = ?::uuid",
+            [$partyId]
+        );
+        $row = $rows[0] ?? null;
+        if ($row === null) {
+            return null;
+        }
+        $roles = [];
+        foreach ($this->statements->bound(
+            'SELECT role_type FROM party_roles WHERE party_id = ?::uuid ORDER BY role_type',
+            [$partyId]
+        ) as $roleRow) {
+            $role = $roleRow['role_type'] ?? null;
+            if (is_string($role) && $role !== '') {
+                $roles[] = $role;
+            }
+        }
+
+        return [
+            'id' => RowValue::string($row['id'] ?? null),
+            'name' => RowValue::string($row['name'] ?? null),
+            'kind' => RowValue::string($row['kind'] ?? null),
+            'roles' => $roles,
+        ];
+    }
+
+    public function vendorIdForParty(string $partyId): ?string
+    {
+        $rows = $this->statements->bound(
+            'SELECT id::text AS id FROM vendors WHERE party_id = ?::uuid LIMIT 1',
+            [$partyId]
+        );
+        $id = $rows[0]['id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            return null;
+        }
+
+        return $id;
     }
 
     /**
@@ -38,19 +132,31 @@ class PartyStore
 
     public function addVendor(VendorDraft $vendor): string
     {
-        $rows = $this->statements->bound(
-            'INSERT INTO vendors (
-                code, first_name, last_name, phone, email, address,
-                commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
-                tax_exempt, tax_exempt_number, business_name,
-                discount_by, keep_days, expiry_action
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?::date, ?::date, ?, ?, ?::boolean, ?, ?, ?, ?, ?) RETURNING id',
-            $vendor->values()
-        );
-        $id = $rows[0]['id'] ?? null;
-        if (!is_string($id) || $id === '') {
-            throw new \InvalidArgumentException('the vendor was not saved');
-        }
+        $id = '';
+        $this->statements->transaction(function () use ($vendor, &$id): void {
+            $person = $vendor->personValues();
+            $created = $this->identity->createPerson(
+                $person['first_name'],
+                $person['last_name'],
+                $person['display_name'],
+                $person['phone'],
+                $person['email'],
+                $person['address'],
+                PartyRoleType::VENDOR,
+            );
+            $rows = $this->statements->bound(
+                'INSERT INTO vendors (
+                    party_id, code, commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
+                    tax_exempt, tax_exempt_number, discount_by, keep_days, expiry_action
+                 ) VALUES (?::uuid, ?, ?, ?::date, ?::date, ?, ?, ?::boolean, ?, ?, ?, ?) RETURNING id',
+                [$created['party_id'], ...$vendor->vendorValues()]
+            );
+            $saved = $rows[0]['id'] ?? null;
+            if (!is_string($saved) || $saved === '') {
+                throw new \InvalidArgumentException('the vendor was not saved');
+            }
+            $id = $saved;
+        });
 
         return $id;
     }
@@ -61,11 +167,15 @@ class PartyStore
     public function findVendor(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, first_name, last_name, name, business_name, phone, email, address, active,
-                    commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
-                    tax_exempt, tax_exempt_number, payout_mode,
-                    discount_by, keep_days, expiry_action, email_bounced
-             FROM vendors WHERE id = ?::uuid',
+            "SELECT vendor.id, vendor.party_id, vendor.code, vendor.name, vendor.active,
+                    person.first_name, person.last_name, person.display_name AS business_name,
+                    person.phone, person.email, person.address,
+                    vendor.commission_bps, vendor.agreement_starts_on, vendor.agreement_ends_on, vendor.tax_id, vendor.notes,
+                    vendor.tax_exempt, vendor.tax_exempt_number, vendor.payout_mode,
+                    vendor.discount_by, vendor.keep_days, vendor.expiry_action, vendor.email_bounced
+             FROM vendors AS vendor
+             JOIN persons AS person ON person.party_id = vendor.party_id
+             WHERE vendor.id = ?::uuid",
             [$id]
         );
 
@@ -74,23 +184,41 @@ class PartyStore
 
     public function saveVendor(string $id, VendorDraft $vendor): void
     {
-        $count = $this->statements->affected(
-            "UPDATE vendors
-             SET code = ?, first_name = ?, last_name = ?, phone = ?, email = ?, address = ?,
-                 commission_bps = ?, agreement_starts_on = ?::date, agreement_ends_on = ?::date,
-                 tax_id = ?, notes = ?, tax_exempt = ?::boolean, tax_exempt_number = ?, business_name = ?,
-                 discount_by = ?, keep_days = ?, expiry_action = ?,
-                 email_bounced = CASE
-                     WHEN lower(COALESCE(email, '')) IS DISTINCT FROM lower(COALESCE(?::text, '')) THEN false
-                     ELSE email_bounced
-                 END
-             WHERE id = ?::uuid",
-            [...$vendor->values(), $vendor->email(), $id]
-        );
-        if ($count === 0) {
-            throw new \InvalidArgumentException('that vendor is not in this mall');
-        }
-        $this->audit->record('vendor.edit', $id, 'vendor');
+        $this->statements->transaction(function () use ($id, $vendor): void {
+            $current = $this->findVendor($id);
+            if ($current === null) {
+                throw new \InvalidArgumentException('that vendor is not in this mall');
+            }
+            $partyId = RowValue::string($current['party_id'] ?? null);
+            $person = $vendor->personValues();
+            $this->identity->savePerson(
+                $partyId,
+                $person['first_name'],
+                $person['last_name'],
+                $person['display_name'],
+                $person['phone'],
+                $person['email'],
+                $person['address'],
+            );
+            $priorEmail = RowValue::string($current['email'] ?? null);
+            $nextEmail = $person['email'] ?? '';
+            $count = $this->statements->affected(
+                "UPDATE vendors
+                 SET code = ?, commission_bps = ?, agreement_starts_on = ?::date, agreement_ends_on = ?::date,
+                     tax_id = ?, notes = ?, tax_exempt = ?::boolean, tax_exempt_number = ?,
+                     discount_by = ?, keep_days = ?, expiry_action = ?,
+                     email_bounced = CASE
+                         WHEN lower(COALESCE(?, '')) IS DISTINCT FROM lower(COALESCE(?::text, '')) THEN false
+                         ELSE email_bounced
+                     END
+                 WHERE id = ?::uuid",
+                [...$vendor->vendorValues(), $priorEmail, $nextEmail, $id]
+            );
+            if ($count === 0) {
+                throw new \InvalidArgumentException('that vendor is not in this mall');
+            }
+            $this->audit->record('vendor.edit', $id, 'vendor');
+        });
     }
 
     public function setPayoutMode(string $id, string $mode): void
@@ -115,6 +243,14 @@ class PartyStore
             if ($count === 0) {
                 throw new \InvalidArgumentException('that vendor is not in this mall');
             }
+            $vendor = $this->findVendor($id);
+            $partyId = RowValue::string($vendor['party_id'] ?? null);
+            if ($partyId !== '') {
+                $this->statements->change(
+                    "UPDATE party_roles SET status = ? WHERE party_id = ?::uuid AND role_type = ?",
+                    [$active ? 'active' : 'inactive', $partyId, PartyRoleType::VENDOR]
+                );
+            }
             if ($active) {
                 return;
             }
@@ -133,6 +269,18 @@ class PartyStore
         if ($count === 0) {
             throw new \InvalidArgumentException('that vendor is not in this mall');
         }
+    }
+
+    public function addCustomerRole(string $vendorId): string
+    {
+        $vendor = $this->findVendor($vendorId);
+        if ($vendor === null) {
+            throw new \InvalidArgumentException('that vendor is not in this mall');
+        }
+        $partyId = RowValue::string($vendor['party_id'] ?? null);
+        $this->identity->ensureRole($partyId, PartyRoleType::CUSTOMER);
+
+        return $partyId;
     }
 
     /**

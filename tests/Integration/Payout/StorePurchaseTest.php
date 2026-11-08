@@ -31,9 +31,12 @@ final class StorePurchaseTest extends TestCase
         $pdo->beginTransaction();
         try {
             $vendorId = $ledger->newId();
-            $statements->change(
-                'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-                [$vendorId, 'buy' . substr($vendorId, 0, 6), 'Cara', 'Lot']
+            \PerfectConsign\Tests\Support\SeedVendor::withId(
+                $statements,
+                $vendorId,
+                'buy' . substr($vendorId, 0, 6),
+                'Cara',
+                'Lot'
             );
             $purchase = $purchases->record($vendorId, $date, 2500, 'lot-' . substr($vendorId, 0, 8));
             $runId = $runs->ensureDraft($date, $date, '2096-03-01', $date);

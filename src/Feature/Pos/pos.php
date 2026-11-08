@@ -459,7 +459,12 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <button class="btn" type="button" data-close-modal="sale-vendor">Close</button>
         </div>
         <div class="card-body stack">
-            <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/buyer" data-vendors="/<?= View::text($slug) ?>/inventory/vendors.json" id="buyer-form">
+            <?php
+            $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
+                ? $sellersJsonUrl
+                : '/' . $slug . '/inventory/' . (!empty($consignmentOnly) ? 'consignors' : 'vendors') . '.json';
+            ?>
+            <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/buyer" data-vendors="<?= View::text($sellersJsonUrl) ?>" id="buyer-form">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                 <div class="field combo">
                     <label for="buyer"><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?></label>

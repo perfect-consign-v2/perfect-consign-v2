@@ -118,10 +118,10 @@ final class CoverageRemainderTest extends WebTestCase
             'last_name' => $tag,
         ]);
         self::assertSees('That code is already used.', $again);
-        $directory = $this->client->get('/' . self::SLUG . '/parties?status=inactive&q=' . $code);
+        $directory = $this->client->get('/' . self::SLUG . '/vendors?status=inactive&q=' . $code);
         self::assertSees('aria-current="page">Inactive (', $directory);
-        $this->client->get('/' . self::SLUG . '/parties?status=ending&q=nomatch-vendor');
-        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $code);
+        $this->client->get('/' . self::SLUG . '/vendors?status=ending&q=nomatch-vendor');
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', $code);
         $record = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
         self::assertSees('Assign a booth', $record);
         self::assertSees('Their share of sales', $record);
@@ -212,7 +212,7 @@ final class CoverageRemainderTest extends WebTestCase
             'store_take' => '0',
         ]);
         self::assertSees('Vendor created.', $vendor);
-        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', 'n' . $tag);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', 'n' . $tag);
 
         $moveIn = $this->client->post('/' . self::SLUG . '/booths', [
             'code' => 'm' . $tag,
@@ -303,7 +303,7 @@ final class CoverageRemainderTest extends WebTestCase
             'store_take' => '0',
         ]);
         self::assertSees('Vendor created.', $vendor);
-        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $code);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', $code);
         $rent = $this->client->get('/' . self::SLUG . '/rent');
         self::assertSees('<h1 class="h1">Rent</h1>', $rent);
         // today( is the mall date shown on the book.
@@ -590,7 +590,7 @@ final class CoverageRemainderTest extends WebTestCase
             'last_name' => $vendorCode,
             'store_take' => '0',
         ]);
-        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/parties')->body, 'tr', 'vendor', $vendorCode);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', $vendorCode);
         $vendors = $this->client->get('/' . self::SLUG . '/inventory/vendors.json?q=' . $vendorCode);
         self::assertStringContainsString($vendorCode, $vendors->body);
         $byCode = $this->client->get('/' . self::SLUG . '/inventory/vendors.json?code=' . $vendorCode);

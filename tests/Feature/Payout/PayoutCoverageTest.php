@@ -287,7 +287,7 @@ final class PayoutCoverageTest extends TestCase
                 return [[
                     'code' => 'H1',
                     'first_name' => 'Hold',
-                    'last_name' => 'Vendor',
+                    'name' => 'Held Vendor',
                     'payout_mode' => 'hold',
                 ]];
             }

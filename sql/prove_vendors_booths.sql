@@ -37,11 +37,23 @@ BEGIN
         SELECT count(*)
         FROM information_schema.columns
         WHERE table_schema = current_schema()
-          AND table_name = 'vendors'
+          AND table_name = 'persons'
           AND column_name IN ('first_name', 'last_name', 'phone', 'email', 'address')
           AND data_type = 'text'
     ) <> 5 THEN
-        RAISE EXCEPTION 'vendor contact columns are missing';
+        RAISE EXCEPTION 'person contact columns are missing';
+    END IF;
+
+    -- Contact identity lives on persons. vendors.email may remain as a synced
+    -- copy for letter triggers that cannot be replaced after append-only lock.
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'vendors'
+          AND column_name IN ('first_name', 'last_name', 'phone', 'address', 'business_name')
+    ) THEN
+        RAISE EXCEPTION 'vendor still stores identity';
     END IF;
 
     IF (
@@ -108,8 +120,7 @@ BEGIN
     END IF;
 END $$;
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
 DO $$
 BEGIN
@@ -557,8 +568,7 @@ BEGIN
     RESET ROLE;
 END $$;
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-000000000102', 'owed', 'Owed', 'Lane');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000102', 'owed', 'Owed', 'Lane');
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
@@ -684,6 +694,26 @@ BEGIN
     ALTER TABLE pickups DROP CONSTRAINT pickups_vendor_id_fkey;
     ALTER TABLE vendor_letter_copies DROP CONSTRAINT vendor_letter_copies_vendor_id_fkey;
     ALTER TABLE ticket_draft_lines DROP CONSTRAINT ticket_draft_lines_vendor_fkey;
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint AS constraint_row
+        JOIN pg_class AS relation ON relation.oid = constraint_row.conrelid
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE constraint_row.conname = 'commission_rules_vendor_id_fkey'
+          AND namespace.nspname = current_schema()
+    ) THEN
+        ALTER TABLE commission_rules DROP CONSTRAINT commission_rules_vendor_id_fkey;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint AS constraint_row
+        JOIN pg_class AS relation ON relation.oid = constraint_row.conrelid
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE constraint_row.conname = 'vendor_entry_tokens_vendor_id_fkey'
+          AND namespace.nspname = current_schema()
+    ) THEN
+        ALTER TABLE vendor_entry_tokens DROP CONSTRAINT vendor_entry_tokens_vendor_id_fkey;
+    END IF;
     TRUNCATE assignment_rent_rates, assignment_rent, booth_rent_rates, booth_assignments, booths, vendors;
     RAISE EXCEPTION 'vendor truncate was accepted';
 EXCEPTION

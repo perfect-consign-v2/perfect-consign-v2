@@ -25,6 +25,12 @@ $blank = '—';
 $consignmentOnly = ($consignmentOnly ?? false) === true;
 $partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
 $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
+$sellerPrefix = is_string($sellerPrefix ?? null) && $sellerPrefix !== ''
+    ? $sellerPrefix
+    : ($consignmentOnly ? 'consignors' : 'vendors');
+$sellerBase = is_string($sellerBase ?? null) && $sellerBase !== ''
+    ? $sellerBase
+    : '/' . $slug . '/' . $sellerPrefix;
 $boothCodes = [];
 foreach ($vendor['current'] as $stay) {
     $boothCodes[] = $stay['booth_code'];
@@ -40,7 +46,7 @@ $boothLine = match (count($boothCodes)) {
     <div class="page-head">
         <div class="titles">
             <nav class="breadcrumb">
-                <a href="/<?= View::text($slug) ?>/parties"><?= View::text($partyLabel) ?></a><span class="sep">/</span>
+                <a href="<?= View::text($sellerBase) ?>"><?= View::text($partyLabel) ?></a><span class="sep">/</span>
                 <span><?= View::text($vendor['code']) ?></span>
             </nav>
             <h1 class="h1"><?= View::text($vendor['name']) ?></h1>
@@ -54,7 +60,7 @@ $boothLine = match (count($boothCodes)) {
         <div class="row gap-2">
             <a class="btn" href="<?= View::text(VendorPreview::with('/' . $slug . '/vendor', $vendor['id'])) ?>" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-vendor"></use></svg> Open as <?= View::text($partyOne) ?></a>
             <a class="btn" href="/<?= View::text($slug) ?>/letters?vendor=<?= View::text($vendor['id']) ?>">Email</a>
-            <a class="btn" href="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
+            <a class="btn" href="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
         </div>
     </div>
 
@@ -312,7 +318,7 @@ $boothLine = match (count($boothCodes)) {
     }
     ?>
     <?php if (!$consignmentOnly && is_array($openStay)): ?>
-        <form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/move">
+        <form class="card mt-6" method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/move">
             <div class="card-head"><div class="h3">Move to another booth</div></div>
             <div class="card-body stack">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
@@ -344,7 +350,15 @@ $boothLine = match (count($boothCodes)) {
             </div>
         </form>
     <?php endif; ?>
-    <form class="card mt-6" method="post" action="/<?= View::text($slug) ?>/vendors/<?= View::text($vendor['id']) ?>/sign-in" autocomplete="off">
+    <form class="card mt-6" method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/customer-role">
+        <div class="card-head"><div class="h3">Also a customer</div></div>
+        <div class="card-body stack">
+            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+            <p class="muted">Same person can buy at the register. This adds the customer role on their party.</p>
+            <p><button class="btn" type="submit">Add customer role</button></p>
+        </div>
+    </form>
+    <form class="card mt-6" method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/sign-in" autocomplete="off">
         <div class="card-head"><div class="h3"><?= $consignmentOnly ? 'Consignor sign-in' : 'Vendor sign-in' ?></div></div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

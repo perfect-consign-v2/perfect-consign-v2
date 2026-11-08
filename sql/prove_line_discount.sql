@@ -5,8 +5,7 @@ BEGIN;
 
 UPDATE mall SET tax_bps = 0, commission_bps = 0, cash_round_minor = 0;
 
-INSERT INTO vendors (id, code, first_name, last_name, commission_bps)
-VALUES ('01900000-0000-7000-8000-000000000f91', 'lineproof', 'Ada', 'Line', 5000);
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000f91', 'lineproof', 'Ada', 'Line', 5000);
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on)
 VALUES (

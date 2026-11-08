@@ -79,7 +79,7 @@ final class WaitListController
         try {
             $this->waitList->remove($id);
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->entryError($this->app->catchRefusal($refusal));
+            $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
@@ -98,7 +98,7 @@ final class WaitListController
         try {
             $saved = $this->write($id, $draft);
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->entryError($this->app->catchRefusal($refusal));
+            $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
@@ -223,29 +223,5 @@ final class WaitListController
         }
 
         return '';
-    }
-
-    private function entryError(string $message): string
-    {
-        $known = [
-            'wait_list_open_email_key' => 'That email is already on the wait list.',
-            'wait_list_email_chk' => 'that email is not an email address',
-            'wait_list_phone_chk' => 'a phone number is required',
-            'wait_list_first_name_chk' => 'a first name is required',
-            'wait_list_last_name_chk' => 'a last name is required',
-            'wait_list_size_chk' => 'preferred size is whole feet',
-            'wait_list_status_chk' => 'that status is not on the wait list',
-            'wait_list_notes_chk' => 'those notes are too long',
-        ];
-        $found = array_filter(
-            $known,
-            static fn (string $needle): bool => str_contains($message, $needle),
-            ARRAY_FILTER_USE_KEY,
-        );
-        foreach ($found as $text) {
-            return $text;
-        }
-
-        return $message;
     }
 }

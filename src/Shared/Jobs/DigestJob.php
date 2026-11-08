@@ -43,8 +43,12 @@ final class DigestJob
         $statements = new Statements($this->pdo);
         $figures = new VendorFigures($statements);
         $vendors = $statements->rows(
-            "SELECT id, email, name FROM vendors
-             WHERE active = true AND email IS NOT NULL AND email <> '' AND NOT email_bounced"
+            "SELECT vendor.id, person.email, vendor.name
+             FROM vendors AS vendor
+             JOIN persons AS person ON person.party_id = vendor.party_id
+             WHERE vendor.active = true
+               AND person.email IS NOT NULL AND person.email <> ''
+               AND NOT vendor.email_bounced"
         );
         $waiting = false;
         foreach ($vendors as $vendor) {

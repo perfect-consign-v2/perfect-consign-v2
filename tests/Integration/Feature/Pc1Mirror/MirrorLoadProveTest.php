@@ -14,6 +14,7 @@ use PerfectConsign\Feature\Pc1Mirror\MirrorWiper;
 use PerfectConsign\Feature\Pc1Mirror\OpeningLoader;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\AbstractLogger;
 
 final class MirrorLoadProveTest extends TestCase
 {
@@ -61,6 +62,55 @@ final class MirrorLoadProveTest extends TestCase
         $this->removeTree($scratch);
     }
 
+    public function testAssignmentSkipsAreStampedAndProveFails(): void
+    {
+        $root = dirname(__DIR__, 4);
+        ProbeMall::ensure($root);
+        $fixture = $root . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'Fixtures'
+            . DIRECTORY_SEPARATOR . 'pc1-mirror';
+        $scratch = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc1-mirror-skip-' . bin2hex(random_bytes(4));
+        $this->copyTree($fixture, $scratch);
+        try {
+            $artifact = MirrorArtifact::open($scratch);
+            $assignments = $artifact->readJson('master/assignments.json');
+            $assignments[] = [
+                'pc1_id' => '99999999-9999-4999-8999-999999999999',
+                'pc1_booth_id' => '22222222-2222-4222-8222-222222222222',
+                'pc1_consignor_id' => '11111111-1111-4111-8111-111111111111',
+                'starts_on' => 'not-a-date',
+                'ends_on' => '',
+                'rent_minor' => 100,
+            ];
+            $artifact->writeJson('master/assignments.json', $assignments);
+            $settings = $artifact->readJson('master/settings.json');
+            $settings['store_timezone'] = 'Not/AZone';
+            $artifact->writeJson('master/settings.json', $settings);
+
+            $target = MirrorTarget::open('local');
+            $pdo = $target->connection->pdo();
+            (new MirrorWiper())->wipe($pdo, MirrorConstants::TARGET_SLUG);
+            $mall = MirrorMall::provision($pdo, $root . DIRECTORY_SEPARATOR . 'sql');
+            $logger = new MirrorWarningLog();
+            $idMap = (new MasterLoader($logger))->load($mall, $artifact);
+
+            self::assertGreaterThan(0, $idMap['assignment_skips']);
+            $stamped = $artifact->readJson('id-map.json');
+            self::assertSame($idMap['assignment_skips'], $stamped['assignment_skips'] ?? null);
+            $skips = $artifact->readJson('assignment-skips.json');
+            self::assertNotSame([], $skips);
+            $failures = (new MirrorProver())->prove($mall, $artifact);
+            self::assertStringContainsString('assignment skips must be 0', implode("\n", $failures));
+            $messages = [];
+            foreach ($logger->records as $record) {
+                $messages[] = $record['message'];
+            }
+            self::assertContains('pc1 mirror assignment skipped', $messages);
+            self::assertContains('pc1 mirror kept seed time zone; PC1 zone not usable', $messages);
+        } finally {
+            $this->removeTree($scratch);
+        }
+    }
+
     private function copyTree(string $from, string $to): void
     {
         if (!mkdir($to, 0700, true) && !is_dir($to)) {
@@ -101,5 +151,24 @@ final class MirrorLoadProveTest extends TestCase
             }
         }
         rmdir($path);
+    }
+}
+
+final class MirrorWarningLog extends AbstractLogger
+{
+    /** @var list<array{level: mixed, message: string, context: array<mixed>}> */
+    public array $records = [];
+
+    /**
+     * @param mixed $level
+     * @param array<mixed> $context
+     */
+    public function log($level, string|\Stringable $message, array $context = []): void
+    {
+        $this->records[] = [
+            'level' => $level,
+            'message' => (string) $message,
+            'context' => $context,
+        ];
     }
 }

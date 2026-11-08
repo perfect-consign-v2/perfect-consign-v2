@@ -80,6 +80,25 @@ final class VendorEntry
         return is_string($vendorId) ? $vendorId : '';
     }
 
+    public function isActive(TenantRecord $tenant, string $vendorId): bool
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
+            return false;
+        }
+        $this->asEntry($tenant);
+        try {
+            $rows = $this->statements->bound(
+                'SELECT active FROM vendors WHERE id = ?::uuid',
+                [$vendorId]
+            );
+        } finally {
+            $this->roles->reset();
+        }
+        $active = $rows[0]['active'] ?? null;
+
+        return $active === true || $active === 't' || $active === '1' || $active === 1;
+    }
+
     private function mint(TenantRecord $tenant, string $email, string $origin): ?string
     {
         $this->asEntry($tenant);
@@ -88,7 +107,11 @@ final class VendorEntry
                 return null;
             }
             $rows = $this->statements->bound(
-                'SELECT id FROM vendors WHERE lower(email) = ? AND active IS DISTINCT FROM false LIMIT 1',
+                "SELECT vendor.id
+                 FROM vendors AS vendor
+                 JOIN persons AS person ON person.party_id = vendor.party_id
+                 WHERE lower(person.email) = ? AND vendor.active IS DISTINCT FROM false
+                 LIMIT 1",
                 [$email]
             );
             $vendorId = is_string($rows[0]['id'] ?? null) ? $rows[0]['id'] : '';

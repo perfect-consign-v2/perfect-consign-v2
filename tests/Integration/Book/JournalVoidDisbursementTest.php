@@ -28,15 +28,8 @@ final class JournalVoidDisbursementTest extends TestCase
         $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
-        $controller = new JournalController(
-            $this->createStub(MallApp::class),
-            $ledger,
-            $this->createStub(RegisterStore::class),
-            $this->createStub(ActiveRegister::class),
-            $this->createStub(MallSettings::class),
-        );
+        $controller = (new \ReflectionClass(JournalController::class))->newInstanceWithoutConstructor();
         $canVoid = new ReflectionMethod(JournalController::class, 'canVoid');
-        $canVoid->setAccessible(true);
         foreach (['check_disbursement', 'cash_disbursement', 'safe_disbursement', 'settlement', 'period_close'] as $source) {
             self::assertFalse(
                 $canVoid->invoke($controller, ['source_type' => $source, 'is_reversal' => false], false),

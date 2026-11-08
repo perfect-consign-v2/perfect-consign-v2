@@ -141,6 +141,7 @@ final class PosRegisterCoverageTest extends WebTestCase
             'gift_kind' => 'gift_card',
             'gift_amount' => '5.00',
             'gift_tender' => 'card',
+            'form_token' => bin2hex(random_bytes(16)),
         ]);
         self::assertTrue(
             str_contains($gift->body, 'Gift card') || str_contains($gift->body, 'posted') || str_contains($gift->body, 'Print'),
@@ -150,6 +151,7 @@ final class PosRegisterCoverageTest extends WebTestCase
             'gift_kind' => 'store_credit',
             'gift_amount' => '4.00',
             'gift_tender' => 'cash',
+            'form_token' => bin2hex(random_bytes(16)),
         ]);
         self::assertTrue(
             str_contains($credit->body, 'Store credit') || str_contains($credit->body, 'posted') || str_contains($credit->body, 'Print'),
@@ -159,6 +161,7 @@ final class PosRegisterCoverageTest extends WebTestCase
             'gift_kind' => 'gift_certificate',
             'gift_amount' => '3.00',
             'gift_tender' => 'points',
+            'form_token' => bin2hex(random_bytes(16)),
         ]);
         self::assertSees('stored value is issued for cash, card, or a check', $tender);
         $longGift = $this->client->post('/' . self::SLUG . '/pos/gift', [
@@ -167,6 +170,7 @@ final class PosRegisterCoverageTest extends WebTestCase
             'gift_number' => str_repeat('n', 41),
             'gift_amount' => '5.00',
             'gift_tender' => 'cash',
+            'form_token' => bin2hex(random_bytes(16)),
         ]);
         self::assertSees('a stored value number is required', $longGift);
         $badGift = $this->client->get('/' . self::SLUG . '/pos/gift/01900000-0000-7000-8000-0000000000cc');

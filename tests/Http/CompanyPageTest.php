@@ -94,7 +94,7 @@ final class CompanyPageTest extends WebTestCase
     private function assertSaleReceipt(string $name, string $phone): void
     {
         $vendor = $this->vendor();
-        $directory = $this->client->get('/' . self::SLUG . '/parties');
+        $directory = $this->client->get('/' . self::SLUG . '/vendors');
         $vendorId = HtmlPage::taggedId($directory->body, 'tr', 'vendor', $vendor);
         $tag = 't' . bin2hex(random_bytes(4));
         $created = $this->client->post('/' . self::SLUG . '/inventory', [
@@ -124,7 +124,7 @@ final class CompanyPageTest extends WebTestCase
     {
         $vendor = $this->vendor();
         $booth = $this->booth();
-        $parties = $this->client->get('/' . self::SLUG . '/parties');
+        $parties = $this->client->get('/' . self::SLUG . '/vendors');
         $booths = $this->client->get('/' . self::SLUG . '/booths');
         $vendorId = HtmlPage::taggedId($parties->body, 'tr', 'vendor', $vendor);
         $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);

@@ -1,15 +1,19 @@
 -- Dev mall rows. Not part of provisioning. php bin/seed-dev-tenant.php loads this into slug dev.
 -- The mailbox is planted from STALL_GMAIL_ADDRESS and STALL_GMAIL_APP_PASSWORD on each reset.
 
-INSERT INTO public.vendors (id, code, first_name, last_name, email, phone, commission_bps)
-VALUES (
-    '01900000-0000-7000-8000-000000000e01',
+SELECT stall_seed_vendor(
+    '01900000-0000-7000-8000-000000000e01'::uuid,
     'V001',
     'Ada',
     'Lane',
+    2000,
+    false,
+    NULL,
     'ada@example.test',
-    '555-0100',
-    2000
+    true,
+    false,
+    'pay',
+    '555-0100'
 );
 
 INSERT INTO public.booths (id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id)

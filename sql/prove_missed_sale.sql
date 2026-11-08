@@ -2,11 +2,9 @@
 
 BEGIN;
 
-INSERT INTO vendors (id, code, first_name, last_name, commission_bps)
-VALUES
-    ('01900000-0000-7000-8000-00000000e101', 'miss', 'Mina', 'Lane', 4000),
-    ('01900000-0000-7000-8000-00000000e102', 'other', 'Otto', 'Lane', 4000),
-    ('01900000-0000-7000-8000-00000000e104', 'full', 'Faye', 'Lane', 10000);
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000e101', 'miss', 'Mina', 'Lane', 4000);
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000e102', 'other', 'Otto', 'Lane', 4000);
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000e104', 'full', 'Faye', 'Lane', 10000);
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity)
 VALUES

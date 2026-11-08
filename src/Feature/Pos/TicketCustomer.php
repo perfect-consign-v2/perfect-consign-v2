@@ -25,19 +25,19 @@ final class TicketCustomer
             return ['id' => '', 'name' => ''];
         }
         $rows = $this->statements->bound(
-            'SELECT ticket.customer_id, customer.name
+            'SELECT ticket.customer_party_id,
+                    stall_party_display_name(ticket.customer_party_id) AS name
              FROM tickets AS ticket
-             LEFT JOIN customers AS customer ON customer.id = ticket.customer_id
              WHERE ticket.id = ?::uuid',
             [$ticketId]
         );
         $row = $rows[0] ?? null;
-        if (!is_array($row) || !is_string($row['customer_id'] ?? null)) {
+        if (!is_array($row) || !is_string($row['customer_party_id'] ?? null)) {
             return ['id' => '', 'name' => ''];
         }
 
         return [
-            'id' => $row['customer_id'],
+            'id' => $row['customer_party_id'],
             'name' => RowValue::string(is_string($row['name'] ?? null) ? $row['name'] : ''),
         ];
     }
@@ -52,10 +52,10 @@ final class TicketCustomer
 
             return;
         }
-        $customerId = $this->customers->findOrCreate($name, $phone, $email);
+        $partyId = $this->customers->findOrCreate($name, $phone, $email);
         $updated = $this->statements->affected(
-            'UPDATE tickets SET customer_id = ?::uuid WHERE id = ?::uuid AND status = ?',
-            [$customerId, $ticketId, 'open']
+            'UPDATE tickets SET customer_party_id = ?::uuid WHERE id = ?::uuid AND status = ?',
+            [$partyId, $ticketId, 'open']
         );
         if ($updated !== 1) {
             throw new DatabaseRefusal('there is no open ticket');
@@ -65,7 +65,7 @@ final class TicketCustomer
     public function clear(string $ticketId): void
     {
         $updated = $this->statements->affected(
-            'UPDATE tickets SET customer_id = NULL WHERE id = ?::uuid AND status = ?',
+            'UPDATE tickets SET customer_party_id = NULL WHERE id = ?::uuid AND status = ?',
             [$ticketId, 'open']
         );
         if ($updated !== 1) {

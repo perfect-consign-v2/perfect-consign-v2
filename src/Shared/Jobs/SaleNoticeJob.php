@@ -39,17 +39,18 @@ final class SaleNoticeJob
     private function letters(string $date): array
     {
         $rows = $this->statements->bound(
-            "SELECT vendor.email, vendor.name, item.code,
+            "SELECT person.email, vendor.name, item.code,
                     (sale.price_minor * sale.quantity - sale.discount_minor - sale.store_discount_minor) AS net_minor
              FROM journals AS journal
              JOIN sale_lines AS sale ON sale.journal_id = journal.id
              JOIN items AS item ON item.id = sale.item_id
              JOIN vendors AS vendor ON vendor.id = item.vendor_id
+             JOIN persons AS person ON person.party_id = vendor.party_id
              WHERE journal.source_type = 'sale'
                AND NOT journal.is_reversal
                AND journal.posting_date = ?::date
-               AND vendor.email IS NOT NULL
-               AND vendor.email <> ''
+               AND person.email IS NOT NULL
+               AND person.email <> ''
                AND NOT vendor.email_bounced",
             [$date]
         );

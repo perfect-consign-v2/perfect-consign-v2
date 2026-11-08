@@ -1,0 +1,53 @@
+---
+title: Party identity, customers, and the wait list
+category: Floor and ops
+hesk: published 2026-11-08
+as_of: 2026-11-07
+---
+
+# Party identity, customers, and the wait list
+
+## As of
+
+2026-11-07 — A party is a person or an organization. Vendor, customer, and wait list are roles. Money still uses the vendor id.
+
+## In one sentence
+
+Staff open identity at `/{slug}/parties`; the seller roster is `/{slug}/vendors` or `/{slug}/consignors`, a customer is `/{slug}/customers/{party id}`, and a wait-list person is `/{slug}/wait-list/{party id}`.
+
+## When it happens
+
+Adding a seller, naming a customer on a ticket, capturing a booth wait-list person, or giving one person both the vendor role and the customer role.
+
+## What the books / screens do
+
+- A party is one person or one organization, not both. Roles are vendor, customer, or wait list.
+- The money key stays the vendor id. The vendor row is that role's books and points at the party. Name, phone, email, and address live on the person.
+- `/{slug}/parties` is identity (person or organization, and which roles they hold). It is not the seller roster.
+- The seller roster is `/{slug}/vendors` in a mall and `/{slug}/consignors` in a consignment-only store.
+- A customer is a party with the customer role. There is no customers table. A ticket stores that party's id. Staff open `/{slug}/customers` and `/{slug}/customers/{party id}`.
+- Naming someone on a sale saves the person and the customer role when that name, phone, and email are new.
+- A wait-list row is keyed by the person's party. Name, email, and phone live on the person. Staff open `/{slug}/wait-list` and `/{slug}/wait-list/{party id}`.
+- A vendor (a person) can also be given the customer role. A customer who is a person can be given the vendor role. The vendor id does not change.
+- People at `/{slug}/staff` is staff sign-in, not this list.
+
+## What is refused
+
+- An organization as a vendor, or as a wait-list person.
+- An organization customer given the vendor role.
+- Editing an organization customer as a first and last name.
+- Treating `/{slug}/parties` as the seller roster.
+
+## How to check
+
+Open Parties and confirm the title is Parties, with people and organizations and their roles, and no seller-roster heading. Open Vendors (or Consignors on a consignment-only store) and confirm that list is who sells here. Open a customer and a wait-list row by party id.
+
+## Source
+
+`docs/business-rules.md` — Vendors; Wait list; Customers.
+
+## Related
+
+- Wait list (not a vendor, not a journal)
+- People and mall roles
+- Vendor Active vs booth assignment vs Unassigned

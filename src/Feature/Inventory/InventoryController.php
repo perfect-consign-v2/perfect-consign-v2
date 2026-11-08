@@ -246,7 +246,8 @@ final class InventoryController
             'slug' => $tenant->slug,
             'item' => $this->forms->view($item),
             'floorDays' => $days === null ? '' : (string) $days,
-            'vendorsUrl' => '/' . $tenant->slug . '/inventory/vendors.json',
+            'vendorsUrl' => '/' . $tenant->slug . '/inventory/'
+                . ($this->mall->isConsignmentOnly() ? 'consignors' : 'vendors') . '.json',
             'brandsUrl' => '/' . $tenant->slug . '/inventory/brands.json',
             'brandCreateUrl' => '/' . $tenant->slug . '/inventory/brands',
             'labelStock' => $this->mall->getLabelStock(),

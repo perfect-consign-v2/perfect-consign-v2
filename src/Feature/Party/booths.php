@@ -16,6 +16,8 @@ use PerfectConsign\Shared\Web\ListTable;
 
 $blank = '—';
 $list = '/' . $slug . '/booths';
+$sellerPrefix = is_string($sellerPrefix ?? null) && $sellerPrefix !== '' ? $sellerPrefix : 'vendors';
+$sellerBase = '/' . $slug . '/' . $sellerPrefix;
 $legend = [
     'available' => 'Available',
     'occupied' => 'Occupied',
@@ -118,7 +120,7 @@ $legend = [
                                 : ' data-tip="' . View::text($statusTip) . '" aria-label="' . View::text($booth['status_label'] . ': ' . $statusTip) . '"';
                             ?>
                             <?php if ($booth['status'] === 'incoming' && $booth['vendor_id'] !== null): ?>
-                                <a class="occupancy-pill incoming" href="/<?= View::text($slug) ?>/vendors/<?= View::text($booth['vendor_id']) ?>"<?= $statusAttrs ?>><?= View::text($booth['status_label']) ?></a>
+                                <a class="occupancy-pill incoming" href="<?= View::text($sellerBase) ?>/<?= View::text($booth['vendor_id']) ?>"<?= $statusAttrs ?>><?= View::text($booth['status_label']) ?></a>
                             <?php else: ?>
                                 <span class="occupancy-pill <?= View::text($booth['status']) ?>"<?= $statusAttrs ?>><?= View::text($booth['status_label']) ?></span>
                             <?php endif; ?>
@@ -129,14 +131,14 @@ $legend = [
                                     ? ''
                                     : ' data-tip="' . View::text($incomingTip) . '" aria-label="Incoming: ' . View::text($incomingTip) . '"';
                                 ?>
-                                <a class="occupancy-pill incoming" href="/<?= View::text($slug) ?>/vendors/<?= View::text($booth['incoming_vendor_id']) ?>"<?= $incomingAttrs ?>>Incoming (<?= View::text($booth['incoming_vendor_code']) ?>)</a>
+                                <a class="occupancy-pill incoming" href="<?= View::text($sellerBase) ?>/<?= View::text($booth['incoming_vendor_id']) ?>"<?= $incomingAttrs ?>>Incoming (<?= View::text($booth['incoming_vendor_code']) ?>)</a>
                             <?php endif; ?>
                         </td>
                         <td>
                             <?php if ($booth['vendor_id'] === null || $booth['vendor_name'] === null): ?>
                                 <span class="muted"><?= $blank ?></span>
                             <?php else: ?>
-                                <a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($booth['vendor_id']) ?>"><?= View::text($booth['vendor_name']) ?></a>
+                                <a class="strong" href="<?= View::text($sellerBase) ?>/<?= View::text($booth['vendor_id']) ?>"><?= View::text($booth['vendor_name']) ?></a>
                             <?php endif; ?>
                         </td>
                         <td class="num"><?= $booth['rent_minor'] === null ? $blank : View::text(View::money($booth['rent_minor'])) ?></td>

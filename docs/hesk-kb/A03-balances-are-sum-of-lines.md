@@ -1,7 +1,7 @@
 ---
 title: Balances are the sum of lines
 category: Money spine
-hesk: published 2026-11-06
+hesk: published 2026-11-08
 as_of: 2026-10-25
 ---
 

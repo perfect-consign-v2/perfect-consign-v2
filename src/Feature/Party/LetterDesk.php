@@ -63,10 +63,11 @@ final class LetterDesk
     public function people(): array
     {
         $rows = $this->statements->rows(
-            'SELECT id::text AS id, name, COALESCE(email, \'\') AS email, email_bounced
-             FROM vendors
-             WHERE active = true
-             ORDER BY name, code'
+            'SELECT vendor.id::text AS id, vendor.name, COALESCE(person.email, \'\') AS email, vendor.email_bounced
+             FROM vendors AS vendor
+             JOIN persons AS person ON person.party_id = vendor.party_id
+             WHERE vendor.active = true
+             ORDER BY vendor.name, vendor.code'
         );
         $people = [];
         foreach ($rows as $row) {
@@ -170,13 +171,14 @@ final class LetterDesk
     private function eligible(): array
     {
         $rows = $this->statements->rows(
-            "SELECT id::text AS id, email
-             FROM vendors
-             WHERE active = true
-               AND email IS NOT NULL
-               AND email <> ''
-               AND NOT email_bounced
-             ORDER BY name, code"
+            "SELECT vendor.id::text AS id, person.email
+             FROM vendors AS vendor
+             JOIN persons AS person ON person.party_id = vendor.party_id
+             WHERE vendor.active = true
+               AND person.email IS NOT NULL
+               AND person.email <> ''
+               AND NOT vendor.email_bounced
+             ORDER BY vendor.name, vendor.code"
         );
         $people = [];
         foreach ($rows as $row) {
@@ -207,14 +209,15 @@ final class LetterDesk
         }
         $marks = implode(', ', array_fill(0, count($ids), '?::uuid'));
         $rows = $this->statements->bound(
-            "SELECT id::text AS id, email
-             FROM vendors
-             WHERE active = true
-               AND email IS NOT NULL
-               AND email <> ''
-               AND NOT email_bounced
-               AND id IN ($marks)
-             ORDER BY name, code",
+            "SELECT vendor.id::text AS id, person.email
+             FROM vendors AS vendor
+             JOIN persons AS person ON person.party_id = vendor.party_id
+             WHERE vendor.active = true
+               AND person.email IS NOT NULL
+               AND person.email <> ''
+               AND NOT vendor.email_bounced
+               AND vendor.id IN ($marks)
+             ORDER BY vendor.name, vendor.code",
             array_values($ids)
         );
         if (count($rows) !== count($ids)) {

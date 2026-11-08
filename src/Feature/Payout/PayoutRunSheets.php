@@ -110,7 +110,7 @@ final class PayoutRunSheets
     private function storedSelect(): string
     {
         return "SELECT line.vendor_id::text AS vendor_id, vendor.code,
-                       btrim(vendor.first_name || ' ' || vendor.last_name) AS name,
+                       vendor.name AS name,
                        COALESCE(spot.booth, '') AS booth,
                        COALESCE(to_char(sale.sold_on, 'YYYY-MM-DD'), '') AS sold_on,
                        COALESCE(sale.item_code, '') AS item_code,

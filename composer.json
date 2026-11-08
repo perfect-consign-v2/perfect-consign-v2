@@ -64,6 +64,7 @@
         ],
         "test:coverage": "php bin/coverage-run.php",
         "test:mutate": "php bin/mutate.php",
+        "ensure:demo-logins": "php bin/ensure-demo-logins.php",
         "check": [
             "@check:freeze",
             "@check:max-lines",
@@ -76,7 +77,8 @@
             "@prove:race",
             "@prove",
             "@prove:tenant",
-            "@check:worker"
+            "@check:worker",
+            "@ensure:demo-logins"
         ]
     },
     "config": {

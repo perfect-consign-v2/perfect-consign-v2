@@ -82,11 +82,13 @@ final class PasswordRequestTest extends TestCase
     {
         $count = $this->createStub(PDOStatement::class);
         $count->method('fetchColumn')->willReturn(5);
+        $lock = $this->createStub(PDOStatement::class);
         $pdo = $this->createMock(PDO::class);
         $pdo->expects($this->once())->method('exec')->willReturn(1);
-        $pdo->expects($this->once())->method('prepare')->willReturn($count);
+        $pdo->expects($this->exactly(2))->method('prepare')->willReturnOnConsecutiveCalls($lock, $count);
         self::assertFalse((new ResetRequests($pdo, $this->httpRequest()))->allow($this->tenant(), 'owner'));
 
+        $lock = $this->createStub(PDOStatement::class);
         $again = $this->createStub(PDOStatement::class);
         $again->method('fetchColumn')->willReturn(4);
         $spray = $this->createStub(PDOStatement::class);
@@ -94,7 +96,7 @@ final class PasswordRequestTest extends TestCase
         $insert = $this->createStub(PDOStatement::class);
         $open = $this->createStub(PDO::class);
         $open->method('exec')->willReturn(1);
-        $open->method('prepare')->willReturnOnConsecutiveCalls($again, $spray, $insert);
+        $open->method('prepare')->willReturnOnConsecutiveCalls($lock, $again, $spray, $insert);
         self::assertTrue((new ResetRequests($open, $this->httpRequest()))->allow($this->tenant(), 'owner'));
     }
 
@@ -153,10 +155,11 @@ final class PasswordRequestTest extends TestCase
             'gmail_address' => 'shop@example.test',
             'gmail_app_password' => 'abcdefghijklmnop',
         ]);
+        $lock = $this->createStub(PDOStatement::class);
         $spray = $this->createStub(PDOStatement::class);
         $spray->method('fetchColumn')->willReturn(0);
         $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturnOnConsecutiveCalls($count, $spray, $insert, $found, $staff);
+        $pdo->method('prepare')->willReturnOnConsecutiveCalls($lock, $count, $spray, $insert, $found, $staff);
         $pdo->method('query')->willReturn($mailbox);
         $pdo->method('exec')->willReturn(1);
 

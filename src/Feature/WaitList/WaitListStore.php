@@ -4,17 +4,23 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\WaitList;
 
+use PerfectConsign\Feature\Party\PartyIdentity;
+use PerfectConsign\Feature\Party\PartyRoleType;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 use Psr\Log\LoggerInterface;
 
 final class WaitListStore
 {
+    private readonly PartyIdentity $identity;
+
     public function __construct(
         private readonly Statements $statements,
         private readonly WaitListFields $fields,
         private readonly LoggerInterface $logger,
+        ?PartyIdentity $identity = null,
     ) {
+        $this->identity = $identity ?? new PartyIdentity($statements);
     }
 
     /**
@@ -46,18 +52,18 @@ final class WaitListStore
         }
         $needle = strtolower(trim($query));
         if ($needle !== '') {
-            $where[] = '(strpos(lower(entry.first_name), ?) > 0
-                OR strpos(lower(entry.last_name), ?) > 0
-                OR strpos(lower(btrim(entry.first_name || \' \' || entry.last_name)), ?) > 0
-                OR strpos(lower(entry.email), ?) > 0
-                OR strpos(lower(entry.phone), ?) > 0)';
+            $where[] = '(strpos(lower(person.first_name), ?) > 0
+                OR strpos(lower(person.last_name), ?) > 0
+                OR strpos(lower(stall_person_display_name(person.first_name, person.last_name, person.display_name)), ?) > 0
+                OR strpos(lower(COALESCE(person.email, \'\')), ?) > 0
+                OR strpos(lower(COALESCE(person.phone, \'\')), ?) > 0)';
             array_push($params, $needle, $needle, $needle, $needle, $needle);
         }
         $sql = $this->select();
         if ($where !== []) {
             $sql .= ' WHERE ' . implode(' AND ', $where);
         }
-        $sql .= ' ORDER BY entry.created_at, lower(entry.first_name), lower(entry.last_name), entry.id';
+        $sql .= ' ORDER BY entry.created_at, lower(person.first_name), lower(person.last_name), entry.party_id';
         $rows = $params === [] ? $this->statements->rows($sql) : $this->statements->bound($sql, $params);
         $entries = [];
         foreach ($rows as $row) {
@@ -97,7 +103,7 @@ final class WaitListStore
      */
     public function find(string $id): ?array
     {
-        $rows = $this->statements->bound($this->select() . ' WHERE entry.id = ?::uuid', [$id]);
+        $rows = $this->statements->bound($this->select() . ' WHERE entry.party_id = ?::uuid', [$id]);
 
         return $rows[0] ?? null;
     }
@@ -137,26 +143,32 @@ final class WaitListStore
         string $notes,
     ): string {
         $fields = $this->fields->create($firstName, $lastName, $email, $phone, $width, $depth, $notes);
-        $rows = $this->statements->bound(
-            'INSERT INTO wait_list (first_name, last_name, email, phone, width_ft, depth_ft, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
-             RETURNING id',
-            [
+
+        $partyId = '';
+        $this->statements->transaction(function () use ($fields, &$partyId): void {
+            $created = $this->identity->createPerson(
                 $fields['first'],
                 $fields['last'],
-                $fields['email'],
+                null,
                 $fields['phone'],
-                $fields['width'],
-                $fields['depth'],
-                $fields['notes'],
-            ]
-        );
-        $id = $rows[0]['id'] ?? null;
-        if (!is_string($id) || $id === '') {
-            throw new \InvalidArgumentException('the wait list row was not created');
-        }
+                $fields['email'],
+                null,
+                PartyRoleType::WAIT_LIST,
+            );
+            $this->statements->change(
+                'INSERT INTO wait_list (party_id, width_ft, depth_ft, notes)
+                 VALUES (?::uuid, ?, ?, ?)',
+                [
+                    $created['party_id'],
+                    $fields['width'],
+                    $fields['depth'],
+                    $fields['notes'],
+                ]
+            );
+            $partyId = $created['party_id'];
+        });
 
-        return $id;
+        return $partyId;
     }
 
     public function save(
@@ -180,30 +192,37 @@ final class WaitListStore
             $status,
             $notes,
         );
-        $count = $this->statements->affected(
-            'UPDATE wait_list
-             SET first_name = ?, last_name = ?, email = ?, phone = ?, width_ft = ?, depth_ft = ?, status = ?, notes = ?
-             WHERE id = ?::uuid',
-            [
+        $this->statements->transaction(function () use ($id, $fields): void {
+            $count = $this->statements->affected(
+                'UPDATE wait_list
+                 SET width_ft = ?, depth_ft = ?, status = ?, notes = ?
+                 WHERE party_id = ?::uuid',
+                [
+                    $fields['width'],
+                    $fields['depth'],
+                    $fields['status'],
+                    $fields['notes'],
+                    $id,
+                ]
+            );
+            if ($count === 0) {
+                throw new \InvalidArgumentException('That person is not on the wait list.');
+            }
+            $this->identity->savePerson(
+                $id,
                 $fields['first'],
                 $fields['last'],
-                $fields['email'],
+                null,
                 $fields['phone'],
-                $fields['width'],
-                $fields['depth'],
-                $fields['status'],
-                $fields['notes'],
-                $id,
-            ]
-        );
-        if ($count === 0) {
-            throw new \InvalidArgumentException('That person is not on the wait list.');
-        }
+                $fields['email'],
+                null,
+            );
+        });
     }
 
     public function remove(string $id): void
     {
-        $count = $this->statements->affected('DELETE FROM wait_list WHERE id = ?::uuid', [$id]);
+        $count = $this->statements->affected('DELETE FROM wait_list WHERE party_id = ?::uuid', [$id]);
         if ($count === 0) {
             throw new \InvalidArgumentException('That person is not on the wait list.');
         }
@@ -211,13 +230,14 @@ final class WaitListStore
 
     private function select(): string
     {
-        return 'SELECT entry.id, entry.first_name, entry.last_name, entry.email, entry.phone,
+        return "SELECT entry.party_id AS id, person.first_name, person.last_name, person.email, person.phone,
                        entry.width_ft, entry.depth_ft, entry.status, entry.notes,
-                       to_char(entry.created_at AT TIME ZONE mall.time_zone, \'YYYY-MM-DD\') AS waiting_since,
+                       to_char(entry.created_at AT TIME ZONE mall.time_zone, 'YYYY-MM-DD') AS waiting_since,
                        ((clock_timestamp() AT TIME ZONE mall.time_zone)::date
                            - (entry.created_at AT TIME ZONE mall.time_zone)::date) AS waited_days
                 FROM wait_list AS entry
-                CROSS JOIN mall';
+                JOIN persons AS person ON person.party_id = entry.party_id
+                CROSS JOIN mall";
     }
 
     /**

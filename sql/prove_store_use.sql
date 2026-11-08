@@ -4,10 +4,8 @@ BEGIN;
 
 UPDATE mall SET store_stock_enabled = true;
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES
-    ('01900000-0000-7000-8000-00000000f101', 'use', 'Uma', 'Lane'),
-    ('01900000-0000-7000-8000-00000000f102', 'use2', 'Uri', 'Lane');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000f101', 'use', 'Uma', 'Lane');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000f102', 'use2', 'Uri', 'Lane');
 
 INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity)
 VALUES

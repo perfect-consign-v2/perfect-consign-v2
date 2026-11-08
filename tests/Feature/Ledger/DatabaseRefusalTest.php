@@ -10,34 +10,34 @@ use PHPUnit\Framework\TestCase;
 
 final class DatabaseRefusalTest extends TestCase
 {
-    public function testADuplicateTagIsASentence(): void
+    public function testAnEnglishRaisePassesThrough(): void
     {
         $error = new PDOException(
-            'SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint "items_code_key"'
+            'SQLSTATE[23505]: Unique violation: 7 ERROR:  That tag is already used.'
         );
 
         self::assertSame('That tag is already used.', DatabaseRefusal::fromPdo($error)->getMessage());
     }
 
-    public function testABlankColorNameIsASentence(): void
+    public function testABlankColorNameRaisePassesThrough(): void
     {
         $error = new PDOException(
-            'SQLSTATE[23514]: Check violation: 7 ERROR:  new row for relation "colors" violates check constraint "colors_name_chk"'
+            'SQLSTATE[23514]: Check violation: 7 ERROR:  Enter a color name.'
         );
 
         self::assertSame('Enter a color name.', DatabaseRefusal::fromPdo($error)->getMessage());
     }
 
-    public function testABlankBrandNameIsASentence(): void
+    public function testABlankBrandNameRaisePassesThrough(): void
     {
         $error = new PDOException(
-            'SQLSTATE[23514]: Check violation: 7 ERROR:  new row for relation "brands" violates check constraint "brands_name_chk"'
+            'SQLSTATE[23514]: Check violation: 7 ERROR:  Enter a brand name.'
         );
 
         self::assertSame('Enter a brand name.', DatabaseRefusal::fromPdo($error)->getMessage());
     }
 
-    public function testAnUnmappedDatabaseLineIsHidden(): void
+    public function testAConstraintNameDumpIsHidden(): void
     {
         $error = new PDOException(
             'SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint "journals_book_key"'
@@ -46,10 +46,10 @@ final class DatabaseRefusalTest extends TestCase
         self::assertSame('That could not be saved.', DatabaseRefusal::fromPdo($error)->getMessage());
     }
 
-    public function testAnOverlappingBoothStayIsASentence(): void
+    public function testAnOverlappingBoothRaisePassesThrough(): void
     {
         $error = new PDOException(
-            'SQLSTATE[23P01]: Exclusion violation: 7 ERROR:  conflicting key value violates exclusion constraint "booth_assignments_no_overlap"'
+            'SQLSTATE[23P01]: Exclusion violation: 7 ERROR:  That booth is already taken on those dates.'
         );
 
         self::assertSame('That booth is already taken on those dates.', DatabaseRefusal::fromPdo($error)->getMessage());
@@ -74,17 +74,16 @@ final class DatabaseRefusalTest extends TestCase
         self::assertSame('There aren\'t that many left.', DatabaseRefusal::phrase('there are not enough on hand'));
     }
 
-    public function testAnOverflowAndAUuidAreHiddenSentences(): void
+    public function testNoiseAndOverflowAreHiddenOrMapped(): void
     {
         self::assertSame('That amount is too big.', DatabaseRefusal::phrase('numeric field overflow'));
-        self::assertSame(
-            'That could not be saved.',
-            DatabaseRefusal::phrase('journal 01900000-0000-7000-8000-000000000001'),
-        );
-        self::assertSame('That could not be saved.', DatabaseRefusal::phrase('sale:01900000-aaaa'));
         self::assertSame('That could not be saved.', DatabaseRefusal::phrase('mall_clock_chk'));
         self::assertSame('That amount is too big.', DatabaseRefusal::phrase('value too large for the column'));
         self::assertSame('That could not be saved.', DatabaseRefusal::phrase('duplicate key value'));
         self::assertSame('That could not be saved.', DatabaseRefusal::phrase('violates check constraint colors_name'));
+        self::assertSame(
+            'journal 01900000-0000-7000-8000-000000000001',
+            DatabaseRefusal::phrase('journal 01900000-0000-7000-8000-000000000001'),
+        );
     }
 }

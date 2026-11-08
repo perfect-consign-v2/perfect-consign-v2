@@ -178,6 +178,13 @@ if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath((string) $argv[0]) === rea
     );
     try {
         wipeTenant($pdo, $slug, $slug);
+        if ($slug === 'mall' || $slug === 'shop') {
+            require_once dirname(__DIR__) . '/vendor/autoload.php';
+            $notes = (new PerfectConsign\Feature\Dev\DemoLoginEnsure())->ensureAfterWipe($pdo, $slug);
+            foreach ($notes as $note) {
+                fwrite(STDOUT, $note . "\n");
+            }
+        }
     } catch (Throwable $error) {
         fwrite(STDERR, $error->getMessage() . "\n");
         exit(1);

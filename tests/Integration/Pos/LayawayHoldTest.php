@@ -44,10 +44,7 @@ final class LayawayHoldTest extends TestCase
              VALUES (?::uuid, ?::uuid, ?, ?::jsonb, 0)',
             [$sessionId, $registerId, 'Ada', '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}']
         );
-        $statements->change(
-            'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-            [$vendorId, $code, 'Balance', 'Proof']
-        );
+        \PerfectConsign\Tests\Support\SeedVendor::withId($statements, $vendorId, $code, 'Balance', 'Proof');
         $statements->change(
             'INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity)
              VALUES (?::uuid, ?, ?::uuid, ?, 1000, ?, ?::date, 1)',
@@ -100,6 +97,7 @@ final class LayawayHoldTest extends TestCase
         $registerId = $ledger->newId();
         $sessionId = $ledger->newId();
         $vendorId = $ledger->newId();
+        $vendorPartyId = $ledger->newId();
         $customerId = $ledger->newId();
         $itemId = $ledger->newId();
         $ticketId = $ledger->newId();
@@ -114,13 +112,28 @@ final class LayawayHoldTest extends TestCase
              VALUES (?::uuid, ?::uuid, ?, ?::jsonb, 0)',
             [$sessionId, $registerId, 'Ada', '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}']
         );
+        $statements->change('INSERT INTO parties (id) VALUES (?::uuid)', [$vendorPartyId]);
         $statements->change(
-            'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-            [$vendorId, $code, 'Stock', 'Owner']
+            'INSERT INTO persons (party_id, first_name, last_name) VALUES (?::uuid, ?, ?)',
+            [$vendorPartyId, 'Stock', 'Owner']
         );
         $statements->change(
-            'INSERT INTO customers (id, name, phone, email) VALUES (?::uuid, ?, ?, ?)',
-            [$customerId, $shopper, '555-0100', 'shopper@example.com']
+            "INSERT INTO party_roles (party_id, role_type, status) VALUES (?::uuid, 'vendor', 'active')",
+            [$vendorPartyId]
+        );
+        $statements->change(
+            'INSERT INTO vendors (id, party_id, code) VALUES (?::uuid, ?::uuid, ?)',
+            [$vendorId, $vendorPartyId, $code]
+        );
+        $statements->change('INSERT INTO parties (id) VALUES (?::uuid)', [$customerId]);
+        $statements->change(
+            'INSERT INTO persons (party_id, first_name, last_name, phone, email)
+             VALUES (?::uuid, ?, ?, ?, ?)',
+            [$customerId, 'Shopper', $code, '555-0100', 'shopper@example.com']
+        );
+        $statements->change(
+            "INSERT INTO party_roles (party_id, role_type, status) VALUES (?::uuid, 'customer', 'active')",
+            [$customerId]
         );
         $statements->change(
             'INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity)
@@ -128,7 +141,7 @@ final class LayawayHoldTest extends TestCase
             [$itemId, $code, $vendorId, 'Held coat', 'BC-' . $code, '2026-06-15']
         );
         $statements->change(
-            'INSERT INTO tickets (id, session_id, customer_id) VALUES (?::uuid, ?::uuid, ?::uuid)',
+            'INSERT INTO tickets (id, session_id, customer_party_id) VALUES (?::uuid, ?::uuid, ?::uuid)',
             [$ticketId, $sessionId, $customerId]
         );
         $statements->change(
@@ -191,10 +204,7 @@ final class LayawayHoldTest extends TestCase
              VALUES (?::uuid, ?::uuid, ?, ?::jsonb, 0)',
             [$sessionId, $registerId, 'Ada', '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}']
         );
-        $statements->change(
-            'INSERT INTO vendors (id, code, first_name, last_name) VALUES (?::uuid, ?, ?, ?)',
-            [$vendorId, $code, 'Hold', 'Proof']
-        );
+        \PerfectConsign\Tests\Support\SeedVendor::withId($statements, $vendorId, $code, 'Hold', 'Proof');
         $statements->change(
             'INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity)
              VALUES (?::uuid, ?, ?::uuid, ?, 1000, ?, ?::date, 1)',

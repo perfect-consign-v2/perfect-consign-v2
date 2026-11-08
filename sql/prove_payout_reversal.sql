@@ -79,8 +79,7 @@ END $$;
 SET LOCAL session_replication_role = origin;
 ROLLBACK TO SAVEPOINT replica_key;
 
-INSERT INTO vendors (id, code, first_name, last_name)
-VALUES ('01900000-0000-7000-8000-00000000f401', 'undo', 'Ned', 'Undo');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000f401', 'undo', 'Ned', 'Undo');
 
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-00000000f501', 'U1', 'Undo booth');

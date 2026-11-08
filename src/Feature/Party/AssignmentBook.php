@@ -24,6 +24,7 @@ final class AssignmentBook
              FROM booth_assignments AS assignment
              JOIN booths AS booth ON booth.id = assignment.booth_id
              JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
+                 JOIN persons AS person ON person.party_id = vendor.party_id
              ORDER BY assignment.starts_on, booth.code'
         );
     }
@@ -173,7 +174,7 @@ final class AssignmentBook
             throw new \InvalidArgumentException('a vendor day is YYYY-MM-DD');
         }
         $sql = 'SELECT vendor.id AS vendor_id, vendor.code AS vendor_code, vendor.name AS vendor_name,
-                       vendor.first_name, vendor.last_name, vendor.phone, vendor.email, vendor.address, vendor.active,
+                       person.first_name, person.last_name, person.phone, person.email, person.address, vendor.active,
                        assignment.id AS assignment_id, assignment.booth_id, booth.code AS booth_code,
                        assignment.starts_on, assignment.ends_on,
                        (
@@ -185,6 +186,7 @@ final class AssignmentBook
                            LIMIT 1
                        ) AS rent_minor
                 FROM vendors AS vendor
+                JOIN persons AS person ON person.party_id = vendor.party_id
                 LEFT JOIN booth_assignments AS assignment ON assignment.vendor_id = vendor.id
                 LEFT JOIN booths AS booth ON booth.id = assignment.booth_id';
         $params = [$asOf];
