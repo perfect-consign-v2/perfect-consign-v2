@@ -95,7 +95,7 @@ final class GiftIssuePosting
                 );
             } catch (DatabaseRefusal $error) {
                 $refusal = $error;
-                if ($requested !== '' || $error->getMessage() !== DatabaseRefusal::CERTIFICATE_NUMBER_USED) {
+                if ($requested !== '' || !DatabaseRefusal::isCertificateNumberUsed($error)) {
                     throw $error;
                 }
             }

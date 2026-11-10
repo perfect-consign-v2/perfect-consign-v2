@@ -45,8 +45,10 @@ final class ManagerMenuTest extends TestCase
         self::assertStringContainsString('This month', $html);
         self::assertStringContainsString('View payouts', $html);
         self::assertStringContainsString('Reports', $html);
+        self::assertStringContainsString('nav-group-label">People</div>', $html);
+        self::assertStringContainsString('Customers', $html);
         self::assertStringNotContainsString('Settings', $html);
-        self::assertStringNotContainsString('>People<', $html);
+        self::assertStringNotContainsString('nav-label">Staff</span>', $html);
         self::assertStringNotContainsString('Close the year', $html);
         self::assertStringNotContainsString('Pay vendors', $html);
     }

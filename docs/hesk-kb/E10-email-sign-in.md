@@ -1,15 +1,15 @@
 ---
 title: Email sign-in finds the mall
 category: Platform notes
-hesk: published 2026-11-08
-as_of: 2026-11-08
+hesk: published 2026-11-09
+as_of: 2026-11-09
 ---
 
 # Email sign-in finds the mall
 
 ## As of
 
-2026-11-08 — local wipe of demo stores `mall` / `shop` re-provisions empty tenants and re-plants owners from `.env` via `php bin/ensure-demo-logins.php` (also after `composer check` and CLI `wipe-tenant` for those slugs) so email sign-in keeps working without a full seed.
+2026-11-09 — forgot-password keeps the same user success flash when a known account’s reset mail fails; operators get a platform notice.
 
 ## In one sentence
 
@@ -26,7 +26,7 @@ An owner, manager, cashier, books login, or vendor opens the site root, or uses 
 - Saving an owner or staff email updates the directory through triggers (`052` / `053`).
 - The account menu Change password screen updates the password first, then the sign-in email. The mall company email is not a password-reset fallback.
 - Wrong password and unknown email show the same message. Five failures in fifteen minutes for the same email and client address lock that pair. Forty failures from one client address across any emails lock that address. Twenty failures for the same email from any addresses lock the email. Older failure rows are pruned when a new failure is recorded. Mall username and platform admin failure rows prune the same way.
-- `/forgot` looks up the email and, when found, sends the reset email in that request through the mall mailbox in Settings; the success message is always the same whether the email is known or not.
+- `/forgot` looks up the email and, when found, sends the reset email in that request through the mall mailbox in Settings; the success message is always the same whether the email is known or not (anti-enumeration). When the email is known and mail setup or delivery fails, the user still sees that same success flash; operators get a platform notice so the failure is not silent.
 
 ## What is refused
 

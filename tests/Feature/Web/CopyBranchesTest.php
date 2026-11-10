@@ -111,6 +111,116 @@ final class CopyBranchesTest extends TestCase
         self::assertStringContainsString('Consignor payables', $store);
     }
 
+    public function testConsignmentOnlyScreensDoNotSayVendor(): void
+    {
+        $expire = $this->render('Feature/Inventory/expire-desk.php', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'items' => [],
+            'error' => null,
+            'formToken' => 'token',
+            'today' => '2026-06-01',
+            'consignmentOnly' => true,
+        ]);
+        self::assertStringContainsString('Return to the consignor', $expire);
+        self::assertStringNotContainsString('Return to the vendor', $expire);
+
+        $import = $this->render('Feature/Inventory/import.php', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'error' => null,
+            'consignmentOnly' => true,
+        ]);
+        self::assertStringContainsString('code, consignor, description', $import);
+        self::assertStringNotContainsString('code, vendor, description', $import);
+
+        $inventory = $this->render('Feature/Inventory/inventory.php', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'items' => [],
+            'query' => '',
+            'stock' => '',
+            'total' => 1,
+            'available' => 1,
+            'unsold' => 0,
+            'unprinted' => 0,
+            'showBrand' => false,
+            'confirm' => '',
+            'error' => null,
+            'attributeLists' => [],
+            'labelStock' => '',
+            'stocks' => [],
+            'consignmentOnly' => true,
+        ]);
+        self::assertStringContainsString('description, or consignor', $inventory);
+        self::assertStringNotContainsString('description, or vendor', $inventory);
+
+        $form = $this->render('Feature/Inventory/inventory-form.php', $this->inventoryForm(true));
+        self::assertStringContainsString('<label for="vendor_label">Consignor</label>', $form);
+        self::assertStringContainsString('Choose a consignor from the list.', $form);
+        self::assertStringNotContainsString('Choose a vendor from the list.', $form);
+
+        $mallForm = $this->render('Feature/Inventory/inventory-form.php', $this->inventoryForm(false));
+        self::assertStringContainsString('<label for="vendor_label">Vendor</label>', $mallForm);
+        self::assertStringContainsString('Choose a vendor from the list.', $mallForm);
+
+        $customer = $this->render('Feature/Pos/customer-form.php', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'customer' => ['id' => 'c1', 'name' => 'Ada', 'phone' => '', 'email' => ''],
+            'error' => null,
+            'sellerList' => '/demo/consignors',
+            'sellerRoleAction' => '',
+            'consignmentOnly' => true,
+        ]);
+        self::assertStringContainsString('Add consignor role', $customer);
+        self::assertStringContainsString('consignors-role', $customer);
+        self::assertStringNotContainsString('vendor-role', $customer);
+
+        $memo = $this->render('Feature/Book/vendor-memo.php', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'vendors' => [],
+            'error' => null,
+            'owed' => null,
+            'vendorId' => '',
+            'direction' => '',
+            'amount' => '',
+            'reason' => '',
+            'postingDate' => '',
+            'today' => '2026-06-01',
+            'formToken' => 'token',
+            'consignmentOnly' => true,
+        ]);
+        self::assertStringContainsString('<h1>Consignor memo</h1>', $memo);
+        self::assertStringNotContainsString('<h1>Vendor memo</h1>', $memo);
+
+        $offer = $this->render('Feature/Offer/offer-form.php', [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'base' => '/demo/offers',
+            'id' => '',
+            'draft' => [
+                'name' => '',
+                'scope' => 'vendor',
+                'kind' => 'percent',
+                'threshold' => '',
+                'price' => '',
+                'funded_by' => 'store',
+                'starts_on' => '',
+                'ends_on' => '',
+                'item_code' => '',
+                'vendor_id' => '',
+            ],
+            'vendors' => [],
+            'error' => null,
+            'locked' => false,
+            'consignmentOnly' => true,
+        ]);
+        self::assertStringContainsString('One consignor', $offer);
+        self::assertStringNotContainsString('One vendor', $offer);
+    }
+
     public function testTheVendorHomeShowsASaleWithoutTheOtherBalance(): void
     {
         $sold = $this->render('Feature/Vendor/home.php', ['slug' => 'demo', 'page' => $this->home(1, 0, 1, 0)]);
@@ -331,6 +441,50 @@ final class CopyBranchesTest extends TestCase
             'last' => null,
             'consignor' => ['sold' => $sold, 'take' => 0, 'owed' => 0, 'expired' => $expired],
             'dealer' => ['sold' => $dealerSold, 'owed' => 0, 'rent' => $rent, 'settled' => 0],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function inventoryForm(bool $consignmentOnly): array
+    {
+        return [
+            'slug' => 'demo',
+            'csrf' => 'token',
+            'floorDays' => '30',
+            'vendorsUrl' => '/demo/inventory/consignors.json',
+            'brandsUrl' => '/demo/inventory/brands.json',
+            'brandCreateUrl' => '/demo/inventory/brands',
+            'sold' => false,
+            'item' => [
+                'id' => '',
+                'code' => '',
+                'barcode' => '',
+                'description' => '',
+                'price' => '',
+                'quantity' => '1',
+                'vendor_id' => '',
+                'vendor_label' => '',
+                'brand_id' => '',
+                'brand_label' => '',
+                'attributes' => [],
+                'store_take' => '50',
+                'default_take' => '50',
+                'overridden' => false,
+                'intake_on' => '2026-01-01',
+                'expires_on' => '',
+                'expire_dirty' => false,
+            ],
+            'attributeLists' => [],
+            'labelStock' => '',
+            'printId' => '',
+            'stocks' => [],
+            'hasPhoto' => false,
+            'photoRule' => 'JPEG only.',
+            'error' => null,
+            'showBrand' => false,
+            'consignmentOnly' => $consignmentOnly,
         ];
     }
 

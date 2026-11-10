@@ -61,17 +61,11 @@ final class Actor
     public function role(): string
     {
         $role = $this->session->get('actor_role');
-        if (
-            $role === 'cashier'
-            || $role === 'vendor'
-            || $role === 'owner'
-            || $role === 'books'
-            || $role === 'manager'
-        ) {
-            return $role;
+        if (!is_string($role) || !ActorRole::isKnown($role)) {
+            return '';
         }
 
-        return '';
+        return $role;
     }
 
     public function account(): string
@@ -97,9 +91,9 @@ final class Actor
     public function path(string $slug): string
     {
         return match ($this->role()) {
-            'cashier', 'manager' => '/' . $slug . '/pos',
-            'vendor' => '/' . $slug . '/vendor',
-            'books' => '/' . $slug . '/sales',
+            ActorRole::CASHIER, ActorRole::MANAGER => '/' . $slug . '/pos',
+            ActorRole::VENDOR => '/' . $slug . '/vendor',
+            ActorRole::BOOKS => '/' . $slug . '/sales',
             default => '/' . $slug . '/dashboard',
         };
     }

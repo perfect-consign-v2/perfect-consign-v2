@@ -16,7 +16,8 @@ final class LayoutBranchesTest extends TestCase
         ]);
 
         self::assertStringNotContainsString('href="/demo/brands"', $html);
-        self::assertStringContainsString('People', $html);
+        self::assertStringContainsString('nav-group-label">People</div>', $html);
+        self::assertStringContainsString('nav-label">Staff</span>', $html);
         self::assertStringNotContainsString('Active:', $html);
     }
 
@@ -43,7 +44,9 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('>D</span>', $html);
         self::assertStringContainsString('content="noindex"', $html);
         self::assertStringContainsString('This month', $html);
-        self::assertStringContainsString('People', $html);
+        self::assertStringContainsString('nav-group-label">People</div>', $html);
+        self::assertStringContainsString('nav-label">Staff</span>', $html);
+        self::assertStringContainsString('href="/demo/customers"', $html);
         self::assertStringContainsString('href="/demo/brands"', $html);
         self::assertStringContainsString('Owner', $html);
         self::assertStringContainsString('href="/demo/colors"', $html);
@@ -195,7 +198,8 @@ final class LayoutBranchesTest extends TestCase
 
         self::assertStringNotContainsString('nav-label">Sell', $html);
         self::assertStringNotContainsString('This month', $html);
-        self::assertStringNotContainsString('People', $html);
+        self::assertStringNotContainsString('nav-group-label">People</div>', $html);
+        self::assertStringNotContainsString('nav-label">Staff</span>', $html);
         self::assertStringNotContainsString('Close the year', $html);
         self::assertStringNotContainsString('>Owner<', $html);
     }
@@ -380,7 +384,8 @@ final class LayoutBranchesTest extends TestCase
         self::assertStringContainsString('href="/demo/sales"', $books);
         self::assertStringContainsString('href="/demo/journals"', $books);
         self::assertStringContainsString('View payouts', $books);
-        self::assertStringNotContainsString('People', $books);
+        self::assertStringNotContainsString('nav-group-label">People</div>', $books);
+        self::assertStringNotContainsString('nav-label">Staff</span>', $books);
         self::assertStringContainsString('class="pos-app"', $pos);
         self::assertStringContainsString('class="pos-main"', $pos);
         self::assertStringContainsString('id="prior-register"', $oddPrior);

@@ -60,13 +60,32 @@ final class JobDispatchTest extends TestCase
         $this->jobs($this->pdo())->dispatch($this->job('not-a-job', '{}'));
     }
 
+    public function testDispatchRefusesAMissingDate(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('job date is missing');
+        $this->jobs($this->pdo())->dispatch($this->job('assess-late-fees', '{}'));
+    }
+
+    public function testDispatchRefusesAMissingLetter(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('job letter is missing');
+        $this->jobs($this->pdo())->dispatch($this->job('vendor-letter', '{}'));
+    }
+
     public function testTheMallClockResetsTheRole(): void
     {
+        $fetches = 0;
         $listed = $this->createStub(PDOStatement::class);
-        $listed->method('fetch')->willReturnOnConsecutiveCalls(
-            ['slug' => 'mall', 'schema_name' => 'not-a-schema'],
-            false,
-        );
+        $listed->method('fetch')->willReturnCallback(static function () use (&$fetches): array|false {
+            $fetches++;
+            if ($fetches === 1) {
+                return ['slug' => 'mall', 'schema_name' => 'not-a-schema'];
+            }
+
+            return false;
+        });
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturn($listed);
         $pdo->expects($this->exactly(2))->method('exec')->willReturn(1);
@@ -88,8 +107,9 @@ final class JobDispatchTest extends TestCase
 
     public function testAnEmptyDigestSendsNothing(): void
     {
+        $empty = $this->emptyRows();
         $pdo = $this->createMock(PDO::class);
-        $pdo->expects($this->exactly(2))->method('query')->willReturn(false);
+        $pdo->expects($this->exactly(2))->method('query')->willReturn($empty);
         $logger = $this->createStub(LoggerInterface::class);
         $job = new DigestJob(
             $pdo,
@@ -160,9 +180,18 @@ final class JobDispatchTest extends TestCase
         $pdo = $this->createStub(PDO::class);
         $pdo->method('prepare')->willReturn($statement);
         $pdo->method('exec')->willReturn(1);
-        $pdo->method('query')->willReturn(false);
+        $pdo->method('query')->willReturn($this->emptyRows());
 
         return $pdo;
+    }
+
+    private function emptyRows(): PDOStatement
+    {
+        $sqlite = new PDO('sqlite::memory:');
+        $statement = $sqlite->query('SELECT 1 AS id WHERE 0');
+        self::assertInstanceOf(PDOStatement::class, $statement);
+
+        return $statement;
     }
 
     private function runner(PDO $pdo): JobRunner

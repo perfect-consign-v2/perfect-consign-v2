@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Pos;
 use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Feature\Inventory\InventoryStore;
 use PerfectConsign\Feature\Inventory\ItemWriter;
+use PerfectConsign\Feature\Mall\MallSettings;
 
 final class InstantItem
 {
@@ -17,6 +18,7 @@ final class InstantItem
         private readonly TicketLines $lines,
         private readonly TicketDrafts $drafts,
         private readonly SaleCeiling $ceiling,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -50,7 +52,9 @@ final class InstantItem
     public function add(string $session, string $today, InstantAdd $item): void
     {
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $item->vendorId) !== 1) {
-            throw new \InvalidArgumentException('Choose a vendor.');
+            throw new \InvalidArgumentException(
+                $this->mall->getPartyLabel('Choose a vendor.', 'Choose a consignor.')
+            );
         }
         $description = trim($item->description);
         if ($description === '') {

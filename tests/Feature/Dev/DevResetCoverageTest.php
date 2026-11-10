@@ -29,14 +29,6 @@ final class DevResetCoverageTest extends TestCase
         }
     }
 
-    public function testTheShopResetNamesItsLoadSteps(): void
-    {
-        self::assertContains('requireTools(', ['requireTools(']);
-        self::assertContains('sqlDirectory(', ['sqlDirectory(']);
-        self::assertContains('loadSql(', ['loadSql(']);
-        self::assertContains('restoreOwner(', ['restoreOwner(']);
-    }
-
     public function testAResetClearsTheOpenRegisterTape(): void
     {
         $reset = $this->controller($this->actor('owner', 'mall'));

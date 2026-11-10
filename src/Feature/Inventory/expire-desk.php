@@ -25,7 +25,7 @@ use PerfectConsign\Shared\Http\View;
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Expired items</h1>
-        <p class="muted">Return to the vendor, donate to store stock, or buy into store stock. Suggested action follows the vendor preference.</p>
+        <p class="muted">Return to the <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?>, donate to store stock, or buy into store stock. Suggested action follows the <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?> preference.</p>
     </div>
     <div class="row gap-2">
         <a class="btn" href="/<?= View::text($slug) ?>/inventory">All items</a>
@@ -45,7 +45,7 @@ use PerfectConsign\Shared\Http\View;
                 <tr>
                     <th>Code</th>
                     <th>Description</th>
-                    <th>Vendor</th>
+                    <th><?= ($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor' ?></th>
                     <th>Expired</th>
                     <th class="num">Price</th>
                     <th class="num">Qty</th>

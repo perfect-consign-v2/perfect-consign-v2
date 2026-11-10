@@ -9,7 +9,17 @@ use PHPUnit\Framework\TestCase;
 
 final class ListTableTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        $this->resetListTableFlags();
+    }
+
     protected function tearDown(): void
+    {
+        $this->resetListTableFlags();
+    }
+
+    private function resetListTableFlags(): void
     {
         foreach (['needed', 'printed', 'selectionNeeded', 'selectionPrinted', 'stylePrinted'] as $name) {
             $property = new \ReflectionProperty(ListTable::class, $name);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -29,6 +30,7 @@ final class TicketTenders
         private readonly LedgerStore $ledger,
         private readonly RegisterStore $registers,
         private readonly PayoutStore $payouts,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -183,7 +185,9 @@ final class TicketTenders
         }
         if ($role === 'vendor_draw') {
             if (preg_match('/^[0-9a-fA-F-]{36}$/', $reference) !== 1) {
-                throw new DatabaseRefusal('Choose a vendor.');
+                throw new DatabaseRefusal(
+                    $this->mall->getPartyLabel('Choose a vendor.', 'Choose a consignor.')
+                );
             }
 
             return $reference;

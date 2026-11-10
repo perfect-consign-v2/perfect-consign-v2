@@ -69,6 +69,7 @@ final class PasswordBoundaryTest extends TestCase
             new ResetTokens($pdo),
             $mailbox,
             $log,
+            new \PerfectConsign\Shared\Mail\PlatformOperatorNotice($log),
         );
 
         self::assertTrue($letters->sendReset(
@@ -95,6 +96,7 @@ final class PasswordBoundaryTest extends TestCase
             new ResetTokens($pdo),
             $this->createStub(\PerfectConsign\Shared\Mail\LetterMailbox::class),
             $log,
+            new \PerfectConsign\Shared\Mail\PlatformOperatorNotice($log),
         );
         $tenant = new TenantRecord(
             '01900000-0000-7000-8000-0000000000c1',
@@ -138,6 +140,7 @@ final class PasswordBoundaryTest extends TestCase
             new ResetTokens($pdo),
             $this->createStub(\PerfectConsign\Shared\Mail\LetterMailbox::class),
             $log,
+            new \PerfectConsign\Shared\Mail\PlatformOperatorNotice($log),
         );
         $enter = new \ReflectionMethod(ResetLetter::class, 'enter');
         try {
@@ -218,6 +221,7 @@ final class PasswordBoundaryTest extends TestCase
             new ResetTokens($pdo),
             $mailbox,
             $log,
+            new \PerfectConsign\Shared\Mail\PlatformOperatorNotice($log),
         );
 
         self::assertTrue($letters->sendReset(

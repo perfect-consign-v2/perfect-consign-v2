@@ -25,7 +25,7 @@ final class StaffManagerCoverageTest extends WebTestCase
     public function testAManagerIsAddedAndReplaced(): void
     {
         $page = $this->client->get('/' . self::SLUG . '/staff');
-        self::assertSees('People', $page);
+        self::assertSees('Staff', $page);
         self::assertSees('Add a person', $page);
         $username = 'm' . bin2hex(random_bytes(4));
         $refused = $this->client->post('/' . self::SLUG . '/staff', [
@@ -65,7 +65,8 @@ final class StaffManagerCoverageTest extends WebTestCase
         self::assertSees('Manager', $asManager);
         self::assertSees('Sell', $asManager);
         self::assertSees('View payouts', $asManager);
-        self::assertStringNotContainsString('>People<', $asManager->body);
+        self::assertStringContainsString('nav-group-label">People</div>', $asManager->body);
+        self::assertStringNotContainsString('nav-label">Staff</span>', $asManager->body);
         self::assertStringNotContainsString('>Settings<', $asManager->body);
     }
 

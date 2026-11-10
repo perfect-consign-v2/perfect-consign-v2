@@ -30,8 +30,12 @@ final class PartyController
         $consignmentOnly = $this->mall->isConsignmentOnly();
         $parties = [];
         foreach ($this->parties->parties() as $party) {
-            $party['roles'] = PartyRoleType::displayCsv($party['roles'], $consignmentOnly);
-            $parties[] = $party;
+            $parties[] = [
+                'id' => $party['id'],
+                'name' => $party['name'],
+                'kind' => $party['kind'],
+                'roles' => PartyRoleType::displayNames($party['roles'], $consignmentOnly),
+            ];
         }
         $this->app->show('Feature/Party/party-list', [
             'title' => 'Parties',

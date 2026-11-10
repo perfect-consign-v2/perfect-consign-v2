@@ -96,9 +96,13 @@ class Statements
      */
     public function rows(string $sql): array
     {
-        $statement = $this->pdo->query($sql);
+        try {
+            $statement = $this->pdo->query($sql);
+        } catch (PDOException $error) {
+            throw DatabaseRefusal::fromPdo($error);
+        }
         if ($statement === false) {
-            return [];
+            throw new DatabaseRefusal(DatabaseRefusal::COULD_NOT_SAVE);
         }
 
         return $this->all($statement);

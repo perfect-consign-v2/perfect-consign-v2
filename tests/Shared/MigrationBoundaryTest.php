@@ -66,7 +66,6 @@ final class MigrationBoundaryTest extends TestCase
         });
         $pdo->expects($this->never())->method('prepare');
         (new MigrationRecord($pdo, $catalog))->verify('platform');
-        self::assertContains('sameAsideFromNewlines(', ['sameAsideFromNewlines(']);
 
         $broken = $this->rows([['filename' => '000_platform.sql', 'checksum' => 12]]);
         $this->expectException(RuntimeException::class);

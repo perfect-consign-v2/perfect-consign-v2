@@ -47,10 +47,10 @@ $dateValue = $postingDate !== '' ? $postingDate : $today;
     <label for="posting_date">Posting date</label>
     <input id="posting_date" name="posting_date" type="date" value="<?= View::text($dateValue) ?>" required>
     <?php if ($share !== null) { ?>
-        <p>Vendor share <?= View::text($share) ?>. The store expenses this amount.</p>
+        <p><?= !empty($consignmentOnly) ? 'Consignor' : 'Vendor' ?> share <?= View::text($share) ?>. The store expenses this amount.</p>
         <input type="hidden" name="post" value="1">
         <p><button type="submit">Post missed sale</button></p>
     <?php } else { ?>
-        <p><button type="submit">Show the vendor share</button></p>
+        <p><button type="submit">Show the <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?> share</button></p>
     <?php } ?>
 </form>

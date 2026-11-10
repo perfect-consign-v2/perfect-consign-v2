@@ -129,7 +129,7 @@ final class AdminTenantList
             $this->roles->reset();
         }
         if (!is_string($mode) || !in_array($mode, ['consignor', 'booth_mall', 'both'], true)) {
-            return 'both';
+            throw new \RuntimeException('the mall operating mode is not recognized');
         }
 
         return $mode;

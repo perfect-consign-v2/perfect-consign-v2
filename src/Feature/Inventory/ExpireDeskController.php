@@ -42,7 +42,9 @@ final class ExpireDeskController
                 $this->app->redirect('/' . $slug . '/inventory/expired', 'Bought for the store.');
             }
             $this->desk->dispose($itemId, $kind, $this->postedOn());
-            $notice = $kind === 'donate' ? 'Marked donated.' : 'Returned to the vendor.';
+            $notice = $kind === 'donate'
+                ? 'Marked donated.'
+                : $this->mall->getPartyLabel('Returned to the vendor.', 'Returned to the consignor.');
             $this->app->redirect('/' . $slug . '/inventory/expired', $notice);
         } catch (DatabaseRefusal $refusal) {
             $this->page($slug, $this->app->catchRefusal($refusal));

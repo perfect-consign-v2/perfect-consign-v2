@@ -143,7 +143,7 @@ final class InventoryStore
                 return $stored;
             } catch (DatabaseRefusal $error) {
                 $refusal = $error;
-                if ($item->barcode !== '' || $error->getMessage() !== DatabaseRefusal::BARCODE_USED) {
+                if ($item->barcode !== '' || !DatabaseRefusal::isBarcodeUsed($error)) {
                     throw $error;
                 }
             }
@@ -249,7 +249,9 @@ final class InventoryStore
             throw new \InvalidArgumentException('That price is already on a sale.');
         }
         if ($item->vendorId !== RowValue::string($row['vendor_id'] ?? null)) {
-            throw new \InvalidArgumentException('That consignor is already on a sale.');
+            throw new \InvalidArgumentException(
+                $this->mall->getPartyLabel('That vendor is already on a sale.', 'That consignor is already on a sale.')
+            );
         }
         throw new \InvalidArgumentException('That item is not in this mall.');
     }

@@ -201,7 +201,7 @@ final class PartyCoverageTest extends TestCase
                 'id' => '00000000-0000-7000-8000-0000000000p1',
                 'name' => 'Dana Shah',
                 'kind' => 'person',
-                'roles' => '',
+                'roles' => [],
             ],
         ], $store->parties());
     }

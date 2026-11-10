@@ -285,7 +285,7 @@ final class StaffController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Staff/staff', [
-            'title' => 'People',
+            'title' => 'Staff',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'cashiers' => $this->staff->cashiers(),

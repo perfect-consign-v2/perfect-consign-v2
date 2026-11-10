@@ -10,8 +10,10 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class TicketBuyer
 {
-    public function __construct(private readonly Statements $statements)
-    {
+    public function __construct(
+        private readonly Statements $statements,
+        private readonly \PerfectConsign\Feature\Mall\MallSettings $mall,
+    ) {
     }
 
     /**
@@ -43,7 +45,11 @@ final class TicketBuyer
     public function save(string $ticketId, string $vendorId): void
     {
         if ($ticketId === '' || preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
-            throw new DatabaseRefusal($ticketId === '' ? 'there is no open ticket' : 'Choose a vendor.');
+            throw new DatabaseRefusal(
+                $ticketId === ''
+                    ? 'there is no open ticket'
+                    : $this->mall->getPartyLabel('Choose a vendor.', 'Choose a consignor.')
+            );
         }
         $updated = $this->statements->affected(
             'UPDATE tickets SET buyer_id = ?::uuid
@@ -52,7 +58,9 @@ final class TicketBuyer
             [$vendorId, $ticketId, 'open', $vendorId]
         );
         if ($updated !== 1) {
-            throw new DatabaseRefusal('Choose a vendor.');
+            throw new DatabaseRefusal(
+                $this->mall->getPartyLabel('Choose a vendor.', 'Choose a consignor.')
+            );
         }
     }
 

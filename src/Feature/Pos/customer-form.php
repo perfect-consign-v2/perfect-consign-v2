@@ -14,11 +14,12 @@ use PerfectConsign\Shared\Http\View;
 $creating = $customer['id'] === '';
 $sellerList = is_string($sellerList ?? null) ? $sellerList : '';
 $sellerRoleAction = is_string($sellerRoleAction ?? null) ? $sellerRoleAction : '';
+$sellerIsConsignor = ($consignmentOnly ?? false) === true;
 if (!$creating && $sellerRoleAction === '') {
     $sellerRoleAction = '/' . $slug . '/customers/' . $customer['id'] . '/'
-        . (str_contains($sellerList, 'consignors') ? 'consignors-role' : 'vendor-role');
+        . ($sellerIsConsignor ? 'consignors-role' : 'vendor-role');
 }
-$sellerRoleLabel = str_contains($sellerRoleAction, 'consignor') ? 'Add consignor role' : 'Add vendor role';
+$sellerRoleLabel = $sellerIsConsignor ? 'Add consignor role' : 'Add vendor role';
 $action = $creating
     ? '/' . $slug . '/customers'
     : '/' . $slug . '/customers/' . $customer['id'];

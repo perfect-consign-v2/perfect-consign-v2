@@ -77,7 +77,8 @@ final class VendorCheckMutationTest extends TestCase
                 new \PerfectConsign\Feature\Inventory\ItemQueries($statements),
                 new ItemForm(new IntakeCatalog($statements), new NameListStore($statements, $links), $mall, $take),
                 $take
-            )
+            ),
+            $mall
         );
     }
 

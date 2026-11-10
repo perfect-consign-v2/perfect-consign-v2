@@ -221,12 +221,32 @@ function braceBody(string $source, int $open): ?string
 
 function symbolIsCovered(string $name, string $covered): bool
 {
-    $calls = preg_replace('/\\bfunction\\s+' . preg_quote($name, '/') . '\\s*\\(/', '', $covered);
-    if (!is_string($calls)) {
+    // $covered may already be noise-stripped (per-file test corpus); stripping again is safe.
+    $calls = stripPhpNoise($covered);
+    $withoutDefs = preg_replace('/\\bfunction\\s+' . preg_quote($name, '/') . '\\s*\\(/', '', $calls);
+    if (!is_string($withoutDefs)) {
         return false;
     }
 
-    return preg_match('/\\b' . preg_quote($name, '/') . '\\s*\\(/', $calls) === 1;
+    return preg_match('/\\b' . preg_quote($name, '/') . '\\s*\\(/', $withoutDefs) === 1;
+}
+
+/** Drop comments and quoted strings so token-farm literals cannot green obligations. */
+function stripPhpNoise(string $source): string
+{
+    $noBlock = preg_replace('#/\*.*?\*/#s', ' ', $source);
+    $source = is_string($noBlock) ? $noBlock : $source;
+    $noLine = preg_replace('#//.*$#m', ' ', $source);
+    $source = is_string($noLine) ? $noLine : $source;
+    $noDoc = preg_replace('#/\*\*.*?\*/#s', ' ', $source);
+    $source = is_string($noDoc) ? $noDoc : $source;
+    // Double-quoted strings first so an apostrophe inside them cannot open a single-quoted span.
+    // Treat \\ as an escaped pair so a trailing backslash before the closer cannot steal the quote.
+    $noDouble = preg_replace('/"(?:\\\\.|[^"\\\\])*"/', ' ', $source);
+    $source = is_string($noDouble) ? $noDouble : $source;
+    $noSingle = preg_replace("/'(?:\\\\.|[^'\\\\])*'/", ' ', $source);
+
+    return is_string($noSingle) ? $noSingle : $source;
 }
 
 function identifierIsCovered(string $name, string $covered): bool
@@ -519,7 +539,8 @@ function unprovenSymbols(string $root): array
         }
         $code = file_get_contents($file->getPathname());
         if ($code !== false) {
-            $tests .= "\n" . $code;
+            // Strip each file alone so a quote/backslash quirk cannot swallow later files.
+            $tests .= "\n" . stripPhpNoise($code);
         }
     }
     $covered = $proofs . "\n" . $tests;

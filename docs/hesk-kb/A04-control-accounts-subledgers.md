@@ -1,7 +1,7 @@
 ---
 title: Control accounts and subledgers
 category: Money spine
-hesk: published 2026-11-08
+hesk: published 2026-11-09
 as_of: 2026-10-25
 ---
 

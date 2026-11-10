@@ -1,7 +1,7 @@
 ---
 title: Party identity, customers, and the wait list
 category: Floor and ops
-hesk: published 2026-11-08
+hesk: published 2026-11-09
 as_of: 2026-11-08
 ---
 
@@ -9,7 +9,7 @@ as_of: 2026-11-08
 
 ## As of
 
-2026-11-08 — A party is a person or an organization. Vendor, customer, and wait list are roles. Money still uses the vendor id. Staff can add a customer from the customer list.
+2026-11-08 — A party is a person or an organization. Vendor, customer, and wait list are roles. Money still uses the vendor id. Staff can add a customer from the customer list. Owner and manager menus put sellers, customers, and parties under People.
 
 ## In one sentence
 
@@ -29,7 +29,7 @@ Adding a seller, adding a customer from the list or naming one on a ticket, capt
 - New customer from the list, or naming someone on a sale, saves the person and the customer role when that name, phone, and email are new. The same contact opens the existing party.
 - A wait-list row is keyed by the person's party. Name, email, and phone live on the person. Staff open `/{slug}/wait-list` and `/{slug}/wait-list/{party id}`.
 - A vendor (a person) can also be given the customer role. A customer who is a person can be given the vendor role. The vendor id does not change.
-- People at `/{slug}/staff` is staff sign-in, not this list.
+- Staff at `/{slug}/staff` (People → Staff) is store sign-in, not this list.
 
 ## What is refused
 

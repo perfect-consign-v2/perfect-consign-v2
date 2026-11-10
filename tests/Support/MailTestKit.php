@@ -31,6 +31,7 @@ final class MailTestKit
             new ResetTokens($pdo),
             new LetterMailbox(new ReceiptMailSettings($statements), $mail, new GmailSender($notices)),
             $log,
+            $notices,
         );
     }
 

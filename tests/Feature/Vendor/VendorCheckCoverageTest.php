@@ -110,7 +110,8 @@ final class VendorCheckCoverageTest extends TestCase
         return new VendorCheck(
             $statements,
             new PayoutStore($pdo, $statements, $runs, new PayoutWindow()),
-            $account
+            $account,
+            $mall
         );
     }
 

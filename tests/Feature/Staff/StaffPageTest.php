@@ -32,7 +32,7 @@ final class StaffPageTest extends TestCase
         ]);
         $html = ob_get_clean();
         self::assertIsString($html);
-        self::assertStringContainsString('People', $html);
+        self::assertStringContainsString('Staff', $html);
         self::assertStringContainsString('Add a person', $html);
         self::assertStringContainsString('name="role"', $html);
         self::assertStringContainsString('value="owner"', $html);

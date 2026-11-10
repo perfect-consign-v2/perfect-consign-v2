@@ -24,70 +24,76 @@ final class JobDispatch
      */
     public function dispatch(array $job): void
     {
-        $payload = json_decode($job['payload'], true);
+        $decoded = json_decode($job['payload'], true);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('job payload is not an object');
+        }
+        $payload = [];
+        foreach ($decoded as $key => $value) {
+            if (!is_string($key)) {
+                throw new RuntimeException('job payload is not an object');
+            }
+            $payload[$key] = $value;
+        }
+        match ($job['kind']) {
+            'assess-late-fees' => $this->lateFees->lateFees($this->date($payload)),
+            'vendor-digest' => $this->digest->digest($job['tenant'], $this->date($payload)),
+            'rent-reminder' => $this->digest->remind($job['tenant'], $this->date($payload)),
+            'reconcile-reports' => $this->reconcileDated($payload),
+            'sale-notice' => $this->notices->notice($job['tenant'], $this->date($payload)),
+            'vendor-letter' => $this->letters->send($this->letterId($payload)),
+            'markdown-propose' => $this->markdowns->propose($this->date($payload)),
+            'outbound-mail' => $this->outbound->send($this->mailId($payload)),
+            default => throw new RuntimeException('unknown job'),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function reconcileDated(array $payload): void
+    {
         $date = $this->date($payload);
-        $tenant = $job['tenant'];
-        $handlers = [
-            'assess-late-fees' => function () use ($date): void {
-                $this->lateFees->lateFees($date);
-            },
-            'vendor-digest' => function () use ($tenant, $date): void {
-                $this->digest->digest($tenant, $date);
-            },
-            'rent-reminder' => function () use ($tenant, $date): void {
-                $this->digest->remind($tenant, $date);
-            },
-            'reconcile-reports' => function () use ($date): void {
-                $this->reconcile->tie($date);
-                $this->reconcile->reconcile();
-            },
-            'sale-notice' => function () use ($tenant, $date): void {
-                $this->notices->notice($tenant, $date);
-            },
-            'vendor-letter' => function () use ($payload): void {
-                $this->letters->send($this->letterId($payload));
-            },
-            'markdown-propose' => function () use ($date): void {
-                $this->markdowns->propose($date);
-            },
-            'outbound-mail' => function () use ($payload): void {
-                $this->outbound->send($this->mailId($payload));
-            },
-        ];
-        $handler = $handlers[$job['kind']] ?? null;
-        if ($handler === null) {
-            throw new RuntimeException('unknown job');
-        }
-        $handler();
+        $this->reconcile->tie($date);
+        $this->reconcile->reconcile();
     }
 
-    private function date(mixed $payload): string
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function date(array $payload): string
     {
-        if (!is_array($payload)) {
-            return '';
-        }
         $date = $payload['date'] ?? null;
+        if (!is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            throw new RuntimeException('job date is missing');
+        }
 
-        return is_string($date) ? $date : '';
+        return $date;
     }
 
-    private function letterId(mixed $payload): string
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function letterId(array $payload): string
     {
-        if (!is_array($payload)) {
-            return '';
-        }
         $letter = $payload['letter'] ?? null;
+        if (!is_string($letter) || $letter === '') {
+            throw new RuntimeException('job letter is missing');
+        }
 
-        return is_string($letter) ? $letter : '';
+        return $letter;
     }
 
-    private function mailId(mixed $payload): string
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function mailId(array $payload): string
     {
-        if (!is_array($payload)) {
-            return '';
-        }
         $mail = $payload['mail'] ?? null;
+        if (!is_string($mail) || $mail === '') {
+            throw new RuntimeException('job mail is missing');
+        }
 
-        return is_string($mail) ? $mail : '';
+        return $mail;
     }
 }

@@ -27,6 +27,8 @@ $unprinted = $unprinted ?? 0;
 
 $blank = '—';
 $showBrand = ($showBrand ?? true) === true;
+$sellerLabel = ($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor';
+$sellerPath = ($consignmentOnly ?? false) === true ? 'consignors' : 'vendors';
 $list = '/' . $slug . '/inventory';
 $lead = match ($stock) {
     'available' => 'Items with quantity on hand — ready to sell.',
@@ -72,7 +74,9 @@ $shows = [
         <?php if ($stock !== ''): ?>
             <input type="hidden" name="stock" value="<?= View::text($stock) ?>">
         <?php endif; ?>
-        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="<?= $showBrand ? 'Search tag, barcode, description, consignor, or brand' : 'Search tag, barcode, description, or consignor' ?>" aria-label="Search inventory">
+        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="<?= $showBrand
+            ? ('Search tag, barcode, description, ' . ((($consignmentOnly ?? false) === true) ? 'consignor' : 'vendor') . ', or brand')
+            : ('Search tag, barcode, description, or ' . ((($consignmentOnly ?? false) === true) ? 'consignor' : 'vendor')) ?>" aria-label="Search inventory">
         <button class="btn" type="submit">Search</button>
     </form>
 
@@ -120,7 +124,7 @@ $shows = [
                 ['label' => 'Tag'],
                 ['label' => 'Barcode'],
                 ['label' => 'Description'],
-                ['label' => 'Consignor'],
+                ['label' => $sellerLabel],
             ];
             if ($showBrand) {
                 $columns[] = ['label' => 'Brand'];
@@ -158,7 +162,7 @@ $shows = [
                         <td><a class="strong" href="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/edit"><?= View::text($item['code']) ?></a></td>
                         <td><?= View::text($item['barcode']) ?></td>
                         <td><?= View::text($item['description']) ?></td>
-                        <td><?php if ($item['vendor_id'] !== ''): ?><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($item['vendor_id']) ?>"><?= View::text($item['vendor_label']) ?></a><?php else: ?><?= View::text($item['vendor_label'] !== '' ? $item['vendor_label'] : '—') ?><?php endif; ?></td>
+                        <td><?php if ($item['vendor_id'] !== ''): ?><a class="strong" href="/<?= View::text($slug) ?>/<?= View::text($sellerPath) ?>/<?= View::text($item['vendor_id']) ?>"><?= View::text($item['vendor_label']) ?></a><?php else: ?><?= View::text($item['vendor_label'] !== '' ? $item['vendor_label'] : '—') ?><?php endif; ?></td>
                         <?php if ($showBrand): ?>
                         <td>
                             <?php if ($brand === ''): ?>

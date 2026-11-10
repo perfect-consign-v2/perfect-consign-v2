@@ -15,18 +15,21 @@ final class DatabaseRefusal extends RuntimeException
 
     public const TICKET_NOT_A_SALE = 'that ticket is not a sale';
 
+    public const COULD_NOT_SAVE = 'That could not be saved.';
+
     public static function fromPdo(PDOException $error): self
     {
-        $message = $error->getMessage();
-        if (preg_match('/ERROR:\s+(.+)/s', $message, $matches) === 1) {
-            $text = preg_split('/\r?\n|DETAIL:|CONTEXT:/', $matches[1]) ?: [];
-            $first = trim((string) ($text[0] ?? ''));
-            if ($first !== '') {
-                return new self(self::phrase($first), 0, $error);
-            }
+        $sqlState = self::sqlState($error);
+        $detail = self::errorDetail($error->getMessage());
+
+        if (self::isUniqueNoise($sqlState, $detail)) {
+            return new self(self::COULD_NOT_SAVE, 0, $error);
+        }
+        if ($detail !== '') {
+            return new self(self::phrase($detail), 0, $error);
         }
 
-        return new self('That could not be saved.', 0, $error);
+        return new self(self::COULD_NOT_SAVE, 0, $error);
     }
 
     public static function phrase(string $message): string
@@ -36,10 +39,60 @@ final class DatabaseRefusal extends RuntimeException
             return $named;
         }
         if (self::rawDatabaseNoise($message)) {
-            return 'That could not be saved.';
+            return self::COULD_NOT_SAVE;
         }
 
         return $message;
+    }
+
+    public static function isBarcodeUsed(self $error): bool
+    {
+        return $error->getMessage() === self::BARCODE_USED;
+    }
+
+    public static function isCertificateNumberUsed(self $error): bool
+    {
+        return $error->getMessage() === self::CERTIFICATE_NUMBER_USED;
+    }
+
+    public static function isTicketNotASale(self $error): bool
+    {
+        return $error->getMessage() === self::TICKET_NOT_A_SALE;
+    }
+
+    private static function sqlState(PDOException $error): string
+    {
+        $info = $error->errorInfo;
+        if (is_array($info) && isset($info[0]) && is_string($info[0]) && $info[0] !== '') {
+            return $info[0];
+        }
+        if (preg_match('/SQLSTATE\[([A-Z0-9]+)\]/', $error->getMessage(), $matches) === 1) {
+            return $matches[1];
+        }
+
+        return '';
+    }
+
+    private static function errorDetail(string $message): string
+    {
+        if (preg_match('/ERROR:\s+(.+)/s', $message, $matches) !== 1) {
+            return '';
+        }
+        $text = preg_split('/\r?\n|DETAIL:|CONTEXT:/', $matches[1]) ?: [];
+
+        return trim((string) ($text[0] ?? ''));
+    }
+
+    private static function isUniqueNoise(string $sqlState, string $detail): bool
+    {
+        if ($sqlState !== '23505') {
+            return false;
+        }
+        if ($detail === '') {
+            return true;
+        }
+
+        return self::rawDatabaseNoise($detail);
     }
 
     private static function cashier(string $line): ?string
@@ -51,18 +104,22 @@ final class DatabaseRefusal extends RuntimeException
             'a layaway deposit cannot pass the amount due' => 'That amount is too big.',
         ];
         foreach ($known as $needle => $sentence) {
-            if (str_contains($lower, $needle)) {
+            if ($lower === $needle || str_starts_with($lower, $needle)) {
                 return $sentence;
             }
         }
-        if (str_contains($lower, 'too large') || str_contains($lower, 'out of range') || str_contains($lower, 'overflow')) {
+        if (
+            str_contains($lower, 'numeric field overflow')
+            || str_contains($lower, 'out of range')
+            || preg_match('/\bvalue too large\b/', $lower) === 1
+        ) {
             return 'That amount is too big.';
         }
 
         return null;
     }
 
-    /** Hide SQLSTATE / constraint-name dumps; plain English ERROR text passes through. */
+    /** Constraint dumps and SQLSTATE lines are not cashier copy. Product RAISE English passes. */
     private static function rawDatabaseNoise(string $line): bool
     {
         $lower = strtolower($line);

@@ -214,6 +214,39 @@ final class TicketTendersTest extends TestCase
             $held,
             $ledger ?? $this->createStub(LedgerStore::class),
         );
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturn([[
+            'operating_mode' => 'booth_mall',
+            'time_zone' => 'UTC',
+            'booth_width_ft' => 10,
+            'booth_depth_ft' => 10,
+            'floor_width_ft' => 40,
+            'floor_depth_ft' => 40,
+            'commission_bps' => 5000,
+            'floor_days' => 30,
+            'cash_round_minor' => 0,
+            'tax_bps' => 0,
+            'use_color' => false,
+            'use_category' => false,
+            'use_size' => false,
+            'use_condition' => false,
+            'use_department' => false,
+            'use_brand' => false,
+            'label_stock' => '',
+            'booth_rentals_enabled' => true,
+            'rent_cycle_day' => 1,
+            'consignment_enabled' => true,
+            'store_stock_enabled' => false,
+            'receipt_footer' => '',
+        ]]);
+        (new ReflectionProperty(TicketTenders::class, 'mall'))->setValue(
+            $held,
+            new \PerfectConsign\Feature\Mall\MallSettings(
+                $statements,
+                (new ReflectionClass(\PerfectConsign\Feature\Company\CompanyStore::class))->newInstanceWithoutConstructor(),
+                new \PerfectConsign\Feature\Mall\MallDay($statements),
+            ),
+        );
 
         return $held;
     }

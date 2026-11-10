@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Pos;
 
+use PerfectConsign\Feature\Company\CompanyStore;
+use PerfectConsign\Feature\Mall\MallDay;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Pos\TenderSplit;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Http\Request;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -142,6 +146,39 @@ final class TenderSplitTest extends TestCase
         (new ReflectionProperty(TenderSplit::class, 'payouts'))->setValue(
             $split,
             $payouts ?? (new ReflectionClass(PayoutStore::class))->newInstanceWithoutConstructor(),
+        );
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturn([[
+            'operating_mode' => 'booth_mall',
+            'time_zone' => 'UTC',
+            'booth_width_ft' => 10,
+            'booth_depth_ft' => 10,
+            'floor_width_ft' => 40,
+            'floor_depth_ft' => 40,
+            'commission_bps' => 5000,
+            'floor_days' => 30,
+            'cash_round_minor' => 0,
+            'tax_bps' => 0,
+            'use_color' => false,
+            'use_category' => false,
+            'use_size' => false,
+            'use_condition' => false,
+            'use_department' => false,
+            'use_brand' => false,
+            'label_stock' => '',
+            'booth_rentals_enabled' => true,
+            'rent_cycle_day' => 1,
+            'consignment_enabled' => true,
+            'store_stock_enabled' => false,
+            'receipt_footer' => '',
+        ]]);
+        (new ReflectionProperty(TenderSplit::class, 'mall'))->setValue(
+            $split,
+            new MallSettings(
+                $statements,
+                (new ReflectionClass(CompanyStore::class))->newInstanceWithoutConstructor(),
+                new MallDay($statements),
+            ),
         );
 
         return $split;

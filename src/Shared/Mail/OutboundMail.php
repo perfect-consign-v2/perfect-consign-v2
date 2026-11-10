@@ -32,6 +32,7 @@ final class OutboundMail
             $this->deliver($to, $subject, $body);
         } catch (MailDeliveryFailed | \InvalidArgumentException | \RuntimeException $failed) {
             $this->logger->error($failed->getMessage());
+            throw $failed;
         }
     }
 
@@ -76,8 +77,8 @@ final class OutboundMail
             ))->send($to, $subject, $body);
         } catch (MailDeliveryFailed $failed) {
             throw $failed;
-        } catch (\Throwable) {
-            throw new \RuntimeException('smtp send failed');
+        } catch (\Throwable $failed) {
+            throw new \RuntimeException('smtp send failed', 0, $failed);
         }
     }
 

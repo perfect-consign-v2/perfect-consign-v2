@@ -26,7 +26,8 @@ final class MallPayoutSettings
         return match ($operatingMode) {
             'consignor' => ['rentals' => false, 'consignment' => true],
             'booth_mall' => ['rentals' => true, 'consignment' => false],
-            default => ['rentals' => true, 'consignment' => true],
+            'both' => ['rentals' => true, 'consignment' => true],
+            default => throw new \InvalidArgumentException('the operating mode is not recognized'),
         };
     }
 

@@ -69,7 +69,7 @@ $dealLink = static function (string $path) use ($previewAs): string {
                         </td>
                         <td><?= View::text($scopeName($offer['scope'], $offer['scope_label'])) ?></td>
                         <td><?= View::text($dealName($offer['kind'], $offer['threshold'], $offer['deal_minor'])) ?></td>
-                        <td><?= View::text($offer['funded_by'] === 'store' ? 'Store' : 'Vendor') ?></td>
+                        <td><?= View::text($offer['funded_by'] === 'store' ? 'Store' : (($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor')) ?></td>
                         <td><?= View::text(View::date($offer['starts_on'])) ?><?php if ($offer['ends_on'] !== ''): ?> – <?= View::text(View::date($offer['ends_on'])) ?><?php endif; ?></td>
                         <td>
                             <?php if (!$offer['ended']): ?>

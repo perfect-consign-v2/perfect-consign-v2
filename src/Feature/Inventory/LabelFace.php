@@ -8,8 +8,10 @@ final class LabelFace
 {
     private const NARROW = 7500;
 
-    public function __construct(private readonly Code128 $codes)
-    {
+    public function __construct(
+        private readonly Code128 $codes,
+        private readonly \PerfectConsign\Feature\Mall\MallSettings $mall,
+    ) {
     }
 
     public function layout(LabelStock $stock, StickerItem $item): StickerFace
@@ -85,7 +87,12 @@ final class LabelFace
     {
         $lines = $this->kept($this->line('description', $item->description, $description, $stock), $lines);
         $lines = $this->kept($this->line('store', $item->store, $meta, $stock), $lines);
-        $lines = $this->kept($this->line('consignor', $this->prefixed('Consignor: ', $item->consignor), $meta, $stock), $lines);
+        $lines = $this->kept($this->line(
+            'consignor',
+            $this->prefixed($this->mall->getPartyLabel('Vendor: ', 'Consignor: '), $item->consignor),
+            $meta,
+            $stock
+        ), $lines);
         $lines = $this->kept($this->line('brand', $item->brand, $meta, $stock), $lines);
         $lines = $this->kept($this->line('date', $item->intake, $meta, $stock), $lines);
         if (!$stock->isTagged()) {

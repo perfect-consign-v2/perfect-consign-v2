@@ -4,67 +4,73 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Party;
 
-use PerfectConsign\Feature\Party\PartyController;
-use PerfectConsign\Feature\Party\PartyIdentity;
-use PerfectConsign\Feature\Party\PartyStore;
+use PerfectConsign\Feature\Company\CompanyStore;
+use PerfectConsign\Feature\Mall\MallDay;
+use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Party\PartyRoleType;
 use PerfectConsign\Feature\Party\SellerPaths;
-use PerfectConsign\Feature\Party\VendorDraft;
-use PerfectConsign\Feature\Pos\CustomerController;
-use PerfectConsign\Feature\Pos\CustomerStore;
-use PerfectConsign\Feature\Vendor\VendorEntry;
+use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 
-/**
- * Obligation coverage: newly added party-model symbols must appear as calls in tests.
- */
 final class PartyModelSymbolsTest extends TestCase
 {
-    public function testPartyModelPublicSymbolsAreNamed(): void
+    public function testSellerPathsFollowOperatingMode(): void
     {
-        self::assertTrue(method_exists(PartyController::class, 'sellers'));
-        self::assertTrue(method_exists(PartyController::class, 'addCustomerRole'));
-        self::assertTrue(method_exists(PartyStore::class, 'findParty'));
-        self::assertTrue(method_exists(PartyStore::class, 'vendorIdForParty'));
-        self::assertTrue(method_exists(PartyStore::class, 'addCustomerRole'));
-        self::assertTrue(method_exists(VendorDraft::class, 'personValues'));
-        self::assertTrue(method_exists(VendorDraft::class, 'vendorValues'));
-        self::assertTrue(method_exists(CustomerController::class, 'create'));
-        self::assertTrue(method_exists(CustomerController::class, 'add'));
-        self::assertTrue(method_exists(CustomerController::class, 'addVendorRole'));
-        self::assertTrue(method_exists(CustomerStore::class, 'addVendorRole'));
-        self::assertTrue(method_exists(CustomerStore::class, 'findOrCreate'));
-        self::assertTrue(method_exists(VendorEntry::class, 'isActive'));
-        self::assertTrue(method_exists(PartyIdentity::class, 'createPerson'));
-        self::assertTrue(method_exists(PartyIdentity::class, 'savePerson'));
-        self::assertTrue(method_exists(PartyIdentity::class, 'ensureRole'));
-        self::assertTrue(method_exists(PartyIdentity::class, 'hasActiveRole'));
-        self::assertTrue(method_exists(SellerPaths::class, 'createForm'));
-        self::assertTrue(method_exists(SellerPaths::class, 'createAction'));
-        self::assertTrue(method_exists(SellerPaths::class, 'inventoryJson'));
+        $consignors = new SellerPaths($this->mall('consignor'));
+        self::assertSame('consignors', $consignors->prefix());
+        self::assertSame('/demo/consignors', $consignors->list('demo'));
+        self::assertSame('/demo/inventory/consignors.json', $consignors->inventoryJson('demo'));
+        self::assertSame('/demo/consignors/new', $consignors->createForm('demo'));
 
-        // Call-shaped tokens for prove-obligations (name followed by '(').
-        $named = 'sellers( addCustomerRole( sellerPrefix( findParty( vendorIdForParty( '
-            . 'personValues( vendorValues( create( add( addVendorRole( findOrCreate( isActive( createPerson( '
-            . 'savePerson( ensureRole( hasActiveRole( createForm( createAction( inventoryJson( form(';
-        self::assertStringContainsString('sellers(', $named);
-        self::assertStringContainsString('addCustomerRole(', $named);
-        self::assertStringContainsString('sellerPrefix(', $named);
-        self::assertStringContainsString('findParty(', $named);
-        self::assertStringContainsString('vendorIdForParty(', $named);
-        self::assertStringContainsString('personValues(', $named);
-        self::assertStringContainsString('vendorValues(', $named);
-        self::assertStringContainsString('create(', $named);
-        self::assertStringContainsString('add(', $named);
-        self::assertStringContainsString('addVendorRole(', $named);
-        self::assertStringContainsString('findOrCreate(', $named);
-        self::assertStringContainsString('isActive(', $named);
-        self::assertStringContainsString('createPerson(', $named);
-        self::assertStringContainsString('savePerson(', $named);
-        self::assertStringContainsString('ensureRole(', $named);
-        self::assertStringContainsString('hasActiveRole(', $named);
-        self::assertStringContainsString('createForm(', $named);
-        self::assertStringContainsString('createAction(', $named);
-        self::assertStringContainsString('inventoryJson(', $named);
-        self::assertStringContainsString('form(', $named);
+        $vendors = new SellerPaths($this->mall('booth_mall'));
+        self::assertSame('vendors', $vendors->prefix());
+        self::assertSame('/demo/vendors', $vendors->list('demo'));
+        self::assertSame('/demo/inventory/vendors.json', $vendors->inventoryJson('demo'));
+        self::assertSame('/demo/vendors', $vendors->createAction('demo'));
+    }
+
+    public function testPartyRoleTypeKeepsStoredVendorConstant(): void
+    {
+        self::assertSame('vendor', PartyRoleType::VENDOR);
+        self::assertSame(['vendor'], PartyRoleType::fromAgg('vendor'));
+        self::assertSame('consignor', PartyRoleType::displayName('vendor', true));
+        self::assertSame('vendor', PartyRoleType::displayName('vendor', false));
+        self::assertSame('consignor, customer', PartyRoleType::displayNames(['vendor', 'customer'], true));
+    }
+
+    private function mall(string $mode): MallSettings
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturn([[
+            'operating_mode' => $mode,
+            'time_zone' => 'UTC',
+            'booth_width_ft' => 10,
+            'booth_depth_ft' => 10,
+            'floor_width_ft' => 40,
+            'floor_depth_ft' => 40,
+            'commission_bps' => 5000,
+            'floor_days' => 30,
+            'cash_round_minor' => 0,
+            'tax_bps' => 0,
+            'use_color' => false,
+            'use_category' => false,
+            'use_size' => false,
+            'use_condition' => false,
+            'use_department' => false,
+            'use_brand' => false,
+            'label_stock' => '',
+            'booth_rentals_enabled' => $mode !== 'consignor',
+            'rent_cycle_day' => 1,
+            'consignment_enabled' => true,
+            'store_stock_enabled' => false,
+            'receipt_footer' => '',
+        ]]);
+
+        return new MallSettings(
+            $statements,
+            (new ReflectionClass(CompanyStore::class))->newInstanceWithoutConstructor(),
+            new MallDay($statements),
+        );
     }
 }

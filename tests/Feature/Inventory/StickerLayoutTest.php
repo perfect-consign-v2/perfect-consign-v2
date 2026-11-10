@@ -17,7 +17,12 @@ use PerfectConsign\Feature\Inventory\LabelSheet;
 use PerfectConsign\Feature\Inventory\LabelStock;
 use PerfectConsign\Feature\Inventory\StickerItem;
 use PerfectConsign\Feature\Inventory\StickerSheet;
+use PerfectConsign\Feature\Company\CompanyStore;
+use PerfectConsign\Feature\Mall\MallDay;
+use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 use RuntimeException;
 
 final class StickerLayoutTest extends TestCase
@@ -93,7 +98,7 @@ final class StickerLayoutTest extends TestCase
         }
         self::assertSame(LabelCatalog::DEFAULT, $catalog->get(LabelCatalog::DEFAULT)->getKey());
         $codes = new Code128();
-        $sheet = new LabelSheet($codes, new BarcodePng(), new LabelFace($codes));
+        $sheet = new LabelSheet($codes, new BarcodePng(), $this->faces($codes));
         $item = new StickerItem('BC-100', '$10.00', 'A wool coat', 'Web Probe', 'ADA', 'Wool', '09-01-2026', 'T100');
         $long = new StickerItem(
             str_repeat('A', 40),
@@ -128,7 +133,7 @@ final class StickerLayoutTest extends TestCase
         $fitted = str_repeat('b', 46);
         $clipped = str_repeat('c', 47);
         $avery = $catalog->get('avery_8160');
-        $face = new LabelFace($codes);
+        $face = $this->faces($codes);
         $exact = $face->layout($avery, new StickerItem('BC-100', '$10.00', $fitted, 'Web Probe', 'ADA', 'Wool', '09-01-2026', 'T100'));
         self::assertSame($fitted, $exact->lines[1]->text);
         $over = $face->layout($avery, new StickerItem('BC-100', '$10.00', $clipped, 'Web Probe', 'ADA', 'Wool', '09-01-2026', 'T100'));
@@ -260,6 +265,44 @@ final class StickerLayoutTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertSame('Choose an item.', $error->getMessage());
         }
+    }
+
+    private function faces(Code128 $codes): LabelFace
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('rows')->willReturn([[
+            'operating_mode' => 'consignor',
+            'time_zone' => 'UTC',
+            'booth_width_ft' => 10,
+            'booth_depth_ft' => 10,
+            'floor_width_ft' => 40,
+            'floor_depth_ft' => 40,
+            'commission_bps' => 5000,
+            'floor_days' => 30,
+            'cash_round_minor' => 0,
+            'tax_bps' => 0,
+            'use_color' => false,
+            'use_category' => false,
+            'use_size' => false,
+            'use_condition' => false,
+            'use_department' => false,
+            'use_brand' => false,
+            'label_stock' => '',
+            'booth_rentals_enabled' => false,
+            'rent_cycle_day' => 1,
+            'consignment_enabled' => true,
+            'store_stock_enabled' => false,
+            'receipt_footer' => '',
+        ]]);
+
+        return new LabelFace(
+            $codes,
+            new MallSettings(
+                $statements,
+                (new ReflectionClass(CompanyStore::class))->newInstanceWithoutConstructor(),
+                new MallDay($statements),
+            ),
+        );
     }
 
     private function fingerprint(StickerSheet $sheet): string

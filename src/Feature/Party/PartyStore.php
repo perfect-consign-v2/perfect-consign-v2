@@ -39,7 +39,7 @@ class PartyStore
     /**
      * Parties with any role (identity hub).
      *
-     * @return list<array{id: string, name: string, kind: string, roles: string}>
+     * @return list<array{id: string, name: string, kind: string, roles: list<string>}>
      */
     public function parties(): array
     {
@@ -62,7 +62,7 @@ class PartyStore
                 'id' => RowValue::string($row['id'] ?? null),
                 'name' => RowValue::string($row['name'] ?? null),
                 'kind' => RowValue::string($row['kind'] ?? null),
-                'roles' => RowValue::string($row['roles'] ?? null),
+                'roles' => PartyRoleType::fromAgg(RowValue::string($row['roles'] ?? null)),
             ];
         }
 
@@ -94,7 +94,7 @@ class PartyStore
         ) as $roleRow) {
             $role = $roleRow['role_type'] ?? null;
             if (is_string($role) && $role !== '') {
-                $roles[] = $role;
+                $roles[] = PartyRoleType::assertStored($role);
             }
         }
 

@@ -160,10 +160,16 @@ final class ShopDemo
         $this->customers = new CustomerStore($this->statements, $identity);
         $this->shoppers = new TicketCustomer($this->statements, $this->customers);
         $this->offers = new OfferStore($this->statements);
+        $this->company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
+        $mall = new \PerfectConsign\Feature\Mall\MallSettings(
+            $this->statements,
+            $this->company,
+            new \PerfectConsign\Feature\Mall\MallDay($this->statements),
+        );
         $this->tickets = new TicketStore(
             $this->statements,
             $pricing,
-            new TicketBuyer($this->statements),
+            new TicketBuyer($this->statements, $mall),
             new TicketQueue($this->statements, $pricing),
             $this->shoppers,
             $ceiling,
@@ -183,7 +189,6 @@ final class ShopDemo
             $attach,
             $reversals,
         );
-        $this->company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));
         $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
         $lines = new PayoutRunLines($this->statements);

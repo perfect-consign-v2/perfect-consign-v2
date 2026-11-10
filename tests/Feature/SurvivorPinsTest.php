@@ -119,6 +119,7 @@ final class SurvivorPinsTest extends TestCase
             $this->createStub(LedgerStore::class),
             (new ReflectionClass(\PerfectConsign\Feature\Register\RegisterStore::class))->newInstanceWithoutConstructor(),
             (new ReflectionClass(PayoutStore::class))->newInstanceWithoutConstructor(),
+            (new ReflectionClass(\PerfectConsign\Feature\Mall\MallSettings::class))->newInstanceWithoutConstructor(),
         );
         $tenders->apply('01900000-0000-7000-8000-0000000000aa', 'cash', 100, 'front', 500);
         self::assertNull($seen[3]);
@@ -313,7 +314,17 @@ final class SurvivorPinsTest extends TestCase
         $inventory = (new ReflectionClass(\PerfectConsign\Feature\Inventory\ItemQueries::class))->newInstanceWithoutConstructor();
         $forms = (new ReflectionClass(ItemForm::class))->newInstanceWithoutConstructor();
         $account = new VendorAccount($statements, $inventory, $forms, new StoreTake());
-        $home = (new VendorCheck($statements, $payouts, $account))->home('01900000-0000-7000-8000-0000000000aa', '2026-06-15');
+        $mall = new \PerfectConsign\Feature\Mall\MallSettings(
+            $statements,
+            new \PerfectConsign\Feature\Company\CompanyStore(
+                $statements,
+                new \PerfectConsign\Bootstrap\DatabaseRole($this->createStub(\PDO::class)),
+                $this->createStub(\PDO::class),
+                new \PerfectConsign\Feature\Company\CompanyLines(),
+            ),
+            new \PerfectConsign\Feature\Mall\MallDay($statements),
+        );
+        $home = (new VendorCheck($statements, $payouts, $account, $mall))->home('01900000-0000-7000-8000-0000000000aa', '2026-06-15');
 
         self::assertSame(0, $home['desk']);
     }
@@ -433,6 +444,7 @@ final class SurvivorPinsTest extends TestCase
             $this->createStub(LedgerStore::class),
             (new ReflectionClass(\PerfectConsign\Feature\Register\RegisterStore::class))->newInstanceWithoutConstructor(),
             $payouts,
+            (new ReflectionClass(\PerfectConsign\Feature\Mall\MallSettings::class))->newInstanceWithoutConstructor(),
         );
 
         $tenders->apply('01900000-0000-7000-8000-0000000000aa', 'vendor_draw', 100, '01900000-0000-7000-8000-0000000000bb', 100);

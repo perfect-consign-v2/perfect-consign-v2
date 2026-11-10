@@ -24,6 +24,7 @@ final class PermissionTest extends TestCase
         self::assertTrue(Permission::allows('manager', 'report.read'));
         self::assertFalse(Permission::allows('manager', 'settings.edit'));
         self::assertFalse(Permission::allows('manager', 'payout.disburse'));
+        self::assertFalse(Permission::allows('supervisor', 'sale.post'));
         self::assertContains('sale.discount', Permission::VERBS);
     }
 }

@@ -46,7 +46,7 @@ $staffSections = [
 ?>
 <div class="page-head">
     <div class="titles">
-        <h1 class="h1">People</h1>
+        <h1 class="h1">Staff</h1>
         <p class="muted">Add cashiers, managers, books logins, and co-owners. Suspend to block sign-in. Change role among cashier, manager, and books. Vendor portal sign-in stays on each <a href="/<?= View::text($slug) ?>/<?= ($consignmentOnly ?? false) === true ? 'consignors' : 'vendors' ?>">seller</a> page.</p>
     </div>
 </div>
@@ -62,7 +62,7 @@ $staffSections = [
                 <option value="books">Books</option>
                 <option value="owner">Owner</option>
             </select>
-            <p class="muted text-sm">Cashiers sell. Managers run the floor (no Settings, People, or vendor pay). Books read money. Owners have full mall access.</p>
+            <p class="muted text-sm">Cashiers sell. Managers run the floor (no Settings, Staff, or vendor pay). Books read money. Owners have full mall access.</p>
         </div>
         <div class="field">
             <label for="display_name">Name</label>

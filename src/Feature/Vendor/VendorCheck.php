@@ -31,6 +31,7 @@ final class VendorCheck
         private readonly Statements $statements,
         private readonly PayoutStore $payouts,
         private readonly VendorAccount $account,
+        private readonly \PerfectConsign\Feature\Mall\MallSettings $mall,
     ) {
     }
 
@@ -382,6 +383,10 @@ final class VendorCheck
         }
         if ($source === 'sale' && $role === 'vendor_payable' && $debit > 0) {
             return 'Bought at the store';
+        }
+
+        if ($source === 'vendor_memo') {
+            return $this->mall->getPartyLabel('Vendor memo', 'Consignor memo');
         }
 
         return self::LABELS[$source] ?? 'Entry';

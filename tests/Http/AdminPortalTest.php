@@ -92,7 +92,8 @@ final class AdminPortalTest extends TestCase
             self::assertStringContainsString('Manager', $enterManager->body);
             self::assertStringContainsString('Sell', $enterManager->body);
             self::assertStringContainsString('View payouts', $enterManager->body);
-            self::assertStringNotContainsString('>People<', $enterManager->body);
+            self::assertStringContainsString('nav-group-label">People</div>', $enterManager->body);
+            self::assertStringNotContainsString('nav-label">Staff</span>', $enterManager->body);
             self::assertStringNotContainsString('>Settings<', $enterManager->body);
 
             $client->get('/admin/tenants');

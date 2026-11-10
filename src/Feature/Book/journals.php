@@ -25,7 +25,13 @@ ListTable::head([
         <tr>
             <td><?= View::text($journal['journal_no']) ?></td>
             <td><?= View::date($journal['posting_date']) ?></td>
-            <td><?= View::text(SourceLabel::text(is_string($journal['source_type'] ?? null) ? $journal['source_type'] : '')) ?></td>
+            <?php
+            $sourceType = is_string($journal['source_type'] ?? null) ? $journal['source_type'] : '';
+            $sourceLabel = $sourceType === 'vendor_memo' && ($consignmentOnly ?? false) === true
+                ? 'Consignor memo'
+                : SourceLabel::text($sourceType);
+            ?>
+            <td><?= View::text($sourceLabel) ?></td>
             <td><a href="/<?= View::text($slug) ?>/journals/<?= View::text($journal['id']) ?>">Open</a></td>
         </tr>
     <?php endforeach; ?>

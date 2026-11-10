@@ -47,8 +47,11 @@ final class RentGuardTest extends TestCase
 
     public function testPayoutSettingsRequireAMallRow(): void
     {
+        $sqlite = new \PDO('sqlite::memory:');
+        $empty = $sqlite->query('SELECT 1 AS id WHERE 0');
+        self::assertInstanceOf(\PDOStatement::class, $empty);
         $pdo = $this->createStub(PDO::class);
-        $pdo->method('query')->willReturn(false);
+        $pdo->method('query')->willReturn($empty);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('the mall has no payout settings');

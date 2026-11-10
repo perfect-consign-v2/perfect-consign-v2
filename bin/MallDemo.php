@@ -183,10 +183,12 @@ final class MallDemo
         $this->customers = new CustomerStore($this->statements, $identity);
         $this->shoppers = new TicketCustomer($this->statements, $this->customers);
         $this->offers = new OfferStore($this->statements);
+        $this->company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
+        $mall = new MallSettings($this->statements, $this->company, new \PerfectConsign\Feature\Mall\MallDay($this->statements));
         $this->tickets = new TicketStore(
             $this->statements,
             $pricing,
-            new TicketBuyer($this->statements),
+            new TicketBuyer($this->statements, $mall),
             new TicketQueue($this->statements, $pricing),
             $this->shoppers,
             $ceiling,
@@ -206,10 +208,9 @@ final class MallDemo
             $attach,
             $reversals,
         );
-        $this->company = new CompanyStore($this->statements, new DatabaseRole($pdo), $pdo, new CompanyLines());
         $this->rent = new RentStore(
             $this->statements,
-            new MallSettings($this->statements, $this->company, new \PerfectConsign\Feature\Mall\MallDay($this->statements)),
+            $mall,
             new RentLines(),
             $this->ledger,
         );

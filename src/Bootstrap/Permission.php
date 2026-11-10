@@ -26,20 +26,23 @@ final class Permission
 
     public static function allows(string $role, string $verb): bool
     {
-        if ($role === 'owner') {
+        if (!ActorRole::isKnown($role)) {
+            return false;
+        }
+        if ($role === ActorRole::OWNER) {
             return true;
         }
-        if ($role === 'cashier') {
+        if ($role === ActorRole::CASHIER) {
             return in_array($verb, ['sale.post', 'sale.void', 'sale.discount', 'sale.tax_free', 'register.close'], true);
         }
-        if ($role === 'manager') {
+        if ($role === ActorRole::MANAGER) {
             return in_array(
                 $verb,
                 ['sale.post', 'sale.void', 'sale.discount', 'sale.tax_free', 'register.close', 'report.read'],
                 true
             );
         }
-        if ($role === 'books') {
+        if ($role === ActorRole::BOOKS) {
             return $verb === 'report.read';
         }
 

@@ -16,6 +16,7 @@ final class LayoutFoldTest extends TestCase
         self::assertSame(1, substr_count($html, 'class="nav-books"'));
         self::assertStringContainsString('<summary class="nav-group-label">Books</summary>', $html);
         self::assertStringContainsString('<div class="nav-group-label">Counter</div>', $html);
+        self::assertStringContainsString('<div class="nav-group-label">People</div>', $html);
     }
 
     public function testABooksLoginShowsBooksAsAPlainGroup(): void

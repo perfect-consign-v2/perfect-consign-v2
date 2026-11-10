@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Party;
 
+use InvalidArgumentException;
+
 final class PartyRoleType
 {
     public const VENDOR = 'vendor';
@@ -12,14 +14,47 @@ final class PartyRoleType
 
     public const WAIT_LIST = 'wait_list';
 
+    /**
+     * @return self::VENDOR|self::CUSTOMER|self::WAIT_LIST
+     */
+    public static function assertStored(string $roleType): string
+    {
+        if ($roleType === self::VENDOR || $roleType === self::CUSTOMER || $roleType === self::WAIT_LIST) {
+            return $roleType;
+        }
+
+        throw new InvalidArgumentException('that party role is not recognized');
+    }
+
+    /**
+     * Decode a Postgres string_agg of role_type into stored role constants.
+     *
+     * @return list<string>
+     */
+    public static function fromAgg(string $roleAgg): array
+    {
+        if ($roleAgg === '') {
+            return [];
+        }
+        $roles = [];
+        foreach (explode(',', $roleAgg) as $part) {
+            $roleType = trim($part);
+            if ($roleType === '') {
+                throw new InvalidArgumentException('that party role list is malformed');
+            }
+            $roles[] = self::assertStored($roleType);
+        }
+
+        return $roles;
+    }
+
     /** Staff-facing label for a stored role_type. Seller stays vendor in the DB. */
     public static function displayName(string $roleType, bool $consignmentOnly): string
     {
-        return match ($roleType) {
+        return match (self::assertStored($roleType)) {
             self::VENDOR => $consignmentOnly ? 'consignor' : 'vendor',
             self::CUSTOMER => 'customer',
             self::WAIT_LIST => 'wait list',
-            default => $roleType,
         };
     }
 
@@ -33,23 +68,6 @@ final class PartyRoleType
         }
         $labels = [];
         foreach ($roleTypes as $roleType) {
-            $labels[] = self::displayName($roleType, $consignmentOnly);
-        }
-
-        return implode(', ', $labels);
-    }
-
-    /** Map a string_agg of role_type values for the parties list. */
-    public static function displayCsv(string $roleCsv, bool $consignmentOnly): string
-    {
-        if ($roleCsv === '') {
-            return '';
-        }
-        $labels = [];
-        foreach (explode(', ', $roleCsv) as $roleType) {
-            if ($roleType === '') {
-                continue;
-            }
             $labels[] = self::displayName($roleType, $consignmentOnly);
         }
 

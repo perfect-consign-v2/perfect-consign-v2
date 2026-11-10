@@ -28,6 +28,7 @@ final class TenderSplit
         private readonly LedgerStore $ledger,
         private readonly RegisterStore $registers,
         private readonly PayoutStore $payouts,
+        private readonly \PerfectConsign\Feature\Mall\MallSettings $mall,
     ) {
     }
 
@@ -137,7 +138,9 @@ final class TenderSplit
         if ($role === 'vendor_draw') {
             $vendor = $request->field('vendor_id');
             if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendor) !== 1) {
-                throw new DatabaseRefusal('Choose a vendor.');
+                throw new DatabaseRefusal(
+                    $this->mall->getPartyLabel('Choose a vendor.', 'Choose a consignor.')
+                );
             }
             if ($amount > $this->payouts->openPayout($vendor)['payable']) {
                 throw new DatabaseRefusal('a vendor draw is limited to the open payable');

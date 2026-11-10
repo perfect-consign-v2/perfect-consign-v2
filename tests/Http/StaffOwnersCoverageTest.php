@@ -76,7 +76,7 @@ final class StaffOwnersCoverageTest extends WebTestCase
         $this->client->post('/' . self::SLUG . '/logout', []);
         $signed = $this->client->signInByEmail($againEmail, 'partner-pass');
         self::assertSame(200, $signed->status);
-        self::assertSees('People', $signed);
+        self::assertSees('Staff', $signed);
     }
 
     private function signedInOwnerId(string $html): string

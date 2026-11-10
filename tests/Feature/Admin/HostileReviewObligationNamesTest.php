@@ -14,63 +14,23 @@ use ReflectionMethod;
 
 final class HostileReviewObligationNamesTest extends TestCase
 {
-    public function testHostileReviewHelpersAreNamedForObligations(): void
+    public function testHostileReviewHelpersStayPrivateOrPublicAsShipped(): void
     {
-        self::assertTrue($this->privateMethod(AdminSignIn::class, 'recentForPair')->isPrivate());
-        self::assertTrue($this->privateMethod(AdminSignIn::class, 'recentForClient')->isPrivate());
-        self::assertTrue($this->privateMethod(AdminSignIn::class, 'recentForEmail')->isPrivate());
-        self::assertTrue($this->privateMethod(AdminTenantWipe::class, 'secondAdmin')->isPrivate());
-        self::assertTrue($this->privateMethod(AdminTenantWipe::class, 'usableSecondCredentials')->isPrivate());
-        self::assertTrue($this->privateMethod(AdminTenantWipe::class, 'adminRow')->isPrivate());
-        self::assertTrue($this->privateMethod(RequestFactory::class, 'validAddress')->isPrivate());
-        self::assertTrue((new ReflectionMethod(TlsSignal::class, 'peerIsTrusted'))->isPublic());
-        recentForPair();
-        recentForClient();
-        recentForEmail();
-        secondAdmin();
-        usableSecondCredentials();
-        adminRow();
-        validAddress();
-        peerIsTrusted();
+        self::assertTrue($this->method(AdminSignIn::class, 'recentForPair')->isPrivate());
+        self::assertTrue($this->method(AdminSignIn::class, 'recentForClient')->isPrivate());
+        self::assertTrue($this->method(AdminSignIn::class, 'recentForEmail')->isPrivate());
+        self::assertTrue($this->method(AdminTenantWipe::class, 'secondAdmin')->isPrivate());
+        self::assertTrue($this->method(AdminTenantWipe::class, 'usableSecondCredentials')->isPrivate());
+        self::assertTrue($this->method(AdminTenantWipe::class, 'adminRow')->isPrivate());
+        self::assertTrue($this->method(RequestFactory::class, 'validAddress')->isPrivate());
+        self::assertTrue($this->method(TlsSignal::class, 'peerIsTrusted')->isPublic());
     }
 
     /**
      * @param class-string $class
      */
-    private function privateMethod(string $class, string $name): ReflectionMethod
+    private function method(string $class, string $name): ReflectionMethod
     {
         return (new ReflectionClass($class))->getMethod($name);
     }
-}
-
-function recentForPair(): void
-{
-}
-
-function recentForClient(): void
-{
-}
-
-function recentForEmail(): void
-{
-}
-
-function secondAdmin(): void
-{
-}
-
-function usableSecondCredentials(): void
-{
-}
-
-function adminRow(): void
-{
-}
-
-function validAddress(): void
-{
-}
-
-function peerIsTrusted(): void
-{
 }

@@ -8,19 +8,22 @@ final class RoleGate
 {
     public static function allows(string $role, string $rest, string $method): bool
     {
-        if ($role === 'owner') {
+        if (!ActorRole::isKnown($role)) {
+            return false;
+        }
+        if ($role === ActorRole::OWNER) {
             return true;
         }
-        if ($role === 'cashier') {
+        if ($role === ActorRole::CASHIER) {
             return self::cashier($rest, $method);
         }
-        if ($role === 'manager') {
+        if ($role === ActorRole::MANAGER) {
             return self::manager($rest, $method);
         }
-        if ($role === 'vendor') {
+        if ($role === ActorRole::VENDOR) {
             return self::vendor($rest, $method);
         }
-        if ($role === 'books') {
+        if ($role === ActorRole::BOOKS) {
             return self::books($rest, $method);
         }
 

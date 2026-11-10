@@ -149,14 +149,14 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
         </section>
             <section class="stack no-print">
                 <h2 class="h3">Wrong booth</h2>
-                <p class="muted">This moves what the store owes. The item price and the consignor on the item stay as they are.</p>
+                <p class="muted">This moves what the store owes. The item price and the <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?> on the item stay as they are.</p>
                 <?php foreach ($lines as $line): ?>
                     <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/booth">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                         <input type="hidden" name="item_id" value="<?= View::text($line['item_id']) ?>">
                         <label for="correct-<?= View::text($line['item_id']) ?>"><?= View::text($line['code']) ?> was paid to <?= View::text($line['vendor']) ?></label>
                         <select class="select" id="correct-<?= View::text($line['item_id']) ?>" name="vendor_id" required>
-                            <option value="">Pay this vendor instead</option>
+                            <option value="">Pay this <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?> instead</option>
                             <?php foreach ((is_array($vendors ?? null) ? $vendors : []) as $vendor): ?>
                                 <?php if (is_array($vendor) && is_string($vendor['id'] ?? null)): ?>
                                     <option value="<?= View::text($vendor['id']) ?>"><?= View::text(is_string($vendor['name'] ?? null) ? $vendor['name'] : '') ?></option>

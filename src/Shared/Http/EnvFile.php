@@ -13,7 +13,7 @@ final class EnvFile
         }
         $contents = file_get_contents($path);
         if ($contents === false) {
-            return;
+            throw new \RuntimeException('the env file could not be read: ' . $path);
         }
         foreach (self::parse($contents) as $key => $value) {
             if (getenv($key) !== false) {

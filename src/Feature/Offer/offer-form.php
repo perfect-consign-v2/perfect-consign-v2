@@ -33,7 +33,7 @@ $back = VendorPreview::with($base, $previewAs);
         <label for="scope">Applies to</label>
         <select class="input" id="scope" name="scope">
             <option value="item"<?= $draft['scope'] === 'item' ? ' selected' : '' ?>><?= $locked ? 'One of my items' : 'One item' ?></option>
-            <option value="vendor"<?= $draft['scope'] === 'vendor' ? ' selected' : '' ?>><?= $locked ? 'All my items' : 'One vendor' ?></option>
+            <option value="vendor"<?= $draft['scope'] === 'vendor' ? ' selected' : '' ?>><?= $locked ? 'All my items' : ((($consignmentOnly ?? false) === true) ? 'One consignor' : 'One vendor') ?></option>
             <?php if (!$locked): ?>
                 <option value="store"<?= $draft['scope'] === 'store' ? ' selected' : '' ?>>Whole store</option>
             <?php endif; ?>
@@ -41,7 +41,7 @@ $back = VendorPreview::with($base, $previewAs);
         <label for="item_code">Item tag</label>
         <input class="input" id="item_code" name="item_code" value="<?= View::text($draft['item_code']) ?>" autocomplete="off">
         <?php if (!$locked): ?>
-            <label for="vendor_id">Vendor</label>
+            <label for="vendor_id"><?= ($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor' ?></label>
             <select class="input" id="vendor_id" name="vendor_id">
                 <option value="">Choose</option>
                 <?php foreach ($vendors as $vendor): ?>
@@ -50,8 +50,8 @@ $back = VendorPreview::with($base, $previewAs);
             </select>
             <label for="funded_by">Who pays</label>
             <select class="input" id="funded_by" name="funded_by">
-                <option value="vendor"<?= $draft['funded_by'] !== 'store' ? ' selected' : '' ?>>Vendor — the check uses the lower price</option>
-                <option value="store"<?= $draft['funded_by'] === 'store' ? ' selected' : '' ?>>Store — the vendor's check stays on the tag price</option>
+                <option value="vendor"<?= $draft['funded_by'] !== 'store' ? ' selected' : '' ?>><?= ($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor' ?> — the check uses the lower price</option>
+                <option value="store"<?= $draft['funded_by'] === 'store' ? ' selected' : '' ?>>Store — the <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?>'s check stays on the tag price</option>
             </select>
             <p class="muted">A store-wide deal is usually paid by the store.</p>
         <?php else: ?>

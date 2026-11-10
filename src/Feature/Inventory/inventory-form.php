@@ -20,6 +20,8 @@ use PerfectConsign\Shared\Http\View;
 
 $sold = ($sold ?? false) === true;
 $showBrand = ($showBrand ?? true) === true;
+$sellerWord = ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor';
+$sellerLabel = ($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor';
 $photoRule = is_string($photoRule ?? null) && $photoRule !== '' ? $photoRule : 'JPEG, PNG, or WebP. 2 MB or smaller.';
 
 $editing = $item['id'] !== '';
@@ -67,12 +69,12 @@ if ($printId !== '') {
             <div class="card-head"><div class="h3" id="item-identity">Item</div></div>
             <div class="card-body stack">
                 <div class="field combo">
-                    <label for="vendor_label">Consignor</label>
+                    <label for="vendor_label"><?= View::text($sellerLabel) ?></label>
                     <input class="input" id="vendor_label" name="vendor_label" value="<?= View::text($item['vendor_label']) ?>" autocomplete="off" required<?= $sold ? ' readonly' : '' ?>>
                     <input type="hidden" id="vendor_id" name="vendor_id" value="<?= View::text($item['vendor_id']) ?>">
                     <div class="suggest" id="vendor_suggest" hidden></div>
-                    <p class="field-error" id="vendor_client_error" hidden>Choose a consignor from the list.</p>
-                    <?php if ($sold): ?><p class="muted text-sm">This consignor is on a sale and cannot be changed.</p><?php endif; ?>
+                    <p class="field-error" id="vendor_client_error" hidden>Choose a <?= View::text($sellerWord) ?> from the list.</p>
+                    <?php if ($sold): ?><p class="muted text-sm">This <?= View::text($sellerWord) ?> is on a sale and cannot be changed.</p><?php endif; ?>
                 </div>
                 <div class="vendor-pair">
                     <div class="field">
@@ -109,7 +111,7 @@ if ($printId !== '') {
                 <div class="field">
                     <label for="store_take">Store take <span class="badge badge-warning" id="store_take_badge"<?= $item['overridden'] ? '' : ' hidden' ?>>Overridden</span></label>
                     <input class="input" id="store_take" name="store_take" inputmode="decimal" value="<?= View::text($item['store_take']) ?>">
-                    <p class="muted text-sm">This consignor's split is <span id="store_take_default"><?= View::text($item['default_take']) ?></span>%. A different amount is marked overridden.</p>
+                    <p class="muted text-sm">This <?= View::text($sellerWord) ?>'s split is <span id="store_take_default"><?= View::text($item['default_take']) ?></span>%. A different amount is marked overridden.</p>
                 </div>
             </div>
         </section>
@@ -189,7 +191,7 @@ if ($printId !== '') {
                 <div class="field">
                     <label for="photo">Photo</label>
                     <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
-                    <p class="muted text-sm">Optional. <?= View::text($photoRule) ?> It shows on this item and on the consignor's sale line.</p>
+                    <p class="muted text-sm">Optional. <?= View::text($photoRule) ?> It shows on this item and on the <?= View::text($sellerWord) ?>'s sale line.</p>
                 </div>
             </div>
         </section>
@@ -213,7 +215,7 @@ if ($printId !== '') {
         <div class="field">
             <label for="photo">One photo</label>
             <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required>
-            <p class="muted text-sm"><?= View::text($photoRule) ?> Stored with this mall. It shows on this item and on the consignor's sale line.</p>
+            <p class="muted text-sm"><?= View::text($photoRule) ?> Stored with this mall. It shows on this item and on the <?= View::text($sellerWord) ?>'s sale line.</p>
         </div>
     </div>
     <div class="card-foot">

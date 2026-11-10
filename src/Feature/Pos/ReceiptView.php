@@ -25,7 +25,7 @@ final class ReceiptView
         try {
             $receipt = $this->poster->receipt($id);
         } catch (DatabaseRefusal $refusal) {
-            if ($refusal->getMessage() === DatabaseRefusal::TICKET_NOT_A_SALE) {
+            if (DatabaseRefusal::isTicketNotASale($refusal)) {
                 $this->app->notFound();
             }
             throw $refusal;

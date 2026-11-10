@@ -44,10 +44,12 @@ final class MallPayoutSettingsTest extends TestCase
             ['rentals' => true, 'consignment' => true],
             MallPayoutSettings::getCapabilities('both')
         );
-        self::assertSame(
-            ['rentals' => true, 'consignment' => true],
-            MallPayoutSettings::getCapabilities('other')
-        );
+        try {
+            MallPayoutSettings::getCapabilities('other');
+            self::fail('an unknown operating mode was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('the operating mode is not recognized', $error->getMessage());
+        }
         self::assertSame('1', MallPayoutSettings::getPostedConsignment('', '1'));
         self::assertSame('', MallPayoutSettings::getPostedConsignment('', ''));
         self::assertSame('1', MallPayoutSettings::getPostedConsignment('consignor', '0'));

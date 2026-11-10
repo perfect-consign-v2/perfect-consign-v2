@@ -78,10 +78,6 @@ final class LetterDeskTest extends TestCase
             self::assertTrue((new \ReflectionClass(LetterController::class))->hasMethod('file'));
             self::assertTrue((new \ReflectionClass(LetterController::class))->hasMethod('show'));
             self::assertTrue((new \ReflectionClass(LetterController::class))->hasMethod('read'));
-            $named = 'file( show( read(';
-            self::assertStringContainsString('file(', $named);
-            self::assertStringContainsString('show(', $named);
-            self::assertStringContainsString('read(', $named);
         } finally {
             $pdo->exec('RESET ROLE');
             putenv('STALL_MAIL_FILE');

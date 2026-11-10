@@ -7,26 +7,32 @@ namespace PerfectConsign\Tests\Feature\Mail;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Mail\SmtpClient;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 final class MailDeliveryTest extends TestCase
 {
     public function testABadAddressAndAMissingMailboxAreRefused(): void
     {
-        $log = new RecordedMailLog();
-        $mail = new OutboundMail($log);
+        $mail = new OutboundMail(new NullLogger());
         $this->withEnv(['STALL_MAIL_FILE' => null], static function () use ($mail): void {
-            $mail->send("ada@example.com\n", 'Hello', 'Body');
-            $mail->send('not-an-email', 'Hello', 'Body');
+            try {
+                $mail->send("ada@example.com\n", 'Hello', 'Body');
+                self::fail('a newline address was accepted');
+            } catch (\InvalidArgumentException $error) {
+                self::assertSame('mail was refused', $error->getMessage());
+            }
+            try {
+                $mail->send('not-an-email', 'Hello', 'Body');
+                self::fail('a bad address was accepted');
+            } catch (\InvalidArgumentException $error) {
+                self::assertSame('mail was refused', $error->getMessage());
+            }
         });
-
-        self::assertSame(['mail was refused', 'mail was refused'], $log->errors);
     }
 
-    public function testTheFileMailboxKeepsTheLetterAndADirectoryIsLogged(): void
+    public function testTheFileMailboxKeepsTheLetterAndADirectoryIsRefused(): void
     {
-        $log = new RecordedMailLog();
-        $mail = new OutboundMail($log);
+        $mail = new OutboundMail(new NullLogger());
         $path = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc-mail-' . bin2hex(random_bytes(4)) . '.txt';
         $this->withEnv(['STALL_MAIL_FILE' => $path], static function () use ($mail): void {
             $mail->send('ada@example.com', 'Hello', "Line\n.");
@@ -40,54 +46,52 @@ final class MailDeliveryTest extends TestCase
         }
 
         $this->withEnv(['STALL_MAIL_FILE' => sys_get_temp_dir()], static function () use ($mail): void {
-            $mail->send('ada@example.com', 'Hello', 'Body');
+            try {
+                $mail->send('ada@example.com', 'Hello', 'Body');
+                self::fail('a directory mailbox was accepted');
+            } catch (\RuntimeException $error) {
+                self::assertSame('mail file write failed', $error->getMessage());
+            }
         });
-        self::assertSame(['mail file write failed'], $log->errors);
     }
 
-    public function testSmtpSettingsThatCannotSendAreLogged(): void
+    public function testSmtpSettingsThatCannotSendAreRefused(): void
     {
-        $log = new RecordedMailLog();
-        $mail = new OutboundMail($log);
-        $this->withEnv($this->clearedSmtp(), static function () use ($mail): void {
-            $mail->send('ada@example.com', 'Hello', 'Body');
-        });
-        $this->withEnv($this->smtp('bad host', '587'), static function () use ($mail): void {
-            $mail->send('ada@example.com', 'Hello', 'Body');
-        });
-        $this->withEnv($this->smtp('127.0.0.1', '0'), static function () use ($mail): void {
-            $mail->send('ada@example.com', 'Hello', 'Body');
-        });
-        $this->withEnv($this->smtp('127.0.0.1', 'nope'), static function () use ($mail): void {
-            $mail->send('ada@example.com', 'Hello', 'Body');
-        });
-        $this->withEnv($this->smtp('127.0.0.1', '587', 'not-an-email'), static function () use ($mail): void {
-            $mail->send('ada@example.com', 'Hello', 'Body');
-        });
-
-        self::assertSame([
-            'smtp is not configured',
-            'smtp is not configured',
-            'smtp is not configured',
-            'smtp is not configured',
-            'smtp is not configured',
-        ], $log->errors);
+        $mail = new OutboundMail(new NullLogger());
+        foreach ([
+            $this->clearedSmtp(),
+            $this->smtp('bad host', '587'),
+            $this->smtp('127.0.0.1', '0'),
+            $this->smtp('127.0.0.1', 'nope'),
+            $this->smtp('127.0.0.1', '587', 'not-an-email'),
+        ] as $env) {
+            $this->withEnv($env, static function () use ($mail): void {
+                try {
+                    $mail->send('ada@example.com', 'Hello', 'Body');
+                    self::fail('unconfigured smtp was accepted');
+                } catch (\RuntimeException $error) {
+                    self::assertSame(OutboundMail::SMTP_NOT_CONFIGURED, $error->getMessage());
+                }
+            });
+        }
     }
 
-    public function testALocalSmtpDialogueThatRefusesTheMessageIsLogged(): void
+    public function testALocalSmtpDialogueThatRefusesTheMessageIsRefused(): void
     {
-        $log = new RecordedMailLog();
-        $mail = new OutboundMail($log);
+        $mail = new OutboundMail(new NullLogger());
         $server = $this->server('reject');
         try {
             $this->withEnv($this->smtp('127.0.0.1', (string) $server['port']), static function () use ($mail): void {
-                $mail->send('ada@example.com', 'Hello', 'Body');
+                try {
+                    $mail->send('ada@example.com', 'Hello', 'Body');
+                    self::fail('a rejecting smtp dialogue was accepted');
+                } catch (\RuntimeException $error) {
+                    self::assertSame('smtp send failed', $error->getMessage());
+                }
             });
         } finally {
             $this->stop($server);
         }
-
-        self::assertSame(['smtp send failed'], $log->errors);
     }
 
     public function testTheClientStopsWhenTheServerRejectsACommand(): void
@@ -164,7 +168,7 @@ final class MailDeliveryTest extends TestCase
 
     public function testAMissingPieceIsNotConfigured(): void
     {
-        $mail = new OutboundMail(new RecordedMailLog());
+        $mail = new OutboundMail(new NullLogger());
         $settings = new \ReflectionMethod(OutboundMail::class, 'settings');
         foreach (['STALL_SMTP_USERNAME', 'STALL_SMTP_PASSWORD', 'STALL_SMTP_FROM'] as $blank) {
             $env = $this->smtp('127.0.0.1', '587');
@@ -387,48 +391,5 @@ PHP;
             'STALL_SMTP_PASSWORD' => 'secret',
             'STALL_SMTP_FROM' => $from,
         ];
-    }
-}
-
-final class RecordedMailLog implements LoggerInterface
-{
-    /** @var list<string> */
-    public array $errors = [];
-
-    public function emergency(\Stringable|string $message, array $context = []): void
-    {
-    }
-
-    public function alert(\Stringable|string $message, array $context = []): void
-    {
-    }
-
-    public function critical(\Stringable|string $message, array $context = []): void
-    {
-    }
-
-    public function error(\Stringable|string $message, array $context = []): void
-    {
-        $this->errors[] = (string) $message;
-    }
-
-    public function warning(\Stringable|string $message, array $context = []): void
-    {
-    }
-
-    public function notice(\Stringable|string $message, array $context = []): void
-    {
-    }
-
-    public function info(\Stringable|string $message, array $context = []): void
-    {
-    }
-
-    public function debug(\Stringable|string $message, array $context = []): void
-    {
-    }
-
-    public function log($level, \Stringable|string $message, array $context = []): void
-    {
     }
 }

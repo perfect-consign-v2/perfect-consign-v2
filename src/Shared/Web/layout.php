@@ -49,11 +49,14 @@ if ($actorRole === 'owner') {
             ['/dashboard', 'Home', 'i-dashboard'],
             ['/pos', 'Sell', 'i-cart'],
             ['/registers', 'Registers', 'i-pos'],
+        ],
+        'People' => [
+            [$sellerNav, $partyLabel, 'i-vendor'],
             ['/customers', 'Customers', 'i-vendor'],
+            ['/parties', 'Parties', 'i-vendor'],
+            ['/staff', 'Staff', 'i-vendor'],
         ],
         'Floor' => [
-            [$sellerNav, $partyLabel, 'i-vendor'],
-            ['/parties', 'Parties', 'i-vendor'],
             ['/letters', 'Email', 'i-receipt'],
             ['/inventory', 'Inventory', 'i-inventory'],
             ['/booths', 'Booths', 'i-booth'],
@@ -91,7 +94,6 @@ if ($actorRole === 'owner') {
     }
     $groups['Setup'][] = ['/company', 'Company', 'i-settings'];
     $groups['Setup'][] = ['/settings', 'Settings', 'i-settings'];
-    $groups['Setup'][] = ['/staff', 'People', 'i-vendor'];
     $groups['Books'] = [
         ['/adjustment', 'Fix a mistake', 'i-edit'],
         ['/missed-sale', 'Missed sale', 'i-edit'],
@@ -117,11 +119,13 @@ if ($actorRole === 'manager') {
             ['/dashboard', 'Home', 'i-dashboard'],
             ['/pos', 'Sell', 'i-cart'],
             ['/registers', 'Register', 'i-pos'],
+        ],
+        'People' => [
+            [$sellerNav, $partyLabel, 'i-vendor'],
             ['/customers', 'Customers', 'i-vendor'],
+            ['/parties', 'Parties', 'i-vendor'],
         ],
         'Floor' => [
-            [$sellerNav, $partyLabel, 'i-vendor'],
-            ['/parties', 'Parties', 'i-vendor'],
             ['/letters', 'Email', 'i-receipt'],
             ['/inventory', 'Inventory', 'i-inventory'],
             ['/booths', 'Booths', 'i-booth'],

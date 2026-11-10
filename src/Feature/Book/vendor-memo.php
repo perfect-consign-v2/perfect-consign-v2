@@ -49,7 +49,7 @@ $directionValue = $direction !== '' ? $direction : 'credit';
     <?php if ($owed !== null) { ?>
         <p>Open payable <?= View::text($owed) ?>.</p>
         <input type="hidden" name="post" value="1">
-        <p><button type="submit">Post vendor memo</button></p>
+        <p><button type="submit">Post <?= !empty($consignmentOnly) ? 'consignor' : 'vendor' ?> memo</button></p>
     <?php } else { ?>
         <p><button type="submit">Show the open payable</button></p>
     <?php } ?>

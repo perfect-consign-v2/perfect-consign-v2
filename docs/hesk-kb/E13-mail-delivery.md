@@ -1,15 +1,15 @@
 ---
 title: When mail sends (web vs worker)
 category: Platform notes
-hesk: published 2026-11-08
-as_of: 2026-10-30
+hesk: published 2026-11-09
+as_of: 2026-11-09
 ---
 
 # When mail sends (web vs worker)
 
 ## As of
 
-2026-10-30 — password-reset and receipt mail send in the web request; other store mail waits in the outbox for `php bin/work.php`. Platform admin reset and signup verify also send in the request through `STALL_GMAIL_*` / `STALL_SMTP_*` (not the mall Settings mailbox). Operator notices for failed Gmail or HTTP 500s stay immediate.
+2026-11-09 — mall `/forgot` keeps the same user success flash when a known account’s reset mail fails; operators get a platform notice. Password-reset and receipt mail still send in the web request; other store mail waits in the outbox for `php bin/work.php`. Platform admin reset and signup verify also send in the request through `STALL_GMAIL_*` / `STALL_SMTP_*` (not the mall Settings mailbox). Operator notices for failed Gmail or HTTP 500s stay immediate.
 
 ## In one sentence
 
@@ -21,7 +21,7 @@ An owner resets a password, a cashier emails a receipt, a consignor entry link i
 
 ## What the books / screens do
 
-- **Immediate (web request):** mall password reset and receipt email (mall Settings mailbox); platform admin forgot-password and signup confirmation (platform Gmail/SMTP env); platform operator notices for mail failure or HTTP 500.
+- **Immediate (web request):** mall password reset and receipt email (mall Settings mailbox); platform admin forgot-password and signup confirmation (platform Gmail/SMTP env); platform operator notices for mail failure or HTTP 500. Mall `/forgot` keeps the same user success flash when a known account’s reset mail fails; operators still get that platform notice.
 - **Filed, then worker:** consignor magic link, owner vendor letter, sale notice, Sunday digest, rent reminder. The letter desk shows Waiting until the worker marks Sent or Bounced.
 - Admin → Mail worker shows whether `STALL_WORKER_PASSWORD` is set, the last `php bin/work.php` run, waiting outbox rows, and a pruneable run log.
 - Store-facing mail uses each mall’s Settings mailbox. Platform mail uses the platform Gmail/SMTP env.

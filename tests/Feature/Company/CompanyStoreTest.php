@@ -18,8 +18,11 @@ final class CompanyStoreTest extends TestCase
 {
     public function testAMallWithoutACompanyRowIsRefused(): void
     {
+        $sqlite = new PDO('sqlite::memory:');
+        $empty = $sqlite->query('SELECT 1 AS id WHERE 0');
+        self::assertInstanceOf(\PDOStatement::class, $empty);
         $pdo = $this->createStub(PDO::class);
-        $pdo->method('query')->willReturn(false);
+        $pdo->method('query')->willReturn($empty);
         $store = new CompanyStore(new Statements($pdo), new DatabaseRole($pdo), $pdo, new CompanyLines());
 
         $this->expectException(RuntimeException::class);

@@ -11,7 +11,7 @@ use PerfectConsign\Shared\Http\View;
 <div class="page-head">
     <div class="titles">
         <h1 class="h1"><?= View::text($monthName) ?></h1>
-        <p class="muted">Rent still owed is on <a href="/<?= View::text($slug) ?>/rent">Rent</a>. Checks are on <a href="/<?= View::text($slug) ?>/payouts">Pay vendors</a>.</p>
+        <p class="muted"><?php if (empty($consignmentOnly)): ?>Rent still owed is on <a href="/<?= View::text($slug) ?>/rent">Rent</a>. <?php endif; ?>Checks are on <a href="/<?= View::text($slug) ?>/payouts"><?= !empty($consignmentOnly) ? 'Pay consignors' : 'Pay vendors' ?></a>.</p>
     </div>
 </div>
 <div class="grid cols-4 mt-6">

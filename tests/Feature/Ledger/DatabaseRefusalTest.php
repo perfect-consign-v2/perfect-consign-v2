@@ -43,7 +43,7 @@ final class DatabaseRefusalTest extends TestCase
             'SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint "journals_book_key"'
         );
 
-        self::assertSame('That could not be saved.', DatabaseRefusal::fromPdo($error)->getMessage());
+        self::assertSame(DatabaseRefusal::COULD_NOT_SAVE, DatabaseRefusal::fromPdo($error)->getMessage());
     }
 
     public function testAnOverlappingBoothRaisePassesThrough(): void
@@ -66,7 +66,20 @@ final class DatabaseRefusalTest extends TestCase
     {
         $error = new PDOException('SQLSTATE[08006] connection failed');
 
-        self::assertSame('That could not be saved.', DatabaseRefusal::fromPdo($error)->getMessage());
+        self::assertSame(DatabaseRefusal::COULD_NOT_SAVE, DatabaseRefusal::fromPdo($error)->getMessage());
+    }
+
+    public function testABarcodeRaiseIsRecognizedByHelper(): void
+    {
+        $error = new PDOException(
+            'SQLSTATE[P0001]: Raise exception: 7 ERROR:  That barcode is already used.'
+        );
+        $refusal = DatabaseRefusal::fromPdo($error);
+
+        self::assertTrue(DatabaseRefusal::isBarcodeUsed($refusal));
+        self::assertFalse(DatabaseRefusal::isCertificateNumberUsed($refusal));
+        self::assertTrue(DatabaseRefusal::isTicketNotASale(new DatabaseRefusal(DatabaseRefusal::TICKET_NOT_A_SALE)));
+        self::assertFalse(DatabaseRefusal::isTicketNotASale($refusal));
     }
 
     public function testNotEnoughOnHandIsAPlainSentence(): void
@@ -77,10 +90,10 @@ final class DatabaseRefusalTest extends TestCase
     public function testNoiseAndOverflowAreHiddenOrMapped(): void
     {
         self::assertSame('That amount is too big.', DatabaseRefusal::phrase('numeric field overflow'));
-        self::assertSame('That could not be saved.', DatabaseRefusal::phrase('mall_clock_chk'));
+        self::assertSame(DatabaseRefusal::COULD_NOT_SAVE, DatabaseRefusal::phrase('mall_clock_chk'));
         self::assertSame('That amount is too big.', DatabaseRefusal::phrase('value too large for the column'));
-        self::assertSame('That could not be saved.', DatabaseRefusal::phrase('duplicate key value'));
-        self::assertSame('That could not be saved.', DatabaseRefusal::phrase('violates check constraint colors_name'));
+        self::assertSame(DatabaseRefusal::COULD_NOT_SAVE, DatabaseRefusal::phrase('duplicate key value'));
+        self::assertSame(DatabaseRefusal::COULD_NOT_SAVE, DatabaseRefusal::phrase('violates check constraint colors_name'));
         self::assertSame(
             'journal 01900000-0000-7000-8000-000000000001',
             DatabaseRefusal::phrase('journal 01900000-0000-7000-8000-000000000001'),
