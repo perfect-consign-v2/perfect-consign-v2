@@ -1,15 +1,15 @@
 ---
 title: Store take default vs override
 category: Vendors and booths
-hesk: published 2026-11-09
-as_of: 2026-10-25
+hesk: published 2026-11-10
+as_of: 2026-11-10
 ---
 
 # Store take default vs override
 
 ## As of
 
-2026-10-25
+2026-11-10 — New consignor / New vendor labels the field Store take override.
 
 ## In one sentence
 
@@ -22,6 +22,7 @@ Saving a vendor, saving an item’s store take, or posting a sale.
 ## What the books / screens do
 
 - Settings holds the mall default.
+- On New consignor / New vendor the field is labeled Store take override: blank or matching the default follows Settings; a different amount is an override for that seller only.
 - A saved vendor percent different from the default is marked overridden.
 - A saved amount equal to the default follows later changes to that default.
 - On an item, empty or the vendor’s percent stores no item override; a different percent is overridden on the item.

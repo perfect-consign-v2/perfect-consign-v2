@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\WaitList;
 
+use PerfectConsign\Shared\Scalar\PhoneFormat;
+
 final class WaitListFields
 {
     /**
@@ -83,7 +85,7 @@ final class WaitListFields
 
     private function phone(string $value): string
     {
-        $trimmed = trim($value);
+        $trimmed = PhoneFormat::normalize(trim($value));
         if ($trimmed === '') {
             throw new \InvalidArgumentException('a phone number is required');
         }

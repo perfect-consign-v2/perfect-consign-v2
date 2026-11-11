@@ -13,6 +13,7 @@ final class StickerItem
         public readonly string $store,
         public readonly string $consignor,
         public readonly string $brand,
+        public readonly string $size,
         public readonly string $intake,
         public readonly string $tag,
         public readonly string $deal = '',

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Shared\Scalar\PhoneFormat;
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
 use PerfectConsign\Tests\Support\ProbeMall;
@@ -49,7 +50,7 @@ final class CompanyPageTest extends WebTestCase
             $page = $this->client->post('/' . self::SLUG . '/company', $fields);
             self::assertSees('Company saved.', $page);
             self::assertSees($name, $page);
-            self::assertSees($phone, $page);
+            self::assertSees(PhoneFormat::display($phone), $page);
             self::assertSees('123 Main Street', $page);
             self::assertSees('Suite 4', $page);
             $saved = true;
@@ -162,7 +163,7 @@ final class CompanyPageTest extends WebTestCase
         self::assertStringContainsString('123 Main Street', $html);
         self::assertStringContainsString('Suite 4', $html);
         self::assertStringContainsString('Springfield, OR 97477', $html);
-        self::assertStringContainsString($phone, $html);
+        self::assertStringContainsString(PhoneFormat::display($phone), $html);
         self::assertStringContainsString('owner@store.test', $html);
     }
 

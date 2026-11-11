@@ -79,7 +79,7 @@ final class SuspendRecallClickTest extends WebTestCase
             $this->session->clickSelector('[data-open-modal="clear-cart"]', false);
             $pos = $this->session->clickUntilSees('#clear-cart button[type="submit"]', 'Cart is empty');
         }
-        // Native submit paints HTML; scan's ticket-commands JSON path does not re-draw the cart.
+        // Scan uses native submit + register-swap HTML paint (ticket-commands skips /pos/scan).
         $cart = $this->session->submit('/' . ProbeMall::SLUG . '/pos/scan', ['scan' => $tag]);
         self::assertSees($description, $cart);
         self::assertSees('data-open-modal="suspend-sale"', $cart);

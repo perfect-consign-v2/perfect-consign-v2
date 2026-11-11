@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Party;
 
+use PerfectConsign\Shared\Scalar\PhoneFormat;
+
 final class VendorDraft
 {
     /**
@@ -14,6 +16,9 @@ final class VendorDraft
      *     phone: string,
      *     email: string,
      *     address: string,
+     *     city: string,
+     *     state: string,
+     *     postal: string,
      *     agreement_starts_on: string,
      *     agreement_ends_on: string,
      *     tax_id: string,
@@ -23,7 +28,14 @@ final class VendorDraft
      *     business_name: string,
      *     discount_by?: string,
      *     keep_days?: string,
-     *     expiry_action?: string
+     *     expiry_action?: string,
+     *     phones?: list<string>,
+     *     emails?: list<string>,
+     *     mailing_address?: string,
+     *     mailing_city?: string,
+     *     mailing_state?: string,
+     *     mailing_postal?: string,
+     *     mailing_same?: string
      * } $fields
      */
     public function __construct(
@@ -64,19 +76,109 @@ final class VendorDraft
      *     display_name: ?string,
      *     phone: ?string,
      *     email: ?string,
-     *     address: ?string
+     *     address: ?string,
+     *     city: ?string,
+     *     state: ?string,
+     *     postal: ?string
      * }
      */
     public function personValues(): array
     {
+        $physical = $this->physicalAddress();
+
         return [
             'first_name' => $this->personName($this->fields['first_name'], 'first'),
             'last_name' => $this->personName($this->fields['last_name'], 'last'),
             'display_name' => $this->optionalText($this->fields['business_name'] ?? '', 120, 'that business name is too long'),
             'phone' => $this->contact($this->fields['phone'], 'phone'),
             'email' => $this->contact($this->fields['email'], 'email'),
-            'address' => $this->contact($this->fields['address'], 'address'),
+            'address' => $physical['street'] ?? null,
+            'city' => $physical['city'] ?? null,
+            'state' => $physical['state'] ?? null,
+            'postal' => $physical['postal'] ?? null,
         ];
+    }
+
+    /**
+     * @return list<array{method: string, label: string, value: string, is_primary: bool}>
+     */
+    public function contacts(): array
+    {
+        $list = [];
+        $primaryPhone = $this->contact($this->fields['phone'], 'phone');
+        if ($primaryPhone !== null) {
+            $list[] = [
+                'method' => PartyContactBook::METHOD_PHONE,
+                'label' => 'primary',
+                'value' => $primaryPhone,
+                'is_primary' => true,
+            ];
+        }
+        foreach ($this->extraList($this->fields['phones'] ?? []) as $extra) {
+            $phone = $this->contact($extra, 'phone');
+            if ($phone === null) {
+                continue;
+            }
+            $list[] = [
+                'method' => PartyContactBook::METHOD_PHONE,
+                'label' => 'other',
+                'value' => $phone,
+                'is_primary' => false,
+            ];
+        }
+        $primaryEmail = $this->contact($this->fields['email'], 'email');
+        if ($primaryEmail !== null) {
+            $list[] = [
+                'method' => PartyContactBook::METHOD_EMAIL,
+                'label' => 'primary',
+                'value' => $primaryEmail,
+                'is_primary' => true,
+            ];
+        }
+        foreach ($this->extraList($this->fields['emails'] ?? []) as $extra) {
+            $mail = $this->contact($extra, 'email');
+            if ($mail === null) {
+                continue;
+            }
+            $list[] = [
+                'method' => PartyContactBook::METHOD_EMAIL,
+                'label' => 'other',
+                'value' => $mail,
+                'is_primary' => false,
+            ];
+        }
+
+        return $list;
+    }
+
+    /**
+     * @return array{street: ?string, street2: ?string, city: ?string, state: ?string, postal: ?string}|null
+     */
+    public function physicalAddress(): ?array
+    {
+        return $this->placeFrom(
+            $this->fields['address'],
+            $this->fields['city'] ?? '',
+            $this->fields['state'] ?? '',
+            $this->fields['postal'] ?? '',
+        );
+    }
+
+    /**
+     * @return array{street: ?string, street2: ?string, city: ?string, state: ?string, postal: ?string}|null
+     */
+    public function mailingAddress(): ?array
+    {
+        if (($this->fields['mailing_same'] ?? '') === '1' || ($this->fields['mailing_same'] ?? '') === 'true') {
+            return $this->physicalAddress();
+        }
+
+        return $this->placeFrom(
+            $this->fields['mailing_address'] ?? '',
+            $this->fields['mailing_city'] ?? '',
+            $this->fields['mailing_state'] ?? '',
+            $this->fields['mailing_postal'] ?? '',
+        );
     }
 
     /**
@@ -221,16 +323,63 @@ final class VendorDraft
         if ($trimmed === '') {
             return null;
         }
-        if ($kind === 'phone' && strlen($trimmed) > 40) {
-            throw new \InvalidArgumentException('that phone is too long');
+        if ($kind === 'phone') {
+            $trimmed = PhoneFormat::normalize($trimmed);
+            if (strlen($trimmed) > 40) {
+                throw new \InvalidArgumentException('that phone is too long');
+            }
+
+            return $trimmed;
         }
         if ($kind === 'email' && (strlen($trimmed) > 200 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $trimmed) !== 1)) {
             throw new \InvalidArgumentException('that email is not an email address');
         }
-        if ($kind === 'address' && strlen($trimmed) > 400) {
+        if ($kind === 'address' && strlen($trimmed) > 200) {
             throw new \InvalidArgumentException('that address is too long');
         }
 
         return $trimmed;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<string>
+     */
+    private function extraList(array $values): array
+    {
+        $out = [];
+        foreach ($values as $value) {
+            if (!is_string($value)) {
+                continue;
+            }
+            $trimmed = trim($value);
+            if ($trimmed !== '') {
+                $out[] = $trimmed;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{street: ?string, street2: ?string, city: ?string, state: ?string, postal: ?string}|null
+     */
+    private function placeFrom(string $street, string $city, string $state, string $postal): ?array
+    {
+        $line = $this->contact($street, 'address');
+        $cityPart = $this->optionalText($city, 80, 'that city is too long');
+        $statePart = $this->optionalText($state, 40, 'that state is too long');
+        $postalPart = $this->optionalText($postal, 20, 'that ZIP is too long');
+        if ($line === null && $cityPart === null && $statePart === null && $postalPart === null) {
+            return null;
+        }
+
+        return [
+            'street' => $line,
+            'street2' => null,
+            'city' => $cityPart,
+            'state' => $statePart,
+            'postal' => $postalPart,
+        ];
     }
 }

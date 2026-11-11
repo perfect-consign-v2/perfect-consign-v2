@@ -16,7 +16,10 @@ final class ItemQueries
                        brand.name AS brand_name,
                        color.name AS color_name, category.name AS category_name,
                        size.name AS size_name, condition.name AS condition_name,
-                       department.name AS department_name
+                       department.name AS department_name,
+                       EXISTS (
+                           SELECT 1 FROM sale_lines AS sold WHERE sold.item_id = item.id LIMIT 1
+                       ) AS has_sale
                 FROM items AS item
                 LEFT JOIN vendors AS vendor ON vendor.id = item.vendor_id
                 CROSS JOIN mall
@@ -47,6 +50,9 @@ final class ItemQueries
         }
         if ($stock === 'out') {
             $where[] = 'item.quantity = 0';
+        }
+        if ($stock === 'sold') {
+            $where[] = 'item.quantity = 0 AND EXISTS (SELECT 1 FROM sale_lines AS sold WHERE sold.item_id = item.id LIMIT 1)';
         }
         if ($stock === 'unprinted') {
             $where[] = 'item.sticker_printed_at IS NULL';
@@ -88,6 +94,14 @@ final class ItemQueries
     public function unsold(string $vendorId = ''): int
     {
         return $this->tally(' WHERE quantity = 0', $vendorId);
+    }
+
+    public function sold(string $vendorId = ''): int
+    {
+        return $this->tally(
+            ' WHERE quantity = 0 AND EXISTS (SELECT 1 FROM sale_lines AS sold WHERE sold.item_id = items.id LIMIT 1)',
+            $vendorId
+        );
     }
 
     public function unprinted(string $vendorId = ''): int

@@ -45,7 +45,7 @@ use PerfectConsign\Shared\Http\View;
             </div>
             <div class="field">
                 <label for="phone">Phone</label>
-                <input class="input" id="phone" name="phone" maxlength="40" value="<?= View::text($company['phone']) ?>">
+                <input class="input" id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" data-phone maxlength="14" value="<?= View::text(View::phone($company['phone'])) ?>">
             </div>
         </div>
         <div class="field">

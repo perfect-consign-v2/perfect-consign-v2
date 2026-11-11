@@ -130,20 +130,26 @@ $boothLine = match (count($boothCodes)) {
                 <section class="card" aria-labelledby="vendor-contact">
                     <div class="card-head"><div class="h3" id="vendor-contact">Contact</div></div>
                     <div class="card-body">
-                        <?php PartyRecord::list([
+                        <?php
+                        $phoneHref = View::phoneTel($vendor['phone']);
+                        PartyRecord::list([
                             ['label' => 'Email', 'value' => $vendor['email'], 'href' => $vendor['email'] === '' ? '' : 'mailto:' . $vendor['email']],
                             ['label' => 'Sale mail', 'value' => $vendor['email_bounced'] ? 'Bounced' : 'Clear', 'href' => ''],
-                            ['label' => 'Phone', 'value' => $vendor['phone'], 'href' => $vendor['phone'] === '' ? '' : 'tel:' . $vendor['phone']],
-                            ['label' => 'Address', 'value' => $vendor['address'], 'href' => ''],
-                        ], $blank); ?>
+                            ['label' => 'Phone', 'value' => View::phone($vendor['phone']), 'href' => $phoneHref],
+                            ['label' => 'Street', 'value' => is_string($vendor['address'] ?? null) ? $vendor['address'] : '', 'href' => ''],
+                            ['label' => 'City', 'value' => is_string($vendor['city'] ?? null) ? $vendor['city'] : '', 'href' => ''],
+                            ['label' => 'State', 'value' => is_string($vendor['state'] ?? null) ? $vendor['state'] : '', 'href' => ''],
+                            ['label' => 'ZIP', 'value' => is_string($vendor['postal'] ?? null) ? $vendor['postal'] : '', 'href' => ''],
+                        ], $blank);
+                        ?>
                     </div>
                 </section>
                 <section class="card" aria-labelledby="vendor-split">
-                    <div class="card-head"><div class="h3" id="vendor-split">Store take</div></div>
+                    <div class="card-head"><div class="h3" id="vendor-split">Store take override</div></div>
                     <div class="card-body">
                         <dl class="record-dl">
                             <div class="record-row">
-                                <dt>Store take</dt>
+                                <dt>Store take override</dt>
                                 <dd>
                                     <?= View::text($vendor['store_take']) ?>%
                                     <?php if ($vendor['store_take_overridden']): ?>

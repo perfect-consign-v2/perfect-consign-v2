@@ -15,6 +15,24 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'wait list still stores identity';
     END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'persons'
+          AND column_name IN ('email', 'phone', 'address', 'city', 'state', 'postal')
+    ) THEN
+        RAISE EXCEPTION 'persons still stores contact';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'organizations'
+          AND column_name IN ('email', 'phone', 'address')
+    ) THEN
+        RAISE EXCEPTION 'organizations still stores contact';
+    END IF;
 END $$;
 
 DO $$
@@ -87,6 +105,30 @@ EXCEPTION
         IF SQLERRM NOT LIKE '%a vendor role needs a person%' THEN
             RAISE;
         END IF;
+END $$;
+
+DO $$
+DECLARE
+    party uuid;
+BEGIN
+    INSERT INTO parties DEFAULT VALUES RETURNING id INTO party;
+    INSERT INTO organizations (party_id, legal_name) VALUES (party, 'Lane Mail');
+    INSERT INTO party_contacts (party_id, method, label, value, is_primary)
+    VALUES
+        (party, 'phone', 'primary', '555-0200', true),
+        (party, 'email', 'primary', 'org@example.com', true);
+    INSERT INTO party_addresses (party_id, kind, street, city, state, postal, is_primary)
+    VALUES
+        (party, 'physical', '1 Store St', 'Austin', 'TX', '78701', true),
+        (party, 'mailing', 'PO Box 9', 'Austin', 'TX', '78702', true);
+    IF stall_party_primary_email(party) IS DISTINCT FROM 'org@example.com' THEN
+        RAISE EXCEPTION 'organization primary email was not stored on the party';
+    END IF;
+    IF (
+        SELECT count(*) FROM party_addresses WHERE party_id = party
+    ) <> 2 THEN
+        RAISE EXCEPTION 'organization physical and mailing addresses were not stored';
+    END IF;
 END $$;
 
 DO $$

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Company;
 
+use PerfectConsign\Shared\Scalar\PhoneFormat;
+
 final class CompanyLines
 {
     /**
@@ -16,7 +18,7 @@ final class CompanyLines
         $this->add($lines, $contact['street']);
         $this->add($lines, $contact['street2']);
         $this->add($lines, $this->place($contact['city'], $contact['state'], $contact['postal']));
-        $this->add($lines, $contact['phone']);
+        $this->add($lines, PhoneFormat::display($contact['phone']));
         $this->add($lines, $contact['email']);
 
         return $lines;

@@ -18,6 +18,20 @@ $lastName = is_array($vendor) ? ($vendor['last_name'] ?? '') : '';
 $phone = is_array($vendor) ? ($vendor['phone'] ?? '') : '';
 $email = is_array($vendor) ? ($vendor['email'] ?? '') : '';
 $address = is_array($vendor) ? ($vendor['address'] ?? '') : '';
+$city = is_array($vendor) ? ($vendor['city'] ?? '') : '';
+$state = is_array($vendor) ? ($vendor['state'] ?? '') : '';
+$postal = is_array($vendor) ? ($vendor['postal'] ?? '') : '';
+$phones = is_array($vendor) && is_array($vendor['phones'] ?? null) ? $vendor['phones'] : [];
+$emails = is_array($vendor) && is_array($vendor['emails'] ?? null) ? $vendor['emails'] : [];
+$mailingAddress = is_array($vendor) ? ($vendor['mailing_address'] ?? '') : '';
+$mailingCity = is_array($vendor) ? ($vendor['mailing_city'] ?? '') : '';
+$mailingState = is_array($vendor) ? ($vendor['mailing_state'] ?? '') : '';
+$mailingPostal = is_array($vendor) ? ($vendor['mailing_postal'] ?? '') : '';
+$mailingSame = is_array($vendor) && (
+    ($vendor['mailing_same'] ?? false) === true
+    || ($vendor['mailing_same'] ?? '') === '1'
+    || ($vendor['mailing_same'] ?? '') === 'true'
+);
 $editing = is_string($id) && $id !== '';
 $consignmentOnly = ($consignmentOnly ?? false) === true;
 $sellerPrefix = is_string($sellerPrefix ?? null) && $sellerPrefix !== ''
@@ -32,6 +46,25 @@ $lastText = is_string($lastName) ? $lastName : '';
 $phoneText = is_string($phone) ? $phone : '';
 $emailText = is_string($email) ? $email : '';
 $addressText = is_string($address) ? $address : '';
+$cityText = is_string($city) ? $city : '';
+$stateText = is_string($state) ? $state : '';
+$postalText = is_string($postal) ? $postal : '';
+$mailingAddressText = is_string($mailingAddress) ? $mailingAddress : '';
+$mailingCityText = is_string($mailingCity) ? $mailingCity : '';
+$mailingStateText = is_string($mailingState) ? $mailingState : '';
+$mailingPostalText = is_string($mailingPostal) ? $mailingPostal : '';
+$extraPhones = [];
+foreach ($phones as $extraPhone) {
+    if (is_string($extraPhone) && $extraPhone !== '') {
+        $extraPhones[] = $extraPhone;
+    }
+}
+$extraEmails = [];
+foreach ($emails as $extraEmail) {
+    if (is_string($extraEmail) && $extraEmail !== '') {
+        $extraEmails[] = $extraEmail;
+    }
+}
 $display = $firstText !== '' && $firstText === $lastText ? $firstText : trim($firstText . ' ' . $lastText);
 $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
 $partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
@@ -104,32 +137,98 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
         <section class="card" aria-labelledby="vendor-contact">
             <div class="card-head"><div class="h3" id="vendor-contact">Contact</div></div>
             <div class="card-body stack">
+                <div class="field">
+                    <label for="phone">Primary phone</label>
+                    <input class="input" id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" data-phone maxlength="14" value="<?= View::text(View::phone($phoneText)) ?>">
+                </div>
+                <?php foreach ($extraPhones as $index => $extraPhone): ?>
+                    <div class="field">
+                        <label for="phones_<?= View::text((string) $index) ?>">Another phone</label>
+                        <input class="input" id="phones_<?= View::text((string) $index) ?>" name="phones[]" type="tel" inputmode="tel" data-phone maxlength="14" value="<?= View::text(View::phone($extraPhone)) ?>">
+                    </div>
+                <?php endforeach; ?>
+                <div class="field">
+                    <label for="phones_new">Add another phone</label>
+                    <input class="input" id="phones_new" name="phones[]" type="tel" inputmode="tel" data-phone maxlength="14" value="">
+                </div>
+                <div class="field">
+                    <label for="email">Primary email</label>
+                    <input class="input" id="email" name="email" type="email" value="<?= View::text($emailText) ?>">
+                </div>
+                <?php foreach ($extraEmails as $index => $extraEmail): ?>
+                    <div class="field">
+                        <label for="emails_<?= View::text((string) $index) ?>">Another email</label>
+                        <input class="input" id="emails_<?= View::text((string) $index) ?>" name="emails[]" type="email" value="<?= View::text($extraEmail) ?>">
+                    </div>
+                <?php endforeach; ?>
+                <div class="field">
+                    <label for="emails_new">Add another email</label>
+                    <input class="input" id="emails_new" name="emails[]" type="email" value="">
+                </div>
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="vendor-physical">
+            <div class="card-head"><div class="h3" id="vendor-physical">Physical address</div></div>
+            <div class="card-body stack">
+                <div class="field">
+                    <label for="address">Street</label>
+                    <input class="input" id="address" name="address" maxlength="200" value="<?= View::text($addressText) ?>">
+                </div>
                 <div class="vendor-pair">
                     <div class="field">
-                        <label for="phone">Phone</label>
-                        <input class="input" id="phone" name="phone" value="<?= View::text($phoneText) ?>">
+                        <label for="city">City</label>
+                        <input class="input" id="city" name="city" maxlength="80" value="<?= View::text($cityText) ?>">
                     </div>
                     <div class="field">
-                        <label for="email">Email</label>
-                        <input class="input" id="email" name="email" type="email" value="<?= View::text($emailText) ?>">
+                        <label for="state">State</label>
+                        <input class="input" id="state" name="state" maxlength="40" value="<?= View::text($stateText) ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label for="address">Address</label>
-                    <textarea class="textarea" id="address" name="address"><?= View::text($addressText) ?></textarea>
+                    <label for="postal">ZIP</label>
+                    <input class="input" id="postal" name="postal" maxlength="20" value="<?= View::text($postalText) ?>">
+                </div>
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="vendor-mailing">
+            <div class="card-head"><div class="h3" id="vendor-mailing">Mailing address</div></div>
+            <div class="card-body stack">
+                <label class="check">
+                    <input type="checkbox" name="mailing_same" value="1"<?= $mailingSame ? ' checked' : '' ?>>
+                    Same as physical
+                </label>
+                <div class="field">
+                    <label for="mailing_address">Street</label>
+                    <input class="input" id="mailing_address" name="mailing_address" maxlength="200" value="<?= View::text($mailingAddressText) ?>">
+                </div>
+                <div class="vendor-pair">
+                    <div class="field">
+                        <label for="mailing_city">City</label>
+                        <input class="input" id="mailing_city" name="mailing_city" maxlength="80" value="<?= View::text($mailingCityText) ?>">
+                    </div>
+                    <div class="field">
+                        <label for="mailing_state">State</label>
+                        <input class="input" id="mailing_state" name="mailing_state" maxlength="40" value="<?= View::text($mailingStateText) ?>">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="mailing_postal">ZIP</label>
+                    <input class="input" id="mailing_postal" name="mailing_postal" maxlength="20" value="<?= View::text($mailingPostalText) ?>">
                 </div>
             </div>
         </section>
 
         <section class="card" aria-labelledby="vendor-split">
-            <div class="card-head"><div class="h3" id="vendor-split">Store take</div></div>
+            <div class="card-head"><div class="h3" id="vendor-split">Store take override</div></div>
             <div class="card-body">
                 <div class="field">
-                    <label for="store_take">Store take<?php if ($overridden): ?> <span class="badge badge-warning">Overridden</span><?php endif; ?></label>
+                    <label for="store_take">Store take override<?php if ($overridden): ?> <span class="badge badge-warning">Overridden</span><?php endif; ?></label>
                     <input class="input" id="store_take" name="store_take" inputmode="decimal" value="<?= View::text($storeTake) ?>">
                     <p class="muted text-sm"><?= $consignmentOnly
-                        ? 'Store default is ' . View::text($defaultStoreTake) . '%. Saving a different amount marks this consignor overridden.'
-                        : 'Mall default is ' . View::text($defaultStoreTake) . '%. Saving a different amount marks this vendor overridden.' ?></p>
+                        ? 'Optional. Leave blank or match the store default (' . View::text($defaultStoreTake) . '%) to follow Settings. A different amount is an override for this consignor only.'
+                        : 'Optional. Leave blank or match the mall default (' . View::text($defaultStoreTake) . '%) to follow Settings. A different amount is an override for this vendor only.' ?></p>
                 </div>
             </div>
         </section>

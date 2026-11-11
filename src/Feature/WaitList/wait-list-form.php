@@ -57,7 +57,7 @@ $statuses = [
             </div>
             <div class="field">
                 <label for="phone">Phone</label>
-                <input class="input" id="phone" name="phone" value="<?= View::text($phone) ?>" required>
+                <input class="input" id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" data-phone maxlength="14" value="<?= View::text(View::phone($phone)) ?>" required>
             </div>
             <div class="field">
                 <label for="width_ft">Width (ft)</label>

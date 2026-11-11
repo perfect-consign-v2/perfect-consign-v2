@@ -1,9 +1,9 @@
 (function () {
     const forms = document.querySelectorAll('form.ticket-command');
     forms.forEach(function (form) {
-        // Park/recall must full-page through register-swap (HTML). JSON here leaves
-        // Suspended sales stuck with no cart paint and no redirect to the register.
-        if (isParkOrRecall(form)) {
+        // Park/recall/scan must full-page through register-swap (HTML). JSON here leaves
+        // the cart unpainted after a hand-entered barcode and stuck after park/recall.
+        if (isHtmlPaintPath(form)) {
             return;
         }
         form.addEventListener('submit', function (event) {
@@ -12,10 +12,12 @@
         });
     });
 
-    function isParkOrRecall(form) {
+    function isHtmlPaintPath(form) {
         try {
             const path = new URL(form.action, window.location.href).pathname;
-            return path.indexOf('/pos/park') !== -1 || path.indexOf('/pos/recall') !== -1;
+            return path.indexOf('/pos/park') !== -1
+                || path.indexOf('/pos/recall') !== -1
+                || path.indexOf('/pos/scan') !== -1;
         } catch (error) {
             return false;
         }

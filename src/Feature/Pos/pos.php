@@ -406,7 +406,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 </div>
                 <div class="field">
                     <label for="customer_phone">Phone</label>
-                    <input class="input" id="customer_phone" name="customer_phone">
+                    <input class="input" id="customer_phone" name="customer_phone" type="tel" inputmode="tel" autocomplete="tel" data-phone maxlength="14">
                 </div>
                 <div class="field">
                     <label for="customer_email">Email</label>

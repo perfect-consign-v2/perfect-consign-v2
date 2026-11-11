@@ -96,23 +96,13 @@ final class PartyController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $code = $this->app->request()->field('code');
-        $firstName = $this->app->request()->field('first_name');
-        $lastName = $this->app->request()->field('last_name');
-        $phone = $this->app->request()->field('phone');
-        $email = $this->app->request()->field('email');
-        $address = $this->app->request()->field('address');
+        $posted = $this->postedVendor();
         $facts = $this->forms->postedFacts();
         $error = null;
         $id = '';
         try {
             $id = $this->parties->addVendor(new VendorDraft([
-                'code' => $code,
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'phone' => $phone,
-                'email' => $email,
-                'address' => $address,
+                ...$posted,
                 'agreement_starts_on' => $facts['agreement_starts_on'],
                 'agreement_ends_on' => $facts['agreement_ends_on'],
                 'tax_id' => $facts['tax_id'],
@@ -137,12 +127,7 @@ final class PartyController
             );
         }
         $this->forms->form($slug, [
-            'code' => $code,
-            'first_name' => $firstName,
-            'last_name' => $lastName,
-            'phone' => $phone,
-            'email' => $email,
-            'address' => $address,
+            ...$posted,
             'store_take' => $facts['store_take'],
             'agreement_starts_on' => $facts['agreement_starts_on'],
             'agreement_ends_on' => $facts['agreement_ends_on'],
@@ -179,22 +164,12 @@ final class PartyController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $code = $this->app->request()->field('code');
-        $firstName = $this->app->request()->field('first_name');
-        $lastName = $this->app->request()->field('last_name');
-        $phone = $this->app->request()->field('phone');
-        $email = $this->app->request()->field('email');
-        $address = $this->app->request()->field('address');
+        $posted = $this->postedVendor();
         $facts = $this->forms->postedFacts();
         $error = null;
         try {
             $this->parties->saveVendor($id, new VendorDraft([
-                'code' => $code,
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'phone' => $phone,
-                'email' => $email,
-                'address' => $address,
+                ...$posted,
                 'agreement_starts_on' => $facts['agreement_starts_on'],
                 'agreement_ends_on' => $facts['agreement_ends_on'],
                 'tax_id' => $facts['tax_id'],
@@ -220,12 +195,7 @@ final class PartyController
         }
         $this->forms->form($slug, [
             'id' => $id,
-            'code' => $code,
-            'first_name' => $firstName,
-            'last_name' => $lastName,
-            'phone' => $phone,
-            'email' => $email,
-            'address' => $address,
+            ...$posted,
             'store_take' => $facts['store_take'],
             'agreement_starts_on' => $facts['agreement_starts_on'],
             'agreement_ends_on' => $facts['agreement_ends_on'],
@@ -365,5 +335,66 @@ final class PartyController
     private function showRecord(string $slug, string $id, ?string $error): void
     {
         $this->pages->show($slug, $id, $error);
+    }
+
+    /**
+     * @return array{
+     *     code: string,
+     *     first_name: string,
+     *     last_name: string,
+     *     phone: string,
+     *     email: string,
+     *     address: string,
+     *     city: string,
+     *     state: string,
+     *     postal: string,
+     *     phones: list<string>,
+     *     emails: list<string>,
+     *     mailing_address: string,
+     *     mailing_city: string,
+     *     mailing_state: string,
+     *     mailing_postal: string,
+     *     mailing_same: string
+     * }
+     */
+    private function postedVendor(): array
+    {
+        return [
+            'code' => $this->app->request()->field('code'),
+            'first_name' => $this->app->request()->field('first_name'),
+            'last_name' => $this->app->request()->field('last_name'),
+            'phone' => $this->app->request()->field('phone'),
+            'email' => $this->app->request()->field('email'),
+            'address' => $this->app->request()->field('address'),
+            'city' => $this->app->request()->field('city'),
+            'state' => $this->app->request()->field('state'),
+            'postal' => $this->app->request()->field('postal'),
+            'phones' => $this->postedList('phones'),
+            'emails' => $this->postedList('emails'),
+            'mailing_address' => $this->app->request()->field('mailing_address'),
+            'mailing_city' => $this->app->request()->field('mailing_city'),
+            'mailing_state' => $this->app->request()->field('mailing_state'),
+            'mailing_postal' => $this->app->request()->field('mailing_postal'),
+            'mailing_same' => $this->app->request()->field('mailing_same'),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function postedList(string $name): array
+    {
+        $raw = $this->app->request()->post[$name] ?? [];
+        if (!is_array($raw)) {
+            return [];
+        }
+        $list = [];
+        foreach ($raw as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                $list[] = trim($value);
+            }
+        }
+
+        return $list;
     }
 }

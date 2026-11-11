@@ -33,7 +33,7 @@ $blank = '—';
             <div class="card-body">
                 <?php PartyRecord::list([
                     ['label' => 'Email', 'value' => $entry['email'], 'href' => 'mailto:' . $entry['email']],
-                    ['label' => 'Phone', 'value' => $entry['phone'], 'href' => 'tel:' . $entry['phone']],
+                    ['label' => 'Phone', 'value' => View::phone($entry['phone']), 'href' => View::phoneTel($entry['phone'])],
                     ['label' => 'Size', 'value' => $entry['size'], 'href' => ''],
                     ['label' => 'Waiting since', 'value' => $entry['waiting_since'] . ' (' . $entry['waited'] . ')', 'href' => ''],
                 ], $blank); ?>

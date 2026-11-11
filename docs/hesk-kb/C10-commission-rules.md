@@ -1,7 +1,7 @@
 ---
 title: Commission rules win by specificity
 category: Sales and register
-hesk: published 2026-11-09
+hesk: published 2026-11-10
 as_of: 2026-11-01
 ---
 

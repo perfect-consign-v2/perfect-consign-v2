@@ -132,5 +132,6 @@ $links = [
 <script src="<?= View::asset('/assets/js/data-style.js') ?>" defer></script>
 <script src="<?= View::asset('/assets/js/password-toggle.js') ?>" defer></script>
 <script src="<?= View::asset('/assets/js/form-auto-submit.js') ?>" defer></script>
+<script src="<?= View::asset('/assets/js/phone-input.js') ?>" defer></script>
 </body>
 </html>

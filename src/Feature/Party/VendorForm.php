@@ -176,9 +176,61 @@ final class VendorForm
         $vendor['email_bounced'] = $this->enabled($stored['email_bounced'] ?? false);
         $vendor['first_name'] = $this->plain($stored['first_name'] ?? null);
         $vendor['last_name'] = $this->plain($stored['last_name'] ?? null);
+        $vendor['phone'] = $this->plain($stored['phone'] ?? null);
+        $vendor['email'] = $this->plain($stored['email'] ?? null);
+        $vendor['address'] = $this->plain($stored['address'] ?? null);
+        $vendor['city'] = $this->plain($stored['city'] ?? null);
+        $vendor['state'] = $this->plain($stored['state'] ?? null);
+        $vendor['postal'] = $this->plain($stored['postal'] ?? null);
+        $vendor['phones'] = $this->stringList($stored['phones'] ?? []);
+        $vendor['emails'] = $this->stringList($stored['emails'] ?? []);
+        $vendor['mailing_address'] = $this->plain($stored['mailing_address'] ?? null);
+        $vendor['mailing_city'] = $this->plain($stored['mailing_city'] ?? null);
+        $vendor['mailing_state'] = $this->plain($stored['mailing_state'] ?? null);
+        $vendor['mailing_postal'] = $this->plain($stored['mailing_postal'] ?? null);
+        $vendor['mailing_same'] = $this->mailingSame($vendor);
         $vendor['default_store_take'] = $this->percent($mallBasis);
 
         return $vendor;
+    }
+
+    /**
+     * @param mixed $values
+     * @return list<string>
+     */
+    private function stringList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+        $list = [];
+        foreach ($values as $value) {
+            if (is_string($value) && $value !== '') {
+                $list[] = $value;
+            }
+        }
+
+        return $list;
+    }
+
+    /**
+     * @param array<string, mixed> $vendor
+     */
+    private function mailingSame(array $vendor): bool
+    {
+        $physical = trim($this->plain($vendor['address'] ?? null) . '|'
+            . $this->plain($vendor['city'] ?? null) . '|'
+            . $this->plain($vendor['state'] ?? null) . '|'
+            . $this->plain($vendor['postal'] ?? null));
+        $mailing = trim($this->plain($vendor['mailing_address'] ?? null) . '|'
+            . $this->plain($vendor['mailing_city'] ?? null) . '|'
+            . $this->plain($vendor['mailing_state'] ?? null) . '|'
+            . $this->plain($vendor['mailing_postal'] ?? null));
+        if ($mailing === '|||') {
+            return false;
+        }
+
+        return $physical === $mailing;
     }
 
     /**

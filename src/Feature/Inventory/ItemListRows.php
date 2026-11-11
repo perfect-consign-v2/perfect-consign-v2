@@ -43,9 +43,30 @@ final class ItemListRows
             $item['take_label'] = $this->take->format(RowValue::integer($item['take_bps'] ?? null));
             $item['overridden'] = ($item['commission_bps'] ?? null) !== null;
             $item['brand_name'] = is_string($brand) ? $brand : '';
+            $item['status_label'] = $this->status(
+                $item['quantity'],
+                $this->hasSale($item['has_sale'] ?? null),
+            );
             $marked[] = $this->forms->fillNames($item);
         }
 
         return $marked;
+    }
+
+    private function hasSale(mixed $value): bool
+    {
+        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
+    }
+
+    private function status(int $quantity, bool $hasSale): string
+    {
+        if ($quantity > 0) {
+            return 'On floor';
+        }
+        if ($hasSale) {
+            return 'Sold';
+        }
+
+        return 'Out';
     }
 }

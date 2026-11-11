@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Http;
 
 use PerfectConsign\Ledger\Money;
+use PerfectConsign\Shared\Scalar\PhoneFormat;
 use PerfectConsign\Shared\Scalar\RowValue;
 use RuntimeException;
 
@@ -58,6 +59,30 @@ final class View
         }
 
         return $match[2] . '-' . $match[3] . '-' . $match[1] . $match[4];
+    }
+
+    public static function phone(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        return PhoneFormat::display((string) $value);
+    }
+
+    public static function phoneTel(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        return PhoneFormat::telHref((string) $value);
     }
 
     /**

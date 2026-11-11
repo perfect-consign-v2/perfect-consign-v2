@@ -50,7 +50,7 @@ final class CompanyDraftTest extends TestCase
         $draft = CompanyDraft::parse($this->fields());
         self::assertSame('Probe Mercantile', $draft->name());
         self::assertSame(
-            ['123 Main Street', 'Suite 4', 'Springfield, OR 97477', '541-555-0100', 'owner@store.test'],
+            ['123 Main Street', 'Suite 4', 'Springfield, OR 97477', '(541) 555-0100', 'owner@store.test'],
             (new CompanyLines())->printed($this->shown($draft))
         );
         $empty = CompanyDraft::parse([

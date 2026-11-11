@@ -143,6 +143,7 @@ final class CopyBranchesTest extends TestCase
             'total' => 1,
             'available' => 1,
             'unsold' => 0,
+            'sold' => 0,
             'unprinted' => 0,
             'showBrand' => false,
             'confirm' => '',

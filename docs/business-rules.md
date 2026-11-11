@@ -6,7 +6,7 @@ Add a rule here when it is decided. A rule stays in this list after the code tha
 
 ## Vendors
 
-A party is one person or one organization, not both. Roles hang off that party: vendor, customer, or wait list. The money key stays the vendor id. The vendor row is the vendor role's books (store take, tax, standing, and booths) and it points at the party. Name, phone, email, and address live on the person.
+A party is one person or one organization, not both. Roles hang off that party: vendor, customer, or wait list. The money key stays the vendor id. The vendor row is the vendor role's books (store take, tax, standing, and booths) and it points at the party. The person or organization row holds names only. Phone, email, and addresses live on the party as child rows.
 
 Staff open everyone at `/{slug}/parties`. That list is identity: person or organization, and which roles they hold. It is not the seller roster. The seller roster is `/{slug}/vendors` in a mall and `/{slug}/consignors` in a consignment-only store. A customer page is `/{slug}/customers/{party id}`. A wait-list page is `/{slug}/wait-list/{party id}`. Owner and manager menus group the seller roster, customers, and parties under People (owners also see Staff there).
 
@@ -18,9 +18,9 @@ A vendor with no booth is still Active. The booth column says Unassigned.
 
 A vendor's name is a first name and a last name. A business name may be empty. When it is present, the list and the receipt show the business name. The payable id does not change.
 
-Phone, email, and address are the vendor's contact. Each one may be empty. An email that is present has to be an email address.
+A party may hold many phones and many emails. One phone and one email are primary. Labels are primary, mobile, home, work, or other. Each value may be empty on create; an email that is present has to be an email address. A party may hold one physical address and one mailing address (street, city, state, ZIP). Mailing may be empty or the same as physical. Screens show a ten-digit US phone as (xxx) xxx-xxxx; other shapes stay as entered.
 
-Store take is a percent of the sale kept by the mall. Settings holds the mall default. Anyone who can add or edit a vendor can save a different amount. A saved amount that differs from the mall default is marked overridden. A saved amount equal to the mall default is the default, and it follows a later change to that default. The sale still posts the commission amount entered on that sale. Agreement dates, tax id, and notes may be empty. An agreement end cannot be before its start.
+Store take is a percent of the sale kept by the mall. Settings holds the mall default. On New consignor / New vendor the field is a store take override: leave it blank or match the mall default to follow Settings; a different amount is an override for that seller only and is marked overridden. A saved amount equal to the mall default is the default, and it follows a later change to that default. The sale still posts the commission amount entered on that sale. Agreement dates, tax id, and notes may be empty. An agreement end cannot be before its start.
 
 A vendor is tax exempt only with a resale or tax exempt number on file. That number is required when tax exempt is enabled. When tax exempt is off, the number may be empty.
 
@@ -60,7 +60,7 @@ An item is one item. It has a tag, a barcode, a vendor, a description, an asking
 
 The tag is unique in the mall, ignoring case. A tag is at most 40 characters. The barcode is unique, ignoring case, and at most 100 characters. A blank barcode is filled with BC, the mall date, and a four-digit sequence. A description is at most 200 characters. The asking price is greater than zero.
 
-Stickers print that barcode. The mall remembers which stickers it uses: the 30-up sheet, the 50-up sheet, a hang tag, two hang tags across, or a jewelry tag. A print can pick another. A new sheet starts at row 1, column 1. A job stops at 240 stickers. The first sticker preview for an item marks it printed. The items list shows All, Available (quantity on hand), Need stickers (never printed), and Qty 0 — each with a count. The selected filter is visible, and the page lead names what you are looking at. On Items, check the rows to print; the sheet, how many, and where the sheet starts live on the selection bar with Print stickers. After save or on edit, Print stickers stays on the item form.
+Stickers print that barcode. The mall remembers which stickers it uses: Avery 8160 (30-up), Avery 94073 (50-up), a hang tag, two hang tags across, or a jewelry tag. A print can pick another; the sheet picker names the Avery number. Sheet tags show brand, size, and intake date when they fit. A new sheet starts at row 1, column 1. A job stops at 240 stickers. The first sticker preview for an item marks it printed. The items list shows All, Available (quantity on hand), Sold (quantity zero with a posted sale line), Need stickers (never printed), and Qty 0 — each with a count. Each row also shows a Status of On floor, Sold, or Out. Clear drops the search and stock filter. The selected filter is visible, and the page lead names what you are looking at. On Items, check the rows to print; the sheet, how many, and where the sheet starts live on the selection bar with Print stickers. After save or on edit, Print stickers stays on the item form.
 
 The asking price is the price on the item. It is not a journal. A sale still posts the amount entered on the sale. After a sale, that asking price and that consignor stay. A return pays the consignor on the item.
 
@@ -78,9 +78,9 @@ A vendor or brand that an item still names cannot be deleted. An inactive vendor
 
 ## Wait list
 
-A wait list row is a person who wants a booth when none are open. It is not a vendor and it is not a journal. The row is keyed by that person's party. Name, email, and phone live on the person. The wait-list row holds preferred size, status, and notes. Staff still create the vendor and the assignment by hand when a booth opens. Staff open the list at `/{slug}/wait-list` and one person at `/{slug}/wait-list/{party id}`.
+A wait list row is a person who wants a booth when none are open. It is not a vendor and it is not a journal. The row is keyed by that person's party. Name lives on the person. Primary email and phone live on the party. The wait-list row holds preferred size, status, and notes. Staff still create the vendor and the assignment by hand when a booth opens. Staff open the list at `/{slug}/wait-list` and one person at `/{slug}/wait-list/{party id}`.
 
-First name, last name, email, and phone are required. An email has to be an email address. Phone is at most 40 characters. Notes may be empty. Notes that are present are at most 2000 characters.
+First name, last name, primary email, and primary phone are required. An email has to be an email address. Phone is at most 40 characters. Notes may be empty. Notes that are present are at most 2000 characters.
 
 Preferred booth size is a width and a depth in whole feet, or both empty. One side without the other is refused. A size of zero is refused.
 

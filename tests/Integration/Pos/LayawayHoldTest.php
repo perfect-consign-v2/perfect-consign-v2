@@ -127,9 +127,17 @@ final class LayawayHoldTest extends TestCase
         );
         $statements->change('INSERT INTO parties (id) VALUES (?::uuid)', [$customerId]);
         $statements->change(
-            'INSERT INTO persons (party_id, first_name, last_name, phone, email)
-             VALUES (?::uuid, ?, ?, ?, ?)',
-            [$customerId, 'Shopper', $code, '555-0100', 'shopper@example.com']
+            'INSERT INTO persons (party_id, first_name, last_name)
+             VALUES (?::uuid, ?, ?)',
+            [$customerId, 'Shopper', $code]
+        );
+        $statements->change(
+            'INSERT INTO party_contacts (party_id, method, label, value, is_primary)
+             VALUES (?::uuid, ?, ?, ?, true), (?::uuid, ?, ?, ?, true)',
+            [
+                $customerId, 'phone', 'primary', '555-0100',
+                $customerId, 'email', 'primary', 'shopper@example.com',
+            ]
         );
         $statements->change(
             "INSERT INTO party_roles (party_id, role_type, status) VALUES (?::uuid, 'customer', 'active')",

@@ -107,7 +107,7 @@ $empty = $status === '' && $query === '' ? 'No one is waiting.' : 'No one matche
                     <tr id="wait-<?= View::text($entry['id']) ?>">
                         <td><a class="strong" href="/<?= View::text($slug) ?>/wait-list/<?= View::text($entry['id']) ?>"><?= View::text($entry['name']) ?></a></td>
                         <td><a class="mailto" href="mailto:<?= View::text($entry['email']) ?>"><?= View::text($entry['email']) ?></a></td>
-                        <td><a href="tel:<?= View::text($entry['phone']) ?>"><?= View::text($entry['phone']) ?></a></td>
+                        <td><a href="<?= View::text(View::phoneTel($entry['phone'])) ?>"><?= View::text(View::phone($entry['phone'])) ?></a></td>
                         <td><?= View::text($entry['size']) ?></td>
                         <td><span class="<?= View::text($badge) ?>"><?= View::text($entry['status_label']) ?></span></td>
                         <td><?= View::date($entry['waiting_since']) ?> <span class="muted"><?= View::text($entry['waited']) ?></span></td>

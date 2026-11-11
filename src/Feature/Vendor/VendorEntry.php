@@ -109,8 +109,8 @@ final class VendorEntry
             $rows = $this->statements->bound(
                 "SELECT vendor.id
                  FROM vendors AS vendor
-                 JOIN persons AS person ON person.party_id = vendor.party_id
-                 WHERE lower(person.email) = ? AND vendor.active IS DISTINCT FROM false
+                 WHERE lower(stall_party_primary_email(vendor.party_id)) = ?
+                   AND vendor.active IS DISTINCT FROM false
                  LIMIT 1",
                 [$email]
             );

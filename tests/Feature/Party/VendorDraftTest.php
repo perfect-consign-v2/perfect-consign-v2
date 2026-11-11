@@ -77,7 +77,7 @@ final class VendorDraftTest extends TestCase
         $values = $this->draft(['email' => 'a@b.co'])->values();
         self::assertSame('a@b.co', $values[4]);
         try {
-            $this->draft(['address' => str_repeat('a', 401)])->values();
+            $this->draft(['address' => str_repeat('a', 201)])->values();
             self::fail('a long address was accepted');
         } catch (\InvalidArgumentException $error) {
             self::assertSame('that address is too long', $error->getMessage());
@@ -90,15 +90,16 @@ final class VendorDraftTest extends TestCase
         $values = $this->draft([
             'phone' => str_repeat('5', 40),
             'email' => $email,
-            'address' => str_repeat('a', 400),
+            'address' => str_repeat('a', 200),
             'tax_id' => str_repeat('t', 40),
         ])->values();
 
         self::assertSame(str_repeat('5', 40), $values[3]);
         self::assertSame($email, $values[4]);
-        self::assertSame(str_repeat('a', 400), $values[5]);
+        self::assertSame(str_repeat('a', 200), $values[5]);
         self::assertSame(str_repeat('t', 40), $values[9]);
         self::assertSame('1 Main', $this->draft(['address' => '1 Main'])->values()[5]);
+        self::assertSame('(541) 555-0100', $this->draft(['phone' => '5415550100'])->values()[3]);
     }
 
     /**
@@ -113,6 +114,9 @@ final class VendorDraftTest extends TestCase
             'phone' => '',
             'email' => '',
             'address' => '',
+            'city' => '',
+            'state' => '',
+            'postal' => '',
             'agreement_starts_on' => '',
             'agreement_ends_on' => '',
             'tax_id' => '',

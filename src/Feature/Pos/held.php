@@ -53,7 +53,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                         <?php foreach ($layaways as $held): ?>
                             <tr>
                                 <td><?= View::text($held['customer']) ?></td>
-                                <td><?= View::text($held['phone']) ?></td>
+                                <td><?= View::text(View::phone($held['phone'])) ?></td>
                                 <td><?= View::text($held['email']) ?></td>
                                 <td><?= View::text((string) $held['items']) ?></td>
                                 <td><?= View::text(View::money($held['deposits'])) ?></td>

@@ -15,6 +15,7 @@ final class StickerFromRow
     public function item(array $row, string $store): StickerItem
     {
         $brand = $row['brand_name'] ?? null;
+        $size = $row['size_name'] ?? null;
 
         return new StickerItem(
             RowValue::string($row['barcode'] ?? null),
@@ -23,6 +24,7 @@ final class StickerFromRow
             $store,
             RowValue::string($row['vendor_code'] ?? null),
             is_string($brand) ? $brand : '',
+            is_string($size) ? $size : '',
             $this->intake(RowValue::string($row['intake_on'] ?? null)),
             RowValue::string($row['code'] ?? null),
             is_string($row['deal_name'] ?? null) ? $row['deal_name'] : '',

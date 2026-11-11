@@ -38,13 +38,27 @@ BEGIN
         FROM information_schema.columns
         WHERE table_schema = current_schema()
           AND table_name = 'persons'
-          AND column_name IN ('first_name', 'last_name', 'phone', 'email', 'address')
+          AND column_name IN ('first_name', 'last_name')
           AND data_type = 'text'
-    ) <> 5 THEN
-        RAISE EXCEPTION 'person contact columns are missing';
+    ) <> 2 THEN
+        RAISE EXCEPTION 'person name columns are missing';
     END IF;
 
-    -- Contact identity lives on persons. vendors.email may remain as a synced
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'persons'
+          AND column_name IN ('phone', 'email', 'address', 'city', 'state', 'postal')
+    ) THEN
+        RAISE EXCEPTION 'persons still stores contact';
+    END IF;
+
+    IF to_regclass('party_contacts') IS NULL OR to_regclass('party_addresses') IS NULL THEN
+        RAISE EXCEPTION 'party contact tables are missing';
+    END IF;
+
+    -- Contact lives on party children. vendors.email may remain as a synced
     -- copy for letter triggers that cannot be replaced after append-only lock.
     IF EXISTS (
         SELECT 1

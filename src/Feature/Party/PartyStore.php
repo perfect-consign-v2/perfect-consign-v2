@@ -12,13 +12,17 @@ class PartyStore
 {
     private readonly PartyIdentity $identity;
 
+    private readonly PartyContactBook $contacts;
+
     public function __construct(
         private readonly Statements $statements,
         private readonly JournalAudit $audit,
         private readonly AssignmentBook $assignments,
         ?PartyIdentity $identity = null,
+        ?PartyContactBook $contacts = null,
     ) {
         $this->identity = $identity ?? new PartyIdentity($statements);
+        $this->contacts = $contacts ?? new PartyContactBook($statements);
     }
 
     /**
@@ -29,9 +33,13 @@ class PartyStore
         return $this->statements->rows(
             "SELECT vendor.id, vendor.code, vendor.name, vendor.party_id,
                     person.first_name, person.last_name, person.display_name AS business_name,
-                    person.phone, person.email, person.address
+                    stall_party_primary_phone(vendor.party_id) AS phone,
+                    stall_party_primary_email(vendor.party_id) AS email,
+                    physical.street AS address, physical.city, physical.state, physical.postal
              FROM vendors AS vendor
              JOIN persons AS person ON person.party_id = vendor.party_id
+             LEFT JOIN party_addresses AS physical
+               ON physical.party_id = vendor.party_id AND physical.kind = 'physical'
              ORDER BY vendor.name, vendor.code"
         );
     }
@@ -139,17 +147,20 @@ class PartyStore
                 $person['first_name'],
                 $person['last_name'],
                 $person['display_name'],
-                $person['phone'],
-                $person['email'],
-                $person['address'],
+                null,
+                null,
+                null,
                 PartyRoleType::VENDOR,
             );
+            $partyId = $created['party_id'];
+            $this->contacts->replaceContacts($partyId, $vendor->contacts());
+            $this->contacts->replaceAddresses($partyId, $vendor->physicalAddress(), $vendor->mailingAddress());
             $rows = $this->statements->bound(
                 'INSERT INTO vendors (
                     party_id, code, commission_bps, agreement_starts_on, agreement_ends_on, tax_id, notes,
                     tax_exempt, tax_exempt_number, discount_by, keep_days, expiry_action
                  ) VALUES (?::uuid, ?, ?, ?::date, ?::date, ?, ?, ?::boolean, ?, ?, ?, ?) RETURNING id',
-                [$created['party_id'], ...$vendor->vendorValues()]
+                [$partyId, ...$vendor->vendorValues()]
             );
             $saved = $rows[0]['id'] ?? null;
             if (!is_string($saved) || $saved === '') {
@@ -169,17 +180,43 @@ class PartyStore
         $rows = $this->statements->bound(
             "SELECT vendor.id, vendor.party_id, vendor.code, vendor.name, vendor.active,
                     person.first_name, person.last_name, person.display_name AS business_name,
-                    person.phone, person.email, person.address,
+                    stall_party_primary_phone(vendor.party_id) AS phone,
+                    stall_party_primary_email(vendor.party_id) AS email,
+                    physical.street AS address, physical.city, physical.state, physical.postal,
+                    mailing.street AS mailing_address, mailing.city AS mailing_city,
+                    mailing.state AS mailing_state, mailing.postal AS mailing_postal,
                     vendor.commission_bps, vendor.agreement_starts_on, vendor.agreement_ends_on, vendor.tax_id, vendor.notes,
                     vendor.tax_exempt, vendor.tax_exempt_number, vendor.payout_mode,
                     vendor.discount_by, vendor.keep_days, vendor.expiry_action, vendor.email_bounced
              FROM vendors AS vendor
              JOIN persons AS person ON person.party_id = vendor.party_id
+             LEFT JOIN party_addresses AS physical
+               ON physical.party_id = vendor.party_id AND physical.kind = 'physical'
+             LEFT JOIN party_addresses AS mailing
+               ON mailing.party_id = vendor.party_id AND mailing.kind = 'mailing'
              WHERE vendor.id = ?::uuid",
             [$id]
         );
+        $row = $rows[0] ?? null;
+        if ($row === null) {
+            return null;
+        }
+        $partyId = RowValue::string($row['party_id'] ?? null);
+        $row['phones'] = [];
+        $row['emails'] = [];
+        foreach ($this->contacts->contacts($partyId) as $contact) {
+            if ($contact['is_primary']) {
+                continue;
+            }
+            if ($contact['method'] === PartyContactBook::METHOD_PHONE) {
+                $row['phones'][] = $contact['value'];
+            }
+            if ($contact['method'] === PartyContactBook::METHOD_EMAIL) {
+                $row['emails'][] = $contact['value'];
+            }
+        }
 
-        return $rows[0] ?? null;
+        return $row;
     }
 
     public function saveVendor(string $id, VendorDraft $vendor): void
@@ -191,15 +228,14 @@ class PartyStore
             }
             $partyId = RowValue::string($current['party_id'] ?? null);
             $person = $vendor->personValues();
-            $this->identity->savePerson(
+            $this->identity->savePersonNames(
                 $partyId,
                 $person['first_name'],
                 $person['last_name'],
                 $person['display_name'],
-                $person['phone'],
-                $person['email'],
-                $person['address'],
             );
+            $this->contacts->replaceContacts($partyId, $vendor->contacts());
+            $this->contacts->replaceAddresses($partyId, $vendor->physicalAddress(), $vendor->mailingAddress());
             $priorEmail = RowValue::string($current['email'] ?? null);
             $nextEmail = $person['email'] ?? '';
             $count = $this->statements->affected(

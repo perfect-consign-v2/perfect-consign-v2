@@ -200,9 +200,11 @@ SELECT stall_seed_wait_person(
 
 DO $$
 BEGIN
-    UPDATE persons
-    SET email = 'ada@example.com'
-    WHERE party_id = '01900000-0000-7000-8000-000000000e02';
+    UPDATE party_contacts
+    SET value = 'ada@example.com'
+    WHERE party_id = '01900000-0000-7000-8000-000000000e02'
+      AND method = 'email'
+      AND is_primary;
     UPDATE wait_list
     SET status = status
     WHERE party_id = '01900000-0000-7000-8000-000000000e02';
@@ -322,6 +324,71 @@ BEGIN
             NULL;
     END;
     RESET ROLE;
+END $$;
+
+DO $$
+DECLARE
+    party uuid := '01900000-0000-7000-8000-000000000e05';
+BEGIN
+    PERFORM stall_seed_wait_person(
+        'Eve',
+        'Lane',
+        'eve@example.com',
+        '555-0105',
+        party
+    );
+    INSERT INTO party_contacts (party_id, method, label, value, is_primary)
+    VALUES (party, 'phone', 'mobile', '555-0106', false);
+    INSERT INTO party_contacts (party_id, method, label, value, is_primary)
+    VALUES (party, 'phone', 'other', '555-0107', true);
+    RAISE EXCEPTION 'a second primary phone was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23505' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    TRUNCATE party_contacts;
+    RAISE EXCEPTION 'party_contacts truncate was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%cannot be truncated%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    DROP TRIGGER party_contacts_no_truncate ON party_contacts;
+    RAISE EXCEPTION 'dropping party_contacts truncate trigger was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be dropped%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    TRUNCATE party_addresses;
+    RAISE EXCEPTION 'party_addresses truncate was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%cannot be truncated%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    DROP TRIGGER party_addresses_no_truncate ON party_addresses;
+    RAISE EXCEPTION 'dropping party_addresses truncate trigger was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be dropped%' THEN
+            RAISE;
+        END IF;
 END $$;
 
 ROLLBACK;

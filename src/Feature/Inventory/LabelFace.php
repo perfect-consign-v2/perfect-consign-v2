@@ -76,7 +76,7 @@ final class LabelFace
             return $lines;
         }
 
-        return $this->details($stock, $item, $lines, $large ? 160000 : 120000, $large ? 120000 : 100000);
+        return $this->details($stock, $item, $lines, $large ? 160000 : 120000, $large ? 120000 : 80000);
     }
 
     /**
@@ -86,15 +86,16 @@ final class LabelFace
     private function details(LabelStock $stock, StickerItem $item, array $lines, int $description, int $meta): array
     {
         $lines = $this->kept($this->line('description', $item->description, $description, $stock), $lines);
-        $lines = $this->kept($this->line('store', $item->store, $meta, $stock), $lines);
+        $lines = $this->kept($this->line('brand', $item->brand, $meta, $stock), $lines);
+        $lines = $this->kept($this->line('size', $this->prefixed('Size ', $item->size), $meta, $stock), $lines);
+        $lines = $this->kept($this->line('date', $item->intake, $meta, $stock), $lines);
         $lines = $this->kept($this->line(
             'consignor',
             $this->prefixed($this->mall->getPartyLabel('Vendor: ', 'Consignor: '), $item->consignor),
             $meta,
             $stock
         ), $lines);
-        $lines = $this->kept($this->line('brand', $item->brand, $meta, $stock), $lines);
-        $lines = $this->kept($this->line('date', $item->intake, $meta, $stock), $lines);
+        $lines = $this->kept($this->line('store', $item->store, $meta, $stock), $lines);
         if (!$stock->isTagged()) {
             return $lines;
         }

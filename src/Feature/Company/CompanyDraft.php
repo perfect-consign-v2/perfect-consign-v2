@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Company;
 
+use PerfectConsign\Shared\Scalar\PhoneFormat;
+
 final class CompanyDraft
 {
     private function __construct(
@@ -38,7 +40,7 @@ final class CompanyDraft
             self::optional($fields['city'], 80, 'that city is too long'),
             self::optional($fields['state'], 40, 'that state is too long'),
             self::optional($fields['postal'], 20, 'that ZIP is too long'),
-            self::optional($fields['phone'], 40, 'that phone is too long'),
+            self::phone($fields['phone']),
             self::email($fields['email']),
         );
     }
@@ -75,6 +77,19 @@ final class CompanyDraft
         }
 
         return $email;
+    }
+
+    private static function phone(string $value): ?string
+    {
+        $trimmed = PhoneFormat::normalize(trim($value));
+        if ($trimmed === '') {
+            return null;
+        }
+        if (strlen($trimmed) > 40) {
+            throw new \InvalidArgumentException('that phone is too long');
+        }
+
+        return $trimmed;
     }
 
     private static function optional(string $value, int $limit, string $tooLong): ?string

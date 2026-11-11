@@ -13,14 +13,16 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $stock */
 /** @var int $available */
 /** @var int $unsold */
+/** @var int $sold */
 /** @var int $unprinted */
 /** @var int $total */
 $stock = $stock ?? '';
 $available = $available ?? 0;
 $unsold = $unsold ?? 0;
+$sold = $sold ?? 0;
 $unprinted = $unprinted ?? 0;
 /** @var string $confirm */
-/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, vendor_id: string, vendor_label: string, brand_name: string, color_name: string, category_name: string, size_name: string, condition_name: string, department_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, deletable: bool}> $items */
+/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, vendor_id: string, vendor_label: string, brand_name: string, color_name: string, category_name: string, size_name: string, condition_name: string, department_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, deletable: bool, status_label: string}> $items */
 /** @var list<NameList> $attributeLists */
 /** @var string $labelStock */
 /** @var list<array{key: string, label: string}> $stocks */
@@ -34,17 +36,20 @@ $lead = match ($stock) {
     'available' => 'Items with quantity on hand — ready to sell.',
     'unprinted' => 'Items that still need a sticker printed.',
     'out' => 'Items with quantity zero — nothing left to sell.',
+    'sold' => 'Items that have posted on a sale and have quantity zero.',
     default => 'One row is one item on the floor.',
 };
 $emptyFilter = match ($stock) {
     'available' => $query === '' ? 'No items with quantity on hand.' : 'No items match.',
     'unprinted' => $query === '' ? 'Every item already has a sticker.' : 'No items match.',
     'out' => $query === '' ? 'No items with quantity zero.' : 'No items match.',
+    'sold' => $query === '' ? 'No sold items yet.' : 'No items match.',
     default => 'No items match.',
 };
 $shows = [
     '' => 'All (' . $total . ')',
     'available' => 'Available (' . $available . ')',
+    'sold' => 'Sold (' . $sold . ')',
     'unprinted' => 'Need stickers (' . $unprinted . ')',
     'out' => 'Qty 0 (' . $unsold . ')',
 ];
@@ -78,6 +83,9 @@ $shows = [
             ? ('Search tag, barcode, description, ' . ((($consignmentOnly ?? false) === true) ? 'consignor' : 'vendor') . ', or brand')
             : ('Search tag, barcode, description, or ' . ((($consignmentOnly ?? false) === true) ? 'consignor' : 'vendor')) ?>" aria-label="Search inventory">
         <button class="btn" type="submit">Search</button>
+        <?php if ($query !== '' || $stock !== ''): ?>
+            <a class="btn" href="<?= View::text($list) ?>">Clear</a>
+        <?php endif; ?>
     </form>
 
     <div class="list-show mt-4">
@@ -134,6 +142,7 @@ $shows = [
             }
             $columns[] = ['label' => 'Intake'];
             $columns[] = ['label' => 'Expires'];
+            $columns[] = ['label' => 'Status'];
             $columns[] = ['label' => 'Store %', 'sort' => 'num'];
             $columns[] = ['label' => 'Qty', 'sort' => 'num'];
             $columns[] = ['label' => 'Price', 'sort' => 'num'];
@@ -190,6 +199,7 @@ $shows = [
                                 <?= View::date($item['expires_on']) ?>
                             <?php endif; ?>
                         </td>
+                        <td><?= View::text($item['status_label'] ?? '') ?></td>
                         <td>
                             <?= View::text($item['take_label']) ?>%
                             <?php if ($item['overridden']): ?>

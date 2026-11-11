@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Feature\Party\PartyRoleType;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\PhoneFormat;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class CustomerDirectory
@@ -19,34 +20,37 @@ final class CustomerDirectory
      */
     public function listed(string $phone): array
     {
-        $phone = trim($phone);
+        $phone = PhoneFormat::normalize(trim($phone));
         if ($phone === '') {
             $rows = $this->statements->bound(
                 "SELECT party.id::text AS id,
                         stall_party_display_name(party.id) AS name,
-                        COALESCE(person.phone, org.phone, '') AS phone,
-                        COALESCE(person.email, org.email, '') AS email
+                        COALESCE(stall_party_primary_phone(party.id), '') AS phone,
+                        COALESCE(stall_party_primary_email(party.id), '') AS email
                  FROM parties AS party
                  JOIN party_roles AS role ON role.party_id = party.id AND role.role_type = ? AND role.status = 'active'
-                 LEFT JOIN persons AS person ON person.party_id = party.id
-                 LEFT JOIN organizations AS org ON org.party_id = party.id
                  ORDER BY lower(stall_party_display_name(party.id))
                  LIMIT 200",
                 [PartyRoleType::CUSTOMER]
             );
         } else {
+            $digits = PhoneFormat::nationalDigits($phone);
             $rows = $this->statements->bound(
                 "SELECT party.id::text AS id,
                         stall_party_display_name(party.id) AS name,
-                        COALESCE(person.phone, org.phone, '') AS phone,
-                        COALESCE(person.email, org.email, '') AS email
+                        COALESCE(stall_party_primary_phone(party.id), '') AS phone,
+                        COALESCE(stall_party_primary_email(party.id), '') AS email
                  FROM parties AS party
                  JOIN party_roles AS role ON role.party_id = party.id AND role.role_type = ? AND role.status = 'active'
-                 LEFT JOIN persons AS person ON person.party_id = party.id
-                 LEFT JOIN organizations AS org ON org.party_id = party.id
-                 WHERE COALESCE(person.phone, org.phone, '') = ?
+                 WHERE EXISTS (
+                    SELECT 1
+                    FROM party_contacts AS contact
+                    WHERE contact.party_id = party.id
+                      AND contact.method = 'phone'
+                      AND right(regexp_replace(contact.value, '\D', '', 'g'), 10) = ?
+                 )
                  ORDER BY lower(stall_party_display_name(party.id))",
-                [PartyRoleType::CUSTOMER, $phone]
+                [PartyRoleType::CUSTOMER, $digits]
             );
         }
         $people = [];

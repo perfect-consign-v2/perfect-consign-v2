@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Party;
 
 use InvalidArgumentException;
+use PerfectConsign\Shared\Scalar\PersonPlace;
 
 /**
  * Vendors with the booth each one holds today.
@@ -35,6 +36,10 @@ final class VendorRoster
      *     phone: string,
      *     email: string,
      *     address: string,
+     *     city: string,
+     *     state: string,
+     *     postal: string,
+     *     place: string,
      *     status: string,
      *     status_label: string,
      *     status_badge: string,
@@ -91,6 +96,10 @@ final class VendorRoster
      *   phone: string,
      *   email: string,
      *   address: string,
+     *   city: string,
+     *   state: string,
+     *   postal: string,
+     *   place: string,
      *   status: string,
      *   status_label: string,
      *   status_badge: string,
@@ -107,6 +116,10 @@ final class VendorRoster
      *   phone: string,
      *   email: string,
      *   address: string,
+     *   city: string,
+     *   state: string,
+     *   postal: string,
+     *   place: string,
      *   status: string,
      *   status_label: string,
      *   status_badge: string,
@@ -149,6 +162,9 @@ final class VendorRoster
      *   phone: string,
      *   email: string,
      *   address: string,
+     *   city: string,
+     *   state: string,
+     *   postal: string,
      *   active: bool,
      *   assignments: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      * }>
@@ -166,6 +182,9 @@ final class VendorRoster
                     'phone' => $this->values->optional($row['phone'] ?? null),
                     'email' => $this->values->optional($row['email'] ?? null),
                     'address' => $this->values->optional($row['address'] ?? null),
+                    'city' => $this->values->optional($row['city'] ?? null),
+                    'state' => $this->values->optional($row['state'] ?? null),
+                    'postal' => $this->values->optional($row['postal'] ?? null),
                     'active' => $this->values->standing($row['active'] ?? null),
                     'assignments' => [],
                 ];
@@ -213,6 +232,9 @@ final class VendorRoster
      *   phone: string,
      *   email: string,
      *   address: string,
+     *   city: string,
+     *   state: string,
+     *   postal: string,
      *   active: bool,
      *   assignments: list<array{id: string, booth_id: string, booth_code: string, starts_on: string, ends_on: string, rent_minor: ?int}>
      * } $vendor
@@ -223,6 +245,10 @@ final class VendorRoster
      *   phone: string,
      *   email: string,
      *   address: string,
+     *   city: string,
+     *   state: string,
+     *   postal: string,
+     *   place: string,
      *   status: string,
      *   status_label: string,
      *   status_badge: string,
@@ -245,6 +271,15 @@ final class VendorRoster
             'phone' => $vendor['phone'],
             'email' => $vendor['email'],
             'address' => $vendor['address'],
+            'city' => $vendor['city'],
+            'state' => $vendor['state'],
+            'postal' => $vendor['postal'],
+            'place' => PersonPlace::lines(
+                $vendor['address'],
+                $vendor['city'],
+                $vendor['state'],
+                $vendor['postal'],
+            ),
             'status' => $vendor['active'] ? 'active' : 'inactive',
             'status_label' => $vendor['active'] ? 'Active' : 'Inactive',
             'status_badge' => $vendor['active'] ? 'badge-success' : 'badge-warning',

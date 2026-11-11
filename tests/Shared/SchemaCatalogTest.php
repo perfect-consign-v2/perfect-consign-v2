@@ -33,6 +33,9 @@ final class SchemaCatalogTest extends TestCase
                 '083_wait_list_email_var.sql',
                 '084_payout_pack_grants.sql',
                 '085_english_unique_refusals.sql',
+                '087_person_place.sql',
+                '088_party_contact.sql',
+                '089_wait_list_party_contact.sql',
             ],
             $tenant
         );

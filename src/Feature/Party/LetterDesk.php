@@ -63,9 +63,10 @@ final class LetterDesk
     public function people(): array
     {
         $rows = $this->statements->rows(
-            'SELECT vendor.id::text AS id, vendor.name, COALESCE(person.email, \'\') AS email, vendor.email_bounced
+            'SELECT vendor.id::text AS id, vendor.name,
+                    COALESCE(stall_party_primary_email(vendor.party_id), \'\') AS email,
+                    vendor.email_bounced
              FROM vendors AS vendor
-             JOIN persons AS person ON person.party_id = vendor.party_id
              WHERE vendor.active = true
              ORDER BY vendor.name, vendor.code'
         );
@@ -171,12 +172,11 @@ final class LetterDesk
     private function eligible(): array
     {
         $rows = $this->statements->rows(
-            "SELECT vendor.id::text AS id, person.email
+            "SELECT vendor.id::text AS id, stall_party_primary_email(vendor.party_id) AS email
              FROM vendors AS vendor
-             JOIN persons AS person ON person.party_id = vendor.party_id
              WHERE vendor.active = true
-               AND person.email IS NOT NULL
-               AND person.email <> ''
+               AND stall_party_primary_email(vendor.party_id) IS NOT NULL
+               AND stall_party_primary_email(vendor.party_id) <> ''
                AND NOT vendor.email_bounced
              ORDER BY vendor.name, vendor.code"
         );
@@ -209,12 +209,11 @@ final class LetterDesk
         }
         $marks = implode(', ', array_fill(0, count($ids), '?::uuid'));
         $rows = $this->statements->bound(
-            "SELECT vendor.id::text AS id, person.email
+            "SELECT vendor.id::text AS id, stall_party_primary_email(vendor.party_id) AS email
              FROM vendors AS vendor
-             JOIN persons AS person ON person.party_id = vendor.party_id
              WHERE vendor.active = true
-               AND person.email IS NOT NULL
-               AND person.email <> ''
+               AND stall_party_primary_email(vendor.party_id) IS NOT NULL
+               AND stall_party_primary_email(vendor.party_id) <> ''
                AND NOT vendor.email_bounced
                AND vendor.id IN ($marks)
              ORDER BY vendor.name, vendor.code",

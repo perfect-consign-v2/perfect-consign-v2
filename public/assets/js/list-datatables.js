@@ -228,6 +228,7 @@
                 column.search(value).draw();
             }, 300);
             input.addEventListener('keyup', apply);
+            input.addEventListener('input', apply);
             input.addEventListener('search', apply);
             input.addEventListener('click', function (event) {
                 event.stopPropagation();

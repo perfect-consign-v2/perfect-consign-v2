@@ -8,6 +8,7 @@ use PerfectConsign\Feature\Party\PartyIdentity;
 use PerfectConsign\Feature\Party\PartyRoleType;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Shared\Scalar\PhoneFormat;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 final class CustomerStore
@@ -22,21 +23,26 @@ final class CustomerStore
     public function findOrCreate(string $name, string $phone, string $email): string
     {
         $name = trim($name);
-        $phone = trim($phone);
+        $phone = PhoneFormat::normalize(trim($phone));
         $email = trim($email);
         $this->accept($name, $phone, $email);
+        $phoneDigits = PhoneFormat::nationalDigits($phone);
         $existing = $this->statements->bound(
             "SELECT party.id::text AS id
              FROM parties AS party
              JOIN party_roles AS role ON role.party_id = party.id AND role.role_type = ? AND role.status = 'active'
-             LEFT JOIN persons AS person ON person.party_id = party.id
-             LEFT JOIN organizations AS org ON org.party_id = party.id
              WHERE lower(stall_party_display_name(party.id)) = lower(?)
-               AND COALESCE(COALESCE(person.phone, org.phone), '') = ?
-               AND COALESCE(COALESCE(person.email, org.email), '') = ?
+               AND (
+                    (? = '' AND COALESCE(stall_party_primary_phone(party.id), '') = '')
+                    OR (
+                        ? <> ''
+                        AND right(regexp_replace(COALESCE(stall_party_primary_phone(party.id), ''), '\D', '', 'g'), 10) = ?
+                    )
+               )
+               AND COALESCE(stall_party_primary_email(party.id), '') = ?
              ORDER BY party.created_at
              LIMIT 1",
-            [PartyRoleType::CUSTOMER, $name, $phone, $email]
+            [PartyRoleType::CUSTOMER, $name, $phoneDigits, $phoneDigits, $phoneDigits, $email]
         );
         $found = $existing[0]['id'] ?? null;
         if (is_string($found) && $found !== '') {
@@ -68,7 +74,7 @@ final class CustomerStore
         string $email,
     ): void {
         $name = trim($name);
-        $phone = trim($phone);
+        $phone = PhoneFormat::normalize(trim($phone));
         $email = trim($email);
         $this->accept($name, $phone, $email);
         if (!$this->identity->hasActiveRole($partyId, PartyRoleType::CUSTOMER)) {
@@ -82,6 +88,12 @@ final class CustomerStore
         if ($person === []) {
             throw new DatabaseRefusal('Organization customers cannot be edited as a person name yet.');
         }
+        $place = $this->identity->place($partyId) ?? [
+            'address' => null,
+            'city' => null,
+            'state' => null,
+            'postal' => null,
+        ];
         $this->identity->savePerson(
             $partyId,
             $first,
@@ -89,7 +101,10 @@ final class CustomerStore
             $name === trim($first . ' ' . $last) ? null : $name,
             $phone === '' ? null : $phone,
             $email === '' ? null : $email,
-            null,
+            $place['address'],
+            $place['city'],
+            $place['state'],
+            $place['postal'],
         );
     }
 
@@ -101,12 +116,10 @@ final class CustomerStore
         $rows = $this->statements->bound(
             "SELECT party.id::text AS id,
                     stall_party_display_name(party.id) AS name,
-                    COALESCE(person.phone, org.phone, '') AS phone,
-                    COALESCE(person.email, org.email, '') AS email
+                    COALESCE(stall_party_primary_phone(party.id), '') AS phone,
+                    COALESCE(stall_party_primary_email(party.id), '') AS email
              FROM parties AS party
              JOIN party_roles AS role ON role.party_id = party.id AND role.role_type = ? AND role.status = 'active'
-             LEFT JOIN persons AS person ON person.party_id = party.id
-             LEFT JOIN organizations AS org ON org.party_id = party.id
              WHERE party.id = ?::uuid
              LIMIT 1",
             [PartyRoleType::CUSTOMER, $partyId]
@@ -131,7 +144,7 @@ final class CustomerStore
             throw new DatabaseRefusal('that customer is not in this mall');
         }
         $person = $this->statements->bound(
-            'SELECT first_name, last_name, display_name, phone, email, address FROM persons WHERE party_id = ?::uuid',
+            'SELECT first_name, last_name, display_name FROM persons WHERE party_id = ?::uuid',
             [$partyId]
         );
         if ($person === []) {

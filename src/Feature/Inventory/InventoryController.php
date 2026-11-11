@@ -202,6 +202,7 @@ final class InventoryController
             'stock' => $stock,
             'available' => $this->queries->available(),
             'unsold' => $this->queries->unsold(),
+            'sold' => $this->queries->sold(),
             'unprinted' => $this->queries->unprinted(),
             'total' => $this->queries->count(),
             'confirm' => $this->confirming($items, $this->app->request()->query('confirm')),
@@ -213,7 +214,7 @@ final class InventoryController
 
     private function stockFilter(string $stock): string
     {
-        return in_array($stock, ['available', 'out', 'unprinted'], true) ? $stock : '';
+        return in_array($stock, ['available', 'out', 'sold', 'unprinted'], true) ? $stock : '';
     }
 
     /**

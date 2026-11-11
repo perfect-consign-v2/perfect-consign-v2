@@ -71,14 +71,14 @@ final class LabelCatalog
         return [
             new LabelStock(
                 self::DEFAULT,
-                'Big sheet — 30 stickers (2⅝ by 1 inch)',
+                'Avery 8160 — 30 stickers (2⅝ by 1 inch)',
                 'full',
                 $this->box(3, 10, 8500000, 11000000, 500000, 187500, 2625000, 1000000, 125000),
                 $sheet,
             ),
             new LabelStock(
                 'avery_94073',
-                'Small sheet — 50 stickers (1½ by 1 inch)',
+                'Avery 94073 — 50 stickers (1½ by 1 inch)',
                 'full',
                 $this->box(5, 10, 8500000, 11000000, 500000, 250000, 1500000, 1000000, 130000),
                 $sheet,

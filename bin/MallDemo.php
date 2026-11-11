@@ -552,12 +552,16 @@ final class MallDemo
             'phone' => $phone,
             'email' => $email,
             'address' => $address,
+            'city' => '',
+            'state' => '',
+            'postal' => '',
             'agreement_starts_on' => $starts,
             'agreement_ends_on' => $ends,
             'tax_id' => '',
             'notes' => $notes,
             'tax_exempt' => '',
             'tax_exempt_number' => '',
+            'business_name' => '',
         ], $commission));
         $this->vendors[$code] = $id;
         $this->queues[$code] = [];

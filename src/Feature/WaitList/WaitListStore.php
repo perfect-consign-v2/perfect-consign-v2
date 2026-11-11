@@ -55,8 +55,8 @@ final class WaitListStore
             $where[] = '(strpos(lower(person.first_name), ?) > 0
                 OR strpos(lower(person.last_name), ?) > 0
                 OR strpos(lower(stall_person_display_name(person.first_name, person.last_name, person.display_name)), ?) > 0
-                OR strpos(lower(COALESCE(person.email, \'\')), ?) > 0
-                OR strpos(lower(COALESCE(person.phone, \'\')), ?) > 0)';
+                OR strpos(lower(COALESCE(stall_party_primary_email(entry.party_id), \'\')), ?) > 0
+                OR strpos(lower(COALESCE(stall_party_primary_phone(entry.party_id), \'\')), ?) > 0)';
             array_push($params, $needle, $needle, $needle, $needle, $needle);
         }
         $sql = $this->select();
@@ -208,6 +208,12 @@ final class WaitListStore
             if ($count === 0) {
                 throw new \InvalidArgumentException('That person is not on the wait list.');
             }
+            $place = $this->identity->place($id) ?? [
+                'address' => null,
+                'city' => null,
+                'state' => null,
+                'postal' => null,
+            ];
             $this->identity->savePerson(
                 $id,
                 $fields['first'],
@@ -215,7 +221,10 @@ final class WaitListStore
                 null,
                 $fields['phone'],
                 $fields['email'],
-                null,
+                $place['address'],
+                $place['city'],
+                $place['state'],
+                $place['postal'],
             );
         });
     }
@@ -230,7 +239,9 @@ final class WaitListStore
 
     private function select(): string
     {
-        return "SELECT entry.party_id AS id, person.first_name, person.last_name, person.email, person.phone,
+        return "SELECT entry.party_id AS id, person.first_name, person.last_name,
+                       stall_party_primary_email(entry.party_id) AS email,
+                       stall_party_primary_phone(entry.party_id) AS phone,
                        entry.width_ft, entry.depth_ft, entry.status, entry.notes,
                        to_char(entry.created_at AT TIME ZONE mall.time_zone, 'YYYY-MM-DD') AS waiting_since,
                        ((clock_timestamp() AT TIME ZONE mall.time_zone)::date
