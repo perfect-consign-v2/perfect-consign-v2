@@ -12,11 +12,32 @@ final class StickerItem
         public readonly string $description,
         public readonly string $store,
         public readonly string $consignor,
-        public readonly string $brand,
-        public readonly string $size,
-        public readonly string $intake,
-        public readonly string $tag,
-        public readonly string $deal = '',
+        public readonly StickerMeta $meta,
     ) {
+    }
+
+    public function brand(): string
+    {
+        return $this->meta->brand;
+    }
+
+    public function size(): string
+    {
+        return $this->meta->size;
+    }
+
+    public function intake(): string
+    {
+        return $this->meta->intake;
+    }
+
+    public function tag(): string
+    {
+        return $this->meta->tag;
+    }
+
+    public function deal(): string
+    {
+        return $this->meta->deal;
     }
 }

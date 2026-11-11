@@ -10,16 +10,15 @@ use PerfectConsign\Ledger\BasisPoints;
 
 final class VendorForm
 {
+    private readonly VendorFormScalars $scalars;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
         private readonly SellerPaths $sellerPaths,
+        ?VendorFormScalars $scalars = null,
     ) {
-    }
-
-    public function vendorError(string $message): string
-    {
-        return $message;
+        $this->scalars = $scalars ?? new VendorFormScalars();
     }
 
     public function storedTake(string $entered): ?int
@@ -36,43 +35,6 @@ final class VendorForm
         }
 
         return $basis;
-    }
-
-    public function points(mixed $basis): int
-    {
-        if (is_int($basis)) {
-            return $basis;
-        }
-        if (is_string($basis) && preg_match('/^\d+$/', $basis) === 1) {
-            return (int) $basis;
-        }
-
-        return 0;
-    }
-
-    public function percent(mixed $basis): string
-    {
-        $points = $this->points($basis);
-        $whole = intdiv($points, 100);
-        $fraction = $points % 100;
-        if ($fraction === 0) {
-            return (string) $whole;
-        }
-        if ($fraction % 10 === 0) {
-            return $whole . '.' . (string) intdiv($fraction, 10);
-        }
-
-        return $whole . '.' . str_pad((string) $fraction, 2, '0', STR_PAD_LEFT);
-    }
-
-    public function plain(mixed $value): string
-    {
-        return is_string($value) ? $value : '';
-    }
-
-    public function enabled(mixed $value): bool
-    {
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
     /**
@@ -106,6 +68,117 @@ final class VendorForm
     }
 
     /**
+     * @return array{
+     *     code: string,
+     *     first_name: string,
+     *     last_name: string,
+     *     phone: string,
+     *     email: string,
+     *     address: string,
+     *     city: string,
+     *     state: string,
+     *     postal: string,
+     *     phones: list<string>,
+     *     emails: list<string>,
+     *     mailing_address: string,
+     *     mailing_city: string,
+     *     mailing_state: string,
+     *     mailing_postal: string,
+     *     mailing_same: string
+     * }
+     */
+    public function postedVendor(): array
+    {
+        return [
+            'code' => $this->app->request()->field('code'),
+            'first_name' => $this->app->request()->field('first_name'),
+            'last_name' => $this->app->request()->field('last_name'),
+            'phone' => $this->app->request()->field('phone'),
+            'email' => $this->app->request()->field('email'),
+            'address' => $this->app->request()->field('address'),
+            'city' => $this->app->request()->field('city'),
+            'state' => $this->app->request()->field('state'),
+            'postal' => $this->app->request()->field('postal'),
+            'phones' => $this->postedList('phones'),
+            'emails' => $this->postedList('emails'),
+            'mailing_address' => $this->app->request()->field('mailing_address'),
+            'mailing_city' => $this->app->request()->field('mailing_city'),
+            'mailing_state' => $this->app->request()->field('mailing_state'),
+            'mailing_postal' => $this->app->request()->field('mailing_postal'),
+            'mailing_same' => $this->app->request()->field('mailing_same'),
+        ];
+    }
+
+    /**
+     * Builds a vendor draft from the current POST (identity + facts).
+     */
+    public function postedDraft(): VendorDraft
+    {
+        $posted = $this->postedVendor();
+        $facts = $this->postedFacts();
+
+        return new VendorDraft([
+            ...$posted,
+            'agreement_starts_on' => $facts['agreement_starts_on'],
+            'agreement_ends_on' => $facts['agreement_ends_on'],
+            'tax_id' => $facts['tax_id'],
+            'notes' => $facts['notes'],
+            'tax_exempt' => $facts['tax_exempt'],
+            'tax_exempt_number' => $facts['tax_exempt_number'],
+            'business_name' => $this->app->request()->field('business_name'),
+            'discount_by' => $facts['discount_by'],
+            'keep_days' => $facts['keep_days'],
+            'expiry_action' => $facts['expiry_action'],
+        ], $this->storedTake($facts['store_take']));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function postedFormValues(?string $id = null): array
+    {
+        $posted = $this->postedVendor();
+        $facts = $this->postedFacts();
+        $values = [
+            ...$posted,
+            'store_take' => $facts['store_take'],
+            'agreement_starts_on' => $facts['agreement_starts_on'],
+            'agreement_ends_on' => $facts['agreement_ends_on'],
+            'tax_id' => $facts['tax_id'],
+            'notes' => $facts['notes'],
+            'tax_exempt' => $facts['tax_exempt'],
+            'tax_exempt_number' => $facts['tax_exempt_number'],
+            'discount_by' => $facts['discount_by'],
+            'keep_days' => $facts['keep_days'],
+            'expiry_action' => $facts['expiry_action'],
+        ];
+        if ($id !== null) {
+            $values['id'] = $id;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function postedList(string $name): array
+    {
+        $raw = $this->app->request()->post[$name] ?? [];
+        if (!is_array($raw)) {
+            return [];
+        }
+        $list = [];
+        foreach ($raw as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                $list[] = trim($value);
+            }
+        }
+
+        return $list;
+    }
+
+    /**
      * @param array<string, mixed>|null $vendor
      */
     public function form(string $slug, ?array $vendor, ?string $error): void
@@ -125,7 +198,7 @@ final class VendorForm
             'slug' => $tenant->slug,
             'vendor' => $vendor,
             'storeTake' => $shown['take'],
-            'defaultStoreTake' => $this->percent($mallBasis),
+            'defaultStoreTake' => $this->scalars->percent($mallBasis),
             'overridden' => $shown['overridden'],
             'error' => $error,
             'sellerPrefix' => $this->sellerPaths->prefix(),
@@ -138,14 +211,14 @@ final class VendorForm
      */
     private function shownTake(?array $vendor, int $mallBasis): array
     {
-        $shownTake = $this->percent($mallBasis);
+        $shownTake = $this->scalars->percent($mallBasis);
         if (is_array($vendor) && array_key_exists('store_take', $vendor) && is_string($vendor['store_take'])) {
             return ['take' => $vendor['store_take'] !== '' ? $vendor['store_take'] : $shownTake, 'overridden' => false];
         }
         if (is_array($vendor) && array_key_exists('commission_bps', $vendor) && $vendor['commission_bps'] !== null) {
             return [
-                'take' => $this->percent($vendor['commission_bps']),
-                'overridden' => $this->points($vendor['commission_bps']) !== $mallBasis,
+                'take' => $this->scalars->percent($vendor['commission_bps']),
+                'overridden' => $this->scalars->points($vendor['commission_bps']) !== $mallBasis,
             ];
         }
 
@@ -159,78 +232,7 @@ final class VendorForm
      */
     public function filled(array $vendor, array $stored, int $mallBasis): array
     {
-        $savedBasis = $stored['commission_bps'] ?? null;
-        $vendor['store_take'] = $this->percent($savedBasis === null ? $mallBasis : $savedBasis);
-        $vendor['store_take_overridden'] = $savedBasis !== null && $this->points($savedBasis) !== $mallBasis;
-        $vendor['agreement_starts_on'] = $this->plain($stored['agreement_starts_on'] ?? null);
-        $vendor['agreement_ends_on'] = $this->plain($stored['agreement_ends_on'] ?? null);
-        $vendor['tax_id'] = $this->plain($stored['tax_id'] ?? null);
-        $vendor['notes'] = $this->plain($stored['notes'] ?? null);
-        $vendor['tax_exempt'] = $this->enabled($stored['tax_exempt'] ?? false);
-        $vendor['tax_exempt_number'] = $this->plain($stored['tax_exempt_number'] ?? null);
-        $vendor['business_name'] = $this->plain($stored['business_name'] ?? null);
-        $vendor['discount_by'] = $this->plain($stored['discount_by'] ?? 'staff');
-        $kept = $stored['keep_days'] ?? null;
-        $vendor['keep_days'] = is_int($kept) ? (string) $kept : (is_string($kept) ? $kept : '');
-        $vendor['expiry_action'] = $this->plain($stored['expiry_action'] ?? 'return');
-        $vendor['email_bounced'] = $this->enabled($stored['email_bounced'] ?? false);
-        $vendor['first_name'] = $this->plain($stored['first_name'] ?? null);
-        $vendor['last_name'] = $this->plain($stored['last_name'] ?? null);
-        $vendor['phone'] = $this->plain($stored['phone'] ?? null);
-        $vendor['email'] = $this->plain($stored['email'] ?? null);
-        $vendor['address'] = $this->plain($stored['address'] ?? null);
-        $vendor['city'] = $this->plain($stored['city'] ?? null);
-        $vendor['state'] = $this->plain($stored['state'] ?? null);
-        $vendor['postal'] = $this->plain($stored['postal'] ?? null);
-        $vendor['phones'] = $this->stringList($stored['phones'] ?? []);
-        $vendor['emails'] = $this->stringList($stored['emails'] ?? []);
-        $vendor['mailing_address'] = $this->plain($stored['mailing_address'] ?? null);
-        $vendor['mailing_city'] = $this->plain($stored['mailing_city'] ?? null);
-        $vendor['mailing_state'] = $this->plain($stored['mailing_state'] ?? null);
-        $vendor['mailing_postal'] = $this->plain($stored['mailing_postal'] ?? null);
-        $vendor['mailing_same'] = $this->mailingSame($vendor);
-        $vendor['default_store_take'] = $this->percent($mallBasis);
-
-        return $vendor;
-    }
-
-    /**
-     * @param mixed $values
-     * @return list<string>
-     */
-    private function stringList(mixed $values): array
-    {
-        if (!is_array($values)) {
-            return [];
-        }
-        $list = [];
-        foreach ($values as $value) {
-            if (is_string($value) && $value !== '') {
-                $list[] = $value;
-            }
-        }
-
-        return $list;
-    }
-
-    /**
-     * @param array<string, mixed> $vendor
-     */
-    private function mailingSame(array $vendor): bool
-    {
-        $physical = trim($this->plain($vendor['address'] ?? null) . '|'
-            . $this->plain($vendor['city'] ?? null) . '|'
-            . $this->plain($vendor['state'] ?? null) . '|'
-            . $this->plain($vendor['postal'] ?? null));
-        $mailing = trim($this->plain($vendor['mailing_address'] ?? null) . '|'
-            . $this->plain($vendor['mailing_city'] ?? null) . '|'
-            . $this->plain($vendor['mailing_state'] ?? null) . '|'
-            . $this->plain($vendor['mailing_postal'] ?? null));
-        if ($mailing === '|||') {
-            return false;
-        }
-
-        return $physical === $mailing;
+        return (new VendorFormFill())->apply($vendor, $stored, $mallBasis, $this->scalars);
     }
 
     /**
@@ -240,23 +242,6 @@ final class VendorForm
      */
     public function figures(array $vendor, ?array $quoted): array
     {
-        $vendor['payable_minor'] = 0;
-        $vendor['rent_minor'] = 0;
-        $vendor['check_minor'] = 0;
-        $vendor['owes_minor'] = 0;
-        $vendor['settled_minor'] = 0;
-        $vendor['clawback_minor'] = 0;
-        $vendor['rent_from_sales'] = false;
-        if ($quoted === null) {
-            return $vendor;
-        }
-        $vendor['payable_minor'] = $quoted['payable'];
-        $vendor['rent_minor'] = $quoted['rent'];
-        $vendor['check_minor'] = $quoted['check'];
-        $vendor['owes_minor'] = $quoted['owes'];
-        $vendor['settled_minor'] = $quoted['settled'];
-        $vendor['rent_from_sales'] = $quoted['rent_from_sales'];
-
-        return $vendor;
+        return (new VendorFigures())->apply($vendor, $quoted);
     }
 }

@@ -11,6 +11,8 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class PartyController
 {
+    private readonly PartySellerPaths $paths;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly PartyStore $parties,
@@ -20,7 +22,9 @@ final class PartyController
         private readonly VendorBalances $balances,
         private readonly VendorForm $forms,
         private readonly VendorPage $pages,
+        ?PartySellerPaths $paths = null,
     ) {
+        $this->paths = $paths ?? new PartySellerPaths($mall);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/parties', ['GET'])]
@@ -42,7 +46,7 @@ final class PartyController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'parties' => $parties,
-            'sellerList' => $this->sellerList($slug),
+            'sellerList' => $this->paths->list($slug),
             'sellerLabel' => $this->mall->getPartyLabel('Vendors', 'Consignors'),
         ]);
     }
@@ -58,7 +62,7 @@ final class PartyController
         if (in_array(PartyRoleType::VENDOR, $party['roles'], true)) {
             $vendorId = $this->parties->vendorIdForParty($partyId);
             if ($vendorId !== null) {
-                $this->app->redirect($this->sellerRecord($slug, $vendorId));
+                $this->app->redirect($this->paths->record($slug, $vendorId));
             }
         }
         if (in_array(PartyRoleType::CUSTOMER, $party['roles'], true)) {
@@ -96,49 +100,23 @@ final class PartyController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $posted = $this->postedVendor();
-        $facts = $this->forms->postedFacts();
         $error = null;
         $id = '';
         try {
-            $id = $this->parties->addVendor(new VendorDraft([
-                ...$posted,
-                'agreement_starts_on' => $facts['agreement_starts_on'],
-                'agreement_ends_on' => $facts['agreement_ends_on'],
-                'tax_id' => $facts['tax_id'],
-                'notes' => $facts['notes'],
-                'tax_exempt' => $facts['tax_exempt'],
-                'tax_exempt_number' => $facts['tax_exempt_number'],
-                'business_name' => $this->app->request()->field('business_name'),
-                'discount_by' => $facts['discount_by'],
-                'keep_days' => $facts['keep_days'],
-                'expiry_action' => $facts['expiry_action'],
-            ], $this->forms->storedTake($facts['store_take'])));
+            $id = $this->parties->addVendor($this->forms->postedDraft());
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->forms->vendorError($this->app->catchRefusal($refusal));
+            $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
             $this->parties->setPayoutMode($id, $this->app->request()->field('payout_mode'));
             $this->app->redirect(
-                $this->vendorPath($slug, $id),
+                $this->paths->record($slug, $id),
                 $this->mall->getPartyLabel('Vendor created.', 'Consignor created.')
             );
         }
-        $this->forms->form($slug, [
-            ...$posted,
-            'store_take' => $facts['store_take'],
-            'agreement_starts_on' => $facts['agreement_starts_on'],
-            'agreement_ends_on' => $facts['agreement_ends_on'],
-            'tax_id' => $facts['tax_id'],
-            'notes' => $facts['notes'],
-            'tax_exempt' => $facts['tax_exempt'],
-            'tax_exempt_number' => $facts['tax_exempt_number'],
-            'discount_by' => $facts['discount_by'],
-            'keep_days' => $facts['keep_days'],
-            'expiry_action' => $facts['expiry_action'],
-        ], $error);
+        $this->forms->form($slug, $this->forms->postedFormValues(), $error);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/(?:vendors|consignors)/([0-9a-fA-F-]{36})', ['GET'])]
@@ -164,49 +142,22 @@ final class PartyController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $posted = $this->postedVendor();
-        $facts = $this->forms->postedFacts();
         $error = null;
         try {
-            $this->parties->saveVendor($id, new VendorDraft([
-                ...$posted,
-                'agreement_starts_on' => $facts['agreement_starts_on'],
-                'agreement_ends_on' => $facts['agreement_ends_on'],
-                'tax_id' => $facts['tax_id'],
-                'notes' => $facts['notes'],
-                'tax_exempt' => $facts['tax_exempt'],
-                'tax_exempt_number' => $facts['tax_exempt_number'],
-                'business_name' => $this->app->request()->field('business_name'),
-                'discount_by' => $facts['discount_by'],
-                'keep_days' => $facts['keep_days'],
-                'expiry_action' => $facts['expiry_action'],
-            ], $this->forms->storedTake($facts['store_take'])));
+            $this->parties->saveVendor($id, $this->forms->postedDraft());
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->forms->vendorError($this->app->catchRefusal($refusal));
+            $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
             $this->parties->setPayoutMode($id, $this->app->request()->field('payout_mode'));
             $this->app->redirect(
-                $this->vendorPath($slug, $id),
+                $this->paths->record($slug, $id),
                 $this->mall->getPartyLabel('Vendor saved.', 'Consignor saved.')
             );
         }
-        $this->forms->form($slug, [
-            'id' => $id,
-            ...$posted,
-            'store_take' => $facts['store_take'],
-            'agreement_starts_on' => $facts['agreement_starts_on'],
-            'agreement_ends_on' => $facts['agreement_ends_on'],
-            'tax_id' => $facts['tax_id'],
-            'notes' => $facts['notes'],
-            'tax_exempt' => $facts['tax_exempt'],
-            'tax_exempt_number' => $facts['tax_exempt_number'],
-            'discount_by' => $facts['discount_by'],
-            'keep_days' => $facts['keep_days'],
-            'expiry_action' => $facts['expiry_action'],
-        ], $error);
+        $this->forms->form($slug, $this->forms->postedFormValues($id), $error);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/(?:vendors|consignors)/([0-9a-fA-F-]{36})/standing', ['POST'])]
@@ -230,7 +181,7 @@ final class PartyController
             return;
         }
         $this->app->redirect(
-            $this->sellerRecord($slug, $id) . '/edit',
+            $this->paths->edit($slug, $id),
             $this->mall->getPartyLabel(
                 $inactive ? 'Vendor is inactive.' : 'Vendor is active.',
                 $inactive ? 'Consignor is inactive.' : 'Consignor is active.',
@@ -247,13 +198,13 @@ final class PartyController
         try {
             $this->parties->removeVendor($id);
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->forms->vendorError($this->app->catchRefusal($refusal));
+            $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
             $this->app->redirect(
-                $this->sellerList($slug),
+                $this->paths->list($slug),
                 $this->mall->getPartyLabel('Vendor deleted.', 'Consignor deleted.')
             );
         }
@@ -279,30 +230,6 @@ final class PartyController
         }
     }
 
-    private function vendorPath(string $slug, string $vendorId): string
-    {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
-            return $this->sellerList($slug);
-        }
-
-        return $this->sellerRecord($slug, $vendorId);
-    }
-
-    private function sellerPrefix(): string
-    {
-        return $this->mall->isConsignmentOnly() ? 'consignors' : 'vendors';
-    }
-
-    private function sellerList(string $slug): string
-    {
-        return '/' . $slug . '/' . $this->sellerPrefix();
-    }
-
-    private function sellerRecord(string $slug, string $vendorId): string
-    {
-        return $this->sellerList($slug) . '/' . $vendorId;
-    }
-
     private function renderSellers(string $slug, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
@@ -319,7 +246,7 @@ final class PartyController
             'status' => $status,
             'query' => $query,
             'error' => $error,
-            'sellerPrefix' => $this->sellerPrefix(),
+            'sellerPrefix' => $this->paths->prefix(),
         ]);
     }
 
@@ -335,66 +262,5 @@ final class PartyController
     private function showRecord(string $slug, string $id, ?string $error): void
     {
         $this->pages->show($slug, $id, $error);
-    }
-
-    /**
-     * @return array{
-     *     code: string,
-     *     first_name: string,
-     *     last_name: string,
-     *     phone: string,
-     *     email: string,
-     *     address: string,
-     *     city: string,
-     *     state: string,
-     *     postal: string,
-     *     phones: list<string>,
-     *     emails: list<string>,
-     *     mailing_address: string,
-     *     mailing_city: string,
-     *     mailing_state: string,
-     *     mailing_postal: string,
-     *     mailing_same: string
-     * }
-     */
-    private function postedVendor(): array
-    {
-        return [
-            'code' => $this->app->request()->field('code'),
-            'first_name' => $this->app->request()->field('first_name'),
-            'last_name' => $this->app->request()->field('last_name'),
-            'phone' => $this->app->request()->field('phone'),
-            'email' => $this->app->request()->field('email'),
-            'address' => $this->app->request()->field('address'),
-            'city' => $this->app->request()->field('city'),
-            'state' => $this->app->request()->field('state'),
-            'postal' => $this->app->request()->field('postal'),
-            'phones' => $this->postedList('phones'),
-            'emails' => $this->postedList('emails'),
-            'mailing_address' => $this->app->request()->field('mailing_address'),
-            'mailing_city' => $this->app->request()->field('mailing_city'),
-            'mailing_state' => $this->app->request()->field('mailing_state'),
-            'mailing_postal' => $this->app->request()->field('mailing_postal'),
-            'mailing_same' => $this->app->request()->field('mailing_same'),
-        ];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function postedList(string $name): array
-    {
-        $raw = $this->app->request()->post[$name] ?? [];
-        if (!is_array($raw)) {
-            return [];
-        }
-        $list = [];
-        foreach ($raw as $value) {
-            if (is_string($value) && trim($value) !== '') {
-                $list[] = trim($value);
-            }
-        }
-
-        return $list;
     }
 }

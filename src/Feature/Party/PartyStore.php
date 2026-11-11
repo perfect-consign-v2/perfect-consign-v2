@@ -149,7 +149,7 @@ class PartyStore
                 $person['display_name'],
                 null,
                 null,
-                null,
+                PersonPlace::empty(),
                 PartyRoleType::VENDOR,
             );
             $partyId = $created['party_id'];

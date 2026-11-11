@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Party;
 
-use PerfectConsign\Shared\Scalar\PhoneFormat;
-
 final class VendorDraft
 {
+    private readonly VendorDraftPlaces $places;
+
     /**
      * @param array{
      *     code: string,
@@ -41,12 +41,14 @@ final class VendorDraft
     public function __construct(
         private readonly array $fields,
         private readonly ?int $commission,
+        ?VendorDraftPlaces $places = null,
     ) {
+        $this->places = $places ?? new VendorDraftPlaces();
     }
 
     public function email(): ?string
     {
-        return $this->contact($this->fields['email'], 'email');
+        return $this->places->contact($this->fields['email'], 'email');
     }
 
     /**
@@ -90,8 +92,8 @@ final class VendorDraft
             'first_name' => $this->personName($this->fields['first_name'], 'first'),
             'last_name' => $this->personName($this->fields['last_name'], 'last'),
             'display_name' => $this->optionalText($this->fields['business_name'] ?? '', 120, 'that business name is too long'),
-            'phone' => $this->contact($this->fields['phone'], 'phone'),
-            'email' => $this->contact($this->fields['email'], 'email'),
+            'phone' => $this->places->contact($this->fields['phone'], 'phone'),
+            'email' => $this->places->contact($this->fields['email'], 'email'),
             'address' => $physical['street'] ?? null,
             'city' => $physical['city'] ?? null,
             'state' => $physical['state'] ?? null,
@@ -104,51 +106,7 @@ final class VendorDraft
      */
     public function contacts(): array
     {
-        $list = [];
-        $primaryPhone = $this->contact($this->fields['phone'], 'phone');
-        if ($primaryPhone !== null) {
-            $list[] = [
-                'method' => PartyContactBook::METHOD_PHONE,
-                'label' => 'primary',
-                'value' => $primaryPhone,
-                'is_primary' => true,
-            ];
-        }
-        foreach ($this->extraList($this->fields['phones'] ?? []) as $extra) {
-            $phone = $this->contact($extra, 'phone');
-            if ($phone === null) {
-                continue;
-            }
-            $list[] = [
-                'method' => PartyContactBook::METHOD_PHONE,
-                'label' => 'other',
-                'value' => $phone,
-                'is_primary' => false,
-            ];
-        }
-        $primaryEmail = $this->contact($this->fields['email'], 'email');
-        if ($primaryEmail !== null) {
-            $list[] = [
-                'method' => PartyContactBook::METHOD_EMAIL,
-                'label' => 'primary',
-                'value' => $primaryEmail,
-                'is_primary' => true,
-            ];
-        }
-        foreach ($this->extraList($this->fields['emails'] ?? []) as $extra) {
-            $mail = $this->contact($extra, 'email');
-            if ($mail === null) {
-                continue;
-            }
-            $list[] = [
-                'method' => PartyContactBook::METHOD_EMAIL,
-                'label' => 'other',
-                'value' => $mail,
-                'is_primary' => false,
-            ];
-        }
-
-        return $list;
+        return $this->places->contacts($this->fields);
     }
 
     /**
@@ -156,12 +114,7 @@ final class VendorDraft
      */
     public function physicalAddress(): ?array
     {
-        return $this->placeFrom(
-            $this->fields['address'],
-            $this->fields['city'] ?? '',
-            $this->fields['state'] ?? '',
-            $this->fields['postal'] ?? '',
-        );
+        return $this->places->physical($this->fields);
     }
 
     /**
@@ -169,16 +122,7 @@ final class VendorDraft
      */
     public function mailingAddress(): ?array
     {
-        if (($this->fields['mailing_same'] ?? '') === '1' || ($this->fields['mailing_same'] ?? '') === 'true') {
-            return $this->physicalAddress();
-        }
-
-        return $this->placeFrom(
-            $this->fields['mailing_address'] ?? '',
-            $this->fields['mailing_city'] ?? '',
-            $this->fields['mailing_state'] ?? '',
-            $this->fields['mailing_postal'] ?? '',
-        );
+        return $this->places->mailing($this->fields);
     }
 
     /**
@@ -315,71 +259,5 @@ final class VendorDraft
         }
 
         return $trimmed;
-    }
-
-    private function contact(string $value, string $kind): ?string
-    {
-        $trimmed = trim($value);
-        if ($trimmed === '') {
-            return null;
-        }
-        if ($kind === 'phone') {
-            $trimmed = PhoneFormat::normalize($trimmed);
-            if (strlen($trimmed) > 40) {
-                throw new \InvalidArgumentException('that phone is too long');
-            }
-
-            return $trimmed;
-        }
-        if ($kind === 'email' && (strlen($trimmed) > 200 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $trimmed) !== 1)) {
-            throw new \InvalidArgumentException('that email is not an email address');
-        }
-        if ($kind === 'address' && strlen($trimmed) > 200) {
-            throw new \InvalidArgumentException('that address is too long');
-        }
-
-        return $trimmed;
-    }
-
-    /**
-     * @param list<mixed> $values
-     * @return list<string>
-     */
-    private function extraList(array $values): array
-    {
-        $out = [];
-        foreach ($values as $value) {
-            if (!is_string($value)) {
-                continue;
-            }
-            $trimmed = trim($value);
-            if ($trimmed !== '') {
-                $out[] = $trimmed;
-            }
-        }
-
-        return $out;
-    }
-
-    /**
-     * @return array{street: ?string, street2: ?string, city: ?string, state: ?string, postal: ?string}|null
-     */
-    private function placeFrom(string $street, string $city, string $state, string $postal): ?array
-    {
-        $line = $this->contact($street, 'address');
-        $cityPart = $this->optionalText($city, 80, 'that city is too long');
-        $statePart = $this->optionalText($state, 40, 'that state is too long');
-        $postalPart = $this->optionalText($postal, 20, 'that ZIP is too long');
-        if ($line === null && $cityPart === null && $statePart === null && $postalPart === null) {
-            return null;
-        }
-
-        return [
-            'street' => $line,
-            'street2' => null,
-            'city' => $cityPart,
-            'state' => $statePart,
-            'postal' => $postalPart,
-        ];
     }
 }

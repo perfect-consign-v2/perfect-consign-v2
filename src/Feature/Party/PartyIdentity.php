@@ -28,11 +28,8 @@ final class PartyIdentity
         ?string $displayName,
         ?string $phone,
         ?string $email,
-        ?string $address,
+        PersonPlace $place,
         string $roleType,
-        ?string $city = null,
-        ?string $state = null,
-        ?string $postal = null,
     ): array {
         $partyRows = $this->statements->rows('INSERT INTO parties DEFAULT VALUES RETURNING id');
         $partyId = RowValue::string($partyRows[0]['id'] ?? null);
@@ -45,11 +42,7 @@ final class PartyIdentity
             [$partyId, $firstName, $lastName, $displayName]
         );
         $this->contacts->replaceContacts($partyId, $this->contacts->primaryPair($phone, $email));
-        $this->contacts->replaceAddresses(
-            $partyId,
-            $this->physicalPlace($address, $city, $state, $postal),
-            null,
-        );
+        $this->contacts->replaceAddresses($partyId, $this->physicalPlace($place), null);
         $this->statements->change(
             'INSERT INTO party_roles (party_id, role_type, status) VALUES (?::uuid, ?, \'active\')',
             [$partyId, $roleType]
@@ -65,10 +58,7 @@ final class PartyIdentity
         ?string $displayName,
         ?string $phone,
         ?string $email,
-        ?string $address,
-        ?string $city = null,
-        ?string $state = null,
-        ?string $postal = null,
+        PersonPlace $place,
     ): void {
         $count = $this->statements->affected(
             'UPDATE persons
@@ -82,7 +72,7 @@ final class PartyIdentity
         $this->contacts->replaceContacts($partyId, $this->contacts->primaryPair($phone, $email));
         $this->contacts->replaceAddresses(
             $partyId,
-            $this->physicalPlace($address, $city, $state, $postal),
+            $this->physicalPlace($place),
             $this->contacts->address($partyId, PartyContactBook::KIND_MAILING),
         );
     }
@@ -167,27 +157,23 @@ final class PartyIdentity
     /**
      * @return array{street: ?string, street2: ?string, city: ?string, state: ?string, postal: ?string}|null
      */
-    private function physicalPlace(
-        ?string $address,
-        ?string $city,
-        ?string $state,
-        ?string $postal,
-    ): ?array {
+    private function physicalPlace(PersonPlace $place): ?array
+    {
         if (
-            ($address === null || $address === '')
-            && ($city === null || $city === '')
-            && ($state === null || $state === '')
-            && ($postal === null || $postal === '')
+            ($place->street === null || $place->street === '')
+            && ($place->city === null || $place->city === '')
+            && ($place->state === null || $place->state === '')
+            && ($place->postal === null || $place->postal === '')
         ) {
             return null;
         }
 
         return [
-            'street' => $address,
+            'street' => $place->street,
             'street2' => null,
-            'city' => $city,
-            'state' => $state,
-            'postal' => $postal,
+            'city' => $place->city,
+            'state' => $place->state,
+            'postal' => $place->postal,
         ];
     }
 }

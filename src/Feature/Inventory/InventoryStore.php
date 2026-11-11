@@ -14,6 +14,7 @@ use PerfectConsign\Shared\Scalar\RowValue;
 final class InventoryStore
 {
     private readonly ItemGuard $guard;
+    private readonly ItemMarkAllocator $marks;
 
     public function __construct(
         private readonly Statements $statements,
@@ -21,6 +22,7 @@ final class InventoryStore
         private readonly MallSettings $mall,
     ) {
         $this->guard = new ItemGuard($statements);
+        $this->marks = new ItemMarkAllocator($statements);
     }
 
     /**
@@ -136,12 +138,8 @@ final class InventoryStore
         $barcode = $item->barcode;
         while ($attempt < 5) {
             $attempt++;
-            if ($code === '') {
-                $code = $this->allocateTag($today);
-            }
-            if ($barcode === '') {
-                $barcode = $this->allocateBarcode($today);
-            }
+            $code = $code !== '' ? $code : $this->marks->tag($today);
+            $barcode = $barcode !== '' ? $barcode : $this->marks->barcode($today);
             try {
                 $this->statements->isolated(function () use ($id, $item, $code, $barcode, &$stored): void {
                     $stored = $this->store($id, $item, $code, $barcode);
@@ -150,21 +148,31 @@ final class InventoryStore
                 return $stored;
             } catch (DatabaseRefusal $error) {
                 $refusal = $error;
-                $retry = false;
-                if ($item->code === '' && DatabaseRefusal::isTagUsed($error)) {
-                    $code = '';
-                    $retry = true;
-                }
-                if ($item->barcode === '' && DatabaseRefusal::isBarcodeUsed($error)) {
-                    $barcode = '';
-                    $retry = true;
-                }
+                [$code, $barcode, $retry] = $this->retryMarks($item, $error, $code, $barcode);
                 if (!$retry) {
                     throw $error;
                 }
             }
         }
         throw $refusal;
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: bool}
+     */
+    private function retryMarks(ItemEntry $item, DatabaseRefusal $error, string $code, string $barcode): array
+    {
+        $retry = false;
+        if ($item->code === '' && DatabaseRefusal::isTagUsed($error)) {
+            $code = '';
+            $retry = true;
+        }
+        if ($item->barcode === '' && DatabaseRefusal::isBarcodeUsed($error)) {
+            $barcode = '';
+            $retry = true;
+        }
+
+        return [$code, $barcode, $retry];
     }
 
     private function store(?string $id, ItemEntry $item, string $code, string $barcode): string
@@ -272,39 +280,4 @@ final class InventoryStore
         throw new \InvalidArgumentException('That item is not in this mall.');
     }
 
-    private function allocateTag(string $today): string
-    {
-        return $this->allocateMarked('TG', 'code', 'A tag could not be generated.', $today);
-    }
-
-    private function allocateBarcode(string $today): string
-    {
-        return $this->allocateMarked('BC', 'barcode', 'A barcode could not be generated.', $today);
-    }
-
-    private function allocateMarked(string $mark, string $column, string $failure, string $today): string
-    {
-        if ($column !== 'code' && $column !== 'barcode') {
-            throw new \InvalidArgumentException($failure);
-        }
-        $stamp = str_replace('-', '', $today);
-        if (preg_match('/^\d{8}$/', $stamp) !== 1) {
-            throw new \InvalidArgumentException($failure);
-        }
-        $prefix = $mark . $stamp;
-        $rows = $this->statements->bound(
-            'SELECT ' . $column . ' AS mark FROM items WHERE ' . $column . ' ~ ? ORDER BY ' . $column . ' DESC LIMIT 1',
-            ['^' . $prefix . '[0-9]{4}$']
-        );
-        $last = $rows[0]['mark'] ?? null;
-        $sequence = 1;
-        if (is_string($last) && preg_match('/(\d{4})$/', $last, $parts) === 1) {
-            $sequence = ((int) $parts[1]) + 1;
-        }
-        if ($sequence > 9999) {
-            throw new \InvalidArgumentException($failure);
-        }
-
-        return $prefix . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
-    }
 }

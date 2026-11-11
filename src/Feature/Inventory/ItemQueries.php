@@ -39,23 +39,36 @@ final class ItemQueries
      */
     public function items(string $query, string $stock = '', string $vendorId = ''): array
     {
+        [$where, $params] = $this->filters($query, $stock, $vendorId);
+        $sql = self::LIST . ($where === [] ? '' : ' WHERE ' . implode(' AND ', $where))
+            . ' ORDER BY lower(item.code), item.code';
+        if ($params === []) {
+            return $this->statements->rows($sql);
+        }
+
+        return $this->statements->bound($sql, $params);
+    }
+
+    /**
+     * @return array{0: list<string>, 1: list<mixed>}
+     */
+    private function filters(string $query, string $stock, string $vendorId): array
+    {
         $where = [];
         $params = [];
         if ($vendorId !== '') {
             $where[] = 'item.vendor_id = ?::uuid';
             $params[] = $vendorId;
         }
-        if ($stock === 'available') {
-            $where[] = 'item.quantity > 0';
-        }
-        if ($stock === 'out') {
-            $where[] = 'item.quantity = 0';
-        }
-        if ($stock === 'sold') {
-            $where[] = 'item.quantity = 0 AND EXISTS (SELECT 1 FROM sale_lines AS sold WHERE sold.item_id = item.id LIMIT 1)';
-        }
-        if ($stock === 'unprinted') {
-            $where[] = 'item.sticker_printed_at IS NULL';
+        $stockClause = match ($stock) {
+            'available' => 'item.quantity > 0',
+            'out' => 'item.quantity = 0',
+            'sold' => 'item.quantity = 0 AND EXISTS (SELECT 1 FROM sale_lines AS sold WHERE sold.item_id = item.id LIMIT 1)',
+            'unprinted' => 'item.sticker_printed_at IS NULL',
+            default => '',
+        };
+        if ($stockClause !== '') {
+            $where[] = $stockClause;
         }
         $needle = strtolower(trim($query));
         if ($needle !== '') {
@@ -72,13 +85,8 @@ final class ItemQueries
                        OR strpos(lower(department.name), ?) > 0)';
             $params = array_merge($params, array_fill(0, 11, $needle));
         }
-        $sql = self::LIST . ($where === [] ? '' : ' WHERE ' . implode(' AND ', $where))
-            . ' ORDER BY lower(item.code), item.code';
-        if ($params === []) {
-            return $this->statements->rows($sql);
-        }
 
-        return $this->statements->bound($sql, $params);
+        return [$where, $params];
     }
 
     public function count(string $vendorId = ''): int

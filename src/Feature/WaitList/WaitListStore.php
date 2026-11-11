@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\WaitList;
 
 use PerfectConsign\Feature\Party\PartyIdentity;
 use PerfectConsign\Feature\Party\PartyRoleType;
+use PerfectConsign\Feature\Party\PersonPlace;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 use Psr\Log\LoggerInterface;
@@ -152,7 +153,7 @@ final class WaitListStore
                 null,
                 $fields['phone'],
                 $fields['email'],
-                null,
+                PersonPlace::empty(),
                 PartyRoleType::WAIT_LIST,
             );
             $this->statements->change(
@@ -221,10 +222,12 @@ final class WaitListStore
                 null,
                 $fields['phone'],
                 $fields['email'],
-                $place['address'],
-                $place['city'],
-                $place['state'],
-                $place['postal'],
+                new PersonPlace(
+                    $place['address'],
+                    $place['city'],
+                    $place['state'],
+                    $place['postal'],
+                ),
             );
         });
     }

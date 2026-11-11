@@ -2,14 +2,14 @@
 title: Ticket vs sale journal
 category: Sales and register
 hesk: published 2026-11-11
-as_of: 2026-10-30
+as_of: 2026-11-10
 ---
 
 # Ticket vs sale journal
 
 ## As of
 
-2026-10-30 — Qty or scan past on-hand shows “There aren't that many left” (not “already sold”).
+2026-11-10 — Emailing a receipt keeps the success/failure flash (receipt posts are not register-swapped).
 
 ## In one sentence
 
@@ -25,6 +25,7 @@ Scanning items, changing prices, parking, layaway deposits, and finally paying.
 - Sold price can change until pay. Pay posts the sale and freezes the ticket.
 - Discard removes a ticket only before pay. Close is refused while an open ticket remains.
 - Receipt is that same ticket for later lookup, return, or void.
+- Email receipt (and other receipt posts) use a full page round-trip so the flash “Receipt emailed.” (or the failure line) is not eaten by the register swap.
 
 ## What is refused
 

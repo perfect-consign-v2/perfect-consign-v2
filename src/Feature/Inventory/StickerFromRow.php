@@ -23,11 +23,13 @@ final class StickerFromRow
             RowValue::string($row['description'] ?? null),
             $store,
             RowValue::string($row['vendor_code'] ?? null),
-            is_string($brand) ? $brand : '',
-            is_string($size) ? $size : '',
-            $this->intake(RowValue::string($row['intake_on'] ?? null)),
-            RowValue::string($row['code'] ?? null),
-            is_string($row['deal_name'] ?? null) ? $row['deal_name'] : '',
+            new StickerMeta(
+                is_string($brand) ? $brand : '',
+                is_string($size) ? $size : '',
+                $this->intake(RowValue::string($row['intake_on'] ?? null)),
+                RowValue::string($row['code'] ?? null),
+                is_string($row['deal_name'] ?? null) ? $row['deal_name'] : '',
+            ),
         );
     }
 

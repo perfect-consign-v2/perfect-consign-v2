@@ -274,11 +274,24 @@ body {
 /* ---- Inputs ------------------------------------------------------------ */
 .field { display: flex; flex-direction: column; gap: var(--space-2); }
 .field > label { font-size: var(--text-sm); font-weight: 550; color: var(--text-muted); }
-/* Required fields: red asterisk after the label name (HTML required). */
-.field:has(:is(input, select, textarea)[required]) > label::after,
-label:has(+ :is(input, select, textarea)[required])::after,
-label:has(+ .password-field:has(input[required]))::after {
-  content: '\00a0*';
+/* Required fields: red asterisk after the label name (HTML required).
+   Keep as separate rules — one invalid selector in a comma list drops them all. */
+.field:has(input[required]) > label::after,
+.field:has(select[required]) > label::after,
+.field:has(textarea[required]) > label::after {
+  content: ' *';
+  color: var(--danger);
+  font-weight: 700;
+}
+label:has(+ input[required])::after,
+label:has(+ select[required])::after,
+label:has(+ textarea[required])::after {
+  content: ' *';
+  color: var(--danger);
+  font-weight: 700;
+}
+label:has(+ .password-field input[required])::after {
+  content: ' *';
   color: var(--danger);
   font-weight: 700;
 }

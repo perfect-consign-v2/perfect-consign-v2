@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Party;
 
 use PerfectConsign\Shared\Database\Statements;
-use PerfectConsign\Shared\Scalar\PhoneFormat;
 use PerfectConsign\Shared\Scalar\RowValue;
 
 /** Party-owned phones, emails, and physical/mailing addresses. */
@@ -20,8 +19,13 @@ final class PartyContactBook
     /** @var list<string> */
     public const LABELS = ['primary', 'mobile', 'home', 'work', 'other'];
 
-    public function __construct(private readonly Statements $statements)
-    {
+    private readonly PartyContactNormalizer $normalizer;
+
+    public function __construct(
+        private readonly Statements $statements,
+        ?PartyContactNormalizer $normalizer = null,
+    ) {
+        $this->normalizer = $normalizer ?? new PartyContactNormalizer();
     }
 
     /**
@@ -31,7 +35,7 @@ final class PartyContactBook
      */
     public function replaceContacts(string $partyId, array $contacts): void
     {
-        $normalized = $this->normalizeContacts($contacts);
+        $normalized = $this->normalizer->normalize($contacts);
         $this->statements->change('DELETE FROM party_contacts WHERE party_id = ?::uuid', [$partyId]);
         foreach ($normalized as $row) {
             $this->statements->change(
@@ -147,80 +151,6 @@ final class PartyContactBook
         }
 
         return $list;
-    }
-
-    /**
-     * @param list<array{method: string, label?: string, value: string, is_primary?: bool}> $contacts
-     * @return list<array{method: string, label: string, value: string, is_primary: bool}>
-     */
-    private function normalizeContacts(array $contacts): array
-    {
-        $out = [];
-        $primarySeen = [self::METHOD_PHONE => false, self::METHOD_EMAIL => false];
-        foreach ($contacts as $contact) {
-            $method = $contact['method'];
-            if ($method !== self::METHOD_PHONE && $method !== self::METHOD_EMAIL) {
-                throw new \InvalidArgumentException('contact method is phone or email');
-            }
-            $label = $contact['label'] ?? 'primary';
-            if (!in_array($label, self::LABELS, true)) {
-                throw new \InvalidArgumentException('that contact label is not used');
-            }
-            $value = $this->normalizeValue($method, $contact['value']);
-            if ($value === null) {
-                continue;
-            }
-            $wantsPrimary = ($contact['is_primary'] ?? false) === true;
-            if ($wantsPrimary && $primarySeen[$method]) {
-                throw new \InvalidArgumentException('only one primary ' . $method . ' is allowed');
-            }
-            if ($wantsPrimary) {
-                $primarySeen[$method] = true;
-            }
-            $out[] = [
-                'method' => $method,
-                'label' => $label,
-                'value' => $value,
-                'is_primary' => $wantsPrimary,
-            ];
-        }
-        foreach ([self::METHOD_PHONE, self::METHOD_EMAIL] as $method) {
-            if ($primarySeen[$method]) {
-                continue;
-            }
-            foreach ($out as $index => $row) {
-                if ($row['method'] === $method) {
-                    $out[$index]['is_primary'] = true;
-                    break;
-                }
-            }
-        }
-
-        return $out;
-    }
-
-    private function normalizeValue(string $method, string $value): ?string
-    {
-        $trimmed = trim($value);
-        if ($trimmed === '') {
-            return null;
-        }
-        if ($method === self::METHOD_PHONE) {
-            $stored = PhoneFormat::normalize($trimmed);
-            if ($stored === null || $stored === '') {
-                throw new \InvalidArgumentException('that phone number is not valid');
-            }
-            if (strlen($stored) > 40) {
-                throw new \InvalidArgumentException('that phone number is too long');
-            }
-
-            return $stored;
-        }
-        if (strlen($trimmed) > 200 || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $trimmed) !== 1) {
-            throw new \InvalidArgumentException('that email is not valid');
-        }
-
-        return $trimmed;
     }
 
     /**

@@ -24,7 +24,20 @@
         } catch (error) {
             return false;
         }
-        return action.origin === window.location.origin && (action.pathname === sale || action.pathname.startsWith(sale + '/'));
+        if (action.origin !== window.location.origin) {
+            return false;
+        }
+        if (action.pathname !== sale && !action.pathname.startsWith(sale + '/')) {
+            return false;
+        }
+        // Receipt email/void/return/booth must full-page. Fetch follows the redirect,
+        // takeFlash runs once in that response, then location.assign loads again with
+        // an empty flash — cashiers never see "Receipt emailed."
+        if (action.pathname.startsWith(sale + '/receipt/')) {
+            return false;
+        }
+
+        return true;
     }
 
     function postUrl(form, submitter) {

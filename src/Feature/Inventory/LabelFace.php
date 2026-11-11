@@ -71,7 +71,7 @@ final class LabelFace
         $price = $stock->isJewelry() ? 120000 : ($large ? 280000 : 160000);
         $lines = $this->kept($this->line('price', $item->price, $price, $stock), []);
         $deal = $stock->isJewelry() ? 80000 : ($large ? 140000 : 100000);
-        $lines = $this->kept($this->line('deal', $item->deal, $deal, $stock), $lines);
+        $lines = $this->kept($this->line('deal', $item->deal(), $deal, $stock), $lines);
         if ($stock->isJewelry()) {
             return $lines;
         }
@@ -86,9 +86,9 @@ final class LabelFace
     private function details(LabelStock $stock, StickerItem $item, array $lines, int $description, int $meta): array
     {
         $lines = $this->kept($this->line('description', $item->description, $description, $stock), $lines);
-        $lines = $this->kept($this->line('brand', $item->brand, $meta, $stock), $lines);
-        $lines = $this->kept($this->line('size', $this->prefixed('Size ', $item->size), $meta, $stock), $lines);
-        $lines = $this->kept($this->line('date', $item->intake, $meta, $stock), $lines);
+        $lines = $this->kept($this->line('brand', $item->brand(), $meta, $stock), $lines);
+        $lines = $this->kept($this->line('size', $this->prefixed('Size ', $item->size()), $meta, $stock), $lines);
+        $lines = $this->kept($this->line('date', $item->intake(), $meta, $stock), $lines);
         $lines = $this->kept($this->line(
             'consignor',
             $this->prefixed($this->mall->getPartyLabel('Vendor: ', 'Consignor: '), $item->consignor),
@@ -100,7 +100,7 @@ final class LabelFace
             return $lines;
         }
 
-        return $this->kept($this->line('tag', $this->prefixed('Tag ', $item->tag), $meta, $stock), $lines);
+        return $this->kept($this->line('tag', $this->prefixed('Tag ', $item->tag()), $meta, $stock), $lines);
     }
 
     /**

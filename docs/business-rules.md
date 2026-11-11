@@ -120,7 +120,7 @@ A discount lowers the sold price. Store take is the item's percent of that final
 
 A buyer on the ticket is a vendor. From their sales draws that vendor, still capped at the payable that existed before this sale.
 
-Pay leaves the finished sale on the register: the lines, the tenders, the total, and the change. Scan, Instant Add, and the pad do nothing until New sale. The receipt is that same ticket for a later lookup, a return, or a void.
+Pay leaves the finished sale on the register: the lines, the tenders, the total, and the change. Scan, Instant Add, and the pad do nothing until New sale. The receipt is that same ticket for a later lookup, a return, or a void. Emailing that receipt posts in the browser as a normal form (not the register fetch swap) so the success or failure flash stays on the receipt.
 
 A layaway is a short payment on the sale tender screen. Cash, card, or a check under the amount due, with a customer on the ticket, debits that tender and credits layaway deposits. The items stay on the ticket and stay unsold. Each deposit and each refund is listed on the layaway receipt, and that receipt prints when the payment is taken. Gift certificates, store credit, and a draw on sales cannot hold a ticket. The sale journal, vendor payable, tax, and store take post only when the deposits and any later tenders cover the amount due. A deposit above the amount due is a sale. Cancel refunds the deposits, prints that refund, and frees the ticket.
 

@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Pos;
 
 use PerfectConsign\Feature\Party\PartyIdentity;
 use PerfectConsign\Feature\Party\PartyRoleType;
+use PerfectConsign\Feature\Party\PersonPlace;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\PhoneFormat;
@@ -58,7 +59,7 @@ final class CustomerStore
                 $name === trim($first . ' ' . $last) ? null : $name,
                 $phone === '' ? null : $phone,
                 $email === '' ? null : $email,
-                null,
+                PersonPlace::empty(),
                 PartyRoleType::CUSTOMER,
             );
             $partyId = $created['party_id'];
@@ -101,10 +102,12 @@ final class CustomerStore
             $name === trim($first . ' ' . $last) ? null : $name,
             $phone === '' ? null : $phone,
             $email === '' ? null : $email,
-            $place['address'],
-            $place['city'],
-            $place['state'],
-            $place['postal'],
+            new PersonPlace(
+                $place['address'],
+                $place['city'],
+                $place['state'],
+                $place['postal'],
+            ),
         );
     }
 
