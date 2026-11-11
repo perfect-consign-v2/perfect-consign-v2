@@ -37,6 +37,10 @@ if [[ "$tip" != "$sha" ]]; then
 fi
 
 git reset --hard "$sha"
+# Drop untracked leftovers (old sql/0xx_*.sql files survive reset --hard and
+# would otherwise be mistaken for pending tenant migrations). Ignored paths
+# such as .env and var/ stay; -x is not used.
+git clean -fd
 
 # Bash keeps the pre-reset inode open. Without re-exec, later steps (including
 # the health check) still run from the script that started this process — so a

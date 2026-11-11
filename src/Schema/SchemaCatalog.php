@@ -36,6 +36,33 @@ final class SchemaCatalog
         '086_owner_duplicate_username.sql',
     ];
 
+    /**
+     * Post-baseline mall files only. Do not glob: leftover deleted migrations
+     * (e.g. 034_piece_return.sql) on a deploy host must not be applied.
+     *
+     * @var list<string>
+     */
+    public const TENANT = [
+        '001_tenant.sql',
+        '064_staff_manager_role.sql',
+        '067_staff_can_sign_in.sql',
+        '069_snap_authorize.sql',
+        '072_snap_discounts.sql',
+        '074_vendor_entry_grants.sql',
+        '077_second_signature_toggle.sql',
+        '078_vendor_entry_revoke.sql',
+        '079_override_client_address.sql',
+        '080_party_model.sql',
+        '081_seed_vendor_party_id.sql',
+        '082_wait_list_open_email_assert.sql',
+        '083_wait_list_email_var.sql',
+        '084_payout_pack_grants.sql',
+        '085_english_unique_refusals.sql',
+        '087_person_place.sql',
+        '088_party_contact.sql',
+        '089_wait_list_party_contact.sql',
+    ];
+
     public function __construct(private readonly string $directory)
     {
     }
@@ -45,22 +72,7 @@ final class SchemaCatalog
      */
     public function tenantFiles(): array
     {
-        $paths = glob($this->directory . DIRECTORY_SEPARATOR . '0*.sql');
-        if ($paths === false) {
-            throw new RuntimeException('could not list schema files');
-        }
-        $files = [];
-        $platform = array_merge(self::PLATFORM, self::PLATFORM_AFTER);
-        foreach ($paths as $path) {
-            $name = basename($path);
-            if (in_array($name, $platform, true)) {
-                continue;
-            }
-            $files[] = $name;
-        }
-        sort($files);
-
-        return $files;
+        return self::TENANT;
     }
 
     /**

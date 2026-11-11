@@ -113,12 +113,17 @@ final class DeployDemoScriptTest extends TestCase
         $script = file_get_contents($path);
         self::assertIsString($script);
         $resetAt = strpos($script, 'git reset --hard "$sha"');
+        $cleanAt = strpos($script, 'git clean -fd');
         $reexecAt = strpos($script, 'exec bash "${root}/bin/deploy-demo.sh"');
         self::assertNotFalse($resetAt);
+        self::assertNotFalse($cleanAt);
         self::assertNotFalse($reexecAt);
-        self::assertGreaterThan($resetAt, $reexecAt);
+        self::assertGreaterThan($resetAt, $cleanAt);
+        self::assertGreaterThan($cleanAt, $reexecAt);
         self::assertStringContainsString('DEPLOY_REEXEC', $script);
         self::assertStringContainsString('pre-reset inode', $script);
+        self::assertStringContainsString('untracked leftovers', $script);
+        self::assertStringNotContainsString('git clean -fdx', $script);
     }
 
     public function testDeployAppliesPlatformAfterBeforeTenantMigrate(): void

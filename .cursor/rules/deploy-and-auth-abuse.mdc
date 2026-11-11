@@ -11,9 +11,9 @@ Edits that touch deploy scripts, route registration / feature manifests, email o
 
 - `APP_ENV=production` loads `var/cache/feature-controllers.php`. A reset checkout that skips rebuild can omit new controllers or keep removed ones.
 - `bin/deploy-demo.sh` (and any automated production deploy path) must run `composer build:routes` after `composer install` / `git reset`. README alone is not a fix.
-- After `git reset --hard`, the deploy script must `exec` itself (`DEPLOY_REEXEC`) so later steps run from the tip’s file. Bash keeps the pre-reset inode open; a tip that only changes the health check otherwise still fails with the old probe.
-- Permanent check: `tests/Feature/Deploy/DeployDemoScriptTest` (rebuild, re-exec after reset, email-root probe) and `RegisterFeaturesTest` (production reads a built manifest; scan rebuild restores a full list).
-- Platform-only SQL files belong in `SchemaCatalog::PLATFORM` (or `PLATFORM_AFTER`). A numbered `sql/0xx_*.sql` that mutates `platform.*` and is left off that list will be applied as a tenant migration and can double-create objects.
+- After `git reset --hard`, the deploy script must `git clean -fd` (not `-fdx`) so untracked leftover `sql/0xx_*.sql` files cannot be mistaken for pending migrations, then `exec` itself (`DEPLOY_REEXEC`) so later steps run from the tip’s file. Bash keeps the pre-reset inode open; a tip that only changes the health check otherwise still fails with the old probe.
+- Permanent check: `tests/Feature/Deploy/DeployDemoScriptTest` (rebuild, re-exec after reset, clean after reset, email-root probe) and `RegisterFeaturesTest` (production reads a built manifest; scan rebuild restores a full list).
+- Platform-only SQL files belong in `SchemaCatalog::PLATFORM` (or `PLATFORM_AFTER`). Tenant forward files belong in `SchemaCatalog::TENANT` (allowlist, not a directory glob). A numbered `sql/0xx_*.sql` left off the right list — or a deleted migration left untracked on the host — must not be applied as a tenant migration.
 
 ## Auth / lockout abuse
 

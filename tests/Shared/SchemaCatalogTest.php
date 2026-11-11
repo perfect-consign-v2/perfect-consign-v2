@@ -16,6 +16,8 @@ final class SchemaCatalogTest extends TestCase
         $catalog = new SchemaCatalog(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'sql');
         $tenant = $catalog->tenantFiles();
         $platform = $catalog->platformFiles();
+        self::assertSame(SchemaCatalog::TENANT, $tenant);
+        self::assertNotContains('034_piece_return.sql', $tenant);
         self::assertSame(
             [
                 '001_tenant.sql',
