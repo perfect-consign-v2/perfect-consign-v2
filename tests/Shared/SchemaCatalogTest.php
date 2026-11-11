@@ -31,15 +31,11 @@ final class SchemaCatalogTest extends TestCase
                 '079_override_client_address.sql',
                 '080_party_model.sql',
                 '081_seed_vendor_party_id.sql',
-                '082_wait_list_open_email_assert.sql',
-                '083_wait_list_email_var.sql',
                 '084_payout_pack_grants.sql',
                 '085_english_unique_refusals.sql',
                 '087_person_place.sql',
                 '088_party_contact.sql',
-                '089_wait_list_party_contact.sql',
-                '090_wait_list_contact_assert.sql',
-                '091_wait_list_contact_assert_before_insert.sql',
+                '089_wait_list_contact_assert.sql',
             ],
             $tenant
         );
