@@ -194,6 +194,34 @@ final class WaitListStore
             $notes,
         );
         $this->statements->transaction(function () use ($id, $fields): void {
+            $onList = $this->statements->bound(
+                'SELECT 1 FROM wait_list WHERE party_id = ?::uuid',
+                [$id]
+            );
+            if ($onList === []) {
+                throw new \InvalidArgumentException('That person is not on the wait list.');
+            }
+            $place = $this->identity->place($id) ?? [
+                'address' => null,
+                'city' => null,
+                'state' => null,
+                'postal' => null,
+            ];
+            // Contacts before wait_list so the wait_list trigger sees the new primary email/phone.
+            $this->identity->savePerson(
+                $id,
+                $fields['first'],
+                $fields['last'],
+                null,
+                $fields['phone'],
+                $fields['email'],
+                new PersonPlace(
+                    $place['address'],
+                    $place['city'],
+                    $place['state'],
+                    $place['postal'],
+                ),
+            );
             $count = $this->statements->affected(
                 'UPDATE wait_list
                  SET width_ft = ?, depth_ft = ?, status = ?, notes = ?
@@ -209,26 +237,6 @@ final class WaitListStore
             if ($count === 0) {
                 throw new \InvalidArgumentException('That person is not on the wait list.');
             }
-            $place = $this->identity->place($id) ?? [
-                'address' => null,
-                'city' => null,
-                'state' => null,
-                'postal' => null,
-            ];
-            $this->identity->savePerson(
-                $id,
-                $fields['first'],
-                $fields['last'],
-                null,
-                $fields['phone'],
-                $fields['email'],
-                new PersonPlace(
-                    $place['address'],
-                    $place['city'],
-                    $place['state'],
-                    $place['postal'],
-                ),
-            );
         });
     }
 

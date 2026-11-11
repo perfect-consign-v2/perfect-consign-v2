@@ -69,12 +69,22 @@ if [[ ! -x "$php_bin" ]]; then
     exit 1
 fi
 # Host-only binary. Reinstall when missing (e.g. after a mistaken whole-tree clean).
+# Verify the installer sha384 against Composer's published signature before executing.
 if [[ ! -f "$composer" ]]; then
     echo "deploy-demo: installing composer.phar"
     setup="${root}/composer-setup.php"
+    expected="${root}/composer-setup.sig"
     "$php_bin" -r "copy('https://getcomposer.org/installer', '${setup}');"
+    "$php_bin" -r "copy('https://composer.github.io/installer.sig', '${expected}');"
+    actual="$("$php_bin" -r "echo hash_file('sha384', '${setup}');")"
+    want="$(tr -d '[:space:]' < "$expected")"
+    if [[ "$actual" != "$want" ]]; then
+        rm -f "$setup" "$expected"
+        echo "deploy-demo: composer installer sha384 mismatch (refusing to run)" >&2
+        exit 1
+    fi
     "$php_bin" "$setup" --install-dir="$root" --filename=composer.phar
-    rm -f "$setup"
+    rm -f "$setup" "$expected"
 fi
 if [[ ! -f "$composer" ]]; then
     echo "deploy-demo: ${composer} is missing" >&2

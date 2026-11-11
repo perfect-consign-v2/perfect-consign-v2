@@ -4,9 +4,11 @@ Operators and deployers: start with [hesk-kb/E12-public-origin-and-tls.md](hesk-
 
 ## Entry
 
-Apache (or equivalent) **DocumentRoot must be `public/`**. The repo-root `.htaccess` denies `.env`, `sql/`, `src/`, `vendor/`, and similar paths if a misconfigured vhost still points at the repository root. Prefer fixing DocumentRoot over relying on that deny list.
+Apache (or equivalent) **DocumentRoot must be `public/`**. The repo-root `.htaccess` denies `.env`, `.github/`, `sql/`, `src/`, `vendor/`, `composer.phar` / `*.phar`, and similar paths if a misconfigured vhost still points at the repository root. Prefer fixing DocumentRoot over relying on that deny list.
 
-`public/.htaccess` forces HTTPS and strips `www` unless `X-Forwarded-Proto: https` is already set (TLS terminated at a reverse proxy). Only allowlisted peers may send that header (`STALL_TRUSTED_PROXIES` / `mod_remoteip`); otherwise Apache would trust a client-spoofed value.
+`public/.htaccess` forces HTTPS and strips `www` unless `X-Forwarded-Proto: https` is already set (TLS terminated at a reverse proxy). Only allowlisted peers may send that header (`STALL_TRUSTED_PROXIES` / `mod_remoteip`); otherwise Apache would trust a client-spoofed value. The TLS terminator must set `X-Forwarded-Proto: https` for backend HTTP, or the redirect loops.
+
+`bin/deploy-demo.sh` reinstalls a missing host `composer.phar` only after verifying the getcomposer.org installer **sha384** against `https://composer.github.io/installer.sig`; a mismatch refuses the install.
 
 `STALL_BACKUP_DIR` must sit outside the Postgres volume **and** outside the web tree (`public/` and the repo). Nightly tenant dirs are created mode `0700`.
 

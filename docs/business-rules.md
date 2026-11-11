@@ -86,7 +86,7 @@ First name, last name, primary email, and primary phone are required. An email h
 
 Preferred booth size is a width and a depth in whole feet, or both empty. One side without the other is refused. A size of zero is refused.
 
-Status is Waiting, Contacted, Placed, or Declined. A new row starts at Waiting. The open list is Waiting and Contacted, oldest first. The same email cannot be Waiting or Contacted twice. After the row is Placed or Declined, that email can be added again.
+Status is Waiting, Contacted, Placed, or Declined. A new row starts at Waiting. The open list is Waiting and Contacted, oldest first. The same email cannot be Waiting or Contacted twice. After the row is Placed or Declined, that email can be added again. Those phone, email, and duplicate-email rules also apply when the party's primary contacts change, not only when the wait-list row is saved.
 
 A row can be edited or deleted. Deleting it does not change a vendor or a booth.
 

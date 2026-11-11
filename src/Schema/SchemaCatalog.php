@@ -61,6 +61,8 @@ final class SchemaCatalog
         '087_person_place.sql',
         '088_party_contact.sql',
         '089_wait_list_party_contact.sql',
+        '090_wait_list_contact_assert.sql',
+        '091_wait_list_contact_assert_before_insert.sql',
     ];
 
     public function __construct(private readonly string $directory)

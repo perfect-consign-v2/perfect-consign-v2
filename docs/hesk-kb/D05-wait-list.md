@@ -2,14 +2,14 @@
 title: Wait list (not a vendor, not a journal)
 category: Floor and ops
 hesk: published 2026-11-11
-as_of: 2026-11-10
+as_of: 2026-11-11
 ---
 
 # Wait list (not a vendor, not a journal)
 
 ## As of
 
-2026-11-10 — The row is keyed by the person's party. Name lives on the person; primary email and phone live on the party.
+2026-11-11 — The row is keyed by the person's party. Name lives on the person; primary email and phone live on the party. Open-list phone/email rules also refuse bad contact edits, not only wait-list row saves.
 
 ## In one sentence
 
@@ -27,12 +27,14 @@ No open booths; capturing interest; later placing or declining someone.
 - Preferred size: width and depth in whole feet, or both empty.
 - Status: Waiting, Contacted, Placed, Declined. New rows start Waiting. Open list = Waiting + Contacted, oldest first.
 - Same primary email cannot be Waiting or Contacted twice. After Placed or Declined, that email can be added again.
+- Changing the party's primary phone or email while the row is Waiting or Contacted is held to the same required-contact and duplicate-email rules.
 - Edit/delete allowed; delete does not change a vendor or booth.
 
 ## What is refused
 
 - One side of preferred size without the other; size zero.
-- Duplicate open primary email (Waiting/Contacted).
+- Duplicate open primary email (Waiting/Contacted), including when only party contacts change.
+- Clearing primary phone or email on an open wait-list party.
 
 ## How to check
 

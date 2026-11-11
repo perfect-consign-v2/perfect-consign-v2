@@ -205,6 +205,60 @@ BEGIN
     WHERE party_id = '01900000-0000-7000-8000-000000000e02'
       AND method = 'email'
       AND is_primary;
+    SET CONSTRAINTS party_contacts_wait_list_assert IMMEDIATE;
+    RAISE EXCEPTION 'a contact-only open email collision was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23505' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE party_contacts
+    SET value = ''
+    WHERE party_id = '01900000-0000-7000-8000-000000000e02'
+      AND method = 'email'
+      AND is_primary;
+    SET CONSTRAINTS party_contacts_wait_list_assert IMMEDIATE;
+    RAISE EXCEPTION 'clearing an open wait-list email via contacts was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE party_contacts
+    SET value = ''
+    WHERE party_id = '01900000-0000-7000-8000-000000000e02'
+      AND method = 'phone'
+      AND is_primary;
+    SET CONSTRAINTS party_contacts_wait_list_assert IMMEDIATE;
+    RAISE EXCEPTION 'clearing an open wait-list phone via contacts was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    DELETE FROM party_contacts
+    WHERE party_id = '01900000-0000-7000-8000-000000000e02';
+    INSERT INTO party_contacts (party_id, method, label, value, is_primary)
+    VALUES
+        ('01900000-0000-7000-8000-000000000e02', 'phone', 'primary', '555-0101', true),
+        ('01900000-0000-7000-8000-000000000e02', 'email', 'primary', 'bea-renamed@example.com', true);
+    SET CONSTRAINTS party_contacts_wait_list_assert IMMEDIATE;
+    SET CONSTRAINTS party_contacts_wait_list_assert DEFERRED;
+END $$;
+
+DO $$
+BEGIN
+    UPDATE party_contacts
+    SET value = 'ada@example.com'
+    WHERE party_id = '01900000-0000-7000-8000-000000000e02'
+      AND method = 'email'
+      AND is_primary;
     UPDATE wait_list
     SET status = status
     WHERE party_id = '01900000-0000-7000-8000-000000000e02';
@@ -347,6 +401,10 @@ EXCEPTION
         NULL;
 END $$;
 
+-- Flush deferred wait-list contact asserts so TRUNCATE is not blocked by pending events.
+SET CONSTRAINTS party_contacts_wait_list_assert IMMEDIATE;
+SET CONSTRAINTS party_contacts_wait_list_assert DEFERRED;
+
 DO $$
 BEGIN
     TRUNCATE party_contacts;
@@ -367,6 +425,54 @@ EXCEPTION
         IF SQLERRM NOT LIKE '%append-only triggers cannot be dropped%' THEN
             RAISE;
         END IF;
+END $$;
+
+DO $$
+BEGIN
+    ALTER TABLE party_contacts DISABLE TRIGGER party_contacts_wait_list_assert;
+    RAISE EXCEPTION 'disabling the wait-list contact assert was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be disabled%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    ALTER TABLE party_contacts ENABLE REPLICA TRIGGER party_contacts_wait_list_assert;
+    RAISE EXCEPTION 'replica-only wait-list contact assert was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be disabled%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    DROP TRIGGER party_contacts_wait_list_assert ON party_contacts;
+    RAISE EXCEPTION 'dropping the wait-list contact assert was accepted';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be dropped%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    SET LOCAL session_replication_role = replica;
+    UPDATE party_contacts
+    SET value = ''
+    WHERE party_id = '01900000-0000-7000-8000-000000000e02'
+      AND method = 'email'
+      AND is_primary;
+    SET CONSTRAINTS party_contacts_wait_list_assert IMMEDIATE;
+    RAISE EXCEPTION 'replica clear of an open wait-list email was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
 END $$;
 
 DO $$

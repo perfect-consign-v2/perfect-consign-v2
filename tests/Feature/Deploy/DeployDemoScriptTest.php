@@ -125,6 +125,9 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringContainsString('Only scrub untracked SQL', $script);
         self::assertStringContainsString('composer.phar', $script);
         self::assertStringContainsString('getcomposer.org/installer', $script);
+        self::assertStringContainsString('composer.github.io/installer.sig', $script);
+        self::assertStringContainsString('hash_file(\'sha384\'', $script);
+        self::assertStringContainsString('composer installer sha384 mismatch', $script);
         self::assertStringContainsString('installing composer.phar', $script);
         self::assertStringNotContainsString('git clean -fdx', $script);
         self::assertDoesNotMatchRegularExpression('/^git clean -fd$/m', $script);

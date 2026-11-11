@@ -2,11 +2,11 @@ RewriteEngine On
 
 # Prefer DocumentRoot = public/. These rules fail closed if the vhost still points at the repo root.
 <IfModule mod_authz_core.c>
-    <FilesMatch "(?i)^(\.env|\.env\..*|composer\.(json|lock)|phpunit\.xml(\.dist)?|phpstan\.neon|phpmd\.xml)$">
+    <FilesMatch "(?i)^(\.env|\.env\..*|composer\.(json|lock)|composer\.phar|.*\.phar|phpunit\.xml(\.dist)?|phpstan\.neon|phpmd\.xml)$">
         Require all denied
     </FilesMatch>
 </IfModule>
-RedirectMatch 403 (?i)^/(?:\.git|\.env|sql|src|vendor|bin|tests|var|docs|ninja|config)(?:/|$)
+RedirectMatch 403 (?i)^/(?:\.git|\.env|\.github|sql|src|vendor|bin|tests|var|docs|ninja|config)(?:/|$)
 
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
