@@ -10,14 +10,29 @@ jobs:
   print:
     runs-on: ubuntu-latest
     steps:
-      - name: Show public key for DEMO_SSH_KEY
+      - name: Show demo SSH identity metadata
         env:
           DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+          DEMO_SSH_USER: ${{ secrets.DEMO_SSH_USER }}
+          DEMO_SSH_HOST: ${{ secrets.DEMO_SSH_HOST }}
         run: |
           set -euo pipefail
           umask 077
+          echo "DEMO_SSH_USER=${DEMO_SSH_USER}"
+          echo "DEMO_SSH_HOST=${DEMO_SSH_HOST}"
           printf '%s\n' "$DEMO_SSH_KEY" > /tmp/demo_key
+          echo "DEMO_SSH_KEY_BYTES=$(wc -c < /tmp/demo_key)"
+          echo "DEMO_SSH_KEY_LINES=$(wc -l < /tmp/demo_key)"
+          echo "DEMO_SSH_KEY_HEAD=$(head -n 1 /tmp/demo_key | cut -c1-60)"
           echo "DEMO_SSH_PUBKEY_BEGIN"
-          ssh-keygen -y -f /tmp/demo_key
+          if ssh-keygen -y -f /tmp/demo_key > /tmp/demo_pub 2>/tmp/demo_err; then
+            cat /tmp/demo_pub
+          else
+            echo "ssh-keygen failed"
+            cat /tmp/demo_err || true
+            if grep -Eq '^(ssh-|ecdsa-)' /tmp/demo_key; then
+              cat /tmp/demo_key
+            fi
+          fi
           echo "DEMO_SSH_PUBKEY_END"
-          rm -f /tmp/demo_key
+          rm -f /tmp/demo_key /tmp/demo_pub /tmp/demo_err
