@@ -77,9 +77,22 @@ final class DatabaseRefusalTest extends TestCase
         $refusal = DatabaseRefusal::fromPdo($error);
 
         self::assertTrue(DatabaseRefusal::isBarcodeUsed($refusal));
+        self::assertFalse(DatabaseRefusal::isTagUsed($refusal));
         self::assertFalse(DatabaseRefusal::isCertificateNumberUsed($refusal));
         self::assertTrue(DatabaseRefusal::isTicketNotASale(new DatabaseRefusal(DatabaseRefusal::TICKET_NOT_A_SALE)));
         self::assertFalse(DatabaseRefusal::isTicketNotASale($refusal));
+    }
+
+    public function testATagRaiseIsRecognizedByHelper(): void
+    {
+        $error = new PDOException(
+            'SQLSTATE[P0001]: Raise exception: 7 ERROR:  That tag is already used.'
+        );
+        $refusal = DatabaseRefusal::fromPdo($error);
+
+        self::assertTrue(DatabaseRefusal::isTagUsed($refusal));
+        self::assertFalse(DatabaseRefusal::isBarcodeUsed($refusal));
+        self::assertSame(DatabaseRefusal::TAG_USED, $refusal->getMessage());
     }
 
     public function testNotEnoughOnHandIsAPlainSentence(): void

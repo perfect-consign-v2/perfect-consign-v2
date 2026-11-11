@@ -236,7 +236,7 @@ class PartyStore
             );
             $this->contacts->replaceContacts($partyId, $vendor->contacts());
             $this->contacts->replaceAddresses($partyId, $vendor->physicalAddress(), $vendor->mailingAddress());
-            $priorEmail = RowValue::string($current['email'] ?? null);
+            $priorEmail = RowValue::optionalString($current['email'] ?? null) ?? '';
             $nextEmail = $person['email'] ?? '';
             $count = $this->statements->affected(
                 "UPDATE vendors

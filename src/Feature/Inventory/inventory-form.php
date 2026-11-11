@@ -79,7 +79,8 @@ if ($printId !== '') {
                 <div class="vendor-pair">
                     <div class="field">
                         <label for="code">Tag</label>
-                        <input class="input" id="code" name="code" value="<?= View::text($item['code']) ?>" required>
+                        <input class="input" id="code" name="code" value="<?= View::text($item['code']) ?>" maxlength="40">
+                        <p class="muted text-sm">Leave blank and a tag is generated.</p>
                     </div>
                     <div class="field">
                         <label for="barcode">Barcode</label>

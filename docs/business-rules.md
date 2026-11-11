@@ -4,6 +4,8 @@ Rules this mall (**PC2** / `perfect-consign`) enforces. Live Perfect Consign is 
 
 Add a rule here when it is decided. A rule stays in this list after the code that enforces it changes.
 
+On every form, a required field shows a red asterisk after its label.
+
 ## Vendors
 
 A party is one person or one organization, not both. Roles hang off that party: vendor, customer, or wait list. The money key stays the vendor id. The vendor row is the vendor role's books (store take, tax, standing, and booths) and it points at the party. The person or organization row holds names only. Phone, email, and addresses live on the party as child rows.
@@ -58,7 +60,7 @@ Vendor receivable (clawback) is what that vendor owes the mall after a return or
 
 An item is one item. It has a tag, a barcode, a vendor, a description, an asking price, a quantity, and an intake date. The brand may be empty. The expire date may be empty. Quantity is how many are on hand. A new item defaults to 1. An edit may be 0, and then it cannot be sold.
 
-The tag is unique in the mall, ignoring case. A tag is at most 40 characters. The barcode is unique, ignoring case, and at most 100 characters. A blank barcode is filled with BC, the mall date, and a four-digit sequence. A description is at most 200 characters. The asking price is greater than zero.
+The tag is unique in the mall, ignoring case. A tag is at most 40 characters. A blank tag is filled with TG, the mall date, and a four-digit sequence. The barcode is unique, ignoring case, and at most 100 characters. A blank barcode is filled with BC, the mall date, and a four-digit sequence. A description is at most 200 characters. The asking price is greater than zero.
 
 Stickers print that barcode. The mall remembers which stickers it uses: Avery 8160 (30-up), Avery 94073 (50-up), a hang tag, two hang tags across, or a jewelry tag. A print can pick another; the sheet picker names the Avery number. Sheet tags show brand, size, and intake date when they fit. A new sheet starts at row 1, column 1. A job stops at 240 stickers. The first sticker preview for an item marks it printed. The items list shows All, Available (quantity on hand), Sold (quantity zero with a posted sale line), Need stickers (never printed), and Qty 0 — each with a count. Each row also shows a Status of On floor, Sold, or Out. Clear drops the search and stock filter. The selected filter is visible, and the page lead names what you are looking at. On Items, check the rows to print; the sheet, how many, and where the sheet starts live on the selection bar with Print stickers. After save or on edit, Print stickers stays on the item form.
 

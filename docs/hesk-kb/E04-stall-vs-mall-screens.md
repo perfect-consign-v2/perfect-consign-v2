@@ -1,15 +1,15 @@
 ---
 title: What Stall / perfect-consign is today vs full mall screens
 category: Platform notes
-hesk: published 2026-11-10
-as_of: 2026-10-28
+hesk: published 2026-11-11
+as_of: 2026-11-11
 ---
 
 # What Stall / perfect-consign is today vs full mall screens
 
 ## As of
 
-2026-10-28 — self-serve signup and email-only root sign-in are live; military tax and promo codes remain not shipping.
+2026-11-11 — Required fields show a red asterisk after the label on every form.
 
 ## In one sentence
 
@@ -27,6 +27,7 @@ Reading `docs/PLAN.md`, working in `C:\laragon\www\perfect-consign`, or comparin
 - Customers see Perfect Consign (or the mall brand), never “Stall.”
 - Isolation: do not share ports/volumes/DBs with emp, double-entry, or other malls accidentally.
 - **Live platform screens:** email-only sign-in at `/`, public `/signup` (admin-gated), Admin → Mail worker / App log / Signup / Create store.
+- Required fields show a red asterisk after the label.
 - **Not shipping yet** (do not operate from those Hesk seeds as live): military tax customer path, promo codes.
 
 ## What is refused

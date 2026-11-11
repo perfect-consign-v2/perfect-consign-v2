@@ -87,6 +87,54 @@ final class PartyCoverageTest extends TestCase
         self::assertSame('unassigned', $place->status([], '2026-10-15'));
     }
 
+    public function testSaveVendorAllowsANullPrimaryEmail(): void
+    {
+        $partyId = '00000000-0000-7000-8000-0000000000aa';
+        $vendorId = '00000000-0000-7000-8000-0000000000bb';
+        $vendorUpdate = null;
+        $statements = $this->createStub(Statements::class);
+        $statements->method('transaction')->willReturnCallback(static function (callable $work): mixed {
+            return $work();
+        });
+        $statements->method('bound')->willReturnCallback(static function (string $sql) use ($partyId, $vendorId): array {
+            if (str_contains($sql, 'FROM vendors AS vendor')) {
+                return [[
+                    'id' => $vendorId,
+                    'party_id' => $partyId,
+                    'code' => 'ada',
+                    'email' => null,
+                ]];
+            }
+
+            return [];
+        });
+        $statements->method('affected')->willReturnCallback(
+            static function (string $sql, array $params) use (&$vendorUpdate): int {
+                if (str_contains($sql, 'UPDATE vendors')) {
+                    $vendorUpdate = $params;
+                }
+
+                return 1;
+            }
+        );
+        $statements->method('change');
+        $store = new PartyStore(
+            $statements,
+            QuietAudit::make($statements),
+            new \PerfectConsign\Feature\Party\AssignmentBook($statements),
+            new PartyIdentity($statements),
+        );
+        $store->saveVendor($vendorId, new VendorDraft($this->fields([
+            'expiry_action' => 'donate',
+            'email' => '',
+        ]), null));
+        self::assertIsArray($vendorUpdate);
+        self::assertContains('donate', $vendorUpdate);
+        self::assertSame('', $vendorUpdate[count($vendorUpdate) - 3]);
+        self::assertSame('', $vendorUpdate[count($vendorUpdate) - 2]);
+        self::assertSame($vendorId, $vendorUpdate[count($vendorUpdate) - 1]);
+    }
+
     public function testThePartyStoreRefusesAMissingRow(): void
     {
         $statements = $this->createStub(Statements::class);

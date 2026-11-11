@@ -57,8 +57,8 @@ final class ItemWriter
         $expires = $placement === 'consigned' ? $this->expires($draft['expires_on'], $intake) : null;
 
         return new ItemEntry(
-            $draft['code'],
-            $draft['barcode'],
+            $this->tag($draft['code']),
+            $this->barcode($draft['barcode']),
             $vendorId,
             $this->brandOf($draft['brand_id'], $draft['brand_label']),
             $this->attributesOf($draft['attributes']),
@@ -71,6 +71,26 @@ final class ItemWriter
             new ItemDates($intake, $expires),
             $placement,
         );
+    }
+
+    private function tag(string $value): string
+    {
+        $text = trim($value);
+        if (strlen($text) > 40) {
+            throw new \InvalidArgumentException('That tag is too long.');
+        }
+
+        return $text;
+    }
+
+    private function barcode(string $value): string
+    {
+        $text = trim($value);
+        if (strlen($text) > 100) {
+            throw new \InvalidArgumentException('That barcode is too long.');
+        }
+
+        return $text;
     }
 
     private function quantity(string $value, bool $creating): int

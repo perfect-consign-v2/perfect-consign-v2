@@ -274,6 +274,14 @@ body {
 /* ---- Inputs ------------------------------------------------------------ */
 .field { display: flex; flex-direction: column; gap: var(--space-2); }
 .field > label { font-size: var(--text-sm); font-weight: 550; color: var(--text-muted); }
+/* Required fields: red asterisk after the label name (HTML required). */
+.field:has(:is(input, select, textarea)[required]) > label::after,
+label:has(+ :is(input, select, textarea)[required])::after,
+label:has(+ .password-field:has(input[required]))::after {
+  content: '\00a0*';
+  color: var(--danger);
+  font-weight: 700;
+}
 .input, .select, .textarea {
   width: 100%;
   height: 38px;

@@ -1,15 +1,15 @@
 ---
 title: Tag / barcode / asking price vs posted sale amount
 category: Inventory
-hesk: published 2026-11-10
-as_of: 2026-11-10
+hesk: published 2026-11-11
+as_of: 2026-11-11
 ---
 
 # Tag / barcode / asking price vs posted sale amount
 
 ## As of
 
-2026-11-10 — Items Status and Sold filter; Avery sheet names; tags show brand, size, and intake date when they fit.
+2026-11-11 — Tag may be left blank; TG + mall date + sequence fills it (same idea as barcode).
 
 ## In one sentence
 
@@ -21,8 +21,9 @@ Creating/editing items, printing stickers, ringing a sale.
 
 ## What the books / screens do
 
-- Tag unique in the mall (case-insensitive), max 40 chars.
+- Tag unique in the mall (case-insensitive), max 40 chars; blank fills with TG + mall date + sequence.
 - Barcode unique (case-insensitive), max 100; blank fills with BC + mall date + sequence.
+- Required fields show a red asterisk after the label.
 - Asking price is greater than zero. It is not a journal.
 - After a sale, asking price and consignor stay on the item. Return pays the consignor on the item.
 - Price and consignor editable until a sale is posted. Quantity 0 cannot be sold. On an open ticket, a sold-price change is audited; when the item has a floor, a price below that floor is refused.

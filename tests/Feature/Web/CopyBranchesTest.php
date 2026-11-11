@@ -160,6 +160,8 @@ final class CopyBranchesTest extends TestCase
         self::assertStringContainsString('<label for="vendor_label">Consignor</label>', $form);
         self::assertStringContainsString('Choose a consignor from the list.', $form);
         self::assertStringNotContainsString('Choose a vendor from the list.', $form);
+        self::assertStringContainsString('Leave blank and a tag is generated.', $form);
+        self::assertDoesNotMatchRegularExpression('/id="code"[^>]*\srequired\b/', $form);
 
         $mallForm = $this->render('Feature/Inventory/inventory-form.php', $this->inventoryForm(false));
         self::assertStringContainsString('<label for="vendor_label">Vendor</label>', $mallForm);

@@ -13,6 +13,8 @@ final class DatabaseRefusal extends RuntimeException
 
     public const BARCODE_USED = 'That barcode is already used.';
 
+    public const TAG_USED = 'That tag is already used.';
+
     public const TICKET_NOT_A_SALE = 'that ticket is not a sale';
 
     public const COULD_NOT_SAVE = 'That could not be saved.';
@@ -48,6 +50,11 @@ final class DatabaseRefusal extends RuntimeException
     public static function isBarcodeUsed(self $error): bool
     {
         return $error->getMessage() === self::BARCODE_USED;
+    }
+
+    public static function isTagUsed(self $error): bool
+    {
+        return $error->getMessage() === self::TAG_USED;
     }
 
     public static function isCertificateNumberUsed(self $error): bool

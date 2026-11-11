@@ -17,6 +17,23 @@ use ReflectionClass;
 
 final class ItemWriterTest extends TestCase
 {
+    public function testABlankTagIsAllowed(): void
+    {
+        $entry = $this->writer()->entry($this->draft(['code' => '']));
+
+        self::assertSame('', $entry->code);
+    }
+
+    public function testALongTagIsRefused(): void
+    {
+        try {
+            $this->writer()->entry($this->draft(['code' => str_repeat('a', 41)]));
+            self::fail('a long tag was accepted');
+        } catch (\InvalidArgumentException $error) {
+            self::assertSame('That tag is too long.', $error->getMessage());
+        }
+    }
+
     public function testAnIntakeDateIsRequired(): void
     {
         try {
