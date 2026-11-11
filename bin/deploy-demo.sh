@@ -68,6 +68,14 @@ if [[ ! -x "$php_bin" ]]; then
     echo "deploy-demo: ${php_bin} is missing" >&2
     exit 1
 fi
+# Host-only binary. Reinstall when missing (e.g. after a mistaken whole-tree clean).
+if [[ ! -f "$composer" ]]; then
+    echo "deploy-demo: installing composer.phar"
+    setup="${root}/composer-setup.php"
+    "$php_bin" -r "copy('https://getcomposer.org/installer', '${setup}');"
+    "$php_bin" "$setup" --install-dir="$root" --filename=composer.phar
+    rm -f "$setup"
+fi
 if [[ ! -f "$composer" ]]; then
     echo "deploy-demo: ${composer} is missing" >&2
     exit 1
