@@ -1,0 +1,23 @@
+name: print-demo-ssh-pubkey
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  print:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show public key for DEMO_SSH_KEY
+        env:
+          DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$DEMO_SSH_KEY" > /tmp/demo_key
+          echo "DEMO_SSH_PUBKEY_BEGIN"
+          ssh-keygen -y -f /tmp/demo_key
+          echo "DEMO_SSH_PUBKEY_END"
+          rm -f /tmp/demo_key
