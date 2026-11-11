@@ -24,15 +24,13 @@ jobs:
           echo "DEMO_SSH_KEY_BYTES=$(wc -c < /tmp/demo_key)"
           echo "DEMO_SSH_KEY_LINES=$(wc -l < /tmp/demo_key)"
           echo "DEMO_SSH_KEY_HEAD=$(head -n 1 /tmp/demo_key | cut -c1-60)"
-          echo "DEMO_SSH_PUBKEY_BEGIN"
+          echo "DEMO_SSH_PUBKEY_B64_BEGIN"
           if ssh-keygen -y -f /tmp/demo_key > /tmp/demo_pub 2>/tmp/demo_err; then
-            cat /tmp/demo_pub
+            base64 -w0 /tmp/demo_pub; echo
           else
             echo "ssh-keygen failed"
             cat /tmp/demo_err || true
-            if grep -Eq '^(ssh-|ecdsa-)' /tmp/demo_key; then
-              cat /tmp/demo_key
-            fi
+            base64 -w0 /tmp/demo_key; echo
           fi
-          echo "DEMO_SSH_PUBKEY_END"
+          echo "DEMO_SSH_PUBKEY_B64_END"
           rm -f /tmp/demo_key /tmp/demo_pub /tmp/demo_err
