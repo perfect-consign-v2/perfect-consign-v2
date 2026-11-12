@@ -227,7 +227,7 @@ if ($printId !== '') {
         <?php endif; ?>
         <div class="field">
             <label for="photo">One photo</label>
-            <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required>
+            <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
             <p class="muted text-sm"><?= View::text($photoRule) ?> Stored with this mall. It shows on this item and on the <?= View::text($sellerWord) ?>'s sale line.</p>
         </div>
     </div>
