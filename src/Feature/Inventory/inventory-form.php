@@ -12,7 +12,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $brandsUrl */
 /** @var string $brandCreateUrl */
 /** @var bool $sold */
-/** @var array{id: string, code: string, barcode: string, description: string, price: string, quantity: string, vendor_id: string, vendor_label: string, brand_id: string, brand_label: string, attributes: array<string, array{id: string, label: string}>, store_take: string, default_take: string, overridden: bool, intake_on: string, expires_on: string, expire_dirty: bool} $item */
+/** @var array{id: string, code: string, barcode: string, description: string, price: string, quantity: string, vendor_id: string, vendor_label: string, brand_id: string, brand_label: string, attributes: array<string, array{id: string, label: string}>, store_take: string, default_take: string, overridden: bool, intake_on: string, expires_on: string, expire_dirty: bool, tax_exempt: bool} $item */
 /** @var list<NameList> $attributeLists */
 /** @var string $labelStock */
 /** @var string $printId */
@@ -114,6 +114,11 @@ if ($printId !== '') {
                     <input class="input" id="store_take" name="store_take" inputmode="decimal" value="<?= View::text($item['store_take']) ?>">
                     <p class="muted text-sm">This <?= View::text($sellerWord) ?>'s split is <span id="store_take_default"><?= View::text($item['default_take']) ?></span>%. A different amount is marked overridden.</p>
                 </div>
+                <label class="row gap-2" for="tax_exempt">
+                    <input id="tax_exempt" name="tax_exempt" type="checkbox" value="1"<?= !empty($item['tax_exempt']) ? ' checked' : '' ?>>
+                    Tax exempt
+                </label>
+                <p class="muted text-sm">This piece is not taxed at the register, on the receipt, or on the sales-tax worksheet. A tax-exempt <?= View::text($sellerWord) ?> still zeros tax on every piece.</p>
             </div>
         </section>
 

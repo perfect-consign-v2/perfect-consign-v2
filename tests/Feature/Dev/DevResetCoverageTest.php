@@ -21,8 +21,10 @@ final class DevResetCoverageTest extends TestCase
         putenv('STALL_ALLOW_TENANT_RESET=1');
         try {
             self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'mall'));
+            self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'shop')), 'shop'));
             self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'webprobe'));
             self::assertFalse($allowed->invoke($this->controller($this->actor('books', 'mall')), 'mall'));
+            self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'shop')), 'mall'));
             self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'dev')), 'dev'));
         } finally {
             putenv('STALL_ALLOW_TENANT_RESET');

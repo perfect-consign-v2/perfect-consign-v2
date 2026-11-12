@@ -33,7 +33,8 @@ final class TicketPricing
             'SELECT line.line_no, line.item_id, line.price_minor, line.quantity, line.line_discount_minor,
                     line.offer_discount_minor, line.store_discount_minor, COALESCE(offer.name, \'\') AS offer_name,
                     item.code, item.description, item.vendor_id, item.placement, item.cost_minor,
-                    vendor.name AS vendor_name, vendor.tax_exempt,
+                    vendor.name AS vendor_name,
+                    (COALESCE(item.tax_exempt, false) OR COALESCE(vendor.tax_exempt, false)) AS tax_exempt,
                     line.line_discount_kind, line.line_discount_value, line.line_discount_reason,
                     CASE
                         WHEN item.placement = \'store\' THEN 0

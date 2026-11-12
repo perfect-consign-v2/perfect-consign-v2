@@ -160,7 +160,8 @@ final class InventoryController
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * }
      */
     private function draft(?string $id): array
@@ -184,6 +185,7 @@ final class InventoryController
             'expires_on' => $this->app->request()->field('expires_on'),
             'fill_expire' => '',
             'placement' => $this->app->request()->field('placement'),
+            'tax_exempt' => $this->app->request()->field('tax_exempt'),
         ];
     }
 
@@ -233,7 +235,8 @@ final class InventoryController
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * } $item
      */
     private function form(string $slug, array $item, ?string $error, string $printId = ''): void

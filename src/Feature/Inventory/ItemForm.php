@@ -36,7 +36,8 @@ final class ItemForm
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * }
      */
     public function blank(string $vendorId, string $intake): array
@@ -57,6 +58,7 @@ final class ItemForm
             'intake_on' => $this->date($intake) ?? $this->mall->today(),
             'expires_on' => '',
             'fill_expire' => '1',
+            'tax_exempt' => '',
         ]);
     }
 
@@ -77,7 +79,8 @@ final class ItemForm
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * }
      */
     public function stored(array $row): array
@@ -108,6 +111,7 @@ final class ItemForm
             'intake_on' => RowValue::string($row['intake_on'] ?? null),
             'expires_on' => is_string($expires) ? $expires : '',
             'fill_expire' => '',
+            'tax_exempt' => $this->flag($row['tax_exempt'] ?? null) ? '1' : '',
         ];
     }
 
@@ -127,7 +131,8 @@ final class ItemForm
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * } $draft
      * @return array{
      *     id: string,
@@ -144,7 +149,8 @@ final class ItemForm
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * }
      */
     public function posted(array $draft): array
@@ -187,7 +193,8 @@ final class ItemForm
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * } $item
      * @return array{
      *     id: string,
@@ -206,7 +213,8 @@ final class ItemForm
      *     overridden: bool,
      *     intake_on: string,
      *     expires_on: string,
-     *     expire_dirty: bool
+     *     expire_dirty: bool,
+     *     tax_exempt: bool
      * }
      */
     public function view(array $item): array
@@ -233,7 +241,13 @@ final class ItemForm
             'intake_on' => $item['intake_on'],
             'expires_on' => $item['expires_on'],
             'expire_dirty' => $item['expires_on'] !== $this->expectedExpire($item['intake_on']),
+            'tax_exempt' => $item['tax_exempt'] === '1' || $item['tax_exempt'] === 'true',
         ];
+    }
+
+    private function flag(mixed $value): bool
+    {
+        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
     public function date(string $value): ?string

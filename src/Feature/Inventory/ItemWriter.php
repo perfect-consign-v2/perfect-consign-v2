@@ -37,7 +37,8 @@ final class ItemWriter
      *     intake_on: string,
      *     expires_on: string,
      *     fill_expire: string,
-     *     placement?: string
+     *     placement?: string,
+     *     tax_exempt?: string
      * } $draft
      */
     public function entry(array $draft): ItemEntry
@@ -67,6 +68,7 @@ final class ItemWriter
                 Money::parseMinor($draft['price']),
                 $this->quantity($draft['quantity'], $draft['id'] === ''),
                 $placement === 'store' ? null : $this->takeOf($vendorId, $draft['store_take']),
+                $this->taxExempt($draft['tax_exempt'] ?? ''),
             ),
             new ItemDates($intake, $expires),
             $placement,
@@ -175,6 +177,11 @@ final class ItemWriter
         }
 
         return $found;
+    }
+
+    private function taxExempt(string $posted): bool
+    {
+        return $posted === '1' || $posted === 'true';
     }
 
     private function takeOf(string $vendorId, string $posted): ?int

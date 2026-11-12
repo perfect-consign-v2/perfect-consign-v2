@@ -96,8 +96,8 @@ $settingsTabs = [
             <label for="tax_rate">Sales tax</label>
             <input class="input" id="tax_rate" name="tax_rate" inputmode="decimal" value="<?= View::text($taxRate) ?>">
             <p class="muted text-sm"><?= $consignmentOnly
-                ? 'Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A consignor marked tax exempt is charged no tax.'
-                : 'Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A vendor marked tax exempt is charged no tax.' ?></p>
+                ? 'Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A tax-exempt consignor or item is charged no tax.'
+                : 'Percent added to a taxable sale. 9.997 is 9.997%. Leave this empty and sales are not taxed. A tax-exempt vendor or item is charged no tax.' ?></p>
         </div>
         <input type="hidden" name="shop_flags" value="1">
         <div class="field">

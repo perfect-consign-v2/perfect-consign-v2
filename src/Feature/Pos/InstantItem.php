@@ -79,6 +79,7 @@ final class InstantItem
             'intake_on' => $today,
             'expires_on' => '',
             'fill_expire' => '',
+            'tax_exempt' => '',
         ]);
         $this->items->add($saved, $today);
         $this->tickets->scan($session, $saved->code);

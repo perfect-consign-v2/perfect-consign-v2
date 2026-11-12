@@ -25,7 +25,7 @@ final class SaleReceipt
      *     posted_on: string,
      *     description: string,
      *     voided: bool,
-     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_name: string, returned: bool}>,
+     *     lines: list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, tax_exempt: bool, discount: int, store_discount: int, offer_name: string, returned: bool}>,
      *     tenders: list<array{name: string, amount: int}>,
      *     round: int,
      *     cash: int,
@@ -64,7 +64,7 @@ final class SaleReceipt
     }
 
     /**
-     * @return list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, discount: int, store_discount: int, offer_name: string, returned: bool}>
+     * @return list<array{item_id: string, code: string, description: string, vendor: string, price: int, quantity: int, commission: int, tax: int, tax_exempt: bool, discount: int, store_discount: int, offer_name: string, returned: bool}>
      */
     private function lines(string $journalId): array
     {
@@ -72,6 +72,7 @@ final class SaleReceipt
             'SELECT sale.item_id, sale.price_minor, sale.quantity, sale.commission_minor, sale.tax_minor, sale.discount_minor,
                     sale.store_discount_minor, COALESCE(offer.name, \'\') AS offer_name,
                     item.code, item.description, vendor.name AS vendor_name,
+                    (COALESCE(item.tax_exempt, false) OR COALESCE(vendor.tax_exempt, false)) AS tax_exempt,
                     EXISTS (
                         SELECT 1 FROM item_returns AS returned
                         WHERE returned.sale_journal_id = sale.journal_id
@@ -96,6 +97,7 @@ final class SaleReceipt
                 'quantity' => RowValue::integer($row['quantity'] ?? null),
                 'commission' => RowValue::integer($row['commission_minor'] ?? null),
                 'tax' => RowValue::integer($row['tax_minor'] ?? null),
+                'tax_exempt' => self::flag($row['tax_exempt'] ?? null),
                 'discount' => RowValue::integer($row['discount_minor'] ?? null),
                 'store_discount' => RowValue::integer($row['store_discount_minor'] ?? null),
                 'offer_name' => RowValue::string($row['offer_name'] ?? null),

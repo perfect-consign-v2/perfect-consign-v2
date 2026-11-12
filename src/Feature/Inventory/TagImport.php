@@ -83,7 +83,8 @@ final class TagImport
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * }>
      */
     private function rows($handle): array
@@ -142,7 +143,8 @@ final class TagImport
      *     store_take: string,
      *     intake_on: string,
      *     expires_on: string,
-     *     fill_expire: string
+     *     fill_expire: string,
+     *     tax_exempt: string
      * }
      */
     private function draft(array $line, int $number): array
@@ -180,6 +182,7 @@ final class TagImport
             'intake_on' => $this->mall->today(),
             'expires_on' => '',
             'fill_expire' => '',
+            'tax_exempt' => '',
         ];
     }
 }

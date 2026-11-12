@@ -2,14 +2,14 @@
 title: Monthly sales-tax worksheet strips
 category: Tax reports and export
 hesk: published 2026-11-12
-as_of: 2026-10-25
+as_of: 2026-11-12
 ---
 
 # Monthly sales-tax worksheet strips
 
 ## As of
 
-2026-10-25
+2026-11-12
 
 ## In one sentence
 
@@ -22,7 +22,7 @@ Month-end tax filing prep; screen, print, or CSV of the worksheet.
 ## What the books / screens do
 
 - Uses mall time zone and posting date.
-- Exempt sales follow ticket waiver and tax-exempt vendors. Returns/voids in the month subtract.
+- Exempt sales follow ticket waiver, tax-exempt vendors, and tax-exempt items. Returns/voids in the month subtract.
 - Booth rent collected and stored-value issues are non-taxable. Redemptions stay inside the sale they paid.
 - **Filing strip:** gross, exempt, returns, taxable base, tax collected. Each posted rate shown with its base.
 - **Liability strip:** opening balance, tax collected, tax paid, closing balance of sales-tax payable.
@@ -43,4 +43,5 @@ Run worksheet for a closed month; filing tax collected matches liability movemen
 ## Related
 
 - Tax-exempt vendor rules
+- Tax-exempt item
 - Nightly tie-out idea

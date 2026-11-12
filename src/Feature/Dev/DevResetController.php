@@ -20,6 +20,7 @@ final class DevResetController
         private readonly LoggerInterface $logger,
         private readonly DevTenantReset $reset,
         private readonly MallTenantReset $mall,
+        private readonly ShopTenantReset $shop,
     ) {
     }
 
@@ -56,13 +57,20 @@ final class DevResetController
             return false;
         }
 
-        return $slug === DevTenantReset::SLUG || $slug === MallTenantReset::SLUG;
+        return $slug === DevTenantReset::SLUG
+            || $slug === MallTenantReset::SLUG
+            || $slug === ShopTenantReset::SLUG;
     }
 
     private function reload(string $slug): void
     {
         if ($slug === MallTenantReset::SLUG) {
             $this->mall->load();
+
+            return;
+        }
+        if ($slug === ShopTenantReset::SLUG) {
+            $this->shop->load();
 
             return;
         }

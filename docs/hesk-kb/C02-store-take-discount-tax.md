@@ -2,14 +2,14 @@
 title: Store take / discount / tax on a line
 category: Sales and register
 hesk: published 2026-11-12
-as_of: 2026-10-25
+as_of: 2026-11-12
 ---
 
 # Store take / discount / tax on a line
 
 ## As of
 
-2026-10-25
+2026-11-12
 
 ## In one sentence
 
@@ -24,7 +24,7 @@ Pricing a ticket line, applying line or ticket discounts, or posting pay.
 - Sold price starts at asking price; discount lowers it.
 - Store take: item percent, else vendor, else mall default; half up to the cent.
 - Vendor is owed the rest of that final price (not reduced by tax).
-- Sales tax: mall rate on final price (unless tax-exempt vendor or ticket tax-free).
+- Sales tax: mall rate on final price (unless tax-exempt vendor, tax-exempt item, or ticket tax-free).
 - Line discount stored on the line; ticket discount applies after line discounts. Flat ticket discount splits across lines; last line takes remainder.
 - Tax-free ticket stores a reason and zeros every line’s tax; restore tax clears it.
 
@@ -45,4 +45,5 @@ One discounted line: confirm final price, store take, vendor share, and tax on t
 
 - Store take default vs override
 - Tax-exempt vendor rules
+- Tax-exempt item
 - Second-signature ceilings

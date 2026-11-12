@@ -2,14 +2,14 @@
 title: Email sign-in finds the mall
 category: Platform notes
 hesk: published 2026-11-12
-as_of: 2026-11-09
+as_of: 2026-11-12
 ---
 
 # Email sign-in finds the mall
 
 ## As of
 
-2026-11-09 — forgot-password keeps the same user success flash when a known account’s reset mail fails; operators get a platform notice.
+2026-11-12 — local demo owners on `dev` / `mall` / `shop` can Reset Test Data (type `RESET`) when `STALL_ALLOW_TENANT_RESET=1`; forgot-password success flash when reset mail fails still notifies operators.
 
 ## In one sentence
 
@@ -37,7 +37,7 @@ An owner, manager, cashier, books login, or vendor opens the site root, or uses 
 
 ## How to check
 
-Plant an owner with `STALL_OWNER_EMAIL`, open `/`, sign in with that email. Open `/{slug}/login` and confirm it redirects to `/`. Try the same email on another mall’s staff — refused. Run `sql/prove_sign_in_directory.sql`. After wiping local `mall` or `shop`, confirm `php bin/ensure-demo-logins.php` restores sign-in for `STALL_OWNER_EMAIL` and `desk@cedar-consign.test` (or `STALL_SHOP_OWNER_EMAIL`) with `STALL_OWNER_PASSWORD`.
+Plant an owner with `STALL_OWNER_EMAIL`, open `/`, sign in with that email. Open `/{slug}/login` and confirm it redirects to `/`. Try the same email on another mall’s staff — refused. Run `sql/prove_sign_in_directory.sql`. After wiping local `mall` or `shop`, confirm `php bin/ensure-demo-logins.php` restores sign-in for `STALL_OWNER_EMAIL` and `desk@cedar-consign.test` (or `STALL_SHOP_OWNER_EMAIL`) with `STALL_OWNER_PASSWORD`. With `STALL_ALLOW_TENANT_RESET=1`, confirm Reset Test Data appears for the owner on `/shop` (and `/mall` / `/dev`) and reseeds that store’s sample books.
 
 ## Source
 

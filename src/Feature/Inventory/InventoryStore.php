@@ -54,7 +54,7 @@ final class InventoryStore
     {
         $rows = $this->statements->bound(
             'SELECT item.id, item.code, item.barcode, item.description, item.price_minor, item.quantity,
-                    item.vendor_id, item.brand_id, item.commission_bps, item.intake_on, item.expires_on,
+                    item.vendor_id, item.brand_id, item.commission_bps, item.tax_exempt, item.intake_on, item.expires_on,
                     item.color_id, item.category_id, item.size_id, item.condition_id, item.department_id,
                     vendor.code AS vendor_code, vendor.name AS vendor_name,
                     COALESCE(vendor.commission_bps, mall.commission_bps) AS vendor_take_bps,
@@ -190,13 +190,14 @@ final class InventoryStore
             $casts[] = '?::uuid';
             $params[] = $item->brandId;
         }
-        $columns = array_merge($columns, ['description', 'price_minor', 'quantity', 'commission_bps', 'intake_on', 'expires_on']);
-        $casts = array_merge($casts, ['?', '?', '?', '?', '?::date', '?::date']);
+        $columns = array_merge($columns, ['description', 'price_minor', 'quantity', 'commission_bps', 'tax_exempt', 'intake_on', 'expires_on']);
+        $casts = array_merge($casts, ['?', '?', '?', '?', '?::boolean', '?::date', '?::date']);
         $params = array_merge($params, [
             $item->description,
             $item->sale->priceMinor,
             $item->sale->quantity,
             $item->sale->commissionBps,
+            $item->sale->taxExempt,
             $item->dates->intakeOn,
             $item->dates->expiresOn,
         ]);

@@ -78,7 +78,7 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
                     <span><?= View::text($line['description']) ?></span>
                     <span><?= View::text(View::money($amount)) ?></span>
                 </p>
-                <p class="slip-meta"><?= View::text((string) $count) ?> · <?= View::text($line['code']) ?><?php if ($offer !== ''): ?> · <?= View::text($offer) ?><?php endif; ?><?php if ($line['returned'] === true): ?> · Returned<?php endif; ?></p>
+                <p class="slip-meta"><?= View::text((string) $count) ?> · <?= View::text($line['code']) ?><?php if ($offer !== ''): ?> · <?= View::text($offer) ?><?php endif; ?><?php if (!empty($line['tax_exempt'])): ?> · Tax exempt<?php endif; ?><?php if ($line['returned'] === true): ?> · Returned<?php endif; ?></p>
             </div>
         <?php endforeach; ?>
         <hr class="slip-rule">

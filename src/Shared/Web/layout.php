@@ -40,7 +40,7 @@ $portalLabel = $consignmentOnly ? 'Consignor' : 'Vendor';
 $actorRole = is_string($actorRole ?? null) ? $actorRole : '';
 $previewAs = is_string($previewAs ?? null) ? $previewAs : '';
 $resetTestData = getenv('STALL_ALLOW_TENANT_RESET') === '1'
-    && ($slug === 'dev' || $slug === 'mall')
+    && ($slug === 'dev' || $slug === 'mall' || $slug === 'shop')
     && $actorRole === 'owner';
 $groups = [];
 if ($actorRole === 'owner') {

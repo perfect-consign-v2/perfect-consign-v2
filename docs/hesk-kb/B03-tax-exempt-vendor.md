@@ -41,4 +41,5 @@ Sell an item for a tax-exempt vendor: tax lines are zero. Sales-tax worksheet tr
 ## Related
 
 - Store take / discount / tax on a line
+- Tax-exempt item
 - Monthly sales-tax worksheet strips

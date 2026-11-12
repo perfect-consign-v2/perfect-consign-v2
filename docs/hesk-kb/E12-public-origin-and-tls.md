@@ -2,14 +2,14 @@
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
 hesk: published 2026-11-12
-as_of: 2026-11-11
+as_of: 2026-11-12
 ---
 
 # Public origin, proxies, TLS, and page script policy
 
 ## As of
 
-2026-11-11 — DocumentRoot must be `public/`; repo-root `.htaccess` denies `.env`, `.github/`, `composer.phar` / `*.phar`, and app paths; `public/.htaccess` skips HTTPS redirect when `X-Forwarded-Proto` is already `https` only when the proxy (or `mod_remoteip`) strips client-spoofed headers — PHP still ignores forwarded proto unless `REMOTE_ADDR` is in `STALL_TRUSTED_PROXIES`; schema installers are `000_platform.sql` + `001_tenant.sql` only (stamped bytes immutable; disposable demo may `STALL_ALLOW_PLATFORM_REINSTALL` then wipe+reprovision — deploy recovers `MigrationFileChanged`; seed-demo skips migrate until after wipe); nightly backups refuse a web-reachable `STALL_BACKUP_DIR`.
+2026-11-12 — DocumentRoot must be `public/`; repo-root `.htaccess` denies `.env`, `.github/`, `composer.phar` / `*.phar`, and app paths; `public/.htaccess` skips HTTPS redirect when `X-Forwarded-Proto` is already `https` only when the proxy (or `mod_remoteip`) strips client-spoofed headers — PHP still ignores forwarded proto unless `REMOTE_ADDR` is in `STALL_TRUSTED_PROXIES`; schema installers are `000_platform.sql`, `001_tenant.sql`, and later files listed in `SchemaCatalog::TENANT` (stamped bytes immutable; disposable demo may `STALL_ALLOW_PLATFORM_REINSTALL` then wipe+reprovision — deploy recovers `MigrationFileChanged`; seed-demo skips migrate until after wipe); nightly backups refuse a web-reachable `STALL_BACKUP_DIR`.
 
 ## In one sentence
 

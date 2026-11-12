@@ -244,6 +244,9 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                                         <p><?= View::text($line['description']) ?></p>
                                         <p class="ticket-meta"><?= View::text($line['code']) ?></p>
                                         <p class="ticket-meta"><?= View::text($line['vendor']) ?></p>
+                                        <?php if (!empty($line['tax_exempt'])): ?>
+                                            <p class="ticket-meta">Tax exempt</p>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="register-qty-col">
                                         <form method="post" action="/<?= View::text($slug) ?>/pos/quantity">

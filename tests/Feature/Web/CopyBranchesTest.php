@@ -161,6 +161,7 @@ final class CopyBranchesTest extends TestCase
         self::assertStringContainsString('Choose a consignor from the list.', $form);
         self::assertStringNotContainsString('Choose a vendor from the list.', $form);
         self::assertStringContainsString('Leave blank and a tag is generated.', $form);
+        self::assertStringContainsString('Tax exempt', $form);
         self::assertDoesNotMatchRegularExpression('/id="code"[^>]*\srequired\b/', $form);
 
         $mallForm = $this->render('Feature/Inventory/inventory-form.php', $this->inventoryForm(false));
@@ -478,6 +479,7 @@ final class CopyBranchesTest extends TestCase
                 'intake_on' => '2026-01-01',
                 'expires_on' => '',
                 'expire_dirty' => false,
+                'tax_exempt' => false,
             ],
             'attributeLists' => [],
             'labelStock' => '',

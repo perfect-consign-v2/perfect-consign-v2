@@ -122,6 +122,15 @@ final class ItemWriterTest extends TestCase
         }
     }
 
+    public function testTaxExemptIsKeptOnTheSale(): void
+    {
+        $on = $this->writer()->entry($this->draft(['tax_exempt' => '1']));
+        $off = $this->writer()->entry($this->draft(['tax_exempt' => '']));
+
+        self::assertTrue($on->sale->taxExempt);
+        self::assertFalse($off->sale->taxExempt);
+    }
+
     public function testStoreStockDoesNotKeepAVendor(): void
     {
         $entry = $this->writer()->entry($this->draft(['placement' => 'store']));
