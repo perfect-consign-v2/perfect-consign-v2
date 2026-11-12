@@ -102,29 +102,69 @@ export PATH="$(dirname -- "$php_bin"):${PATH:-}"
 "$php_bin" "$composer" --working-dir="$root" build:routes
 
 "$php_bin" "${root}/bin/ensure-mail-key.php"
-"$php_bin" "${root}/bin/migrate.php" platform
-# platform-after is empty after the two-installer baseline (roles live in 000).
-"$php_bin" "${root}/bin/migrate.php" platform-after
-# Stamped sql/0*.sql files are immutable. MigrationFileChanged means wipe+reprovision
-# or a new forward file — never edit checksums in place.
-if ! tenant_err=$("$php_bin" "${root}/bin/migrate.php" tenant mall 2>&1); then
-    printf '%s\n' "$tenant_err" >&2
-    echo "deploy-demo: tenant migrate failed" >&2
-    exit 1
-fi
-"$php_bin" "${root}/bin/migrate.php" tenant-all
 
-# Demo convenience: plant or refresh mall owner from .env. set-owner.php is
-# idempotent when the password already matches (no credentials_version bump).
-if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
-    "$php_bin" "${root}/bin/set-owner.php" mall owner
-fi
+# seed-demo owns wipe + provision + seed-mall; it sets this so deploy can land
+# tip + composer + routes without racing MigrationFileChanged on old stamps.
+if [[ "${DEPLOY_SKIP_MIGRATE:-}" == "1" ]]; then
+    echo "deploy-demo: skipping migrate (DEPLOY_SKIP_MIGRATE=1)"
+else
+    allow_reinstall=0
+    if grep -Eq '^STALL_ALLOW_PLATFORM_REINSTALL=(1|true|yes)$' "${root}/.env"; then
+        allow_reinstall=1
+    fi
 
-# Platform admin forgot-password and operator notices need a planted admin and
-# STALL_GMAIL_* (or STALL_SMTP_*) in .env. set-platform-admin.php is idempotent
-# when the password already matches (no credentials_version bump).
-if grep -Eq '^STALL_PLATFORM_ADMIN_PASSWORD=.+' "${root}/.env"; then
-    "$php_bin" "${root}/bin/set-platform-admin.php"
+    reinstalled=0
+    if ! platform_err=$("$php_bin" "${root}/bin/migrate.php" platform 2>&1); then
+        printf '%s\n' "$platform_err" >&2
+        if [[ "$allow_reinstall" -eq 1 ]] && printf '%s' "$platform_err" | grep -q 'changed after it was applied'; then
+            echo "deploy-demo: installer bytes changed; recreating empty database"
+            "$php_bin" "${root}/bin/reinstall-empty-database.php"
+            "$php_bin" "${root}/bin/provision-platform.php"
+            reinstalled=1
+        else
+            echo "deploy-demo: platform migrate failed" >&2
+            if printf '%s' "$platform_err" | grep -q 'changed after it was applied'; then
+                echo "deploy-demo: set STALL_ALLOW_PLATFORM_REINSTALL=true on this disposable host, then re-run deploy or seed-demo" >&2
+            fi
+            exit 1
+        fi
+    fi
+    # platform-after is empty after the two-installer baseline (roles live in 000).
+    "$php_bin" "${root}/bin/migrate.php" platform-after
+    # Stamped sql/0*.sql files are immutable. MigrationFileChanged means wipe+reprovision
+    # or a new forward file — never edit checksums in place.
+    if ! tenant_err=$("$php_bin" "${root}/bin/migrate.php" tenant mall 2>&1); then
+        printf '%s\n' "$tenant_err" >&2
+        if printf '%s' "$tenant_err" | grep -q 'is not provisioned'; then
+            echo "deploy-demo: mall is not provisioned; run seed-demo to load mall/shop books"
+        else
+            echo "deploy-demo: tenant migrate failed" >&2
+            exit 1
+        fi
+    fi
+    "$php_bin" "${root}/bin/migrate.php" tenant-all
+
+    # Demo convenience: plant or refresh mall owner from .env. set-owner.php is
+    # idempotent when the password already matches (no credentials_version bump).
+    if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
+        if [[ "$reinstalled" -eq 1 ]]; then
+            echo "deploy-demo: skipping set-owner until seed-demo provisions mall"
+        elif ! owner_err=$("$php_bin" "${root}/bin/set-owner.php" mall owner 2>&1); then
+            printf '%s\n' "$owner_err" >&2
+            if printf '%s' "$owner_err" | grep -qi 'not provisioned\|unknown\|no such'; then
+                echo "deploy-demo: mall owner not planted; run seed-demo"
+            else
+                exit 1
+            fi
+        fi
+    fi
+
+    # Platform admin forgot-password and operator notices need a planted admin and
+    # STALL_GMAIL_* (or STALL_SMTP_*) in .env. set-platform-admin.php is idempotent
+    # when the password already matches (no credentials_version bump).
+    if grep -Eq '^STALL_PLATFORM_ADMIN_PASSWORD=.+' "${root}/.env"; then
+        "$php_bin" "${root}/bin/set-platform-admin.php"
+    fi
 fi
 
 

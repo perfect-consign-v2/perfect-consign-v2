@@ -50,11 +50,20 @@ final class DeployDemoScriptTest extends TestCase
         $script = file_get_contents($scriptPath);
         self::assertIsString($script);
         self::assertStringContainsString('bin/deploy-demo.sh', $script);
+        self::assertStringContainsString('DEPLOY_SKIP_MIGRATE=1', $script);
         self::assertStringContainsString('bin/seed-mall.php', $script);
         self::assertStringContainsString('reinstall-empty-database.php', $script);
         self::assertStringContainsString('STALL_ALLOW_PLATFORM_REINSTALL', $script);
         self::assertStringContainsString('set-owner.php', $script);
         self::assertStringContainsString('/opt/plesk/php/8.5/bin/php', $script);
+        $skipAt = strpos($script, 'DEPLOY_SKIP_MIGRATE=1');
+        $reinstallAt = strpos($script, 'reinstall-empty-database.php');
+        $seedAt = strpos($script, 'bin/seed-mall.php');
+        self::assertNotFalse($skipAt);
+        self::assertNotFalse($reinstallAt);
+        self::assertNotFalse($seedAt);
+        self::assertGreaterThan($skipAt, $reinstallAt);
+        self::assertGreaterThan($reinstallAt, $seedAt);
 
         $yamlPath = $root . DIRECTORY_SEPARATOR . '.github' . DIRECTORY_SEPARATOR . 'workflows' . DIRECTORY_SEPARATOR . 'seed-demo.yml';
         self::assertFileExists($yamlPath);
@@ -62,6 +71,23 @@ final class DeployDemoScriptTest extends TestCase
         self::assertIsString($yaml);
         self::assertStringContainsString('workflow_dispatch', $yaml);
         self::assertStringContainsString('bash bin/seed-demo.sh', $yaml);
+    }
+
+    public function testDeployRecoversMigrationFileChangedWhenReinstallAllowed(): void
+    {
+        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
+        $script = file_get_contents($path);
+        self::assertIsString($script);
+        self::assertStringContainsString('DEPLOY_SKIP_MIGRATE', $script);
+        self::assertStringContainsString('changed after it was applied', $script);
+        self::assertStringContainsString('reinstall-empty-database.php', $script);
+        self::assertStringContainsString('provision-platform.php', $script);
+        self::assertStringContainsString('STALL_ALLOW_PLATFORM_REINSTALL', $script);
+        $migrateAt = strpos($script, 'bin/migrate.php" platform');
+        $reinstallAt = strpos($script, 'reinstall-empty-database.php');
+        self::assertNotFalse($migrateAt);
+        self::assertNotFalse($reinstallAt);
+        self::assertGreaterThan($migrateAt, $reinstallAt);
     }
 
     public function testDeployDoesNotRequireAPasswordChangeWhenOwnerAlreadyMatches(): void
@@ -151,5 +177,6 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringNotContainsString('forget-tenant-migrations', $script);
         self::assertStringContainsString('two-installer baseline', $script);
         self::assertStringContainsString('Stamped sql/0*.sql files are immutable', $script);
+        self::assertStringContainsString('is not provisioned', $script);
     }
 }

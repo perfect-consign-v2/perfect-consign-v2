@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 /**
  * Drop and recreate STALL_DB_NAME so the two-installer baseline can provision.
- * Refused unless STALL_ALLOW_PLATFORM_REINSTALL=true and APP_ENV is not production-like.
+ * Refused unless STALL_ALLOW_PLATFORM_REINSTALL=true. That flag is the only gate:
+ * disposable demos often use APP_ENV=production for the route manifest cache.
  *
  *   php bin/reinstall-empty-database.php
  *   php bin/provision-platform.php
@@ -18,13 +19,6 @@ loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
 $allow = getenv('STALL_ALLOW_PLATFORM_REINSTALL');
 if (!is_string($allow) || !in_array(strtolower($allow), ['1', 'true', 'yes'], true)) {
     fwrite(STDERR, "STALL_ALLOW_PLATFORM_REINSTALL=true is required\n");
-    exit(1);
-}
-
-$env = getenv('APP_ENV');
-$env = is_string($env) ? strtolower($env) : '';
-if (in_array($env, ['production', 'prod'], true)) {
-    fwrite(STDERR, "refusing platform reinstall in production-like APP_ENV\n");
     exit(1);
 }
 
