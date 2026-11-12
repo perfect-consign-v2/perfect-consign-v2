@@ -65,7 +65,8 @@ if ($printId !== '') {
     data-expire-dirty="<?= $item['expire_dirty'] ? '1' : '0' ?>"
     data-sold="<?= $sold ? '1' : '0' ?>">
     <div class="record-cards item-cards">
-        <section class="card" aria-labelledby="item-identity">
+        <div class="item-col">
+        <section class="card item-card-identity" aria-labelledby="item-identity">
             <div class="card-head"><div class="h3" id="item-identity">Item</div></div>
             <div class="card-body stack">
                 <div class="field combo">
@@ -76,28 +77,10 @@ if ($printId !== '') {
                     <p class="field-error" id="vendor_client_error" hidden>Choose a <?= View::text($sellerWord) ?> from the list.</p>
                     <?php if ($sold): ?><p class="muted text-sm">This <?= View::text($sellerWord) ?> is on a sale and cannot be changed.</p><?php endif; ?>
                 </div>
-                <div class="vendor-pair">
-                    <div class="field">
-                        <label for="code">Tag</label>
-                        <input class="input" id="code" name="code" value="<?= View::text($item['code']) ?>" maxlength="40">
-                        <p class="muted text-sm">Leave blank and a tag is generated.</p>
-                    </div>
-                    <div class="field">
-                        <label for="barcode">Barcode</label>
-                        <input class="input" id="barcode" name="barcode" value="<?= View::text($item['barcode']) ?>" maxlength="100">
-                        <p class="muted text-sm">Leave blank and a barcode is generated.</p>
-                    </div>
-                </div>
                 <div class="field">
                     <label for="description">Description</label>
                     <input class="input" id="description" name="description" value="<?= View::text($item['description']) ?>" required>
                 </div>
-            </div>
-        </section>
-
-        <section class="card" aria-labelledby="item-price">
-            <div class="card-head"><div class="h3" id="item-price">Price</div></div>
-            <div class="card-body stack">
                 <div class="vendor-pair">
                     <div class="field">
                         <label for="price">Asking price</label>
@@ -109,21 +92,11 @@ if ($printId !== '') {
                         <input class="input" id="quantity" name="quantity" inputmode="numeric" value="<?= View::text($item['quantity']) ?>" required>
                     </div>
                 </div>
-                <div class="field">
-                    <label for="store_take">Store take <span class="badge badge-warning" id="store_take_badge"<?= $item['overridden'] ? '' : ' hidden' ?>>Overridden</span></label>
-                    <input class="input" id="store_take" name="store_take" inputmode="decimal" value="<?= View::text($item['store_take']) ?>">
-                    <p class="muted text-sm">This <?= View::text($sellerWord) ?>'s split is <span id="store_take_default"><?= View::text($item['default_take']) ?></span>%. A different amount is marked overridden.</p>
-                </div>
-                <label class="row gap-2" for="tax_exempt">
-                    <input id="tax_exempt" name="tax_exempt" type="checkbox" value="1"<?= !empty($item['tax_exempt']) ? ' checked' : '' ?>>
-                    Tax exempt
-                </label>
-                <p class="muted text-sm">This piece is not taxed at the register, on the receipt, or on the sales-tax worksheet. A tax-exempt <?= View::text($sellerWord) ?> still zeros tax on every piece.</p>
             </div>
         </section>
 
         <?php if ($showBrand || $attributeLists !== []): ?>
-        <section class="card" aria-labelledby="item-details">
+        <section class="card item-card-details" aria-labelledby="item-details">
             <div class="card-head"><div class="h3" id="item-details">Details</div></div>
             <div class="card-body stack">
                 <?php if ($showBrand): ?>
@@ -156,8 +129,38 @@ if ($printId !== '') {
             </div>
         </section>
         <?php endif; ?>
+        <?php if (!$editing): ?>
+        <section class="card item-card-photo" aria-labelledby="item-photo">
+            <div class="card-head"><div class="h3" id="item-photo">Photo</div></div>
+            <div class="card-body">
+                <div class="field">
+                    <label for="photo">Photo</label>
+                    <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
+                    <p class="muted text-sm">Optional. <?= View::text($photoRule) ?> It shows on this item and on the <?= View::text($sellerWord) ?>'s sale line.</p>
+                </div>
+            </div>
+        </section>
+        <?php endif; ?>
+        </div>
 
-        <section class="card" aria-labelledby="item-floor">
+        <div class="item-col">
+        <section class="card item-card-price" aria-labelledby="item-price">
+            <div class="card-head"><div class="h3" id="item-price">Price</div></div>
+            <div class="card-body stack">
+                <div class="field">
+                    <label for="store_take">Store take <span class="badge badge-warning" id="store_take_badge"<?= $item['overridden'] ? '' : ' hidden' ?>>Overridden</span></label>
+                    <input class="input" id="store_take" name="store_take" inputmode="decimal" value="<?= View::text($item['store_take']) ?>">
+                    <p class="muted text-sm">This <?= View::text($sellerWord) ?>'s split is <span id="store_take_default"><?= View::text($item['default_take']) ?></span>%. A different amount is marked overridden.</p>
+                </div>
+                <label class="row gap-2" for="tax_exempt">
+                    <input id="tax_exempt" name="tax_exempt" type="checkbox" value="1"<?= !empty($item['tax_exempt']) ? ' checked' : '' ?>>
+                    Tax exempt
+                </label>
+                <p class="muted text-sm">This piece is not taxed at the register, on the receipt, or on the sales-tax worksheet. A tax-exempt <?= View::text($sellerWord) ?> still zeros tax on every piece.</p>
+            </div>
+        </section>
+
+        <section class="card item-card-floor" aria-labelledby="item-floor">
             <div class="card-head"><div class="h3" id="item-floor">Floor</div></div>
             <div class="card-body stack">
                 <div class="field">
@@ -190,18 +193,22 @@ if ($printId !== '') {
             </div>
         </section>
 
-        <?php if (!$editing): ?>
-        <section class="card" aria-labelledby="item-photo">
-            <div class="card-head"><div class="h3" id="item-photo">Photo</div></div>
-            <div class="card-body">
+        <section class="card item-card-marks" aria-labelledby="item-marks">
+            <div class="card-head"><div class="h3" id="item-marks">Tag</div></div>
+            <div class="card-body stack">
                 <div class="field">
-                    <label for="photo">Photo</label>
-                    <input class="input" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp">
-                    <p class="muted text-sm">Optional. <?= View::text($photoRule) ?> It shows on this item and on the <?= View::text($sellerWord) ?>'s sale line.</p>
+                    <label for="code">Tag</label>
+                    <input class="input" id="code" name="code" value="<?= View::text($item['code']) ?>" maxlength="40">
+                    <p class="muted text-sm">Leave blank and a tag is generated.</p>
+                </div>
+                <div class="field">
+                    <label for="barcode">Barcode</label>
+                    <input class="input" id="barcode" name="barcode" value="<?= View::text($item['barcode']) ?>" maxlength="100">
+                    <p class="muted text-sm">Leave blank and a barcode is generated.</p>
                 </div>
             </div>
         </section>
-        <?php endif; ?>
+        </div>
     </div>
     <div class="vendor-save">
         <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create item' ?></button>
