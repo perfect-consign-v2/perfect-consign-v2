@@ -90,7 +90,7 @@ final class JobDispatchTest extends TestCase
         $pdo->method('query')->willReturn($listed);
         $pdo->expects($this->exactly(2))->method('exec')->willReturn(1);
 
-        (new JobSchedule($pdo, new JobQueue()))->schedule();
+        (new JobSchedule($pdo, new JobQueue(), $this->createStub(LoggerInterface::class)))->schedule();
     }
 
     public function testASchemaThatIsNotATenantIsRefused(): void
@@ -200,7 +200,7 @@ final class JobDispatchTest extends TestCase
             $pdo,
             new JobQueue(),
             $this->createStub(LoggerInterface::class),
-            new JobSchedule($pdo, new JobQueue()),
+            new JobSchedule($pdo, new JobQueue(), $this->createStub(LoggerInterface::class)),
             $this->jobs($pdo),
             new \PerfectConsign\Shared\Jobs\WorkerRuns($pdo),
         );

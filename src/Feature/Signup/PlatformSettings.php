@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Signup;
 
 use PDO;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 final class PlatformSettings
 {
-    public function __construct(private readonly PDO $pdo)
-    {
+    public function __construct(
+        private readonly PDO $pdo,
+        private readonly LoggerInterface $logger,
+    ) {
     }
 
     public function storeSignupEnabled(): bool
@@ -50,8 +53,12 @@ final class PlatformSettings
                 'SELECT value FROM platform.settings WHERE key = ?'
             );
             $statement->execute([$key]);
-        } catch (\PDOException) {
-            return null;
+        } catch (\PDOException $error) {
+            $this->logger->error('platform setting read failed', [
+                'key' => $key,
+                'message' => $error->getMessage(),
+            ]);
+            throw $error;
         }
         $value = $statement->fetchColumn();
         if ($value === false || $value === null) {

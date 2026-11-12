@@ -4,13 +4,36 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pc1Mirror;
 
+use PerfectApp\Logger\FileLogger;
+use Psr\Log\LoggerInterface;
+use RuntimeException;
+
 final class MirrorCli
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly string $root,
         private readonly string $artifactRoot,
         private readonly string $sqlDirectory,
+        ?LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger ?? $this->fileLogger();
+    }
+
+    private function fileLogger(): LoggerInterface
+    {
+        $logDirectory = $this->root . DIRECTORY_SEPARATOR . 'var' . DIRECTORY_SEPARATOR . 'log';
+        if (!is_dir($logDirectory) && !mkdir($logDirectory, 0755, true) && !is_dir($logDirectory)) {
+            throw new RuntimeException('the log directory could not be created');
+        }
+
+        return new FileLogger($logDirectory . DIRECTORY_SEPARATOR . 'app.log');
+    }
+
+    private function pipeline(): MirrorPipeline
+    {
+        return new MirrorPipeline($this->root, $this->sqlDirectory, $this->logger);
     }
 
     /**
@@ -54,7 +77,7 @@ final class MirrorCli
         if (!($options['wipe'] ?? false)) {
             throw new MirrorException('--wipe is required for load');
         }
-        $journalId = (new MirrorPipeline($this->root, $this->sqlDirectory))->load(
+        $journalId = $this->pipeline()->load(
             $extract,
             $this->string($options, 'target', 'local'),
             $this->string($options, 'date', gmdate('Y-m-d')),
@@ -73,7 +96,7 @@ final class MirrorCli
         if ($extract === '') {
             throw new MirrorException('--extract=path is required');
         }
-        $failures = (new MirrorPipeline($this->root, $this->sqlDirectory))->prove(
+        $failures = $this->pipeline()->prove(
             $extract,
             $this->string($options, 'target', 'local'),
         );

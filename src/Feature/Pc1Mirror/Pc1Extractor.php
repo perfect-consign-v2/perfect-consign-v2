@@ -326,7 +326,7 @@ final class Pc1Extractor
                AND COALESCE(voided, false) = false"
         );
         if ($rows === false) {
-            return 0;
+            throw new \RuntimeException('sales tax payable query failed');
         }
         $total = $rows->fetchColumn();
 
@@ -336,7 +336,10 @@ final class Pc1Extractor
     private function accountBalance(PDO $pdo, string $code): int
     {
         $exists = $pdo->query("SELECT to_regclass('journal_lines')");
-        if ($exists === false || $exists->fetchColumn() === null) {
+        if ($exists === false) {
+            throw new \RuntimeException('journal_lines existence check failed');
+        }
+        if ($exists->fetchColumn() === null) {
             return 0;
         }
         $statement = $pdo->prepare(
@@ -347,12 +350,15 @@ final class Pc1Extractor
         );
         try {
             $statement->execute([$code]);
-        } catch (\PDOException) {
-            return 0;
+        } catch (\PDOException $error) {
+            throw new \RuntimeException('account balance query failed for ' . $code, 0, $error);
         }
         $balance = $statement->fetchColumn();
+        if (!is_string($balance) || preg_match('/^-?\d+$/', $balance) !== 1) {
+            throw new \RuntimeException('account balance is not numeric for ' . $code);
+        }
 
-        return is_string($balance) && preg_match('/^-?\d+$/', $balance) === 1 ? (int) $balance : 0;
+        return (int) $balance;
     }
 
     private function code(string $value): string

@@ -51,6 +51,44 @@ final class DemoLoginEnsureTest extends TestCase
         self::assertSame($before, $this->credentialsVersion($pdo, DemoLoginEnsure::SHOP_SLUG));
     }
 
+    public function testWipedMallIsRestoredAsBoothMallWithEnvPassword(): void
+    {
+        $password = getenv('STALL_OWNER_PASSWORD');
+        $email = getenv('STALL_OWNER_EMAIL');
+        if (!is_string($password) || $password === '' || !is_string($email) || trim($email) === '') {
+            self::markTestSkipped('STALL_OWNER_PASSWORD and STALL_OWNER_EMAIL are required');
+        }
+        $pdo = LocalAdmin::open()->pdo();
+        $root = dirname(__DIR__, 3);
+        require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'wipe-tenant.php';
+        wipeTenant($pdo, DemoLoginEnsure::MALL_SLUG, DemoLoginEnsure::MALL_SLUG);
+        self::assertFalse($this->tenantExists($pdo, DemoLoginEnsure::MALL_SLUG));
+
+        $notes = (new DemoLoginEnsure())->ensureAfterWipe($pdo, DemoLoginEnsure::MALL_SLUG);
+
+        self::assertTrue($this->tenantExists($pdo, DemoLoginEnsure::MALL_SLUG));
+        self::assertNotSame([], $notes);
+        $hash = $this->ownerHash($pdo, DemoLoginEnsure::MALL_SLUG);
+        self::assertNotFalse($hash);
+        self::assertTrue(password_verify($password, $hash));
+        self::assertSame(strtolower(trim($email)), $this->ownerEmail($pdo, DemoLoginEnsure::MALL_SLUG));
+        $schema = $this->schemaName($pdo, DemoLoginEnsure::MALL_SLUG);
+        self::assertNotNull($schema);
+        $mode = $pdo->query(
+            'SELECT operating_mode FROM ' . $schema . '.mall'
+        )->fetchColumn();
+        self::assertSame('booth_mall', $mode);
+    }
+
+    private function schemaName(PDO $pdo, string $slug): ?string
+    {
+        $statement = $pdo->prepare('SELECT schema_name FROM platform.tenants WHERE slug = ?');
+        $statement->execute([$slug]);
+        $schema = $statement->fetchColumn();
+
+        return is_string($schema) ? $schema : null;
+    }
+
     private function tenantExists(PDO $pdo, string $slug): bool
     {
         $statement = $pdo->prepare('SELECT 1 FROM platform.tenants WHERE slug = ?');

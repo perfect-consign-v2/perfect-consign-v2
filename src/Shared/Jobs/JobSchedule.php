@@ -6,12 +6,15 @@ namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
 use PerfectConsign\Shared\Tenant\TenantRecord;
+use Psr\Log\LoggerInterface;
+use RuntimeException;
 
 final class JobSchedule
 {
     public function __construct(
         private readonly PDO $pdo,
         private readonly JobQueue $queue,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -19,7 +22,8 @@ final class JobSchedule
     {
         $listed = $this->pdo->query('SELECT slug, schema_name FROM platform.tenants ORDER BY slug');
         if ($listed === false) {
-            return;
+            $this->logger->error('job schedule tenant list failed');
+            throw new RuntimeException('job schedule tenant list failed');
         }
         while (($row = $listed->fetch(PDO::FETCH_ASSOC)) !== false) {
             if (!is_array($row)) {
@@ -28,6 +32,9 @@ final class JobSchedule
             $slug = $row['slug'] ?? null;
             $schema = $row['schema_name'] ?? null;
             if (!is_string($slug) || !is_string($schema)) {
+                $this->logger->warning('job schedule skipped tenant with invalid row', [
+                    'slug' => is_string($slug) ? $slug : null,
+                ]);
                 continue;
             }
             $clock = $this->mallClock($slug, $schema);
@@ -54,10 +61,20 @@ final class JobSchedule
     {
         $role = TenantRecord::roleFor($slug, $schema);
         if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {
+            $this->logger->warning('job schedule skipped tenant with invalid role', [
+                'slug' => $slug,
+                'schema' => $schema,
+                'role' => $role,
+            ]);
+
             return null;
         }
         if ($this->pdo->exec('SET ROLE ' . $role) === false) {
-            return null;
+            $this->logger->error('job schedule set role failed', [
+                'slug' => $slug,
+                'role' => $role,
+            ]);
+            throw new RuntimeException('job schedule set role failed for ' . $slug);
         }
         try {
             return $this->clock($schema);
@@ -82,7 +99,8 @@ final class JobSchedule
              FROM ' . $schema . '.mall'
         );
         if ($query === false) {
-            return null;
+            $this->logger->error('job schedule mall clock failed', ['schema' => $schema]);
+            throw new RuntimeException('job schedule mall clock failed for ' . $schema);
         }
         $row = $query->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
@@ -103,24 +121,10 @@ final class JobSchedule
 
     private static function sameNumber(mixed $left, mixed $right): bool
     {
-        $leftText = self::numberText($left);
-        $rightText = self::numberText($right);
-        if ($leftText === null || $rightText === null) {
+        if (!is_numeric($left) || !is_numeric($right)) {
             return false;
         }
 
-        return $leftText === $rightText;
-    }
-
-    private static function numberText(mixed $value): ?string
-    {
-        if (is_int($value)) {
-            return (string) $value;
-        }
-        if (is_string($value) && preg_match('/^-?\d+(\.0+)?$/', $value) === 1) {
-            return (string) (int) $value;
-        }
-
-        return null;
+        return (int) $left === (int) $right;
     }
 }

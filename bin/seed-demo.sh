@@ -38,6 +38,15 @@ tip=$(git rev-parse origin/master)
 export DEPLOY_SHA="$tip"
 bash "${root}/bin/deploy-demo.sh"
 
+# Two-installer baseline: old stamps cannot migrate. Recreate the DB when allowed.
+if grep -Eq '^STALL_ALLOW_PLATFORM_REINSTALL=(1|true|yes)$' "${root}/.env"; then
+    "$php_bin" "${root}/bin/reinstall-empty-database.php"
+    "$php_bin" "${root}/bin/provision-platform.php"
+    if grep -Eq '^STALL_PLATFORM_ADMIN_PASSWORD=.+' "${root}/.env"; then
+        "$php_bin" "${root}/bin/set-platform-admin.php"
+    fi
+fi
+
 "$php_bin" "${root}/bin/seed-mall.php"
 if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
     "$php_bin" "${root}/bin/set-owner.php" mall owner

@@ -39,6 +39,6 @@ final class MigrationFreezeTest extends TestCase
             rmdir($sql);
             rmdir($root);
         }
-        self::assertFalse(migrationBaselineReset(dirname(__DIR__, 2)));
+        self::assertTrue(migrationBaselineReset(dirname(__DIR__, 2)));
     }
 }

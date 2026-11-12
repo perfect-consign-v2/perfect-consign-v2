@@ -51,6 +51,8 @@ final class DeployDemoScriptTest extends TestCase
         self::assertIsString($script);
         self::assertStringContainsString('bin/deploy-demo.sh', $script);
         self::assertStringContainsString('bin/seed-mall.php', $script);
+        self::assertStringContainsString('reinstall-empty-database.php', $script);
+        self::assertStringContainsString('STALL_ALLOW_PLATFORM_REINSTALL', $script);
         self::assertStringContainsString('set-owner.php', $script);
         self::assertStringContainsString('/opt/plesk/php/8.5/bin/php', $script);
 
@@ -140,20 +142,14 @@ final class DeployDemoScriptTest extends TestCase
         self::assertIsString($script);
         $platformAt = strpos($script, 'bin/migrate.php" platform');
         $afterAt = strpos($script, 'bin/migrate.php" platform-after');
-        $forgetAt = strpos($script, 'bin/forget-tenant-migrations.php" forget');
-        $refreshAt = strpos($script, 'bin/forget-tenant-migrations.php" refresh 088_party_contact.sql');
         $tenantAt = strpos($script, 'bin/migrate.php" tenant mall');
         self::assertNotFalse($platformAt);
         self::assertNotFalse($afterAt);
-        self::assertNotFalse($forgetAt);
-        self::assertNotFalse($refreshAt);
         self::assertNotFalse($tenantAt);
         self::assertGreaterThan($platformAt, $afterAt);
-        self::assertGreaterThan($afterAt, $forgetAt);
-        self::assertGreaterThan($forgetAt, $refreshAt);
-        self::assertGreaterThan($refreshAt, $tenantAt);
-        self::assertStringContainsString('stall_vendor_entry', $script);
-        self::assertStringContainsString('089_wait_list_party_contact.sql', $script);
-        self::assertStringContainsString('090_wait_list_contact_assert.sql', $script);
+        self::assertGreaterThan($afterAt, $tenantAt);
+        self::assertStringNotContainsString('forget-tenant-migrations', $script);
+        self::assertStringContainsString('two-installer baseline', $script);
+        self::assertStringContainsString('Stamped sql/0*.sql files are immutable', $script);
     }
 }

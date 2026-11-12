@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pc1Mirror;
 
+use Psr\Log\LoggerInterface;
+
 final class MirrorPipeline
 {
     public function __construct(
         private readonly string $root,
         private readonly string $sqlDirectory,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -19,7 +22,7 @@ final class MirrorPipeline
         $pdo = $target->connection->pdo();
         (new MirrorWiper())->wipe($pdo, MirrorConstants::TARGET_SLUG);
         $mall = MirrorMall::provision($pdo, $this->sqlDirectory);
-        $idMap = (new MasterLoader())->load($mall, $artifact);
+        $idMap = (new MasterLoader($this->logger))->load($mall, $artifact);
         $journalId = (new OpeningLoader())->load($mall, $artifact, $idMap, $postingDate);
         $this->plantOwner();
 

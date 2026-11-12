@@ -73,7 +73,7 @@ final class JobQueue
         $kind = $row['kind'] ?? null;
         $payload = $row['payload'] ?? null;
         if (!is_string($id) || !is_string($tenant) || !is_string($kind) || !is_string($payload)) {
-            return null;
+            throw new \RuntimeException('job claim returned a malformed row');
         }
 
         return [
@@ -121,7 +121,7 @@ final class JobQueue
                AND run_at < clock_timestamp() - interval '15 minutes'"
         );
         if ($query === false) {
-            return 0;
+            throw new \RuntimeException('job overdue count failed');
         }
 
         return (int) $query->fetchColumn();

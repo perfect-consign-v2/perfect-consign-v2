@@ -103,19 +103,10 @@ export PATH="$(dirname -- "$php_bin"):${PATH:-}"
 
 "$php_bin" "${root}/bin/ensure-mail-key.php"
 "$php_bin" "${root}/bin/migrate.php" platform
-# PLATFORM_AFTER before tenants: cluster roles such as stall_vendor_entry must
-# exist before tenant files grant to them (074_vendor_entry_grants.sql).
+# platform-after is empty after the two-installer baseline (roles live in 000).
 "$php_bin" "${root}/bin/migrate.php" platform-after
-# Wait-list assert forwards were folded into 088_party_contact.sql. Drop their
-# stamps (objects already match) and refresh the 088 checksum before migrate.
-"$php_bin" "${root}/bin/forget-tenant-migrations.php" forget \
-    082_wait_list_open_email_assert.sql \
-    083_wait_list_email_var.sql \
-    089_wait_list_party_contact.sql \
-    090_wait_list_contact_assert.sql \
-    091_wait_list_contact_assert_before_insert.sql
-"$php_bin" "${root}/bin/forget-tenant-migrations.php" refresh 088_party_contact.sql
-# 089_wait_list_contact_assert.sql applies via migrate for malls that still need it.
+# Stamped sql/0*.sql files are immutable. MigrationFileChanged means wipe+reprovision
+# or a new forward file — never edit checksums in place.
 if ! tenant_err=$("$php_bin" "${root}/bin/migrate.php" tenant mall 2>&1); then
     printf '%s\n' "$tenant_err" >&2
     echo "deploy-demo: tenant migrate failed" >&2

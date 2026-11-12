@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
-use PerfectConsign\Ledger\DatabaseRefusal;
-
 final class PosRegister
 {
     public function __construct(
@@ -57,11 +55,8 @@ final class PosRegister
         if ($cart['lines'] === []) {
             return [];
         }
-        try {
-            return $this->snaps->mint($session, $cart['ticket_id']);
-        } catch (DatabaseRefusal) {
-            return [];
-        }
+
+        return $this->snaps->mint($session, $cart['ticket_id']);
     }
 
     /**

@@ -1,7 +1,7 @@
 ---
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
-hesk: published 2026-11-11
+hesk: published 2026-11-12
 as_of: 2026-11-11
 ---
 
@@ -9,7 +9,7 @@ as_of: 2026-11-11
 
 ## As of
 
-2026-11-11 — DocumentRoot must be `public/`; repo-root `.htaccess` denies `.env`, `.github/`, `composer.phar` / `*.phar`, and app paths; `public/.htaccess` skips HTTPS redirect when `X-Forwarded-Proto` is already `https` (proxy must set that header or redirects loop); nightly backups refuse a web-reachable `STALL_BACKUP_DIR`.
+2026-11-11 — DocumentRoot must be `public/`; repo-root `.htaccess` denies `.env`, `.github/`, `composer.phar` / `*.phar`, and app paths; `public/.htaccess` skips HTTPS redirect when `X-Forwarded-Proto` is already `https` only when the proxy (or `mod_remoteip`) strips client-spoofed headers — PHP still ignores forwarded proto unless `REMOTE_ADDR` is in `STALL_TRUSTED_PROXIES`; schema installers are `000_platform.sql` + `001_tenant.sql` only (stamped bytes immutable; disposable demo may `STALL_ALLOW_PLATFORM_REINSTALL` then wipe+reprovision); nightly backups refuse a web-reachable `STALL_BACKUP_DIR`.
 
 ## In one sentence
 
@@ -25,6 +25,8 @@ You deploy PC2 behind HTTPS, a reverse proxy, or `php -S` for a local demo; or y
 - `STALL_PUBLIC_ORIGIN` is the canonical origin (`https://mall.example` or `http://127.0.0.1:8096`). Outbound links use that value, not a forged `Host` header.
 - Host-derived origin is allowed only when `STALL_ALLOW_HOST_ORIGIN=true` and the env is not production-like (`local` / `development` / `dev`, or `APP_DEBUG=true` outside `production` / `prod`). Production-like env always needs `STALL_PUBLIC_ORIGIN`.
 - `STALL_TRUSTED_PROXIES` lists proxy IPs or IPv4 CIDRs. Only those peers may supply `X-Forwarded-Proto` for Secure cookies and HSTS, and the rightmost untrusted hop of `X-Forwarded-For` for lockouts and audit. If the list is empty, forwarded proto and address are ignored; only the server’s own HTTPS signal and `REMOTE_ADDR` count. `bin/deploy-demo.sh` refuses an `https://` public origin when that list is empty and the live origin does not already set a Secure session cookie.
+- Apache’s HTTPS rewrite also trusts `X-Forwarded-Proto: https` to avoid redirect loops behind a TLS terminator. That trust is ops wiring: `mod_remoteip` (or equivalent) must strip client-spoofed `X-Forwarded-Proto` before Apache sees it. PHP never trusts that header from an unlisted peer.
+- Schema installers are `sql/000_platform.sql` and `sql/001_tenant.sql` only. Stamped bytes are immutable. Deploy never forgets stamps or refreshes checksums. `MigrationFileChanged` means a new forward file or wipe + reprovision (`STALL_ALLOW_PLATFORM_REINSTALL` on disposable demos).
 - When TLS is trusted, HSTS is sent as `max-age=86400` without `includeSubDomains`. Mutating POSTs still need a session CSRF token; Referer is not CSRF.
 - Every page sends an enforcing Content-Security-Policy: scripts and styles must come from the same origin under `/assets/` (no inline script or style tags, no `style=` attributes, no `onclick=` handlers). Barcode sticker images may use `data:` URLs.
 - Pages load a tiny `boot.css` before the theme so the browser does not flash oversized unstyled text while theme CSS is still arriving.
@@ -36,6 +38,7 @@ You deploy PC2 behind HTTPS, a reverse proxy, or `php -S` for a local demo; or y
 - Empty public origin in production-like env.
 - Coverage dumps when `APP_ENV` is not `test` or `coverage`. (`composer test:coverage` sets `APP_ENV=coverage`, clears dumps once, then runs unit/integration and http as separate PHPUnit processes so ProbeServer HTTP dumps are collected.)
 - Inline page script or author CSS (the browser CSP blocks it; the app test suite also refuses it in templates).
+- Editing an already-stamped migration file and papering over it with a checksum refresh.
 
 ## How to check
 

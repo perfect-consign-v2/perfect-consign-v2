@@ -63,7 +63,7 @@ $runner = new JobRunner(
     $pdo,
     $queue,
     $logger,
-    new JobSchedule($pdo, $queue),
+    new JobSchedule($pdo, $queue, $logger),
     new JobDispatch(
         new LateFeeJob($pdo),
         new DigestJob($pdo, $mail, $bounce, $logger, new MailProgress()),

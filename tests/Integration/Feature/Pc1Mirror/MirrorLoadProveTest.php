@@ -15,6 +15,7 @@ use PerfectConsign\Feature\Pc1Mirror\OpeningLoader;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
+use Psr\Log\NullLogger;
 
 final class MirrorLoadProveTest extends TestCase
 {
@@ -31,7 +32,7 @@ final class MirrorLoadProveTest extends TestCase
         $mall = MirrorMall::provision($pdo, $root . DIRECTORY_SEPARATOR . 'sql');
         $reopened = MirrorMall::openExisting($pdo);
         self::assertSame($mall->schema, $reopened->schema);
-        $idMap = (new MasterLoader())->load($mall, $artifact);
+        $idMap = (new MasterLoader(new NullLogger()))->load($mall, $artifact);
         (new OpeningLoader())->load($mall, $artifact, $idMap, '2026-11-05');
         $failures = (new MirrorProver())->prove($mall, $artifact);
         self::assertSame([], $failures);
@@ -50,7 +51,7 @@ final class MirrorLoadProveTest extends TestCase
         $pdo = $target->connection->pdo();
         (new MirrorWiper())->wipe($pdo, MirrorConstants::TARGET_SLUG);
         $mall = MirrorMall::provision($pdo, $root . DIRECTORY_SEPARATOR . 'sql');
-        $idMap = (new MasterLoader())->load($mall, $artifact);
+        $idMap = (new MasterLoader(new NullLogger()))->load($mall, $artifact);
         (new OpeningLoader())->load($mall, $artifact, $idMap, '2026-11-05');
         self::assertSame([], (new MirrorProver())->prove($mall, $artifact));
 

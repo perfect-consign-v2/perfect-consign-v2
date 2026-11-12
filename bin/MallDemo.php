@@ -238,6 +238,11 @@ final class MallDemo
     public function load(): void
     {
         $this->useMall();
+        if ($this->boothMallOnly()) {
+            $this->loadBoothMall();
+
+            return;
+        }
         $this->companyProfile();
         $this->statements->change(
             'UPDATE mall SET commission_bps = ?, tax_bps = ?, floor_days = ?, rent_prepaid_from_prior_sales = true',
@@ -282,6 +287,51 @@ final class MallDemo
         if (PHP_SAPI === 'cli') {
             fwrite(STDOUT, $line);
         }
+    }
+
+    private function boothMallOnly(): bool
+    {
+        $rows = $this->statements->rows(
+            "SELECT operating_mode,
+                    CASE WHEN consignment_enabled THEN '1' ELSE '0' END AS consignment_on
+             FROM mall"
+        );
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            return false;
+        }
+
+        return ($row['operating_mode'] ?? null) === 'booth_mall'
+            && ($row['consignment_on'] ?? null) === '0';
+    }
+
+    private function loadBoothMall(): void
+    {
+        $this->companyProfile();
+        $this->statements->change(
+            'UPDATE mall SET commission_bps = ?, tax_bps = ?, floor_days = NULL, rent_prepaid_from_prior_sales = true',
+            [2000, 8750]
+        );
+        \PerfectConsign\Shared\Mail\MailboxSeed::plant($this->pdo);
+        $this->statements->change('UPDATE registers SET name = ? WHERE id = ?::uuid', ['Front desk', self::REGISTER]);
+        $this->statements->change(
+            "INSERT INTO map_floors (name, sort_order) VALUES ('Annex', 1)",
+            []
+        );
+        $this->brands();
+        $this->floor();
+        $this->vendor('ADA', 'Ada', 'Lane', '555-0140', 'ada@example.com', '14 Cedar St', 2000, '2026-04-01', '', 'Booth renter.');
+        $this->vendor('BEA', 'Bea', 'Ortiz', '555-0142', 'bea@example.com', '8 Harbor Ave', 1500, '2026-04-01', '', 'Booth renter.');
+        $this->vendor('CAL', 'Cal', 'Nguyen', '555-0144', 'cal@example.com', '31 Pine Rd', 2500, '2026-05-15', '', 'Booth renter.');
+        $this->assign('A-1', 'ADA', '2026-04-01', '', 30000);
+        $this->assign('A-2', 'BEA', '2026-04-01', '', 25000);
+        $this->assign('B-1', 'CAL', '2026-05-15', '', 15000);
+        $session = $this->openDrawer('2026-10-01');
+        $this->chargeAndCollect($session, 'A-1', '2026-10-01');
+        $this->chargeAndCollect($session, 'A-2', '2026-10-01');
+        $this->chargeAndCollect($session, 'B-1', '2026-10-01');
+        $this->closeDrawer($session, '2026-10');
+        $this->note("booth mall demo posted (rent only)\n");
     }
 
     private function useMall(): void

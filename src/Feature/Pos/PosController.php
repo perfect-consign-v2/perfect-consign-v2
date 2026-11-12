@@ -21,6 +21,7 @@ final class PosController
         private readonly SaleHold $sales,
         private readonly LoggerInterface $logger,
         private readonly TicketDrafts $drafts,
+        private readonly DraftAwareDiscard $discard,
     ) {
     }
 
@@ -59,15 +60,7 @@ final class PosController
     public function discard(string $slug): void
     {
         $this->act($slug, function (string $session): void {
-            $hadDrafts = $this->drafts->hasAny($session);
-            $this->drafts->clear($session);
-            try {
-                $this->tickets->discard($session);
-            } catch (DatabaseRefusal $refusal) {
-                if (!$hadDrafts) {
-                    throw $refusal;
-                }
-            }
+            $this->discard->run($session);
         }, 'Ticket discarded.');
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -184,10 +185,13 @@ final class TicketDrafts
         try {
             $decoded = json_decode($json, true, 32, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
-            return null;
+            throw new DatabaseRefusal('Instant Add attributes are corrupt');
+        }
+        if (!is_array($decoded)) {
+            throw new DatabaseRefusal('Instant Add attributes are corrupt');
         }
 
-        return is_array($decoded) ? $decoded : null;
+        return $decoded;
     }
 
     /**

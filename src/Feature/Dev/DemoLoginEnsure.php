@@ -57,6 +57,7 @@ final class DemoLoginEnsure
         if (!$this->tenantExists($pdo, self::MALL_SLUG)) {
             $provisioner = new TenantProvisioner($pdo, $this->sqlDirectory());
             $schema = $provisioner->provision(self::MALL_SLUG, 'Mall');
+            $this->loadMallSql($pdo, $provisioner, $schema);
             $notes[] = 'provisioned mall as ' . $schema;
         }
         $outcome = (new OwnerCredentialPlant($pdo))->plant(
@@ -158,22 +159,37 @@ final class DemoLoginEnsure
         return $statement->fetchColumn() !== false;
     }
 
+    private function loadMallSql(PDO $pdo, TenantProvisioner $provisioner, string $schema): void
+    {
+        $this->loadModeSql($pdo, $provisioner, $schema, self::MALL_SLUG, 'mall_tenant.sql');
+    }
+
     private function loadShopSql(PDO $pdo, TenantProvisioner $provisioner, string $schema): void
     {
+        $this->loadModeSql($pdo, $provisioner, $schema, self::SHOP_SLUG, 'shop_tenant.sql');
+    }
+
+    private function loadModeSql(
+        PDO $pdo,
+        TenantProvisioner $provisioner,
+        string $schema,
+        string $slug,
+        string $file,
+    ): void {
         if (preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
             throw new RuntimeException('schema name is not a tenant schema');
         }
-        $path = $this->sqlDirectory() . DIRECTORY_SEPARATOR . 'shop_tenant.sql';
+        $path = $this->sqlDirectory() . DIRECTORY_SEPARATOR . $file;
         $sql = file_get_contents($path);
         if ($sql === false) {
-            throw new RuntimeException('could not read shop_tenant.sql');
+            throw new RuntimeException('could not read ' . $file);
         }
         if ($pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions') === false) {
-            throw new RuntimeException('could not open the shop schema');
+            throw new RuntimeException('could not open the ' . $slug . ' schema');
         }
-        $loaded = $pdo->exec($provisioner->rewrite($sql, $schema, $provisioner->roleName(self::SHOP_SLUG, $schema)));
+        $loaded = $pdo->exec($provisioner->rewrite($sql, $schema, $provisioner->roleName($slug, $schema)));
         if ($loaded === false) {
-            throw new RuntimeException('could not load shop_tenant.sql');
+            throw new RuntimeException('could not load ' . $file);
         }
     }
 

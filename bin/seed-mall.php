@@ -51,6 +51,20 @@ $provisioner = new TenantProvisioner($pdo, dirname(__DIR__) . DIRECTORY_SEPARATO
 $schema = $provisioner->provision('mall', 'Mall');
 fwrite(STDOUT, $schema . "\n");
 
+$mallSqlPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql' . DIRECTORY_SEPARATOR . 'mall_tenant.sql';
+$mallSql = file_get_contents($mallSqlPath);
+if ($mallSql === false) {
+    fwrite(STDERR, "could not read mall_tenant.sql\n");
+    exit(1);
+}
+if ($pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions') === false) {
+    fwrite(STDERR, "could not open the mall schema\n");
+    exit(1);
+}
+if ($pdo->exec($provisioner->rewrite($mallSql, $schema, $provisioner->roleName('mall', $schema))) === false) {
+    fwrite(STDERR, "could not load mall_tenant.sql\n");
+    exit(1);
+}
 try {
     (new MallDemo($pdo, $schema))->load();
 } catch (Throwable $error) {

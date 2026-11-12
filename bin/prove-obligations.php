@@ -54,15 +54,18 @@ foreach ($ledgerFiles as $path) {
     if (str_contains($sql, 'SET event_triggers')) {
         $failures[] = $file . ' sets event_triggers';
     }
+    if (str_contains($sql, "set_config('event_triggers'") && !eventTriggerWipeAllowlist($file)) {
+        $failures[] = $file . ' uses set_config event_triggers outside an allowlisted wipe migration';
+    }
     if (eventTriggersLeftOff($sql)) {
         $failures[] = $file . ' leaves event triggers off';
     }
     if (!isset($tenantFiles[$file])) {
         continue;
     }
-    // Applied tenant files are frozen checksums. 064–079 shipped with IF EXISTS /
-    // CREATE FUNCTION; do not rewrite them. Refuse soft DDL only on later files.
-    if ($file <= '079_override_client_address.sql') {
+    // Installers 000/001 are greenfield baselines. Soft-DDL refusals apply only
+    // to numbered tenant forwards after the baseline (none until the next upgrade).
+    if ($file <= '001_tenant.sql') {
         continue;
     }
     if (str_contains($sql, 'ADD COLUMN IF NOT EXISTS')) {
@@ -100,6 +103,11 @@ if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath((string) $argv[0]) === rea
         fwrite(STDERR, $error->getMessage() . "\n");
         exit(1);
     }
+}
+
+function eventTriggerWipeAllowlist(string $file): bool
+{
+    return $file === '000_platform.sql';
 }
 
 function eventTriggersLeftOff(string $sql): bool
@@ -302,7 +310,8 @@ function duplicateFunctions(string $sqlDirectory): array
                 continue;
             }
             $key = strtolower($name);
-            if (isset($seen[$key])) {
+            // Baseline installers may contain folded CREATE OR REPLACE history.
+            if (isset($seen[$key]) && $file !== '000_platform.sql' && $file !== '001_tenant.sql') {
                 $failures[] = $file . ' creates ' . $name . ' twice';
             }
             $seen[$key] = true;

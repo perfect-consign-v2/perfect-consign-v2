@@ -61,8 +61,7 @@ final class ProbeMall
     {
         $migrator = new SchemaMigrator(self::admin(), new SchemaCatalog($root . DIRECTORY_SEPARATOR . 'sql'));
         $migrator->migratePlatform();
-        // PLATFORM_AFTER creates cluster roles (e.g. stall_vendor_entry) that tenant
-        // ledger files grant to; provision/migrate tenants only after those exist.
+        // platform-after is empty on the two-installer baseline (roles are in 000).
         $migrator->migratePlatformAfter();
         if (!self::exists()) {
             self::run($root, 'bin' . DIRECTORY_SEPARATOR . 'provision-tenant.php', [self::SLUG, self::DISPLAY_NAME]);

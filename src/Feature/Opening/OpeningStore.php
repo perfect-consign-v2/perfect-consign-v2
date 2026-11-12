@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Opening;
 
 use PDO;
+use RuntimeException;
 
 final class OpeningStore
 {
@@ -24,7 +25,7 @@ final class OpeningStore
                )"
         );
         if ($value === false) {
-            return false;
+            throw new RuntimeException('opening allowance query failed');
         }
         $others = (int) $value->fetchColumn();
         $live = $this->pdo->query(
@@ -36,7 +37,7 @@ final class OpeningStore
                )"
         );
         if ($live === false) {
-            return false;
+            throw new RuntimeException('opening live count query failed');
         }
 
         return $others === 0 && (int) $live->fetchColumn() === 0;

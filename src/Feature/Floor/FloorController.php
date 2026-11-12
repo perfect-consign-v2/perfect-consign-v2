@@ -68,8 +68,8 @@ final class FloorController
                 $id = RowValue::string($rows[0]['id'] ?? null);
                 $this->audit->record('floor.note', $id, 'floor_finding');
             });
-        } catch (DatabaseRefusal | \InvalidArgumentException) {
-            $this->app->redirect('/' . $slug . '/floor', 'That item is not on the floor.');
+        } catch (DatabaseRefusal | \InvalidArgumentException $error) {
+            $this->app->redirect('/' . $slug . '/floor', $this->app->catchRefusal($error));
         }
         $this->app->redirect('/' . $slug . '/floor', 'Floor note saved.');
     }
@@ -93,8 +93,8 @@ final class FloorController
                 $id = RowValue::string($rows[0]['id'] ?? null);
                 $this->audit->record('pickup.record', $id, 'pickup');
             });
-        } catch (DatabaseRefusal | \InvalidArgumentException) {
-            $this->app->redirect('/' . $slug . '/floor', 'That item is not on the floor.');
+        } catch (DatabaseRefusal | \InvalidArgumentException $error) {
+            $this->app->redirect('/' . $slug . '/floor', $this->app->catchRefusal($error));
         }
         $this->app->redirect('/' . $slug . '/floor', 'Pickup saved.');
     }

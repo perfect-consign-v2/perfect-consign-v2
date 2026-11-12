@@ -6,7 +6,6 @@ namespace PerfectConsign\Feature\Pc1Mirror;
 
 use PerfectConsign\Feature\Party\VendorDraft;
 use Psr\Log\LoggerInterface;
-use Psr\Log\NullLogger;
 
 final class MasterLoader
 {
@@ -20,7 +19,7 @@ final class MasterLoader
     private array $usedStoredNumbers = [];
 
     public function __construct(
-        private readonly LoggerInterface $logger = new NullLogger(),
+        private readonly LoggerInterface $logger,
         private readonly ItemMasterLoader $items = new ItemMasterLoader(),
         private readonly ?AssignmentMasterLoader $assignments = null,
     ) {

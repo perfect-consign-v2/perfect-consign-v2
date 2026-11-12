@@ -47,17 +47,19 @@ final class SnapAuthorizeTest extends TestCase
         ]));
     }
 
-    public function testSnapKeysStayEmptyWhenMintIsRefused(): void
+    public function testSnapKeysPropagateWhenMintIsRefused(): void
     {
         $statements = $this->createMock(Statements::class);
         $statements->expects(self::once())
             ->method('bound')
             ->willThrowException(new DatabaseRefusal('there is no open ticket'));
 
-        self::assertSame([], $this->register($statements)->snapKeys('session-1', [
+        $this->expectException(DatabaseRefusal::class);
+        $this->expectExceptionMessage('there is no open ticket');
+        $this->register($statements)->snapKeys('session-1', [
             'ticket_id' => 'ticket-1',
             'lines' => [['line_no' => 1]],
-        ]));
+        ]);
     }
 
     /**
