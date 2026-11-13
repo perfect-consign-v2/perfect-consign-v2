@@ -197,7 +197,7 @@ final class InventoryStore
             $item->sale->priceMinor,
             $item->sale->quantity,
             $item->sale->commissionBps,
-            $item->sale->taxExempt,
+            $item->sale->taxExempt ? 'true' : 'false',
             $item->dates->intakeOn,
             $item->dates->expiresOn,
         ]);

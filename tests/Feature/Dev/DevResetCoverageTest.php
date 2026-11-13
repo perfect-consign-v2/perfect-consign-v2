@@ -17,9 +17,11 @@ final class DevResetCoverageTest extends TestCase
     public function testOnlyTheOwnerOfTheDemoMallsMayResetThem(): void
     {
         $allowed = new ReflectionMethod(DevResetController::class, 'allowed');
-        self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'mall'));
-        putenv('STALL_ALLOW_TENANT_RESET=1');
+        $previous = getenv('STALL_ALLOW_TENANT_RESET');
+        putenv('STALL_ALLOW_TENANT_RESET');
         try {
+            self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'mall'));
+            putenv('STALL_ALLOW_TENANT_RESET=1');
             self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'mall'));
             self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'shop')), 'shop'));
             self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'mall')), 'webprobe'));
@@ -27,7 +29,11 @@ final class DevResetCoverageTest extends TestCase
             self::assertFalse($allowed->invoke($this->controller($this->actor('owner', 'shop')), 'mall'));
             self::assertTrue($allowed->invoke($this->controller($this->actor('owner', 'dev')), 'dev'));
         } finally {
-            putenv('STALL_ALLOW_TENANT_RESET');
+            if ($previous === false) {
+                putenv('STALL_ALLOW_TENANT_RESET');
+            } else {
+                putenv('STALL_ALLOW_TENANT_RESET=' . $previous);
+            }
         }
     }
 

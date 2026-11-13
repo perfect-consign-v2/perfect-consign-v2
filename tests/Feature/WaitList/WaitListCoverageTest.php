@@ -110,8 +110,19 @@ final class WaitListCoverageTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertSame('expected a string', $error->getMessage());
         }
+        $missing = $this->recording([]);
         try {
-            $store->save('00000000-0000-7000-8000-000000000001', 'Ada', 'Lane', 'ada@example.test', '555', '', '', 'waiting', '');
+            (new WaitListStore($missing, new WaitListFields(), $logger))->save(
+                '00000000-0000-7000-8000-000000000001',
+                'Ada',
+                'Lane',
+                'ada@example.test',
+                '555',
+                '',
+                '',
+                'waiting',
+                '',
+            );
             self::fail('a missing wait list row was saved');
         } catch (InvalidArgumentException $error) {
             self::assertSame('That person is not on the wait list.', $error->getMessage());
