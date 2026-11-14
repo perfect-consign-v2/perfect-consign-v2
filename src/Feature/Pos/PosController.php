@@ -7,7 +7,6 @@ namespace PerfectConsign\Feature\Pos;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Http\JsonResponse;
 use Psr\Log\LoggerInterface;
 
@@ -44,7 +43,7 @@ final class PosController
     public function price(string $slug): void
     {
         $this->act($slug, function (string $session): void {
-            $this->tickets->price($session, $this->lineNo(), Money::parseMinor($this->app->request()->field('price')));
+            $this->tickets->price($session, $this->lineNo(), TicketAdjustment::priceMinor($this->app->request()->field('price')));
         }, 'Price changed.');
     }
 

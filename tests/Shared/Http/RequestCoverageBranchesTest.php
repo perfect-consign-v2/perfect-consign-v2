@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Shared\Http;
 
+use PerfectConsign\Shared\Http\CoverageKeep;
 use PerfectConsign\Shared\Http\RequestCoverage;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -80,14 +81,13 @@ final class RequestCoverageBranchesTest extends TestCase
             self::fail('the outside file could not be created');
         }
         $kept = new ReflectionMethod(RequestCoverage::class, 'kept');
-        $srcFile = new ReflectionMethod(RequestCoverage::class, 'srcFile');
         $root = strtolower(str_replace('\\', '/', $src . '/'));
         try {
             self::assertSame([], $kept->invoke(null, 'nope'));
-            self::assertNull($srcFile->invoke(null, 12, $root));
-            self::assertNull($srcFile->invoke(null, $outside . '-missing', $root));
-            self::assertNull($srcFile->invoke(null, $outside, $root));
-            self::assertIsString($srcFile->invoke(null, $inside, $root));
+            self::assertNull(CoverageKeep::file(12, $root));
+            self::assertNull(CoverageKeep::file($outside . '-missing', $root));
+            self::assertNull(CoverageKeep::file($outside, $root));
+            self::assertIsString(CoverageKeep::file($inside, $root));
             $rows = $kept->invoke(null, [
                 4 => [1 => 1],
                 $outside => [1 => 1],

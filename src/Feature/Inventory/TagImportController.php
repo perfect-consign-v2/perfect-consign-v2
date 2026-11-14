@@ -61,20 +61,43 @@ final class TagImportController
      */
     private function uploadError(?array $file): ?string
     {
-        $uploaded = $file !== null && ($this->acceptLocalFile || is_uploaded_file($file['tmp_name']));
-        if ($file === null || $file['error'] !== UPLOAD_ERR_OK || !$uploaded) {
+        if ($file === null || !$this->uploadAccepted($file)) {
             return 'Choose a CSV file.';
         }
-        $size = filesize($file['tmp_name']);
-        if ($size === false || $size < 1 || $size > 2_000_000) {
+        if (!$this->csvFits($file['tmp_name'])) {
             return 'That CSV is too large.';
         }
-        $sample = file_get_contents($file['tmp_name'], false, null, 0, 512);
-        if ($sample === false || str_contains($sample, "\0")) {
+        if ($this->sampleIsBinary($file['tmp_name'])) {
             return 'Choose a CSV file.';
         }
 
         return null;
+    }
+
+    /**
+     * @param array{tmp_name: string, error: int, size: int, name: string} $file
+     */
+    private function uploadAccepted(array $file): bool
+    {
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            return false;
+        }
+
+        return $this->acceptLocalFile || is_uploaded_file($file['tmp_name']);
+    }
+
+    private function csvFits(string $path): bool
+    {
+        $size = filesize($path);
+
+        return is_int($size) && $size >= 1 && $size <= 2_000_000;
+    }
+
+    private function sampleIsBinary(string $path): bool
+    {
+        $sample = file_get_contents($path, false, null, 0, 512);
+
+        return !is_string($sample) || str_contains($sample, "\0");
     }
 
     private function page(string $slug, ?string $error): void

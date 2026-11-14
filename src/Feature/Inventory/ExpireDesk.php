@@ -142,20 +142,45 @@ final class ExpireDesk
             throw new DatabaseRefusal('Choose an item.');
         }
         $row = $rows[0];
-        $vendorId = $row['vendor_id'] ?? null;
-        if (!is_string($vendorId) || $vendorId === '' || ($row['placement'] ?? null) !== 'consigned') {
+        $vendorId = $this->consignor($row);
+        if (!$this->onHand($row['quantity'] ?? null)) {
             throw new DatabaseRefusal('a buy takes a consigned piece');
         }
-        $quantity = $row['quantity'] ?? null;
-        if ((!is_int($quantity) && !(is_string($quantity) && preg_match('/^\d+$/', $quantity) === 1)) || (int) $quantity < 1) {
-            throw new DatabaseRefusal('a buy takes a consigned piece');
-        }
-        $expired = $row['expired'] ?? null;
-        if ($expired !== 1 && $expired !== '1') {
+        if (!$this->expired($row['expired'] ?? null)) {
             throw new DatabaseRefusal('only an expired consigned piece can be bought');
         }
 
         return ['vendor_id' => $vendorId];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function consignor(array $row): string
+    {
+        $vendorId = $row['vendor_id'] ?? null;
+        if (!is_string($vendorId) || $vendorId === '' || ($row['placement'] ?? null) !== 'consigned') {
+            throw new DatabaseRefusal('a buy takes a consigned piece');
+        }
+
+        return $vendorId;
+    }
+
+    private function onHand(mixed $quantity): bool
+    {
+        if (is_int($quantity)) {
+            return $quantity > 0;
+        }
+        if (is_string($quantity) && preg_match('/^\d+$/', $quantity) === 1) {
+            return (int) $quantity > 0;
+        }
+
+        return false;
+    }
+
+    private function expired(mixed $expired): bool
+    {
+        return $expired === 1 || $expired === '1';
     }
 
     private function action(string $value): string

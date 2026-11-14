@@ -10,7 +10,7 @@ final class ItemSale
         public readonly int $priceMinor,
         public readonly int $quantity,
         public readonly ?int $commissionBps,
-        public readonly bool $taxExempt = false,
+        public readonly bool $taxExempt,
     ) {
     }
 }

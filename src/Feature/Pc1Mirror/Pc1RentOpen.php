@@ -20,6 +20,14 @@ final class Pc1RentOpen
     /**
      * @return list<array{pc1_booth_id: string, pc1_consignor_id: string, cents: int}>
      */
+    public function asOfToday(PDO $pdo, int $cycleDay): array
+    {
+        return $this->byBooth($pdo, $cycleDay, new \DateTimeImmutable('today'));
+    }
+
+    /**
+     * @return list<array{pc1_booth_id: string, pc1_consignor_id: string, cents: int}>
+     */
     public function byBooth(PDO $pdo, int $cycleDay, \DateTimeImmutable $today): array
     {
         $cycleDay = max(1, min(31, $cycleDay));

@@ -44,6 +44,19 @@ final class ExportStore
 
     private function guarded(string $line): string
     {
+        $fields = $this->protectedFields($line);
+        if ($fields === null) {
+            return $line;
+        }
+
+        return $this->writeFields($fields);
+    }
+
+    /**
+     * @return list<string|null>|null
+     */
+    private function protectedFields(string $line): ?array
+    {
         $fields = str_getcsv($line, ',', '"', '');
         $changed = false;
         foreach ($fields as $index => $field) {
@@ -58,19 +71,23 @@ final class ExportStore
             $changed = true;
         }
         if (!$changed) {
-            return $line;
+            return null;
         }
+
+        return $fields;
+    }
+
+    /**
+     * @param list<string|null> $fields
+     */
+    private function writeFields(array $fields): string
+    {
         $handle = fopen($this->buffer, 'w+');
         if ($handle === false) {
             throw new DatabaseRefusal('the export returned a non-text line');
         }
         try {
-            $csv = fputcsv($handle, $fields, ',', '"', '', "\n");
-            if ($csv === false || $csv === 0) {
-                throw new DatabaseRefusal('the export returned a non-text line');
-            }
-            rewind($handle);
-            $written = stream_get_contents($handle);
+            $written = $this->putCsv($handle, $fields);
         } finally {
             fclose($handle);
         }
@@ -79,5 +96,24 @@ final class ExportStore
         }
 
         return rtrim($written, "\n");
+    }
+
+    /**
+     * @param resource $handle
+     * @param list<string|null> $fields
+     */
+    private function putCsv($handle, array $fields): string
+    {
+        $csv = fputcsv($handle, $fields, ',', '"', '', "\n");
+        if ($csv === false || $csv === 0) {
+            throw new DatabaseRefusal('the export returned a non-text line');
+        }
+        rewind($handle);
+        $written = stream_get_contents($handle);
+        if (!is_string($written)) {
+            throw new DatabaseRefusal('the export returned a non-text line');
+        }
+
+        return $written;
     }
 }

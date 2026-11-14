@@ -139,46 +139,7 @@ final class RequestCoverage
      */
     private static function kept(mixed $coverage): array
     {
-        if (!is_array($coverage)) {
-            return [];
-        }
-        $src = strtolower(str_replace('\\', '/', self::applicationSrc() . '/'));
-        $kept = [];
-        foreach ($coverage as $file => $lines) {
-            $real = self::srcFile($file, $src);
-            if ($real === null || !is_array($lines)) {
-                continue;
-            }
-            $normalized = [];
-            foreach ($lines as $line => $hits) {
-                if (!is_int($line) || !is_int($hits)) {
-                    continue;
-                }
-                $normalized[$line] = $hits;
-            }
-            if ($normalized !== []) {
-                $kept[$real] = $normalized;
-            }
-        }
-
-        return $kept;
-    }
-
-    private static function srcFile(mixed $file, string $src): ?string
-    {
-        if (!is_string($file)) {
-            return null;
-        }
-        $real = realpath($file);
-        if ($real === false) {
-            return null;
-        }
-        $key = strtolower(str_replace('\\', '/', $real));
-        if (!str_starts_with($key, $src)) {
-            return null;
-        }
-
-        return $real;
+        return CoverageKeep::lines($coverage, self::applicationSrc());
     }
 
     private static function applicationSrc(): string

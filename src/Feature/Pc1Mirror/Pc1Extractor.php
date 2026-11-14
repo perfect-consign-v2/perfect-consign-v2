@@ -284,7 +284,7 @@ final class Pc1Extractor
             $payable,
             static fn (array $row): bool => $row['cents'] > 0
         ));
-        $rent = $this->rent->byBooth($pdo, $cycleDay, new \DateTimeImmutable('today'));
+        $rent = $this->rent->asOfToday($pdo, $cycleDay);
         $tax = $this->salesTaxPayable($pdo);
         $cash = $this->accountBalance($pdo, '1000');
         $gifts = [

@@ -356,7 +356,7 @@ final class InventoryMissCoverageTest extends TestCase
 
         $guard = new ItemGuard($statements);
         $badVendor = $this->entry('T', 'B');
-        $badVendor = new ItemEntry('T', 'B', 'nope', null, [], 'Hat', new ItemSale(100, 1, null), new ItemDates('2026-01-01', null), 'consigned');
+        $badVendor = new ItemEntry('T', 'B', 'nope', null, [], 'Hat', new ItemSale(100, 1, null, false), new ItemDates('2026-01-01', null), 'consigned');
         try {
             $guard->accept($badVendor);
             self::fail('a bad vendor was accepted');
@@ -369,7 +369,7 @@ final class InventoryMissCoverageTest extends TestCase
         } catch (\InvalidArgumentException $error) {
             self::assertSame('That vendor is not in this mall.', $error->getMessage());
         }
-        $branded = new ItemEntry('T', 'B', self::VENDOR, 'nope', [], 'Hat', new ItemSale(100, 1, null), new ItemDates('2026-01-01', null), 'consigned');
+        $branded = new ItemEntry('T', 'B', self::VENDOR, 'nope', [], 'Hat', new ItemSale(100, 1, null, false), new ItemDates('2026-01-01', null), 'consigned');
         $known = $this->routed();
         $known->boundRoutes[] = ['match' => 'SELECT id FROM vendors', 'rows' => [['id' => self::VENDOR]]];
         try {
@@ -378,21 +378,21 @@ final class InventoryMissCoverageTest extends TestCase
         } catch (\InvalidArgumentException $error) {
             self::assertSame('That brand is not in this mall.', $error->getMessage());
         }
-        $missingBrand = new ItemEntry('T', 'B', self::VENDOR, self::BRAND, [], 'Hat', new ItemSale(100, 1, null), new ItemDates('2026-01-01', null), 'consigned');
+        $missingBrand = new ItemEntry('T', 'B', self::VENDOR, self::BRAND, [], 'Hat', new ItemSale(100, 1, null, false), new ItemDates('2026-01-01', null), 'consigned');
         try {
             (new ItemGuard($known))->accept($missingBrand);
             self::fail('a missing brand was accepted');
         } catch (\InvalidArgumentException $error) {
             self::assertSame('That brand is not in this mall.', $error->getMessage());
         }
-        $badColor = new ItemEntry('T', 'B', self::VENDOR, null, ['color' => 'nope'], 'Hat', new ItemSale(100, 1, null), new ItemDates('2026-01-01', null), 'consigned');
+        $badColor = new ItemEntry('T', 'B', self::VENDOR, null, ['color' => 'nope'], 'Hat', new ItemSale(100, 1, null, false), new ItemDates('2026-01-01', null), 'consigned');
         try {
             (new ItemGuard($known))->accept($badColor);
             self::fail('a bad color was accepted');
         } catch (\InvalidArgumentException $error) {
             self::assertStringContainsString('color', $error->getMessage());
         }
-        $missingColor = new ItemEntry('T', 'B', self::VENDOR, null, ['color' => self::ITEM], 'Hat', new ItemSale(100, 1, null), new ItemDates('2026-01-01', null), 'consigned');
+        $missingColor = new ItemEntry('T', 'B', self::VENDOR, null, ['color' => self::ITEM], 'Hat', new ItemSale(100, 1, null, false), new ItemDates('2026-01-01', null), 'consigned');
         try {
             (new ItemGuard($known))->accept($missingColor);
             self::fail('a missing color was accepted');
@@ -812,7 +812,7 @@ final class InventoryMissCoverageTest extends TestCase
             null,
             [],
             'Hat',
-            new ItemSale(1000, 1, null),
+            new ItemSale(1000, 1, null, false),
             new ItemDates('2026-01-01', null),
             'consigned',
         );

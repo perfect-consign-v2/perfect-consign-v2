@@ -53,7 +53,7 @@ final class BlankTagAllocateTest extends TestCase
                         'department' => null,
                     ],
                     'Blank tag coat',
-                    new ItemSale(1200, 1, null),
+                    new ItemSale(1200, 1, null, false),
                     new ItemDates($today, null),
                     'consigned',
                 ),

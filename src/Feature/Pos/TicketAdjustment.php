@@ -37,6 +37,11 @@ final class TicketAdjustment
         return ['kind' => $kind, 'value' => $points, 'reason' => $reason];
     }
 
+    public static function priceMinor(string $posted): int
+    {
+        return Money::parseMinor($posted);
+    }
+
     public static function waiver(string $action, string $reason): ?string
     {
         if ($action === 'restore') {

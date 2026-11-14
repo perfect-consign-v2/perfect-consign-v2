@@ -152,7 +152,7 @@ final class DailyBackupFiles
             return;
         }
         $path = $directory . DIRECTORY_SEPARATOR . $file;
-        if (!$this->insideRoot($path)) {
+        if (!BackupPath::contains($this->root, $path)) {
             return;
         }
         $removed = $this->refuseUnlink ? false : unlink($path);
@@ -160,14 +160,6 @@ final class DailyBackupFiles
         if ($removed !== true) {
             throw new BackupException('An old backup could not be removed.');
         }
-    }
-
-    private function insideRoot(string $path): bool
-    {
-        $real = realpath($path);
-        $prefix = $this->root . DIRECTORY_SEPARATOR;
-
-        return $real !== false && str_starts_with($real, $prefix) && !is_link($path);
     }
 
     /**

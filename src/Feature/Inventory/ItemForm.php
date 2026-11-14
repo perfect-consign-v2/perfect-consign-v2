@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Inventory;
 
 use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Catalog\NameListStore;
+use PerfectConsign\Feature\Mall\MallGuard;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -111,7 +112,7 @@ final class ItemForm
             'intake_on' => RowValue::string($row['intake_on'] ?? null),
             'expires_on' => is_string($expires) ? $expires : '',
             'fill_expire' => '',
-            'tax_exempt' => $this->flag($row['tax_exempt'] ?? null) ? '1' : '',
+            'tax_exempt' => MallGuard::flag($row['tax_exempt'] ?? null) ? '1' : '',
         ];
     }
 
@@ -243,11 +244,6 @@ final class ItemForm
             'expire_dirty' => $item['expires_on'] !== $this->expectedExpire($item['intake_on']),
             'tax_exempt' => $item['tax_exempt'] === '1' || $item['tax_exempt'] === 'true',
         ];
-    }
-
-    private function flag(mixed $value): bool
-    {
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
     public function date(string $value): ?string

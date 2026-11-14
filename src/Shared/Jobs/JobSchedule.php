@@ -26,32 +26,55 @@ final class JobSchedule
             throw new RuntimeException('job schedule tenant list failed');
         }
         while (($row = $listed->fetch(PDO::FETCH_ASSOC)) !== false) {
-            if (!is_array($row)) {
-                continue;
-            }
-            $slug = $row['slug'] ?? null;
-            $schema = $row['schema_name'] ?? null;
-            if (!is_string($slug) || !is_string($schema)) {
-                $this->logger->warning('job schedule skipped tenant with invalid row', [
-                    'slug' => is_string($slug) ? $slug : null,
-                ]);
-                continue;
-            }
-            $clock = $this->mallClock($slug, $schema);
-            if ($clock === null) {
-                continue;
-            }
-            $this->queue->enqueue($this->pdo, $slug, 'assess-late-fees', $clock['date']);
-            $this->queue->enqueue($this->pdo, $slug, 'reconcile-reports', $clock['date']);
-            $this->queue->enqueue($this->pdo, $slug, 'sale-notice', $clock['date']);
-            $this->queue->enqueue($this->pdo, $slug, 'markdown-propose', $clock['date']);
-            if ($clock['sunday']) {
-                $this->queue->enqueue($this->pdo, $slug, 'vendor-digest', $clock['date']);
-            }
-            if ($clock['cycle']) {
-                $this->queue->enqueue($this->pdo, $slug, 'rent-reminder', $clock['date']);
-            }
+            $this->enqueueTenant($row);
         }
+    }
+
+    private function enqueueTenant(mixed $row): void
+    {
+        if (!is_array($row)) {
+            return;
+        }
+        $slug = $row['slug'] ?? null;
+        $schema = $row['schema_name'] ?? null;
+        if (!is_string($slug) || !is_string($schema)) {
+            $this->logger->warning('job schedule skipped tenant with invalid row', [
+                'slug' => $this->slugText($slug),
+            ]);
+
+            return;
+        }
+        $clock = $this->mallClock($slug, $schema);
+        if ($clock === null) {
+            return;
+        }
+        $this->enqueueDaily($slug, $clock);
+    }
+
+    /**
+     * @param array{date: string, sunday: bool, cycle: bool} $clock
+     */
+    private function enqueueDaily(string $slug, array $clock): void
+    {
+        $this->queue->enqueue($this->pdo, $slug, 'assess-late-fees', $clock['date']);
+        $this->queue->enqueue($this->pdo, $slug, 'reconcile-reports', $clock['date']);
+        $this->queue->enqueue($this->pdo, $slug, 'sale-notice', $clock['date']);
+        $this->queue->enqueue($this->pdo, $slug, 'markdown-propose', $clock['date']);
+        if ($clock['sunday']) {
+            $this->queue->enqueue($this->pdo, $slug, 'vendor-digest', $clock['date']);
+        }
+        if ($clock['cycle']) {
+            $this->queue->enqueue($this->pdo, $slug, 'rent-reminder', $clock['date']);
+        }
+    }
+
+    private function slugText(mixed $slug): ?string
+    {
+        if (!is_string($slug)) {
+            return null;
+        }
+
+        return $slug;
     }
 
     /**

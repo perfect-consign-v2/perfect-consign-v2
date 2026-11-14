@@ -55,7 +55,7 @@ final class ItemMasterLoader
                 null,
                 [],
                 MirrorFields::text($row['description'] ?? null, 'Item'),
-                new ItemSale($price, max(1, MirrorFields::cents($row['quantity'] ?? 1)), null),
+                new ItemSale($price, max(1, MirrorFields::cents($row['quantity'] ?? 1)), null, false),
                 new ItemDates($intake, null),
                 'consigned',
             ), $today);
