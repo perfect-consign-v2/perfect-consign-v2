@@ -17,6 +17,13 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringContainsString('composer', $script);
         self::assertStringContainsString('install', $script);
         self::assertStringContainsString('/opt/plesk/php/8.5/bin/php', $script);
+        self::assertStringContainsString('# pc2-php-8.5', $script);
+        self::assertStringContainsString('export PATH="%s:${PATH:-}"', $script);
+        $markerAt = strpos($script, '# pc2-php-8.5');
+        $loginPathAt = strpos($script, 'export PATH="$(dirname -- "$php_bin"):${PATH:-}"');
+        self::assertNotFalse($markerAt);
+        self::assertNotFalse($loginPathAt);
+        self::assertGreaterThan($markerAt, $loginPathAt);
         self::assertMatchesRegularExpression(
             '/export PATH=.*dirname -- "\$php_bin"/',
             $script

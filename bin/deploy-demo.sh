@@ -68,6 +68,23 @@ if [[ ! -x "$php_bin" ]]; then
     echo "deploy-demo: ${php_bin} is missing" >&2
     exit 1
 fi
+# SSH does not put Plesk PHP on PATH. Debian bash reads ~/.bashrc for ssh
+# sessions, including non-interactive ones, until the interactive-only return.
+# Keep this marker at the top so `php bin/migrate.php` is 8.5 in a new shell.
+php_dir=$(dirname -- "$php_bin")
+bashrc="${HOME}/.bashrc"
+marker='# pc2-php-8.5'
+if [[ ! -f "$bashrc" ]] || ! grep -F -q "$marker" "$bashrc"; then
+    pin=$(mktemp)
+    {
+        printf '%s\n' "$marker"
+        printf 'export PATH="%s:${PATH:-}"\n' "$php_dir"
+        if [[ -f "$bashrc" ]]; then
+            cat "$bashrc"
+        fi
+    } > "$pin"
+    mv "$pin" "$bashrc"
+fi
 # Host-only binary. Reinstall when missing (e.g. after a mistaken whole-tree clean).
 # Verify the installer sha384 against Composer's published signature before executing.
 if [[ ! -f "$composer" ]]; then
