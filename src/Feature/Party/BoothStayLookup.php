@@ -9,6 +9,20 @@ namespace PerfectConsign\Feature\Party;
  */
 final class BoothStayLookup
 {
+    private bool $hideHolder = false;
+
+    private ?string $endOverride = null;
+
+    public function hideHolder(bool $hide): void
+    {
+        $this->hideHolder = $hide;
+    }
+
+    public function overrideHolderEnd(?string $end): void
+    {
+        $this->endOverride = $end;
+    }
+
     /**
      * @param list<array{boothId: string, vendorId: string, vendorName: string, vendorCode: string, startsOn: string, endsOn: ?string}> $stays
      * @return list<array{boothId: string, vendorName: string, startsOn: string, endsOn: ?string}>
@@ -34,14 +48,17 @@ final class BoothStayLookup
      */
     public function person(array $stays, string $boothId, string $today, string $status, ?string $vendorName): ?array
     {
-        if ($vendorName === null) {
+        if ($this->hideHolder || $vendorName === null) {
             return null;
         }
-        if ($status === 'incoming') {
-            return $this->incoming($stays, $boothId, $today);
+        $found = $status === 'incoming'
+            ? $this->incoming($stays, $boothId, $today)
+            : $this->covering($stays, $boothId, $today, $vendorName);
+        if ($found !== null && $this->endOverride !== null) {
+            $found['endsOn'] = $this->endOverride === '' ? null : $this->endOverride;
         }
 
-        return $this->covering($stays, $boothId, $today, $vendorName);
+        return $found;
     }
 
     /**

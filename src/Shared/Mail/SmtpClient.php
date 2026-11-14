@@ -131,10 +131,10 @@ final class SmtpClient
     private function payload(string $from, string $to, string $subject, string $body): string
     {
         $text = str_replace(["\r\n", "\r"], "\n", $body);
-        $stuffed = preg_replace('/^\./m', '..', $text);
-        if (!is_string($stuffed)) {
-            throw new \RuntimeException('smtp send failed');
-        }
+        $stuffed = implode("\n", array_map(
+            static fn (string $line): string => str_starts_with($line, '.') ? '.' . $line : $line,
+            explode("\n", $text),
+        ));
 
         $domain = 'localhost';
         if (preg_match('/@([A-Za-z0-9.-]+)\z/', $from, $match) === 1) {

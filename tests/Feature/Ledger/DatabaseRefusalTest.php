@@ -16,7 +16,10 @@ final class DatabaseRefusalTest extends TestCase
             'SQLSTATE[23505]: Unique violation: 7 ERROR:  That tag is already used.'
         );
 
-        self::assertSame('That tag is already used.', DatabaseRefusal::fromPdo($error)->getMessage());
+        $refusal = DatabaseRefusal::fromPdo($error);
+
+        self::assertSame('That tag is already used.', $refusal->getMessage());
+        self::assertFalse(DatabaseRefusal::isTagUsed($refusal));
     }
 
     public function testABlankColorNameRaisePassesThrough(): void
@@ -72,13 +75,19 @@ final class DatabaseRefusalTest extends TestCase
     public function testABarcodeRaiseIsRecognizedByHelper(): void
     {
         $error = new PDOException(
-            'SQLSTATE[P0001]: Raise exception: 7 ERROR:  That barcode is already used.'
+            'SQLSTATE[P1002]: Raise exception: 7 ERROR:  That barcode is already used.'
         );
         $refusal = DatabaseRefusal::fromPdo($error);
 
         self::assertTrue(DatabaseRefusal::isBarcodeUsed($refusal));
         self::assertFalse(DatabaseRefusal::isTagUsed($refusal));
         self::assertFalse(DatabaseRefusal::isCertificateNumberUsed($refusal));
+        self::assertTrue(DatabaseRefusal::isCertificateNumberUsed(new DatabaseRefusal(
+            DatabaseRefusal::CERTIFICATE_NUMBER_USED,
+            0,
+            null,
+            DatabaseRefusal::CERTIFICATE_SQLSTATE,
+        )));
         self::assertTrue(DatabaseRefusal::isTicketNotASale(new DatabaseRefusal(DatabaseRefusal::TICKET_NOT_A_SALE)));
         self::assertFalse(DatabaseRefusal::isTicketNotASale($refusal));
     }
@@ -86,13 +95,15 @@ final class DatabaseRefusalTest extends TestCase
     public function testATagRaiseIsRecognizedByHelper(): void
     {
         $error = new PDOException(
-            'SQLSTATE[P0001]: Raise exception: 7 ERROR:  That tag is already used.'
+            'SQLSTATE[P1001]: Raise exception: 7 ERROR:  That tag is already used.'
         );
         $refusal = DatabaseRefusal::fromPdo($error);
 
         self::assertTrue(DatabaseRefusal::isTagUsed($refusal));
         self::assertFalse(DatabaseRefusal::isBarcodeUsed($refusal));
         self::assertSame(DatabaseRefusal::TAG_USED, $refusal->getMessage());
+        self::assertSame(DatabaseRefusal::TAG_SQLSTATE, $refusal->sqlState());
+        self::assertFalse(DatabaseRefusal::isTagUsed(new DatabaseRefusal(DatabaseRefusal::TAG_USED)));
     }
 
     public function testNotEnoughOnHandIsAPlainSentence(): void

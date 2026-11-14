@@ -10,8 +10,21 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class TicketDrafts
 {
+    /** @var list<string> */
+    private array $probeMissing = [];
+
     public function __construct(private readonly Statements $statements)
     {
+    }
+
+    /**
+     * Extra missing labels for a parked Instant Add line. Production leaves this empty.
+     *
+     * @param list<string> $fields
+     */
+    public function setProbeMissing(array $fields): void
+    {
+        $this->probeMissing = $fields;
     }
 
     /**
@@ -58,7 +71,7 @@ final class TicketDrafts
                 'discount_kind' => RowValue::string($row['discount_kind'] ?? null),
                 'discount_value' => RowValue::string($row['discount_value'] ?? null),
                 'attributes' => $this->decodeAttributes(RowValue::string($row['attributes_json'] ?? null)),
-                'missing' => $this->missingFields($vendorId, $description, $priceText),
+                'missing' => array_merge($this->missingFields($vendorId, $description, $priceText), $this->probeMissing),
             ];
         }
 

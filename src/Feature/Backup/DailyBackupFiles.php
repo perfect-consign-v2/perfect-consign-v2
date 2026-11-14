@@ -11,6 +11,13 @@ final class DailyBackupFiles
 {
     private readonly string $root;
 
+    private bool $refuseUnlink = false;
+
+    public function failUnlink(): void
+    {
+        $this->refuseUnlink = true;
+    }
+
     public function __construct(string $root)
     {
         if ($root === '' || str_contains($root, 'perfect_consign_pg')) {
@@ -98,7 +105,12 @@ final class DailyBackupFiles
 
     private function removeFile(string $path): void
     {
-        if (is_file($path) && !unlink($path)) {
+        if (!is_file($path)) {
+            return;
+        }
+        $removed = $this->refuseUnlink ? false : unlink($path);
+        $this->refuseUnlink = false;
+        if ($removed !== true) {
             throw new BackupException('The backup could not be stored.');
         }
     }
@@ -143,7 +155,9 @@ final class DailyBackupFiles
         if (!$this->insideRoot($path)) {
             return;
         }
-        if (!unlink($path)) {
+        $removed = $this->refuseUnlink ? false : unlink($path);
+        $this->refuseUnlink = false;
+        if ($removed !== true) {
             throw new BackupException('An old backup could not be removed.');
         }
     }

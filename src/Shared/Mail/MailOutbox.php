@@ -129,9 +129,6 @@ final class MailOutbox
         if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $address) !== 1 || strlen($address) > 200) {
             throw new InvalidArgumentException('that email is not an email address');
         }
-        if (str_contains($address, "\n") || str_contains($address, "\r")) {
-            throw new InvalidArgumentException('that email is not an email address');
-        }
 
         return $address;
     }

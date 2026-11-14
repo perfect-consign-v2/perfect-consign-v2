@@ -11,15 +11,33 @@ final class MallTenantReset
 {
     public const SLUG = 'mall';
 
+    private bool $hold = false;
+
+    private ?PDO $injected = null;
+
+    public function hold(): void
+    {
+        $this->hold = true;
+    }
+
+    public function usePdo(PDO $pdo): void
+    {
+        $this->injected = $pdo;
+    }
+
     public function load(): string
     {
-        $connection = LocalAdmin::open();
-        $this->requireTools();
-        $pdo = $connection->pdo();
-        $owners = $this->owners($pdo);
-        if ($owners === []) {
-            $owners = [$this->replacementOwner($pdo)];
+        if ($this->hold) {
+            return 'tenant_' . str_repeat('ab', 16);
         }
+        $pdo = $this->injected;
+        if (!$pdo instanceof PDO) {
+            $connection = LocalAdmin::open();
+            $pdo = $connection->pdo();
+        }
+        $this->requireTools();
+        $owners = $this->owners($pdo);
+        $owners = $this->withOwner($pdo, $owners);
         \wipeTenant($pdo, self::SLUG, self::SLUG);
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Mall');
@@ -47,14 +65,27 @@ final class MallTenantReset
     /**
      * @return resource
      */
-    public function progressStream()
+    public function progressStream(string $target = 'php://temp')
     {
-        $stream = fopen('php://temp', 'w');
+        $stream = fopen($target, 'w');
         if ($stream === false) {
             throw new RuntimeException('could not open a progress stream');
         }
 
         return $stream;
+    }
+
+    /**
+     * @param list<array{username: string, password_hash: string, email: ?string}> $owners
+     * @return list<array{username: string, password_hash: string, email: ?string}>
+     */
+    private function withOwner(PDO $pdo, array $owners): array
+    {
+        if ($owners === []) {
+            return [$this->replacementOwner($pdo)];
+        }
+
+        return $owners;
     }
 
     /**

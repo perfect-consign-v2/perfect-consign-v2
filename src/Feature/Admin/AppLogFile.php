@@ -10,8 +10,19 @@ final class AppLogFile
 {
     public const TAIL_BYTES = 200_000;
 
+    private ?string $pathOverride = null;
+
+    public function usePath(string $path): void
+    {
+        $this->pathOverride = $path;
+    }
+
     public function path(): string
     {
+        if ($this->pathOverride !== null) {
+            return $this->pathOverride;
+        }
+
         return dirname(__DIR__, 3)
             . DIRECTORY_SEPARATOR
             . 'var'
@@ -32,6 +43,7 @@ final class AppLogFile
         if (!is_file($path)) {
             return 0;
         }
+        clearstatcache(true, $path);
         $size = filesize($path);
         if ($size === false) {
             throw new RuntimeException('The application log size could not be read.');
@@ -135,9 +147,16 @@ final class AppLogFile
             if ($truncated && fseek($handle, -$maxBytes, SEEK_END) !== 0) {
                 throw new RuntimeException('The application log could not be read.');
             }
-            $body = stream_get_contents($handle);
-            if ($body === false) {
-                throw new RuntimeException('The application log could not be read.');
+            $body = '';
+            while (!feof($handle)) {
+                $chunk = fread($handle, 65536);
+                if ($chunk === false) {
+                    throw new RuntimeException('The application log could not be read.');
+                }
+                if ($chunk === '') {
+                    break;
+                }
+                $body .= $chunk;
             }
         } finally {
             fclose($handle);

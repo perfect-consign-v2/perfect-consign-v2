@@ -19,10 +19,7 @@ final class ReportMonth
         if (!checkdate($part, 1, $year)) {
             throw new \InvalidArgumentException('a month is YYYY-MM');
         }
-        $start = \DateTimeImmutable::createFromFormat('!Y-m-d', sprintf('%04d-%02d-01', $year, $part));
-        if (!$start instanceof \DateTimeImmutable) {
-            throw new \InvalidArgumentException('a month is YYYY-MM');
-        }
+        $start = new \DateTimeImmutable(sprintf('%04d-%02d-01', $year, $part));
         $last = (int) $start->format('t');
 
         return [

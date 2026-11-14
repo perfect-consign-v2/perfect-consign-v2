@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Party;
 
+use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -41,7 +42,7 @@ final class PartyContactBook
             $this->statements->change(
                 'INSERT INTO party_contacts (party_id, method, label, value, is_primary)
                  VALUES (?::uuid, ?, ?, ?, ?::boolean)',
-                [$partyId, $row['method'], $row['label'], $row['value'], $row['is_primary'] ? 'true' : 'false']
+                [$partyId, $row['method'], $row['label'], $row['value'], PgBool::literal($row['is_primary'])]
             );
         }
     }

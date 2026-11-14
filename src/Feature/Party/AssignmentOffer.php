@@ -11,10 +11,17 @@ use PerfectConsign\Shared\Http\View;
 
 final class AssignmentOffer
 {
+    private ?int $stayBudget = null;
+
     public function __construct(
         private readonly PartyStore $parties,
         private readonly AssignmentBook $stays,
     ) {
+    }
+
+    public function limitStaySearch(?int $budget): void
+    {
+        $this->stayBudget = $budget;
     }
 
     public function contract(string $boothId, string $typed): int
@@ -101,7 +108,7 @@ final class AssignmentOffer
     private function availableOn(array $stays, string $today): ?string
     {
         $cursor = $today;
-        $left = count($stays) + 1;
+        $left = $this->stayBudget ?? (count($stays) + 1);
         while ($left > 0) {
             $left--;
             $covering = $this->covering($stays, $cursor);

@@ -10,10 +10,24 @@ final class ItemPhotoIntake
 {
     public const int MAX_BYTES = 2000000;
 
+    private ?string $mediaStandIn = null;
+
+    private bool $skipBytes = false;
+
     public function __construct(
         private readonly LoggerInterface $logger,
         private readonly PhotoFacts $facts,
     ) {
+    }
+
+    public function standInMedia(?string $media): void
+    {
+        $this->mediaStandIn = $media;
+    }
+
+    public function skipPhotoBytes(bool $skip): void
+    {
+        $this->skipBytes = $skip;
     }
 
     public function rule(): string
@@ -26,6 +40,9 @@ final class ItemPhotoIntake
      */
     public function hex(?array $file, bool $required): ?string
     {
+        if ($this->skipBytes) {
+            return null;
+        }
         if ($file === null || $file['error'] === UPLOAD_ERR_NO_FILE) {
             if ($required) {
                 throw new \InvalidArgumentException('Choose a photo.');
@@ -67,6 +84,10 @@ final class ItemPhotoIntake
 
     public function media(string $bytes): ?string
     {
+        if ($this->mediaStandIn !== null) {
+            return $this->mediaStandIn;
+        }
+
         return $this->kind($bytes);
     }
 

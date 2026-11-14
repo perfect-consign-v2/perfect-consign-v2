@@ -10,8 +10,21 @@ final class OutboundMail
 {
     public const SMTP_NOT_CONFIGURED = 'smtp is not configured';
 
+    /** @var null|\Closure(string, string, string): void */
+    private ?\Closure $delivery = null;
+
     public function __construct(private readonly LoggerInterface $logger)
     {
+    }
+
+    /**
+     * Test seam. Production leaves this unset and delivers the message.
+     *
+     * @param \Closure(string, string, string): void $delivery
+     */
+    public function useDelivery(\Closure $delivery): void
+    {
+        $this->delivery = $delivery;
     }
 
     public function configured(): bool
@@ -38,6 +51,11 @@ final class OutboundMail
 
     public function deliver(string $to, string $subject, string $body): void
     {
+        if ($this->delivery !== null) {
+            ($this->delivery)($to, $subject, $body);
+
+            return;
+        }
         if ($this->unsafe($to) || $this->unsafe($subject) || preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $to) !== 1) {
             throw new \InvalidArgumentException('mail was refused');
         }

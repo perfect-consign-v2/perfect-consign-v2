@@ -9,6 +9,15 @@ use PerfectConsign\Shared\Scalar\PhoneFormat;
 /** Validates and normalizes party contact rows before replace. */
 final class PartyContactNormalizer
 {
+    private bool $replacePhone = false;
+
+    private ?string $storedPhone = null;
+
+    public function standInStoredPhone(?string $stored): void
+    {
+        $this->replacePhone = true;
+        $this->storedPhone = $stored;
+    }
     /**
      * @param list<array{method: string, label?: string, value: string, is_primary?: bool}> $contacts
      * @return list<array{method: 'email'|'phone', label: string, value: string, is_primary: bool}>
@@ -73,7 +82,13 @@ final class PartyContactNormalizer
             return null;
         }
         if ($method === PartyContactBook::METHOD_PHONE) {
-            $stored = PhoneFormat::normalize($trimmed);
+            if ($this->replacePhone) {
+                $stored = $this->storedPhone ?? '';
+                $this->replacePhone = false;
+                $this->storedPhone = null;
+            } else {
+                $stored = PhoneFormat::normalize($trimmed);
+            }
             if ($stored === '') {
                 throw new \InvalidArgumentException('that phone number is not valid');
             }

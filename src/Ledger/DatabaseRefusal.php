@@ -15,23 +15,46 @@ final class DatabaseRefusal extends RuntimeException
 
     public const TAG_USED = 'That tag is already used.';
 
+    /** Dedicated SQLSTATE for a duplicate tag. The cashier sentence is not the key. */
+    public const TAG_SQLSTATE = 'P1001';
+
+    /** Dedicated SQLSTATE for a duplicate barcode. */
+    public const BARCODE_SQLSTATE = 'P1002';
+
+    /** Dedicated SQLSTATE for a duplicate stored-value number. */
+    public const CERTIFICATE_SQLSTATE = 'P1003';
+
     public const TICKET_NOT_A_SALE = 'that ticket is not a sale';
 
     public const COULD_NOT_SAVE = 'That could not be saved.';
 
+    public function __construct(
+        string $message,
+        int $code = 0,
+        ?\Throwable $previous = null,
+        private readonly string $sqlState = '',
+    ) {
+        parent::__construct($message, $code, $previous);
+    }
+
+    public function sqlState(): string
+    {
+        return $this->sqlState;
+    }
+
     public static function fromPdo(PDOException $error): self
     {
-        $sqlState = self::sqlState($error);
+        $sqlState = self::sqlStateOf($error);
         $detail = self::errorDetail($error->getMessage());
 
         if (self::isUniqueNoise($sqlState, $detail)) {
-            return new self(self::COULD_NOT_SAVE, 0, $error);
+            return new self(self::COULD_NOT_SAVE, 0, $error, $sqlState);
         }
         if ($detail !== '') {
-            return new self(self::phrase($detail), 0, $error);
+            return new self(self::phrase($detail), 0, $error, $sqlState);
         }
 
-        return new self(self::COULD_NOT_SAVE, 0, $error);
+        return new self(self::COULD_NOT_SAVE, 0, $error, $sqlState);
     }
 
     public static function phrase(string $message): string
@@ -49,17 +72,17 @@ final class DatabaseRefusal extends RuntimeException
 
     public static function isBarcodeUsed(self $error): bool
     {
-        return $error->getMessage() === self::BARCODE_USED;
+        return $error->sqlState() === self::BARCODE_SQLSTATE;
     }
 
     public static function isTagUsed(self $error): bool
     {
-        return $error->getMessage() === self::TAG_USED;
+        return $error->sqlState() === self::TAG_SQLSTATE;
     }
 
     public static function isCertificateNumberUsed(self $error): bool
     {
-        return $error->getMessage() === self::CERTIFICATE_NUMBER_USED;
+        return $error->sqlState() === self::CERTIFICATE_SQLSTATE;
     }
 
     public static function isTicketNotASale(self $error): bool
@@ -67,7 +90,7 @@ final class DatabaseRefusal extends RuntimeException
         return $error->getMessage() === self::TICKET_NOT_A_SALE;
     }
 
-    private static function sqlState(PDOException $error): string
+    private static function sqlStateOf(PDOException $error): string
     {
         $info = $error->errorInfo;
         if (is_array($info) && isset($info[0]) && is_string($info[0]) && $info[0] !== '') {

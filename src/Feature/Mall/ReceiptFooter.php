@@ -8,6 +8,13 @@ final class ReceiptFooter
 {
     public const LIMIT = 400;
 
+    private static bool $refuseHeads = false;
+
+    public static function refuseMeasuredHeads(bool $refuse): void
+    {
+        self::$refuseHeads = $refuse;
+    }
+
     public static function text(string $raw): string
     {
         $text = str_replace("\r\n", "\n", trim($raw));
@@ -21,7 +28,12 @@ final class ReceiptFooter
 
     private static function length(string $text): int
     {
-        $heads = preg_replace('/[\x80-\xBF]/', '', $text);
+        if (self::$refuseHeads) {
+            self::$refuseHeads = false;
+            $heads = null;
+        } else {
+            $heads = preg_replace('/[\x80-\xBF]/', '', $text);
+        }
         if (!is_string($heads)) {
             throw new \InvalidArgumentException('receipt footer is 400 characters or less');
         }

@@ -17,10 +17,18 @@ final class BackupController
     public function __construct(
         private readonly MallApp $app,
         private readonly BackupStore $backups,
-        private readonly TenantBackup $archives,
+        private readonly BackupClient $archives,
         private readonly MallController $settings,
         private readonly LoggerInterface $logger,
     ) {
+    }
+
+    /** @var null|\Closure(): bool */
+    private ?\Closure $headersSent = null;
+
+    public function whenHeadersSent(\Closure $headersSent): void
+    {
+        $this->headersSent = $headersSent;
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/backup', ['POST'])]
@@ -38,7 +46,7 @@ final class BackupController
             }
             $this->backups->record($tenant->id, $archive->id, $archive->byteSize, $archive->sha256);
         } catch (BackupException $error) {
-            if (!headers_sent()) {
+            if (!$this->headersAlreadySent()) {
                 $this->showFailure($slug, $return, $error->getMessage());
                 return;
             }
@@ -48,7 +56,7 @@ final class BackupController
             ]);
         } catch (Throwable $error) {
             $this->logger->error('owner backup failed', ['slug' => $slug, 'message' => $error->getMessage()]);
-            if (!headers_sent()) {
+            if (!$this->headersAlreadySent()) {
                 $this->showFailure($slug, $return, 'The backup could not be taken.');
             }
         } finally {
@@ -88,5 +96,14 @@ final class BackupController
             return;
         }
         $this->settings->showError($slug, $error, 'backup');
+    }
+
+    private function headersAlreadySent(): bool
+    {
+        if ($this->headersSent !== null) {
+            return ($this->headersSent)();
+        }
+
+        return headers_sent();
     }
 }

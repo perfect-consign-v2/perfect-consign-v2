@@ -43,13 +43,7 @@ final class SchemaMigrator
             if (!$this->record->ready('platform')) {
                 throw new RuntimeException('platform is not ready');
             }
-            $applied = $this->record->applied('platform');
-            foreach ($this->catalog->platformAfterFiles() as $file) {
-                if (isset($applied[$file])) {
-                    continue;
-                }
-                $this->runPlatform($file);
-            }
+            $this->pendingFiles($this->catalog->platformAfterFiles());
         } finally {
             $this->record->releaseMigration();
         }
@@ -95,8 +89,16 @@ final class SchemaMigrator
 
     private function pendingPlatform(): void
     {
+        $this->pendingFiles($this->catalog->platformFiles());
+    }
+
+    /**
+     * @param list<string> $files
+     */
+    private function pendingFiles(array $files): void
+    {
         $applied = $this->record->applied('platform');
-        foreach ($this->catalog->platformFiles() as $file) {
+        foreach ($files as $file) {
             if (isset($applied[$file])) {
                 continue;
             }

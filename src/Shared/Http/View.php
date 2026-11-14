@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Shared\Http;
 
+use InvalidArgumentException;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Scalar\PhoneFormat;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -25,8 +26,7 @@ final class View
             throw new RuntimeException('missing template ' . $template);
         }
         $data['templateDirectory'] = $this->templateDirectory;
-        extract($data, EXTR_SKIP);
-        require $templatePath;
+        TemplateScope::render($templatePath, $data);
     }
 
     public static function text(mixed $value): string
@@ -34,11 +34,11 @@ final class View
         if ($value === null) {
             return '';
         }
-        if (is_scalar($value)) {
-            return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        if (!is_scalar($value)) {
+            throw new InvalidArgumentException('expected text');
         }
 
-        return '';
+        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     public static function minor(mixed $value): int
@@ -67,7 +67,7 @@ final class View
             return '';
         }
         if (!is_scalar($value)) {
-            return '';
+            throw new InvalidArgumentException('expected text');
         }
 
         return PhoneFormat::display((string) $value);
@@ -79,7 +79,7 @@ final class View
             return '';
         }
         if (!is_scalar($value)) {
-            return '';
+            throw new InvalidArgumentException('expected text');
         }
 
         return PhoneFormat::telHref((string) $value);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Mall;
 
+use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -141,12 +142,12 @@ final class MallPayoutSettings
             [
                 $mode,
                 'monthly',
-                $write->rentPrepaid ? 'true' : 'false',
-                $write->rentalsEnabled ? 'true' : 'false',
+                PgBool::literal($write->rentPrepaid),
+                PgBool::literal($write->rentalsEnabled),
                 $day,
-                $write->consignmentEnabled ? 'true' : 'false',
-                $write->storeStockEnabled ? 'true' : 'false',
-                $write->requireSecondSignature ? 'true' : 'false',
+                PgBool::literal($write->consignmentEnabled),
+                PgBool::literal($write->storeStockEnabled),
+                PgBool::literal($write->requireSecondSignature),
             ]
         );
     }
@@ -183,7 +184,7 @@ final class MallPayoutSettings
              SET late_fees_enabled = ?::boolean, late_fee_grace_days = ?,
                  late_fee_first_minor = ?, late_fee_next_minor = ?,
                  late_fee_effective_on = ?::date',
-            [$write->enabled ? 'true' : 'false', $days, max(0, $write->first), max(0, $write->next), $effective]
+            [PgBool::literal($write->enabled), $days, max(0, $write->first), max(0, $write->next), $effective]
         );
     }
 

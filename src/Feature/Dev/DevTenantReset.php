@@ -12,22 +12,57 @@ final class DevTenantReset
 {
     public const SLUG = 'dev';
 
+    private bool $hold = false;
+
+    private ?string $sqlRoot = null;
+
+    private ?PDO $injected = null;
+
+    public function hold(): void
+    {
+        $this->hold = true;
+    }
+
+    public function useSqlRoot(string $directory): void
+    {
+        $this->sqlRoot = $directory;
+    }
+
+    public function usePdo(PDO $pdo): void
+    {
+        $this->injected = $pdo;
+    }
+
     public function load(): string
     {
-        $connection = LocalAdmin::open();
+        if ($this->hold) {
+            return 'tenant_' . str_repeat('ab', 16);
+        }
+        $pdo = $this->injected;
+        if (!$pdo instanceof PDO) {
+            $connection = LocalAdmin::open();
+            $pdo = $connection->pdo();
+        }
         $this->requireTools();
-        $pdo = $connection->pdo();
         $owners = $this->owners($pdo);
         \wipeTenant($pdo, self::SLUG, self::SLUG);
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Dev');
         $this->loadSql($pdo, $provisioner, $schema);
         MailboxSeed::plant($pdo);
+        $this->restoreOwners($pdo, $owners);
+
+        return $schema;
+    }
+
+    /**
+     * @param list<array{username: string, password_hash: string}> $owners
+     */
+    private function restoreOwners(PDO $pdo, array $owners): void
+    {
         foreach ($owners as $owner) {
             $this->restoreOwner($pdo, $owner);
         }
-
-        return $schema;
     }
 
     private function requireTools(): void
@@ -39,7 +74,7 @@ final class DevTenantReset
 
     private function sqlDirectory(): string
     {
-        return dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'sql';
+        return $this->sqlRoot ?? (dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'sql');
     }
 
     /**

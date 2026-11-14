@@ -14,9 +14,9 @@ final class ErrorHandlingFatalBufferTest extends TestCase
     {
         $source = file_get_contents((new ReflectionClass(ErrorHandling::class))->getFileName() ?: '');
         self::assertIsString($source);
-        self::assertStringContainsString('while (ob_get_level() > 0)', $source);
+        self::assertStringContainsString('while (ob_get_level() > $bufferFloor)', $source);
         self::assertStringContainsString('ob_end_clean()', $source);
-        $drain = strpos($source, 'while (ob_get_level() > 0)');
+        $drain = strpos($source, 'while (ob_get_level() > $bufferFloor)');
         $echo = strpos($source, "echo 'The page could not be shown.'");
         self::assertNotFalse($drain);
         self::assertNotFalse($echo);

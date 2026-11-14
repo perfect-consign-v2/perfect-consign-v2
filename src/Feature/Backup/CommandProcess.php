@@ -8,8 +8,16 @@ use Psr\Log\LoggerInterface;
 
 final class CommandProcess
 {
+    /** @var list<int> */
+    private array $omitPipes = [];
+
     public function __construct(private readonly LoggerInterface $logger)
     {
+    }
+
+    public function omitPipes(int ...$indexes): void
+    {
+        $this->omitPipes = array_values($indexes);
     }
 
     /**
@@ -53,6 +61,12 @@ final class CommandProcess
         if ($process === false) {
             $this->logger->error('backup command could not start', ['tool' => $tool]);
             throw new BackupException('The backup could not be taken.');
+        }
+        foreach ($this->omitPipes as $index) {
+            if (isset($pipes[$index]) && is_resource($pipes[$index])) {
+                fclose($pipes[$index]);
+            }
+            unset($pipes[$index]);
         }
         $stdin = $pipes[0] ?? null;
         $stdout = $pipes[1] ?? null;

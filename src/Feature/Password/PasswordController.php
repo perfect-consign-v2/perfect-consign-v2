@@ -101,12 +101,7 @@ final class PasswordController
 
     private function account(): string
     {
-        $id = $this->actor->account();
-        if ($id === '') {
-            throw new \InvalidArgumentException('Sign in again.');
-        }
-
-        return $id;
+        return $this->actor->account();
     }
 
     private function render(TenantRecord $tenant, ?string $error): void

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Party;
 
 use PerfectConsign\Bootstrap\JournalAudit;
+use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -274,7 +275,7 @@ class PartyStore
         $this->statements->transaction(function () use ($id, $active): void {
             $count = $this->statements->affected(
                 'UPDATE vendors SET active = ?::boolean WHERE id = ?::uuid',
-                [$active ? 'true' : 'false', $id]
+                [PgBool::literal($active), $id]
             );
             if ($count === 0) {
                 throw new \InvalidArgumentException('that vendor is not in this mall');

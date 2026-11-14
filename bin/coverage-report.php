@@ -12,7 +12,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 $root = dirname(__DIR__);
 $directory = $root . DIRECTORY_SEPARATOR . 'var' . DIRECTORY_SEPARATOR . 'coverage';
-$minimum = 90.0;
+$minimum = 100.0;
 $filter = new Filter();
 $source = $root . DIRECTORY_SEPARATOR . 'src';
 $pc1Mirror = strtolower(str_replace('\\', '/', $source . DIRECTORY_SEPARATOR . 'Feature' . DIRECTORY_SEPARATOR . 'Pc1Mirror' . DIRECTORY_SEPARATOR));

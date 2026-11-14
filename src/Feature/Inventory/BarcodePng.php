@@ -8,6 +8,23 @@ final class BarcodePng
 {
     private const QUIET = 10;
 
+    private bool $failDeflate = false;
+
+    private bool $replaceCrc = false;
+
+    private int|float $crcStandIn = 0;
+
+    public function failDeflate(bool $fail): void
+    {
+        $this->failDeflate = $fail;
+    }
+
+    public function standInCrc(int|float $crc): void
+    {
+        $this->replaceCrc = true;
+        $this->crcStandIn = $crc;
+    }
+
     public function draw(string $bits, int $ppm, int $height): string
     {
         if ($bits === '' || $ppm < 1 || $height < 1) {
@@ -16,7 +33,7 @@ final class BarcodePng
         $width = (strlen($bits) + (self::QUIET * 2)) * $ppm;
         $painted = $this->paint(str_repeat("\xFF", intdiv($width + 7, 8)), $bits, $ppm);
         $raw = str_repeat("\x00" . $painted, $height);
-        $deflated = gzcompress($raw, 9);
+        $deflated = $this->failDeflate ? false : gzcompress($raw, 9);
         if ($deflated === false) {
             throw new \RuntimeException('barcode image could not be drawn');
         }
@@ -54,7 +71,7 @@ final class BarcodePng
 
     private function chunk(string $type, string $data): string
     {
-        $crc = hexdec(hash('crc32b', $type . $data));
+        $crc = $this->replaceCrc ? $this->crcStandIn : hexdec(hash('crc32b', $type . $data));
         if (!is_int($crc)) {
             throw new \RuntimeException('barcode image could not be drawn');
         }

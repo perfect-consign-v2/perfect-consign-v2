@@ -201,12 +201,15 @@ final class WaitListStore
             if ($onList === []) {
                 throw new \InvalidArgumentException('That person is not on the wait list.');
             }
-            $place = $this->identity->place($id) ?? [
-                'address' => null,
-                'city' => null,
-                'state' => null,
-                'postal' => null,
-            ];
+            $place = $this->identity->place($id);
+            if ($place === null) {
+                $place = [
+                    'address' => null,
+                    'city' => null,
+                    'state' => null,
+                    'postal' => null,
+                ];
+            }
             // Contacts before wait_list so the wait_list trigger sees the new primary email/phone.
             $this->identity->savePerson(
                 $id,

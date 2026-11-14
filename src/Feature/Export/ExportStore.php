@@ -11,8 +11,15 @@ use PerfectConsign\Shared\Http\Csv;
 
 final class ExportStore
 {
+    private string $buffer = 'php://temp';
+
     public function __construct(private readonly PDO $pdo)
     {
+    }
+
+    public function useBuffer(string $buffer): void
+    {
+        $this->buffer = $buffer;
     }
 
     public function exportCsv(string $system, string $from, string $to, string $taxRate): string
@@ -53,12 +60,13 @@ final class ExportStore
         if (!$changed) {
             return $line;
         }
-        $handle = fopen('php://temp', 'w+');
+        $handle = fopen($this->buffer, 'w+');
         if ($handle === false) {
             throw new DatabaseRefusal('the export returned a non-text line');
         }
         try {
-            if (fputcsv($handle, $fields, ',', '"', '', "\n") === false) {
+            $csv = fputcsv($handle, $fields, ',', '"', '', "\n");
+            if ($csv === false || $csv === 0) {
                 throw new DatabaseRefusal('the export returned a non-text line');
             }
             rewind($handle);
@@ -66,7 +74,7 @@ final class ExportStore
         } finally {
             fclose($handle);
         }
-        if (!is_string($written)) {
+        if (!is_string($written) || $written === '') {
             throw new DatabaseRefusal('the export returned a non-text line');
         }
 

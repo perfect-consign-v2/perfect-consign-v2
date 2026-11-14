@@ -89,12 +89,15 @@ final class CustomerStore
         if ($person === []) {
             throw new DatabaseRefusal('Organization customers cannot be edited as a person name yet.');
         }
-        $place = $this->identity->place($partyId) ?? [
-            'address' => null,
-            'city' => null,
-            'state' => null,
-            'postal' => null,
-        ];
+        $place = $this->identity->place($partyId);
+        if ($place === null) {
+            $place = [
+                'address' => null,
+                'city' => null,
+                'state' => null,
+                'postal' => null,
+            ];
+        }
         $this->identity->savePerson(
             $partyId,
             $first,

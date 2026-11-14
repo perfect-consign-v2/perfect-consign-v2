@@ -8,6 +8,7 @@ use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Bootstrap\SignedInPerson;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -50,9 +51,7 @@ final class NsfController
             $amount = Money::parseMinor($request->field('amount'));
             $actor = $this->actor->name();
             $role = $this->actor->role();
-            if ($actor === '' || $role === '') {
-                throw new DatabaseRefusal('the signed-in person is missing');
-            }
+            SignedInPerson::require($actor, $role);
             $journalId = $this->ledger->post(new JournalDraft(
                 postingKey: 'check-return:' . $reference,
                 postingDate: $request->field('posting_date'),

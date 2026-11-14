@@ -45,7 +45,8 @@ uasort($vendors, static function (array $left, array $right): int {
     <?php $head = $lines[0]; ?>
     <section class="envelope">
         <h1><?= View::text($displayName) ?></h1>
-        <h2>(<?= View::text($head['code']) ?>) <?= View::text($head['name']) ?> <span><?= View::text($head['code']) ?></span></h2>
+        <?php $vendorCode = is_string($head['code'] ?? null) ? $head['code'] : ''; ?>
+        <h2>(<?= View::text($vendorCode) ?>) <?= View::text($head['name']) ?> <span><?= View::text($vendorCode) ?></span></h2>
         <?php if ($head['booth'] !== ''): ?>
             <p>Booth <?= View::text($head['booth']) ?></p>
         <?php endif; ?>

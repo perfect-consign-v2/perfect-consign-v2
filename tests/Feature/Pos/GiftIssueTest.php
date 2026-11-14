@@ -151,7 +151,12 @@ final class GiftIssueTest extends TestCase
     {
         $statements = $this->createStub(Statements::class);
         $statements->method('isolated')->willReturnCallback(static function (): void {
-            throw new DatabaseRefusal(DatabaseRefusal::CERTIFICATE_NUMBER_USED);
+            throw new DatabaseRefusal(
+                DatabaseRefusal::CERTIFICATE_NUMBER_USED,
+                0,
+                null,
+                DatabaseRefusal::CERTIFICATE_SQLSTATE,
+            );
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {
@@ -166,7 +171,12 @@ final class GiftIssueTest extends TestCase
     {
         $statements = $this->createStub(Statements::class);
         $statements->method('isolated')->willReturnCallback(static function (): void {
-            throw new DatabaseRefusal(DatabaseRefusal::CERTIFICATE_NUMBER_USED);
+            throw new DatabaseRefusal(
+                DatabaseRefusal::CERTIFICATE_NUMBER_USED,
+                0,
+                null,
+                DatabaseRefusal::CERTIFICATE_SQLSTATE,
+            );
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {
@@ -276,7 +286,12 @@ final class GiftIssueTest extends TestCase
         $statements = $this->createStub(Statements::class);
         $statements->method('isolated')->willReturnCallback(static function () use (&$tries): void {
             $tries++;
-            throw new DatabaseRefusal(DatabaseRefusal::CERTIFICATE_NUMBER_USED);
+            throw new DatabaseRefusal(
+                DatabaseRefusal::CERTIFICATE_NUMBER_USED,
+                0,
+                null,
+                DatabaseRefusal::CERTIFICATE_SQLSTATE,
+            );
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {
@@ -329,7 +344,12 @@ final class GiftIssueTest extends TestCase
         $statements = $this->createStub(Statements::class);
         $statements->method('isolated')->willReturnCallback(static function () use (&$tries): void {
             $tries++;
-            throw new DatabaseRefusal(DatabaseRefusal::CERTIFICATE_NUMBER_USED);
+            throw new DatabaseRefusal(
+                DatabaseRefusal::CERTIFICATE_NUMBER_USED,
+                0,
+                null,
+                DatabaseRefusal::CERTIFICATE_SQLSTATE,
+            );
         });
         $gifts = new GiftIssue($statements, $this->createStub(LedgerStore::class));
         try {

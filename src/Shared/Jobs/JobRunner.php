@@ -72,9 +72,6 @@ final class JobRunner
         }
         $schema = $this->schema($job['tenant']);
         $role = TenantRecord::roleFor($job['tenant'], $schema);
-        if (preg_match('/^[a-z_][a-z0-9_]{0,62}$/', $role) !== 1) {
-            throw new RuntimeException('tenant is not provisioned');
-        }
         if ($this->pdo->exec('SET ROLE ' . $role) === false) {
             throw new RuntimeException('the worker could not assume the mall role');
         }

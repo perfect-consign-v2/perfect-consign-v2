@@ -9,6 +9,7 @@ use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Bootstrap\SignedInPerson;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -114,9 +115,7 @@ final class BoothExtraController
     {
         $actor = $this->actor->name();
         $role = $this->actor->role();
-        if ($actor === '' || $role === '') {
-            throw new DatabaseRefusal('the signed-in person is missing');
-        }
+        SignedInPerson::require($actor, $role);
 
         return [$actor, $role];
     }

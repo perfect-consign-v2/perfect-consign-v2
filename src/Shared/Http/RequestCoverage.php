@@ -8,6 +8,40 @@ final class RequestCoverage
 {
     private static bool $written = false;
 
+    private static bool $collectForced = false;
+
+    private static bool $collect = false;
+
+    private static bool $bufferForced = false;
+
+    private static mixed $buffer = null;
+
+    /**
+     * Test seam. Production leaves this unset and asks the extension.
+     */
+    public static function forceCollection(bool $collect): void
+    {
+        self::$collectForced = true;
+        self::$collect = $collect;
+    }
+
+    /**
+     * Test seam. Production leaves this unset and reads the live buffer.
+     */
+    public static function forceBuffer(mixed $buffer): void
+    {
+        self::$bufferForced = true;
+        self::$buffer = $buffer;
+    }
+
+    public static function clearForces(): void
+    {
+        self::$collectForced = false;
+        self::$collect = false;
+        self::$bufferForced = false;
+        self::$buffer = null;
+    }
+
     public static function enable(mixed $directory, mixed $appEnv): bool
     {
         if (!self::allowed($directory, $appEnv) || !self::xdebugReady()) {
@@ -48,11 +82,7 @@ final class RequestCoverage
 
     private static function xdebugReady(): bool
     {
-        if (
-            !function_exists('xdebug_start_code_coverage')
-            || !defined('XDEBUG_FILTER_CODE_COVERAGE')
-            || !defined('XDEBUG_PATH_INCLUDE')
-        ) {
+        if (!self::collectionAvailable()) {
             return false;
         }
         $mode = getenv('XDEBUG_MODE');
@@ -70,17 +100,38 @@ final class RequestCoverage
 
     private static function dump(string $directory): void
     {
-        if (!function_exists('xdebug_get_code_coverage')) {
+        if (!self::collectionAvailable()) {
             return;
         }
         // Do not stop coverage here. The PHPUnit bootstrap starts one suite-wide
         // session; stopping mid-suite left process dumps nearly empty. The next
         // enable() clears before a new HTTP request.
-        $kept = self::kept(xdebug_get_code_coverage());
+        $kept = self::kept(self::buffer());
         if ($kept === []) {
             return;
         }
         self::write($directory, $kept);
+    }
+
+    private static function collectionAvailable(): bool
+    {
+        if (self::$collectForced) {
+            return self::$collect;
+        }
+
+        return function_exists('xdebug_start_code_coverage')
+            && defined('XDEBUG_FILTER_CODE_COVERAGE')
+            && defined('XDEBUG_PATH_INCLUDE')
+            && function_exists('xdebug_get_code_coverage');
+    }
+
+    private static function buffer(): mixed
+    {
+        if (self::$bufferForced) {
+            return self::$buffer;
+        }
+
+        return xdebug_get_code_coverage();
     }
 
     /**

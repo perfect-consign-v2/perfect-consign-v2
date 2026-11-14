@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Party;
 
+use PerfectConsign\Shared\Database\PgBool;
+
 final class VendorDraft
 {
     private readonly VendorDraftPlaces $places;
@@ -141,7 +143,7 @@ final class VendorDraft
             $facts[2],
             $facts[3],
             $facts[4],
-            $facts[5] ? 'true' : 'false',
+            PgBool::literal($facts[5] === true),
             $facts[6],
             ...$this->terms(),
         ];

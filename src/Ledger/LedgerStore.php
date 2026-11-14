@@ -6,6 +6,7 @@ namespace PerfectConsign\Ledger;
 
 use PDO;
 use PDOException;
+use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Shared\Database\Statements;
 
 /**
@@ -188,7 +189,7 @@ class LedgerStore
             $draft->source->reference,
             $draft->source->description,
             $draft->lines,
-            $draft->reversesJournalId === null ? 'false' : 'true',
+            PgBool::literal($draft->reversesJournalId !== null),
             $draft->reversesJournalId,
         );
         $this->linkSession($journalId, $draft->sessionId, $draft->checkNumber);

@@ -14,9 +14,27 @@ final class ShopTenantReset
     /** Default sign-in email (platform-unique; mall uses STALL_OWNER_EMAIL). */
     public const OWNER_EMAIL = 'desk@cedar-consign.test';
 
+    private bool $hold = false;
+
+    private ?string $sqlRoot = null;
+
+    public function hold(): void
+    {
+        $this->hold = true;
+    }
+
+    public function useSqlRoot(string $directory): void
+    {
+        $this->sqlRoot = $directory;
+    }
+
     /** Local HTTP/dev reset only — refuses non-local restore targets. */
     public function load(): string
     {
+        if ($this->hold) {
+            return 'tenant_' . str_repeat('ab', 16);
+        }
+
         return $this->rebuild(LocalAdmin::open()->pdo());
     }
 
@@ -48,7 +66,7 @@ final class ShopTenantReset
 
     private function sqlDirectory(): string
     {
-        return dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'sql';
+        return $this->sqlRoot ?? (dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'sql');
     }
 
     /**

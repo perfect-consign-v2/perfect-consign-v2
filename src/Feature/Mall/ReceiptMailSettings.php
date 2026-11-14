@@ -10,8 +10,18 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class ReceiptMailSettings
 {
+    private static string $smtpHost = 'smtp.gmail.com';
+
+    private static int $smtpPort = 587;
+
     public function __construct(private readonly Statements $statements)
     {
+    }
+
+    public static function useTransport(string $host, int $port): void
+    {
+        self::$smtpHost = $host;
+        self::$smtpPort = $port;
     }
 
     public function via(): string
@@ -74,8 +84,8 @@ final class ReceiptMailSettings
         }
 
         return [
-            'host' => 'smtp.gmail.com',
-            'port' => 587,
+            'host' => self::$smtpHost,
+            'port' => self::$smtpPort,
             'username' => $address,
             'password' => $this->storedPassword(),
             'from' => $address,

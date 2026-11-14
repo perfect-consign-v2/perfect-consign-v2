@@ -19,11 +19,11 @@ final class TenantBackup
     ) {
     }
 
-    public function create(BackupConnection $connection, string $slug): BackupFile
+    public function create(BackupConnection $connection, string $slug, ?PDO $pdo = null): BackupFile
     {
         $this->requireSlug($slug);
         $takenAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-        $pdo = $connection->pdo();
+        $pdo ??= $connection->pdo();
         $pdo->exec('BEGIN ISOLATION LEVEL REPEATABLE READ');
         $directory = '';
         try {

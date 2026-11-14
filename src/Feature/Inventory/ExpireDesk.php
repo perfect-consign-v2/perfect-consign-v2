@@ -98,9 +98,6 @@ final class ExpireDesk
             throw new InvalidArgumentException('this form has expired');
         }
         $amount = Money::parseMinor($amountText);
-        if ($amount <= 0) {
-            throw new InvalidArgumentException('a store purchase is a positive amount');
-        }
         $item = $this->item($itemId);
         $vendorId = $item['vendor_id'];
         $postingKey = 'store-purchase:expire-buy:' . hash('sha256', $itemId . "\n" . $amount . "\n" . $token);

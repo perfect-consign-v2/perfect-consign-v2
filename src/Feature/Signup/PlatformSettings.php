@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Signup;
 
 use PDO;
+use PerfectConsign\Shared\Database\PgBool;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
@@ -96,7 +97,7 @@ final class PlatformSettings
             'INSERT INTO platform.settings (key, value) VALUES (?, ?::jsonb)
              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value'
         );
-        $statement->execute([$key, $enabled ? 'true' : 'false']);
+        $statement->execute([$key, PgBool::literal($enabled)]);
         if ($statement->rowCount() < 1) {
             throw new RuntimeException('store signup setting was not saved');
         }

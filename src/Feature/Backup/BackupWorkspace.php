@@ -9,10 +9,17 @@ use ZipArchive;
 
 final class BackupWorkspace
 {
+    private ?ZipArchive $zip = null;
+
     public function __construct(
         private readonly LoggerInterface $logger,
         private readonly DirectoryTree $tree,
     ) {
+    }
+
+    public function useZip(ZipArchive $zip): void
+    {
+        $this->zip = $zip;
     }
 
     public function make(string $backupId): string
@@ -40,7 +47,7 @@ final class BackupWorkspace
         if (!is_file($schemaPath) || !is_file($platformPath) || !is_file($manifestPath)) {
             throw new BackupException('The backup could not be taken.');
         }
-        $zip = new ZipArchive();
+        $zip = $this->zip ?? new ZipArchive();
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new BackupException('The backup could not be taken.');
         }

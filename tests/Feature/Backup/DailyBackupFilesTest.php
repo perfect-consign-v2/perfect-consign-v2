@@ -34,21 +34,7 @@ final class DailyBackupFilesTest extends TestCase
             if ($name === '.' || $name === '..') {
                 continue;
             }
-            $path = $this->root . DIRECTORY_SEPARATOR . $name;
-            if (is_dir($path)) {
-                $files = scandir($path);
-                if (is_array($files)) {
-                    foreach ($files as $file) {
-                        if ($file === '.' || $file === '..') {
-                            continue;
-                        }
-                        unlink($path . DIRECTORY_SEPARATOR . $file);
-                    }
-                }
-                rmdir($path);
-                continue;
-            }
-            unlink($path);
+            $this->removeTree($this->root . DIRECTORY_SEPARATOR . $name);
         }
         rmdir($this->root);
     }
@@ -66,6 +52,50 @@ final class DailyBackupFilesTest extends TestCase
         self::assertSame('two', $stored);
         unlink($first);
         unlink($second);
+    }
+
+    public function testABusyFileAndABlockedRenameAreRefused(): void
+    {
+        $schema = 'tenant_' . str_repeat('c', 32);
+        $source = $this->source('busy');
+        $files = new DailyBackupFiles($this->root);
+        $files->replace($schema, '2026-09-26', $source);
+        $files->failUnlink();
+        try {
+            $files->replace($schema, '2026-09-26', $source);
+            self::fail('a backup was replaced after the delete was refused');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be stored.', $error->getMessage());
+        }
+
+        $blocked = $this->root . DIRECTORY_SEPARATOR . $schema . DIRECTORY_SEPARATOR . '2026-09-27.zip';
+        if (!mkdir($blocked) && !is_dir($blocked)) {
+            self::fail('the blocked backup path could not be created');
+        }
+        set_error_handler(static function (int $severity): bool {
+            return $severity === E_WARNING;
+        });
+        try {
+            $files->replace($schema, '2026-09-27', $source);
+            self::fail('a backup was renamed onto a directory');
+        } catch (BackupException $error) {
+            self::assertSame('The backup could not be stored.', $error->getMessage());
+        } finally {
+            restore_error_handler();
+        }
+
+        $old = $this->root . DIRECTORY_SEPARATOR . $schema . DIRECTORY_SEPARATOR . '2026-01-01.zip';
+        if (file_put_contents($old, 'old') === false) {
+            self::fail('the old backup could not be written');
+        }
+        $files->failUnlink();
+        try {
+            $files->removeOlderThan(new DateTimeImmutable('2026-09-26 12:00:00+00'));
+            self::fail('an old backup was removed');
+        } catch (BackupException $error) {
+            self::assertSame('An old backup could not be removed.', $error->getMessage());
+        }
+        unlink($source);
     }
 
     public function testFilesOlderThanThirtyDaysAreRemoved(): void
@@ -167,6 +197,28 @@ final class DailyBackupFilesTest extends TestCase
         $files = new DailyBackupFiles($this->root);
         $files->removeOlderThan(new DateTimeImmutable('2026-09-26 12:00:00+00'));
         self::assertFileExists($blocked);
+    }
+
+    private function removeTree(string $path): void
+    {
+        if (is_file($path) || is_link($path)) {
+            unlink($path);
+
+            return;
+        }
+        if (!is_dir($path)) {
+            return;
+        }
+        $names = scandir($path);
+        if (is_array($names)) {
+            foreach ($names as $name) {
+                if ($name === '.' || $name === '..') {
+                    continue;
+                }
+                $this->removeTree($path . DIRECTORY_SEPARATOR . $name);
+            }
+        }
+        rmdir($path);
     }
 
     private function source(string $contents): string

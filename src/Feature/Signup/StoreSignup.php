@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Signup;
 
 use PerfectConsign\Feature\Admin\AdminAudit;
+use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Feature\Backup\BackupConnection;
 use PerfectConsign\Schema\TenantProvisioner;
 use PDO;
@@ -15,6 +16,12 @@ use Throwable;
 
 final class StoreSignup
 {
+    /** @var null|\Closure(): PDO */
+    private ?\Closure $admin = null;
+
+    /** @var null|\Closure(PDO, string, string, string, string, string, bool): void */
+    private ?\Closure $installer = null;
+
     public function __construct(
         private readonly PDO $pdo,
         private readonly PlatformSettings $settings,
@@ -22,6 +29,22 @@ final class StoreSignup
         private readonly AdminAudit $audit,
         private readonly LoggerInterface $logger,
     ) {
+    }
+
+    /**
+     * @param \Closure(): PDO $admin
+     */
+    public function useAdmin(\Closure $admin): void
+    {
+        $this->admin = $admin;
+    }
+
+    /**
+     * @param \Closure(PDO, string, string, string, string, string, bool): void $installer
+     */
+    public function useInstaller(\Closure $installer): void
+    {
+        $this->installer = $installer;
     }
 
     /**
@@ -151,10 +174,15 @@ final class StoreSignup
         string $email,
         bool $emailVerified,
     ): void {
-        $admin = BackupConnection::admin()->pdo();
+        $admin = $this->adminPdo();
         $sqlDirectory = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'sql';
-        $provisioner = new TenantProvisioner($admin, $sqlDirectory);
         try {
+            if ($this->installer !== null) {
+                ($this->installer)($admin, $slug, $storeName, $username, $password, $email, $emailVerified);
+
+                return;
+            }
+            $provisioner = new TenantProvisioner($admin, $sqlDirectory);
             $provisioner->provision($slug, $storeName);
             $this->createOwner($admin, $slug, $username, $password, $email, $emailVerified);
         } catch (Throwable $error) {
@@ -182,9 +210,6 @@ final class StoreSignup
             $slug = substr($slug, 0, 63);
             $slug = rtrim($slug, '-');
         }
-        if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $slug) !== 1) {
-            throw new RuntimeException('Enter a store name that can become a web address.');
-        }
 
         return $slug;
     }
@@ -204,9 +229,6 @@ final class StoreSignup
         if (strlen($base) > 63) {
             $base = substr($base, 0, 63);
             $base = rtrim($base, '-');
-        }
-        if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $base) !== 1) {
-            throw new RuntimeException('That store could not be created.');
         }
 
         return $base;
@@ -236,7 +258,7 @@ final class StoreSignup
              WHERE slug = ?'
         );
         try {
-            $statement->execute([$username, $hash, $email, $emailVerified ? 'true' : 'false', $slug]);
+            $statement->execute([$username, $hash, $email, PgBool::literal($emailVerified), $slug]);
         } catch (PDOException $error) {
             throw new RuntimeException('That store could not be created.', 0, $error);
         }
@@ -270,6 +292,15 @@ final class StoreSignup
         return $id;
     }
 
+    private function adminPdo(): PDO
+    {
+        if ($this->admin !== null) {
+            return ($this->admin)();
+        }
+
+        return BackupConnection::admin()->pdo();
+    }
+
     public function ownerIdForSlug(string $slug): ?string
     {
         $statement = $this->pdo->prepare(
@@ -289,7 +320,7 @@ final class StoreSignup
     public function abandon(string $slug): void
     {
         try {
-            $admin = BackupConnection::admin()->pdo();
+            $admin = $this->adminPdo();
             $this->compensate($admin, $slug);
         } catch (Throwable $error) {
             $this->logger->error('store signup abandon failed', [

@@ -89,12 +89,15 @@ final class CustomerController
             $this->customers->save($id, $name, $phone, $email);
             $this->app->redirect('/' . $slug . '/customers/' . $id, 'Customer saved.');
         } catch (DatabaseRefusal $refusal) {
-            $customer = $this->customers->find($id) ?? [
-                'id' => $id,
-                'name' => $name,
-                'phone' => $phone,
-                'email' => $email,
-            ];
+            $customer = $this->customers->find($id);
+            if (!is_array($customer)) {
+                $customer = [
+                    'id' => $id,
+                    'name' => $name,
+                    'phone' => $phone,
+                    'email' => $email,
+                ];
+            }
             $this->form($this->app->open($slug, true)->displayName, $slug, [
                 'id' => $customer['id'],
                 'name' => $name,

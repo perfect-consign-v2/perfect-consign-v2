@@ -6,6 +6,13 @@ namespace PerfectConsign\Feature\Backup;
 
 final class DirectoryTree
 {
+    private ?bool $asLink = null;
+
+    public function treatAsLink(bool $link): void
+    {
+        $this->asLink = $link;
+    }
+
     public function remove(string $directory): bool
     {
         if (!is_dir($directory)) {
@@ -30,7 +37,7 @@ final class DirectoryTree
             return true;
         }
         $path = $directory . DIRECTORY_SEPARATOR . $item;
-        if (is_link($path)) {
+        if ($this->linked($path)) {
             return unlink($path);
         }
         if (is_dir($path)) {
@@ -38,5 +45,17 @@ final class DirectoryTree
         }
 
         return unlink($path);
+    }
+
+    private function linked(string $path): bool
+    {
+        if ($this->asLink !== null) {
+            $link = $this->asLink;
+            $this->asLink = null;
+
+            return $link;
+        }
+
+        return is_link($path);
     }
 }

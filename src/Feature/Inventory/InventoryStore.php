@@ -8,6 +8,7 @@ use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\CatalogLinks;
+use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -197,7 +198,7 @@ final class InventoryStore
             $item->sale->priceMinor,
             $item->sale->quantity,
             $item->sale->commissionBps,
-            $item->sale->taxExempt ? 'true' : 'false',
+            PgBool::literal($item->sale->taxExempt),
             $item->dates->intakeOn,
             $item->dates->expiresOn,
         ]);

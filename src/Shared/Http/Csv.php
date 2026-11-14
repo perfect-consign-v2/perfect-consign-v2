@@ -8,13 +8,20 @@ use RuntimeException;
 
 final class Csv
 {
+    private static bool $refuseRead = false;
+
+    public static function refuseRead(bool $refuse): void
+    {
+        self::$refuseRead = $refuse;
+    }
+
     /**
      * @param list<string> $columns
      * @param list<array<string, int|string>> $rows
      */
-    public static function document(array $columns, array $rows): string
+    public static function document(array $columns, array $rows, string $buffer = 'php://temp'): string
     {
-        $handle = fopen('php://temp', 'w+');
+        $handle = fopen($buffer, 'w+');
         if ($handle === false) {
             throw new RuntimeException('could not open a csv buffer');
         }
@@ -28,8 +35,9 @@ final class Csv
                 self::write($handle, $cells);
             }
             rewind($handle);
-            $body = stream_get_contents($handle);
+            $body = self::$refuseRead ? false : stream_get_contents($handle);
         } finally {
+            self::$refuseRead = false;
             fclose($handle);
         }
         if (!is_string($body)) {

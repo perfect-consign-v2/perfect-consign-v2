@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Shared;
 
+use InvalidArgumentException;
 use PerfectConsign\Shared\Http\View;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -112,6 +113,33 @@ final class ViewAndErrorTest extends TestCase
     public function testAssetVersionUsesZeroWhenFileMissing(): void
     {
         self::assertSame('/assets/js/missing.js?v=0', View::asset('/assets/js/missing.js'));
+    }
+
+    public function testTextAndPhoneRefuseANonScalar(): void
+    {
+        $calls = [
+            static fn () => View::text(['nope']),
+            static fn () => View::phone(['nope']),
+            static fn () => View::phoneTel(['nope']),
+        ];
+        foreach ($calls as $call) {
+            try {
+                $call();
+                self::fail('a non-scalar was accepted');
+            } catch (InvalidArgumentException $error) {
+                self::assertSame('expected text', $error->getMessage());
+            }
+        }
+    }
+
+    public function testABadTemplateVariableIsRefused(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('invalid template variable');
+        (new View(dirname(__DIR__, 2) . '/src'))->render('Shared/Web/partials/line', [
+            'name' => 'line',
+            '1bad' => 'nope',
+        ]);
     }
 
 }

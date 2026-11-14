@@ -6,8 +6,46 @@ namespace PerfectConsign\Feature\Backup;
 
 final class PostgresTools
 {
+    private bool $refuseTemp = false;
+
+    private bool $refuseChmod = false;
+
+    private bool $refuseWrite = false;
+
+    private bool $refuseUnlink = false;
+
     public function __construct(private readonly CommandProcess $process)
     {
+    }
+
+    public function failPasswordFile(string $step): void
+    {
+        $this->refuseTemp = false;
+        $this->refuseChmod = false;
+        $this->refuseWrite = false;
+        $this->refuseUnlink = false;
+        if ($step === 'temp') {
+            $this->refuseTemp = true;
+
+            return;
+        }
+        if ($step === 'chmod') {
+            $this->refuseChmod = true;
+
+            return;
+        }
+        if ($step === 'write') {
+            $this->refuseWrite = true;
+
+            return;
+        }
+        if ($step === 'unlink') {
+            $this->refuseUnlink = true;
+
+            return;
+        }
+
+        throw new \InvalidArgumentException('unknown password file failure');
     }
 
     /**
@@ -121,21 +159,21 @@ final class PostgresTools
         return 'psql';
     }
 
-    private function dockerEnvFile(BackupConnection $connection): ?string
+    private function dockerEnvFile(BackupConnection $connection, ?string $directory = null): ?string
     {
         $configured = getenv('STALL_PG_DUMP');
         if (!is_string($configured) || !str_starts_with($configured, 'docker:')) {
             return null;
         }
-        $path = tempnam(sys_get_temp_dir(), 'stall-pg-');
+        $path = $this->refuseTemp ? false : tempnam($directory ?? sys_get_temp_dir(), 'stall-pg-');
         if ($path === false) {
             throw new BackupException('could not create the database password file');
         }
-        if (!chmod($path, 0600)) {
+        if ($this->refuseChmod || !chmod($path, 0600)) {
             $this->removeEnvFile($path);
             throw new BackupException('could not protect the database password file');
         }
-        $written = file_put_contents($path, 'PGPASSWORD=' . $connection->password . "\n");
+        $written = $this->refuseWrite ? false : file_put_contents($path, 'PGPASSWORD=' . $connection->password . "\n");
         if ($written === false) {
             $this->removeEnvFile($path);
             throw new BackupException('could not write the database password file');
@@ -149,7 +187,7 @@ final class PostgresTools
         if ($path === null || !is_file($path)) {
             return;
         }
-        if (!unlink($path) && is_file($path)) {
+        if (($this->refuseUnlink || !unlink($path)) && is_file($path)) {
             throw new BackupException('could not remove the database password file');
         }
     }

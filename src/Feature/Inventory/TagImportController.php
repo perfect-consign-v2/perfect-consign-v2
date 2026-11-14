@@ -10,10 +10,17 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class TagImportController
 {
+    private bool $acceptLocalFile = false;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly TagImport $import,
     ) {
+    }
+
+    public function acceptLocalFile(bool $accept): void
+    {
+        $this->acceptLocalFile = $accept;
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/inventory/import', ['GET'])]
@@ -54,7 +61,8 @@ final class TagImportController
      */
     private function uploadError(?array $file): ?string
     {
-        if ($file === null || $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+        $uploaded = $file !== null && ($this->acceptLocalFile || is_uploaded_file($file['tmp_name']));
+        if ($file === null || $file['error'] !== UPLOAD_ERR_OK || !$uploaded) {
             return 'Choose a CSV file.';
         }
         $size = filesize($file['tmp_name']);
