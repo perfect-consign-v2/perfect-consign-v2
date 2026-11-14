@@ -1,7 +1,7 @@
 ---
 title: Wait list (not a vendor, not a journal)
 category: Floor and ops
-hesk: published 2026-11-12
+hesk: published 2026-11-14
 as_of: 2026-11-11
 ---
 

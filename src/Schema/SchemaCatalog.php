@@ -27,6 +27,7 @@ final class SchemaCatalog
         '001_tenant.sql',
         '090_item_tax_exempt.sql',
         '091_item_duplicate_sqlstate.sql',
+        '092_item_buy_expired.sql',
     ];
 
     public function __construct(private readonly string $directory)

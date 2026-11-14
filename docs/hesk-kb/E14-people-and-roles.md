@@ -1,13 +1,15 @@
 ---
 title: People and mall roles
 category: Floor and ops
-hesk: published 2026-11-12
-as_of: 2026-11-08
+hesk: published 2026-11-14
+as_of: 2026-11-13
 ---
 
 # People and mall roles
 
 ## As of
+
+2026-11-13 — A manager may return or donate an expired piece and cannot post the expire-desk buy. Only an owner posts that buy, and only after the piece has expired.
 
 2026-11-08 — The menu People group holds sellers, customers, and parties; owners also see Staff (`/{slug}/staff`) there. Staff is sign-in for cashiers, managers, books, and co-owners. Shoppers, sellers, and the wait list are parties, not Staff rows. Suspend/Restore and change-role among cashier, manager, and books are unchanged.
 
@@ -22,7 +24,7 @@ An owner opens People → Staff (`/{slug}/staff`), or a staff member or owner si
 ## What the books / screens do
 
 - **Owner** — full mall; home is the dashboard. A mall may have more than one owner (co-owners). Staff shows Owners with sign-in reset, Suspend/Restore, and Remove for other owners.
-- **Manager** — floor lead: sell, rent, register, People (customers, vendors/consignors, parties), inventory/booths/map/deals/wait list/email, plus read this month, payouts, and reports. Home is the register. No Settings, Company, or Staff; cannot pay vendors.
+- **Manager** — floor lead: sell, rent, register, People (customers, vendors/consignors, parties), inventory/booths/map/deals/wait list/email, plus read this month, payouts, and reports. Home is the register. No Settings, Company, or Staff; cannot pay vendors. May return or donate an expired piece and cannot post the expire-desk buy.
 - **Cashier** — Sell, Rent, Register only. Home is the register.
 - **Books** — read sales, this month, rent, payouts, money record, and reports. Home is Sales. Cannot sell or disburse.
 - **Vendor** — portal Check / Sales / Inventory / Deals. Sign-in is set on that vendor’s page, not on Staff.
@@ -32,7 +34,7 @@ An owner opens People → Staff (`/{slug}/staff`), or a staff member or owner si
 
 ## What is refused
 
-- A manager opening Settings, Staff, Company, export, year close, or payout posts.
+- A manager opening Settings, Staff, Company, export, year close, or payout posts. A manager posting the expire-desk buy.
 - A books login claiming they can pay vendors (nav says View payouts).
 - Second-signature from a books or vendor account.
 - Removing your own owner sign-in, or removing the last owner on the mall.

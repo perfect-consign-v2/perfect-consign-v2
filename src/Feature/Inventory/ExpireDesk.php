@@ -127,15 +127,32 @@ final class ExpireDesk
     private function item(string $itemId): array
     {
         $rows = $this->statements->bound(
-            'SELECT vendor_id::text AS vendor_id FROM items WHERE id = ?::uuid',
+            'SELECT vendor_id::text AS vendor_id, placement, quantity,
+                    CASE
+                        WHEN expires_on IS NOT NULL
+                         AND expires_on < (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date
+                        THEN 1
+                        ELSE 0
+                    END AS expired
+             FROM items
+             WHERE id = ?::uuid',
             [$itemId]
         );
         if (count($rows) !== 1) {
             throw new DatabaseRefusal('Choose an item.');
         }
-        $vendorId = RowValue::string($rows[0]['vendor_id'] ?? null);
-        if ($vendorId === '') {
+        $row = $rows[0];
+        $vendorId = $row['vendor_id'] ?? null;
+        if (!is_string($vendorId) || $vendorId === '' || ($row['placement'] ?? null) !== 'consigned') {
             throw new DatabaseRefusal('a buy takes a consigned piece');
+        }
+        $quantity = $row['quantity'] ?? null;
+        if ((!is_int($quantity) && !(is_string($quantity) && preg_match('/^\d+$/', $quantity) === 1)) || (int) $quantity < 1) {
+            throw new DatabaseRefusal('a buy takes a consigned piece');
+        }
+        $expired = $row['expired'] ?? null;
+        if ($expired !== 1 && $expired !== '1') {
+            throw new DatabaseRefusal('only an expired consigned piece can be bought');
         }
 
         return ['vendor_id' => $vendorId];

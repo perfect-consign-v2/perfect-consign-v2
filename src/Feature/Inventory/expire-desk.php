@@ -82,7 +82,7 @@ use PerfectConsign\Shared\Http\View;
                                 >
                                 <button class="btn btn-sm<?= $suggest === 'return' ? ' btn-primary' : '' ?>" type="submit" name="kind" value="return">Return</button>
                                 <button class="btn btn-sm<?= $suggest === 'donate' ? ' btn-primary' : '' ?>" type="submit" name="kind" value="donate">Donate</button>
-                                <button class="btn btn-sm<?= $suggest === 'buy' ? ' btn-primary' : '' ?>" type="submit" name="kind" value="buy">Buy</button>
+                                <button class="btn btn-sm<?= $suggest === 'buy' ? ' btn-primary' : '' ?>" type="submit" name="kind" value="buy" formaction="/<?= View::text($slug) ?>/inventory/<?= View::text($item['id']) ?>/buy">Buy</button>
                             </form>
                         </td>
                     </tr>

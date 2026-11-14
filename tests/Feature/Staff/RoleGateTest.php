@@ -38,6 +38,7 @@ final class RoleGateTest extends TestCase
         self::assertFalse(RoleGate::allows('cashier', '/reports', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/registers/new', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/registers', 'POST'));
+        self::assertFalse(RoleGate::allows('cashier', '/inventory/01900000-0000-7000-8000-000000000d10/buy', 'POST'));
     }
 
     public function testAVendorSeesOnlyTheirOwnPage(): void
@@ -88,6 +89,7 @@ final class RoleGateTest extends TestCase
         self::assertFalse(RoleGate::allows('books', '/pos', 'GET'));
         self::assertFalse(RoleGate::allows('books', '/staff', 'PUT'));
         self::assertFalse(RoleGate::allows('books', '/settings', 'GET'));
+        self::assertFalse(RoleGate::allows('books', '/inventory/01900000-0000-7000-8000-000000000d10/buy', 'POST'));
         self::assertFalse(RoleGate::allows('', '/sales', 'GET'));
     }
 
@@ -101,6 +103,9 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('manager', '/consignors', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/consignors/01900000-0000-7000-8000-000000000d10', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/inventory', 'POST'));
+        self::assertTrue(RoleGate::allows('manager', '/inventory/01900000-0000-7000-8000-000000000d10/dispose', 'POST'));
+        self::assertFalse(RoleGate::allows('manager', '/inventory/01900000-0000-7000-8000-000000000d10/buy', 'POST'));
+        self::assertTrue(RoleGate::allows('owner', '/inventory/01900000-0000-7000-8000-000000000d10/buy', 'POST'));
         self::assertTrue(RoleGate::allows('manager', '/booths', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/customers', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/customers/new', 'GET'));

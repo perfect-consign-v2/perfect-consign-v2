@@ -120,6 +120,10 @@ EXCEPTION
         END IF;
 END $$;
 
+UPDATE items
+SET intake_on = DATE '2020-01-01', expires_on = (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date - 1
+WHERE id = '01900000-0000-7000-8000-00000000f201';
+
 DO $$
 BEGIN
     INSERT INTO journals (
@@ -147,6 +151,59 @@ EXCEPTION
         END IF;
 END $$;
 
+DO $$
+DECLARE
+    step text;
+    journal uuid;
+BEGIN
+    FOREACH step IN ARRAY ARRAY['none', 'today', 'future']
+    LOOP
+        IF step = 'today' THEN
+            UPDATE items
+            SET intake_on = DATE '2020-01-01', expires_on = (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date
+            WHERE id = '01900000-0000-7000-8000-00000000f204';
+        ELSIF step = 'future' THEN
+            UPDATE items
+            SET expires_on = (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date + 1
+            WHERE id = '01900000-0000-7000-8000-00000000f204';
+        END IF;
+        journal := CASE step
+            WHEN 'none' THEN '01900000-0000-7000-8000-00000000f821'::uuid
+            WHEN 'today' THEN '01900000-0000-7000-8000-00000000f822'::uuid
+            ELSE '01900000-0000-7000-8000-00000000f823'::uuid
+        END;
+        BEGIN
+            INSERT INTO journals (
+                id, book_id, posting_key, posting_date, occurred_at, period_id,
+                currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+            ) VALUES (
+                journal,
+                '01900000-0000-7000-8000-000000000001',
+                'store-purchase:unexpired:' || step,
+                '2042-04-03', '2042-04-03 12:00:00+00',
+                '01900000-0000-7000-8000-00000000f021',
+                'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 2500, 2500
+            );
+            INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+            VALUES (journal, '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 2500, 0);
+            INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref)
+            VALUES (journal, '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 0, 2500, 'vendor', '01900000-0000-7000-8000-00000000f101');
+            INSERT INTO item_buys (journal_id, item_id, vendor_id, amount_minor)
+            VALUES (journal, '01900000-0000-7000-8000-00000000f204', '01900000-0000-7000-8000-00000000f101', 2500);
+            RAISE EXCEPTION 'an unexpired piece was bought';
+        EXCEPTION
+            WHEN SQLSTATE '23514' THEN
+                IF SQLERRM NOT LIKE '%only an expired consigned piece can be bought%' THEN
+                    RAISE;
+                END IF;
+        END;
+    END LOOP;
+END $$;
+
+UPDATE items
+SET intake_on = DATE '2020-01-01', expires_on = (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date - 1
+WHERE id = '01900000-0000-7000-8000-00000000f204';
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
@@ -164,6 +221,55 @@ INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor
 VALUES ('01900000-0000-7000-8000-00000000f804', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 0, 2500, 'vendor', '01900000-0000-7000-8000-00000000f101');
 INSERT INTO item_buys (journal_id, item_id, vendor_id, amount_minor)
 VALUES ('01900000-0000-7000-8000-00000000f804', '01900000-0000-7000-8000-00000000f204', '01900000-0000-7000-8000-00000000f101', 2500);
+
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity, expires_on)
+VALUES (
+    '01900000-0000-7000-8000-00000000f205',
+    'Over',
+    '01900000-0000-7000-8000-00000000f101',
+    'Over tag',
+    2000,
+    'BC-USE-OVER',
+    (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date - 30,
+    1,
+    (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date - 1
+);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-00000000f824',
+    '01900000-0000-7000-8000-000000000001',
+    'store-purchase:over',
+    '2042-04-03', '2042-04-03 12:00:00+00',
+    '01900000-0000-7000-8000-00000000f021',
+    'USD', 'store_purchase', '01900000-0000-7000-8000-00000000f101', 'Store purchase', 3000, 3000
+);
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES ('01900000-0000-7000-8000-00000000f824', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000022', 3000, 0);
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref)
+VALUES ('01900000-0000-7000-8000-00000000f824', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 0, 3000, 'vendor', '01900000-0000-7000-8000-00000000f101');
+INSERT INTO item_buys (journal_id, item_id, vendor_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-00000000f824', '01900000-0000-7000-8000-00000000f205', '01900000-0000-7000-8000-00000000f101', 3000);
+
+DO $$
+DECLARE
+    cost bigint;
+    credited bigint;
+    place text;
+    tag bigint;
+BEGIN
+    SELECT cost_minor, placement, price_minor INTO cost, place, tag
+    FROM items WHERE id = '01900000-0000-7000-8000-00000000f205';
+    SELECT COALESCE(sum(credit_minor), 0) INTO credited
+    FROM journal_lines
+    WHERE journal_id = '01900000-0000-7000-8000-00000000f824'
+      AND account_id = '01900000-0000-7000-8000-000000000014';
+    IF cost <> 3000 OR credited <> 3000 OR place <> 'store' OR tag <> 2000 THEN
+        RAISE EXCEPTION 'an above-tag buy did not post the typed cost';
+    END IF;
+END $$;
 
 DO $$
 BEGIN

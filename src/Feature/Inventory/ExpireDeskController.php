@@ -32,20 +32,31 @@ final class ExpireDeskController
         $this->app->open($slug, true);
         $kind = $this->app->request()->field('kind');
         try {
-            if ($kind === 'buy') {
-                $this->desk->buy(
-                    $itemId,
-                    $this->app->request()->field('amount'),
-                    $this->postedOn(),
-                    $this->formToken(),
-                );
-                $this->app->redirect('/' . $slug . '/inventory/expired', 'Bought for the store.');
-            }
             $this->desk->dispose($itemId, $kind, $this->postedOn());
             $notice = $kind === 'donate'
                 ? 'Marked donated.'
                 : $this->mall->getPartyLabel('Returned to the vendor.', 'Returned to the consignor.');
             $this->app->redirect('/' . $slug . '/inventory/expired', $notice);
+        } catch (DatabaseRefusal $refusal) {
+            $this->page($slug, $this->app->catchRefusal($refusal));
+        } catch (InvalidArgumentException $error) {
+            $this->page($slug, $error->getMessage());
+        }
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/inventory/([0-9a-fA-F-]{36})/buy', ['POST'])]
+    public function buy(string $slug, string $itemId): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        try {
+            $this->desk->buy(
+                $itemId,
+                $this->app->request()->field('amount'),
+                $this->postedOn(),
+                $this->formToken(),
+            );
+            $this->app->redirect('/' . $slug . '/inventory/expired', 'Bought for the store.');
         } catch (DatabaseRefusal $refusal) {
             $this->page($slug, $this->app->catchRefusal($refusal));
         } catch (InvalidArgumentException $error) {

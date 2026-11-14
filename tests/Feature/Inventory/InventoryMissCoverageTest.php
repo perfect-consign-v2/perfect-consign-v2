@@ -126,7 +126,12 @@ final class InventoryMissCoverageTest extends TestCase
             self::assertSame('Choose an item.', $error->getMessage());
         }
         $bought = $this->desk();
-        $bought->statements->boundRoutes[] = ['match' => 'vendor_id', 'rows' => [['vendor_id' => self::VENDOR]]];
+        $bought->statements->boundRoutes[] = ['match' => 'vendor_id', 'rows' => [[
+            'vendor_id' => self::VENDOR,
+            'placement' => 'consigned',
+            'quantity' => 1,
+            'expired' => 1,
+        ]]];
         try {
             $bought->desk->buy(self::ITEM, '1.00', '2026-01-01', str_repeat('e', 32));
         } catch (\Throwable $error) {
@@ -137,6 +142,32 @@ final class InventoryMissCoverageTest extends TestCase
         try {
             $blank->desk->buy(self::ITEM, '1.00', '2026-01-01', str_repeat('d', 32));
             self::fail('a blank vendor was bought');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('a buy takes a consigned piece', $error->getMessage());
+        }
+        $live = $this->desk();
+        $live->statements->boundRoutes[] = ['match' => 'vendor_id', 'rows' => [[
+            'vendor_id' => self::VENDOR,
+            'placement' => 'consigned',
+            'quantity' => '1',
+            'expired' => 0,
+        ]]];
+        try {
+            $live->desk->buy(self::ITEM, '1.00', '2026-01-01', str_repeat('f', 32));
+            self::fail('a live piece was bought');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('only an expired consigned piece can be bought', $error->getMessage());
+        }
+        $empty = $this->desk();
+        $empty->statements->boundRoutes[] = ['match' => 'vendor_id', 'rows' => [[
+            'vendor_id' => self::VENDOR,
+            'placement' => 'consigned',
+            'quantity' => 0,
+            'expired' => 1,
+        ]]];
+        try {
+            $empty->desk->buy(self::ITEM, '1.00', '2026-01-01', str_repeat('a', 32));
+            self::fail('an empty piece was bought');
         } catch (DatabaseRefusal $error) {
             self::assertSame('a buy takes a consigned piece', $error->getMessage());
         }

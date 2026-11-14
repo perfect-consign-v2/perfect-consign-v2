@@ -32,6 +32,9 @@ final class RoleGate
 
     private static function manager(string $rest, string $method): bool
     {
+        if ($method === 'POST' && self::expireBuy($rest)) {
+            return false;
+        }
         if (self::cashier($rest, $method) || self::floor($rest)) {
             return true;
         }
@@ -40,6 +43,11 @@ final class RoleGate
         }
 
         return self::bookPage($rest) || self::reportPage($rest, 'manager');
+    }
+
+    private static function expireBuy(string $rest): bool
+    {
+        return preg_match('#^/inventory/[0-9a-fA-F-]{36}/buy$#', $rest) === 1;
     }
 
     private static function floor(string $rest): bool

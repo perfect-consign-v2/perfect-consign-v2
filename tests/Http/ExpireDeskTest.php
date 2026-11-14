@@ -99,7 +99,7 @@ final class ExpireDeskTest extends WebTestCase
         ]);
         self::assertSees('Marked donated.', $donated);
 
-        $bought = $this->client->post('/' . $slug . '/inventory/' . $buyId . '/dispose', [
+        $bought = $this->client->post('/' . $slug . '/inventory/' . $buyId . '/buy', [
             'kind' => 'buy',
             'posted_on' => '2026-10-01',
             'form_token' => bin2hex(random_bytes(16)),

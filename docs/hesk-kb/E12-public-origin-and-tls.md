@@ -1,7 +1,7 @@
 ---
 title: Public origin, proxies, TLS, and page script policy
 category: Platform notes
-hesk: pending
+hesk: published 2026-11-14
 as_of: 2026-11-13
 ---
 
@@ -9,7 +9,7 @@ as_of: 2026-11-13
 
 ## As of
 
-2026-11-12 — DocumentRoot must be `public/`; repo-root `.htaccess` denies `.env`, `.github/`, `composer.phar` / `*.phar`, and app paths; `public/.htaccess` skips HTTPS redirect when `X-Forwarded-Proto` is already `https` only when the proxy (or `mod_remoteip`) strips client-spoofed headers — PHP still ignores forwarded proto unless `REMOTE_ADDR` is in `STALL_TRUSTED_PROXIES`; schema installers are `000_platform.sql`, `001_tenant.sql`, and later files listed in `SchemaCatalog::TENANT` including `091_item_duplicate_sqlstate.sql` (duplicate tag, barcode, and certificate refusals use SQLSTATE `P1001` / `P1002` / `P1003`; stamped bytes immutable; disposable demo may `STALL_ALLOW_PLATFORM_REINSTALL` then wipe+reprovision — deploy recovers `MigrationFileChanged`; seed-demo skips migrate until after wipe); nightly backups refuse a web-reachable `STALL_BACKUP_DIR`. Line coverage floor is 100%.
+2026-11-13 — DocumentRoot must be `public/`; repo-root `.htaccess` denies `.env`, `.github/`, `composer.phar` / `*.phar`, and app paths; `public/.htaccess` skips HTTPS redirect when `X-Forwarded-Proto` is already `https` only when the proxy (or `mod_remoteip`) strips client-spoofed headers — PHP still ignores forwarded proto unless `REMOTE_ADDR` is in `STALL_TRUSTED_PROXIES`; schema installers are `000_platform.sql`, `001_tenant.sql`, and later files listed in `SchemaCatalog::TENANT` including `092_item_buy_expired.sql` (a store purchase buys only an already-expired consigned piece; the typed amount stays the cost) and `091_item_duplicate_sqlstate.sql` (duplicate tag, barcode, and certificate refusals use SQLSTATE `P1001` / `P1002` / `P1003`; stamped bytes immutable; disposable demo may `STALL_ALLOW_PLATFORM_REINSTALL` then wipe+reprovision — deploy recovers `MigrationFileChanged`; seed-demo skips migrate until after wipe); nightly backups refuse a web-reachable `STALL_BACKUP_DIR`. Line coverage floor is 100%.
 
 ## In one sentence
 
@@ -27,7 +27,7 @@ You deploy PC2 behind HTTPS, a reverse proxy, or `php -S` for a local demo; or y
 - `STALL_TRUSTED_PROXIES` lists proxy IPs or IPv4 CIDRs. Only those peers may supply `X-Forwarded-Proto` for Secure cookies and HSTS, and the rightmost untrusted hop of `X-Forwarded-For` for lockouts and audit. If the list is empty, forwarded proto and address are ignored; only the server’s own HTTPS signal and `REMOTE_ADDR` count. `bin/deploy-demo.sh` refuses an `https://` public origin when that list is empty and the live origin does not already set a Secure session cookie.
 - Apache’s HTTPS rewrite also trusts `X-Forwarded-Proto: https` to avoid redirect loops behind a TLS terminator. That trust is ops wiring: `mod_remoteip` (or equivalent) must strip client-spoofed `X-Forwarded-Proto` before Apache sees it. PHP never trusts that header from an unlisted peer.
 - On the demo host, `php` is Plesk 8.5. `bin/deploy-demo.sh` writes marker `pc2-php-8.5` at the top of `~/.bashrc` so `/opt/plesk/php/8.5/bin` is first on `PATH` for SSH, including `php bin/migrate.php tenant-all`. Until that line is present, call `/opt/plesk/php/8.5/bin/php`.
-- Schema installers are `sql/000_platform.sql`, `sql/001_tenant.sql`, and later files listed in `SchemaCatalog::TENANT` (including `090_item_tax_exempt.sql` and `091_item_duplicate_sqlstate.sql`). Duplicate tag, barcode, and certificate number refusals keep the cashier sentence and use SQLSTATE `P1001`, `P1002`, and `P1003`. Stamped bytes are immutable. Deploy never forgets stamps or refreshes checksums. `MigrationFileChanged` means a new forward file or wipe + reprovision (`STALL_ALLOW_PLATFORM_REINSTALL` on disposable demos; that flag alone is the wipe gate). Deploy recovers when the flag is set; `seed-demo` lands tip with migrate skipped, then wipe + seed.
+- Schema installers are `sql/000_platform.sql`, `sql/001_tenant.sql`, and later files listed in `SchemaCatalog::TENANT` (including `090_item_tax_exempt.sql`, `091_item_duplicate_sqlstate.sql`, and `092_item_buy_expired.sql`). A store purchase buys only a consigned piece that has already expired; the typed amount stays the cost. Duplicate tag, barcode, and certificate number refusals keep the cashier sentence and use SQLSTATE `P1001`, `P1002`, and `P1003`. Stamped bytes are immutable. Deploy never forgets stamps or refreshes checksums. `MigrationFileChanged` means a new forward file or wipe + reprovision (`STALL_ALLOW_PLATFORM_REINSTALL` on disposable demos; that flag alone is the wipe gate). Deploy recovers when the flag is set; `seed-demo` lands tip with migrate skipped, then wipe + seed.
 - When TLS is trusted, HSTS is sent as `max-age=86400` without `includeSubDomains`. Mutating POSTs still need a session CSRF token; Referer is not CSRF.
 - Every page sends an enforcing Content-Security-Policy: scripts and styles must come from the same origin under `/assets/` (no inline script or style tags, no `style=` attributes, no `onclick=` handlers). Barcode sticker images may use `data:` URLs.
 - Pages load a tiny `boot.css` before the theme so the browser does not flash oversized unstyled text while theme CSS is still arriving.

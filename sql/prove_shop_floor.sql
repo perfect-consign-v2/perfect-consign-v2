@@ -64,9 +64,9 @@ VALUES (
     'Blue dress',
     4000,
     'dress-1',
-    CURRENT_DATE - 40,
+    (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date - 40,
     'consigned',
-    CURRENT_DATE - 1
+    (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date - 1
 );
 
 DO $$
