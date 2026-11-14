@@ -94,7 +94,8 @@ final class BackupConnection
         $port = getenv($portKey);
         $database = getenv($databaseKey);
         $password = getenv($passwordKey);
-        if (!is_string($host) || $host === ''
+        if (
+            !is_string($host) || $host === ''
             || !is_string($port) || $port === ''
             || !is_string($database) || $database === ''
             || !is_string($password) || $password === ''

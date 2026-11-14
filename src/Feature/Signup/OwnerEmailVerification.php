@@ -185,5 +185,4 @@ final class OwnerEmailVerification
 
         return $raw;
     }
-
 }

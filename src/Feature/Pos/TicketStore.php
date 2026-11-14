@@ -10,7 +10,6 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
-
 final class TicketStore
 {
     public function __construct(

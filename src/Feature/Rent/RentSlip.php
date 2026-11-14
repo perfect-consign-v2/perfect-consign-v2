@@ -76,8 +76,9 @@ final class RentSlip
     {
         $vendors = [];
         $booths = [];
-        foreach ($this->statements->bound(
-            "SELECT booth.code AS booth,
+        foreach (
+            $this->statements->bound(
+                "SELECT booth.code AS booth,
                     COALESCE(vendor.name, '') AS vendor_name
              FROM journal_lines AS line
              JOIN journals AS posted ON posted.id = line.journal_id
@@ -90,8 +91,9 @@ final class RentSlip
                AND line.subledger_type = 'booth'
                AND line.credit_minor > 0
              ORDER BY booth.code",
-            [$journalId]
-        ) as $row) {
+                [$journalId]
+            ) as $row
+        ) {
             $booth = RowValue::string($row['booth'] ?? null);
             $vendor = RowValue::string($row['vendor_name'] ?? null);
             if ($booth !== '' && !in_array($booth, $booths, true)) {
@@ -115,14 +117,16 @@ final class RentSlip
     {
         $cash = 0;
         $lines = [];
-        foreach ($this->statements->bound(
-            "SELECT role.role, line.debit_minor
+        foreach (
+            $this->statements->bound(
+                "SELECT role.role, line.debit_minor
              FROM journal_lines AS line
              JOIN chart_roles AS role ON role.account_id = line.account_id
              WHERE line.journal_id = ?::uuid AND line.debit_minor > 0
              ORDER BY line.line_no",
-            [$journalId]
-        ) as $row) {
+                [$journalId]
+            ) as $row
+        ) {
             $role = RowValue::string($row['role'] ?? null);
             $amount = RowValue::integer($row['debit_minor'] ?? null);
             if ($role === 'cash') {

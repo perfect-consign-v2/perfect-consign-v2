@@ -281,5 +281,4 @@ final class InventoryStore
         }
         throw new \InvalidArgumentException('That item is not in this mall.');
     }
-
 }

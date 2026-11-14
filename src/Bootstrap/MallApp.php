@@ -232,5 +232,4 @@ final class MallApp
     {
         return new MallChrome($this->drawers, $this->session, $this->door, $this->request);
     }
-
 }

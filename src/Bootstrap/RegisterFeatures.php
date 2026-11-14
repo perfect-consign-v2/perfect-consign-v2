@@ -158,8 +158,10 @@ final class RegisterFeatures
         if (str_contains($class, '\\Feature\\Admin\\')) {
             return 0;
         }
-        if (str_contains($class, '\\Feature\\Root\\')
-            || str_contains($class, '\\Feature\\Signup\\')) {
+        if (
+            str_contains($class, '\\Feature\\Root\\')
+            || str_contains($class, '\\Feature\\Signup\\')
+        ) {
             return 1;
         }
 
@@ -229,5 +231,4 @@ final class RegisterFeatures
 
         return array_is_list($loaded);
     }
-
 }

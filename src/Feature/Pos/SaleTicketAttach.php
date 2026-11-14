@@ -97,10 +97,12 @@ final class SaleTicketAttach
      */
     private function sameItem(mixed $row, array $item): void
     {
-        if (!is_array($row)
+        if (
+            !is_array($row)
             || RowValue::string($row['item_id'] ?? null) !== $item['item_id']
             || RowValue::integer($row['price_minor'] ?? null) !== $item['price']
-            || RowValue::integer($row['quantity'] ?? null) !== $item['quantity']) {
+            || RowValue::integer($row['quantity'] ?? null) !== $item['quantity']
+        ) {
             throw new DatabaseRefusal('the ticket changed before pay');
         }
     }

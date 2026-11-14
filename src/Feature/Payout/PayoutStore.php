@@ -99,16 +99,18 @@ final class PayoutStore
     public function missingCharges(string $runId, string $vendorId): array
     {
         $charges = [];
-        foreach ($this->statements->bound(
-            "SELECT booth_id::text AS booth_id,
+        foreach (
+            $this->statements->bound(
+                "SELECT booth_id::text AS booth_id,
                     to_char(posting_date, 'YYYY-MM-DD') AS posting_date,
                     amount,
                     stall_rent_charge_suffix(month_start) AS month
              FROM payout_missing_rent
              WHERE run_id = ?::uuid AND vendor_id = ?::uuid AND amount > 0
              ORDER BY month_start, booth_id",
-            [$runId, $vendorId]
-        ) as $row) {
+                [$runId, $vendorId]
+            ) as $row
+        ) {
             $charges[] = [
                 'booth_id' => RowValue::string($row['booth_id'] ?? null),
                 'posting_date' => RowValue::string($row['posting_date'] ?? null),
@@ -133,8 +135,9 @@ final class PayoutStore
             return [];
         }
         $taken = [];
-        foreach ($this->statements->bound(
-            "SELECT missing.booth_id::text AS booth_id, booth.code,
+        foreach (
+            $this->statements->bound(
+                "SELECT missing.booth_id::text AS booth_id, booth.code,
                     vendor.name AS vendor_name,
                     stall_rent_charge_suffix(missing.month_start) AS month, missing.amount
              FROM payout_missing_rent AS missing
@@ -142,8 +145,9 @@ final class PayoutStore
              JOIN vendors AS vendor ON vendor.id = missing.vendor_id
              WHERE missing.run_id = ?::uuid AND missing.amount > 0
              ORDER BY month, booth.code",
-            [$runId]
-        ) as $row) {
+                [$runId]
+            ) as $row
+        ) {
             $month = RowValue::string($row['month'] ?? null);
             $name = RowValue::string($row['vendor_name'] ?? null);
             $labelOn = strlen($month) === 7 ? $month . '-01' : $month;
@@ -250,5 +254,4 @@ final class PayoutStore
 
         return $day >= 1 && $day <= 28 ? $day : 1;
     }
-
 }

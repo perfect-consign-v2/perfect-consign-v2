@@ -214,8 +214,9 @@ final class VendorCheck
     {
         $booth = null;
         $others = [];
-        foreach ($this->statements->bound(
-            "SELECT booth.code,
+        foreach (
+            $this->statements->bound(
+                "SELECT booth.code,
                     to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
                     to_char(assignment.ends_on, 'YYYY-MM-DD') AS ends_on,
                     rate.amount_minor
@@ -235,8 +236,9 @@ final class VendorCheck
              ) AS rate ON true
              WHERE assignment.vendor_id = ?::uuid
              ORDER BY assignment.starts_on DESC",
-            [$today, $today, $today, $vendorId]
-        ) as $row) {
+                [$today, $today, $today, $vendorId]
+            ) as $row
+        ) {
             $starts = RowValue::string($row['starts_on'] ?? null);
             $ends = RowValue::optionalString($row['ends_on'] ?? null);
             $rent = $this->rent($row['amount_minor'] ?? null);

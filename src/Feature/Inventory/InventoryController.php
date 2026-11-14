@@ -282,5 +282,4 @@ final class InventoryController
 
         return '';
     }
-
 }

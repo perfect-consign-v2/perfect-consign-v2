@@ -177,5 +177,4 @@ final class ItemPhotoController
 
         return $this->actor->vendor() === $vendorId;
     }
-
 }

@@ -19,9 +19,11 @@ final class BooksReport
     public function rows(): array
     {
         $listed = [];
-        foreach ($this->statements->rows(
-            'SELECT code, account_type, balance_minor FROM account_balances ORDER BY code'
-        ) as $row) {
+        foreach (
+            $this->statements->rows(
+                'SELECT code, account_type, balance_minor FROM account_balances ORDER BY code'
+            ) as $row
+        ) {
             $listed[] = [
                 'code' => RowValue::string($row['code'] ?? null),
                 'account_type' => RowValue::string($row['account_type'] ?? null),

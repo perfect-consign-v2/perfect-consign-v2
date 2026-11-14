@@ -58,18 +58,18 @@ final class SalePoster
 
         try {
             return $this->ledger->post(new JournalDraft(
-            postingKey: $postingKey,
-            postingDate: $date,
-            source: new JournalSource('sale', 'sale:' . $ticketId, 'Sale'),
-            lines: SaleJournal::sale($this->ledger, $items, $tender['lines'], $tender['cash'], $roundOn, $cart['due']),
-            sessionId: $sessionId,
-            checkNumber: $tender['check'],
-            beforeCommit: function (string $journalId) use ($ticketId, $items): void {
-                $this->tickets->attach($journalId, $ticketId, $items);
-                $this->tickets->clearTenders($ticketId);
-            },
-            tenderedMinor: $handed,
-        ));
+                postingKey: $postingKey,
+                postingDate: $date,
+                source: new JournalSource('sale', 'sale:' . $ticketId, 'Sale'),
+                lines: SaleJournal::sale($this->ledger, $items, $tender['lines'], $tender['cash'], $roundOn, $cart['due']),
+                sessionId: $sessionId,
+                checkNumber: $tender['check'],
+                beforeCommit: function (string $journalId) use ($ticketId, $items): void {
+                    $this->tickets->attach($journalId, $ticketId, $items);
+                    $this->tickets->clearTenders($ticketId);
+                },
+                tenderedMinor: $handed,
+            ));
         } catch (DatabaseRefusal $refusal) {
             $again = $this->tickets->posted($postingKey);
             if ($again !== null) {

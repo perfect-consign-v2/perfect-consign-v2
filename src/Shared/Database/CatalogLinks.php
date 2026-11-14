@@ -34,8 +34,9 @@ final class CatalogLinks
     private function links(string $table): array
     {
         $links = [];
-        foreach ($this->statements->bound(
-            "SELECT quote_ident(namespace.nspname) || '.' || quote_ident(child.relname) AS relation,
+        foreach (
+            $this->statements->bound(
+                "SELECT quote_ident(namespace.nspname) || '.' || quote_ident(child.relname) AS relation,
                     quote_ident(attribute.attname) AS column_name
              FROM pg_constraint AS link
              JOIN pg_class AS child ON child.oid = link.conrelid
@@ -47,8 +48,9 @@ final class CatalogLinks
              WHERE link.confrelid = to_regclass(?)
                AND link.contype = 'f'
                AND cardinality(link.conkey) = 1",
-            [$table]
-        ) as $link) {
+                [$table]
+            ) as $link
+        ) {
             $relation = $link['relation'] ?? null;
             $column = $link['column_name'] ?? null;
             if (!is_string($relation) || !is_string($column) || $relation === '' || $column === '') {
@@ -66,9 +68,11 @@ final class CatalogLinks
     private function ids(string $relation, string $column): array
     {
         $held = [];
-        foreach ($this->statements->rows(
-            'SELECT DISTINCT ' . $column . '::text AS id FROM ' . $relation . ' WHERE ' . $column . ' IS NOT NULL'
-        ) as $row) {
+        foreach (
+            $this->statements->rows(
+                'SELECT DISTINCT ' . $column . '::text AS id FROM ' . $relation . ' WHERE ' . $column . ' IS NOT NULL'
+            ) as $row
+        ) {
             $id = $row['id'] ?? null;
             if (is_string($id) && $id !== '') {
                 $held[$id] = true;

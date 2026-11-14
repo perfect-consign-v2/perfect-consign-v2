@@ -24,8 +24,9 @@ final class OpenGiftCertificates
     {
         $rows = [];
         $total = 0;
-        foreach ($this->statements->rows(
-            "SELECT stored.number,
+        foreach (
+            $this->statements->rows(
+                "SELECT stored.number,
                     journal.id AS journal_id,
                     to_char(journal.posting_date, 'YYYY-MM-DD') AS sold_on,
                     issued.amount AS issued,
@@ -49,7 +50,8 @@ final class OpenGiftCertificates
              GROUP BY stored.id, stored.number, journal.id, journal.posting_date, issued.amount
              HAVING COALESCE(sum(line.credit_minor - line.debit_minor), 0) > 0
              ORDER BY journal.posting_date, lower(stored.number)"
-        ) as $row) {
+            ) as $row
+        ) {
             $balance = RowValue::integer($row['balance'] ?? null);
             $rows[] = [
                 'number' => RowValue::string($row['number'] ?? null),

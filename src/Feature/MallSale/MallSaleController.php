@@ -77,10 +77,12 @@ final class MallSaleController
     private function events(): array
     {
         $listed = [];
-        foreach ($this->statements->rows(
-            'SELECT name, starts_on::text AS starts_on, ends_on::text AS ends_on, percent_bps, absorbed_by
+        foreach (
+            $this->statements->rows(
+                'SELECT name, starts_on::text AS starts_on, ends_on::text AS ends_on, percent_bps, absorbed_by
              FROM mall_sales ORDER BY starts_on DESC'
-        ) as $row) {
+            ) as $row
+        ) {
             $listed[] = [
                 'name' => RowValue::string($row['name'] ?? null),
                 'starts_on' => RowValue::string($row['starts_on'] ?? null),

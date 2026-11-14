@@ -55,9 +55,11 @@ final class AssignmentBook
     public function askingRents(): array
     {
         $rates = [];
-        foreach ($this->statements->rows(
-            'SELECT booth_id::text AS booth_id, amount_minor FROM booth_rent_rates'
-        ) as $row) {
+        foreach (
+            $this->statements->rows(
+                'SELECT booth_id::text AS booth_id, amount_minor FROM booth_rent_rates'
+            ) as $row
+        ) {
             $rates[RowValue::string($row['booth_id'] ?? null)] = RowValue::integer($row['amount_minor'] ?? null);
         }
 
@@ -70,13 +72,15 @@ final class AssignmentBook
     public function rentHistory(string $assignmentId): array
     {
         $listed = [];
-        foreach ($this->statements->bound(
-            'SELECT starts_on::text AS starts_on, amount_minor
+        foreach (
+            $this->statements->bound(
+                'SELECT starts_on::text AS starts_on, amount_minor
              FROM assignment_rent_rates
              WHERE assignment_id = ?::uuid
              ORDER BY starts_on',
-            [$assignmentId]
-        ) as $row) {
+                [$assignmentId]
+            ) as $row
+        ) {
             $listed[] = [
                 'starts_on' => RowValue::string($row['starts_on'] ?? null),
                 'amount_minor' => RowValue::integer($row['amount_minor'] ?? null),

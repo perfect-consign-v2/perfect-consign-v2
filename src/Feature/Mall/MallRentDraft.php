@@ -90,7 +90,8 @@ final class MallRentDraft
         if ($this->rentals !== true) {
             return null;
         }
-        if ($this->app->request()->field('late_fee_grace_days') === ''
+        if (
+            $this->app->request()->field('late_fee_grace_days') === ''
             && $this->app->request()->field('late_fees_enabled') !== '1'
             && $this->app->request()->field('late_fee_first') === ''
             && $this->app->request()->field('late_fee_next') === ''

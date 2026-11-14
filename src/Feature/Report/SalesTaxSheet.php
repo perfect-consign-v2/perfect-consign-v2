@@ -19,11 +19,13 @@ final class SalesTaxSheet
     public function sheet(string $from, string $to): array
     {
         $listed = [];
-        foreach ($this->statements->bound(
-            'SELECT section, label, sale_count, items_sold, subtotal_minor, discount_minor, tax_minor, total_minor
+        foreach (
+            $this->statements->bound(
+                'SELECT section, label, sale_count, items_sold, subtotal_minor, discount_minor, tax_minor, total_minor
              FROM stall_sales_tax_sheet(?::date, ?::date)',
-            [$from, $to]
-        ) as $row) {
+                [$from, $to]
+            ) as $row
+        ) {
             $listed[] = [
                 'section' => RowValue::string($row['section'] ?? null),
                 'label' => RowValue::string($row['label'] ?? null),

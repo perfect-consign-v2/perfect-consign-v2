@@ -171,9 +171,11 @@ final class LateFeeDue
     private function postedKeys(): array
     {
         $keys = [];
-        foreach ($this->statements->rows(
-            "SELECT posting_key FROM journals WHERE source_type = 'late_fee' AND posting_key LIKE 'late-fee:%'"
-        ) as $row) {
+        foreach (
+            $this->statements->rows(
+                "SELECT posting_key FROM journals WHERE source_type = 'late_fee' AND posting_key LIKE 'late-fee:%'"
+            ) as $row
+        ) {
             $key = RowValue::optionalString($row['posting_key'] ?? null);
             if ($key !== null) {
                 $keys[$key] = true;

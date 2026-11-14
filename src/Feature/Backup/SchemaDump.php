@@ -8,7 +8,8 @@ final class SchemaDump
 {
     public static function rewrite(string $sql, string $from, string $to): string
     {
-        if (preg_match('/^tenant_[0-9a-f]{32}$/', $from) !== 1
+        if (
+            preg_match('/^tenant_[0-9a-f]{32}$/', $from) !== 1
             || preg_match('/^tenant_[0-9a-f]{32}$/', $to) !== 1
         ) {
             throw new BackupException('schema name is not a tenant schema');

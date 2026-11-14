@@ -19,10 +19,12 @@ final class LedgerReport
     public function sales(string $from, string $to, string $grouped): array
     {
         $listed = [];
-        foreach ($this->statements->bound(
-            'SELECT label, sales_minor, tax_minor, sale_count FROM stall_report_sales(?::date, ?::date, ?)',
-            [$from, $to, $grouped]
-        ) as $row) {
+        foreach (
+            $this->statements->bound(
+                'SELECT label, sales_minor, tax_minor, sale_count FROM stall_report_sales(?::date, ?::date, ?)',
+                [$from, $to, $grouped]
+            ) as $row
+        ) {
             $listed[] = [
                 'label' => RowValue::string($row['label'] ?? null),
                 'sales_minor' => RowValue::integer($row['sales_minor'] ?? null),
@@ -57,10 +59,12 @@ final class LedgerReport
     public function payouts(string $from, string $to): array
     {
         $listed = [];
-        foreach ($this->statements->bound(
-            'SELECT paid_on::text AS paid_on, vendor, amount_minor, kind FROM stall_report_payouts(?::date, ?::date)',
-            [$from, $to]
-        ) as $row) {
+        foreach (
+            $this->statements->bound(
+                'SELECT paid_on::text AS paid_on, vendor, amount_minor, kind FROM stall_report_payouts(?::date, ?::date)',
+                [$from, $to]
+            ) as $row
+        ) {
             $listed[] = [
                 'paid_on' => RowValue::string($row['paid_on'] ?? null),
                 'vendor' => RowValue::string($row['vendor'] ?? null),
@@ -94,10 +98,12 @@ final class LedgerReport
     public function expiring(): array
     {
         $listed = [];
-        foreach ($this->statements->rows(
-            'SELECT code, description, vendor, expires_on::text AS expires_on, quantity, price_minor
+        foreach (
+            $this->statements->rows(
+                'SELECT code, description, vendor, expires_on::text AS expires_on, quantity, price_minor
              FROM stall_report_expiring()'
-        ) as $row) {
+            ) as $row
+        ) {
             $listed[] = [
                 'code' => RowValue::string($row['code'] ?? null),
                 'description' => RowValue::string($row['description'] ?? null),
@@ -117,11 +123,13 @@ final class LedgerReport
     public function donated(string $from, string $to): array
     {
         $listed = [];
-        foreach ($this->statements->bound(
-            'SELECT posted_on::text AS posted_on, code, description, quantity
+        foreach (
+            $this->statements->bound(
+                'SELECT posted_on::text AS posted_on, code, description, quantity
              FROM stall_report_donated(?::date, ?::date)',
-            [$from, $to]
-        ) as $row) {
+                [$from, $to]
+            ) as $row
+        ) {
             $listed[] = [
                 'posted_on' => RowValue::string($row['posted_on'] ?? null),
                 'code' => RowValue::string($row['code'] ?? null),
@@ -139,11 +147,13 @@ final class LedgerReport
     public function sellThrough(string $from, string $to): array
     {
         $listed = [];
-        foreach ($this->statements->bound(
-            'SELECT category, sold_qty, on_hand_qty, sales_minor
+        foreach (
+            $this->statements->bound(
+                'SELECT category, sold_qty, on_hand_qty, sales_minor
              FROM stall_report_sell_through(?::date, ?::date)',
-            [$from, $to]
-        ) as $row) {
+                [$from, $to]
+            ) as $row
+        ) {
             $listed[] = [
                 'category' => RowValue::string($row['category'] ?? null),
                 'sold_qty' => RowValue::integer($row['sold_qty'] ?? null),

@@ -97,10 +97,12 @@ class PartyStore
             return null;
         }
         $roles = [];
-        foreach ($this->statements->bound(
-            'SELECT role_type FROM party_roles WHERE party_id = ?::uuid ORDER BY role_type',
-            [$partyId]
-        ) as $roleRow) {
+        foreach (
+            $this->statements->bound(
+                'SELECT role_type FROM party_roles WHERE party_id = ?::uuid ORDER BY role_type',
+                [$partyId]
+            ) as $roleRow
+        ) {
             $role = $roleRow['role_type'] ?? null;
             if (is_string($role) && $role !== '') {
                 $roles[] = PartyRoleType::assertStored($role);

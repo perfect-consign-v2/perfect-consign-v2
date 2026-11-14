@@ -111,8 +111,9 @@ final class RentStore
         }
         $skip = (new RentCycle($this->cycleDay()))->suffixesTouching($exceptMonth);
         $listed = [];
-        foreach ($this->statements->bound(
-            "SELECT stall_rent_charge_suffix(series.period_start::date) AS month,
+        foreach (
+            $this->statements->bound(
+                "SELECT stall_rent_charge_suffix(series.period_start::date) AS month,
                     count(DISTINCT assignment.booth_id) AS booths
              FROM booth_assignments AS assignment
              JOIN generate_series(
@@ -134,8 +135,9 @@ final class RentStore
                )
              GROUP BY month
              ORDER BY month",
-            [$today]
-        ) as $row) {
+                [$today]
+            ) as $row
+        ) {
             $month = RowValue::string($row['month'] ?? null);
             if (in_array($month, $skip, true)) {
                 continue;
@@ -157,8 +159,9 @@ final class RentStore
     private function openPeriods(string $today, array $skip): array
     {
         $months = [];
-        foreach ($this->statements->bound(
-            "SELECT DISTINCT stall_rent_charge_suffix(series.period_start::date) AS month
+        foreach (
+            $this->statements->bound(
+                "SELECT DISTINCT stall_rent_charge_suffix(series.period_start::date) AS month
              FROM booth_assignments AS assignment
              JOIN generate_series(
                  stall_rent_period_start(assignment.starts_on),
@@ -178,8 +181,9 @@ final class RentStore
                      )
                )
              ORDER BY month",
-            [$today]
-        ) as $row) {
+                [$today]
+            ) as $row
+        ) {
             $month = RowValue::string($row['month'] ?? null);
             if (!in_array($month, $skip, true)) {
                 $months[] = $month;
