@@ -269,4 +269,79 @@ BEGIN
     RESET ROLE;
 END $$;
 
+DO $$
+DECLARE
+    mall_id uuid;
+    mall_slug text;
+    owner_id uuid := '01900000-0000-7000-8000-00000000e030';
+    reset_id uuid := '01900000-0000-7000-8000-00000000e031';
+    verify_id uuid := '01900000-0000-7000-8000-00000000e032';
+BEGIN
+    SELECT id, slug INTO mall_id, mall_slug
+    FROM platform.tenants
+    WHERE schema_name = current_schema();
+    IF mall_id IS NULL OR mall_slug IS NULL THEN
+        RAISE EXCEPTION 'the tenant for this schema is missing';
+    END IF;
+
+    INSERT INTO platform.owners (id, tenant_id, username, password_hash)
+    VALUES (owner_id, mall_id, 'wipeowner', repeat('ab', 16));
+
+    INSERT INTO platform.password_resets (
+        id, tenant_id, account_kind, account_id, token_hash, expires_at
+    ) VALUES (
+        reset_id,
+        mall_id,
+        'owner',
+        owner_id,
+        repeat('22', 32),
+        clock_timestamp() + interval '30 minutes'
+    );
+
+    INSERT INTO platform.owner_email_verifications (id, owner_id, token_hash, expires_at)
+    VALUES (
+        verify_id,
+        owner_id,
+        repeat('33', 32),
+        clock_timestamp() + interval '30 minutes'
+    );
+
+    BEGIN
+        DELETE FROM platform.password_resets WHERE id = reset_id;
+        RAISE EXCEPTION 'a password reset was deleted';
+    EXCEPTION
+        WHEN SQLSTATE '25006' THEN
+            NULL;
+    END;
+
+    BEGIN
+        ALTER TABLE platform.password_resets DISABLE TRIGGER password_resets_append_only;
+        RAISE EXCEPTION 'the reset trigger was disabled';
+    EXCEPTION
+        WHEN SQLSTATE '25006' THEN
+            NULL;
+    END;
+
+    BEGIN
+        DELETE FROM platform.owner_email_verifications WHERE id = verify_id;
+        RAISE EXCEPTION 'an email verification was deleted';
+    EXCEPTION
+        WHEN SQLSTATE '25006' THEN
+            NULL;
+    END;
+
+    EXECUTE 'SET LOCAL ROLE stall_app';
+    PERFORM platform.wipe_tenant(mall_slug);
+
+    IF EXISTS (SELECT 1 FROM platform.tenants WHERE id = mall_id) THEN
+        RAISE EXCEPTION 'wipe left the mall';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM platform.password_resets WHERE id = reset_id) THEN
+        RAISE EXCEPTION 'wipe removed a password reset';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM platform.owner_email_verifications WHERE id = verify_id) THEN
+        RAISE EXCEPTION 'wipe removed an email verification';
+    END IF;
+END $$;
+
 ROLLBACK;

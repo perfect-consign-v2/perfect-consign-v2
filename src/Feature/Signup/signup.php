@@ -9,6 +9,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var bool $enabled */
 /** @var bool $checkEmail */
 $checkEmail = ($checkEmail ?? false) === true;
+$choosePassword = ($choosePassword ?? false) === true;
 ?>
 <div class="login-wrap">
     <div class="panel">
@@ -28,7 +29,7 @@ $checkEmail = ($checkEmail ?? false) === true;
                 </div>
             <?php elseif ($checkEmail): ?>
                 <div class="card-body">
-                    <p>Check your email for a confirmation link. You can sign in after you confirm.</p>
+                    <p>Check your email for a confirmation link. Choose your password on that page before you sign in.</p>
                     <p class="mt-4"><a class="btn" href="/">Back to sign in</a></p>
                 </div>
             <?php else: ?>
@@ -46,6 +47,7 @@ $checkEmail = ($checkEmail ?? false) === true;
                             <label for="email">Owner email</label>
                             <input class="input" id="email" name="email" type="email" required maxlength="200" autocomplete="username">
                         </div>
+                        <?php if ($choosePassword): ?>
                         <div class="field">
                             <label for="password">Password</label>
                             <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
@@ -54,6 +56,9 @@ $checkEmail = ($checkEmail ?? false) === true;
                             <label for="password_confirm">Confirm password</label>
                             <?php View::requiredPasswordField(id: 'password_confirm', name: 'password_confirm', minlength: 8, autocomplete: 'new-password'); ?>
                         </div>
+                        <?php else: ?>
+                        <p class="muted">We email a link. You choose the password there.</p>
+                        <?php endif; ?>
                     </div>
                     <div class="card-foot row between">
                         <a href="/">Sign in</a>

@@ -40,8 +40,21 @@ final class VendorEntryController
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/consignor/enter/([0-9a-f]{64})', ['GET'])]
+    public function confirm(string $slug, string $token): void
+    {
+        $tenant = $this->app->open($slug, false);
+        $this->app->show('Feature/Vendor/confirm', [
+            'title' => 'Open your account',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'token' => $token,
+        ]);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/consignor/enter/([0-9a-f]{64})', ['POST'])]
     public function redeem(string $slug, string $token): void
     {
+        $this->app->checkCsrf();
         $tenant = $this->app->open($slug, false);
         $vendorId = $this->entry->open($tenant, hash('sha256', $token));
         if ($vendorId === '') {

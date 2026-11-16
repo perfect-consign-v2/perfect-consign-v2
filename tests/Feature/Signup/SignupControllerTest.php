@@ -60,7 +60,14 @@ final class SignupControllerTest extends TestCase
             $controller->show();
         });
         self::assertStringContainsString('name="store_name"', $on);
+        self::assertStringNotContainsString('name="password"', $on);
         self::assertStringNotContainsString('Self-serve signup is turned off', $on);
+
+        $open = $this->capture(function (): void {
+            [$controller] = $this->controller($this->request('GET', []), $this->verificationSettings(false));
+            $controller->show();
+        });
+        self::assertStringContainsString('name="password"', $open);
     }
 
     public function testAPostWhileSignupIsOffShowsTheClosedPage(): void
@@ -131,15 +138,54 @@ final class SignupControllerTest extends TestCase
         self::assertSame('That confirmation link is invalid or expired.', $bag['warning'] ?? null);
     }
 
+    public function testAConfirmationLinkShowsThePasswordForm(): void
+    {
+        $html = $this->capture(function (): void {
+            [$controller] = $this->controller(
+                $this->request('GET', []),
+                $this->settings(false),
+                $this->confirmingVerification(),
+            );
+            $controller->verify(str_repeat('a', 43));
+        });
+
+        self::assertStringContainsString('Choose your password', $html);
+        self::assertStringContainsString('name="password"', $html);
+        self::assertStringNotContainsString('Email confirmed', $html);
+    }
+
+    public function testAShortConfirmPasswordStaysOnTheForm(): void
+    {
+        $html = $this->capture(function (): void {
+            [$controller] = $this->controller(
+                $this->request('POST', [
+                    'csrf' => 'csrf-token',
+                    'password' => 'short',
+                    'password_confirm' => 'short',
+                ]),
+                $this->settings(false),
+                $this->confirmingVerification(),
+            );
+            $controller->choosePassword(str_repeat('a', 43));
+        });
+
+        self::assertStringContainsString('Password must be at least 8 characters.', $html);
+        self::assertStringContainsString('Choose your password', $html);
+    }
+
     public function testAConfirmedMailboxReturnsToSignIn(): void
     {
         [$controller, $bag] = $this->controller(
-            $this->request('GET', []),
+            $this->request('POST', [
+                'csrf' => 'csrf-token',
+                'password' => 'password1',
+                'password_confirm' => 'password1',
+            ]),
             $this->settings(false),
             $this->confirmingVerification(),
         );
         try {
-            $controller->verify(str_repeat('a', 43));
+            $controller->choosePassword(str_repeat('a', 43));
             self::fail('a confirmed mailbox stayed on the verify page');
         } catch (ResponseSent $sent) {
             self::assertSame('redirect', $sent->getMessage());

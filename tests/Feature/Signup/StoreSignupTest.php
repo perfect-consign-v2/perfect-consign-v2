@@ -53,12 +53,23 @@ final class StoreSignupTest extends TestCase
             [str_repeat('H', 121), 'owner@harbor.test', 'password1', 'password1', 'Enter a store name.'],
             ['Harbor', 'not-an-email', 'password1', 'password1', 'Enter a valid email address.'],
             ['Harbor', str_repeat('a', 190) . '@harbor.test', 'password1', 'password1', 'Enter a valid email address.'],
-            ['Harbor', 'owner@harbor.test', 'short', 'short', 'Password must be at least 8 characters.'],
-            ['Harbor', 'owner@harbor.test', 'password1', 'password2', 'Password confirmation does not match.'],
         ];
         foreach ($cases as [$name, $email, $password, $confirm, $message]) {
             try {
                 $signup->registerPublic($name, $email, $password, $confirm, '127.0.0.1');
+                self::fail($message);
+            } catch (RuntimeException $error) {
+                self::assertSame($message, $error->getMessage());
+            }
+        }
+        $open = $this->signup($this->createStub(PDO::class), $this->keyedSettings(true, false));
+        $passwords = [
+            ['Harbor', 'owner@harbor.test', 'short', 'short', 'Password must be at least 8 characters.'],
+            ['Harbor', 'owner@harbor.test', 'password1', 'password2', 'Password confirmation does not match.'],
+        ];
+        foreach ($passwords as [$name, $email, $password, $confirm, $message]) {
+            try {
+                $open->registerPublic($name, $email, $password, $confirm, '127.0.0.1');
                 self::fail($message);
             } catch (RuntimeException $error) {
                 self::assertSame($message, $error->getMessage());
@@ -77,8 +88,8 @@ final class StoreSignupTest extends TestCase
         $this->signup($pdo)->registerPublic(
             'Harbor',
             'owner@harbor.test',
-            'password1',
-            'password1',
+            'x',
+            'x',
             '127.0.0.1',
         );
     }
@@ -434,6 +445,31 @@ final class StoreSignupTest extends TestCase
             new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $this->createStub(LoggerInterface::class),
         );
+    }
+
+    private function keyedSettings(bool $enabled, bool $verify): PlatformSettings
+    {
+        $key = '';
+        $statement = $this->createStub(PDOStatement::class);
+        $statement->method('execute')->willReturnCallback(static function (array $params) use (&$key): bool {
+            $key = is_string($params[0] ?? null) ? $params[0] : '';
+
+            return true;
+        });
+        $statement->method('fetchColumn')->willReturnCallback(static function () use (&$key, $enabled, $verify): string {
+            if ($key === 'store_signup_enabled') {
+                return $enabled ? 'true' : 'false';
+            }
+            if ($key === 'store_signup_require_email_verification') {
+                return $verify ? 'true' : 'false';
+            }
+
+            return 'true';
+        });
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturn($statement);
+
+        return new PlatformSettings($pdo, $this->createStub(LoggerInterface::class));
     }
 
     private function settings(mixed $value): PlatformSettings

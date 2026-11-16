@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectConsign\Feature\Backup\BackupStore;
+use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use DateTimeImmutable;
 use PDO;
@@ -16,6 +17,7 @@ final class AdminTenantWipe
         private readonly PDO $pdo,
         private readonly AdminAudit $audit,
         private readonly BackupStore $backups,
+        private readonly Request $request,
     ) {
     }
 
@@ -30,9 +32,21 @@ final class AdminTenantWipe
         string $secondPassword,
     ): void {
         $this->requireSlug($admin, $tenant, $confirmation);
-        $second = $this->requireSecondAdmin($admin, $tenant, $secondEmail, $secondPassword);
+        $email = strtolower(trim($secondEmail));
+        if ($this->usableSecondCredentials($email, $secondPassword) && $this->wipeLocked($email)) {
+            $this->refuse($admin, $tenant, 'second_admin_locked');
+            throw new \InvalidArgumentException('Too many tries. Try again in a few minutes.');
+        }
+        $second = $this->secondAdmin($admin['id'], $email, $secondPassword);
+        if ($second === null) {
+            if ($this->usableSecondCredentials($email, $secondPassword)) {
+                $this->recordWipeFailure($email);
+            }
+            $this->refuse($admin, $tenant, 'second_admin');
+            throw new \InvalidArgumentException('A second platform admin must sign this deletion.');
+        }
+        $this->clearWipeFailures($second['email']);
         $this->requireRecentBackup($admin, $tenant);
-        $this->requireNoPasswordResets($admin, $tenant);
         $this->drop($admin, $tenant, $second['email']);
     }
 
@@ -50,24 +64,6 @@ final class AdminTenantWipe
 
     /**
      * @param array{id: string, email: string, version: string} $admin
-     * @return array{id: string, email: string}
-     */
-    private function requireSecondAdmin(
-        array $admin,
-        TenantRecord $tenant,
-        string $secondEmail,
-        string $secondPassword,
-    ): array {
-        $second = $this->secondAdmin($admin['id'], $secondEmail, $secondPassword);
-        if ($second !== null) {
-            return $second;
-        }
-        $this->refuse($admin, $tenant, 'second_admin');
-        throw new \InvalidArgumentException('A second platform admin must sign this deletion.');
-    }
-
-    /**
-     * @param array{id: string, email: string, version: string} $admin
      */
     private function requireRecentBackup(array $admin, TenantRecord $tenant): void
     {
@@ -78,24 +74,6 @@ final class AdminTenantWipe
         $this->refuse($admin, $tenant, 'backup_required');
         throw new \InvalidArgumentException(
             'Download an owner backup for this store within the last seven days before deleting it.'
-        );
-    }
-
-    /**
-     * @param array{id: string, email: string, version: string} $admin
-     */
-    private function requireNoPasswordResets(array $admin, TenantRecord $tenant): void
-    {
-        $resets = $this->pdo->prepare(
-            'SELECT 1 FROM platform.password_resets WHERE tenant_id = ?::uuid LIMIT 1'
-        );
-        $resets->execute([$tenant->id]);
-        if ($resets->fetchColumn() === false) {
-            return;
-        }
-        $this->refuse($admin, $tenant, 'password_resets');
-        throw new \InvalidArgumentException(
-            'This store still has password reset records. Those must age out before it can be deleted.'
         );
     }
 
@@ -203,5 +181,71 @@ final class AdminTenantWipe
         }
 
         return ['id' => $id, 'email' => $storedEmail, 'hash' => $hash];
+    }
+
+    private function wipeLocked(string $email): bool
+    {
+        $checks = [
+            [
+                "SELECT count(*)
+                 FROM platform.admin_wipe_failures
+                 WHERE email = ?
+                   AND client_address = ?
+                   AND failed_at > clock_timestamp() - interval '15 minutes'",
+                [$email, $this->request->address],
+                5,
+            ],
+            [
+                "SELECT count(*)
+                 FROM platform.admin_wipe_failures
+                 WHERE client_address = ?
+                   AND failed_at > clock_timestamp() - interval '15 minutes'",
+                [$this->request->address],
+                40,
+            ],
+        ];
+        foreach ($checks as [$sql, $params, $limit]) {
+            $statement = $this->pdo->prepare($sql);
+            $statement->execute($params);
+            $count = $statement->fetchColumn();
+            $recent = 0;
+            if (is_int($count)) {
+                $recent = $count;
+            } elseif (is_string($count) && preg_match('/^\d+$/', $count) === 1) {
+                $recent = (int) $count;
+            }
+            if ($recent >= $limit) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function recordWipeFailure(string $email): void
+    {
+        $forEmail = $this->pdo->prepare(
+            "DELETE FROM platform.admin_wipe_failures
+             WHERE email = ?
+               AND failed_at <= clock_timestamp() - interval '15 minutes'"
+        );
+        $forEmail->execute([$email]);
+        $stale = $this->pdo->prepare(
+            "DELETE FROM platform.admin_wipe_failures
+             WHERE failed_at <= clock_timestamp() - interval '15 minutes'"
+        );
+        $stale->execute([]);
+        $failed = $this->pdo->prepare(
+            'INSERT INTO platform.admin_wipe_failures (email, client_address) VALUES (?, ?)'
+        );
+        $failed->execute([$email, $this->request->address]);
+    }
+
+    private function clearWipeFailures(string $email): void
+    {
+        $clear = $this->pdo->prepare(
+            'DELETE FROM platform.admin_wipe_failures WHERE email = ? AND client_address = ?'
+        );
+        $clear->execute([$email, $this->request->address]);
     }
 }

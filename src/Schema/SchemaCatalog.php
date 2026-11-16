@@ -12,6 +12,7 @@ final class SchemaCatalog
     /** @var list<string> */
     public const PLATFORM = [
         '000_platform.sql',
+        '094_wipe_keeps_reset_history.sql',
     ];
 
     /** @var list<string> */
@@ -28,6 +29,7 @@ final class SchemaCatalog
         '090_item_tax_exempt.sql',
         '091_item_duplicate_sqlstate.sql',
         '092_item_buy_expired.sql',
+        '093_backup_readonly.sql',
     ];
 
     public function __construct(private readonly string $directory)

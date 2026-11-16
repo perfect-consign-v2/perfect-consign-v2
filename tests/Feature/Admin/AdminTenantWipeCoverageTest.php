@@ -98,18 +98,50 @@ final class AdminTenantWipeCoverageTest extends TestCase
         }
     }
 
-    public function testDeletionStopsWhilePasswordResetsRemain(): void
+    public function testAPasswordResetDoesNotBlockDeletion(): void
     {
         $outcomes = [];
         $details = [];
         $wipe = $this->wipe($this->pdo($this->secondRow(), (new DateTimeImmutable())->format(DATE_ATOM), '1', null, $outcomes, $details));
+        $wipe->wipe($this->admin(), $this->tenant(), 'zcov-wipe', self::SECOND_EMAIL, 'Second-Pass-1');
+        self::assertSame(['ok'], $outcomes);
+    }
+
+    public function testFiveWrongPasswordsLockTheNextDeleteAttempt(): void
+    {
+        $outcomes = [];
+        $details = [];
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturnCallback(function (string $sql) use (&$outcomes, &$details): PDOStatement {
+            $statement = $this->createStub(PDOStatement::class);
+            $statement->method('rowCount')->willReturn(1);
+            $statement->method('execute')->willReturnCallback(function (array $params) use (&$outcomes, &$details): bool {
+                $outcome = $params[3] ?? null;
+                if (is_string($outcome)) {
+                    $outcomes[] = $outcome;
+                }
+                $detail = $params[6] ?? null;
+                if (is_string($detail)) {
+                    $details[] = $detail;
+                }
+
+                return true;
+            });
+            $statement->method('fetchColumn')->willReturnCallback(static function () use ($sql): string {
+                return str_contains($sql, 'admin_wipe_failures') ? '5' : '0';
+            });
+
+            return $statement;
+        });
+        $wipe = $this->wipe($pdo);
         try {
             $wipe->wipe($this->admin(), $this->tenant(), 'zcov-wipe', self::SECOND_EMAIL, 'Second-Pass-1');
-            self::fail('a store with password resets was deleted');
+            self::fail('a locked delete form accepted another password');
         } catch (\InvalidArgumentException $error) {
-            self::assertStringContainsString('password reset', $error->getMessage());
+            self::assertSame('Too many tries. Try again in a few minutes.', $error->getMessage());
         }
         self::assertSame(['refused'], $outcomes);
+        self::assertStringContainsString('second_admin_locked', $details[0] ?? '');
     }
 
     public function testADatabaseFailureWhileDroppingIsAudited(): void
@@ -228,10 +260,13 @@ final class AdminTenantWipeCoverageTest extends TestCase
 
     private function wipe(PDO $pdo): AdminTenantWipe
     {
+        $request = new Request('POST', '/admin/tenants/zcov-wipe/delete', [], [], '', '', '127.0.0.1');
+
         return new AdminTenantWipe(
             $pdo,
-            new AdminAudit($pdo, new Request('POST', '/admin/tenants/zcov-wipe/delete', [], [], '', '', '127.0.0.1')),
+            new AdminAudit($pdo, $request),
             new BackupStore($pdo),
+            $request,
         );
     }
 

@@ -83,10 +83,13 @@ final class AdminTenantWipeTest extends TestCase
 
     private function wipe(PDO $pdo): AdminTenantWipe
     {
+        $request = new Request('POST', '/admin/tenants/wipe', [], [], '', 'https://example.test', '127.0.0.1');
+
         return new AdminTenantWipe(
             $pdo,
-            new AdminAudit($pdo, new Request('POST', '/admin/tenants/wipe', [], [], '', 'https://example.test', '127.0.0.1')),
+            new AdminAudit($pdo, $request),
             new BackupStore($pdo),
+            $request,
         );
     }
 

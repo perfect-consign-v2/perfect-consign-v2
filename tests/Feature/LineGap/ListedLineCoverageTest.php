@@ -908,7 +908,7 @@ final class ListedLineCoverageTest extends TestCase
             new AdminAudit($empty, $request),
             new Statements($empty),
         );
-        $wipe = new AdminTenantWipe($empty, new AdminAudit($empty, $request), new \PerfectConsign\Feature\Backup\BackupStore($empty));
+        $wipe = new AdminTenantWipe($empty, new AdminAudit($empty, $request), new \PerfectConsign\Feature\Backup\BackupStore($empty), $request);
         $controller = new AdminTenantController($app, $list, $enter, $wipe);
         $this->sent(static function () use ($controller): void {
             $controller->enter(self::SLUG);
@@ -1024,7 +1024,7 @@ final class ListedLineCoverageTest extends TestCase
         ]);
         $deleteApp = $this->adminApp($session, $deleteRequest, $this->adminRowPdo());
         $deleteList = new AdminTenantList($found, new DatabaseRole($found));
-        $deleteWipe = new AdminTenantWipe($wipePdo, new AdminAudit($wipePdo, $deleteRequest), new \PerfectConsign\Feature\Backup\BackupStore($wipePdo));
+        $deleteWipe = new AdminTenantWipe($wipePdo, new AdminAudit($wipePdo, $deleteRequest), new \PerfectConsign\Feature\Backup\BackupStore($wipePdo), $deleteRequest);
         $delete = new AdminTenantController($deleteApp, $deleteList, $enter, $deleteWipe);
         ob_start();
         try {

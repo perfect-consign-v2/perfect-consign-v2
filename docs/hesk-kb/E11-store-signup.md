@@ -2,18 +2,18 @@
 title: Self-serve store signup
 category: Platform notes
 hesk: published 2026-11-16
-as_of: 2026-10-28
+as_of: 2026-11-16
 ---
 
 # Self-serve store signup
 
 ## As of
 
-2026-10-28 — shipped in PC2. Public `/signup` is gated by Admin → Signup. Email confirmation before owner entry is a separate admin switch (default on). Admin can hand-create a store without confirmation. Duplicate owner email uses the same generic create-failure copy (no email enumeration; no “sign-in name”).
+2026-11-16 — when email confirmation is on, `/signup` collects the store name and email only. The owner chooses the password on the confirmation page. Opening the link does not verify the address. Admin can still hand-create a store with a password and a verified email.
 
 ## In one sentence
 
-Operators enable public signup so a new mall can be created from the site with store name, owner email, and password; optional email confirmation blocks sign-in until the owner clicks the link.
+Operators enable public signup so a new mall can be created from the site. When confirmation is on, the owner chooses the password on the confirmation page before sign-in.
 
 ## When it happens
 
@@ -22,7 +22,7 @@ When Admin → Signup has “Allow public store signup” on. New malls can also
 ## What the books / screens do
 
 - Root shows Create your store only when public signup is on.
-- `/signup` creates the tenant and owner; when “Require email confirmation” is on, the confirmation email sends in that request through the platform Gmail/SMTP env, and the owner must open the link before sign-in.
+- `/signup` creates the tenant and owner. When “Require email confirmation” is on, the form asks for the store name and email only. The confirmation email sends in that request through the platform Gmail/SMTP env. The link opens a password form. Submitting that form verifies the address and sets the password. Opening the link does not verify the address and does not sign the owner in. When confirmation is off, the form still asks for a password and signs the owner in.
 - `platform.owners.email_verified_at` records when the email was confirmed (or set at admin/CLI create).
 - Admin audit records `store.signup`, `store.signup_toggle`, `store.admin_create`, and `store.email_verified`.
 

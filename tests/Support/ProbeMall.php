@@ -221,8 +221,8 @@ final class ProbeMall
     }
 
     /**
-     * Used password resets are append-only and block wipe forever. Local probe DBs run as
-     * superuser so the suite can clear them for this slug only before wipeTenant.
+     * Password-reset rows no longer block wipe. Local probe DBs run as superuser and may
+     * still clear used rows for this slug before wipeTenant.
      */
     private static function clearUsedPasswordResets(PDO $pdo, string $slug): void
     {

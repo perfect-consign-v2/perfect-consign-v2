@@ -33,7 +33,7 @@ register_shutdown_function(static function () use ($coverageStarted, $coverageDi
     RequestCoverage::flush($coverageStarted, $coverageDirectory);
 });
 
-$debug = in_array(getenv('APP_ENV'), ['local', 'development', 'dev'], true) || getenv('APP_DEBUG') === 'true';
+$debug = ErrorHandling::exposeDetails(getenv('APP_ENV'), getenv('APP_DEBUG'));
 ErrorHandling::applyDisplayErrors($debug);
 error_reporting(E_ALL);
 

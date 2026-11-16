@@ -103,7 +103,10 @@ final class LedgerPathTest extends WebTestCase
         self::assertStringNotContainsString($adaMail, $known->body);
         self::flushMail();
         $token = $this->match(self::mailbox(), '#/consignor/enter/([0-9a-f]{64})#');
-        $home = $guest->get('/' . self::SLUG . '/consignor/enter/' . $token);
+        $preview = $guest->get('/' . self::SLUG . '/consignor/enter/' . $token);
+        self::assertStringNotContainsString($adaItem['description'], $preview->body);
+        self::assertStringContainsString('Open my account', $preview->body);
+        $home = $guest->post('/' . self::SLUG . '/consignor/enter/' . $token, []);
         self::assertStringContainsString($adaItem['description'], $home->body);
         self::assertStringNotContainsString($beaItem['description'], $home->body);
         self::assertStringNotContainsString('Store credit', $home->body);

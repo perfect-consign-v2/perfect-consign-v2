@@ -34,9 +34,9 @@ final class OwnerEmailVerification
         }
         $token = $this->issue($ownerId);
         $body = "Confirm your Perfect Consign store email.\n\n"
-            . "Open this link within 30 minutes:\n"
+            . "Open this link within 30 minutes and choose your password:\n"
             . $origin . '/signup/verify/' . $token . "\n\n"
-            . "If you did not create a store, you can ignore this message.\n";
+            . "Opening the link does not sign you in. If you did not create a store, do not continue.\n";
         try {
             $this->platformMail->send(
                 $email,
@@ -55,11 +55,28 @@ final class OwnerEmailVerification
     /**
      * @return array{email: string, slug: string}|null
      */
-    public function confirm(string $token): ?array
+    public function pending(string $token): ?array
     {
         if (preg_match('/^[A-Za-z0-9_-]{43}$/', $token) !== 1) {
             return null;
         }
+        $pending = $this->openPending($token);
+        if ($pending === null) {
+            return null;
+        }
+
+        return ['email' => $pending['email'], 'slug' => $pending['slug']];
+    }
+
+    /**
+     * @return array{email: string, slug: string}|null
+     */
+    public function confirm(string $token, string $password, string $confirm): ?array
+    {
+        if (preg_match('/^[A-Za-z0-9_-]{43}$/', $token) !== 1) {
+            return null;
+        }
+        $this->requirePassword($password, $confirm);
         $this->pdo->beginTransaction();
         try {
             $pending = $this->openPending($token);
@@ -68,7 +85,7 @@ final class OwnerEmailVerification
 
                 return null;
             }
-            if (!$this->consumeVerification($pending['id'], $pending['owner_id'])) {
+            if (!$this->consumeVerification($pending['id'], $pending['owner_id'], $password)) {
                 $this->pdo->rollBack();
 
                 return null;
@@ -137,7 +154,7 @@ final class OwnerEmailVerification
         ];
     }
 
-    private function consumeVerification(string $id, string $ownerId): bool
+    private function consumeVerification(string $id, string $ownerId, string $password): bool
     {
         $mark = $this->pdo->prepare(
             'UPDATE platform.owner_email_verifications
@@ -148,14 +165,26 @@ final class OwnerEmailVerification
         if ($mark->rowCount() !== 1) {
             return false;
         }
+        $hash = password_hash($password, PASSWORD_DEFAULT);
         $verify = $this->pdo->prepare(
             'UPDATE platform.owners
-             SET email_verified_at = COALESCE(email_verified_at, clock_timestamp())
+             SET email_verified_at = COALESCE(email_verified_at, clock_timestamp()),
+                 password_hash = ?
              WHERE id = ?::uuid'
         );
-        $verify->execute([$ownerId]);
+        $verify->execute([$hash, $ownerId]);
 
         return true;
+    }
+
+    private function requirePassword(string $password, string $confirm): void
+    {
+        if (strlen($password) < 8) {
+            throw new RuntimeException('Password must be at least 8 characters.');
+        }
+        if ($password !== $confirm) {
+            throw new RuntimeException('Password confirmation does not match.');
+        }
     }
 
     private function issue(string $ownerId): string

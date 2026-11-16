@@ -23,6 +23,15 @@ final class OwnerEmailVerificationTest extends TestCase
 
     private const OWNER = '01900000-0000-7000-8000-000000000011';
 
+    public function testAShortTokenIsNotAPendingLink(): void
+    {
+        $pdo = $this->createMock(PDO::class);
+        $pdo->expects($this->never())->method('prepare');
+        $verification = $this->verification($pdo);
+        self::assertNull($verification->pending('short'));
+        self::assertNull($verification->confirm('short', 'password1', 'password1'));
+    }
+
     public function testABadOriginIsRefusedBeforeATokenIsIssued(): void
     {
         $pdo = $this->createMock(PDO::class);
@@ -75,6 +84,7 @@ final class OwnerEmailVerificationTest extends TestCase
             $body = file_get_contents($file);
             self::assertIsString($body);
             self::assertStringContainsString('https://stores.example.test/signup/verify/', $body);
+            self::assertStringContainsString('choose your password', $body);
             self::assertCount(1, $hashes);
             self::assertMatchesRegularExpression('/^[A-Za-z0-9_-]{43}$/', $this->tokenFrom($body));
             self::assertSame(hash('sha256', $this->tokenFrom($body)), $hashes[0]);
@@ -145,10 +155,10 @@ final class OwnerEmailVerificationTest extends TestCase
         $pdo = $this->createMock(PDO::class);
         $pdo->expects($this->never())->method('beginTransaction');
         $verification = $this->verification($pdo);
-        self::assertNull($verification->confirm('short'));
-        self::assertNull($verification->confirm(str_repeat('a', 42)));
-        self::assertNull($verification->confirm(str_repeat('a', 44)));
-        self::assertNull($verification->confirm(str_repeat('!', 43)));
+        self::assertNull($verification->confirm('short', 'password1', 'password1'));
+        self::assertNull($verification->confirm(str_repeat('a', 42), 'password1', 'password1'));
+        self::assertNull($verification->confirm(str_repeat('a', 44), 'password1', 'password1'));
+        self::assertNull($verification->confirm(str_repeat('!', 43), 'password1', 'password1'));
     }
 
     public function testAMissingPendingRowRollsBack(): void
@@ -157,7 +167,7 @@ final class OwnerEmailVerificationTest extends TestCase
         $pdo->expects($this->once())->method('rollBack');
         $pdo->expects($this->never())->method('commit');
         $pdo->method('prepare')->willReturn($this->pending(false, 1));
-        self::assertNull($this->verification($pdo)->confirm(self::TOKEN));
+        self::assertNull($this->verification($pdo)->confirm(self::TOKEN, 'password1', 'password1'));
     }
 
     public function testAPendingRowWithTheWrongShapeRollsBack(): void
@@ -167,14 +177,14 @@ final class OwnerEmailVerificationTest extends TestCase
         $row = $this->pendingRow();
         $row['id'] = 12;
         $pdo->method('prepare')->willReturn($this->pending($row, 1));
-        self::assertNull($this->verification($pdo)->confirm(self::TOKEN));
+        self::assertNull($this->verification($pdo)->confirm(self::TOKEN, 'password1', 'password1'));
 
         $omitted = $this->pendingRow();
         unset($omitted['slug']);
         $second = $this->transactionPdo(true);
         $second->expects($this->once())->method('rollBack');
         $second->method('prepare')->willReturn($this->pending($omitted, 1));
-        self::assertNull($this->verification($second)->confirm(self::TOKEN));
+        self::assertNull($this->verification($second)->confirm(self::TOKEN, 'password1', 'password1'));
     }
 
     public function testAVerificationThatWasAlreadyUsedRollsBack(): void
@@ -183,7 +193,7 @@ final class OwnerEmailVerificationTest extends TestCase
         $pdo->expects($this->once())->method('rollBack');
         $pdo->expects($this->never())->method('commit');
         $pdo->method('prepare')->willReturn($this->pending($this->pendingRow(), 0));
-        self::assertNull($this->verification($pdo)->confirm(self::TOKEN));
+        self::assertNull($this->verification($pdo)->confirm(self::TOKEN, 'password1', 'password1'));
     }
 
     public function testAValidTokenConfirmsTheMailbox(): void
@@ -193,14 +203,18 @@ final class OwnerEmailVerificationTest extends TestCase
         $pdo->expects($this->never())->method('rollBack');
         $hashes = [];
         $updates = 0;
-        $pdo->method('prepare')->willReturnCallback(function (string $sql) use (&$hashes, &$updates): PDOStatement {
+        $stored = null;
+        $pdo->method('prepare')->willReturnCallback(function (string $sql) use (&$hashes, &$updates, &$stored): PDOStatement {
             $statement = $this->createStub(PDOStatement::class);
-            $statement->method('execute')->willReturnCallback(static function (array $params) use ($sql, &$hashes, &$updates): bool {
+            $statement->method('execute')->willReturnCallback(static function (array $params) use ($sql, &$hashes, &$updates, &$stored): bool {
                 if (str_contains($sql, 'SELECT')) {
                     $hashes[] = $params[0];
                 }
                 if (str_starts_with(ltrim($sql), 'UPDATE')) {
                     $updates++;
+                }
+                if (str_contains($sql, 'password_hash')) {
+                    $stored = $params[0] ?? null;
                 }
 
                 return true;
@@ -210,11 +224,21 @@ final class OwnerEmailVerificationTest extends TestCase
 
             return $statement;
         });
-        $confirmed = $this->verification($pdo)->confirm(self::TOKEN);
+        $confirmed = $this->verification($pdo)->confirm(self::TOKEN, 'password1', 'password1');
 
         self::assertSame(['email' => 'owner@harbor.test', 'slug' => 'cov-harbor'], $confirmed);
         self::assertSame([hash('sha256', self::TOKEN)], $hashes);
         self::assertSame(2, $updates);
+        self::assertTrue(is_string($stored) && password_verify('password1', $stored));
+    }
+
+    public function testAShortPasswordDoesNotConsumeTheToken(): void
+    {
+        $pdo = $this->createMock(PDO::class);
+        $pdo->expects($this->never())->method('beginTransaction');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Password must be at least 8 characters.');
+        $this->verification($pdo)->confirm(self::TOKEN, 'short', 'short');
     }
 
     public function testAConfirmationFailureRollsBackTheOpenTransaction(): void
@@ -237,7 +261,7 @@ final class OwnerEmailVerificationTest extends TestCase
         });
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('owner update failed');
-        $this->verification($pdo)->confirm(self::TOKEN);
+        $this->verification($pdo)->confirm(self::TOKEN, 'password1', 'password1');
     }
 
     public function testAConfirmationFailureOnAnIdleConnectionDoesNotRollBack(): void
@@ -253,7 +277,7 @@ final class OwnerEmailVerificationTest extends TestCase
         });
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('select failed');
-        $this->verification($pdo)->confirm(self::TOKEN);
+        $this->verification($pdo)->confirm(self::TOKEN, 'password1', 'password1');
     }
 
     private function verification(PDO $pdo, ?AdminAudit $audit = null): OwnerEmailVerification

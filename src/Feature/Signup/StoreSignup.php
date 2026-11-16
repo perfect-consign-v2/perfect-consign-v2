@@ -64,14 +64,28 @@ final class StoreSignup
             throw new RuntimeException('Too many signup attempts. Try again later.');
         }
         $this->limits->remember($clientAddress);
-        $verified = !$this->settings->requireEmailVerification();
+        if ($this->settings->requireEmailVerification()) {
+            [$storeName, $email] = $this->normalizedIdentity($storeName, $email);
+            $secret = bin2hex(random_bytes(32));
+
+            return $this->register(
+                $storeName,
+                $email,
+                $secret,
+                $secret,
+                false,
+                'store.signup',
+                null,
+                $email,
+            );
+        }
 
         return $this->register(
             $storeName,
             $email,
             $password,
             $confirm,
-            $verified,
+            true,
             'store.signup',
             null,
             $email,
@@ -148,6 +162,22 @@ final class StoreSignup
         string $password,
         string $confirm,
     ): array {
+        [$storeName, $email] = $this->normalizedIdentity($storeName, $email);
+        if (strlen($password) < 8) {
+            throw new RuntimeException('Password must be at least 8 characters.');
+        }
+        if ($password !== $confirm) {
+            throw new RuntimeException('Password confirmation does not match.');
+        }
+
+        return [$storeName, $email];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function normalizedIdentity(string $storeName, string $email): array
+    {
         $storeName = trim($storeName);
         $email = strtolower(trim($email));
         if ($storeName === '' || strlen($storeName) > 120) {
@@ -155,12 +185,6 @@ final class StoreSignup
         }
         if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1 || strlen($email) > 200) {
             throw new RuntimeException('Enter a valid email address.');
-        }
-        if (strlen($password) < 8) {
-            throw new RuntimeException('Password must be at least 8 characters.');
-        }
-        if ($password !== $confirm) {
-            throw new RuntimeException('Password confirmation does not match.');
         }
 
         return [$storeName, $email];

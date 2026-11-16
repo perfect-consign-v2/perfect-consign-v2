@@ -158,6 +158,30 @@ final class AdminPortalTest extends TestCase
             self::assertStringContainsString('A second platform admin must sign this deletion.', $alone->body);
 
             $this->seedSecondAdmin($pdo);
+            $guessEmail = 'guess-wipe@example.test';
+            $cleared = $pdo->prepare('DELETE FROM platform.admin_wipe_failures WHERE email = ? OR client_address = ?');
+            $cleared->execute([$guessEmail, '127.0.0.1']);
+            for ($attempt = 1; $attempt <= 5; $attempt++) {
+                $guess = $client->post('/admin/tenants/' . $slug . '/delete', [
+                    'confirm_slug' => $slug,
+                    'second_email' => $guessEmail,
+                    'second_password' => 'wrong-password',
+                ]);
+                self::assertStringContainsString('A second platform admin must sign this deletion.', $guess->body);
+            }
+            $locked = $client->post('/admin/tenants/' . $slug . '/delete', [
+                'confirm_slug' => $slug,
+                'second_email' => $guessEmail,
+                'second_password' => 'wrong-password',
+            ]);
+            self::assertStringContainsString('Too many tries. Try again in a few minutes.', $locked->body);
+            $second = new FormClient($server->baseUrl());
+            $second->get('/admin/login');
+            $stillSignedIn = $second->post('/admin/login', [
+                'email' => self::SECOND_ADMIN_EMAIL,
+                'password' => self::SECOND_ADMIN_PASSWORD,
+            ]);
+            self::assertStringContainsString('Tenants', $stillSignedIn->body);
             $this->recordOwnerBackup($pdo, $slug);
             $deleted = $client->post('/admin/tenants/' . $slug . '/delete', [
                 'confirm_slug' => $slug,

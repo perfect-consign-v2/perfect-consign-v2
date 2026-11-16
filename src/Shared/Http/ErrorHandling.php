@@ -12,6 +12,15 @@ final class ErrorHandling
 {
     private static bool $handling = false;
 
+    public static function exposeDetails(mixed $environment, mixed $debug): bool
+    {
+        if ($environment === 'production' || $environment === 'prod') {
+            return false;
+        }
+
+        return in_array($environment, ['local', 'development', 'dev'], true) || $debug === 'true';
+    }
+
     public static function applyDisplayErrors(bool $debug): void
     {
         ini_set('display_errors', $debug ? '1' : '0');

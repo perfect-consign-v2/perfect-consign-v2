@@ -2,14 +2,14 @@
 title: Platform admin portal
 category: Platform notes
 hesk: published 2026-11-16
-as_of: 2026-11-02
+as_of: 2026-11-16
 ---
 
 # Platform admin portal
 
 ## As of
 
-2026-11-02 — tenant wipe needs a second platform admin and a seven-day owner backup; admin sign-in spray/email lockouts mirror email sign-in; wipe audit `ok` only after drop succeeds.
+2026-11-16 — a store wipe leaves password-reset and email-confirmation history in place, and those rows do not block the drop. Wrong second-admin passwords lock the delete form for fifteen minutes and do not lock `/admin` sign-in.
 
 ## In one sentence
 
@@ -26,7 +26,8 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 - Enter-as opens the tenant store in a new browser window (one button per owner username when the mall has co-owners; cashier and manager when those staff rows exist; manager lands on the register); a suspended owner is refused; the admin Tenants list stays in the original tab.
 - Tenants → Create store provisions a mall with the owner email already verified (works even when public signup is off).
 - Admin → Signup turns public `/signup` on or off and whether email confirmation is required before owner sign-in.
-- Tenant wipe requires the store slug typed exactly, a second different platform admin’s email and password, and an owner backup recorded for that store within seven days; then removes that mall’s password-reset and email-verification rows and drops the store. Audit `tenant.delete` / `ok` lands only after the drop succeeds.
+- Tenant wipe requires the store slug typed exactly, a second different platform admin’s email and password, and an owner backup recorded for that store within seven days. Password-reset and email-verification rows stay, and they do not block the drop. Audit `tenant.delete` / `ok` lands only after the drop succeeds.
+- Wrong second-admin passwords on the delete form lock that form for fifteen minutes: five failures for that email and client address, or forty failures from that address across emails. Those failures are not admin sign-in failures. There is no email-wide cap, so a signed-in admin cannot lock the other admin out of `/admin`. Unknown email and a wrong password count the same. A successful second signature clears that pair.
 - Admin sign-in lockout: five failures for the same email+address, forty spray failures from one address, twenty failures for one email across addresses (fifteen-minute window); stale failure rows prune on insert.
 - Gmail/SMTP send failures are logged and emailed to `STALL_PLATFORM_ADMIN_EMAIL`.
 - Uncaught exceptions and fatal errors (HTTP 500) are logged and emailed to that same address.
@@ -37,7 +38,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 
 - Bad admin email format.
 - Unknown admin emails still hit the sign-in lockout table (rows older than fifteen minutes are pruned) but do not write `admin.sign_in_refused` to the append-only audit; wrong password for a known admin still does.
-- Wipe without a second admin, without a recent owner backup, or while password-reset rows still block the drop.
+- Wipe without a second admin, without a recent owner backup, or after the delete form is locked by too many second-admin guesses.
 - Editing or deleting append-only reset / audit history.
 
 ## How to check
