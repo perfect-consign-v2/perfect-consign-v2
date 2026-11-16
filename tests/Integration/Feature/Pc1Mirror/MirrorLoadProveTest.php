@@ -36,6 +36,92 @@ final class MirrorLoadProveTest extends TestCase
         (new OpeningLoader())->load($mall, $artifact, $idMap, '2026-11-05');
         $failures = (new MirrorProver())->prove($mall, $artifact);
         self::assertSame([], $failures);
+        $this->assertBoothMall($mall, 1);
+    }
+
+    public function testZeroRentStayIsABoothAndAVendorWithNoStayIsLeftOut(): void
+    {
+        $root = dirname(__DIR__, 4);
+        ProbeMall::ensure($root);
+        $fixture = $root . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'Fixtures'
+            . DIRECTORY_SEPARATOR . 'pc1-mirror';
+        $scratch = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pc1-mirror-booth-' . bin2hex(random_bytes(4));
+        $this->copyTree($fixture, $scratch);
+        try {
+            $artifact = MirrorArtifact::open($scratch);
+            $vendors = $artifact->readJson('master/vendors.json');
+            $vendors[] = [
+                'pc1_id' => '11111111-1111-4111-8111-111111111112',
+                'code' => 'BEE',
+                'first_name' => 'Bea',
+                'last_name' => 'Vendor',
+                'phone' => '555-0101',
+                'email' => 'bea@mirror.test',
+                'address' => '2 Test St',
+                'commission_bps' => 5000,
+                'active' => true,
+            ];
+            $artifact->writeJson('master/vendors.json', $vendors);
+            $booths = $artifact->readJson('master/booths.json');
+            $booths[] = [
+                'pc1_id' => '22222222-2222-4222-8222-222222222223',
+                'code' => 'B1',
+                'name' => 'B1',
+                'asking_rent_minor' => 0,
+            ];
+            $artifact->writeJson('master/booths.json', $booths);
+            $assignments = $artifact->readJson('master/assignments.json');
+            $assignments[] = [
+                'pc1_id' => '33333333-3333-4333-8333-333333333334',
+                'pc1_booth_id' => '22222222-2222-4222-8222-222222222223',
+                'pc1_consignor_id' => '11111111-1111-4111-8111-111111111111',
+                'starts_on' => '2026-01-01',
+                'ends_on' => '',
+                'rent_minor' => 0,
+            ];
+            $artifact->writeJson('master/assignments.json', $assignments);
+            $items = $artifact->readJson('master/items.json');
+            $items[] = [
+                'pc1_id' => '44444444-4444-4444-8444-444444444445',
+                'code' => 'ADA-002',
+                'barcode' => '',
+                'pc1_consignor_id' => '11111111-1111-4111-8111-111111111111',
+                'description' => 'Oak stool',
+                'price_minor' => 1200,
+                'quantity' => 1,
+                'intake_on' => '2026-06-01',
+            ];
+            $items[] = [
+                'pc1_id' => '44444444-4444-4444-8444-444444444446',
+                'code' => 'BEE-001',
+                'barcode' => '',
+                'pc1_consignor_id' => '11111111-1111-4111-8111-111111111112',
+                'description' => 'Loose lamp',
+                'price_minor' => 800,
+                'quantity' => 1,
+                'intake_on' => '2026-06-01',
+            ];
+            $artifact->writeJson('master/items.json', $items);
+
+            $target = MirrorTarget::open('local');
+            $pdo = $target->connection->pdo();
+            (new MirrorWiper())->wipe($pdo, MirrorConstants::TARGET_SLUG);
+            $mall = MirrorMall::provision($pdo, $root . DIRECTORY_SEPARATOR . 'sql');
+            $idMap = (new MasterLoader(new NullLogger()))->load($mall, $artifact);
+            self::assertSame(1, $idMap['item_skips']);
+            $unbilled = $mall->statements->rows(
+                'SELECT count(*)::int AS n
+                 FROM booth_assignments AS stay
+                 LEFT JOIN assignment_rent AS rent ON rent.assignment_id = stay.id
+                 WHERE rent.assignment_id IS NULL'
+            );
+            self::assertSame(1, (int) ($unbilled[0]['n'] ?? 0));
+            (new OpeningLoader())->load($mall, $artifact, $idMap, '2026-11-05');
+            self::assertSame([], (new MirrorProver())->prove($mall, $artifact));
+            $this->assertBoothMall($mall, 2);
+        } finally {
+            $this->removeTree($scratch);
+        }
     }
 
     public function testProveFailsWhenExtractBalancesDrift(): void
@@ -110,6 +196,20 @@ final class MirrorLoadProveTest extends TestCase
         } finally {
             $this->removeTree($scratch);
         }
+    }
+
+    private function assertBoothMall(MirrorMall $mall, int $items): void
+    {
+        $flags = $mall->statements->rows(
+            'SELECT operating_mode, consignment_enabled::text AS consignment, floor_days::text AS floor_days FROM mall'
+        );
+        self::assertSame('booth_mall', $flags[0]['operating_mode'] ?? null);
+        self::assertSame('false', $flags[0]['consignment'] ?? null);
+        self::assertNull($flags[0]['floor_days'] ?? null);
+        $placed = $mall->statements->rows('SELECT placement, count(*)::int AS n FROM items GROUP BY placement');
+        self::assertCount(1, $placed);
+        self::assertSame('booth', $placed[0]['placement'] ?? null);
+        self::assertSame($items, (int) ($placed[0]['n'] ?? 0));
     }
 
     private function copyTree(string $from, string $to): void

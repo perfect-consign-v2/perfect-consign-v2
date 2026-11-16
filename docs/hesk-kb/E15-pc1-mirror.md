@@ -1,15 +1,15 @@
 ---
 title: PC1 → PC2 dev mirror (Beccas sandbox)
 category: Platform notes
-hesk: published 2026-11-14
-as_of: 2026-11-05
+hesk: published 2026-11-16
+as_of: 2026-11-16
 ---
 
 # PC1 → PC2 dev mirror (Beccas sandbox)
 
 ## As of
 
-2026-11-05
+2026-11-16
 
 ## In one sentence
 
@@ -23,6 +23,7 @@ Operator runs `php bin/pc1-mirror.php refresh --target=local` (or load/prove ste
 
 - Extract writes a dated artifact under `var/pc1-extracts/`.
 - Load wipes only `beccas-mirror`, provisions, imports vendors/booths/items, posts one opening journal.
+- The mall is booth mall: rent on, consignment off, floor days empty. Floor items are booth pieces when that vendor has a stay covering today. A stay with no monthly rent is stored without a rent rate. An item with no such stay is left out (`item-skips.json`), not marked consignment.
 - Prove requires every control total to match the extract to the cent.
 - Prod is read-only. Deploy to v2 does not wipe books; mirror load is a separate command.
 

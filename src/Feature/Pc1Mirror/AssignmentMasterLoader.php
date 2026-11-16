@@ -42,7 +42,11 @@ final class AssignmentMasterLoader
                 continue;
             }
             try {
-                $mall->assignments->addAssignment($booth, $vendor, $starts, $ends, $rent);
+                if ($rent === 0) {
+                    $mall->assignments->addUnbilledStay($booth, $vendor, $starts, $ends);
+                } else {
+                    $mall->assignments->addAssignment($booth, $vendor, $starts, $ends, $rent);
+                }
             } catch (\Throwable $error) {
                 $skips[] = $this->recordSkip(
                     $error->getMessage(),
@@ -92,7 +96,7 @@ final class AssignmentMasterLoader
 
     private function acceptsStay(string $starts, string $ends, int $rent): bool
     {
-        if ($starts === '' || $rent < 1) {
+        if ($starts === '' || $rent < 0) {
             return false;
         }
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $starts) !== 1) {

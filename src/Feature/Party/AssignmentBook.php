@@ -134,17 +134,7 @@ final class AssignmentBook
         ?int $rentMinor = null,
     ): void {
         $this->statements->transaction(function () use ($boothId, $vendorId, $startsOn, $endsOn, $rentMinor): void {
-            $sql = $endsOn === ''
-                ? 'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on) VALUES (?::uuid, ?::uuid, ?::date) RETURNING id'
-                : 'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on, ends_on) VALUES (?::uuid, ?::uuid, ?::date, ?::date) RETURNING id';
-            $params = $endsOn === ''
-                ? [$boothId, $vendorId, $startsOn]
-                : [$boothId, $vendorId, $startsOn, $endsOn];
-            $rows = $this->statements->bound($sql, $params);
-            $id = $rows[0]['id'] ?? null;
-            if (!is_string($id) || $id === '') {
-                throw new \InvalidArgumentException('that assignment was not created');
-            }
+            $id = $this->insertStay($boothId, $vendorId, $startsOn, $endsOn);
             if ($rentMinor === null) {
                 throw new \InvalidArgumentException('that booth has no asking rent');
             }
@@ -153,6 +143,33 @@ final class AssignmentBook
                 [$id, $rentMinor]
             );
         });
+    }
+
+    /**
+     * A stay whose contracted rent is zero. PC2 stores no rent row for that lease.
+     */
+    public function addUnbilledStay(string $boothId, string $vendorId, string $startsOn, string $endsOn): void
+    {
+        $this->statements->transaction(function () use ($boothId, $vendorId, $startsOn, $endsOn): void {
+            $this->insertStay($boothId, $vendorId, $startsOn, $endsOn);
+        });
+    }
+
+    private function insertStay(string $boothId, string $vendorId, string $startsOn, string $endsOn): string
+    {
+        $sql = $endsOn === ''
+            ? 'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on) VALUES (?::uuid, ?::uuid, ?::date) RETURNING id'
+            : 'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on, ends_on) VALUES (?::uuid, ?::uuid, ?::date, ?::date) RETURNING id';
+        $params = $endsOn === ''
+            ? [$boothId, $vendorId, $startsOn]
+            : [$boothId, $vendorId, $startsOn, $endsOn];
+        $rows = $this->statements->bound($sql, $params);
+        $id = $rows[0]['id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            throw new \InvalidArgumentException('that assignment was not created');
+        }
+
+        return $id;
     }
 
     public function askingRent(string $boothId): ?int

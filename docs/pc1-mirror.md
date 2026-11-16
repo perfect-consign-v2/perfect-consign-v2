@@ -56,6 +56,8 @@ Or from a laptop with `STALL_MIRROR_V2_DB_HOST` / `PORT` / `NAME` / `USER` / `PA
 
 Opening mirrors **balances as extracted**. Forward posting on PC2 follows PC2 books law (two controls; no rent-from-payout haircut).
 
+The load sets `beccas-mirror` to booth mall: rent on, consignment off, floor days empty. A floor item is a booth piece when that vendor has a stay covering the mall's today. A PC1 stay with no monthly rent is stored without a rent rate, because a rent amount of zero cannot be saved. An item whose vendor has no stay covering today is left out and listed in `item-skips.json`. It is not labeled consignment.
+
 ## Related
 
 - `.cursor/rules/pc1-mirror.mdc`

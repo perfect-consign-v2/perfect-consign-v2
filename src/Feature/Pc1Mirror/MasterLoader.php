@@ -36,6 +36,7 @@ final class MasterLoader
      *     booths: array<string, string>,
      *     stored_values: array<string, string>,
      *     items: int,
+     *     item_skips: int,
      *     assignments: int,
      *     assignment_skips: int
      * }
@@ -54,14 +55,22 @@ final class MasterLoader
             $artifact->writeJson('assignment-skips.json', $assignmentResult['skips']);
         }
         $storedMap = $this->storedValues($mall, $this->objectRows($artifact->readJson('master/stored_values.json')));
-        $itemCount = $this->items->load($mall, $this->objectRows($artifact->readJson('master/items.json')), $vendorMap);
         $this->settings($mall, MirrorFields::stringKeyed($artifact->readJson('master/settings.json')));
+        $this->boothMall($mall);
+        $itemResult = $this->items->load($mall, $this->objectRows($artifact->readJson('master/items.json')), $vendorMap);
+        if ($itemResult['skips'] !== []) {
+            $artifact->writeJson('item-skips.json', $itemResult['skips']);
+            $this->logger->warning('pc1 mirror left out floor items with no open booth stay', [
+                'count' => count($itemResult['skips']),
+            ]);
+        }
 
         $map = [
             'vendors' => $vendorMap,
             'booths' => $boothMap,
             'stored_values' => $storedMap,
-            'items' => $itemCount,
+            'items' => $itemResult['loaded'],
+            'item_skips' => count($itemResult['skips']),
             'assignments' => $assignmentResult['loaded'],
             'assignment_skips' => count($assignmentResult['skips']),
         ];
@@ -181,6 +190,19 @@ final class MasterLoader
         }
 
         return $map;
+    }
+
+    private function boothMall(MirrorMall $mall): void
+    {
+        $mall->statements->change(
+            "UPDATE mall
+             SET operating_mode = 'booth_mall',
+                 booth_rentals_enabled = true,
+                 consignment_enabled = false,
+                 store_stock_enabled = false,
+                 floor_days = NULL",
+            []
+        );
     }
 
     /**
