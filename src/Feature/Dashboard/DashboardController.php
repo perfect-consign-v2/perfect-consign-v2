@@ -45,7 +45,7 @@ final class DashboardController
             'picture' => $this->dashboard->picture($today),
             'rentRows' => $due['rows'],
             'rentMonth' => $due['month'],
-            'overdueJobs' => $this->jobs->overdue($this->pdo),
+            'overdueJobs' => $this->jobs->overdue($this->pdo, $tenant->slug),
         ]);
     }
 }

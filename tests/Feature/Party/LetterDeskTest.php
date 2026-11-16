@@ -47,6 +47,7 @@ final class LetterDeskTest extends TestCase
             new LetterDraft(),
         );
         $vendorId = $this->vendor($statements);
+        $id = null;
         try {
             $pdo->exec('SET ROLE ' . $role);
             try {
@@ -80,6 +81,13 @@ final class LetterDeskTest extends TestCase
             self::assertTrue((new \ReflectionClass(LetterController::class))->hasMethod('read'));
         } finally {
             $pdo->exec('RESET ROLE');
+            if (is_string($id)) {
+                $job = $pdo->prepare(
+                    "DELETE FROM platform.jobs
+                     WHERE tenant = 'webprobe' AND kind = 'vendor-letter' AND payload ->> 'letter' = ?"
+                );
+                $job->execute([$id]);
+            }
             putenv('STALL_MAIL_FILE');
             if (is_file($file)) {
                 unlink($file);

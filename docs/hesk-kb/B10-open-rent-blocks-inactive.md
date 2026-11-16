@@ -1,7 +1,7 @@
 ---
 title: Why open rent blocks Inactive
 category: Vendors and booths
-hesk: published 2026-11-14
+hesk: published 2026-11-16
 as_of: 2026-10-25
 ---
 

@@ -101,12 +101,12 @@ final class CopyBranchesTest extends TestCase
     public function testTheDashboardSeparatesJobsAndBooths(): void
     {
         $quiet = $this->render('Feature/Dashboard/dashboard.php', $this->dashboard(0, false));
-        self::assertStringNotContainsString('A background job is waiting', $quiet);
+        self::assertStringNotContainsString('This store has work waiting to run.', $quiet);
         self::assertStringContainsString('Booth occupancy', $quiet);
         self::assertStringContainsString('Vendor payables', $quiet);
 
         $store = $this->render('Feature/Dashboard/dashboard.php', $this->dashboard(1, true));
-        self::assertStringContainsString('A background job is waiting', $store);
+        self::assertStringContainsString('This store has work waiting to run.', $store);
         self::assertStringNotContainsString('Booth occupancy', $store);
         self::assertStringContainsString('Consignor payables', $store);
     }

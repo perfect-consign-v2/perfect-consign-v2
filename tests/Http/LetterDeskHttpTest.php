@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Feature\Dev\LocalAdmin;
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
 use PerfectConsign\Tests\Support\ProbeMall;
@@ -28,12 +29,40 @@ final class LetterDeskHttpTest extends WebTestCase
         $vendorId = HtmlPage::pathId($created->body, $slug . '/vendors');
         $desk = $client->get('/' . $slug . '/letters');
         self::assertSees('Email', $desk);
-        $filed = $client->post('/' . $slug . '/letters', [
-            'subject' => 'Pickup ' . $code,
-            'message' => 'Your items are ready.',
-            'vendor_id[]' => $vendorId,
-        ]);
-        self::assertSees('The letter is filed', $filed);
-        self::assertSees('Pickup ' . $code, $filed);
+        $subject = 'Pickup ' . $code;
+        try {
+            $filed = $client->post('/' . $slug . '/letters', [
+                'subject' => $subject,
+                'message' => 'Your items are ready.',
+                'vendor_id[]' => $vendorId,
+            ]);
+            self::assertSees('The letter is filed', $filed);
+            self::assertSees($subject, $filed);
+        } finally {
+            $this->removeLetter($subject);
+        }
+    }
+
+    private function removeLetter(string $subject): void
+    {
+        $pdo = LocalAdmin::open()->pdo();
+        $listed = $pdo->prepare('SELECT schema_name FROM platform.tenants WHERE slug = ?');
+        $listed->execute([ProbeMall::SLUG]);
+        $schema = $listed->fetchColumn();
+        if (!is_string($schema) || preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
+            self::fail('webprobe schema is missing');
+        }
+        $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
+        $find = $pdo->prepare('SELECT id::text FROM vendor_letters WHERE subject = ?');
+        $find->execute([$subject]);
+        $id = $find->fetchColumn();
+        if (!is_string($id)) {
+            return;
+        }
+        $job = $pdo->prepare(
+            "DELETE FROM platform.jobs
+             WHERE tenant = ? AND kind = 'vendor-letter' AND payload ->> 'letter' = ?"
+        );
+        $job->execute([ProbeMall::SLUG, $id]);
     }
 }

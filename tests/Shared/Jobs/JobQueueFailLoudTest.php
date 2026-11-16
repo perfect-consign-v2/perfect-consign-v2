@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Shared\Jobs;
 
+use InvalidArgumentException;
 use PDO;
 use PDOStatement;
 use PerfectConsign\Shared\Jobs\JobQueue;
@@ -20,6 +21,17 @@ final class JobQueueFailLoudTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('job overdue count failed');
         (new JobQueue())->overdue($pdo);
+    }
+
+    public function testOverdueRefusesABadMall(): void
+    {
+        $pdo = $this->createMock(PDO::class);
+        $pdo->expects($this->never())->method('query');
+        $pdo->expects($this->never())->method('prepare');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('the mall is not a mall');
+        (new JobQueue())->overdue($pdo, 'Not A Mall');
     }
 
     public function testMalformedClaimRowThrows(): void

@@ -25,7 +25,7 @@ $consignmentOnly = ($consignmentOnly ?? false) === true;
 $blank = '—';
 ?>
 <?php if (($overdueJobs ?? 0) > 0): ?>
-<p>A background job is waiting. Check the worker.</p>
+<p class="warning">This store has work waiting to run.</p>
 <?php endif; ?>
 <div class="page-head">
     <div class="titles">

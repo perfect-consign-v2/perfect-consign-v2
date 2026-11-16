@@ -147,11 +147,10 @@ final class WorkerRuns
             'SELECT count(*) FROM platform.mail_outbox WHERE sent_at IS NULL'
         );
         $overdue = $this->countQuery(
-            "SELECT count(*)
-             FROM platform.jobs
-             WHERE finished_at IS NULL
-               AND run_at <= clock_timestamp()
-               AND locked_at IS NULL"
+            'SELECT count(*)
+             FROM platform.jobs AS job
+             WHERE ' . JobQueue::OPEN_JOB . '
+               AND job.run_at <= clock_timestamp()'
         );
 
         return [

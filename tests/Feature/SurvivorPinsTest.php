@@ -640,6 +640,15 @@ final class SurvivorPinsTest extends TestCase
             if (is_file($path)) {
                 unlink($path);
             }
+            if (is_string($id)) {
+                $job = $pdo->prepare(
+                    "DELETE FROM platform.jobs
+                     WHERE tenant = 'platform' AND kind = 'outbound-mail' AND payload ->> 'mail' = ?"
+                );
+                $job->execute([$id]);
+                $mail = $pdo->prepare('DELETE FROM platform.mail_outbox WHERE id = ?::uuid');
+                $mail->execute([$id]);
+            }
         }
     }
 

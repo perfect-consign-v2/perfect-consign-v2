@@ -9,6 +9,20 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class JobQueue
 {
+    public const OPEN_JOB = <<<'SQL'
+        job.finished_at IS NULL
+          AND job.locked_at IS NULL
+          AND NOT (
+              job.kind = 'outbound-mail'
+              AND EXISTS (
+                  SELECT 1
+                  FROM platform.mail_outbox AS mail
+                  WHERE mail.id::text = job.payload ->> 'mail'
+                    AND mail.sent_at IS NOT NULL
+              )
+          )
+        SQL;
+
     public const CLAIM = <<<'SQL'
         UPDATE platform.jobs AS job
         SET locked_by = ?, locked_at = clock_timestamp(), attempts = job.attempts + 1
@@ -112,18 +126,28 @@ final class JobQueue
         $statement->execute([$error, $id]);
     }
 
-    public function overdue(PDO $pdo): int
+    public function overdue(PDO $pdo, ?string $tenant = null): int
     {
-        $query = $pdo->query(
-            "SELECT count(*) FROM platform.jobs
-             WHERE finished_at IS NULL
-               AND locked_at IS NULL
-               AND run_at < clock_timestamp() - interval '15 minutes'"
-        );
-        if ($query === false) {
+        $sql = 'SELECT count(*) FROM platform.jobs AS job
+             WHERE ' . self::OPEN_JOB . "
+               AND job.run_at < clock_timestamp() - interval '15 minutes'";
+        if ($tenant === null) {
+            $query = $pdo->query($sql);
+            if ($query === false) {
+                throw new \RuntimeException('job overdue count failed');
+            }
+
+            return (int) $query->fetchColumn();
+        }
+        if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $tenant) !== 1) {
+            throw new \InvalidArgumentException('the mall is not a mall');
+        }
+        $statement = $pdo->prepare($sql . ' AND job.tenant = ?');
+        if ($statement === false) {
             throw new \RuntimeException('job overdue count failed');
         }
+        $statement->execute([$tenant]);
 
-        return (int) $query->fetchColumn();
+        return (int) $statement->fetchColumn();
     }
 }

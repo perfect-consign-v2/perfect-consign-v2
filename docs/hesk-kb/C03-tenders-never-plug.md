@@ -1,7 +1,7 @@
 ---
 title: Tenders and never use payable or tax as the plug
 category: Sales and register
-hesk: published 2026-11-14
+hesk: published 2026-11-16
 as_of: 2026-10-25
 ---
 
