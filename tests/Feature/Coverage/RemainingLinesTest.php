@@ -230,7 +230,7 @@ final class RemainingLinesTest extends TestCase
         $vendor = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/vendor', [], []));
         $vendor->session->set('actor_role', 'vendor');
         $this->refused(function () use ($vendor): void {
-            (new VendorPreview($vendor->app, $vendor->actor, $this->createStub(\PerfectConsign\Feature\Party\PartyStore::class)))
+            (new VendorPreview($vendor->app, $vendor->actor, $this->createStub(\PerfectConsign\Feature\Party\PartyStore::class), $vendor->mall))
                 ->id(MallDoor::SLUG);
         });
     }

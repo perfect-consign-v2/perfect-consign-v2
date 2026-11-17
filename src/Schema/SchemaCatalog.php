@@ -30,6 +30,7 @@ final class SchemaCatalog
         '091_item_duplicate_sqlstate.sql',
         '092_item_buy_expired.sql',
         '093_backup_readonly.sql',
+        '095_vendor_portal.sql',
     ];
 
     public function __construct(private readonly string $directory)

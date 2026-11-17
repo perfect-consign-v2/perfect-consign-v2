@@ -15,6 +15,8 @@ final class MallFlags
         public readonly bool $condition,
         public readonly bool $department,
         public readonly bool $brand,
+        public readonly bool $portal,
+        public readonly bool $inventory,
     ) {
     }
 
@@ -30,6 +32,8 @@ final class MallFlags
             PgBool::literal($this->condition),
             PgBool::literal($this->department),
             PgBool::literal($this->brand),
+            PgBool::literal($this->portal),
+            PgBool::literal($this->inventory),
         ];
     }
 }

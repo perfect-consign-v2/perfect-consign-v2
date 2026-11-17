@@ -190,6 +190,10 @@ if ($consignmentOnly) {
     $hiddenNav[] = '/mall-sale';
     $hiddenNav[] = '/booth-extras';
 }
+$vendorInventory = ($vendorInventory ?? true) === true;
+if (!$vendorInventory) {
+    $hiddenNav[] = '/vendor/inventory';
+}
 if ($hiddenNav !== []) {
     foreach ($groups as $name => $links) {
         $kept = [];

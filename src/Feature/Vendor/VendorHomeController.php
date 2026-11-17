@@ -9,6 +9,7 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Inventory\LabelCatalog;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Payout\PayoutWindow;
+use PerfectConsign\Shared\Scalar\RowValue;
 
 final class VendorHomeController
 {
@@ -76,6 +77,9 @@ final class VendorHomeController
     public function labels(string $slug): void
     {
         $this->app->open($slug, true);
+        if (!(new VendorPortalAccess($this->mall))->inventoryEnabled()) {
+            $this->app->notFound();
+        }
         $this->app->redirect('/' . $slug . '/vendor/inventory');
     }
 
@@ -84,6 +88,9 @@ final class VendorHomeController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
+        if (!(new VendorPortalAccess($this->mall))->inventoryEnabled()) {
+            $this->app->notFound();
+        }
         $this->stickers->printOwn($slug, $this->preview->id($slug));
     }
 
@@ -106,12 +113,24 @@ final class VendorHomeController
 
     private function itemPage(string $slug): void
     {
+        $this->app->open($slug, true);
+        if (!(new VendorPortalAccess($this->mall))->inventoryEnabled()) {
+            $this->app->notFound();
+        }
         $vendorId = $this->vendor($slug);
         $tenant = $this->app->open($slug, true);
         $query = trim($this->app->request()->query('q'));
         $rawStock = $this->app->request()->query('stock');
         $stock = in_array($rawStock, ['available', 'out', 'unprinted'], true) ? $rawStock : '';
         $items = $this->account->items($vendorId, $query, $stock);
+        $age = new FloorAge();
+        $today = $this->mall->today();
+        foreach ($items as $index => $item) {
+            $intake = $item['intake_on'] ?? null;
+            $days = $age->days(is_string($intake) && $intake !== '' ? $intake : null, $today);
+            $items[$index]['days_on_floor'] = $days;
+            $items[$index]['age_tier'] = $age->tier($days, RowValue::integer($item['quantity'] ?? 0));
+        }
         $this->app->show('Feature/Vendor/items', [
             'title' => 'Your items',
             'displayName' => $tenant->displayName,

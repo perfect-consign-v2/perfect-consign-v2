@@ -91,7 +91,7 @@ final class ExportStore
         } finally {
             fclose($handle);
         }
-        if (!is_string($written) || $written === '') {
+        if ($written === '') {
             throw new DatabaseRefusal('the export returned a non-text line');
         }
 

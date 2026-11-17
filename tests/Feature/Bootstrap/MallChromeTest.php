@@ -189,7 +189,7 @@ final class MallChromeTest extends TestCase
         (new ReflectionProperty(FrontDoor::class, 'actor'))->setValue($front, $actor);
         (new ReflectionProperty(FrontDoor::class, 'prior'))->setValue($front, new PriorClose($sessionLive, $request));
 
-        return new MallChrome(new ActiveRegister($pdo, $sessionLive, $mall, new MallClock($mall)), $sessionLive, $front, $request);
+        return new MallChrome(new ActiveRegister($pdo, $sessionLive, $mall, new MallClock($mall)), $sessionLive, $front, $request, $mall);
     }
 
     private function role(string $role): Session
@@ -210,8 +210,17 @@ final class MallChromeTest extends TestCase
         (new ReflectionProperty(FrontDoor::class, 'prior'))->setValue($door, new PriorClose($session, $request));
         $drawers = (new ReflectionClass(ActiveRegister::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(ActiveRegister::class, 'session'))->setValue($drawers, $session);
-        (new ReflectionProperty(ActiveRegister::class, 'pdo'))->setValue($drawers, $this->createStub(\PDO::class));
+        $pdo = $this->createStub(\PDO::class);
+        (new ReflectionProperty(ActiveRegister::class, 'pdo'))->setValue($drawers, $pdo);
+        $rows = $this->createStub(Statements::class);
+        $rows->method('rows')->willReturn([['time_zone' => 'UTC']]);
+        $mall = new MallSettings($rows, new CompanyStore(
+            $this->createStub(Statements::class),
+            new DatabaseRole($pdo),
+            $pdo,
+            new CompanyLines(),
+        ), new \PerfectConsign\Feature\Mall\MallDay($rows));
 
-        return new MallChrome($drawers, $session, $door, $request);
+        return new MallChrome($drawers, $session, $door, $request, $mall);
     }
 }

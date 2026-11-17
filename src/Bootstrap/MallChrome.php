@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
+use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Vendor\VendorPortalAccess;
 use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\Request;
 
@@ -18,6 +20,7 @@ final class MallChrome
         private readonly Session $session,
         private readonly FrontDoor $door,
         private readonly Request $request,
+        private readonly MallSettings $mall,
     ) {
     }
 
@@ -132,5 +135,15 @@ final class MallChrome
         }
 
         return false;
+    }
+
+    public function inventoryNav(bool $roled, string $preview): bool
+    {
+        return (new VendorPortalAccess($this->mall))->inventoryNav($roled, $this->door->actor()->role(), $preview);
+    }
+
+    public function closeVendorPortal(bool $roled, callable $close): void
+    {
+        (new VendorPortalAccess($this->mall))->endClosedSession($roled, $this->door->actor()->role(), $close);
     }
 }

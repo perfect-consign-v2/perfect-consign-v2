@@ -472,6 +472,38 @@ table.table { width: 100%; border-collapse: collapse; font-size: var(--text-base
 .table tbody tr:hover { background: var(--surface-2); }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
 
+.vendor-age-legend { margin-top: var(--space-4); }
+.vendor-age-legend-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+.vendor-age-swatch {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  margin-right: var(--space-2);
+  vertical-align: -0.15rem;
+  border: 1px solid var(--border);
+}
+.vendor-age-swatch--0 { background: #dff2bf; }
+.vendor-age-swatch--1 { background: #fffabf; }
+.vendor-age-swatch--2 { background: #fc7350; }
+.vendor-age-swatch--3 { background: #ffbaba; }
+.vendor-age-swatch--plain { background: #fff; }
+.table tbody tr.vendor-item-row--age-0 td,
+.table tbody tr.vendor-item-row--age-0:hover td { background: #dff2bf; color: #1c1917; }
+.table tbody tr.vendor-item-row--age-1 td,
+.table tbody tr.vendor-item-row--age-1:hover td { background: #fffabf; color: #1c1917; }
+.table tbody tr.vendor-item-row--age-2 td,
+.table tbody tr.vendor-item-row--age-2:hover td { background: #fc7350; color: #1c1917; }
+.table tbody tr.vendor-item-row--age-3 td,
+.table tbody tr.vendor-item-row--age-3:hover td { background: #ffbaba; color: #1c1917; }
+.table tbody tr[class*="vendor-item-row--age-"] td a { color: #1d4ed8; }
+
 /* ---- Stat cards -------------------------------------------------------- */
 .stat {
   background: var(--surface);

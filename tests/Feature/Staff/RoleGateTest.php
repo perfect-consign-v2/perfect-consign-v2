@@ -47,6 +47,14 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('vendor', '/vendor/labels', 'POST'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/sales', 'GET'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/inventory', 'GET'));
+        self::assertTrue(RoleGate::allows('vendor', '/vendor/inventory/new', 'GET'));
+        self::assertTrue(RoleGate::allows('vendor', '/vendor/inventory/new', 'POST'));
+        $item = '/vendor/inventory/01900000-0000-7000-8000-000000000d10';
+        self::assertTrue(RoleGate::allows('vendor', $item . '/edit', 'GET'));
+        self::assertTrue(RoleGate::allows('vendor', $item, 'POST'));
+        self::assertTrue(RoleGate::allows('vendor', $item . '/delete', 'POST'));
+        self::assertFalse(RoleGate::allows('vendor', $item . '/buy', 'POST'));
+        self::assertFalse(RoleGate::allows('cashier', '/vendor/inventory/new', 'GET'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/offers', 'GET'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/offers/new', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/offers', 'GET'));

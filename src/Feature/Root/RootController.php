@@ -9,6 +9,7 @@ use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\EmailSignIn;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Bootstrap\PortalClosed;
 use PerfectConsign\Bootstrap\SignInDirectory;
 use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Bootstrap\SignInUnverified;
@@ -55,6 +56,10 @@ final class RootController
             return;
         } catch (SignInUnverified $unverified) {
             $this->loginPage($unverified->getMessage(), $email);
+
+            return;
+        } catch (PortalClosed $closed) {
+            $this->loginPage($closed->getMessage(), $email);
 
             return;
         }

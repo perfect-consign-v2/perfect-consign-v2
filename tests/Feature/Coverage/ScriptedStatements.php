@@ -76,6 +76,12 @@ final class ScriptedStatements extends Statements
      */
     public function rows(string $sql): array
     {
+        if (str_contains($sql, 'vendor_portal_enabled')) {
+            return [[
+                'vendor_portal_enabled' => true,
+                'vendor_inventory_enabled' => true,
+            ]];
+        }
         if (str_contains($sql, 'booth_width_ft')) {
             return [$this->mallRow()];
         }

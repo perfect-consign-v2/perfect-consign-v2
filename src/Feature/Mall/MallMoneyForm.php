@@ -100,10 +100,12 @@ final class MallMoneyForm
     }
 
     /**
-     * @return array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool}
+     * @return array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool, portal: bool, inventory: bool}
      */
     private function storedFlags(): array
     {
+        $portal = $this->mall->getVendorFlags();
+
         return [
             'color' => $this->mall->enabled('use_color'),
             'category' => $this->mall->enabled('use_category'),
@@ -111,6 +113,8 @@ final class MallMoneyForm
             'condition' => $this->mall->enabled('use_condition'),
             'department' => $this->mall->enabled('use_department'),
             'brand' => $this->mall->enabled('use_brand'),
+            'portal' => $portal['portal'],
+            'inventory' => $portal['inventory'],
         ];
     }
 }

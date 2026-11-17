@@ -206,7 +206,7 @@ final class MallMissCoverageTest extends TestCase
         ]));
         $mall = $this->mall($statements);
         $store = new OfferStore($statements);
-        $controller = new OfferController($door->app, $store, $mall, new VendorPreview($door->app, $door->actor, $this->createStub(PartyStore::class)));
+        $controller = new OfferController($door->app, $store, $mall, new VendorPreview($door->app, $door->actor, $this->createStub(PartyStore::class), $door->mall));
         $html = $this->capture(function () use ($controller): void {
             $controller->end(MallDoor::SLUG, self::OFFER);
         });
@@ -235,7 +235,7 @@ final class MallMissCoverageTest extends TestCase
             $vendorDoor->app,
             new OfferStore($vendorStatements),
             $this->mall($vendorStatements),
-            new VendorPreview($vendorDoor->app, $vendorDoor->actor, $this->createStub(PartyStore::class)),
+            new VendorPreview($vendorDoor->app, $vendorDoor->actor, $this->createStub(PartyStore::class), $vendorDoor->mall),
         );
         $page = $this->capture(function () use ($vendor): void {
             $vendor->vendorEnd(MallDoor::SLUG, self::OFFER);
@@ -456,6 +456,10 @@ final class MallMissCoverageTest extends TestCase
 
     private function routeMall(RoutedStatements $statements, string $zone = 'America/Los_Angeles'): void
     {
+        $statements->rowRoutes[] = ['match' => 'vendor_portal_enabled', 'rows' => [[
+            'vendor_portal_enabled' => true,
+            'vendor_inventory_enabled' => true,
+        ]]];
         $statements->rowRoutes[] = ['match' => 'receipt_mail_via', 'rows' => [[
             'receipt_mail_via' => 'server',
             'gmail_address' => '',

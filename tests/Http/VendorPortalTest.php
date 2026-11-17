@@ -19,6 +19,7 @@ final class VendorPortalTest extends WebTestCase
     {
         $this->owner = self::client();
         $this->owner->signIn(self::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        \PerfectConsign\Tests\Codeception\Support\MallRouteCatalog::enableAllCatalogs($this->owner, self::SLUG);
         $this->owner->ensurePeriod(self::SLUG);
         $this->openRegister();
         $ada = $this->vendor('Ada', '0');

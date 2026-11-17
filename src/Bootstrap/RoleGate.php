@@ -121,11 +121,11 @@ final class RoleGate
         if (in_array($rest, ['/vendor', '/vendor/labels', '/vendor/sales', '/vendor/inventory', '/vendor/offers', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
             return true;
         }
-        if (str_starts_with($rest, '/vendor/offers/')) {
-            return true;
-        }
 
-        return preg_match('#^/vendor/checks/[0-9a-fA-F-]{36}$#', $rest) === 1;
+        return preg_match(
+            '#^/vendor/(?:offers/.*|inventory/(?:new|[0-9a-fA-F-]{36}(?:/(?:edit|delete))?)|checks/[0-9a-fA-F-]{36})$#',
+            $rest,
+        ) === 1;
     }
 
     private static function books(string $rest, string $method): bool

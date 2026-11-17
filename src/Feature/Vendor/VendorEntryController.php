@@ -7,6 +7,8 @@ namespace PerfectConsign\Feature\Vendor;
 use PerfectApp\Routing\Route;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class VendorEntryController
 {
@@ -15,13 +17,14 @@ final class VendorEntryController
         private readonly Session $session,
         private readonly VendorEntry $entry,
         private readonly VendorPortal $portal,
+        private readonly MallSettings $mall,
     ) {
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/consignor/enter', ['GET'])]
     public function form(string $slug): void
     {
-        $tenant = $this->app->open($slug, false);
+        $tenant = $this->requirePortal($slug);
         $this->app->show('Feature/Vendor/enter', [
             'title' => 'Consignor sign in',
             'displayName' => $tenant->displayName,
@@ -33,8 +36,8 @@ final class VendorEntryController
     #[Route('/([a-z][a-z0-9-]{0,62})/consignor/enter', ['POST'])]
     public function submit(string $slug): void
     {
+        $tenant = $this->requirePortal($slug);
         $this->app->checkCsrf();
-        $tenant = $this->app->open($slug, false);
         $this->entry->request($tenant, $this->app->request()->field('email'), $this->app->request()->origin);
         $this->app->redirect('/' . $slug . '/consignor/enter', VendorEntry::SENT);
     }
@@ -42,7 +45,7 @@ final class VendorEntryController
     #[Route('/([a-z][a-z0-9-]{0,62})/consignor/enter/([0-9a-f]{64})', ['GET'])]
     public function confirm(string $slug, string $token): void
     {
-        $tenant = $this->app->open($slug, false);
+        $tenant = $this->requirePortal($slug);
         $this->app->show('Feature/Vendor/confirm', [
             'title' => 'Open your account',
             'displayName' => $tenant->displayName,
@@ -54,8 +57,8 @@ final class VendorEntryController
     #[Route('/([a-z][a-z0-9-]{0,62})/consignor/enter/([0-9a-f]{64})', ['POST'])]
     public function redeem(string $slug, string $token): void
     {
+        $tenant = $this->requirePortal($slug);
         $this->app->checkCsrf();
-        $tenant = $this->app->open($slug, false);
         $vendorId = $this->entry->open($tenant, hash('sha256', $token));
         if ($vendorId === '') {
             $this->app->redirect('/' . $slug . '/consignor/enter', 'That link has expired.');
@@ -72,21 +75,28 @@ final class VendorEntryController
     #[Route('/([a-z][a-z0-9-]{0,62})/consignor', ['GET'])]
     public function home(string $slug): void
     {
-        $tenant = $this->app->open($slug, false);
+        $tenant = $this->requirePortal($slug);
         $vendorId = $this->vendor($slug);
+        $showInventory = $this->inventoryOpen($tenant);
+        $page = $this->portal->page($tenant, $vendorId);
+        if (!$showInventory) {
+            $page['items'] = [];
+            $page['expiring'] = [];
+        }
         $this->app->show('Feature/Vendor/consignor', [
             'title' => 'Your account',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'page' => $this->portal->page($tenant, $vendorId),
+            'page' => $page,
+            'showInventory' => $showInventory,
         ]);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/consignor/preference', ['POST'])]
     public function preference(string $slug): void
     {
+        $tenant = $this->requirePortal($slug);
         $this->app->checkCsrf();
-        $tenant = $this->app->open($slug, false);
         $this->portal->prefer($tenant, $this->vendor($slug), $this->app->request()->field('payout_mode'));
         $this->app->redirect('/' . $slug . '/consignor', 'Payout preference saved.');
     }
@@ -95,9 +105,39 @@ final class VendorEntryController
     public function logout(string $slug): void
     {
         $this->app->checkCsrf();
-        $this->app->open($slug, false);
+        $tenant = $this->app->open($slug, false);
+        $open = $this->entry->readingAsPoster(
+            $tenant,
+            fn (): bool => (new VendorPortalAccess($this->mall))->portalEnabled(),
+        );
         $this->clear($slug);
+        if (!$open) {
+            $this->app->redirect('/', null, 'The vendor portal is off.');
+        }
         $this->app->redirect('/' . $slug . '/consignor/enter', 'Signed out.');
+    }
+
+    private function requirePortal(string $slug): TenantRecord
+    {
+        $tenant = $this->app->open($slug, false);
+        $open = $this->entry->readingAsPoster(
+            $tenant,
+            fn (): bool => (new VendorPortalAccess($this->mall))->portalEnabled(),
+        );
+        if (!$open) {
+            $this->clear($slug);
+            $this->app->notFound();
+        }
+
+        return $tenant;
+    }
+
+    private function inventoryOpen(TenantRecord $tenant): bool
+    {
+        return $this->entry->readingAsPoster(
+            $tenant,
+            fn (): bool => (new VendorPortalAccess($this->mall))->inventoryEnabled(),
+        );
     }
 
     private function vendor(string $slug): string

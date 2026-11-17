@@ -1571,7 +1571,7 @@ final class ListedLineCoverageTest extends TestCase
         $parties = $this->createStub(PartyStore::class);
         $parties->method('findVendor')->willReturn(null);
 
-        return new VendorPreview($door->app, $door->actor, $parties);
+        return new VendorPreview($door->app, $door->actor, $parties, $door->mall);
     }
 
     private function stickers(MallDoor $door): VendorStickers
@@ -1654,6 +1654,7 @@ final class ListedLineCoverageTest extends TestCase
                 $door->app->request(),
             ),
             new VendorPortal($door->pdo, $door->roles, $door->statements),
+            $door->mall,
         );
     }
 

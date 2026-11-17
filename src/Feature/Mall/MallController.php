@@ -29,6 +29,10 @@ final class MallController
 
     private ?string $postedGmail = null;
 
+    private ?string $postedPortal = null;
+
+    private ?string $postedInventory = null;
+
     private string $settingsPart = 'money';
 
     private MallRentDraft $rentDraft;
@@ -172,6 +176,8 @@ final class MallController
     private function saveBuilding(string $slug): void
     {
         $this->settingsPart = 'building';
+        $this->postedPortal = $this->app->request()->field('vendor_portal_enabled');
+        $this->postedInventory = $this->app->request()->field('vendor_inventory_enabled');
         $this->postedStock = $this->app->request()->field('label_stock');
         $timeZone = $this->app->request()->field('time_zone');
         $width = MallMeasure::feet($this->app->request()->field('booth_width_ft'));
@@ -227,7 +233,7 @@ final class MallController
     }
 
     /**
-     * @return array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool}
+     * @return array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool, portal: bool, inventory: bool}
      */
     private function requestFlags(): array
     {
@@ -238,6 +244,9 @@ final class MallController
             'condition' => $this->app->request()->field('use_condition') === '1',
             'department' => $this->app->request()->field('use_department') === '1',
             'brand' => $this->app->request()->field('use_brand') === '1',
+            'portal' => $this->app->request()->field('vendor_portal_enabled') === '1',
+            'inventory' => $this->app->request()->field('vendor_portal_enabled') === '1'
+                && $this->app->request()->field('vendor_inventory_enabled') === '1',
         ];
     }
 
@@ -283,6 +292,7 @@ final class MallController
     ): void {
         $tenant = $this->app->open($slug, true);
         $late = $this->payouts->getLateFee();
+        $vendor = $this->vendorForm();
         $this->app->show('Feature/Mall/settings', [
             'title' => 'Settings',
             'displayName' => $tenant->displayName,
@@ -331,7 +341,30 @@ final class MallController
                 'use_brand' => $this->mall->enabled('use_brand'),
             ],
             'error' => $error,
+            'vendorPortal' => $vendor['portal'],
+            'portalInventory' => $vendor['inventory'],
         ]);
+    }
+
+    /**
+     * @return array{portal: bool, inventory: bool}
+     */
+    private function vendorForm(): array
+    {
+        if ($this->postedPortal !== null && $this->postedInventory !== null) {
+            $open = $this->postedPortal === '1';
+
+            return [
+                'portal' => $open,
+                'inventory' => $open && $this->postedInventory === '1',
+            ];
+        }
+        $stored = $this->mall->getVendorFlags();
+
+        return [
+            'portal' => $stored['portal'],
+            'inventory' => $stored['portal'] && $stored['inventory'],
+        ];
     }
 
     private function knownPart(string $part): string

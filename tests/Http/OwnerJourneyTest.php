@@ -234,6 +234,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'vendor_portal_enabled' => '1',
         ]);
         $tag = 't' . bin2hex(random_bytes(4));
         $created = 'Blue ' . $tag;
@@ -331,6 +332,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'vendor_portal_enabled' => '1',
         ]);
     }
 
@@ -450,6 +452,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'vendor_portal_enabled' => '1',
         ]);
         self::assertSees('America/Chicago', $saved);
         self::assertSees('value="45"', $saved);
@@ -475,6 +478,7 @@ final class OwnerJourneyTest extends WebTestCase
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'vendor_portal_enabled' => '1',
         ]);
         self::assertSees('America/Los_Angeles', $restored);
     }

@@ -7,7 +7,7 @@ namespace PerfectConsign\Feature\Mall;
 final class MallWrite
 {
     /**
-     * @param array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool} $flags
+     * @param array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool, portal: bool, inventory: bool} $flags
      */
     public static function posted(
         int $boothWidth,
@@ -16,6 +16,10 @@ final class MallWrite
         int $floorDepth,
         array $flags,
     ): self {
+        if (!array_key_exists('portal', $flags) || !array_key_exists('inventory', $flags)) {
+            throw new \InvalidArgumentException('vendor portal flags are required');
+        }
+
         return new self(
             $boothWidth,
             $boothDepth,
@@ -28,6 +32,8 @@ final class MallWrite
                 $flags['condition'],
                 $flags['department'],
                 $flags['brand'],
+                $flags['portal'],
+                $flags['inventory'],
             ),
         );
     }

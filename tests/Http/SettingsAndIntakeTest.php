@@ -55,6 +55,7 @@ final class SettingsAndIntakeTest extends WebTestCase
             'label_stock' => $this->labelStock(),
             'use_color' => '1',
             'use_brand' => '1',
+            'vendor_portal_enabled' => '1',
         ];
         self::assertSees('booth size is whole feet', $this->client->post('/' . $slug . '/settings/building', $building));
         $building['booth_width_ft'] = '10';

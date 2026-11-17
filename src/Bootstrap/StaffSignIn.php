@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Bootstrap;
 
+use PerfectConsign\Feature\Vendor\VendorPortalAccess;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
 use Psr\Log\LoggerInterface;
@@ -31,6 +32,10 @@ final class StaffSignIn
             $this->refuse($tenant, $username, $address);
 
             return false;
+        }
+        if ($row['role'] === 'vendor' && !$this->portalOpen($tenant)) {
+            $this->logger->info('vendor portal closed', ['slug' => $tenant->slug]);
+            throw new PortalClosed('The vendor portal is off.');
         }
         $this->openSession($tenant, $username, $row);
 
@@ -145,6 +150,14 @@ final class StaffSignIn
         }
 
         return $this->vendorMarkedActive($tenant, $vendorId);
+    }
+
+    private function portalOpen(TenantRecord $tenant): bool
+    {
+        return $this->asTenantRole(
+            $tenant,
+            fn (): bool => VendorPortalAccess::portalEnabledIn($this->pdo, $tenant->schema),
+        );
     }
 
     private function vendorMarkedActive(TenantRecord $tenant, string $vendorId): bool

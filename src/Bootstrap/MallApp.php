@@ -63,15 +63,16 @@ final class MallApp
         $data['notice'] = $notice;
         $data['warning'] = $warning;
         $data['actorRole'] = $this->door->actor()->role();
-        $data['previewAs'] = $this->chrome()->previewAs(is_string($slug) ? $slug : '');
-        $this->shopFlags($data);
+        $preview = $this->chrome()->previewAs(is_string($slug) ? $slug : '');
+        $data['previewAs'] = $preview;
+        $this->shopFlags($data, $preview);
         $this->view->render('Shared/Web/layout', $data + ['body' => $template]);
     }
 
     /**
      * @param array<string, mixed> $data
      */
-    private function shopFlags(array &$data): void
+    private function shopFlags(array &$data, string $preview): void
     {
         $data['showBrand'] = $this->roled ? $this->mall->enabled('use_brand') : true;
         $data['boothRentals'] ??= $this->roled ? $this->mall->isRentalsEnabled() : true;
@@ -80,6 +81,7 @@ final class MallApp
         $data['storeStockEnabled'] ??= $this->roled ? $this->mall->isStoreStockEnabled() : false;
         $data['catalogNav'] = $this->roled ? $this->mall->getCatalogLinks() : [];
         $data['attributeLists'] = $this->roled ? $this->mall->getEnabledLists() : [];
+        $data['vendorInventory'] = $this->chrome()->inventoryNav($this->roled, $preview);
     }
 
     /**
@@ -116,6 +118,10 @@ final class MallApp
         $this->refuseForeign($slug);
         $cached = $this->cachedTenant($slug, $books);
         if ($cached !== null) {
+            $this->chrome()->closeVendorPortal($this->roled, function (): void {
+                $this->signOut();
+                $this->redirect('/', null, 'The vendor portal is off.');
+            });
             $this->refuseClosedRentals($slug);
 
             return $cached;
@@ -123,6 +129,10 @@ final class MallApp
         $tenant = $this->requireTenant($slug);
         $this->enterBooks($books, $slug, $tenant);
         $this->tenant = $tenant;
+        $this->chrome()->closeVendorPortal($this->roled, function (): void {
+            $this->signOut();
+            $this->redirect('/', null, 'The vendor portal is off.');
+        });
         $this->refuseClosedRentals($slug);
 
         return $tenant;
@@ -230,6 +240,6 @@ final class MallApp
 
     private function chrome(): MallChrome
     {
-        return new MallChrome($this->drawers, $this->session, $this->door, $this->request);
+        return new MallChrome($this->drawers, $this->session, $this->door, $this->request, $this->mall);
     }
 }

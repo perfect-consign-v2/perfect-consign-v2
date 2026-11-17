@@ -287,6 +287,31 @@ $settingsTabs = [
             <p class="muted text-sm">How long a new consigned item stays before it expires. Leave this empty and consigned items do not expire.</p>
         </div>
         <?php endif; ?>
+        <?php
+        $vendorPortal = ($vendorPortal ?? true) === true;
+        $portalInventory = ($portalInventory ?? false) === true;
+        ?>
+        <div class="field">
+            <p class="muted text-sm">Vendor portal. The portal is the check, sales, deals, and the consignor account. Inventory is add, edit, delete, the item list, and sticker print, and it applies while the portal is on.</p>
+            <div class="catalog-switches">
+                <label class="switch-row" for="vendor_portal_enabled">
+                    <span class="switch">
+                        <input id="vendor_portal_enabled" name="vendor_portal_enabled" type="checkbox" value="1"<?= $vendorPortal ? ' checked' : '' ?>>
+                        <span class="switch-track" aria-hidden="true"></span>
+                        <span class="switch-knob" aria-hidden="true"></span>
+                    </span>
+                    Vendor portal
+                </label>
+                <label class="switch-row" for="vendor_inventory_enabled">
+                    <span class="switch">
+                        <input id="vendor_inventory_enabled" name="vendor_inventory_enabled" type="checkbox" value="1"<?= $portalInventory ? ' checked' : '' ?>>
+                        <span class="switch-track" aria-hidden="true"></span>
+                        <span class="switch-knob" aria-hidden="true"></span>
+                    </span>
+                    Vendor inventory
+                </label>
+            </div>
+        </div>
     </div>
     <div class="card-foot">
         <button class="btn btn-primary" type="submit">Save building</button>

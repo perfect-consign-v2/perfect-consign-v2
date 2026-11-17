@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Vendor;
 
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Party\PartyStore;
 
 final class VendorPreview
@@ -14,12 +15,16 @@ final class VendorPreview
         private readonly MallApp $app,
         private readonly Actor $actor,
         private readonly PartyStore $parties,
+        private readonly MallSettings $mall,
     ) {
     }
 
     public function id(string $slug): string
     {
         $this->app->open($slug, true);
+        if (!(new VendorPortalAccess($this->mall))->portalEnabled()) {
+            $this->app->notFound();
+        }
         $own = $this->actor->vendor();
         if ($own !== '') {
             return $own;

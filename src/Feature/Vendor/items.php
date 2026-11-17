@@ -21,7 +21,7 @@ $available = $available ?? 0;
 $unsold = $unsold ?? 0;
 $unprinted = $unprinted ?? 0;
 $query = $query ?? '';
-/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, brand_name: string, color_name: string, category_name: string, size_name: string, condition_name: string, department_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool}> $items */
+/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, brand_name: string, color_name: string, category_name: string, size_name: string, condition_name: string, department_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, days_on_floor?: int|null, age_tier?: int|null}> $items */
 /** @var list<NameList> $attributeLists */
 /** @var string $labelStock */
 /** @var list<array{key: string, label: string}> $stocks */
@@ -54,7 +54,20 @@ $shows = [
         <h1 class="h1">Your items</h1>
         <p class="muted"><?= View::text($lead) ?></p>
     </div>
+    <a class="btn btn-primary" href="<?= View::text(VendorPreview::with('/' . $slug . '/vendor/inventory/new', $previewAs)) ?>">Add item</a>
 </div>
+
+<section class="vendor-age-legend" aria-labelledby="vendor-age-legend-title">
+    <h2 class="h3" id="vendor-age-legend-title">Row colors</h2>
+    <p class="muted text-sm">Available items are colored by how many days they have been on the floor.</p>
+    <ul class="vendor-age-legend-list">
+        <li><span class="vendor-age-swatch vendor-age-swatch--0"></span> 0–30 days</li>
+        <li><span class="vendor-age-swatch vendor-age-swatch--1"></span> 31–60 days</li>
+        <li><span class="vendor-age-swatch vendor-age-swatch--2"></span> 61–90 days</li>
+        <li><span class="vendor-age-swatch vendor-age-swatch--3"></span> 91 or more days</li>
+        <li><span class="vendor-age-swatch vendor-age-swatch--plain"></span> Quantity zero, or no intake date</li>
+    </ul>
+</section>
 
 <?php if ($total === 0): ?>
     <div class="card">
@@ -131,17 +144,25 @@ $shows = [
                 $columns[] = ['label' => ucfirst($attribute->singular)];
             }
             $columns[] = ['label' => 'Intake'];
+            $columns[] = ['label' => 'Days on floor', 'sort' => 'num'];
             $columns[] = ['label' => 'Expires'];
             $columns[] = ['label' => 'Store %', 'sort' => 'num'];
             $columns[] = ['label' => 'Qty', 'sort' => 'num'];
             $columns[] = ['label' => 'Price', 'sort' => 'num'];
+            $columns[] = ['label' => 'Edit', 'actions' => true];
             ListTable::open(['id' => 'vendor-items', 'export' => 'items', 'pageScroll' => true]);
             ListTable::head($columns);
             ?>
                 <tbody>
                 <?php foreach ($items as $item): ?>
-                    <?php $brand = $item['brand_name']; ?>
-                    <tr id="item-<?= View::text($item['id']) ?>">
+                    <?php
+                    $brand = $item['brand_name'];
+                    $tier = $item['age_tier'] ?? null;
+                    $days = $item['days_on_floor'] ?? null;
+                    $rowClass = is_int($tier) ? 'vendor-item-row--age-' . $tier : '';
+                    $edit = VendorPreview::with('/' . $slug . '/vendor/inventory/' . $item['id'] . '/edit', $previewAs);
+                    ?>
+                    <tr class="<?= View::text($rowClass) ?>" id="item-<?= View::text($item['id']) ?>">
                         <td><input form="stickers" type="checkbox" name="item[]" value="<?= View::text($item['id']) ?>" aria-label="Print <?= View::text($item['code']) ?>"></td>
                         <td class="strong"><?= View::text($item['code']) ?></td>
                         <td><?= View::text($item['barcode']) ?></td>
@@ -166,6 +187,13 @@ $shows = [
                             </td>
                         <?php endforeach; ?>
                         <td><?= View::date($item['intake_on']) ?></td>
+                        <td class="num vendor-days">
+                            <?php if (is_int($tier) && is_int($days)): ?>
+                                <?= View::text((string) $days) ?>
+                            <?php else: ?>
+                                <span class="muted"><?= $blank ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td>
                             <?php if ($item['expires_on'] === ''): ?>
                                 <span class="muted"><?= $blank ?></span>
@@ -181,6 +209,7 @@ $shows = [
                         </td>
                         <td class="num"><?= View::text((string) $item['quantity']) ?></td>
                         <td class="num"><?= View::text(View::money(View::minor($item['price_minor']))) ?></td>
+                        <td><a href="<?= View::text($edit) ?>">Edit</a></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

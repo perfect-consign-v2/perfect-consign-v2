@@ -21,6 +21,8 @@ final class MallGuardTest extends TestCase
             'condition' => false,
             'department' => true,
             'brand' => false,
+            'portal' => true,
+            'inventory' => false,
         ]);
 
         self::assertSame(10, $write->boothWidth);
@@ -28,7 +30,7 @@ final class MallGuardTest extends TestCase
         self::assertSame(120, $write->floorWidth);
         self::assertSame(90, $write->floorDepth);
         self::assertSame(
-            ['true', 'false', 'true', 'false', 'true', 'false'],
+            ['true', 'false', 'true', 'false', 'true', 'false', 'true', 'false'],
             $write->flags->stored()
         );
     }

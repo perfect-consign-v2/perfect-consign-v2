@@ -14,6 +14,7 @@ final class VendorAccountTest extends WebTestCase
     {
         $owner = self::client();
         $owner->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        \PerfectConsign\Tests\Codeception\Support\MallRouteCatalog::enableAllCatalogs($owner);
         $code = 'V' . bin2hex(random_bytes(3));
         $created = $owner->post('/' . ProbeMall::SLUG . '/vendors', [
             'code' => $code,

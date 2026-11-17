@@ -99,6 +99,23 @@ final class VendorEntry
         return $active === true || $active === 't' || $active === '1' || $active === 1;
     }
 
+    /**
+     * Read the mall row as the tenant poster, then put the connection role back.
+     *
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    public function readingAsPoster(TenantRecord $tenant, callable $work): mixed
+    {
+        $this->asPoster($tenant);
+        try {
+            return $work();
+        } finally {
+            $this->roles->reset();
+        }
+    }
+
     private function mint(TenantRecord $tenant, string $email, string $origin): ?string
     {
         $this->asEntry($tenant);

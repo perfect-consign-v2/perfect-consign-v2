@@ -15,6 +15,7 @@ use PerfectConsign\Shared\Http\View;
  * } $page */
 $agreement = $page['agreement'];
 $mode = is_string($agreement['payout_mode'] ?? null) ? $agreement['payout_mode'] : 'pay';
+$showInventory = ($showInventory ?? true) === true;
 ?>
 <div class="page-head">
     <div class="titles">
@@ -42,6 +43,7 @@ $mode = is_string($agreement['payout_mode'] ?? null) ? $agreement['payout_mode']
         </form>
     </div>
 </section>
+<?php if ($showInventory): ?>
 <section class="card">
     <div class="card-body">
         <h2 class="h3">Items</h2>
@@ -52,6 +54,7 @@ $mode = is_string($agreement['payout_mode'] ?? null) ? $agreement['payout_mode']
         </ul>
     </div>
 </section>
+<?php endif; ?>
 <section class="card">
     <div class="card-body">
         <h2 class="h3">Sales</h2>
@@ -62,6 +65,7 @@ $mode = is_string($agreement['payout_mode'] ?? null) ? $agreement['payout_mode']
         </ul>
     </div>
 </section>
+<?php if ($showInventory): ?>
 <section class="card">
     <div class="card-body">
         <h2 class="h3">About to expire</h2>
@@ -72,3 +76,4 @@ $mode = is_string($agreement['payout_mode'] ?? null) ? $agreement['payout_mode']
         </ul>
     </div>
 </section>
+<?php endif; ?>

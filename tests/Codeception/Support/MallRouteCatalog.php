@@ -83,6 +83,8 @@ final class MallRouteCatalog
             'use_condition' => '1',
             'use_department' => '1',
             'use_brand' => '1',
+            'vendor_portal_enabled' => '1',
+            'vendor_inventory_enabled' => '1',
         ]);
     }
 
