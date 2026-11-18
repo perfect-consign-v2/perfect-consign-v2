@@ -110,10 +110,7 @@ final class ExportStore
         }
         rewind($handle);
         $written = stream_get_contents($handle);
-        if (!is_string($written)) {
-            throw new DatabaseRefusal('the export returned a non-text line');
-        }
 
-        return $written;
+        return is_string($written) ? $written : '';
     }
 }

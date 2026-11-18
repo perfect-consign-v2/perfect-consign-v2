@@ -9,6 +9,8 @@ if ($server === false) {
     fwrite(STDERR, $error . "\n");
     exit(1);
 }
+fwrite(STDOUT, "listening\n");
+fflush(STDOUT);
 $client = stream_socket_accept($server, 10);
 if (!is_resource($client)) {
     exit(1);

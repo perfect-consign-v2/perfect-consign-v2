@@ -9,6 +9,9 @@ use PerfectConsign\Shared\Http\View;
 /** @var array<string, mixed>|null $booth */
 /** @var int $defaultWidth */
 /** @var int $defaultDepth */
+/** @var bool $showStanding */
+/** @var bool $boothActive */
+/** @var bool $canRetire */
 $id = is_array($booth) ? ($booth['id'] ?? null) : null;
 $code = is_array($booth) ? ($booth['code'] ?? null) : null;
 $editing = is_string($id) && $id !== '';
@@ -90,5 +93,5 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
             <?php endif; ?>
         </div>
     </div>
-<?php endif; ?>
+<?php endif;
 

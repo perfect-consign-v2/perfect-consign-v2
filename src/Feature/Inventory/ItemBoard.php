@@ -9,7 +9,11 @@ use PerfectConsign\Feature\Vendor\FloorAge;
 use PerfectConsign\Shared\Http\JsonResponse;
 use PerfectConsign\Shared\Http\Request;
 
-/** One JSON page of staff or vendor items. */
+/**
+ * One JSON page of staff or vendor items.
+ *
+ * @phpstan-import-type Column from ItemColumns
+ */
 final class ItemBoard
 {
     public function __construct(
@@ -73,7 +77,7 @@ final class ItemBoard
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<Column>
      */
     private function columns(string $audience): array
     {

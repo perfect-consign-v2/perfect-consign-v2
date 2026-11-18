@@ -63,7 +63,10 @@ final class SmtpStageTest extends TestCase
         if (!is_resource($process)) {
             self::fail('the smtp stand-in did not start');
         }
-        usleep(200000);
+        $ready = fgets($pipes[1]);
+        if ($ready !== "listening\n") {
+            self::fail('the smtp stand-in did not listen on port ' . $port);
+        }
         try {
             $client = new SmtpClient('127.0.0.1', $port, 'shop@example.test', 'secret', 'shop@example.test', static fn (mixed $socket): bool => true);
             $client->send('ada@example.test', 'Sold today', 'one line');

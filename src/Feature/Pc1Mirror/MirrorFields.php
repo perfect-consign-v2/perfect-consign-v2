@@ -18,6 +18,19 @@ final class MirrorFields
         return $fallback;
     }
 
+    public static function email(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+        if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $trimmed) !== 1) {
+            return '';
+        }
+
+        return $trimmed;
+    }
+
     public static function cents(mixed $value): int
     {
         if (is_int($value)) {

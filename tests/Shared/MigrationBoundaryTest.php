@@ -200,29 +200,33 @@ final class MigrationBoundaryTest extends TestCase
         $catalog = $this->catalog();
         $sql = [];
         $applied = [];
+        $passes = count($catalog->platformFiles()) * 2;
         $pdo = $this->platformPdo($sql, $applied, ['']);
-        $pdo->expects($this->exactly(2))->method('beginTransaction');
-        $pdo->expects($this->exactly(2))->method('commit');
+        $pdo->expects($this->exactly($passes))->method('beginTransaction');
+        $pdo->expects($this->exactly($passes))->method('commit');
 
         (new SchemaMigrator($pdo, $catalog))->migratePlatform();
 
-        self::assertCount(2, $sql);
+        self::assertCount($passes, $sql);
         self::assertStringContainsString('000_platform.sql', $this->names($applied));
     }
 
     public function testInstallStampsThePlatformOnceTheMigrationTableExists(): void
     {
         $catalog = $this->catalog();
+        $files = $catalog->platformFiles();
         $sql = [];
         $applied = [];
         $pdo = $this->platformPdo($sql, $applied, ['', 'platform.schema_migrations']);
-        $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('commit');
+        $pdo->expects($this->exactly(count($files)))->method('beginTransaction');
+        $pdo->expects($this->exactly(count($files)))->method('commit');
 
         (new SchemaMigrator($pdo, $catalog))->migratePlatform();
 
-        self::assertCount(1, $sql);
-        self::assertSame($catalog->checksum('000_platform.sql'), $applied['000_platform.sql'] ?? null);
+        self::assertCount(count($files), $sql);
+        foreach ($files as $file) {
+            self::assertSame($catalog->checksum($file), $applied[$file] ?? null);
+        }
     }
 
     public function testAnOlderInstalledPlatformIsRefused(): void
@@ -240,12 +244,13 @@ final class MigrationBoundaryTest extends TestCase
     {
         $sql = [];
         $applied = [];
+        $passes = count($this->catalog()->platformFiles()) * 2;
         $pdo = $this->platformPdo($sql, $applied, [''], false, false);
-        $pdo->expects($this->exactly(2))->method('commit');
+        $pdo->expects($this->exactly($passes))->method('commit');
 
         (new SchemaMigrator($pdo, $this->catalog()))->migratePlatform();
 
-        self::assertCount(2, $sql);
+        self::assertCount($passes, $sql);
     }
 
     public function testAFailedPlatformFileRollsBack(): void
@@ -282,8 +287,10 @@ final class MigrationBoundaryTest extends TestCase
 
         (new SchemaMigrator($pdo, $catalog))->migratePlatform();
 
-        self::assertCount(1, $sql);
-        self::assertSame($catalog->checksum('000_platform.sql'), $applied['000_platform.sql'] ?? null);
+        self::assertCount(count($catalog->platformFiles()), $sql);
+        foreach ($catalog->platformFiles() as $file) {
+            self::assertSame($catalog->checksum($file), $applied[$file] ?? null);
+        }
     }
 
     public function testAPendingPlatformFileFailureLeavesTheCallerTransaction(): void

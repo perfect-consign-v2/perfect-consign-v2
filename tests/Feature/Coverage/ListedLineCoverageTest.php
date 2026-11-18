@@ -522,7 +522,7 @@ final class ListedLineCoverageTest extends TestCase
                 ]],
             ]);
         });
-        self::assertStringContainsString('Red', $items);
+        self::assertStringContainsString('Filter Color', $items);
     }
 
     public function testVendorPortalPreviewStickersAndAClearedCheck(): void

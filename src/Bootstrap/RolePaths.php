@@ -6,6 +6,11 @@ namespace PerfectConsign\Bootstrap;
 
 final class RolePaths
 {
+    public static function inventoryBuy(string $rest): bool
+    {
+        return preg_match('#^/inventory/[0-9a-fA-F-]{36}/buy$#', $rest) === 1;
+    }
+
     public static function underFloor(string $rest): bool
     {
         return self::underPrefix($rest, [

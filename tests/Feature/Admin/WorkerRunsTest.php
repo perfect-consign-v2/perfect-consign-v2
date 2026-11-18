@@ -251,7 +251,9 @@ final class WorkerRunsTest extends TestCase
                 return $statement;
             }
             $statement = $this->createStub(PDOStatement::class);
-            $statement->method('fetchColumn')->willReturn(str_contains($sql, 'mail_outbox') ? $waiting : $overdue);
+            $statement->method('fetchColumn')->willReturn(
+                str_contains($sql, 'mail_outbox WHERE sent_at') ? $waiting : $overdue
+            );
 
             return $statement;
         });

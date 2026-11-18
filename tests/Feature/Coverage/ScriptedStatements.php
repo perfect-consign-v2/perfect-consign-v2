@@ -24,6 +24,16 @@ final class ScriptedStatements extends Statements
 
     public string $partyName = 'Pat';
 
+    public string $zone = 'America/Los_Angeles';
+
+    public bool $portal = true;
+
+    public bool $useBrand = false;
+
+    public bool $useColor = false;
+
+    public bool $rentals = false;
+
     public bool $voidedChecks = false;
 
     /** @var array<string, mixed>|null */
@@ -78,15 +88,16 @@ final class ScriptedStatements extends Statements
     {
         if (str_contains($sql, 'vendor_portal_enabled')) {
             return [[
-                'vendor_portal_enabled' => true,
-                'vendor_inventory_enabled' => true,
+                'vendor_portal_enabled' => $this->portal,
+                'vendor_inventory_enabled' => $this->portal,
+                'vendor_weekly_mail_enabled' => $this->portal,
             ]];
         }
         if (str_contains($sql, 'booth_width_ft')) {
             return [$this->mallRow()];
         }
         if (str_contains($sql, 'SELECT time_zone FROM mall')) {
-            return [['time_zone' => 'America/Los_Angeles']];
+            return [['time_zone' => $this->zone]];
         }
         if (str_contains($sql, 'rent_cycle_day FROM mall')) {
             return [['rent_cycle_day' => 1]];
@@ -158,14 +169,14 @@ final class ScriptedStatements extends Statements
             'floor_days' => 60,
             'cash_round_minor' => 0,
             'tax_bps' => 800,
-            'use_color' => false,
+            'use_color' => $this->useColor,
             'use_category' => false,
             'use_size' => false,
             'use_condition' => false,
             'use_department' => false,
-            'use_brand' => false,
+            'use_brand' => $this->useBrand,
             'label_stock' => 'avery_8160',
-            'booth_rentals_enabled' => false,
+            'booth_rentals_enabled' => $this->rentals,
             'rent_cycle_day' => 1,
             'consignment_enabled' => true,
             'store_stock_enabled' => false,

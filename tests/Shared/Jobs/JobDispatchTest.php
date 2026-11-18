@@ -108,8 +108,17 @@ final class JobDispatchTest extends TestCase
     public function testAnEmptyDigestSendsNothing(): void
     {
         $empty = $this->emptyRows();
+        $weekly = $this->weeklyMailEnabled();
         $pdo = $this->createMock(PDO::class);
-        $pdo->expects($this->exactly(2))->method('query')->willReturn($empty);
+        $pdo->expects($this->exactly(3))->method('query')->willReturnCallback(
+            static function (string $sql) use ($weekly, $empty): PDOStatement {
+                if (str_contains($sql, 'vendor_weekly_mail_enabled')) {
+                    return $weekly;
+                }
+
+                return $empty;
+            }
+        );
         $logger = $this->createStub(LoggerInterface::class);
         $job = new DigestJob(
             $pdo,
@@ -189,6 +198,15 @@ final class JobDispatchTest extends TestCase
     {
         $sqlite = new PDO('sqlite::memory:');
         $statement = $sqlite->query('SELECT 1 AS id WHERE 0');
+        self::assertInstanceOf(PDOStatement::class, $statement);
+
+        return $statement;
+    }
+
+    private function weeklyMailEnabled(): PDOStatement
+    {
+        $sqlite = new PDO('sqlite::memory:');
+        $statement = $sqlite->query("SELECT 't' AS vendor_weekly_mail_enabled");
         self::assertInstanceOf(PDOStatement::class, $statement);
 
         return $statement;

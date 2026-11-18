@@ -105,7 +105,7 @@ final class MasterLoader
                 'first_name' => MirrorFields::text($row['first_name'] ?? null, 'Vendor'),
                 'last_name' => MirrorFields::text($row['last_name'] ?? null, 'Consignor'),
                 'phone' => MirrorFields::text($row['phone'] ?? null),
-                'email' => $this->email(MirrorFields::text($row['email'] ?? null)),
+                'email' => MirrorFields::email(MirrorFields::text($row['email'] ?? null)),
                 'address' => MirrorFields::text($row['address'] ?? null),
                 'city' => '',
                 'state' => '',
@@ -250,19 +250,6 @@ final class MasterLoader
         }
 
         return 0;
-    }
-
-    private function email(string $value): string
-    {
-        $trimmed = trim($value);
-        if ($trimmed === '') {
-            return '';
-        }
-        if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $trimmed) !== 1) {
-            return '';
-        }
-
-        return $trimmed;
     }
 
     /**

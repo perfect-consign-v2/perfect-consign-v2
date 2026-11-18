@@ -31,10 +31,34 @@ final class NameIdTest extends TestCase
         self::assertSame('color-1', (new NameListStore($this->statements('color-1'), new CatalogLinks($this->statements('color-1'))))->idForName($list, 'Red'));
     }
 
+    public function testAnInactiveBrandIsRefused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('That brand is inactive.');
+        (new IntakeCatalog($this->inactive()))->brandId('Ada');
+    }
+
+    public function testAnInactiveColorIsRefused(): void
+    {
+        $list = NameList::fromPath('colors');
+        self::assertInstanceOf(NameList::class, $list);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('That color is inactive.');
+        (new NameListStore($this->inactive(), new CatalogLinks($this->inactive())))->idForName($list, 'Red');
+    }
+
     private function statements(mixed $id): Statements
     {
         $statements = $this->createStub(Statements::class);
-        $statements->method('bound')->willReturn([['id' => $id]]);
+        $statements->method('bound')->willReturn([['id' => $id, 'active' => true]]);
+
+        return $statements;
+    }
+
+    private function inactive(): Statements
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('bound')->willReturn([['id' => 'asleep', 'active' => false]]);
 
         return $statements;
     }

@@ -49,4 +49,13 @@ final class NameBoardTest extends TestCase
         self::assertSame(2, $marked[0]['use_count']);
         self::assertSame('', NameBoard::confirming($marked, $id));
     }
+
+    public function testConfirmAcceptsOnlyADeletableId(): void
+    {
+        $id = '01900000-0000-7000-8000-0000000000b1';
+
+        self::assertSame('', NameBoard::confirming([], 'nope'));
+        self::assertSame('', NameBoard::confirming([['id' => $id, 'deletable' => false]], $id));
+        self::assertSame($id, NameBoard::confirming([['id' => $id, 'deletable' => true]], strtoupper($id)));
+    }
 }

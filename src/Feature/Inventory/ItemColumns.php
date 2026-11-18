@@ -6,12 +6,16 @@ namespace PerfectConsign\Feature\Inventory;
 
 use PerfectConsign\Feature\Catalog\NameList;
 
-/** Header columns for the staff and vendor item tables. The key is what the browser sends back. */
+/**
+ * Header columns for the staff and vendor item tables. The key is what the browser sends back.
+ *
+ * @phpstan-type Column array{label: string, actions?: bool, sort?: string, token?: string, select?: bool, key?: string, class?: string}
+ */
 final class ItemColumns
 {
     /**
      * @param list<NameList> $attributes
-     * @return list<array<string, mixed>>
+     * @return list<Column>
      */
     public static function staff(string $brand, array $attributes, string $seller): array
     {
@@ -28,7 +32,7 @@ final class ItemColumns
 
     /**
      * @param list<NameList> $attributes
-     * @return list<array<string, mixed>>
+     * @return list<Column>
      */
     public static function vendor(string $brand, array $attributes): array
     {
@@ -43,7 +47,7 @@ final class ItemColumns
     }
 
     /**
-     * @param list<array<string, mixed>> $columns
+     * @param list<Column> $columns
      * @return list<string>
      */
     public static function keys(array $columns): array
@@ -61,7 +65,7 @@ final class ItemColumns
 
     /**
      * @param list<NameList> $attributes
-     * @return list<array<string, mixed>>
+     * @return list<Column>
      */
     private static function shared(string $brand, array $attributes): array
     {
@@ -78,7 +82,7 @@ final class ItemColumns
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<Column>
      */
     private static function staffTail(): array
     {
@@ -93,7 +97,7 @@ final class ItemColumns
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<Column>
      */
     private static function vendorTail(): array
     {

@@ -154,8 +154,8 @@ final class CopyBranchesTest extends TestCase
             'stocks' => [],
             'consignmentOnly' => true,
         ]);
-        self::assertStringContainsString('description, or consignor', $inventory);
-        self::assertStringNotContainsString('description, or vendor', $inventory);
+        self::assertStringContainsString('aria-label="Filter Consignor"', $inventory);
+        self::assertStringNotContainsString('aria-label="Filter Vendor"', $inventory);
 
         $form = $this->render('Feature/Inventory/inventory-form.php', $this->inventoryForm(true));
         self::assertStringContainsString('<label for="vendor_label">Consignor</label>', $form);

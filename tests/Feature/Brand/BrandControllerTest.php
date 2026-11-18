@@ -24,17 +24,6 @@ final class BrandControllerTest extends TestCase
         self::assertSame('keep this', $error->invoke($controller, 'keep this'));
     }
 
-    public function testConfirmNeedsAListedId(): void
-    {
-        $controller = (new ReflectionClass(BrandController::class))->newInstanceWithoutConstructor();
-        $confirm = new ReflectionMethod(BrandController::class, 'confirming');
-        $id = '01900000-0000-7000-8000-0000000000b1';
-        self::assertSame('', $confirm->invoke($controller, [], 'nope'));
-        self::assertSame('', $confirm->invoke($controller, [['id' => $id, 'deletable' => false]], 'nope'));
-        self::assertSame($id, $confirm->invoke($controller, [['id' => $id, 'deletable' => false]], $id));
-        self::assertSame($id, $confirm->invoke($controller, [['id' => $id, 'deletable' => true]], strtoupper($id)));
-    }
-
     public function testADraftNameFallsBackToFind(): void
     {
         $statements = $this->createMock(Statements::class);
