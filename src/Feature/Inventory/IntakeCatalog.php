@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
+use PerfectConsign\Feature\Catalog\CatalogFlag;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -87,7 +88,7 @@ final class IntakeCatalog
         return $this->statements->bound(
             'SELECT id::text AS id, name
              FROM brands
-             WHERE strpos(lower(name), ?) > 0
+             WHERE active AND strpos(lower(name), ?) > 0
              ORDER BY lower(name), name
              LIMIT 20',
             [$needle]
@@ -110,9 +111,15 @@ final class IntakeCatalog
     public function brandId(string $name): ?string
     {
         $rows = $this->statements->bound(
-            'SELECT id::text AS id FROM brands WHERE lower(name) = lower(?)',
+            'SELECT id::text AS id, active FROM brands WHERE lower(name) = lower(?)',
             [$name]
         );
+        if ($rows === []) {
+            return null;
+        }
+        if (!CatalogFlag::on($rows[0]['active'] ?? null)) {
+            throw new \InvalidArgumentException('That brand is inactive.');
+        }
         $id = $rows[0]['id'] ?? null;
         if (!is_string($id) || $id === '') {
             return null;

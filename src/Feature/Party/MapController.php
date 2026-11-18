@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Party;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Catalog\CatalogFlag;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -134,6 +135,9 @@ final class MapController
         $floorId = $this->floorId($floors);
         $booths = [];
         foreach ($this->parties->booths() as $booth) {
+            if (!$this->offered($booth)) {
+                continue;
+            }
             $booths[] = [
                 'id' => RowValue::string($booth['id'] ?? null),
                 'code' => RowValue::string($booth['code'] ?? null),
@@ -168,6 +172,9 @@ final class MapController
     {
         $booths = [];
         foreach ($this->parties->booths() as $booth) {
+            if (!$this->offered($booth)) {
+                continue;
+            }
             $x = self::optionalFeet($booth['x_ft'] ?? null);
             $z = self::optionalFeet($booth['z_ft'] ?? null);
             $onFloor = RowValue::optionalString($booth['floor_id'] ?? null) === $floorId;
@@ -193,6 +200,14 @@ final class MapController
             $this->mall->boothSize()['width'],
             $this->mall->boothSize()['depth']
         );
+    }
+
+    /**
+     * @param array<string, mixed> $booth
+     */
+    private function offered(array $booth): bool
+    {
+        return CatalogFlag::on($booth['active'] ?? true);
     }
 
     /**

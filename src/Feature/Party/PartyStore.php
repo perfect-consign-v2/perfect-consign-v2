@@ -137,7 +137,7 @@ class PartyStore
     public function booths(): array
     {
         return $this->statements->rows(
-            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id FROM booths ORDER BY code'
+            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id, active FROM booths ORDER BY code'
         );
     }
 
@@ -328,7 +328,7 @@ class PartyStore
     public function findBooth(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id FROM booths WHERE id = ?::uuid',
+            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id, active FROM booths WHERE id = ?::uuid',
             [$id]
         );
 

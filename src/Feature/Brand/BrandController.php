@@ -6,6 +6,8 @@ namespace PerfectConsign\Feature\Brand;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Catalog\NameBoard;
+use PerfectConsign\Feature\Catalog\NameStanding;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Tenant\TenantRecord;
@@ -29,7 +31,14 @@ final class BrandController
     {
         $tenant = $this->requireBrand($slug);
         $query = trim($this->app->request()->query('q'));
-        $brands = $this->withUse($this->brands->brands($query));
+        $standing = NameStanding::chosen($this->app->request()->query('status'));
+        $held = $this->brands->referenced();
+        $counts = $this->brands->itemCounts();
+        $matched = NameBoard::mark($this->brands->brands($query), $held, $counts);
+        $split = NameStanding::split($matched, $standing);
+        $brands = $split['rows'];
+        $all = $query === '' ? $matched : NameBoard::mark($this->brands->brands(''), $held, $counts);
+        $merge = NameBoard::merge($all, $this->app->request()->query('merge'));
         if ($modal === null) {
             $modal = '';
             if ($this->app->request()->query('new') === '1') {
@@ -49,8 +58,14 @@ final class BrandController
             'slug' => $tenant->slug,
             'brands' => $brands,
             'query' => $query,
-            'total' => $query === '' ? count($brands) : $this->brands->count(),
-            'confirm' => $this->confirming($brands, $this->app->request()->query('confirm')),
+            'standing' => $standing,
+            'activeCount' => $split['active'],
+            'inactiveCount' => $split['inactive'],
+            'total' => $this->brands->count(),
+            'confirm' => NameBoard::confirming($brands, $this->app->request()->query('confirm')),
+            'merge' => $merge['id'],
+            'mergeSentence' => $merge['sentence'],
+            'mergeChoices' => $merge['choices'],
             'modal' => $modal,
             'draft' => $draft,
             'error' => $error,
@@ -96,22 +111,46 @@ final class BrandController
     public function remove(string $slug, string $id): void
     {
         $this->app->checkCsrf();
-        $this->requireBrand($slug);
-        $error = null;
-        try {
+        $this->attempt($slug, 'Brand deleted.', function () use ($id): void {
             $this->brands->remove($id);
-        } catch (DatabaseRefusal $refusal) {
-            $error = $this->brandError($this->app->catchRefusal($refusal));
-        } catch (\InvalidArgumentException $errorValue) {
-            $error = $errorValue->getMessage();
+        }, null, '', $this->landing());
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/brands/([0-9a-fA-F-]{36})/active', ['POST'])]
+    public function active(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $flag = $this->app->request()->field('active');
+        if ($flag !== '0' && $flag !== '1') {
+            $this->requireBrand($slug);
+            $this->list($slug, 'Choose active or inactive.');
+
+            return;
         }
-        if ($error === null) {
-            $this->app->redirect('/' . $slug . '/brands', 'Brand deleted.');
-        }
-        $this->list($slug, $error);
+        $saved = $flag === '1' ? 'Brand is active.' : 'Brand is inactive.';
+        $landing = $flag === '1' ? '' : '?status=inactive';
+        $this->attempt($slug, $saved, function () use ($id, $flag): void {
+            $this->brands->setActive($id, $flag === '1');
+        }, null, '', $landing);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/brands/([0-9a-fA-F-]{36})/merge', ['POST'])]
+    public function merge(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $target = $this->app->request()->field('target');
+        $this->attempt($slug, 'Brand merged.', function () use ($id, $target): void {
+            $this->brands->merge($id, $target);
+        });
     }
 
     private function change(string $slug, ?string $id, callable $action): void
+    {
+        $saved = $id === null ? 'Brand created.' : 'Brand saved.';
+        $this->attempt($slug, $saved, $action, $id ?? 'new', $this->app->request()->field('name'), $id === null ? '' : $this->landing());
+    }
+
+    private function attempt(string $slug, string $saved, callable $action, ?string $modal = null, string $draft = '', string $landing = ''): void
     {
         $this->requireBrand($slug);
         $error = null;
@@ -123,9 +162,14 @@ final class BrandController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect('/' . $slug . '/brands', $id === null ? 'Brand created.' : 'Brand saved.');
+            $this->app->redirect('/' . $slug . '/brands' . $landing, $saved);
         }
-        $this->list($slug, $error, $id ?? 'new', $this->app->request()->field('name'));
+        $this->list($slug, $error, $modal, $draft);
+    }
+
+    private function landing(): string
+    {
+        return $this->app->request()->field('status') === 'inactive' ? '?status=inactive' : '';
     }
 
     /**
@@ -141,42 +185,6 @@ final class BrandController
         $brand = $this->brands->find($id);
 
         return is_array($brand) && is_string($brand['name'] ?? null) ? $brand['name'] : '';
-    }
-
-    /**
-     * @param list<array<string, mixed>> $brands
-     * @return list<array<string, mixed>>
-     */
-    private function withUse(array $brands): array
-    {
-        $held = $this->brands->referenced();
-        $marked = [];
-        foreach ($brands as $brand) {
-            $id = $brand['id'] ?? null;
-            $brand['deletable'] = is_string($id) && !isset($held[$id]);
-            $marked[] = $brand;
-        }
-
-        return $marked;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $brands
-     */
-    private function confirming(array $brands, string $confirm): string
-    {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $confirm) !== 1) {
-            return '';
-        }
-        $needle = strtolower($confirm);
-        foreach ($brands as $brand) {
-            $id = $brand['id'] ?? null;
-            if (is_string($id) && strtolower($id) === $needle && ($brand['deletable'] ?? false) === true) {
-                return $id;
-            }
-        }
-
-        return '';
     }
 
     private function requireBrand(string $slug): TenantRecord

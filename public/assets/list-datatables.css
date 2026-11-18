@@ -107,14 +107,37 @@ div.dt-button-collection .dt-button.dt-button-active {
 
 .list-dt-wrap .list-dt-th {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
     gap: var(--space-2);
     min-width: 0;
     flex: 1 1 auto;
-    align-items: stretch;
 }
 
-.list-dt-wrap .dt-column-header {
+.list-dt-wrap thead tr.list-dt-filters th,
+.list-dt-wrap .dt-scroll-head thead tr.list-dt-filters th {
+    border-bottom: 0;
+    padding-bottom: 0.35rem;
+    vertical-align: bottom;
+}
+
+.list-dt-wrap thead tr.list-dt-titles th,
+.list-dt-wrap .dt-scroll-head thead tr.list-dt-titles th {
+    padding-top: 0.35rem;
+}
+
+.list-dt-wrap table.dataTable thead > tr.list-dt-filters > th div.dt-column-header,
+.list-dt-wrap .dt-scroll-head table.dataTable thead > tr.list-dt-filters > th div.dt-column-header {
+    display: block;
+}
+
+.list-dt-wrap tr.list-dt-filters .dt-column-order,
+.list-dt-wrap tr.list-dt-filters .dt-column-title {
+    display: none;
+}
+
+.list-dt-wrap table.dataTable thead > tr.list-dt-titles > th div.dt-column-header,
+.list-dt-wrap .dt-scroll-head table.dataTable thead > tr.list-dt-titles > th div.dt-column-header {
     align-items: flex-end;
 }
 

@@ -120,22 +120,23 @@ final class VendorHomePageTest extends TestCase
         $html = ob_get_clean();
         self::assertIsString($html);
         self::assertStringContainsString('aria-current="page"', $html);
-        self::assertStringContainsString('name="stock" value="out"', $html);
+        self::assertStringContainsString('stock=out', $html);
+        self::assertStringNotContainsString('role="search"', $html);
         self::assertStringContainsString('Your items with quantity zero', $html);
         self::assertStringContainsString('sticker-job-shell', $html);
         self::assertStringNotContainsString('Check items, then print from the bar at the bottom.', $html);
-        self::assertStringContainsString('Search tag, barcode, description, or brand', $html);
+        self::assertStringContainsString('list-dt-filter', $html);
+        self::assertStringNotContainsString('Search tag, barcode, description, or brand', $html);
         self::assertStringContainsString('&amp;q=Coat', $html);
         self::assertStringContainsString('stock=out&amp;q=Coat', $html);
         self::assertDoesNotMatchRegularExpression('/href="[^"]*stock=&amp;q=Coat/', $html);
         self::assertStringContainsString('>Brand<', $html);
-        self::assertStringContainsString('class="muted">—', $html);
-        self::assertStringContainsString('Wool', $html);
-        self::assertStringContainsString('12-01-2026', $html);
+        self::assertStringContainsString('data-dt-server="1"', $html);
+        self::assertStringContainsString('<tbody></tbody>', $html);
+        self::assertStringNotContainsString('Wool', $html);
         self::assertStringContainsString('id="stickers"', $html);
         self::assertStringContainsString('inventory-selection-bar', $html);
-        self::assertStringContainsString('Overridden', $html);
-        self::assertStringContainsString('name="as"', $html);
+        self::assertStringContainsString('as=01900000-0000-7000-8000-0000000000aa', $html);
         ob_start();
         $view->render('Feature/Vendor/items', [
             'slug' => 'demo',
@@ -153,7 +154,8 @@ final class VendorHomePageTest extends TestCase
         ]);
         $plain = ob_get_clean();
         self::assertIsString($plain);
-        self::assertStringContainsString('Search tag, barcode, or description', $plain);
+        self::assertStringContainsString('list-dt-filter', $plain);
+        self::assertStringNotContainsString('Search tag, barcode, or description', $plain);
         self::assertStringNotContainsString('&amp;q=', $plain);
         self::assertStringNotContainsString('>Brand<', $plain);
         ob_start();
@@ -177,7 +179,8 @@ final class VendorHomePageTest extends TestCase
         self::assertStringContainsString('Your items that still need a sticker printed.', $stickers);
         self::assertStringContainsString('Check items, then print from the bar at the bottom.', $stickers);
         self::assertStringContainsString('sticker-job-shell', $stickers);
-        self::assertStringContainsString('form="stickers"', $stickers);
+        self::assertStringContainsString('data-dt-server="1"', $stickers);
+        self::assertStringContainsString('id="stickers"', $stickers);
         ob_start();
         $view->render('Feature/Vendor/items', [
             'slug' => 'demo',
@@ -196,8 +199,8 @@ final class VendorHomePageTest extends TestCase
         $empty = ob_get_clean();
         self::assertIsString($empty);
         self::assertStringContainsString('No items match.', $empty);
-        self::assertStringNotContainsString('id="stickers"', $empty);
-        self::assertStringNotContainsString('inventory-selection-bar', $empty);
+        self::assertStringContainsString('id="stickers"', $empty);
+        self::assertStringContainsString('inventory-selection-bar', $empty);
         ob_start();
         $view->render('Feature/Vendor/sales', [
             'slug' => 'demo',

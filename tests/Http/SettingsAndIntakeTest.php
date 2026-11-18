@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
+use PerfectConsign\Tests\Support\ItemListBody;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 
@@ -180,7 +181,10 @@ final class SettingsAndIntakeTest extends WebTestCase
             . "\n",
         );
         self::assertSees('1 tag brought in.', $this->client->upload('/' . $slug . '/inventory/import', [], ['tags' => $good]));
-        self::assertSees($tag, $this->client->get('/' . $slug . '/inventory?q=' . rawurlencode($tag)));
+        self::assertStringContainsString(
+            $tag,
+            ItemListBody::html($this->client, '/' . $slug . '/inventory?q=' . rawurlencode($tag)),
+        );
     }
 
     public function testAPhotoCanBeAttachedToAnItem(): void
@@ -206,8 +210,8 @@ final class SettingsAndIntakeTest extends WebTestCase
             'intake_on' => '2026-09-01',
         ]);
         self::assertSees('Item created.', $created);
-        $list = $this->client->get('/' . $slug . '/inventory?q=' . rawurlencode($tag));
-        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', 'Photo ' . $tag);
+        $list = ItemListBody::html($this->client, '/' . $slug . '/inventory?q=' . rawurlencode($tag));
+        $itemId = HtmlPage::taggedId($list, 'tr', 'item', 'Photo ' . $tag);
         $photo = '/' . $slug . '/inventory/' . $itemId . '/photo';
         self::assertSame(404, $this->client->get($photo)->status);
         self::assertSees('Choose a photo.', $this->client->post($photo, []));

@@ -229,6 +229,18 @@ JS;
         return $this->page->getHtml(15000);
     }
 
+    public function until(string $needle): string
+    {
+        $deadline = microtime(true) + 8;
+        $html = $this->html();
+        while (!str_contains($html, $needle) && microtime(true) < $deadline) {
+            usleep(100_000);
+            $html = $this->html();
+        }
+
+        return $html;
+    }
+
     /**
      * DataTables keeps only the current page in the DOM. Expand every list table so
      * assertions and taggedId() can see rows that would otherwise be on page 2+.
@@ -240,8 +252,11 @@ function () {
     if (!window.jQuery || !jQuery.fn.dataTable) {
         return;
     }
-    jQuery('table.list-dt').each(function () {
-        const api = jQuery(this).DataTable();
+        jQuery('table.list-dt').each(function () {
+            if (this.getAttribute('data-dt-server') === '1') {
+                return;
+            }
+            const api = jQuery(this).DataTable();
         api.page.len(-1).draw(false);
     });
 }

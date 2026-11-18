@@ -22,7 +22,7 @@ final class InventoryStore
         private readonly CatalogLinks $links,
         private readonly MallSettings $mall,
     ) {
-        $this->guard = new ItemGuard($statements);
+        $this->guard = new ItemGuard($statements, $mall);
         $this->marks = new ItemMarkAllocator($statements);
     }
 
@@ -112,6 +112,17 @@ final class InventoryStore
     }
 
     /**
+     * Which of these item ids another row still points at.
+     *
+     * @param list<string> $ids
+     * @return array<string, true>
+     */
+    public function held(array $ids): array
+    {
+        return $this->links->referencedAmong('items', $ids);
+    }
+
+    /**
      * @param list<string> $ids
      * @return list<array<string, mixed>>
      */
@@ -131,7 +142,7 @@ final class InventoryStore
 
     private function place(?string $id, ItemEntry $item, string $today): string
     {
-        $this->guard->accept($item);
+        $this->guard->accept($item, $id === null ? null : $this->find($id));
         $refusal = null;
         $attempt = 0;
         $stored = '';

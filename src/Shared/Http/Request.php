@@ -62,6 +62,21 @@ final class Request
         return trim($value);
     }
 
+    /**
+     * Nested query values such as DataTables columns, order, and search.
+     *
+     * @return array<mixed>
+     */
+    public function queryList(string $name): array
+    {
+        $value = $this->query[$name] ?? null;
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return $value;
+    }
+
     public function raw(string $name): string
     {
         $value = $this->post[$name] ?? '';

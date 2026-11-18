@@ -250,7 +250,8 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('Item created.', $page);
         self::assertSees('#' . $vendor, $page);
         self::assertSees('value="2026-09-01"', $page);
-        $list = $this->session->open('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
+        $this->session->open('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
+        $list = $this->session->until($created);
         self::assertSees($created, $list);
         self::assertSees('12.50', $list);
         $itemId = HtmlPage::taggedId($list, 'tr', 'item', $tag);

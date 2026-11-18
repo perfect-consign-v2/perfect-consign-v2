@@ -193,12 +193,12 @@ final class MallSettings
     /**
      * Raw columns. Inventory can still be true while the portal is off until a building save clears it.
      *
-     * @return array{portal: bool, inventory: bool}
+     * @return array{portal: bool, inventory: bool, weekly: bool}
      */
     public function getVendorFlags(): array
     {
         $rows = $this->statements->rows(
-            'SELECT vendor_portal_enabled, vendor_inventory_enabled FROM mall'
+            'SELECT vendor_portal_enabled, vendor_inventory_enabled, vendor_weekly_mail_enabled FROM mall'
         );
         $row = $rows[0] ?? null;
         if (!is_array($row)) {
@@ -208,6 +208,7 @@ final class MallSettings
         return [
             'portal' => MallGuard::flag($row['vendor_portal_enabled'] ?? null),
             'inventory' => MallGuard::flag($row['vendor_inventory_enabled'] ?? null),
+            'weekly' => MallGuard::flag($row['vendor_weekly_mail_enabled'] ?? null),
         ];
     }
 
@@ -257,6 +258,7 @@ final class MallSettings
         ?int $floorDays,
         string $cashRound,
         int $taxRate,
+        bool $weeklyMail,
     ): void {
         MallGuard::requireZone($timeZone);
         MallGuard::requireFeet($write->boothWidth, $write->boothDepth, 'booth size is whole feet');
@@ -266,7 +268,7 @@ final class MallSettings
         MallGuard::guardDays($floorDays);
         $step = CashRound::parse($cashRound);
         $this->statements->change(
-            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_minor = ?, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean, use_brand = ?::boolean, vendor_portal_enabled = ?::boolean, vendor_inventory_enabled = ?::boolean',
+            'UPDATE mall SET time_zone = ?, booth_width_ft = ?, booth_depth_ft = ?, floor_width_ft = ?, floor_depth_ft = ?, commission_bps = ?, floor_days = ?, cash_round_minor = ?, tax_bps = ?, use_color = ?::boolean, use_category = ?::boolean, use_size = ?::boolean, use_condition = ?::boolean, use_department = ?::boolean, use_brand = ?::boolean, vendor_portal_enabled = ?::boolean, vendor_inventory_enabled = ?::boolean, vendor_weekly_mail_enabled = ?::boolean',
             [
                 $timeZone,
                 $write->boothWidth,
@@ -278,6 +280,7 @@ final class MallSettings
                 $step,
                 $taxRate,
                 ...$write->flags->stored(),
+                $weeklyMail ? 'true' : 'false',
             ]
         );
     }

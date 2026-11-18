@@ -4,6 +4,8 @@ Implement this in `C:\laragon\www\perfect-consign` only. Do not edit `curser-pos
 
 The storefront already shipped the same behavior in `curser-pos-web` commit `77ee953`. Copy the behavior. Do not copy that app’s server-side DataTables code. This app renders every item into the page, then `public/assets/js/list-datatables.js` pages the table in the browser.
 
+Staff Items and the vendor item list are server-paged. The first HTML is the shell; one page comes from the rows URL. Do not put every item back into that HTML.
+
 ## What is wrong
 
 Staff Items (`/{slug}/inventory`, table `#list-inventory`) is a client-side DataTable. `initTable` always sets `scrollY`, `scrollX`, and `scrollCollapse`. `scrollY` is the viewport minus the wrap top minus 130px, and at least 220px. Sheet fields and Print stickers live on the sticky selection bar (not a permanent card above the table). An older full sticker card above the list collapsed the row area to a few lines. The page does not scroll through the rows.

@@ -106,11 +106,7 @@ $booths = static function (int $count): string {
         <div class="stat-value"><?= View::text(View::money($owedTotal)) ?></div>
         <div class="stat-delta muted"><?= View::text($booths(count($owing))) ?></div>
     </div>
-    <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search booth or vendor" aria-label="Search booth or vendor">
-        <button class="btn" type="submit">Search</button>
-    </form>
-    <div class="card table-wrap list-dt-wrap mt-4">
+    <div class="card table-wrap list-dt-wrap mt-6">
         <?php if ($owing === []): ?>
             <div class="empty"><p>Nobody owes rent.</p></div>
         <?php else: ?>
@@ -175,16 +171,7 @@ $booths = static function (int $count): string {
         </div>
     </div>
 
-    <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <input type="hidden" name="month" value="<?= View::text($month) ?>">
-        <?php if ($standing !== ''): ?>
-            <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
-        <?php endif; ?>
-        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search booth or vendor" aria-label="Search booth or vendor">
-        <button class="btn" type="submit">Search</button>
-    </form>
-
-    <p class="occupancy-summary" aria-label="Rent standing">
+    <p class="occupancy-summary mt-6" aria-label="Rent standing">
         <?php
         $all = $monthQuery;
         if ($query !== '') {

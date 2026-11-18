@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
+use PerfectConsign\Tests\Support\ItemListBody;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 use PHPUnit\Framework\Attributes\Group;
@@ -102,9 +103,9 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSame(1, preg_match('/sale:[0-9a-f-]{36}/', $journal->body, $key));
         self::assertSees($key[0], $journal);
         self::assertSees('<p>Sale</p>', $journal);
-        $list = $this->client->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
-        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $description);
-        self::assertSame(1, preg_match('/<tr id="item-' . preg_quote($itemId, '/') . '">.*?<\/tr>/s', $list->body, $row));
+        $list = ItemListBody::html($this->client, '/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
+        $itemId = HtmlPage::taggedId($list, 'tr', 'item', $description);
+        self::assertSame(1, preg_match('/<tr id="item-' . preg_quote($itemId, '/') . '">.*?<\/tr>/s', $list, $row));
         self::assertStringNotContainsString('Delete', $row[0]);
         self::assertStringNotContainsString('In use', $row[0]);
         self::assertStringNotContainsString('Delete this item?', $this->client->get('/' . ProbeMall::SLUG . '/inventory?confirm=' . $itemId)->body);
@@ -123,7 +124,7 @@ final class OwnerJourneyTest extends WebTestCase
             'store_take' => '',
         ]);
         self::assertSees('That price is already on a sale.', $refused);
-        self::assertStringContainsString('$10.02', $this->client->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag))->body);
+        self::assertStringContainsString('$10.02', ItemListBody::html($this->client, '/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag)));
         $blocked = $this->client->post('/' . ProbeMall::SLUG . '/inventory/' . $itemId . '/delete', []);
         self::assertSees('That item is in use.', $blocked);
         self::assertStringNotContainsString('Delete this item?', $blocked->body);
@@ -260,16 +261,16 @@ final class OwnerJourneyTest extends WebTestCase
         self::assertSees('value="2026-10-01"', $page);
         self::assertStringNotContainsString('2026-12-01', $page->body);
         self::assertStringNotContainsString($created, $page->body);
-        $list = $this->client->get('/' . ProbeMall::SLUG . '/inventory');
-        self::assertSees($tag, $list);
-        self::assertSees($created, $list);
-        self::assertSees($brand, $list);
-        self::assertSees($barcode, $list);
-        self::assertSees('12-01-2026', $list);
-        self::assertSees('Overridden', $list);
-        self::assertSees($label, $list);
-        self::assertSees('>4<', $list);
-        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $tag);
+        $list = ItemListBody::html($this->client, '/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($tag));
+        self::assertStringContainsString($tag, $list);
+        self::assertStringContainsString($created, $list);
+        self::assertStringContainsString($brand, $list);
+        self::assertStringContainsString($barcode, $list);
+        self::assertStringContainsString('12-01-2026', $list);
+        self::assertStringContainsString('Overridden', $list);
+        self::assertStringContainsString($label, $list);
+        self::assertStringContainsString('>4<', $list);
+        $itemId = HtmlPage::taggedId($list, 'tr', 'item', $tag);
         $update = '/' . ProbeMall::SLUG . '/inventory/' . $itemId;
         $edited = $this->client->post($update, [
             'code' => $tag,

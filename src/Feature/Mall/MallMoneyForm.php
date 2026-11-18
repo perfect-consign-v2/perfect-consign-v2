@@ -57,13 +57,15 @@ final class MallMoneyForm
         $booth = $this->mall->boothSize();
         $floor = $this->mall->floorSize();
         try {
+            $stored = $this->mall->getVendorFlags();
             $this->mall->save(
                 $this->mall->timeZone(),
-                MallWrite::posted($booth['width'], $booth['depth'], $floor['width'], $floor['depth'], $this->storedFlags()),
+                MallWrite::posted($booth['width'], $booth['depth'], $floor['width'], $floor['depth'], $this->storedFlags($stored)),
                 $basis,
                 $this->mall->floorDays(),
                 $this->postedRound(),
                 $taxBasis,
+                $stored['weekly'],
             );
             $shop = $this->payouts->getPostedShop(
                 $this->app->request()->field('shop_flags'),
@@ -100,12 +102,11 @@ final class MallMoneyForm
     }
 
     /**
+     * @param array{portal: bool, inventory: bool, weekly: bool} $portal
      * @return array{color: bool, category: bool, size: bool, condition: bool, department: bool, brand: bool, portal: bool, inventory: bool}
      */
-    private function storedFlags(): array
+    private function storedFlags(array $portal): array
     {
-        $portal = $this->mall->getVendorFlags();
-
         return [
             'color' => $this->mall->enabled('use_color'),
             'category' => $this->mall->enabled('use_category'),

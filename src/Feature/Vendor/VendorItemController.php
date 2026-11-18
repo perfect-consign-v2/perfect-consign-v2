@@ -150,7 +150,8 @@ final class VendorItemController
      *     expires_on: string,
      *     placement: string,
      *     brand_id: string,
-     *     attributes: array<string, string>
+     *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>
      * } $posted
      */
     private function show(string $slug, array $posted, string $printId, ?string $error): void
@@ -164,9 +165,6 @@ final class VendorItemController
             'slug' => $tenant->slug,
             'item' => $posted,
             'choices' => $choices,
-            'brandOn' => $this->catalog->brandOn(),
-            'brands' => $this->catalog->brands(),
-            'attributes' => $this->catalog->attributes(),
             'floorDays' => $days === null ? '' : (string) $days,
             'labelStock' => $this->catalog->labelStock(),
             'stocks' => $this->catalog->stocks(),
@@ -187,7 +185,8 @@ final class VendorItemController
      *     expires_on: string,
      *     placement: string,
      *     brand_id: string,
-     *     attributes: array<string, string>
+     *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>
      * }
      */
     private function blank(string $intake, string $placement, string $expires): array
@@ -201,6 +200,7 @@ final class VendorItemController
             'expires_on' => $expires,
             'placement' => $placement,
             'brand_id' => '',
+            'brand_label' => '',
             'attributes' => [],
         ];
     }
@@ -216,16 +216,13 @@ final class VendorItemController
      *     expires_on: string,
      *     placement: string,
      *     brand_id: string,
-     *     attributes: array<string, string>
+     *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>
      * }
      */
     private function fromRow(array $row): array
     {
         $stored = $this->forms->stored($row);
-        $attributes = [];
-        foreach ($stored['attributes'] as $key => $field) {
-            $attributes[$key] = $field['id'];
-        }
 
         return [
             'id' => $stored['id'],
@@ -236,7 +233,8 @@ final class VendorItemController
             'expires_on' => $stored['expires_on'],
             'placement' => RowValue::string($row['placement'] ?? null),
             'brand_id' => $stored['brand_id'],
-            'attributes' => $attributes,
+            'brand_label' => $stored['brand_label'],
+            'attributes' => $stored['attributes'],
         ];
     }
 
@@ -262,7 +260,8 @@ final class VendorItemController
      *     expires_on: string,
      *     placement: string,
      *     brand_id: string,
-     *     attributes: array<string, string>
+     *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>
      * }
      */
     private function redisplay(array $row, array $posted): array
@@ -276,7 +275,8 @@ final class VendorItemController
             'expires_on' => $posted['expires_on'],
             'placement' => RowValue::string($row['placement'] ?? null),
             'brand_id' => $posted['brand_id'],
-            'attributes' => $this->attributeIds($posted['attributes']),
+            'brand_label' => $posted['brand_label'],
+            'attributes' => $posted['attributes'],
         ];
     }
 
@@ -301,7 +301,8 @@ final class VendorItemController
      *     expires_on: string,
      *     placement: string,
      *     brand_id: string,
-     *     attributes: array<string, string>
+     *     brand_label: string,
+     *     attributes: array<string, array{id: string, label: string}>
      * }
      */
     private function viewFromPosted(array $posted): array
@@ -315,22 +316,9 @@ final class VendorItemController
             'expires_on' => $posted['expires_on'],
             'placement' => $posted['placement'],
             'brand_id' => $posted['brand_id'],
-            'attributes' => $this->attributeIds($posted['attributes']),
+            'brand_label' => $posted['brand_label'],
+            'attributes' => $posted['attributes'],
         ];
-    }
-
-    /**
-     * @param array<string, array{id: string, label: string}> $posted
-     * @return array<string, string>
-     */
-    private function attributeIds(array $posted): array
-    {
-        $attributes = [];
-        foreach ($posted as $key => $field) {
-            $attributes[$key] = $field['id'];
-        }
-
-        return $attributes;
     }
 
     /**
@@ -356,7 +344,7 @@ final class VendorItemController
             'expires_on' => $this->app->request()->field('expires_on'),
             'placement' => $this->app->request()->field('placement'),
             'brand_id' => $this->app->request()->field('brand_id'),
-            'brand_label' => '',
+            'brand_label' => $this->app->request()->field('brand_label'),
             'attributes' => $this->forms->postedAttributes(
                 fn (string $name): string => $this->app->request()->field($name),
             ),

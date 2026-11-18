@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
+use PerfectConsign\Feature\Mall\MallGuard;
 use PerfectConsign\Feature\Vendor\VendorFigures;
 use PerfectConsign\Feature\Vendor\VendorLetter;
 use PerfectConsign\Shared\Database\Statements;
@@ -29,6 +30,9 @@ final class DigestJob
     public function digest(string $tenant, string $date): void
     {
         unset($tenant);
+        if (!$this->weeklyMailOn()) {
+            return;
+        }
         $this->send('vendor-digest', $date, 'This week', 0);
     }
 
@@ -79,5 +83,16 @@ final class DigestJob
         if ($waiting) {
             throw new \RuntimeException('a letter is still waiting to be sent');
         }
+    }
+
+    private function weeklyMailOn(): bool
+    {
+        $rows = (new Statements($this->pdo))->rows('SELECT vendor_weekly_mail_enabled FROM mall');
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            throw new \RuntimeException('the mall has no clock');
+        }
+
+        return MallGuard::flag($row['vendor_weekly_mail_enabled'] ?? null);
     }
 }

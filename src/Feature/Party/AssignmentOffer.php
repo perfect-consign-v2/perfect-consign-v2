@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Party;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use PerfectConsign\Feature\Catalog\CatalogFlag;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Http\View;
 
@@ -68,6 +69,9 @@ final class AssignmentOffer
     {
         $listed = [];
         foreach ($booths as $booth) {
+            if (!CatalogFlag::on($booth['active'] ?? true)) {
+                continue;
+            }
             $id = $this->text($booth['id'] ?? null);
             $available = $this->availableOn($stays[$id] ?? [], $today);
             if ($available === null) {

@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
+use PerfectConsign\Tests\Support\ItemListBody;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 
@@ -79,6 +80,8 @@ final class CatalogStickerTest extends WebTestCase
         self::assertSees('That color is not in this mall.', $unknown);
         $asked = $this->client->get('/' . self::SLUG . '/colors?confirm=' . $id);
         self::assertSees('Delete this color?', $asked);
+        self::assertStringContainsString('id="name-delete"', $asked->body);
+        self::assertStringNotContainsString('id="name-delete" class="modal" role="dialog" aria-modal="true" aria-labelledby="name-delete-title" hidden', $asked->body);
         $gone = $this->client->post('/' . self::SLUG . '/colors/' . $id . '/delete', []);
         self::assertSees('Color deleted.', $gone);
     }
@@ -113,8 +116,8 @@ final class CatalogStickerTest extends WebTestCase
             'color_label' => $color,
         ]);
         self::assertSees('Item created.', $created);
-        $list = $this->client->get('/' . self::SLUG . '/inventory?q=' . rawurlencode($tag));
-        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', $description);
+        $list = ItemListBody::html($this->client, '/' . self::SLUG . '/inventory?q=' . rawurlencode($tag));
+        $itemId = HtmlPage::taggedId($list, 'tr', 'item', $description);
         $printed = $this->client->post('/' . self::SLUG . '/inventory/labels', [
             'stock' => 'avery_8160',
             'copies' => '2',
@@ -142,8 +145,10 @@ final class CatalogStickerTest extends WebTestCase
         ]);
         self::assertSees('How many is a number from 1 to 999.', $refused);
         self::assertSees('These bars may be hard to scan', $jewelry);
-        $held = $this->client->post('/' . self::SLUG . '/colors/' . $colorId . '/delete', []);
-        self::assertSees('That color is in use.', $held);
+        $held = $this->client->get('/' . self::SLUG . '/colors?q=' . rawurlencode($color));
+        self::assertSees('Make inactive', $held);
+        self::assertStringNotContainsString('This color is in use by 1 item. Are you sure you want to delete it?', $held->body);
+        self::assertStringContainsString('id="name-delete"', $held->body);
         $saved = $this->client->post('/' . self::SLUG . '/inventory/' . $itemId, [
             'code' => $tag,
             'description' => $description,

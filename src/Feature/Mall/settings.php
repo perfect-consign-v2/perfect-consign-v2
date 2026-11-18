@@ -290,6 +290,7 @@ $settingsTabs = [
         <?php
         $vendorPortal = ($vendorPortal ?? true) === true;
         $portalInventory = ($portalInventory ?? false) === true;
+        $weeklyMail = ($weeklyMail ?? false) === true;
         ?>
         <div class="field">
             <p class="muted text-sm">Vendor portal. The portal is the check, sales, deals, and the consignor account. Inventory is add, edit, delete, the item list, and sticker print, and it applies while the portal is on.</p>
@@ -310,7 +311,16 @@ $settingsTabs = [
                     </span>
                     Vendor inventory
                 </label>
+                <label class="switch-row" for="vendor_weekly_mail_enabled">
+                    <span class="switch">
+                        <input id="vendor_weekly_mail_enabled" name="vendor_weekly_mail_enabled" type="checkbox" value="1"<?= $weeklyMail ? ' checked' : '' ?>>
+                        <span class="switch-track" aria-hidden="true"></span>
+                        <span class="switch-knob" aria-hidden="true"></span>
+                    </span>
+                    Weekly vendor letter
+                </label>
             </div>
+            <p class="muted text-sm">Sunday note to each active vendor: Payable and Rent you owe. It starts off.</p>
         </div>
     </div>
     <div class="card-foot">

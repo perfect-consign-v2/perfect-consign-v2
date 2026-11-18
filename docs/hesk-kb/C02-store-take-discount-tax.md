@@ -1,7 +1,7 @@
 ---
 title: Store take / discount / tax on a line
 category: Sales and register
-hesk: published 2026-11-16
+hesk: published 2026-11-18
 as_of: 2026-11-12
 ---
 

@@ -17,6 +17,9 @@ final class InventoryListPageTest extends TestCase
         self::assertStringContainsString('Check items, then print from the bar at the bottom.', $html);
         self::assertStringContainsString('sticker-job-shell', $html);
         self::assertStringContainsString('inventory-selection-bar', $html);
+        self::assertStringContainsString('data-dt-server="1"', $html);
+        self::assertStringContainsString('<tbody></tbody>', $html);
+        self::assertStringNotContainsString('>T1<', $html);
         self::assertStringContainsString('form="stickers"', $html);
         self::assertStringContainsString('name="copies"', $html);
         self::assertStringContainsString('data-sticker-stock-key=', $html);

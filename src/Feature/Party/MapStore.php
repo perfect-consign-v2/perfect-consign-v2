@@ -107,7 +107,7 @@ final class MapStore
         $this->statements->transaction(function () use ($placed): void {
             $this->statements->change('SELECT floor_width_ft FROM mall FOR UPDATE', []);
             $this->statements->change(
-                'UPDATE booths SET x_ft = NULL, z_ft = NULL, floor_id = NULL WHERE x_ft IS NOT NULL',
+                'UPDATE booths SET x_ft = NULL, z_ft = NULL, floor_id = NULL WHERE x_ft IS NOT NULL AND active',
                 []
             );
             foreach ($placed as $row) {

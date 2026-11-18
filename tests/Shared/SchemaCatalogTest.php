@@ -25,6 +25,9 @@ final class SchemaCatalogTest extends TestCase
             '092_item_buy_expired.sql',
             '093_backup_readonly.sql',
             '095_vendor_portal.sql',
+            '096_vendor_weekly_mail.sql',
+            '097_catalog_active.sql',
+            '098_booth_active.sql',
         ], $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
         self::assertSame(['000_platform.sql', '094_wipe_keeps_reset_history.sql'], $platform);

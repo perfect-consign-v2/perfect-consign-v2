@@ -1,15 +1,15 @@
 ---
 title: Tag / barcode / asking price vs posted sale amount
 category: Inventory
-hesk: published 2026-11-16
-as_of: 2026-11-11
+hesk: published 2026-11-18
+as_of: 2026-11-17
 ---
 
 # Tag / barcode / asking price vs posted sale amount
 
 ## As of
 
-2026-11-11 — Tag may be left blank; TG + mall date + sequence fills it (same idea as barcode).
+2026-11-17 — Column filters and the search box search the whole Items list. The table shows one page of matches. A brand, color, category, size, condition, or department that anything still points at cannot be deleted. It can be marked inactive or merged into another name. The list opens on active names. Inactive names are on the Inactive list, where Make active puts one back. Inactive leaves the name on items that already use it and hides it from the next item. Merge moves those items onto the name you keep and removes the other one. A name that nothing points at can be deleted. A vendor an item still names cannot be deleted.
 
 ## In one sentence
 
@@ -27,15 +27,17 @@ Creating/editing items, printing stickers, ringing a sale.
 - Asking price is greater than zero. It is not a journal.
 - After a sale, asking price and consignor stay on the item. Return pays the consignor on the item.
 - Price and consignor editable until a sale is posted. Quantity 0 cannot be sold. On an open ticket, a sold-price change is audited; when the item has a floor, a price below that floor is refused.
-- Stickers print the barcode. Sheet choices name Avery 8160 / Avery 94073 (and hang/jewelry tags). Tags include brand, size, and intake date when they fit. The first sticker preview marks the item printed; Items → Need stickers lists the rest with a count. Available is quantity on hand; Sold is quantity zero with a posted sale; Qty 0 is any quantity zero (not only sold). Status on each row is On floor, Sold, or Out. Clear drops search and stock filters.
+- Stickers print the barcode. Sheet choices name Avery 8160 / Avery 94073 (and hang/jewelry tags). Tags include brand, size, and intake date when they fit. The first sticker preview marks the item printed; Items → Need stickers lists the rest with a count. Available is quantity on hand; Sold is quantity zero with a posted sale; Qty 0 is any quantity zero (not only sold). Status on each row is On floor, Sold, or Out. Clear drops search and stock filters. Column filters and the search box search the whole list. The table shows one page of matches.
 - On Items, check rows to print; sheet choice, copies, and start cell sit on the selection bar with Print stickers. After save or on edit, Print stickers stays on the item form.
+- A brand, color, category, size, condition, or department that anything still points at cannot be deleted. Mark it inactive to hide it from the next item, or merge it into another name. The list opens on active names. Inactive names are on the Inactive list, where Make active puts one back. Inactive leaves the name on items that already use it. Merge moves those items onto the name you keep, makes that name active, and removes the other one. A name that nothing points at can be deleted. Creating the same spelling does not revive an inactive name.
 
 ## What is refused
 
 - Duplicate tag or barcode.
 - Sold price below the item floor when a floor exists.
 - Deleting an item while something still points at it (no Delete on the list; a direct delete is refused).
-- Deleting a vendor/brand an item still names.
+- Deleting a brand, color, category, size, condition, or department while anything still points at it.
+- Deleting a vendor an item still names.
 
 ## How to check
 

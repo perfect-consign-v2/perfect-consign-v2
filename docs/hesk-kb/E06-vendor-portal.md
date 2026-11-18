@@ -1,15 +1,15 @@
 ---
 title: Vendor portal sees only one vendor
 category: Platform notes
-hesk: published 2026-11-17
-as_of: 2026-11-16
+hesk: published 2026-11-18
+as_of: 2026-11-17
 ---
 
 # Vendor portal sees only one vendor
 
 ## As of
 
-2026-11-16 — Building has Vendor portal (on by default) and Vendor inventory (off by default). Inventory applies only while the portal is on. Saving the portal off stores inventory off. A vendor adds one item at a time when inventory is on. The vendor list colors rows by days on the floor. A consignor entry link still shows a confirm page, and the session starts only when that page is submitted. Making a vendor Inactive still ends portal sessions on the next request.
+2026-11-17 — Column filters and the search box search that vendor’s whole item list. The table shows one page of matches. Building has Vendor portal (on by default), Vendor inventory (off by default), and Weekly vendor letter (off by default). Inventory applies only while the portal is on. Saving the portal off stores inventory off. The Sunday letter is filed only when Weekly vendor letter is on. A vendor adds one item at a time when inventory is on, and can search or add a brand, color, category, size, condition, or department before saving. The vendor list colors rows by days on the floor. A consignor entry link still shows a confirm page, and the session starts only when that page is submitted. Making a vendor Inactive still ends portal sessions on the next request.
 
 ## In one sentence
 
@@ -26,8 +26,9 @@ The owner saves Building. A vendor signs in, an owner opens `?as=`, or a consign
 - Opening the link shows a confirm page and does not start a session. Submitting that page redeems the link, regenerates the session id, and rotates the CSRF token.
 - Vendor portal off refuses vendor password sign-in, owner preview, and consignor entry. The sign-in message is “The vendor portal is off.” That refusal is not a failed-password lockout. An open vendor or consignor session ends on the next request.
 - Vendor inventory off keeps the check, sales, deals, and the consignor account. The Inventory link, the item list, sticker print, add, edit, and delete are closed. The consignor account hides Items and About to expire.
-- Vendor inventory on: one item at a time, the add form stays open, the store assigns the tag and barcode, and the store take stays the vendor’s percent. A booth piece needs an open assignment today and does not expire. A consigned expire date before intake is refused. Quantity zero pulls the piece with no disposition and no journal. A sale line keeps the price and blocks delete. Quantity zero plus a sale line blocks edit. Return, donate, and buy stay at the desk.
-- The vendor item list colors available rows by days on the floor from intake through today: 0–30, 31–60, 61–90, and 91 or more. Today and a future intake are 0. Quantity zero or a blank intake is not colored. Staff inventory has no legend.
+- Vendor inventory on: one item at a time, the add form stays open, the store assigns the tag and barcode, and the store take stays the vendor’s percent. Brand, color, category, size, condition, and department are chosen by name. A name that is not already on the list can be added before the item is saved, including when a similar name is already there. A typed name that was not added is refused. A booth piece needs an open assignment today and does not expire. A consigned expire date before intake is refused. Quantity zero pulls the piece with no disposition and no journal. A sale line keeps the price and blocks delete. Quantity zero plus a sale line blocks edit. Return, donate, and buy stay at the desk.
+- Weekly vendor letter starts off. Turning it on files the Sunday letter (Payable and Rent you owe) for each active vendor whose email has not bounced. Saving money leaves that switch as it is. Sale-day notices and the rent reminder are separate.
+- The vendor item list colors available rows by days on the floor from intake through today: 0–30, 31–60, 61–90, and 91 or more. Today and a future intake are 0. Quantity zero or a blank intake is not colored. Staff inventory has no legend. Column filters and the search box search that vendor’s whole list. The table shows one page of matches.
 - Inactive vendors cannot mint or redeem links; an open portal session clears on the next request; vendor-role password sessions lose credentials_version.
 
 ## What is refused
@@ -38,6 +39,7 @@ The owner saves Building. A vendor signs in, an owner opens `?as=`, or a consign
 - Vendor sign-in, owner preview, and consignor entry while the portal is off.
 - Inventory, labels, add, edit, and delete while inventory is off.
 - A booth piece with no open assignment, a consigned expire date before intake, store placement, another vendor’s item, a price change after a sale, edit of a sold-out item, and delete after a sale line.
+- A brand, color, category, size, condition, or department that was typed on the item and not added to the list.
 
 ## How to check
 
@@ -45,7 +47,7 @@ Set vendor A; list shows only A. Clear setting or set B; A’s rows disappear. T
 
 ## Source
 
-`docs/business-rules.md` — Vendor portal and offline sync. `sql/095_vendor_portal.sql`. `sql/prove_vendor_portal.sql`.
+`docs/business-rules.md` — Vendor portal and offline sync. `sql/095_vendor_portal.sql`. `sql/096_vendor_weekly_mail.sql`. `sql/prove_vendor_portal.sql`.
 
 ## Related
 

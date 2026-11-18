@@ -39,6 +39,32 @@ final class RoleGateTest extends TestCase
         self::assertFalse(RoleGate::allows('cashier', '/registers/new', 'GET'));
         self::assertFalse(RoleGate::allows('cashier', '/registers', 'POST'));
         self::assertFalse(RoleGate::allows('cashier', '/inventory/01900000-0000-7000-8000-000000000d10/buy', 'POST'));
+        self::assertFalse(RoleGate::allows('cashier', '/inventory', 'GET'));
+        self::assertFalse(RoleGate::allows('cashier', '/inventory/rows', 'GET'));
+        self::assertFalse(RoleGate::allows('cashier', '/inventory', 'POST'));
+        self::assertFalse(RoleGate::allows('books', '/inventory/rows', 'GET'));
+    }
+
+    public function testItemNameListsAreOpenToTheRegisterAndTheVendorForm(): void
+    {
+        foreach (['brands', 'colors', 'categories', 'sizes', 'conditions', 'departments'] as $catalog) {
+            self::assertTrue(RoleGate::allows('cashier', '/inventory/' . $catalog . '.json', 'GET'));
+            self::assertTrue(RoleGate::allows('cashier', '/inventory/' . $catalog, 'POST'));
+            self::assertTrue(RoleGate::allows('vendor', '/inventory/' . $catalog . '.json', 'GET'));
+            self::assertTrue(RoleGate::allows('vendor', '/inventory/' . $catalog, 'POST'));
+            self::assertFalse(RoleGate::allows('cashier', '/inventory/' . $catalog, 'GET'));
+            self::assertFalse(RoleGate::allows('vendor', '/inventory/' . $catalog, 'GET'));
+            self::assertFalse(RoleGate::allows('vendor', '/inventory/' . $catalog . '.json', 'POST'));
+            self::assertFalse(RoleGate::allows('books', '/inventory/' . $catalog . '.json', 'GET'));
+            self::assertFalse(RoleGate::allows('books', '/inventory/' . $catalog, 'POST'));
+        }
+        self::assertTrue(RoleGate::allows('cashier', '/inventory/vendors.json', 'GET'));
+        self::assertTrue(RoleGate::allows('cashier', '/inventory/consignors.json', 'GET'));
+        self::assertFalse(RoleGate::allows('vendor', '/inventory/vendors.json', 'GET'));
+        self::assertFalse(RoleGate::allows('vendor', '/inventory/consignors.json', 'GET'));
+        self::assertFalse(RoleGate::allows('vendor', '/inventory', 'GET'));
+        self::assertFalse(RoleGate::allows('vendor', '/brands', 'GET'));
+        self::assertFalse(RoleGate::allows('cashier', '/brands', 'POST'));
     }
 
     public function testAVendorSeesOnlyTheirOwnPage(): void
@@ -47,6 +73,8 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('vendor', '/vendor/labels', 'POST'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/sales', 'GET'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/inventory', 'GET'));
+        self::assertTrue(RoleGate::allows('vendor', '/vendor/inventory/rows', 'GET'));
+        self::assertFalse(RoleGate::allows('vendor', '/inventory/rows', 'GET'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/inventory/new', 'GET'));
         self::assertTrue(RoleGate::allows('vendor', '/vendor/inventory/new', 'POST'));
         $item = '/vendor/inventory/01900000-0000-7000-8000-000000000d10';
@@ -110,6 +138,8 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('manager', '/vendors/01900000-0000-7000-8000-000000000d10', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/consignors', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/consignors/01900000-0000-7000-8000-000000000d10', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/inventory', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/inventory/rows', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/inventory', 'POST'));
         self::assertTrue(RoleGate::allows('manager', '/inventory/01900000-0000-7000-8000-000000000d10/dispose', 'POST'));
         self::assertFalse(RoleGate::allows('manager', '/inventory/01900000-0000-7000-8000-000000000d10/buy', 'POST'));

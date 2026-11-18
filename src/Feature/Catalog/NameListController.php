@@ -72,18 +72,41 @@ final class NameListController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $list = $this->requireList($catalog);
-        $error = null;
-        try {
+        $this->attempt($slug, $list, ucfirst($list->singular) . ' deleted.', function () use ($list, $id): void {
             $this->lists->remove($list, $id);
-        } catch (DatabaseRefusal $refusal) {
-            $error = $this->listError($list, $this->app->catchRefusal($refusal));
-        } catch (\InvalidArgumentException $errorValue) {
-            $error = $errorValue->getMessage();
+        }, null, '', $this->landing());
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/(colors|categories|sizes|conditions|departments)/([0-9a-fA-F-]{36})/active', ['POST'])]
+    public function active(string $slug, string $catalog, string $id): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $list = $this->requireList($catalog);
+        $flag = $this->app->request()->field('active');
+        if ($flag !== '0' && $flag !== '1') {
+            $this->page($slug, $list, 'Choose active or inactive.');
+
+            return;
         }
-        if ($error === null) {
-            $this->app->redirect('/' . $slug . '/' . $list->path, ucfirst($list->singular) . ' deleted.');
-        }
-        $this->page($slug, $list, $error);
+        $word = ucfirst($list->singular);
+        $saved = $flag === '1' ? $word . ' is active.' : $word . ' is inactive.';
+        $landing = $flag === '1' ? '' : '?status=inactive';
+        $this->attempt($slug, $list, $saved, function () use ($list, $id, $flag): void {
+            $this->lists->setActive($list, $id, $flag === '1');
+        }, null, '', $landing);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/(colors|categories|sizes|conditions|departments)/([0-9a-fA-F-]{36})/merge', ['POST'])]
+    public function merge(string $slug, string $catalog, string $id): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $list = $this->requireList($catalog);
+        $target = $this->app->request()->field('target');
+        $this->attempt($slug, $list, ucfirst($list->singular) . ' merged.', function () use ($list, $id, $target): void {
+            $this->lists->merge($list, $id, $target);
+        });
     }
 
     private function requireList(string $catalog): NameList
@@ -98,6 +121,27 @@ final class NameListController
 
     private function change(string $slug, NameList $list, ?string $id, callable $action): void
     {
+        $saved = $id === null ? ucfirst($list->singular) . ' created.' : ucfirst($list->singular) . ' saved.';
+        $this->attempt(
+            $slug,
+            $list,
+            $saved,
+            $action,
+            $id ?? 'new',
+            $this->app->request()->field('name'),
+            $id === null ? '' : $this->landing(),
+        );
+    }
+
+    private function attempt(
+        string $slug,
+        NameList $list,
+        string $saved,
+        callable $action,
+        ?string $modal = null,
+        string $draft = '',
+        string $landing = '',
+    ): void {
         $this->app->open($slug, true);
         $error = null;
         try {
@@ -108,19 +152,28 @@ final class NameListController
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->app->redirect(
-                '/' . $slug . '/' . $list->path,
-                $id === null ? ucfirst($list->singular) . ' created.' : ucfirst($list->singular) . ' saved.'
-            );
+            $this->app->redirect('/' . $slug . '/' . $list->path . $landing, $saved);
         }
-        $this->page($slug, $list, $error, $id ?? 'new', $this->app->request()->field('name'));
+        $this->page($slug, $list, $error, $modal, $draft);
+    }
+
+    private function landing(): string
+    {
+        return $this->app->request()->field('status') === 'inactive' ? '?status=inactive' : '';
     }
 
     private function page(string $slug, NameList $list, ?string $error, ?string $modal = null, string $draft = ''): void
     {
         $tenant = $this->app->open($slug, true);
         $query = trim($this->app->request()->query('q'));
-        $rows = $this->withUse($list, $this->lists->rows($list, $query));
+        $standing = NameStanding::chosen($this->app->request()->query('status'));
+        $held = $this->lists->referenced($list);
+        $counts = $this->lists->itemCounts($list);
+        $matched = NameBoard::mark($this->lists->rows($list, $query), $held, $counts);
+        $split = NameStanding::split($matched, $standing);
+        $rows = $split['rows'];
+        $all = $query === '' ? $matched : NameBoard::mark($this->lists->rows($list, ''), $held, $counts);
+        $merge = NameBoard::merge($all, $this->app->request()->query('merge'));
         if ($modal === null) {
             $modal = '';
             if ($this->app->request()->query('new') === '1') {
@@ -141,8 +194,14 @@ final class NameListController
             'list' => $list,
             'rows' => $rows,
             'query' => $query,
-            'total' => $query === '' ? count($rows) : $this->lists->count($list),
-            'confirm' => $this->confirming($rows, $this->app->request()->query('confirm')),
+            'standing' => $standing,
+            'activeCount' => $split['active'],
+            'inactiveCount' => $split['inactive'],
+            'total' => $this->lists->count($list),
+            'confirm' => NameBoard::confirming($rows, $this->app->request()->query('confirm')),
+            'merge' => $merge['id'],
+            'mergeSentence' => $merge['sentence'],
+            'mergeChoices' => $merge['choices'],
             'modal' => $modal,
             'draft' => $draft,
             'error' => $error,
@@ -162,42 +221,6 @@ final class NameListController
         $row = $this->lists->find($list, $id);
 
         return is_array($row) && is_string($row['name'] ?? null) ? $row['name'] : '';
-    }
-
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @return list<array<string, mixed>>
-     */
-    private function withUse(NameList $list, array $rows): array
-    {
-        $held = $this->lists->referenced($list);
-        $marked = [];
-        foreach ($rows as $row) {
-            $id = $row['id'] ?? null;
-            $row['deletable'] = is_string($id) && !isset($held[$id]);
-            $marked[] = $row;
-        }
-
-        return $marked;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $rows
-     */
-    private function confirming(array $rows, string $confirm): string
-    {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $confirm) !== 1) {
-            return '';
-        }
-        $needle = strtolower($confirm);
-        foreach ($rows as $row) {
-            $id = $row['id'] ?? null;
-            if (is_string($id) && strtolower($id) === $needle && ($row['deletable'] ?? false) === true) {
-                return $id;
-            }
-        }
-
-        return '';
     }
 
     private function listError(NameList $list, string $message): string

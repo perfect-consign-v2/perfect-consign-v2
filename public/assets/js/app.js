@@ -92,7 +92,10 @@
   });
 
   document.querySelectorAll('[data-open-modal]').forEach(function (button) {
-    button.addEventListener('click', function () {
+    button.addEventListener('click', function (event) {
+      if (button.tagName === 'A') {
+        event.preventDefault();
+      }
       var modal = document.getElementById(button.getAttribute('data-open-modal'));
       if (!modal) {
         return;
@@ -100,7 +103,12 @@
       var form = modal.querySelector('form');
       var action = button.getAttribute('data-brand-action');
       var name = button.getAttribute('data-brand-name');
+      var message = button.getAttribute('data-delete-message');
+      var prompt = modal.querySelector('[data-delete-prompt]');
       var field = modal.querySelector('input[name="name"]');
+      if (prompt && message !== null) {
+        prompt.textContent = message;
+      }
       if (form && action) {
         form.action = action;
       }

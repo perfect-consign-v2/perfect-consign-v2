@@ -41,15 +41,7 @@ $empty = $status === '' && $query === '' ? 'No one is waiting.' : 'No one matche
         </div>
     </div>
 <?php else: ?>
-    <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <?php if ($status !== ''): ?>
-            <input type="hidden" name="status" value="<?= View::text($status) ?>">
-        <?php endif; ?>
-        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search name, email, or phone" aria-label="Search the wait list">
-        <button class="btn" type="submit">Search</button>
-    </form>
-
-    <div class="list-show">
+    <div class="list-show mt-6">
         <p class="muted">Show</p>
         <div class="segmented" role="navigation" aria-label="Show">
             <?php foreach ($shows as $value => $label): ?>

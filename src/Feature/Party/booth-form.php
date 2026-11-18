@@ -67,4 +67,28 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
     </div>
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
 </form>
+<?php if ($showStanding && (!$boothActive || $canRetire)): ?>
+    <div class="card mt-4">
+        <div class="card-head"><div class="h3">Status</div></div>
+        <div class="card-body stack">
+            <?php if (!$boothActive): ?>
+                <form method="post" action="<?= View::text($action) ?>/active">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <input type="hidden" name="back" value="booth">
+                    <input type="hidden" name="active" value="1">
+                    <button class="btn" type="submit">Make active</button>
+                </form>
+                <p class="muted text-sm">This booth is hidden from the default booth list, the assignment choices, and the map. Make active offers it again.</p>
+            <?php else: ?>
+                <form method="post" action="<?= View::text($action) ?>/active">
+                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                    <input type="hidden" name="back" value="booth">
+                    <input type="hidden" name="active" value="0">
+                    <button class="btn" type="submit">Make inactive</button>
+                </form>
+                <p class="muted text-sm">Inactive hides this booth from the default list, the assignment choices, and the map. Open Inactive on the booth list to bring it back.</p>
+            <?php endif; ?>
+        </div>
+    </div>
+<?php endif; ?>
 

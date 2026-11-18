@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Catalog;
 
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\CatalogLinks;
+use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -24,11 +26,11 @@ final class NameListStore
         $table = $list->table;
         $needle = strtolower(trim($query));
         if ($needle === '') {
-            return $this->statements->rows('SELECT id, name FROM ' . $table . ' ORDER BY lower(name), name');
+            return $this->statements->rows('SELECT id, name, active FROM ' . $table . ' ORDER BY lower(name), name');
         }
 
         return $this->statements->bound(
-            'SELECT id, name FROM ' . $table . ' WHERE strpos(lower(name), ?) > 0 ORDER BY lower(name), name',
+            'SELECT id, name, active FROM ' . $table . ' WHERE strpos(lower(name), ?) > 0 ORDER BY lower(name), name',
             [$needle]
         );
     }
@@ -46,7 +48,7 @@ final class NameListStore
     public function find(NameList $list, string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, name FROM ' . $list->table . ' WHERE id = ?::uuid',
+            'SELECT id, name, active FROM ' . $list->table . ' WHERE id = ?::uuid',
             [$id]
         );
 
@@ -76,18 +78,73 @@ final class NameListStore
         }
     }
 
-    public function remove(NameList $list, string $id): void
+    public function setActive(NameList $list, string $id, bool $active): void
     {
-        if (isset($this->referenced($list)[$id])) {
-            throw new \InvalidArgumentException('That ' . $list->singular . ' is in use.');
-        }
         $count = $this->statements->affected(
-            'DELETE FROM ' . $list->table . ' WHERE id = ?::uuid',
-            [$id]
+            'UPDATE ' . $list->table . ' SET active = ?::boolean WHERE id = ?::uuid',
+            [PgBool::literal($active), $id]
         );
         if ($count === 0) {
             throw new \InvalidArgumentException('That ' . $list->singular . ' is not in this mall.');
         }
+    }
+
+    public function remove(NameList $list, string $id): void
+    {
+        try {
+            $this->statements->transaction(function () use ($list, $id): void {
+                if (isset($this->referenced($list)[$id])) {
+                    throw new \InvalidArgumentException('That ' . $list->singular . ' is in use.');
+                }
+                $count = $this->statements->affected(
+                    'DELETE FROM ' . $list->table . ' WHERE id = ?::uuid',
+                    [$id]
+                );
+                if ($count === 0) {
+                    throw new \InvalidArgumentException('That ' . $list->singular . ' is not in this mall.');
+                }
+            });
+        } catch (DatabaseRefusal $error) {
+            $this->inUse($error, $list->singular);
+        }
+    }
+
+    public function merge(NameList $list, string $source, string $target): void
+    {
+        $this->requireId($source, $list);
+        $this->requireId($target, $list);
+        if (strcasecmp($source, $target) === 0) {
+            throw new \InvalidArgumentException('Choose a different ' . $list->singular . '.');
+        }
+        try {
+            $this->statements->transaction(function () use ($list, $source, $target): void {
+                if ($this->find($list, $source) === null || $this->find($list, $target) === null) {
+                    throw new \InvalidArgumentException('That ' . $list->singular . ' is not in this mall.');
+                }
+                $this->links->retarget($list->table, $source, $target);
+                $this->statements->change(
+                    'UPDATE ' . $list->table . ' SET active = true WHERE id = ?::uuid',
+                    [$target]
+                );
+                $count = $this->statements->affected(
+                    'DELETE FROM ' . $list->table . ' WHERE id = ?::uuid',
+                    [$source]
+                );
+                if ($count === 0) {
+                    throw new \InvalidArgumentException('That ' . $list->singular . ' is not in this mall.');
+                }
+            });
+        } catch (DatabaseRefusal $error) {
+            $this->inUse($error, $list->singular);
+        }
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function itemCounts(NameList $list): array
+    {
+        return $this->links->itemCounts($list->table);
     }
 
     /**
@@ -109,7 +166,8 @@ final class NameListStore
         }
 
         return $this->statements->bound(
-            'SELECT id::text AS id, name FROM ' . $list->table . ' WHERE strpos(lower(name), ?) > 0 ORDER BY lower(name), name LIMIT 20',
+            'SELECT id::text AS id, name FROM ' . $list->table
+            . ' WHERE active AND strpos(lower(name), ?) > 0 ORDER BY lower(name), name LIMIT 20',
             [$needle]
         );
     }
@@ -130,9 +188,15 @@ final class NameListStore
     public function idForName(NameList $list, string $name): ?string
     {
         $rows = $this->statements->bound(
-            'SELECT id::text AS id FROM ' . $list->table . ' WHERE lower(name) = lower(?)',
+            'SELECT id::text AS id, active FROM ' . $list->table . ' WHERE lower(name) = lower(?)',
             [$name]
         );
+        if ($rows === []) {
+            return null;
+        }
+        if (!CatalogFlag::on($rows[0]['active'] ?? null)) {
+            throw new \InvalidArgumentException('That ' . $list->singular . ' is inactive.');
+        }
         $id = $rows[0]['id'] ?? null;
         if (!is_string($id) || $id === '') {
             return null;
@@ -146,5 +210,21 @@ final class NameListStore
         if (trim($name) === '') {
             throw new \InvalidArgumentException('Enter a ' . $list->singular . ' name.');
         }
+    }
+
+    private function requireId(string $id, NameList $list): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            throw new \InvalidArgumentException('Choose a different ' . $list->singular . '.');
+        }
+    }
+
+    private function inUse(DatabaseRefusal $error, string $noun): never
+    {
+        if ($error->sqlState() === '23503') {
+            throw new \InvalidArgumentException('That ' . $noun . ' is in use.');
+        }
+
+        throw $error;
     }
 }

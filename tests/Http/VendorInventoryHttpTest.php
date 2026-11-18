@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Feature\Mall\MallGuard;
+use PerfectConsign\Feature\Mall\MallMeasure;
 use PerfectConsign\Feature\Vendor\VendorEntry;
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
+use PerfectConsign\Tests\Support\ItemListBody;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 use PDO;
@@ -47,6 +50,38 @@ final class VendorInventoryHttpTest extends WebTestCase
         self::assertMatchesRegularExpression('/id="vendor_inventory_enabled"[^>]*checked/', $inventory->body);
         $closed = $this->owner->post('/' . self::SLUG . '/settings/building', $this->building(false, false));
         self::assertDoesNotMatchRegularExpression('/id="vendor_inventory_enabled"[^>]*checked/', $closed->body);
+    }
+
+    public function testWeeklyVendorLetterStartsOffAndAMoneySaveLeavesItOn(): void
+    {
+        $open = $this->owner->get('/' . self::SLUG . '/settings/building');
+        self::assertSees('Weekly vendor letter', $open);
+        self::assertSees('It starts off.', $open);
+        self::assertDoesNotMatchRegularExpression('/id="vendor_weekly_mail_enabled"[^>]*checked/', $open->body);
+        self::assertFalse($this->weeklyMailOn());
+
+        $bad = $this->building(true, false, '', true);
+        $bad['booth_width_ft'] = '0';
+        $refused = $this->owner->post('/' . self::SLUG . '/settings/building', $bad);
+        self::assertSees('booth size is whole feet', $refused);
+        self::assertMatchesRegularExpression('/id="vendor_weekly_mail_enabled"[^>]*checked/', $refused->body);
+        self::assertFalse($this->weeklyMailOn());
+
+        $saved = $this->owner->post('/' . self::SLUG . '/settings/building', $this->building(true, false, '', true));
+        self::assertSees('Building saved.', $saved);
+        self::assertMatchesRegularExpression('/id="vendor_weekly_mail_enabled"[^>]*checked/', $saved->body);
+        self::assertTrue($this->weeklyMailOn());
+
+        $money = $this->owner->post('/' . self::SLUG . '/settings/money', $this->moneyAsStored());
+        self::assertSees('Money saved.', $money);
+        $still = $this->owner->get('/' . self::SLUG . '/settings/building');
+        self::assertMatchesRegularExpression('/id="vendor_weekly_mail_enabled"[^>]*checked/', $still->body);
+        self::assertTrue($this->weeklyMailOn());
+
+        $off = $this->owner->post('/' . self::SLUG . '/settings/building', $this->building(true, false));
+        self::assertSees('Building saved.', $off);
+        self::assertDoesNotMatchRegularExpression('/id="vendor_weekly_mail_enabled"[^>]*checked/', $off->body);
+        self::assertFalse($this->weeklyMailOn());
     }
 
     public function testAClosedPortalRefusesSignInPreviewAndConsignorEntry(): void
@@ -157,6 +192,25 @@ final class VendorInventoryHttpTest extends WebTestCase
         self::assertStringContainsString('/' . self::SLUG . '/vendor/inventory', $home->body);
         $form = $login['client']->get('/' . self::SLUG . '/vendor/inventory/new?intake=' . $today);
         self::assertSees('New item', $form);
+        self::assertStringContainsString('vendor-pair', $form->body);
+        self::assertMatchesRegularExpression('/id="description"[^>]*autofocus/', $form->body);
+        $descriptionAt = strpos($form->body, 'id="description"');
+        $priceAt = strpos($form->body, 'id="price"');
+        $quantityAt = strpos($form->body, 'id="quantity"');
+        $intakeAt = strpos($form->body, 'id="intake_on"');
+        $expireAt = strpos($form->body, 'id="expires_on"');
+        $brandAt = strpos($form->body, 'id="brand_id"');
+        self::assertIsInt($descriptionAt);
+        self::assertIsInt($priceAt);
+        self::assertIsInt($quantityAt);
+        self::assertIsInt($intakeAt);
+        self::assertIsInt($expireAt);
+        self::assertIsInt($brandAt);
+        self::assertLessThan($priceAt, $descriptionAt);
+        self::assertLessThan($quantityAt, $priceAt);
+        self::assertLessThan($intakeAt, $quantityAt);
+        self::assertLessThan($expireAt, $intakeAt);
+        self::assertLessThan($brandAt, $expireAt);
         self::assertStringContainsString('value="' . $today . '"', $form->body);
         $expire = $this->shiftDate($today, 30);
         self::assertStringContainsString('value="' . $expire . '"', $form->body);
@@ -294,7 +348,10 @@ final class VendorInventoryHttpTest extends WebTestCase
         ));
         $deleted = $login['client']->post('/' . self::SLUG . '/vendor/inventory/' . $looseId . '/delete', []);
         self::assertSees('Item deleted.', $deleted);
-        self::assertStringNotContainsString('Loose bowl pulled', $login['client']->get('/' . self::SLUG . '/vendor/inventory?q=Loose+bowl+pulled')->body);
+        self::assertStringNotContainsString(
+            'Loose bowl pulled',
+            ItemListBody::html($login['client'], '/' . self::SLUG . '/vendor/inventory?q=Loose+bowl+pulled'),
+        );
 
         $description = 'Sold bowl ' . bin2hex(random_bytes(2));
         $created = $login['client']->post('/' . self::SLUG . '/vendor/inventory/new', [
@@ -384,19 +441,115 @@ final class VendorInventoryHttpTest extends WebTestCase
         self::assertSees('Row colors', $list);
         self::assertSees('Available items are colored by how many days they have been on the floor.', $list);
         self::assertSees('Days on floor', $list);
+        $rows = ItemListBody::html($login['client'], '/' . self::SLUG . '/vendor/inventory?q=' . rawurlencode($token));
         foreach ($bands as $days => $tier) {
-            $this->assertColoredRow($list->body, $token . ' day ' . $days, $tier, (string) $days);
+            $this->assertColoredRow($rows, $token . ' day ' . $days, $tier, (string) $days);
         }
-        $this->assertColoredRow($list->body, $token . ' future', '0', '0');
-        $this->assertPlainRow($list->body, $token . ' zero');
+        $this->assertColoredRow($rows, $token . ' future', '0', '0');
+        $this->assertPlainRow($rows, $token . ' zero');
         $staff = $this->owner->get('/' . self::SLUG . '/inventory?q=' . rawurlencode($token));
         self::assertStringNotContainsString('Row colors', $staff->body);
+    }
+
+    public function testItemFormsSearchNamesAndRefuseANameThatWasNotAdded(): void
+    {
+        $this->saveBuilding(true, true, '30');
+        $staffForm = $this->owner->get('/' . self::SLUG . '/inventory/new');
+        self::assertStringContainsString('id="vendor_suggest"', $staffForm->body);
+        self::assertStringContainsString('data-search="/' . self::SLUG . '/inventory/brands.json"', $staffForm->body);
+        self::assertStringContainsString('name-list.js', $staffForm->body);
+
+        $stem = 'N' . bin2hex(random_bytes(3));
+        $near = $this->jsonId($this->owner->post('/' . self::SLUG . '/inventory/brands', ['name' => $stem . 'en'])->body);
+        $added = $this->jsonId($this->owner->post('/' . self::SLUG . '/inventory/brands', ['name' => $stem])->body);
+        self::assertNotSame($near, $added);
+        $colorNear = $this->jsonId($this->owner->post('/' . self::SLUG . '/inventory/colors', ['name' => $stem . ' blue'])->body);
+        $colorAdded = $this->jsonId($this->owner->post('/' . self::SLUG . '/inventory/colors', ['name' => $stem . ' red'])->body);
+        self::assertNotSame($colorNear, $colorAdded);
+
+        $vendor = $this->vendor('Nell', '', '40');
+        $picked = $this->owner->post('/' . self::SLUG . '/inventory', [
+            'description' => 'Picked ' . $stem,
+            'vendor_id' => $vendor['id'],
+            'brand_id' => $near,
+            'brand_label' => $stem . 'en',
+            'color_id' => $colorNear,
+            'color_label' => $stem . ' blue',
+            'price' => '5.00',
+            'quantity' => '1',
+            'intake_on' => '2026-09-01',
+            'placement' => 'consigned',
+        ]);
+        self::assertSees('Item created.', $picked);
+        $pickedId = strtolower($this->match($picked->body, '/name="item" value="([0-9a-fA-F-]{36})"/'));
+        $pickedNames = $this->itemNames($pickedId);
+        self::assertSame($near, $pickedNames['brand_id']);
+        self::assertSame($colorNear, $pickedNames['color_id']);
+
+        $loose = $this->owner->post('/' . self::SLUG . '/inventory', [
+            'description' => 'Loose ' . $stem,
+            'vendor_id' => $vendor['id'],
+            'brand_id' => '',
+            'brand_label' => $stem . 'ish',
+            'color_id' => '',
+            'color_label' => $stem . ' teal',
+            'price' => '5.00',
+            'quantity' => '1',
+            'intake_on' => '2026-09-01',
+            'placement' => 'consigned',
+        ]);
+        self::assertSees('Add that brand before saving the item.', $loose);
+        self::assertStringContainsString('value="' . $stem . 'ish"', $loose->body);
+
+        $login = $this->vendorLogin($vendor['id']);
+        $vendorForm = $login['client']->get('/' . self::SLUG . '/vendor/inventory/new');
+        self::assertStringContainsString('data-name-list', $vendorForm->body);
+        self::assertStringContainsString('id="brand_label"', $vendorForm->body);
+        self::assertStringContainsString('name-list.js', $vendorForm->body);
+        self::assertStringNotContainsString('<select class="select" id="brand_id"', $vendorForm->body);
+        self::assertSame(404, $login['client']->get('/' . self::SLUG . '/inventory')->status);
+        self::assertSame(404, $login['client']->get('/' . self::SLUG . '/inventory/vendors.json')->status);
+
+        $vendorBrand = $this->jsonId($login['client']->post('/' . self::SLUG . '/inventory/brands', ['name' => $stem . ' vendor'])->body);
+        $search = $login['client']->get('/' . self::SLUG . '/inventory/brands.json?q=' . rawurlencode($stem . ' vendor'));
+        self::assertStringContainsString($vendorBrand, $search->body);
+        $today = $this->mallToday();
+        $saved = $login['client']->post('/' . self::SLUG . '/vendor/inventory/new', [
+            'description' => 'Vendor ' . $stem,
+            'price' => '6.00',
+            'quantity' => '1',
+            'intake_on' => $today,
+            'expires_on' => $this->shiftDate($today, 30),
+            'placement' => 'consigned',
+            'brand_id' => $vendorBrand,
+            'brand_label' => $stem . ' vendor',
+            'color_id' => $colorAdded,
+            'color_label' => $stem . ' red',
+        ]);
+        self::assertSees('Item created.', $saved);
+        $savedId = strtolower($this->match($saved->body, '/name="item" value="([0-9a-fA-F-]{36})"/'));
+        $savedNames = $this->itemNames($savedId);
+        self::assertSame($vendorBrand, $savedNames['brand_id']);
+        self::assertSame($colorAdded, $savedNames['color_id']);
+
+        $refused = $login['client']->post('/' . self::SLUG . '/vendor/inventory/new', [
+            'description' => 'Missing ' . $stem,
+            'price' => '6.00',
+            'quantity' => '1',
+            'intake_on' => $today,
+            'expires_on' => $this->shiftDate($today, 30),
+            'placement' => 'consigned',
+            'brand_id' => '',
+            'brand_label' => $stem . ' missing',
+        ]);
+        self::assertSees('Add that brand before saving the item.', $refused);
+        self::assertStringContainsString('value="' . $stem . ' missing"', $refused->body);
     }
 
     /**
      * @return array<string, string>
      */
-    private function building(bool $portal, bool $inventory, string $floorDays = ''): array
+    private function building(bool $portal, bool $inventory, string $floorDays = '', bool $weekly = false): array
     {
         $fields = [
             'time_zone' => 'America/Los_Angeles',
@@ -417,6 +570,60 @@ final class VendorInventoryHttpTest extends WebTestCase
         }
         if ($inventory) {
             $fields['vendor_inventory_enabled'] = '1';
+        }
+        if ($weekly) {
+            $fields['vendor_weekly_mail_enabled'] = '1';
+        }
+
+        return $fields;
+    }
+
+    private function weeklyMailOn(): bool
+    {
+        $statement = $this->pdo()->query('SELECT vendor_weekly_mail_enabled FROM ' . $this->schema() . '.mall');
+        if ($statement === false) {
+            self::fail('weekly mail flag missing');
+        }
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            self::fail('weekly mail flag missing');
+        }
+
+        return MallGuard::flag($row['vendor_weekly_mail_enabled'] ?? null);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function moneyAsStored(): array
+    {
+        $statement = $this->pdo()->query(
+            'SELECT commission_bps, tax_bps, cash_round_minor, operating_mode, store_stock_enabled, rent_prepaid_from_prior_sales, rent_cycle_day, require_second_signature FROM ' . $this->schema() . '.mall'
+        );
+        if ($statement === false) {
+            self::fail('mall money row missing');
+        }
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            self::fail('mall money row missing');
+        }
+        $mode = $row['operating_mode'] ?? null;
+        $fields = [
+            'default_store_take' => MallMeasure::percent((int) $row['commission_bps']),
+            'tax_rate' => MallMeasure::taxPercent((int) $row['tax_bps']),
+            'cash_round_minor' => (string) (int) $row['cash_round_minor'],
+            'operating_mode' => is_string($mode) ? $mode : '',
+            'shop_flags' => '1',
+            'rent_cycle_day' => (string) (int) $row['rent_cycle_day'],
+        ];
+        if (MallGuard::flag($row['store_stock_enabled'] ?? null)) {
+            $fields['store_stock_enabled'] = '1';
+        }
+        if (MallGuard::flag($row['rent_prepaid_from_prior_sales'] ?? null)) {
+            $fields['rent_prepaid_from_prior_sales'] = '1';
+        }
+        if (MallGuard::flag($row['require_second_signature'] ?? null)) {
+            $fields['require_second_signature'] = '1';
         }
 
         return $fields;
@@ -568,6 +775,40 @@ final class VendorInventoryHttpTest extends WebTestCase
     /**
      * @return array{code: string, barcode: string, commission_bps: mixed, placement: string, expires_on: ?string, quantity: string, vendor_id: string}
      */
+    private function jsonId(string $body): string
+    {
+        $decoded = json_decode($body, true);
+        self::assertIsArray($decoded);
+        $id = $decoded['id'] ?? null;
+        self::assertIsString($id);
+        self::assertMatchesRegularExpression('/^[0-9a-fA-F-]{36}$/', $id);
+
+        return strtolower($id);
+    }
+
+    /**
+     * @return array{brand_id: string, color_id: string}
+     */
+    private function itemNames(string $id): array
+    {
+        $statement = $this->pdo()->prepare(
+            'SELECT brand_id::text AS brand_id, color_id::text AS color_id FROM ' . $this->schema() . '.items WHERE id = ?::uuid'
+        );
+        self::assertNotFalse($statement);
+        $statement->execute([$id]);
+        $row = $statement->fetch();
+        self::assertIsArray($row);
+        $brandId = $row['brand_id'] ?? null;
+        $colorId = $row['color_id'] ?? null;
+        self::assertIsString($brandId);
+        self::assertIsString($colorId);
+
+        return [
+            'brand_id' => strtolower($brandId),
+            'color_id' => strtolower($colorId),
+        ];
+    }
+
     private function itemRow(string $id): array
     {
         $schema = $this->schema();
@@ -643,13 +884,13 @@ final class VendorInventoryHttpTest extends WebTestCase
     {
         $pattern = '#<tr class="vendor-item-row--age-' . $tier . '" id="item-[0-9a-f-]{36}">(?:(?!</tr>).)*'
             . preg_quote($description, '#')
-            . '</td>(?:(?!</tr>).)*class="num vendor-days">\s*' . $days . '\s*</td>#s';
+            . '</td>(?:(?!</tr>).)*class="num vendor-days">\s*' . $days . '\s*</span>#s';
         self::assertSame(1, preg_match($pattern, $html), $description);
     }
 
     private function assertPlainRow(string $html, string $description): void
     {
-        $pattern = '#<tr class="" id="item-[0-9a-f-]{36}">(?:(?!</tr>).)*'
+        $pattern = '#<tr id="item-[0-9a-f-]{36}">(?:(?!</tr>).)*'
             . preg_quote($description, '#')
             . '</td>(?:(?!</tr>).)*class="num vendor-days">\s*<span class="muted">—</span>#s';
         self::assertSame(1, preg_match($pattern, $html), $description);

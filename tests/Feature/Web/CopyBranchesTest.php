@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Web;
 
+use PerfectConsign\Feature\Catalog\NameList;
 use PHPUnit\Framework\TestCase;
 
 final class CopyBranchesTest extends TestCase
@@ -167,6 +168,21 @@ final class CopyBranchesTest extends TestCase
         $mallForm = $this->render('Feature/Inventory/inventory-form.php', $this->inventoryForm(false));
         self::assertStringContainsString('<label for="vendor_label">Vendor</label>', $mallForm);
         self::assertStringContainsString('Choose a vendor from the list.', $mallForm);
+
+        $store = $this->inventoryForm(false);
+        $store['consignmentEnabled'] = false;
+        $store['showBrand'] = true;
+        $store['attributeLists'] = [
+            new NameList('color', 'colors', 'color_id', 'use_color', 'colors', 'color', 'Colors'),
+        ];
+        $storeForm = $this->render('Feature/Inventory/inventory-form.php', $store);
+        self::assertStringNotContainsString('id="expires_on"', $storeForm);
+        self::assertStringContainsString('id="vendor_suggest"', $storeForm);
+        self::assertStringContainsString('data-search="/demo/inventory/brands.json"', $storeForm);
+        self::assertStringContainsString('data-create="/demo/inventory/brands"', $storeForm);
+        self::assertStringContainsString('data-search="/demo/inventory/colors.json"', $storeForm);
+        self::assertStringContainsString('name-list.js', $storeForm);
+        self::assertStringContainsString('inventory-intake.js', $storeForm);
 
         $customer = $this->render('Feature/Pos/customer-form.php', [
             'slug' => 'demo',

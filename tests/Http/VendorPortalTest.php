@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\FormClient;
+use PerfectConsign\Tests\Support\ItemListBody;
 use PerfectConsign\Tests\Support\PageResponse;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
@@ -80,10 +81,11 @@ final class VendorPortalTest extends WebTestCase
         self::assertSees('Your items', $items);
         self::assertSees('list-dt-filter', $items);
         self::assertSees('Qty 0', $items);
-        self::assertMatchesRegularExpression('/' . preg_quote($ten['description'], '/') . '[\s\S]*?<td class="num">1<\/td>/', $items->body);
-        self::assertMatchesRegularExpression('/' . preg_quote($twenty['description'], '/') . '[\s\S]*?<td class="num">0<\/td>/', $items->body);
-        self::assertMatchesRegularExpression('/' . preg_quote($six['description'], '/') . '[\s\S]*?<td class="num">0<\/td>/', $items->body);
-        self::assertStringNotContainsString($other['description'], $items->body);
+        $rows = ItemListBody::html($vendor, '/' . self::SLUG . '/vendor/inventory');
+        self::assertMatchesRegularExpression('/' . preg_quote($ten['description'], '/') . '[\s\S]*?class="num">1<\/span>/', $rows);
+        self::assertMatchesRegularExpression('/' . preg_quote($twenty['description'], '/') . '[\s\S]*?class="num">0<\/span>/', $rows);
+        self::assertMatchesRegularExpression('/' . preg_quote($six['description'], '/') . '[\s\S]*?class="num">0<\/span>/', $rows);
+        self::assertStringNotContainsString($other['description'], $rows);
 
         $missing = $vendor->get('/' . self::SLUG . '/vendor/checks/00000000-0000-7000-8000-000000000099');
         self::assertSame(404, $missing->status);

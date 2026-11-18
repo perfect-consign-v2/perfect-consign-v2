@@ -78,12 +78,48 @@ final class DigestJobCoverageTest extends TestCase
         }
     }
 
+    public function testDigestSendsNothingWhenTheSundayLetterIsOff(): void
+    {
+        $previous = getenv('STALL_MAIL_FILE');
+        $file = tempnam(sys_get_temp_dir(), 'pc-digest-');
+        if ($file === false) {
+            self::fail('the mail file could not be created');
+        }
+        putenv('STALL_MAIL_FILE=' . $file);
+        $pdo = new ScriptPdo();
+        $pdo->onQuery('vendor_weekly_mail_enabled', [['vendor_weekly_mail_enabled' => false]]);
+        $pdo->onQuery('FROM vendors', [[
+            'id' => 'v-go',
+            'email' => 'go@example.test',
+            'name' => 'Go',
+        ]]);
+        try {
+            $this->job($pdo)->digest('mall', '2026-11-08');
+            $body = file_get_contents($file);
+            self::assertIsString($body);
+            self::assertSame('', $body);
+        } finally {
+            $this->restoreMail($previous);
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+    }
+
+    public function testDigestRefusesWhenTheMallRowIsMissing(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('the mall has no clock');
+        $this->job(new ScriptPdo())->digest('mall', '2026-11-08');
+    }
+
     /**
      * @param list<array{id: string, email: string|null, name: string}> $vendors
      */
     private function vendors(array $vendors): ScriptPdo
     {
         $pdo = new ScriptPdo();
+        $pdo->onQuery('vendor_weekly_mail_enabled', [['vendor_weekly_mail_enabled' => true]]);
         $pdo->onQuery('FROM vendors', $vendors);
 
         return $pdo;

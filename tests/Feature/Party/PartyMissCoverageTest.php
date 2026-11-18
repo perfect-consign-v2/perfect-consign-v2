@@ -572,6 +572,10 @@ final class PartyMissCoverageTest extends TestCase
             'counts' => ['available' => 0, 'occupied' => 1, 'ending' => 0, 'incoming' => 0],
             'confirm' => '',
             'total' => 1,
+            'mallTotal' => 1,
+            'visibility' => 'active',
+            'activeCount' => 1,
+            'inactiveCount' => 0,
             'booths' => [[
                 'id' => self::BOOTH,
                 'code' => 'A1',

@@ -1,7 +1,7 @@
 ---
 title: When mail sends (web vs worker)
 category: Platform notes
-hesk: published 2026-11-16
+hesk: published 2026-11-18
 as_of: 2026-11-16
 ---
 
@@ -9,7 +9,7 @@ as_of: 2026-11-16
 
 ## As of
 
-2026-11-16 — the store home page names work waiting for that store only. Another store’s queue, and mail that has already gone out, stay off that page. Password-reset and receipt mail still send in the web request; other store mail waits in the outbox for `php bin/work.php`.
+2026-11-16 — Sunday mail starts off. Building turns Weekly vendor letter on. When it is on, the letter goes to each active vendor whose email has not bounced. Subject is This week. The body is the vendor name, Payable, and Rent you owe. Saving money leaves that switch as it is. The rent-cycle reminder uses that body only when rent is still owed. A sale day notice uses subject Sold today and one line per tag. The store home page names work waiting for that store only. Another store’s queue, and mail that has already gone out, stay off that page. Password-reset and receipt mail still send in the web request; other store mail waits in the outbox for `php bin/work.php`.
 
 ## In one sentence
 
@@ -22,7 +22,7 @@ An owner resets a password, a cashier emails a receipt, a consignor entry link i
 ## What the books / screens do
 
 - **Immediate (web request):** mall password reset and receipt email (mall Settings mailbox); platform admin forgot-password and signup confirmation (platform Gmail/SMTP env); platform operator notices for mail failure or HTTP 500. Mall `/forgot` keeps the same user success flash when a known account’s reset mail fails; operators still get that platform notice.
-- **Filed, then worker:** consignor magic link, owner vendor letter, sale notice, Sunday digest, rent reminder. The letter desk shows Waiting until the worker marks Sent or Bounced.
+- **Filed, then worker:** consignor magic link, owner vendor letter, sale notice, Sunday digest, rent reminder. The letter desk shows Waiting until the worker marks Sent or Bounced. The Sunday digest starts off until Building turns Weekly vendor letter on. When it is on, the digest and the rent reminder are plain text to the vendor’s own email: name, Payable, and Rent you owe. Sunday includes a vendor who owes nothing. The rent reminder waits for the rent-cycle day and skips a vendor who owes nothing. A sale notice that day is subject Sold today, with one line per tag sold. Saving money leaves the Sunday switch as it is.
 - The store home page says when that store has work waiting to run. Another store’s queue, and mail that has already gone out, stay off that page.
 - Admin → Mail worker shows whether `STALL_WORKER_PASSWORD` is set, the last `php bin/work.php` run, waiting outbox rows, the whole queue, and a pruneable run log.
 - Store-facing mail uses each mall’s Settings mailbox. Platform mail uses the platform Gmail/SMTP env.

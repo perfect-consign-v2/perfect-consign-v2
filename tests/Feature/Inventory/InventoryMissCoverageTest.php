@@ -21,7 +21,6 @@ use PerfectConsign\Feature\Inventory\ItemDates;
 use PerfectConsign\Feature\Inventory\ItemEntry;
 use PerfectConsign\Feature\Inventory\ItemForm;
 use PerfectConsign\Feature\Inventory\ItemGuard;
-use PerfectConsign\Feature\Inventory\ItemListRows;
 use PerfectConsign\Feature\Inventory\ItemMarkAllocator;
 use PerfectConsign\Feature\Inventory\ItemPhotoController;
 use PerfectConsign\Feature\Inventory\ItemPhotoIntake;
@@ -751,7 +750,6 @@ final class InventoryMissCoverageTest extends TestCase
             new ItemQueries($this->routed()),
             $forms,
             new ItemWriter($catalog, $lists, $mall, $take),
-            new ItemListRows($catalog, $take, $forms),
             $mall,
             new LabelCatalog(),
             $photos,

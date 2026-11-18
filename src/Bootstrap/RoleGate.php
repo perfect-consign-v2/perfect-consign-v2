@@ -61,7 +61,7 @@ final class RoleGate
 
     private static function cashier(string $rest, string $method): bool
     {
-        if (self::counter($rest) || self::rentPage($rest)) {
+        if (self::counter($rest) || self::rentPage($rest) || RolePaths::cashierCatalog($rest, $method)) {
             return true;
         }
 
@@ -115,7 +115,7 @@ final class RoleGate
 
     private static function vendor(string $rest, string $method): bool
     {
-        if ($method === 'GET' && preg_match('#^/inventory/[0-9a-fA-F-]{36}/photo$#', $rest) === 1) {
+        if (RolePaths::vendorReads($rest, $method)) {
             return true;
         }
         if (in_array($rest, ['/vendor', '/vendor/labels', '/vendor/sales', '/vendor/inventory', '/vendor/offers', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
@@ -123,7 +123,7 @@ final class RoleGate
         }
 
         return preg_match(
-            '#^/vendor/(?:offers/.*|inventory/(?:new|[0-9a-fA-F-]{36}(?:/(?:edit|delete))?)|checks/[0-9a-fA-F-]{36})$#',
+            '#^/vendor/(?:offers/.*|inventory/(?:new|rows|[0-9a-fA-F-]{36}(?:/(?:edit|delete))?)|checks/[0-9a-fA-F-]{36})$#',
             $rest,
         ) === 1;
     }

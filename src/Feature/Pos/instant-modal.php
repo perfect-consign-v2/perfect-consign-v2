@@ -29,7 +29,7 @@ $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
     : '/' . $slug . '/inventory/' . (!empty($consignmentOnly) ? 'consignors' : 'vendors') . '.json';
 ?>
 <div id="instant-add" class="modal" role="dialog" aria-modal="true" aria-labelledby="instant-add-title"<?= $openInstant ? '' : ' hidden' ?>>
-    <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="<?= View::text($sellersJsonUrl) ?>" data-brands="/<?= View::text($slug) ?>/inventory/brands.json" data-brand-create="/<?= View::text($slug) ?>/inventory/brands">
+    <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="<?= View::text($sellersJsonUrl) ?>">
         <div class="card-head">
             <div class="h3" id="instant-add-title">Instant inventory</div>
             <button class="btn" type="button" data-close-modal="instant-add">Close</button>
@@ -81,16 +81,16 @@ $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
                 </div>
             </div>
             <?php if ($showBrand): ?>
-            <div class="field combo">
+            <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/brands.json" data-create="/<?= View::text($slug) ?>/inventory/brands">
                 <label for="instant_brand">Brand</label>
                 <input class="input" id="instant_brand" name="brand_label" value="<?= View::text($instantBrandLabel) ?>" autocomplete="off" placeholder="Search brands or type a new one">
                 <input type="hidden" id="instant_brand_id" name="brand_id" value="<?= View::text($instantBrandId) ?>">
-                <div class="suggest" id="instant-brand-suggest" hidden></div>
-                <div class="row gap-2" id="instant-brand-create" hidden>
-                    <span class="muted text-sm">Add brand <strong id="instant-brand-create-name"></strong>?</span>
-                    <button class="btn btn-sm" id="instant-brand-create-button" type="button">Add brand</button>
+                <div class="suggest" hidden></div>
+                <div class="row gap-2" hidden data-create-row>
+                    <span class="muted text-sm">Add brand <strong data-create-name></strong>?</span>
+                    <button class="btn btn-sm" type="button" data-create-button>Add brand</button>
                 </div>
-                <p class="field-error" id="instant-brand-error" hidden></p>
+                <p class="field-error" hidden></p>
             </div>
             <?php endif; ?>
             <?php foreach ($attributeLists as $attribute): ?>
@@ -101,7 +101,7 @@ $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
                 ?>
                 <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
                     <label for="instant_<?= View::text($attribute->key) ?>"><?= View::text(ucfirst($attribute->singular)) ?></label>
-                    <input class="input" id="instant_<?= View::text($attribute->key) ?>" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($attributeLabel) ?>" autocomplete="off">
+                    <input class="input" id="instant_<?= View::text($attribute->key) ?>" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($attributeLabel) ?>" autocomplete="off" placeholder="Search or type a new one">
                     <input type="hidden" name="<?= View::text($attribute->key) ?>_id" value="<?= View::text($attributeId) ?>">
                     <div class="suggest" hidden></div>
                     <div class="row gap-2" hidden data-create-row>
@@ -118,3 +118,4 @@ $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
         </div>
     </form>
 </div>
+<script src="<?= View::asset('/assets/js/name-list.js') ?>" defer></script>

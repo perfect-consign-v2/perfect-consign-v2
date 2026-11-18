@@ -112,8 +112,8 @@ final class ProbeSurfaceSeed
         if (!str_contains($item->body, 'Item created.')) {
             throw new RuntimeException('item seed failed: ' . HtmlPage::error($item->body));
         }
-        $list = $owner->get('/' . $slug . '/inventory?q=' . rawurlencode($itemCode));
-        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', 'Surface coat ' . $itemCode);
+        $list = ItemListBody::html($owner, '/' . $slug . '/inventory?q=' . rawurlencode($itemCode));
+        $itemId = HtmlPage::taggedId($list, 'tr', 'item', 'Surface coat ' . $itemCode);
 
         return new self(
             $vendorId,

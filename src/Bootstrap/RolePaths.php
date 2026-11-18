@@ -61,4 +61,50 @@ final class RolePaths
 
         return false;
     }
+
+    public static function cashierCatalog(string $rest, string $method): bool
+    {
+        return self::nameCatalog($rest, $method) || self::sellerLookup($rest, $method);
+    }
+
+    public static function vendorReads(string $rest, string $method): bool
+    {
+        if ($method === 'GET' && preg_match('#^/inventory/[0-9a-fA-F-]{36}/photo$#', $rest) === 1) {
+            return true;
+        }
+
+        return self::nameCatalog($rest, $method);
+    }
+
+    public static function nameCatalog(string $rest, string $method): bool
+    {
+        $catalogs = ['brands', 'colors', 'categories', 'sizes', 'conditions', 'departments'];
+        if ($method === 'GET') {
+            return in_array($rest, self::catalogPaths($catalogs, '.json'), true);
+        }
+
+        return $method === 'POST' && in_array($rest, self::catalogPaths($catalogs, ''), true);
+    }
+
+    public static function sellerLookup(string $rest, string $method): bool
+    {
+        return $method === 'GET' && in_array($rest, [
+            '/inventory/vendors.json',
+            '/inventory/consignors.json',
+        ], true);
+    }
+
+    /**
+     * @param list<string> $catalogs
+     * @return list<string>
+     */
+    private static function catalogPaths(array $catalogs, string $suffix): array
+    {
+        $paths = [];
+        foreach ($catalogs as $catalog) {
+            $paths[] = '/inventory/' . $catalog . $suffix;
+        }
+
+        return $paths;
+    }
 }

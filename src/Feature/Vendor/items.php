@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Inventory\InventorySelectionKey;
+use PerfectConsign\Feature\Inventory\ItemColumns;
 use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Web\ListTable;
@@ -21,12 +22,10 @@ $available = $available ?? 0;
 $unsold = $unsold ?? 0;
 $unprinted = $unprinted ?? 0;
 $query = $query ?? '';
-/** @var list<array{id: string, code: string, barcode: string, description: string, price_minor: int|string, quantity: int, brand_name: string, color_name: string, category_name: string, size_name: string, condition_name: string, department_name: string, intake_on: string, expires_on: string, take_label: string, overridden: bool, days_on_floor?: int|null, age_tier?: int|null}> $items */
 /** @var list<NameList> $attributeLists */
 /** @var string $labelStock */
 /** @var list<array{key: string, label: string}> $stocks */
 
-$blank = '—';
 $showBrand = ($showBrand ?? true) === true;
 $previewAs = is_string($previewAs ?? null) ? $previewAs : '';
 $list = '/' . $slug . '/vendor/inventory';
@@ -77,18 +76,7 @@ $shows = [
         </div>
     </div>
 <?php else: ?>
-    <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <?php if ($previewAs !== ''): ?>
-            <input type="hidden" name="as" value="<?= View::text($previewAs) ?>">
-        <?php endif; ?>
-        <?php if ($stock !== ''): ?>
-            <input type="hidden" name="stock" value="<?= View::text($stock) ?>">
-        <?php endif; ?>
-        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="<?= $showBrand ? 'Search tag, barcode, description, or brand' : 'Search tag, barcode, or description' ?>" aria-label="Search inventory">
-        <button class="btn" type="submit">Search</button>
-    </form>
-
-    <div class="list-show mt-4">
+    <div class="list-show mt-6">
         <p class="muted">Show</p>
         <div class="segmented" role="navigation" aria-label="Show items">
             <?php foreach ($shows as $value => $label): ?>
@@ -111,113 +99,40 @@ $shows = [
         </div>
     </div>
 
-    <?php if ($stock === 'unprinted' && $items !== []): ?>
+    <?php if ($stock === 'unprinted' && $unprinted > 0): ?>
         <p class="muted text-sm mt-3">Check items, then print from the bar at the bottom.</p>
     <?php endif; ?>
 
-    <?php if ($items !== []): ?>
-        <?php
-        $printId = '';
-        $lead = '';
-        $labelAction = VendorPreview::with('/' . $slug . '/vendor/labels', $previewAs);
-        $selectionStorageKey = InventorySelectionKey::vendor($slug);
-        $stickerChrome = 'shell';
-        require __DIR__ . '/../Inventory/sticker-job.php';
-        ?>
-    <?php endif; ?>
+    <?php
+    $printId = '';
+    $lead = '';
+    $labelAction = VendorPreview::with('/' . $slug . '/vendor/labels', $previewAs);
+    $selectionStorageKey = InventorySelectionKey::vendor($slug);
+    $stickerChrome = 'shell';
+    require __DIR__ . '/../Inventory/sticker-job.php';
+    $columns = ItemColumns::vendor($showBrand ? 'show' : 'hide', $attributeLists);
+    $rowQuery = ['stock' => $stock];
+    if ($query !== '') {
+        $rowQuery['q'] = $query;
+    }
+    ?>
 
     <div class="card table-wrap list-dt-wrap list-dt-page-scroll mt-4">
-        <?php if ($items === []): ?>
-            <div class="empty"><p><?= View::text($emptyFilter) ?></p></div>
-        <?php else: ?>
-            <?php
-            $columns = [
-                ['label' => 'Print', 'actions' => true, 'select' => true],
-                ['label' => 'Tag'],
-                ['label' => 'Barcode'],
-                ['label' => 'Description'],
-            ];
-            if ($showBrand) {
-                $columns[] = ['label' => 'Brand'];
-            }
-            foreach ($attributeLists as $attribute) {
-                $columns[] = ['label' => ucfirst($attribute->singular)];
-            }
-            $columns[] = ['label' => 'Intake'];
-            $columns[] = ['label' => 'Days on floor', 'sort' => 'num'];
-            $columns[] = ['label' => 'Expires'];
-            $columns[] = ['label' => 'Store %', 'sort' => 'num'];
-            $columns[] = ['label' => 'Qty', 'sort' => 'num'];
-            $columns[] = ['label' => 'Price', 'sort' => 'num'];
-            $columns[] = ['label' => 'Edit', 'actions' => true];
-            ListTable::open(['id' => 'vendor-items', 'export' => 'items', 'pageScroll' => true]);
-            ListTable::head($columns);
-            ?>
-                <tbody>
-                <?php foreach ($items as $item): ?>
-                    <?php
-                    $brand = $item['brand_name'];
-                    $tier = $item['age_tier'] ?? null;
-                    $days = $item['days_on_floor'] ?? null;
-                    $rowClass = is_int($tier) ? 'vendor-item-row--age-' . $tier : '';
-                    $edit = VendorPreview::with('/' . $slug . '/vendor/inventory/' . $item['id'] . '/edit', $previewAs);
-                    ?>
-                    <tr class="<?= View::text($rowClass) ?>" id="item-<?= View::text($item['id']) ?>">
-                        <td><input form="stickers" type="checkbox" name="item[]" value="<?= View::text($item['id']) ?>" aria-label="Print <?= View::text($item['code']) ?>"></td>
-                        <td class="strong"><?= View::text($item['code']) ?></td>
-                        <td><?= View::text($item['barcode']) ?></td>
-                        <td><?= View::text($item['description']) ?></td>
-                        <?php if ($showBrand): ?>
-                        <td>
-                            <?php if ($brand === ''): ?>
-                                <span class="muted"><?= $blank ?></span>
-                            <?php else: ?>
-                                <?= View::text($brand) ?>
-                            <?php endif; ?>
-                        </td>
-                        <?php endif; ?>
-                        <?php foreach ($attributeLists as $attribute): ?>
-                            <?php $value = $item[$attribute->key . '_name']; ?>
-                            <td>
-                                <?php if ($value === ''): ?>
-                                    <span class="muted"><?= $blank ?></span>
-                                <?php else: ?>
-                                    <?= View::text($value) ?>
-                                <?php endif; ?>
-                            </td>
-                        <?php endforeach; ?>
-                        <td><?= View::date($item['intake_on']) ?></td>
-                        <td class="num vendor-days">
-                            <?php if (is_int($tier) && is_int($days)): ?>
-                                <?= View::text((string) $days) ?>
-                            <?php else: ?>
-                                <span class="muted"><?= $blank ?></span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <?php if ($item['expires_on'] === ''): ?>
-                                <span class="muted"><?= $blank ?></span>
-                            <?php else: ?>
-                                <?= View::date($item['expires_on']) ?>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <?= View::text($item['take_label']) ?>%
-                            <?php if ($item['overridden']): ?>
-                                <span class="badge badge-warning">Overridden</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="num"><?= View::text((string) $item['quantity']) ?></td>
-                        <td class="num"><?= View::text(View::money(View::minor($item['price_minor']))) ?></td>
-                        <td><a href="<?= View::text($edit) ?>">Edit</a></td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
+        <?php
+        ListTable::open([
+            'id' => 'vendor-items',
+            'export' => 'items',
+            'pageScroll' => true,
+            'server' => true,
+            'rows' => VendorPreview::with($list . '/rows?' . http_build_query($rowQuery), $previewAs),
+            'start' => 0,
+            'empty' => $emptyFilter,
+        ]);
+        ListTable::head($columns);
+        ?>
+            <tbody></tbody>
+        </table>
     </div>
-    <?php if ($items !== []): ?>
-        <?php require __DIR__ . '/../Inventory/selection-bar.php'; ?>
-    <?php endif; ?>
+    <?php require __DIR__ . '/../Inventory/selection-bar.php'; ?>
     <?php ListTable::assets(); ?>
 <?php endif; ?>

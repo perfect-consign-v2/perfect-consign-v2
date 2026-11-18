@@ -17,7 +17,6 @@ final class InventoryController
         private readonly ItemQueries $queries,
         private readonly ItemForm $forms,
         private readonly ItemWriter $writer,
-        private readonly ItemListRows $rows,
         private readonly MallSettings $mall,
         private readonly LabelCatalog $stocks,
         private readonly ItemPhotoController $photos,
@@ -194,12 +193,11 @@ final class InventoryController
         $tenant = $this->app->open($slug, true);
         $query = trim($this->app->request()->query('q'));
         $stock = $this->stockFilter($this->app->request()->query('stock'));
-        $items = $this->rows->mark($this->queries->items($query, $stock), $this->items->referenced());
+        $confirm = $this->confirmPlacement($query, $stock);
         $this->app->show('Feature/Inventory/inventory', [
             'title' => 'Items',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'items' => $items,
             'query' => $query,
             'stock' => $stock,
             'available' => $this->queries->available(),
@@ -207,11 +205,30 @@ final class InventoryController
             'sold' => $this->queries->sold(),
             'unprinted' => $this->queries->unprinted(),
             'total' => $this->queries->count(),
-            'confirm' => $this->confirming($items, $this->app->request()->query('confirm')),
+            'confirm' => $confirm['id'],
+            'confirmIndex' => $confirm['index'],
             'labelStock' => $this->mall->getLabelStock(),
             'stocks' => $this->stocks->choices(),
             'error' => $error,
         ]);
+    }
+
+    /**
+     * @return array{id: string, index: int}
+     */
+    private function confirmPlacement(string $query, string $stock): array
+    {
+        $raw = $this->app->request()->query('confirm');
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $raw) !== 1) {
+            return ['id' => '', 'index' => 0];
+        }
+        $id = strtolower($raw);
+        $index = $this->queries->place($query, $stock, '', $this->mall->today(), $id);
+        if ($index < 0 || isset($this->items->held([$id])[$id])) {
+            return ['id' => '', 'index' => 0];
+        }
+
+        return ['id' => $id, 'index' => $index];
     }
 
     private function stockFilter(string $stock): string
@@ -262,24 +279,5 @@ final class InventoryController
             'photoRule' => $this->photos->rule(),
             'error' => $error,
         ]);
-    }
-
-    /**
-     * @param list<array<string, mixed>> $items
-     */
-    private function confirming(array $items, string $confirm): string
-    {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $confirm) !== 1) {
-            return '';
-        }
-        $needle = strtolower($confirm);
-        foreach ($items as $item) {
-            $id = $item['id'] ?? null;
-            if (is_string($id) && strtolower($id) === $needle && ($item['deletable'] ?? false) === true) {
-                return $id;
-            }
-        }
-
-        return '';
     }
 }

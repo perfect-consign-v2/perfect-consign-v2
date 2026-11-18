@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\HtmlPage;
+use PerfectConsign\Tests\Support\ItemListBody;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 
@@ -57,8 +58,8 @@ final class VendorAccountTest extends WebTestCase
             'intake_on' => '2026-09-01',
         ]);
         self::assertSees('Item created.', $intake);
-        $list = $owner->get('/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($itemCode));
-        $itemId = HtmlPage::taggedId($list->body, 'tr', 'item', 'Coat ' . $itemCode);
+        $list = ItemListBody::html($owner, '/' . ProbeMall::SLUG . '/inventory?q=' . rawurlencode($itemCode));
+        $itemId = HtmlPage::taggedId($list, 'tr', 'item', 'Coat ' . $itemCode);
 
         $vendor = self::client();
         $stale = $vendor->signIn(ProbeMall::SLUG, $username, 'vendor-pass');

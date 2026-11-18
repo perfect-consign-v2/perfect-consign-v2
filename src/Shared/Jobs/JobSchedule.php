@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
+use PerfectConsign\Feature\Mall\MallGuard;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -52,7 +53,7 @@ final class JobSchedule
     }
 
     /**
-     * @param array{date: string, sunday: bool, cycle: bool} $clock
+     * @param array{date: string, sunday: bool, cycle: bool, weekly: bool} $clock
      */
     private function enqueueDaily(string $slug, array $clock): void
     {
@@ -60,7 +61,7 @@ final class JobSchedule
         $this->queue->enqueue($this->pdo, $slug, 'reconcile-reports', $clock['date']);
         $this->queue->enqueue($this->pdo, $slug, 'sale-notice', $clock['date']);
         $this->queue->enqueue($this->pdo, $slug, 'markdown-propose', $clock['date']);
-        if ($clock['sunday']) {
+        if ($clock['sunday'] && $clock['weekly']) {
             $this->queue->enqueue($this->pdo, $slug, 'vendor-digest', $clock['date']);
         }
         if ($clock['cycle']) {
@@ -78,7 +79,7 @@ final class JobSchedule
     }
 
     /**
-     * @return array{date: string, sunday: bool, cycle: bool}|null
+     * @return array{date: string, sunday: bool, cycle: bool, weekly: bool}|null
      */
     private function mallClock(string $slug, string $schema): ?array
     {
@@ -107,7 +108,7 @@ final class JobSchedule
     }
 
     /**
-     * @return array{date: string, sunday: bool, cycle: bool}|null
+     * @return array{date: string, sunday: bool, cycle: bool, weekly: bool}|null
      */
     public function clock(string $schema): ?array
     {
@@ -118,7 +119,8 @@ final class JobSchedule
             'SELECT (clock_timestamp() AT TIME ZONE time_zone)::date AS day,
                     EXTRACT(DOW FROM (clock_timestamp() AT TIME ZONE time_zone)) AS dow,
                     EXTRACT(DAY FROM (clock_timestamp() AT TIME ZONE time_zone)) AS month_day,
-                    rent_cycle_day
+                    rent_cycle_day,
+                    vendor_weekly_mail_enabled
              FROM ' . $schema . '.mall'
         );
         if ($query === false) {
@@ -139,6 +141,7 @@ final class JobSchedule
             'date' => $day,
             'sunday' => $dow === 0 || $dow === '0' || $dow === '0.0',
             'cycle' => self::sameNumber($row['month_day'] ?? null, $row['rent_cycle_day'] ?? null),
+            'weekly' => MallGuard::flag($row['vendor_weekly_mail_enabled'] ?? null),
         ];
     }
 

@@ -124,11 +124,11 @@ final class JobScheduleCoverageTest extends TestCase
             self::assertNull($clock->clock($schema));
             self::assertNull($clock->clock($schema));
             self::assertSame(
-                ['date' => '2026-11-09', 'sunday' => false, 'cycle' => false],
+                ['date' => '2026-11-09', 'sunday' => false, 'cycle' => false, 'weekly' => false],
                 $clock->clock($schema),
             );
             self::assertSame(
-                ['date' => '2026-11-08', 'sunday' => true, 'cycle' => true],
+                ['date' => '2026-11-08', 'sunday' => true, 'cycle' => true, 'weekly' => false],
                 $clock->clock($schema),
             );
             throw $error;

@@ -9,6 +9,10 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $csrf */
 /** @var string $query */
 /** @var string $standing */
+/** @var string $visibility */
+/** @var int $activeCount */
+/** @var int $inactiveCount */
+/** @var int $mallTotal */
 /** @var array{available: int, occupied: int, ending: int, incoming: int} $counts */
 /** @var string $confirm */
 /** @var int $total */
@@ -18,6 +22,17 @@ $blank = '—';
 $list = '/' . $slug . '/booths';
 $sellerPrefix = is_string($sellerPrefix ?? null) && $sellerPrefix !== '' ? $sellerPrefix : 'vendors';
 $sellerBase = '/' . $slug . '/' . $sellerPrefix;
+$listKeep = [];
+if ($visibility === 'inactive') {
+    $listKeep['visibility'] = 'inactive';
+}
+if ($query !== '') {
+    $listKeep['q'] = $query;
+}
+$allHref = $list . ($listKeep === [] ? '' : '?' . http_build_query($listKeep));
+$emptyNote = $query !== '' || $standing !== ''
+    ? 'No booths match.'
+    : ($visibility === 'inactive' ? 'No inactive booths.' : 'No active booths.');
 $legend = [
     'available' => 'Available',
     'occupied' => 'Occupied',
@@ -33,7 +48,7 @@ $legend = [
     <a class="btn btn-primary" href="/<?= View::text($slug) ?>/booths/new"><svg aria-hidden="true"><use href="#i-plus"></use></svg> New booth</a>
 </div>
 
-<?php if ($total === 0): ?>
+<?php if ($mallTotal === 0): ?>
     <div class="card">
         <div class="empty">
             <svg aria-hidden="true"><use href="#i-booth"></use></svg>
@@ -41,24 +56,29 @@ $legend = [
         </div>
     </div>
 <?php else: ?>
-    <form class="row gap-2 mt-6" method="get" action="<?= View::text($list) ?>" role="search">
-        <input class="input" data-style-prop="max-width:20rem" type="search" name="q" value="<?= View::text($query) ?>" placeholder="Search code or name" aria-label="Search booths">
-        <?php if ($standing !== ''): ?>
-            <input type="hidden" name="standing" value="<?= View::text($standing) ?>">
-        <?php endif; ?>
-        <button class="btn" type="submit">Search</button>
-    </form>
-
-    <p class="occupancy-summary" aria-label="Booth standing">
-        <a class="occupancy-pill all" href="<?= View::text($list) ?>"<?= $standing === '' && $query === '' ? ' aria-current="page"' : '' ?>>All (<?= View::text($total) ?>)</a>
+    <div class="list-show mt-6">
+        <p class="muted">Show</p>
+        <div class="segmented" role="navigation" aria-label="Show">
+            <?php
+            $activeParams = $query !== '' ? ['q' => $query] : [];
+            $activeHref = $list . ($activeParams === [] ? '' : '?' . http_build_query($activeParams));
+            $inactiveParams = ['visibility' => 'inactive'];
+            if ($query !== '') {
+                $inactiveParams['q'] = $query;
+            }
+            $inactiveHref = $list . '?' . http_build_query($inactiveParams);
+            ?>
+            <a class="seg-btn<?= $visibility === 'active' ? ' is-selected' : '' ?>" href="<?= View::text($activeHref) ?>"<?= $visibility === 'active' ? ' aria-current="page"' : '' ?>>Active (<?= View::text($activeCount) ?>)</a>
+            <a class="seg-btn<?= $visibility === 'inactive' ? ' is-selected' : '' ?>" href="<?= View::text($inactiveHref) ?>"<?= $visibility === 'inactive' ? ' aria-current="page"' : '' ?>>Inactive (<?= View::text($inactiveCount) ?>)</a>
+        </div>
+    </div>
+    <p class="occupancy-summary mt-4" aria-label="Booth standing">
+        <a class="occupancy-pill all" href="<?= View::text($allHref) ?>"<?= $standing === '' && $query === '' ? ' aria-current="page"' : '' ?>>All (<?= View::text($total) ?>)</a>
         <?php foreach ($legend as $status => $label): ?>
             <?php
             $count = $counts[$status];
             $text = $label . ' (' . $count . ')';
-            $params = [];
-            if ($query !== '') {
-                $params['q'] = $query;
-            }
+            $params = $listKeep;
             if ($standing !== $status && $count > 0) {
                 $params['standing'] = $status;
             }
@@ -74,7 +94,7 @@ $legend = [
 
     <div class="card table-wrap list-dt-wrap mt-4">
         <?php if ($booths === []): ?>
-            <div class="empty"><p>No booths match.</p></div>
+            <div class="empty"><p><?= View::text($emptyNote) ?></p></div>
         <?php else: ?>
             <?php
             ListTable::open(['id' => 'booths', 'export' => 'booths']);
@@ -93,10 +113,7 @@ $legend = [
                 <tbody>
                 <?php foreach ($booths as $booth): ?>
                     <?php
-                    $keep = [];
-                    if ($query !== '') {
-                        $keep['q'] = $query;
-                    }
+                    $keep = $listKeep;
                     if ($standing !== '') {
                         $keep['standing'] = $standing;
                     }
@@ -152,10 +169,23 @@ $legend = [
                         </td>
                         <td class="row gap-2">
                             <a class="btn btn-sm btn-ghost" href="/<?= View::text($slug) ?>/booths/<?= View::text($booth['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
+                            <?php if ($visibility === 'inactive'): ?>
+                                <form class="row" method="post" action="/<?= View::text($slug) ?>/booths/<?= View::text($booth['id']) ?>/active">
+                                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                    <input type="hidden" name="active" value="1">
+                                    <button class="btn btn-sm" type="submit">Make active</button>
+                                </form>
+                            <?php elseif ($booth['status'] === 'available'): ?>
+                                <form class="row" method="post" action="/<?= View::text($slug) ?>/booths/<?= View::text($booth['id']) ?>/active">
+                                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                    <input type="hidden" name="active" value="0">
+                                    <button class="btn btn-sm" type="submit">Make inactive</button>
+                                </form>
+                            <?php endif; ?>
                             <?php if ($confirm === $booth['id']): ?>
                                 <span>Delete this booth?</span>
                                 <a class="btn btn-sm btn-ghost" href="<?= View::text($cancel) ?>">Cancel</a>
-                                <form method="post" action="/<?= View::text($slug) ?>/booths/<?= View::text($booth['id']) ?>/delete">
+                                <form method="post" action="/<?= View::text($slug) ?>/booths/<?= View::text($booth['id']) ?>/delete<?= $visibility === 'inactive' ? '?visibility=inactive' : '' ?>">
                                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                     <button class="btn btn-sm" type="submit"><svg aria-hidden="true"><use href="#i-trash"></use></svg> Delete</button>
                                 </form>

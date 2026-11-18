@@ -83,23 +83,47 @@ final class BoothController
         });
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/booths/([0-9a-fA-F-]{36})/active', ['POST'])]
+    public function setActive(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $flag = $this->app->request()->field('active');
+        if ($flag !== '0' && $flag !== '1') {
+            $this->list($slug, 'Choose active or inactive.');
+
+            return;
+        }
+        $error = $this->caught(function () use ($id, $flag): void {
+            $this->lists->setActive($id, $flag === '1', $this->mall->today());
+        });
+        if ($error !== null) {
+            $this->afterActive($slug, $id, $error);
+
+            return;
+        }
+        $landed = [
+            '1' => ['', 'Booth is active.'],
+            '0' => ['?visibility=inactive', 'Booth is inactive.'],
+        ][$flag];
+        $this->app->redirect('/' . $slug . '/booths' . $landed[0], $landed[1]);
+    }
+
     #[Route('/([a-z][a-z0-9-]{0,62})/booths/([0-9a-fA-F-]{36})/delete', ['POST'])]
     public function remove(string $slug, string $id): void
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $error = null;
-        try {
+        $error = $this->caught(function () use ($id): void {
             $this->booths->removeBooth($id);
-        } catch (DatabaseRefusal $refusal) {
-            $error = $this->app->catchRefusal($refusal);
-        } catch (\InvalidArgumentException $errorValue) {
-            $error = $errorValue->getMessage();
+        });
+        if ($error !== null) {
+            $this->list($slug, $error);
+
+            return;
         }
-        if ($error === null) {
-            $this->app->redirect('/' . $slug . '/booths', 'Booth deleted.');
-        }
-        $this->list($slug, $error);
+        $next = $this->app->request()->query('visibility') === 'inactive' ? '?visibility=inactive' : '';
+        $this->app->redirect('/' . $slug . '/booths' . $next, 'Booth deleted.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/rates', ['POST'])]
@@ -113,20 +137,33 @@ final class BoothController
 
             return;
         }
-        $error = null;
-        try {
+        $error = $this->caught(function () use ($id): void {
             $amount = $this->askingAmount();
             if ($amount === null) {
                 throw new \InvalidArgumentException('enter an asking rent');
             }
             $this->asking->setAskingRent($id, $amount);
-        } catch (DatabaseRefusal $refusal) {
-            $error = $this->app->catchRefusal($refusal);
-        } catch (\InvalidArgumentException $errorValue) {
-            $error = $errorValue->getMessage();
+        });
+        if ($error !== null) {
+            $booth = $this->booths->findBooth($id);
+            if ($booth === null) {
+                $this->list($slug, $error);
+
+                return;
+            }
+            $this->form($slug, $booth, $error);
+
+            return;
         }
-        if ($error === null) {
-            $this->app->redirect('/' . $slug . '/booths/' . $id . '/edit', 'Asking rent saved.');
+        $this->app->redirect('/' . $slug . '/booths/' . $id . '/edit', 'Asking rent saved.');
+    }
+
+    private function afterActive(string $slug, string $id, string $error): void
+    {
+        if ($this->app->request()->field('back') !== 'booth') {
+            $this->list($slug, $error);
+
+            return;
         }
         $booth = $this->booths->findBooth($id);
         if ($booth === null) {
@@ -137,17 +174,23 @@ final class BoothController
         $this->form($slug, $booth, $error);
     }
 
-    private function change(string $slug, ?string $id, callable $action): void
+    private function caught(callable $action): ?string
     {
-        $this->app->open($slug, true);
-        $error = null;
         try {
             $action();
         } catch (DatabaseRefusal $refusal) {
-            $error = $this->app->catchRefusal($refusal);
+            return $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
-            $error = $errorValue->getMessage();
+            return $errorValue->getMessage();
         }
+
+        return null;
+    }
+
+    private function change(string $slug, ?string $id, callable $action): void
+    {
+        $this->app->open($slug, true);
+        $error = $this->caught($action);
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/booths', $id === null ? 'Booth created.' : 'Booth saved.');
         }
@@ -160,6 +203,10 @@ final class BoothController
         ];
         if ($id !== null) {
             $booth['id'] = $id;
+            $existing = $this->booths->findBooth($id);
+            if ($existing !== null) {
+                $booth['active'] = $existing['active'] ?? true;
+            }
         }
         $this->form($slug, $booth, $error);
     }
@@ -170,14 +217,17 @@ final class BoothController
     private function form(string $slug, ?array $booth, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
-        $id = is_array($booth) ? ($booth['id'] ?? null) : null;
+        $standing = $this->lists->standing(is_array($booth) ? $booth : null, $this->mall->today());
         $this->app->show('Feature/Party/booth-form', [
-            'title' => is_string($id) && $id !== '' ? 'Edit booth' : 'New booth',
+            'title' => $standing['show'] ? 'Edit booth' : 'New booth',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'booth' => $this->withAskingRent($booth),
             'defaultWidth' => $this->mall->boothSize()['width'],
             'defaultDepth' => $this->mall->boothSize()['depth'],
+            'showStanding' => $standing['show'],
+            'boothActive' => $standing['active'],
+            'canRetire' => $standing['retire'],
             'error' => $error,
         ]);
     }
@@ -186,8 +236,10 @@ final class BoothController
     {
         $tenant = $this->app->open($slug, true);
         $facts = $this->lists->facts();
+        $raw = $this->booths->booths();
+        $offered = $this->filter->offered($raw, $this->app->request()->query('visibility'));
         $rows = $this->roster->assemble(
-            $this->booths->booths(),
+            $offered['rows'],
             $facts['stays'],
             $this->lists->rates(),
             $facts['open_rent'],
@@ -212,6 +264,10 @@ final class BoothController
             'slug' => $tenant->slug,
             'booths' => $visible,
             'total' => count($rows),
+            'mallTotal' => count($raw),
+            'visibility' => $offered['visibility'],
+            'activeCount' => $offered['active'],
+            'inactiveCount' => $offered['inactive'],
             'query' => $query,
             'standing' => $standing,
             'counts' => $counts,

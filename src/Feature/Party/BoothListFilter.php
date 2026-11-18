@@ -158,6 +158,23 @@ final class BoothListFilter
     }
 
     /**
+     * @param list<array<string, mixed>> $rows
+     * @return array{rows: list<array<string, mixed>>, visibility: string, active: int, inactive: int}
+     */
+    public function offered(array $rows, string $raw): array
+    {
+        $visibility = BoothVisibility::chosen($raw);
+        $counts = BoothVisibility::counts($rows);
+
+        return [
+            'rows' => BoothVisibility::only($rows, $visibility),
+            'visibility' => $visibility,
+            'active' => $counts['active'],
+            'inactive' => $counts['inactive'],
+        ];
+    }
+
+    /**
      * @param array{status: string, incoming_vendor_id: ?string} $row
      */
     private function shows(array $row, string $status): bool

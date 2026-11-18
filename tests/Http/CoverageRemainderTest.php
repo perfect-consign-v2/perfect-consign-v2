@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
+use PerfectConsign\Tests\Support\ItemListBody;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 
@@ -611,12 +612,18 @@ final class CoverageRemainderTest extends WebTestCase
         ]);
         self::assertSees('Enter a quantity of at least 1.', $badItem);
         $item = $this->item($vendorId, '3.00', '2');
-        $inventory = $this->client->get('/' . self::SLUG . '/inventory?q=' . $item['code']);
-        $itemId = HtmlPage::taggedId($inventory->body, 'tr', 'item', $item['code']);
+        $inventory = ItemListBody::html($this->client, '/' . self::SLUG . '/inventory?q=' . rawurlencode($item['code']));
+        $itemId = HtmlPage::taggedId($inventory, 'tr', 'item', $item['code']);
         $editor = $this->client->get('/' . self::SLUG . '/inventory/' . $itemId . '/edit');
         self::assertSees($item['description'], $editor);
-        $asked = $this->client->get('/' . self::SLUG . '/inventory?confirm=' . $itemId);
-        self::assertSees($item['description'], $asked);
+        $asked = $this->client->get('/' . self::SLUG . '/inventory?q=' . rawurlencode($item['code']) . '&confirm=' . $itemId);
+        self::assertStringContainsString('data-dt-start="0"', $asked->body);
+        $prompt = ItemListBody::html(
+            $this->client,
+            '/' . self::SLUG . '/inventory?q=' . rawurlencode($item['code']) . '&confirm=' . $itemId,
+        );
+        self::assertStringContainsString($item['description'], $prompt);
+        self::assertStringContainsString('Delete this item?', $prompt);
         $gone = $this->client->post('/' . self::SLUG . '/inventory/' . $itemId . '/delete', []);
         self::assertSees('Item deleted.', $gone);
 

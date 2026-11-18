@@ -9,7 +9,6 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Inventory\LabelCatalog;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Payout\PayoutWindow;
-use PerfectConsign\Shared\Scalar\RowValue;
 
 final class VendorHomeController
 {
@@ -122,20 +121,10 @@ final class VendorHomeController
         $query = trim($this->app->request()->query('q'));
         $rawStock = $this->app->request()->query('stock');
         $stock = in_array($rawStock, ['available', 'out', 'unprinted'], true) ? $rawStock : '';
-        $items = $this->account->items($vendorId, $query, $stock);
-        $age = new FloorAge();
-        $today = $this->mall->today();
-        foreach ($items as $index => $item) {
-            $intake = $item['intake_on'] ?? null;
-            $days = $age->days(is_string($intake) && $intake !== '' ? $intake : null, $today);
-            $items[$index]['days_on_floor'] = $days;
-            $items[$index]['age_tier'] = $age->tier($days, RowValue::integer($item['quantity'] ?? 0));
-        }
         $this->app->show('Feature/Vendor/items', [
             'title' => 'Your items',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'items' => $items,
             'query' => $query,
             'stock' => $stock,
             'available' => $this->account->available($vendorId),

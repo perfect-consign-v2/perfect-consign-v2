@@ -221,6 +221,7 @@ final class MallController
                 $days,
                 $this->mall->getCashRoundText(),
                 $this->mall->taxRate(),
+                $this->app->request()->field('vendor_weekly_mail_enabled') === '1',
             );
             $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
         } catch (DatabaseRefusal $refusal) {
@@ -343,11 +344,12 @@ final class MallController
             'error' => $error,
             'vendorPortal' => $vendor['portal'],
             'portalInventory' => $vendor['inventory'],
+            'weeklyMail' => $vendor['weekly'],
         ]);
     }
 
     /**
-     * @return array{portal: bool, inventory: bool}
+     * @return array{portal: bool, inventory: bool, weekly: bool}
      */
     private function vendorForm(): array
     {
@@ -357,6 +359,7 @@ final class MallController
             return [
                 'portal' => $open,
                 'inventory' => $open && $this->postedInventory === '1',
+                'weekly' => $this->app->request()->field('vendor_weekly_mail_enabled') === '1',
             ];
         }
         $stored = $this->mall->getVendorFlags();
@@ -364,6 +367,7 @@ final class MallController
         return [
             'portal' => $stored['portal'],
             'inventory' => $stored['portal'] && $stored['inventory'],
+            'weekly' => $stored['weekly'],
         ];
     }
 

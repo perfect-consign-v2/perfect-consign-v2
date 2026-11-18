@@ -553,6 +553,28 @@ button.text-link:hover {
     display: flex;
     align-items: center;
 }
+.vendor-pair > .span-2 { grid-column: 1 / -1; }
+.choice-row {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.choice-row legend {
+    flex-basis: 100%;
+    padding: 0;
+    font-size: var(--text-sm);
+    font-weight: 550;
+    color: var(--text-muted);
+}
+.choice-row label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
 @media (min-width: 45rem) {
     .vendor-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }

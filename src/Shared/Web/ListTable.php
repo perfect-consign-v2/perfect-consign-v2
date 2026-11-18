@@ -18,8 +18,10 @@ final class ListTable
 
     private static bool $stylePrinted = false;
 
+    private static bool $heavy = false;
+
     /**
-     * @param array{id: string, export: string, order?: list<array{0: int, 1: string}>, pageScroll?: bool, fit?: bool} $table
+     * @param array{id: string, export: string, order?: list<array{0: int, 1: string}>, pageScroll?: bool, fit?: bool, server?: bool, rows?: string, start?: int, empty?: string} $table
      */
     public static function open(array $table): void
     {
@@ -40,41 +42,100 @@ final class ListTable
             $scroll = ' data-dt-page-scroll="1"';
         }
         $fit = ($table['fit'] ?? false) === true ? ' data-dt-fit="1"' : '';
+        $server = self::serverAttrs($table);
         echo '<table id="list-' . View::text($table['id']) . '" class="table list-dt" data-dt-export="'
-            . View::text($table['export']) . '"' . $order . $scroll . $fit . '>';
+            . View::text($table['export']) . '"' . $order . $scroll . $fit . $server . '>';
     }
 
     /**
-     * @param list<array{label: string, actions?: bool, sort?: string, token?: string, select?: bool}> $columns
+     * @param array{server?: bool, rows?: string, start?: int, empty?: string} $table
+     */
+    private static function serverAttrs(array $table): string
+    {
+        if (($table['server'] ?? false) !== true) {
+            self::$heavy = true;
+
+            return '';
+        }
+        $rows = is_string($table['rows'] ?? null) ? $table['rows'] : '';
+        $start = is_int($table['start'] ?? null) ? $table['start'] : 0;
+        $empty = is_string($table['empty'] ?? null) ? $table['empty'] : '';
+        $emptyAttr = $empty === '' ? '' : ' data-dt-empty="' . View::text($empty) . '"';
+
+        return ' data-dt-server="1" data-dt-rows="' . View::text($rows) . '" data-dt-start="' . $start . '"' . $emptyAttr;
+    }
+
+    /**
+     * @param list<array{label: string, actions?: bool, sort?: string, token?: string, select?: bool, key?: string, class?: string}> $columns
      */
     public static function head(array $columns): void
     {
-        echo '<thead><tr>';
+        echo '<thead><tr class="list-dt-filters">';
         foreach ($columns as $column) {
-            $label = $column['label'];
-            $actions = ($column['actions'] ?? false) === true;
-            $sort = ($column['sort'] ?? '') === 'num' ? 'num' : '';
-            $token = ($column['token'] ?? '') === 'id' ? 'id' : '';
-            $sortAttr = $sort === '' ? '' : ' data-dt-sort="' . $sort . '"';
-            $tokenAttr = $token === '' ? '' : ' data-dt-token="' . $token . '"';
-            $cell = $actions
-                ? '<th class="list-dt-actions" data-dt-order="disable"' . $sortAttr . $tokenAttr . '>'
-                : '<th' . $sortAttr . $tokenAttr . '>';
-            $cell .= '<div class="list-dt-th">';
-            if ($actions) {
-                $cell .= '<span class="list-dt-filter-spacer" aria-hidden="true"></span>';
-            } else {
-                $caption = $label !== '' ? $label : 'column';
-                $cell .= '<input type="search" class="input list-dt-filter" autocomplete="off" aria-label="Filter '
-                    . View::text($caption) . '">';
-            }
-            echo $cell . self::selectBox($column) . '<span class="dt-column-title">' . View::text($label) . '</span></div></th>';
+            echo self::filterCell($column);
+        }
+        echo '</tr><tr class="list-dt-titles">';
+        foreach ($columns as $column) {
+            echo self::titleCell($column);
         }
         echo '</tr></thead>';
     }
 
     /**
-     * @param array{label: string, actions?: bool, sort?: string, token?: string, select?: bool} $column
+     * @param array{label: string, actions?: bool, sort?: string, token?: string, select?: bool, key?: string, class?: string} $column
+     */
+    private static function filterCell(array $column): string
+    {
+        $actions = ($column['actions'] ?? false) === true;
+        if ($actions) {
+            return '<th class="list-dt-filter-cell" data-dt-order="disable">'
+                . '<span class="dt-column-title" hidden></span>'
+                . '<span class="list-dt-filter-spacer" aria-hidden="true"></span></th>';
+        }
+        $label = $column['label'];
+        $caption = $label !== '' ? $label : 'column';
+
+        return '<th class="list-dt-filter-cell" data-dt-order="disable"' . self::keyAttr($column) . '>'
+            . '<span class="dt-column-title" hidden>' . View::text($caption) . '</span>'
+            . '<input type="search" class="input list-dt-filter" autocomplete="off" aria-label="Filter '
+            . View::text($caption) . '"></th>';
+    }
+
+    /**
+     * @param array{label: string, actions?: bool, sort?: string, token?: string, select?: bool, key?: string, class?: string} $column
+     */
+    private static function titleCell(array $column): string
+    {
+        $actions = ($column['actions'] ?? false) === true;
+        $sort = ($column['sort'] ?? '') === 'num' ? ' data-dt-sort="num"' : '';
+        $token = ($column['token'] ?? '') === 'id' ? ' data-dt-token="id"' : '';
+        $class = is_string($column['class'] ?? null) && $column['class'] !== ''
+            ? ' class="' . View::text($column['class']) . '"'
+            : '';
+        $attrs = $class . $sort . $token . self::keyAttr($column);
+        if ($actions) {
+            $attrs = ' class="list-dt-actions" data-dt-order="disable"' . self::keyAttr($column);
+        }
+
+        return '<th' . $attrs . '><div class="list-dt-th">' . self::selectBox($column)
+            . '<span class="dt-column-title">' . View::text($column['label']) . '</span></div></th>';
+    }
+
+    /**
+     * @param array{label: string, actions?: bool, sort?: string, token?: string, select?: bool, key?: string, class?: string} $column
+     */
+    private static function keyAttr(array $column): string
+    {
+        $key = $column['key'] ?? null;
+        if (!is_string($key) || $key === '') {
+            return '';
+        }
+
+        return ' data-dt-key="' . View::text($key) . '"';
+    }
+
+    /**
+     * @param array{label: string, actions?: bool, sort?: string, token?: string, select?: bool, key?: string, class?: string} $column
      */
     private static function selectBox(array $column): string
     {
@@ -106,11 +167,13 @@ final class ListTable
             . '<link rel="stylesheet" href="/assets/datatables/buttons.dataTables.min.css">';
         self::selectionStyle();
         echo '<script src="/assets/js/jquery-3.7.1.min.js"></script>'
-            . '<script src="/assets/datatables/dataTables.min.js"></script>'
-            . '<script src="/assets/datatables/jszip.min.js"></script>'
-            . '<script src="/assets/datatables/pdfmake.min.js"></script>'
-            . '<script src="/assets/datatables/vfs_fonts.js"></script>'
-            . '<script src="/assets/datatables/dataTables.buttons.min.js"></script>'
+            . '<script src="/assets/datatables/dataTables.min.js"></script>';
+        if (self::$heavy) {
+            echo '<script src="/assets/datatables/jszip.min.js"></script>'
+                . '<script src="/assets/datatables/pdfmake.min.js"></script>'
+                . '<script src="/assets/datatables/vfs_fonts.js"></script>';
+        }
+        echo '<script src="/assets/datatables/dataTables.buttons.min.js"></script>'
             . '<script src="/assets/datatables/buttons.colVis.min.js"></script>'
             . '<script src="/assets/datatables/buttons.html5.min.js"></script>'
             . '<script src="/assets/datatables/buttons.print.min.js"></script>';

@@ -21,7 +21,7 @@ final class ListTableTest extends TestCase
 
     private function resetListTableFlags(): void
     {
-        foreach (['needed', 'printed', 'selectionNeeded', 'selectionPrinted', 'stylePrinted'] as $name) {
+        foreach (['needed', 'printed', 'selectionNeeded', 'selectionPrinted', 'stylePrinted', 'heavy'] as $name) {
             $property = new \ReflectionProperty(ListTable::class, $name);
             $property->setValue(null, false);
         }
@@ -51,8 +51,17 @@ final class ListTableTest extends TestCase
         self::assertStringContainsString('aria-label="Filter Custom ID"', $html);
         self::assertStringContainsString('aria-label="Filter Price"', $html);
         self::assertSame(1, substr_count($html, 'data-dt-sort="num"'));
+        self::assertSame(2, substr_count($html, 'class="input list-dt-filter"'));
         self::assertMatchesRegularExpression(
-            '/<th data-dt-sort="num"><div class="list-dt-th"><input type="search"[^>]*aria-label="Filter Price">/',
+            '/<tr class="list-dt-filters">.*aria-label="Filter Price".*<\/tr><tr class="list-dt-titles">/s',
+            $html
+        );
+        self::assertMatchesRegularExpression(
+            '/<tr class="list-dt-titles">.*<th data-dt-sort="num"><div class="list-dt-th"><span class="dt-column-title">Price<\/span>/s',
+            $html
+        );
+        self::assertDoesNotMatchRegularExpression(
+            '/<th data-dt-sort="num">[^<]*<input/',
             $html
         );
         self::assertStringContainsString('data-dt-order="disable"', $html);
@@ -119,11 +128,46 @@ final class ListTableTest extends TestCase
         self::assertStringContainsString('aria-label="Select all on this page"', $html);
         self::assertSame(1, substr_count($html, 'inventory-selection-store.js'));
         self::assertSame(1, substr_count($html, 'list-datatables.js'));
+        self::assertStringContainsString('pdfmake.min.js', $html);
+        self::assertStringContainsString('jszip.min.js', $html);
+        self::assertStringContainsString('vfs_fonts.js', $html);
         $store = strpos($html, 'inventory-selection-store.js');
         $list = strpos($html, 'list-datatables.js');
         self::assertIsInt($store);
         self::assertIsInt($list);
         self::assertLessThan($list, $store);
+    }
+
+    public function testAServerTableLeavesTheHeavyExportScriptsOffTheFirstPaint(): void
+    {
+        ob_start();
+        ListTable::open([
+            'id' => 'inventory',
+            'export' => 'inventory',
+            'server' => true,
+            'rows' => '/demo/inventory/rows',
+            'start' => 20,
+            'empty' => 'No items match.',
+        ]);
+        ListTable::head([
+            ['label' => 'Tag', 'key' => 'code'],
+            ['label' => 'Price', 'key' => 'price', 'sort' => 'num', 'class' => 'num'],
+        ]);
+        ListTable::assets();
+        $html = ob_get_clean();
+
+        self::assertIsString($html);
+        self::assertStringContainsString('data-dt-server="1"', $html);
+        self::assertStringContainsString('data-dt-rows="/demo/inventory/rows"', $html);
+        self::assertStringContainsString('data-dt-start="20"', $html);
+        self::assertStringContainsString('data-dt-empty="No items match."', $html);
+        self::assertStringContainsString('data-dt-key="code"', $html);
+        self::assertStringContainsString('data-dt-key="price"', $html);
+        self::assertStringContainsString('buttons.html5.min.js', $html);
+        self::assertStringContainsString('list-datatables.js', $html);
+        self::assertStringNotContainsString('pdfmake.min.js', $html);
+        self::assertStringNotContainsString('jszip.min.js', $html);
+        self::assertStringNotContainsString('vfs_fonts.js', $html);
     }
 
     public function testSelectionScriptPrintsTheStoreStylesOnce(): void

@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var string $csrf */
-/** @var array{id: string, description: string, price: string, quantity: string, intake_on: string, expires_on: string, placement: string, brand_id: string, attributes: array<string, string>} $item */
+/** @var array{id: string, description: string, price: string, quantity: string, intake_on: string, expires_on: string, placement: string, brand_id: string, brand_label: string, attributes: array<string, array{id: string, label: string}>} $item */
 /** @var list<string> $choices */
-/** @var bool $brandOn */
-/** @var list<array{id: string, name: string}> $brands */
-/** @var list<array{key: string, singular: string, rows: list<array{id: string, name: string}>}> $attributes */
+/** @var bool $showBrand */
+/** @var list<NameList> $attributeLists */
 /** @var string $floorDays */
 /** @var string $labelStock */
 /** @var string $printId */
@@ -23,7 +23,8 @@ $previewAs = is_string($previewAs ?? null) ? $previewAs : '';
 $editing = $item['id'] !== '';
 $sold = ($sold ?? false) === true;
 $closed = ($closed ?? false) === true;
-$brandOn = ($brandOn ?? false) === true;
+$showBrand = ($showBrand ?? false) === true;
+$attributeLists = is_array($attributeLists ?? null) ? $attributeLists : [];
 $choices = $choices ?? [];
 $printId = $printId ?? '';
 $back = VendorPreview::with('/' . $slug . '/vendor/inventory', $previewAs);
@@ -57,79 +58,89 @@ $expireHint = $floorDays === ''
         </div>
     </div>
 <?php else: ?>
-<form method="post" action="<?= View::text($action) ?>" class="card mt-4">
-    <div class="card-body stack">
+<form method="post" action="<?= View::text($action) ?>" class="vendor-edit">
+    <div class="card">
+    <div class="card-body">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-        <?php if (count($choices) > 1 && !$editing): ?>
-            <fieldset class="field">
-                <legend>Where it sits</legend>
-                <label for="placement-booth">
-                    <input id="placement-booth" type="radio" name="placement" value="booth" required<?= $item['placement'] === 'booth' ? ' checked' : '' ?>>
-                    Booth
-                </label>
-                <label for="placement-consigned">
-                    <input id="placement-consigned" type="radio" name="placement" value="consigned" required<?= $item['placement'] === 'consigned' ? ' checked' : '' ?>>
-                    Consignment
-                </label>
-            </fieldset>
-        <?php else: ?>
+        <?php if (count($choices) <= 1 || $editing): ?>
             <input type="hidden" name="placement" value="<?= View::text($item['placement']) ?>">
         <?php endif; ?>
-        <div class="field">
-            <label for="description">Description</label>
-            <input class="input" id="description" name="description" value="<?= View::text($item['description']) ?>" required>
-        </div>
-        <div class="field">
-            <label for="price">Asking price</label>
-            <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($item['price']) ?>" required<?= $sold ? ' readonly' : '' ?>>
-            <?php if ($sold): ?><p class="muted text-sm">This price is on a sale and cannot be changed.</p><?php endif; ?>
-        </div>
-        <div class="field">
-            <label for="quantity">Quantity</label>
-            <input class="input" id="quantity" name="quantity" inputmode="numeric" value="<?= View::text($item['quantity']) ?>" required>
-            <p class="muted text-sm"><?= $editing
-                ? 'Quantity zero pulls the piece. It does not record a sale.'
-                : 'At least 1.' ?></p>
-        </div>
-        <div class="field">
-            <label for="intake_on">Intake date</label>
-            <input class="input" id="intake_on" name="intake_on" type="date" value="<?= View::text($item['intake_on']) ?>" required>
-        </div>
-        <?php if ($showExpire): ?>
+        <div class="vendor-pair">
+            <?php if (count($choices) > 1 && !$editing): ?>
+                <fieldset class="field span-2 choice-row">
+                    <legend>Where it sits</legend>
+                    <label for="placement-booth">
+                        <input id="placement-booth" type="radio" name="placement" value="booth" required<?= $item['placement'] === 'booth' ? ' checked' : '' ?>>
+                        Booth
+                    </label>
+                    <label for="placement-consigned">
+                        <input id="placement-consigned" type="radio" name="placement" value="consigned" required<?= $item['placement'] === 'consigned' ? ' checked' : '' ?>>
+                        Consignment
+                    </label>
+                </fieldset>
+            <?php endif; ?>
             <div class="field">
-                <label for="expires_on">Expire date</label>
-                <input class="input" id="expires_on" name="expires_on" type="date" value="<?= View::text($item['expires_on']) ?>" min="<?= View::text($item['intake_on']) ?>">
-                <p class="muted text-sm"><?= View::text($expireHint) ?> A booth piece does not expire.</p>
+                <label for="description">Description</label>
+                <input class="input" id="description" name="description" value="<?= View::text($item['description']) ?>" required autofocus>
             </div>
-        <?php endif; ?>
-        <?php if ($brandOn): ?>
             <div class="field">
-                <label for="brand_id">Brand</label>
-                <select class="select" id="brand_id" name="brand_id">
-                    <option value="">No brand</option>
-                    <?php foreach ($brands as $brand): ?>
-                        <option value="<?= View::text($brand['id']) ?>"<?= $brand['id'] === $item['brand_id'] ? ' selected' : '' ?>><?= View::text($brand['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <label for="price">Asking price</label>
+                <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($item['price']) ?>" required<?= $sold ? ' readonly' : '' ?>>
+                <?php if ($sold): ?><p class="muted text-sm">This price is on a sale and cannot be changed.</p><?php endif; ?>
             </div>
-        <?php endif; ?>
-        <?php foreach ($attributes as $attribute): ?>
-            <?php $selected = $item['attributes'][$attribute['key']] ?? ''; ?>
             <div class="field">
-                <label for="<?= View::text($attribute['key']) ?>_id"><?= View::text(ucfirst($attribute['singular'])) ?></label>
-                <select class="select" id="<?= View::text($attribute['key']) ?>_id" name="<?= View::text($attribute['key']) ?>_id">
-                    <option value="">None</option>
-                    <?php foreach ($attribute['rows'] as $row): ?>
-                        <option value="<?= View::text($row['id']) ?>"<?= $row['id'] === $selected ? ' selected' : '' ?>><?= View::text($row['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <label for="quantity">Quantity</label>
+                <input class="input" id="quantity" name="quantity" inputmode="numeric" value="<?= View::text($item['quantity']) ?>" required>
+                <p class="muted text-sm"><?= $editing
+                    ? 'Quantity zero pulls the piece. It does not record a sale.'
+                    : 'At least 1.' ?></p>
             </div>
-        <?php endforeach; ?>
+            <div class="field">
+                <label for="intake_on">Intake date</label>
+                <input class="input" id="intake_on" name="intake_on" type="date" value="<?= View::text($item['intake_on']) ?>" required>
+            </div>
+            <?php if ($showExpire): ?>
+                <div class="field">
+                    <label for="expires_on">Expire date</label>
+                    <input class="input" id="expires_on" name="expires_on" type="date" value="<?= View::text($item['expires_on']) ?>" min="<?= View::text($item['intake_on']) ?>">
+                    <p class="muted text-sm"><?= View::text($expireHint) ?> A booth piece does not expire.</p>
+                </div>
+            <?php endif; ?>
+            <?php if ($showBrand): ?>
+                <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/brands.json" data-create="/<?= View::text($slug) ?>/inventory/brands">
+                    <label for="brand_label">Brand</label>
+                    <input class="input" id="brand_label" name="brand_label" value="<?= View::text($item['brand_label']) ?>" autocomplete="off" placeholder="Search or type a new one">
+                    <input type="hidden" id="brand_id" name="brand_id" value="<?= View::text($item['brand_id']) ?>">
+                    <div class="suggest" hidden></div>
+                    <div class="row gap-2" hidden data-create-row>
+                        <span class="muted text-sm">Add brand <strong data-create-name></strong>?</span>
+                        <button class="btn btn-sm" type="button" data-create-button>Add brand</button>
+                    </div>
+                    <p class="field-error" hidden></p>
+                </div>
+            <?php endif; ?>
+            <?php foreach ($attributeLists as $attribute): ?>
+                <?php $field = $item['attributes'][$attribute->key] ?? ['id' => '', 'label' => '']; ?>
+                <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
+                    <label for="<?= View::text($attribute->key) ?>_label"><?= View::text(ucfirst($attribute->singular)) ?></label>
+                    <input class="input" id="<?= View::text($attribute->key) ?>_label" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($field['label']) ?>" autocomplete="off" placeholder="Search or type a new one">
+                    <input type="hidden" id="<?= View::text($attribute->key) ?>_id" name="<?= View::text($attribute->key) ?>_id" value="<?= View::text($field['id']) ?>">
+                    <div class="suggest" hidden></div>
+                    <div class="row gap-2" hidden data-create-row>
+                        <span class="muted text-sm">Add <?= View::text($attribute->singular) ?> <strong data-create-name></strong>?</span>
+                        <button class="btn btn-sm" type="button" data-create-button>Add <?= View::text($attribute->singular) ?></button>
+                    </div>
+                    <p class="field-error" hidden></p>
+                </div>
+            <?php endforeach; ?>
+        </div>
     </div>
     <div class="card-foot">
         <button class="btn btn-primary" type="submit"><?= $editing ? 'Save item' : 'Add item' ?></button>
     </div>
+    </div>
 </form>
+<script src="<?= View::asset('/assets/js/name-list.js') ?>" defer></script>
 <?php if ($editing): ?>
     <form method="post" action="<?= View::text(VendorPreview::with('/' . $slug . '/vendor/inventory/' . $item['id'] . '/delete', $previewAs)) ?>" class="mt-4">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

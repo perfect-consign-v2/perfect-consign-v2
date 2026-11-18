@@ -57,8 +57,6 @@ if ($printId !== '') {
 
 <form method="post" action="<?= View::text($action) ?>" id="item-form" class="vendor-edit" enctype="multipart/form-data"
     data-vendors="<?= View::text($vendorsUrl) ?>"
-    data-brands="<?= View::text($brandsUrl) ?>"
-    data-brand-create="<?= View::text($brandCreateUrl) ?>"
     data-floor-days="<?= View::text($floorDays) ?>"
     data-default-take="<?= View::text($item['default_take']) ?>"
     data-take-dirty="<?= $item['overridden'] ? '1' : '0' ?>"
@@ -100,23 +98,23 @@ if ($printId !== '') {
             <div class="card-head"><div class="h3" id="item-details">Details</div></div>
             <div class="card-body stack">
                 <?php if ($showBrand): ?>
-                <div class="field combo">
+                <div class="field combo" data-name-list data-search="<?= View::text($brandsUrl) ?>" data-create="<?= View::text($brandCreateUrl) ?>">
                     <label for="brand_label">Brand</label>
-                    <input class="input" id="brand_label" name="brand_label" value="<?= View::text($item['brand_label']) ?>" autocomplete="off">
+                    <input class="input" id="brand_label" name="brand_label" value="<?= View::text($item['brand_label']) ?>" autocomplete="off" placeholder="Search or type a new one">
                     <input type="hidden" id="brand_id" name="brand_id" value="<?= View::text($item['brand_id']) ?>">
-                    <div class="suggest" id="brand_suggest" hidden></div>
-                    <div class="row gap-2" id="brand_create" hidden>
-                        <span class="muted text-sm">Add brand <strong id="brand_create_name"></strong>?</span>
-                        <button class="btn btn-sm" id="brand_create_button" type="button">Add brand</button>
+                    <div class="suggest" hidden></div>
+                    <div class="row gap-2" hidden data-create-row>
+                        <span class="muted text-sm">Add brand <strong data-create-name></strong>?</span>
+                        <button class="btn btn-sm" type="button" data-create-button>Add brand</button>
                     </div>
-                    <p class="field-error" id="brand_create_error" hidden></p>
+                    <p class="field-error" hidden></p>
                 </div>
                 <?php endif; ?>
                 <?php foreach ($attributeLists as $attribute): ?>
                     <?php $field = $item['attributes'][$attribute->key] ?? ['id' => '', 'label' => '']; ?>
                     <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
                         <label for="<?= View::text($attribute->key) ?>_label"><?= View::text(ucfirst($attribute->singular)) ?></label>
-                        <input class="input" id="<?= View::text($attribute->key) ?>_label" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($field['label']) ?>" autocomplete="off">
+                        <input class="input" id="<?= View::text($attribute->key) ?>_label" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($field['label']) ?>" autocomplete="off" placeholder="Search or type a new one">
                         <input type="hidden" id="<?= View::text($attribute->key) ?>_id" name="<?= View::text($attribute->key) ?>_id" value="<?= View::text($field['id']) ?>">
                         <div class="suggest" hidden></div>
                         <div class="row gap-2" hidden data-create-row>
@@ -236,4 +234,5 @@ if ($printId !== '') {
     </div>
 </form>
 <?php endif; ?>
-<script src="/assets/js/inventory-intake.js" defer></script>
+<script src="<?= View::asset('/assets/js/name-list.js') ?>" defer></script>
+<script src="<?= View::asset('/assets/js/inventory-intake.js') ?>" defer></script>
