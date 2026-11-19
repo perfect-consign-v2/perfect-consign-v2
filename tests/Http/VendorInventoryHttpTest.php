@@ -192,6 +192,8 @@ final class VendorInventoryHttpTest extends WebTestCase
         self::assertStringContainsString('/' . self::SLUG . '/vendor/inventory', $home->body);
         $form = $login['client']->get('/' . self::SLUG . '/vendor/inventory/new?intake=' . $today);
         self::assertSees('New item', $form);
+        self::assertStringContainsString('id="item-identity">Item', $form->body);
+        self::assertStringContainsString('id="item-floor">Floor', $form->body);
         self::assertStringContainsString('vendor-pair', $form->body);
         self::assertMatchesRegularExpression('/id="description"[^>]*autofocus/', $form->body);
         $descriptionAt = strpos($form->body, 'id="description"');
@@ -208,9 +210,9 @@ final class VendorInventoryHttpTest extends WebTestCase
         self::assertIsInt($brandAt);
         self::assertLessThan($priceAt, $descriptionAt);
         self::assertLessThan($quantityAt, $priceAt);
-        self::assertLessThan($intakeAt, $quantityAt);
+        self::assertLessThan($brandAt, $quantityAt);
+        self::assertLessThan($intakeAt, $brandAt);
         self::assertLessThan($expireAt, $intakeAt);
-        self::assertLessThan($brandAt, $expireAt);
         self::assertStringContainsString('value="' . $today . '"', $form->body);
         $expire = $this->shiftDate($today, 30);
         self::assertStringContainsString('value="' . $expire . '"', $form->body);
@@ -455,6 +457,8 @@ final class VendorInventoryHttpTest extends WebTestCase
     {
         $this->saveBuilding(true, true, '30');
         $staffForm = $this->owner->get('/' . self::SLUG . '/inventory/new');
+        self::assertStringContainsString('id="item-take">Take and tax', $staffForm->body);
+        self::assertStringNotContainsString('id="item-price"', $staffForm->body);
         self::assertStringContainsString('id="vendor_suggest"', $staffForm->body);
         self::assertStringContainsString('data-search="/' . self::SLUG . '/inventory/brands.json"', $staffForm->body);
         self::assertStringContainsString('name-list.js', $staffForm->body);

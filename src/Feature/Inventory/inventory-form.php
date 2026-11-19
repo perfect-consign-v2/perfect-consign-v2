@@ -142,8 +142,8 @@ if ($printId !== '') {
         </div>
 
         <div class="item-col">
-        <section class="card item-card-price" aria-labelledby="item-price">
-            <div class="card-head"><div class="h3" id="item-price">Price</div></div>
+        <section class="card item-card-take" aria-labelledby="item-take">
+            <div class="card-head"><div class="h3" id="item-take">Take and tax</div></div>
             <div class="card-body stack">
                 <div class="field">
                     <label for="store_take">Store take <span class="badge badge-warning" id="store_take_badge"<?= $item['overridden'] ? '' : ' hidden' ?>>Overridden</span></label>

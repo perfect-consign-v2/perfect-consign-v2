@@ -740,7 +740,7 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
 .item-cards { align-items: start; }
 .item-col { display: contents; }
 .item-card-identity { order: 1; }
-.item-card-price { order: 2; }
+.item-card-take { order: 2; }
 .item-card-details { order: 3; }
 .item-card-floor { order: 4; }
 .item-card-marks { order: 5; }
@@ -818,7 +818,7 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
         min-width: 0;
     }
     .item-card-identity,
-    .item-card-price,
+    .item-card-take,
     .item-card-details,
     .item-card-floor,
     .item-card-marks,
