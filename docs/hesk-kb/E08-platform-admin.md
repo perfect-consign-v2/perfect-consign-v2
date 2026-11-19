@@ -1,15 +1,15 @@
 ---
 title: Platform admin portal
 category: Platform notes
-hesk: published 2026-11-18
-as_of: 2026-11-16
+hesk: published 2026-11-19
+as_of: 2026-11-18
 ---
 
 # Platform admin portal
 
 ## As of
 
-2026-11-16 — a store wipe leaves password-reset and email-confirmation history in place, and those rows do not block the drop. Wrong second-admin passwords lock the delete form for fifteen minutes and do not lock `/admin` sign-in.
+2026-11-18 — a refused Gmail or SMTP send is logged with the server's reply text, and that same text is included in the operator notice.
 
 ## In one sentence
 
@@ -29,7 +29,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 - Tenant wipe requires the store slug typed exactly, a second different platform admin’s email and password, and an owner backup recorded for that store within seven days. Password-reset and email-verification rows stay, and they do not block the drop. Audit `tenant.delete` / `ok` lands only after the drop succeeds.
 - Wrong second-admin passwords on the delete form lock that form for fifteen minutes: five failures for that email and client address, or forty failures from that address across emails. Those failures are not admin sign-in failures. There is no email-wide cap, so a signed-in admin cannot lock the other admin out of `/admin`. Unknown email and a wrong password count the same. A successful second signature clears that pair.
 - Admin sign-in lockout: five failures for the same email+address, forty spray failures from one address, twenty failures for one email across addresses (fifteen-minute window); stale failure rows prune on insert.
-- Gmail/SMTP send failures are logged and emailed to `STALL_PLATFORM_ADMIN_EMAIL`.
+- Gmail/SMTP send failures are logged with the server's reply text and emailed to `STALL_PLATFORM_ADMIN_EMAIL`. The notice includes that reply.
 - Uncaught exceptions and fatal errors (HTTP 500) are logged and emailed to that same address.
 - Mail worker shows whether `STALL_WORKER_PASSWORD` is set, last `php bin/work.php` run, waiting outbox mail, and a prune/clear run log.
 - App log shows the newest slice of `var/log/app.log` (signup failures and other PSR-3 errors) and can empty that file; clear is audited.

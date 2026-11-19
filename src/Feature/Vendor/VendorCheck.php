@@ -10,6 +10,23 @@ use PerfectConsign\Shared\Scalar\RowValue;
 
 final class VendorCheck
 {
+    /** A posted check, including one linked on the run when the line has no journal id. */
+    private const string DISBURSED = "COALESCE(line.disbursement_journal_id, (
+        SELECT link.journal_id
+        FROM payout_run_journals AS link
+        JOIN journals AS linked ON linked.id = link.journal_id
+        WHERE link.run_id = line.run_id
+          AND link.role = 'disbursement'
+          AND NOT linked.is_reversal
+          AND linked.posting_key = 'disbursement:' || line.run_id::text || ':' || line.vendor_id::text
+          AND NOT EXISTS (
+              SELECT 1 FROM journals AS reversal
+              WHERE reversal.reverses_journal_id = linked.id
+          )
+        ORDER BY linked.journal_no
+        LIMIT 1
+    ))";
+
     private const LABELS = [
         'sale' => 'Sale',
         'item_return' => 'Return',
@@ -162,12 +179,12 @@ final class VendorCheck
     public function cleared(string $vendorId, string $runId): ?array
     {
         $rows = $this->statements->bound(
-            "SELECT to_char(journal.posting_date, 'YYYY-MM-DD') AS paid_on,
+            'SELECT to_char(journal.posting_date, \'YYYY-MM-DD\') AS paid_on,
                     line.check_minor, line.check_number
              FROM payout_run_lines AS line
-             JOIN journals AS journal ON journal.id = line.disbursement_journal_id
+             JOIN journals AS journal ON journal.id = ' . self::DISBURSED . '
              WHERE line.vendor_id = ?::uuid AND line.run_id = ?::uuid
-               AND line.disbursement_journal_id IS NOT NULL",
+               AND line.check_minor > 0',
             [$vendorId, $runId]
         );
         $row = $rows[0] ?? null;
@@ -273,8 +290,16 @@ final class VendorCheck
                        (
                            SELECT line.run_id::text
                            FROM payout_run_lines AS line
-                           WHERE line.disbursement_journal_id = journal.id
-                             AND line.vendor_id = statement.vendor_id
+                           WHERE line.vendor_id = statement.vendor_id
+                             AND (
+                                 line.disbursement_journal_id = journal.id
+                                 OR EXISTS (
+                                     SELECT 1 FROM payout_run_journals AS link
+                                     WHERE link.run_id = line.run_id
+                                       AND link.journal_id = journal.id
+                                       AND link.role = 'disbursement'
+                                 )
+                             )
                            LIMIT 1
                        ) AS run_id
                 FROM vendor_statement AS statement
@@ -326,14 +351,14 @@ final class VendorCheck
     private function last(string $vendorId): ?array
     {
         $rows = $this->statements->bound(
-            "SELECT line.run_id::text AS run_id,
-                    to_char(journal.posting_date, 'YYYY-MM-DD') AS paid_on,
+            'SELECT line.run_id::text AS run_id,
+                    to_char(journal.posting_date, \'YYYY-MM-DD\') AS paid_on,
                     line.check_minor, line.check_number
              FROM payout_run_lines AS line
-             JOIN journals AS journal ON journal.id = line.disbursement_journal_id
-             WHERE line.vendor_id = ?::uuid AND line.disbursement_journal_id IS NOT NULL
+             JOIN journals AS journal ON journal.id = ' . self::DISBURSED . '
+             WHERE line.vendor_id = ?::uuid AND line.check_minor > 0
              ORDER BY journal.posting_date DESC, line.run_id DESC
-             LIMIT 1",
+             LIMIT 1',
             [$vendorId]
         );
         $row = $rows[0] ?? null;

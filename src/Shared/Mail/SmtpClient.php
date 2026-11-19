@@ -81,36 +81,46 @@ final class SmtpClient
 
     private function expect(mixed $socket, int $expect, string $stage): void
     {
-        $status = $this->read($socket);
+        [$status, $reply] = $this->read($socket);
         if ($status === $expect) {
             return;
         }
         if ($status >= 400) {
-            throw new MailDeliveryFailed($status, $stage);
+            throw new MailDeliveryFailed($status, $stage, $reply);
         }
 
         throw new \RuntimeException('smtp send failed');
     }
 
-    private function read(mixed $socket): int
+    /**
+     * @return array{0: int, 1: string}
+     */
+    private function read(mixed $socket): array
     {
         if (!is_resource($socket)) {
             throw new \RuntimeException('smtp send failed');
         }
+        $parts = [];
         for ($line = 0; $line < 40; $line++) {
             $text = fgets($socket, 515);
             $match = [];
-            if (!is_string($text) || preg_match('/^(\d{3})([\s-])/', $text, $match) !== 1) {
+            if (!is_string($text)) {
                 throw new \RuntimeException('smtp send failed');
             }
-            if ($match[2] !== ' ') {
-                if ($match[2] !== '-') {
-                    throw new \RuntimeException('smtp send failed');
-                }
-
-                continue;
+            $row = rtrim($text, "\r\n");
+            if (preg_match('/^(\d{3})([\s-])(.*)$/', $row, $match) !== 1) {
+                throw new \RuntimeException('smtp send failed');
             }
-            return (int) $match[1];
+            $detail = trim($match[3]);
+            if ($detail !== '') {
+                $parts[] = $detail;
+            }
+            if ($match[2] === ' ') {
+                return [(int) $match[1], implode(' ', $parts)];
+            }
+            if ($match[2] !== '-') {
+                throw new \RuntimeException('smtp send failed');
+            }
         }
 
         throw new \RuntimeException('smtp send failed');

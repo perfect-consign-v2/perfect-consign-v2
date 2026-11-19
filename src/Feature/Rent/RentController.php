@@ -77,10 +77,11 @@ final class RentController
         $checks = $this->app->request()->field('tender_checks');
         $amount = $this->app->request()->field('amount');
         $session = '';
-        if ($this->forms->needsDrawer($waived, $cash, $card, $checks, $amount)) {
-            $session = $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true));
-        }
+        $journalId = '';
         try {
+            if ($this->forms->needsDrawer($waived, $cash, $card, $checks, $amount)) {
+                $session = $this->registers->openSession($this->drawers->posted($slug, $this->app->request()->field('register_session_id'), true));
+            }
             $journalId = $this->receipts->collect(
                 $vendorId,
                 $boothId,

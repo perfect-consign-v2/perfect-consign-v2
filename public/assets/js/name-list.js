@@ -1,7 +1,14 @@
 (function () {
     'use strict';
 
-    document.querySelectorAll('[data-name-list]').forEach(function (box) {
+    function bindNameLists() {
+        document.querySelectorAll('[data-name-list]').forEach(bindNameList);
+    }
+
+    function bindNameList(box) {
+        if (box.getAttribute('data-name-list-bound') === '1') {
+            return;
+        }
         const label = box.querySelector('input.input:not([type="hidden"])');
         const hidden = box.querySelector('input[type="hidden"]');
         const suggest = box.querySelector('.suggest');
@@ -13,9 +20,11 @@
         const createUrl = box.getAttribute('data-create') || '';
         const host = box.closest('form');
         let timer = null;
+        let requestId = 0;
         if (!label || !hidden || !suggest || searchUrl === '') {
             return;
         }
+        box.setAttribute('data-name-list-bound', '1');
 
         function hideSuggest() {
             suggest.hidden = true;
@@ -29,11 +38,12 @@
             });
         }
 
-        function showCreate(query, matched) {
+        function previewCreate(query) {
+            box.removeAttribute('data-name-new');
             if (!create || !createName) {
                 return;
             }
-            if (matched || query === '') {
+            if (query === '') {
                 create.hidden = true;
                 return;
             }
@@ -41,12 +51,32 @@
             create.hidden = false;
         }
 
+        function confirmCreate(query, matched) {
+            if (query !== '' && label.value.trim() !== query) {
+                return;
+            }
+            if (matched || query === '') {
+                box.removeAttribute('data-name-new');
+                if (create) {
+                    create.hidden = true;
+                }
+                return;
+            }
+            box.setAttribute('data-name-new', '1');
+            if (createName) {
+                createName.textContent = query;
+            }
+            if (create) {
+                create.hidden = false;
+            }
+        }
+
         function paint(rows, query) {
             if (!Array.isArray(rows)) {
                 return;
             }
             const matched = exact(rows, query);
-            showCreate(query, matched);
+            confirmCreate(query, matched);
             if (rows.length === 0) {
                 hideSuggest();
                 return;
@@ -62,7 +92,7 @@
                     hidden.value = row.id || '';
                     label.value = row.name || '';
                     hideSuggest();
-                    showCreate('', true);
+                    confirmCreate('', true);
                     if (error) {
                         error.hidden = true;
                     }
@@ -73,10 +103,30 @@
         }
 
         function search(query) {
+            const ticket = ++requestId;
             fetch(searchUrl + '?q=' + encodeURIComponent(query), { credentials: 'same-origin' })
                 .then(function (response) { return response.json(); })
-                .then(function (rows) { paint(rows, query); })
-                .catch(hideSuggest);
+                .then(function (rows) {
+                    if (ticket !== requestId) {
+                        return;
+                    }
+                    paint(rows, query);
+                })
+                .catch(function () {
+                    if (ticket !== requestId || label.value.trim() !== query) {
+                        return;
+                    }
+                    hideSuggest();
+                    if (hidden.value === '' && query !== '') {
+                        box.setAttribute('data-name-new', '1');
+                        if (createName) {
+                            createName.textContent = query;
+                        }
+                        if (create) {
+                            create.hidden = false;
+                        }
+                    }
+                });
         }
 
         label.addEventListener('input', function () {
@@ -89,10 +139,12 @@
             }
             const query = label.value.trim();
             if (query === '') {
+                requestId += 1;
                 hideSuggest();
-                showCreate('', true);
+                previewCreate('');
                 return;
             }
+            previewCreate(query);
             timer = setTimeout(function () { search(query); }, 200);
         });
 
@@ -128,7 +180,7 @@
                         hidden.value = result.payload.id;
                         label.value = result.payload.name || name;
                         hideSuggest();
-                        showCreate('', true);
+                        confirmCreate('', true);
                         if (error) {
                             error.hidden = true;
                         }
@@ -145,5 +197,8 @@
         if (hidden.value === '' && label.value.trim() !== '') {
             search(label.value.trim());
         }
-    });
+    }
+
+    window.pcNameLists = bindNameLists;
+    bindNameLists();
 }());

@@ -162,12 +162,9 @@ final class PayoutMissLinesTest extends TestCase
         self::assertSame(MallDoor::JOURNAL, $single->pay(self::VENDOR, '2026-11-12'));
     }
 
-    public function testPrintingChecksNumbersThemAndShowsARefusal(): void
+    public function testAPaidCheckPrintsWithoutANumber(): void
     {
-        $door = MallDoor::open($this, new Request('POST', '/' . MallDoor::SLUG . '/payouts/checks?run=' . self::RUN, [], [
-            'csrf' => 'csrf-token',
-            'starting_check' => '0',
-        ]));
+        $door = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/payouts/checks?run=' . self::RUN, [], []));
         $statements = $this->routed();
         $statements->boundRoutes[] = ['match' => 'FROM payout_runs WHERE id', 'rows' => [[
             'tender' => 'check',
@@ -175,32 +172,17 @@ final class PayoutMissLinesTest extends TestCase
             'posting_date' => '2026-11-12',
             'rent_month' => '2026-11-01',
         ]]];
-        $sheets = new PayoutRunSheets($statements);
-        $printed = new PrintedChecks($door->app, new PayoutRunStore($statements, new OccupiedPack($statements)), $sheets, $this->payoutOnce($statements, $this->ledger()));
+        $printed = new PrintedChecks($door->app, new PayoutRunStore($statements, new OccupiedPack($statements)), $this->payoutOnce($statements, $this->ledger()));
         $html = $this->capture(function () use ($printed): void {
             $printed->present(MallDoor::SLUG, self::RUN);
         });
-        self::assertStringContainsString('Type the number on the first check.', $html);
-
-        $door = MallDoor::open($this, new Request('POST', '/' . MallDoor::SLUG . '/payouts/checks?run=' . self::RUN, [], [
-            'csrf' => 'csrf-token',
-            'starting_check' => '12',
-        ]));
-        $printed = new PrintedChecks($door->app, new PayoutRunStore($statements, new OccupiedPack($statements)), $sheets, $this->payoutOnce($statements, $this->ledger()));
-        $message = $printed->present(MallDoor::SLUG, self::RUN);
-        self::assertSame('Nobody on this payout is getting a check.', $message);
-
-        $statements->numbered = false;
-        $statements->refuseNumber = true;
-        $door = MallDoor::open($this, new Request('POST', '/' . MallDoor::SLUG . '/payouts/checks?run=' . self::RUN, [], [
-            'csrf' => 'csrf-token',
-            'starting_check' => '12',
-        ]));
-        $printed = new PrintedChecks($door->app, new PayoutRunStore($statements, new OccupiedPack($statements)), $sheets, $this->payoutOnce($statements, $this->ledger()));
-        $html = $this->capture(function () use ($printed): void {
-            $printed->present(MallDoor::SLUG, self::RUN);
-        });
-        self::assertStringContainsString('Those checks are not ready to print.', $html);
+        self::assertStringContainsString('Pay to the order of Ada', $html);
+        self::assertStringContainsString('Print sales and rent', $html);
+        self::assertStringContainsString('/' . MallDoor::SLUG . '/payouts/report?run=' . self::RUN, $html);
+        self::assertStringNotContainsString('name="starting_check"', $html);
+        self::assertStringNotContainsString('First check number', $html);
+        self::assertStringNotContainsString('class="check-mall"', $html);
+        self::assertStringNotContainsString('class="check-number"', $html);
     }
 
     public function testClosePaysAndAFinishedMonthUsesTheSavedPack(): void
@@ -425,7 +407,7 @@ final class PayoutMissLinesTest extends TestCase
             new PayoutReverser($door->ledger, $door->statements),
             $door->register,
             new MallClock($door->mall),
-            new PrintedChecks($door->app, $runs, $sheets, $once),
+            new PrintedChecks($door->app, $runs, $once),
         );
     }
 }

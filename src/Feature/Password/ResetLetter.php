@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Password;
 
 use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Shared\Mail\LetterMailbox;
+use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\PlatformOperatorNotice;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
@@ -47,10 +48,10 @@ final class ResetLetter
 
             return true;
         } catch (\Throwable $error) {
-            $this->logger->error('the reset mailbox could not be read', [
+            $this->logger->error('the reset mailbox could not be read', MailDeliveryFailed::context($error, [
                 'slug' => $tenant->slug,
                 'error' => $error->getMessage(),
-            ]);
+            ]));
             $this->notices->mailFailed('the reset mailbox could not be read', $error, [
                 'slug' => $tenant->slug,
             ]);
@@ -76,10 +77,10 @@ final class ResetLetter
                 'password reset mail was refused',
             );
         } catch (\Throwable $error) {
-            $this->logger->error('password reset mail was refused', [
+            $this->logger->error('password reset mail was refused', MailDeliveryFailed::context($error, [
                 'slug' => $tenant->slug,
                 'message' => $error->getMessage(),
-            ]);
+            ]));
 
             return false;
         } finally {

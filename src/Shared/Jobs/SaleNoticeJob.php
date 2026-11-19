@@ -7,6 +7,7 @@ namespace PerfectConsign\Shared\Jobs;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Mail\MailAttempt;
+use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\MailBounce;
 use PerfectConsign\Shared\Mail\MailProgress;
 use PerfectConsign\Shared\Mail\OutboundMail;
@@ -89,7 +90,10 @@ final class SaleNoticeJob
                     $letter['name'] . "\n" . implode("\n", $letter['lines'])
                 );
             } catch (\RuntimeException $failed) {
-                $this->logger->error('a letter is still waiting', ['email' => $email, 'error' => $failed->getMessage()]);
+                $this->logger->error('a letter is still waiting', MailDeliveryFailed::context($failed, [
+                    'email' => $email,
+                    'error' => $failed->getMessage(),
+                ]));
                 $waiting = true;
                 continue;
             }

@@ -8,6 +8,7 @@ use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
 use PerfectConsign\Tests\Support\PageResponse;
 use PerfectConsign\Tests\Support\ProbeMall;
+use PerfectConsign\Tests\Support\SingleVendorCheckPrint;
 use PerfectConsign\Tests\Support\WebTestCase;
 
 final class PayoutCoverageHttpTest extends WebTestCase
@@ -71,33 +72,30 @@ final class PayoutCoverageHttpTest extends WebTestCase
         $this->vendor('50', 'hold');
         $singleId = $this->vendor('50', 'pay');
         $this->openRegister();
-        $this->sell($singleId, '10.00');
+        $description = $this->sell($singleId, '10.00');
 
         $singleForm = $this->client->get('/' . self::SLUG . '/payout?vendor=' . $singleId);
         self::assertSees('Pay this vendor', $singleForm);
         $posted = $this->client->post('/' . self::SLUG . '/payout', ['vendor_id' => $singleId]);
-        self::assertTrue(
-            str_contains($posted->body, 'Payout posted.')
-            || str_contains($posted->body, 'a payout clears'),
-            HtmlPage::error($posted->body)
-        );
+        self::assertStringContainsString('Payout posted.', $posted->body, HtmlPage::error($posted->body));
         $paidForm = $this->client->get('/' . self::SLUG . '/payout?vendor=' . $singleId);
-        if (preg_match('/name="run_id" value="([0-9a-fA-F-]{36})"/', $paidForm->body, $singleRun) === 1) {
-            $undone = $this->client->post('/' . self::SLUG . '/payout/undo', [
-                'vendor_id' => $singleId,
-                'run_id' => $singleRun[1],
-                'reason' => 'coverage undo',
-            ]);
-            self::assertTrue(
-                str_contains($undone->body, 'Payout undone.')
-                || HtmlPage::error($undone->body) !== ''
-            );
-            $afterUndo = $this->client->get('/' . self::SLUG . '/payout?vendor=' . $singleId);
-            self::assertTrue(
-                str_contains($afterUndo->body, 'Undone by')
-                || str_contains($afterUndo->body, 'Pay this vendor')
-            );
-        }
+        self::assertSame(1, preg_match('/name="run_id" value="([0-9a-fA-F-]{36})"/', $paidForm->body, $singleRun));
+        SingleVendorCheckPrint::assertFace($this->client, self::SLUG, $singleRun[1]);
+        SingleVendorCheckPrint::assertSheet($this->client, self::SLUG, $singleRun[1], $description);
+        $undone = $this->client->post('/' . self::SLUG . '/payout/undo', [
+            'vendor_id' => $singleId,
+            'run_id' => $singleRun[1],
+            'reason' => 'coverage undo',
+        ]);
+        self::assertTrue(
+            str_contains($undone->body, 'Payout undone.')
+            || HtmlPage::error($undone->body) !== ''
+        );
+        $afterUndo = $this->client->get('/' . self::SLUG . '/payout?vendor=' . $singleId);
+        self::assertTrue(
+            str_contains($afterUndo->body, 'Undone by')
+            || str_contains($afterUndo->body, 'Pay this vendor')
+        );
 
         if ($runId !== '') {
             $printedReport = $this->client->get('/' . self::SLUG . '/payouts/report?run=' . $runId);
@@ -137,34 +135,7 @@ final class PayoutCoverageHttpTest extends WebTestCase
 
     private function numberChecks(string $runId): void
     {
-        $page = $this->client->get('/' . self::SLUG . '/payouts/checks?run=' . $runId);
-        self::assertSame(200, $page->status);
-        if (!str_contains($page->body, 'starting_check') && !str_contains($page->body, 'Pay to the order of')) {
-            return;
-        }
-        $blank = $this->client->post('/' . self::SLUG . '/payouts/checks?run=' . $runId, [
-            'starting_check' => '',
-        ]);
-        if (str_contains($blank->body, 'starting_check')) {
-            self::assertSees('Type the number on the first check.', $blank);
-        }
-        $printed = $this->client->post('/' . self::SLUG . '/payouts/checks?run=' . $runId, [
-            'starting_check' => '4017',
-        ]);
-        self::assertSame(200, $printed->status);
-        self::assertTrue($this->printedCheckPage($printed->body), HtmlPage::error($printed->body));
-    }
-
-    private function printedCheckPage(string $html): bool
-    {
-        return str_contains($html, 'Pay to the order of')
-            || str_contains($html, 'Type the number on the first check.')
-            || str_contains($html, 'First check number')
-            || str_contains($html, 'starting_check')
-            || str_contains($html, 'Those checks are not ready to print.')
-            || str_contains($html, 'Nobody on this payout is getting a check.')
-            || str_contains($html, 'That check was voided.')
-            || str_contains($html, 'That payout is missing.');
+        SingleVendorCheckPrint::assertFace($this->client, self::SLUG, $runId);
     }
 
     private function printSeededChecks(): void
@@ -182,8 +153,7 @@ final class PayoutCoverageHttpTest extends WebTestCase
             $this->numberChecks($blankId);
         }
         if ($facedId !== '') {
-            $faces = $this->authed('/' . self::SLUG . '/payouts/checks?run=' . $facedId);
-            self::assertTrue($this->printedCheckPage($faces->body), HtmlPage::error($faces->body));
+            SingleVendorCheckPrint::assertFace($this->client, self::SLUG, $facedId);
         }
         if ($emptyId !== '') {
             $empty = $this->authed('/' . self::SLUG . '/payouts/checks?run=' . $emptyId);
@@ -326,12 +296,13 @@ final class PayoutCoverageHttpTest extends WebTestCase
         return $this->match($page->body, '#/vendors/([0-9a-fA-F-]{36})/sign-in#');
     }
 
-    private function sell(string $vendorId, string $price): void
+    private function sell(string $vendorId, string $price): string
     {
         $code = 'k' . bin2hex(random_bytes(3));
+        $description = 'Payout ' . $code;
         $created = $this->client->post('/' . self::SLUG . '/inventory', [
             'code' => $code,
-            'description' => 'Payout ' . $code,
+            'description' => $description,
             'vendor_id' => $vendorId,
             'brand_id' => '',
             'price' => $price,
@@ -350,6 +321,8 @@ final class PayoutCoverageHttpTest extends WebTestCase
         ]);
         self::assertSees('Sale posted.', $paid);
         $this->client->post('/' . self::SLUG . '/pos/new', []);
+
+        return $description;
     }
 
     private function openRegister(): void

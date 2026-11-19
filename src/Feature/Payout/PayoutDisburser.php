@@ -53,13 +53,14 @@ final class PayoutDisburser
         $this->lines->mark($runId, 'paid');
     }
 
-    public function numberChecks(string $runId, int $start): void
+    public function numberChecks(string $runId, int $start): int
     {
         $run = $this->runs->run($runId);
         if ($run['status'] !== 'paid' || $run['tender'] !== 'check') {
             throw new DatabaseRefusal('Those checks are not ready to print.');
         }
-        $this->checks->assignNumbers($runId, $start);
+
+        return $this->checks->assignNumbers($runId, $start);
     }
 
     /**

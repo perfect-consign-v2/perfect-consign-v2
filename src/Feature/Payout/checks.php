@@ -4,23 +4,21 @@ declare(strict_types=1);
 
 use PerfectConsign\Shared\Http\View;
 
-/** @var string $displayName */
+/** @var string $slug */
+/** @var string $runId */
 /** @var string $dated */
 /** @var string $monthName */
 /** @var list<array{number: string, name: string, code: string, booth: string, amount: int, words: string}> $checks */
 ?>
 <link rel="stylesheet" href="/assets/checks-print.css">
 <div class="no-print">
-    <p>One check for each vendor who is getting paid.</p>
+    <p>One check for each vendor who is getting paid. The check stock already has the company name and the check number. This prints the date, who is paid, the amount, and the memo.</p>
+    <a class="btn print-sheet" href="/<?= View::text($slug) ?>/payouts/report?run=<?= View::text($runId) ?>">Print sales and rent</a>
     <button class="btn btn-primary" type="button" data-print>Print</button>
 </div>
 <?php foreach ($checks as $check): ?>
     <section class="check-sheet">
         <article class="check-face">
-            <div class="check-top">
-                <p class="check-mall"><?= View::text($displayName) ?></p>
-                <p class="check-number">Check <?= View::text($check['number']) ?></p>
-            </div>
             <p class="check-date"><?= View::text($dated) ?></p>
             <div class="check-pay">
                 <p>Pay to the order of <?= View::text($check['name']) ?></p>

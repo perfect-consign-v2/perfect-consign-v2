@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
+use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\PlatformMailbox;
 use Psr\Log\LoggerInterface;
 
@@ -42,9 +43,9 @@ final class AdminResetMail
                 'admin reset mail was refused',
             );
         } catch (\Throwable $error) {
-            $this->logger->error('admin reset mail was refused', [
+            $this->logger->error('admin reset mail was refused', MailDeliveryFailed::context($error, [
                 'message' => $error->getMessage(),
-            ]);
+            ]));
             throw new \RuntimeException(AdminPasswordRecovery::MAIL_FAILED, 0, $error);
         }
         $this->logger->info('admin reset mail was sent', [

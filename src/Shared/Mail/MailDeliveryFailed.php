@@ -11,6 +11,7 @@ final class MailDeliveryFailed extends RuntimeException
     public function __construct(
         private readonly int $status,
         private readonly string $stage,
+        private readonly string $reply = '',
     ) {
         parent::__construct('smtp send failed');
     }
@@ -23,6 +24,29 @@ final class MailDeliveryFailed extends RuntimeException
     public function stage(): string
     {
         return $this->stage;
+    }
+
+    public function reply(): string
+    {
+        return $this->reply;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    public static function context(\Throwable $error, array $context = []): array
+    {
+        if (!$error instanceof self) {
+            return $context;
+        }
+        $context['status'] = $error->status;
+        $context['stage'] = $error->stage;
+        if ($error->reply !== '') {
+            $context['reply'] = $error->reply;
+        }
+
+        return $context;
     }
 
     public function permanent(): bool

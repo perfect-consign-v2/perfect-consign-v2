@@ -24,6 +24,11 @@ $instantBrandLabel = is_string($instantBrandLabel ?? null) ? $instantBrandLabel 
 $instantAttributes = is_array($instantAttributes ?? null) ? $instantAttributes : [];
 $instantPriceError = in_array($instantError, ['Enter a price.', 'enter an amount in dollars and cents', 'the amount is too large', 'the amount must be greater than zero'], true);
 $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false) === true;
+$pendingCatalog = '';
+if (preg_match('/^Add that ([a-z]+) before saving the item\.$/', $instantError, $pendingMatch) === 1) {
+    $pendingCatalog = $pendingMatch[1];
+}
+$brandPending = $pendingCatalog === 'brand' && trim($instantBrandLabel) !== '' && trim($instantBrandId) === '';
 $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
     ? $sellersJsonUrl
     : '/' . $slug . '/inventory/' . (!empty($consignmentOnly) ? 'consignors' : 'vendors') . '.json';
@@ -81,13 +86,13 @@ $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
                 </div>
             </div>
             <?php if ($showBrand): ?>
-            <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/brands.json" data-create="/<?= View::text($slug) ?>/inventory/brands">
+            <div class="field combo" data-name-list<?= $brandPending ? ' data-name-new="1"' : '' ?> data-search="/<?= View::text($slug) ?>/inventory/brands.json" data-create="/<?= View::text($slug) ?>/inventory/brands">
                 <label for="instant_brand">Brand</label>
                 <input class="input" id="instant_brand" name="brand_label" value="<?= View::text($instantBrandLabel) ?>" autocomplete="off" placeholder="Search brands or type a new one">
                 <input type="hidden" id="instant_brand_id" name="brand_id" value="<?= View::text($instantBrandId) ?>">
                 <div class="suggest" hidden></div>
-                <div class="row gap-2" hidden data-create-row>
-                    <span class="muted text-sm">Add brand <strong data-create-name></strong>?</span>
+                <div class="row gap-2"<?= $brandPending ? '' : ' hidden' ?> data-create-row>
+                    <span class="muted text-sm">Add brand <strong data-create-name><?= $brandPending ? View::text($instantBrandLabel) : '' ?></strong>?</span>
                     <button class="btn btn-sm" type="button" data-create-button>Add brand</button>
                 </div>
                 <p class="field-error" hidden></p>
@@ -98,14 +103,15 @@ $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
                 $savedAttribute = $instantAttributes[$attribute->key] ?? ['id' => '', 'label' => ''];
                 $attributeId = is_array($savedAttribute) && is_string($savedAttribute['id'] ?? null) ? $savedAttribute['id'] : '';
                 $attributeLabel = is_array($savedAttribute) && is_string($savedAttribute['label'] ?? null) ? $savedAttribute['label'] : '';
+                $attributePending = $pendingCatalog === $attribute->singular && trim($attributeLabel) !== '' && trim($attributeId) === '';
                 ?>
-                <div class="field combo" data-name-list data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
+                <div class="field combo" data-name-list<?= $attributePending ? ' data-name-new="1"' : '' ?> data-search="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>.json" data-create="/<?= View::text($slug) ?>/inventory/<?= View::text($attribute->path) ?>">
                     <label for="instant_<?= View::text($attribute->key) ?>"><?= View::text(ucfirst($attribute->singular)) ?></label>
                     <input class="input" id="instant_<?= View::text($attribute->key) ?>" name="<?= View::text($attribute->key) ?>_label" value="<?= View::text($attributeLabel) ?>" autocomplete="off" placeholder="Search or type a new one">
                     <input type="hidden" name="<?= View::text($attribute->key) ?>_id" value="<?= View::text($attributeId) ?>">
                     <div class="suggest" hidden></div>
-                    <div class="row gap-2" hidden data-create-row>
-                        <span class="muted text-sm">Add <?= View::text($attribute->singular) ?> <strong data-create-name></strong>?</span>
+                    <div class="row gap-2"<?= $attributePending ? '' : ' hidden' ?> data-create-row>
+                        <span class="muted text-sm">Add <?= View::text($attribute->singular) ?> <strong data-create-name><?= $attributePending ? View::text($attributeLabel) : '' ?></strong>?</span>
                         <button class="btn btn-sm" type="button" data-create-button>Add <?= View::text($attribute->singular) ?></button>
                     </div>
                     <p class="field-error" hidden></p>

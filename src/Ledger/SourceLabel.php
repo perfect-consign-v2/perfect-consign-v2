@@ -30,6 +30,7 @@ final class SourceLabel
         'clawback_apply' => 'Apply clawback',
         'layaway_deposit' => 'Layaway deposit',
         'layaway_refund' => 'Layaway refund',
+        'booth_deposit' => 'Booth deposit',
         'gift_certificate_issue' => 'Gift certificate',
         'gift_card_issue' => 'Gift card',
         'store_credit_issue' => 'Store credit',

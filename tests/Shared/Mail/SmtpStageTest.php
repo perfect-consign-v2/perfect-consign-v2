@@ -16,6 +16,7 @@ final class SmtpStageTest extends TestCase
         $failed = $this->stage('auth', 18771);
         self::assertSame(535, $failed->status());
         self::assertSame('auth', $failed->stage());
+        self::assertSame('Username and Password not accepted', $failed->reply());
         self::assertFalse($failed->permanent());
     }
 
@@ -24,6 +25,7 @@ final class SmtpStageTest extends TestCase
         $failed = $this->stage('rcpt', 18772);
         self::assertSame(550, $failed->status());
         self::assertSame('rcpt', $failed->stage());
+        self::assertSame('no such user', $failed->reply());
         self::assertTrue($failed->permanent());
     }
 
@@ -32,6 +34,7 @@ final class SmtpStageTest extends TestCase
         $failed = $this->stage('greeting', 18774);
         self::assertSame(400, $failed->status());
         self::assertSame('greeting', $failed->stage());
+        self::assertSame('no', $failed->reply());
     }
 
     public function testATemporaryRecipientFailureIsRetried(): void
@@ -39,7 +42,19 @@ final class SmtpStageTest extends TestCase
         $failed = $this->stage('later', 18773);
         self::assertSame(421, $failed->status());
         self::assertSame('rcpt', $failed->stage());
+        self::assertSame('try later', $failed->reply());
         self::assertFalse($failed->permanent());
+    }
+
+    public function testAMultiLineRefusalKeepsTheServerText(): void
+    {
+        $failed = $this->stage('lines', 18775);
+        self::assertSame(550, $failed->status());
+        self::assertSame('greeting', $failed->stage());
+        self::assertSame(
+            '5.4.5 Daily user sending limit exceeded. 5.4.5 See the sending limits page',
+            $failed->reply(),
+        );
     }
 
     public function testMessageIdDomainComesFromFromAddress(): void

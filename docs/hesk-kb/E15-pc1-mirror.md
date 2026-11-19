@@ -1,7 +1,7 @@
 ---
 title: PC1 → PC2 dev mirror (Beccas sandbox)
 category: Platform notes
-hesk: published 2026-11-18
+hesk: published 2026-11-19
 as_of: 2026-11-16
 ---
 

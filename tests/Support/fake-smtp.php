@@ -31,6 +31,11 @@ if ($mode === 'greeting') {
     $say('400 no');
     exit(0);
 }
+if ($mode === 'lines') {
+    $say('550-5.4.5 Daily user sending limit exceeded.');
+    $say('550 5.4.5 See the sending limits page');
+    exit(0);
+}
 $say('220 ready');
 $hear();
 $say('250 hello');

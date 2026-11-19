@@ -14,6 +14,7 @@ final readonly class PageResponse
         public string $body,
         public string $location,
         public array $headers = [],
+        public string $effectiveUrl = '',
     ) {
     }
 

@@ -241,8 +241,15 @@ final class FormClient
         if ($token !== null) {
             $this->csrf = $token;
         }
+        $effective = curl_getinfo($this->curl, CURLINFO_EFFECTIVE_URL);
 
-        return new PageResponse($status, $body, $this->location($responseHeaders), $this->headerMap($responseHeaders));
+        return new PageResponse(
+            $status,
+            $body,
+            $this->location($responseHeaders),
+            $this->headerMap($responseHeaders),
+            is_string($effective) ? $effective : '',
+        );
     }
 
     /**

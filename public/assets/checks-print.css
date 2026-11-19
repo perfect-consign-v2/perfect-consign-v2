@@ -9,9 +9,8 @@
     color: #000;
     background: #fff;
 }
-.check-top, .check-pay { display: flex; justify-content: space-between; gap: 1rem; }
-.check-mall { margin: 0; font-size: 1.15rem; font-weight: 700; }
-.check-number, .check-amount { margin: 0; font-weight: 700; white-space: nowrap; }
+.check-pay { display: flex; justify-content: space-between; gap: 1rem; }
+.check-amount { margin: 0; font-weight: 700; white-space: nowrap; }
 .check-date, .check-words, .check-memo { margin: 0.55rem 0 0; }
 .check-amount { font-size: 1.15rem; }
 @media print {

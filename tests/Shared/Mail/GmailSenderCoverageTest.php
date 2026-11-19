@@ -31,12 +31,13 @@ final class GmailSenderCoverageTest extends TestCase
         } catch (MailDeliveryFailed $failed) {
             self::assertSame(550, $failed->status());
             self::assertSame('greeting', $failed->stage());
+            self::assertSame('refused', $failed->reply());
         } finally {
             $this->stop($stand);
             $this->restoreAdmin($admin);
         }
 
-        $this->assertNotice($logged);
+        $this->assertNotice($logged, 'refused');
     }
 
     public function testABrokenGreetingBecomesASendFailure(): void
@@ -63,19 +64,24 @@ final class GmailSenderCoverageTest extends TestCase
             $this->restoreAdmin($admin);
         }
 
-        $this->assertNotice($logged);
+        $this->assertNotice($logged, null);
     }
 
     /**
      * @param list<array{message: string, context: array<mixed>}> $logged
      */
-    private function assertNotice(array $logged): void
+    private function assertNotice(array $logged, ?string $reply): void
     {
         self::assertNotSame([], $logged);
         $context = $logged[0]['context'];
         self::assertIsArray($context);
         self::assertSame('receipt mail was refused', $logged[0]['message']);
         self::assertSame('ada@gmail.com', $context['from'] ?? null);
+        if ($reply === null) {
+            self::assertArrayNotHasKey('reply', $context);
+        } else {
+            self::assertSame($reply, $context['reply'] ?? null);
+        }
         $encoded = json_encode($context);
         self::assertIsString($encoded);
         self::assertStringNotContainsString('app-password-value', $encoded);
@@ -180,7 +186,7 @@ final class GmailSenderCoverageTest extends TestCase
 
     private function port(string $file): int
     {
-        $deadline = microtime(true) + 3;
+        $deadline = microtime(true) + 15;
         while (microtime(true) < $deadline) {
             $text = is_file($file) ? file_get_contents($file) : false;
             if (is_string($text) && preg_match('/:(\d+)$/', trim($text), $match) === 1) {

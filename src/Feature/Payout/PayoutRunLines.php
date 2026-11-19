@@ -180,6 +180,36 @@ final class PayoutRunLines
         );
     }
 
+    public function copySalesAfterWindow(string $runId, string $vendorId): void
+    {
+        $this->statements->change(
+            'INSERT INTO payout_run_sales (
+                run_id, vendor_id, journal_id, line_no, item_id, sold_on, item_code, description,
+                price_minor, commission_minor, tax_minor, discount_minor, quantity
+             )
+             SELECT run.id, item.vendor_id, journal.id, sale.line_no, sale.item_id, journal.posting_date,
+                    item.code, item.description, sale.price_minor, sale.commission_minor, sale.tax_minor,
+                    sale.discount_minor, sale.quantity
+             FROM payout_runs AS run
+             JOIN journals AS journal
+               ON journal.source_type = \'sale\'
+              AND NOT journal.is_reversal
+              AND journal.posting_date > run.sales_to
+              AND journal.posting_date <= run.posting_date
+             JOIN sale_lines AS sale ON sale.journal_id = journal.id
+             JOIN items AS item ON item.id = sale.item_id AND item.vendor_id = ?::uuid
+             WHERE run.id = ?::uuid
+               AND run.kind = \'single\'
+               AND NOT EXISTS (
+                   SELECT 1 FROM payout_run_sales AS existing
+                   WHERE existing.run_id = run.id
+                     AND existing.journal_id = journal.id
+                     AND existing.line_no = sale.line_no
+               )',
+            [$vendorId, $runId]
+        );
+    }
+
     private function copySales(string $runId): void
     {
         $this->statements->change(

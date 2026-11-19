@@ -1,15 +1,15 @@
 ---
 title: Settlement vs check / drawer / safe disbursement
 category: Payouts and settlement
-hesk: published 2026-11-18
-as_of: 2026-11-06
+hesk: published 2026-11-19
+as_of: 2026-11-18
 ---
 
 # Settlement vs check / drawer / safe disbursement
 
 ## As of
 
-2026-11-06 — Money record Void refuses settlement and check / cash / safe disbursement journals; undo a paid run with payout reverse.
+2026-11-18 — Print checks does not ask for a check number. The stock already has the company name and the number. Print sales and rent opens the sales and rent sheet, including a payout for one vendor. 2026-11-06 — Money record Void refuses settlement and check / cash / safe disbursement journals; undo a paid run with payout reverse.
 
 ## In one sentence
 
@@ -27,6 +27,8 @@ Closing a payout run, then writing a check, paying from the drawer, or paying fr
 - A vendor with nothing open gets a report and no journal.
 - Settled or paid run refuses a new journal dated inside its sales window; a reversal is dated after that window.
 - Settlement, rent charged, checks already written, and rent paid in a later window are net of those journals (reversals included).
+- Print checks does not ask for a check number. The check stock already has the company name and the check number, so the page prints the date, who is paid, the amount, and the memo.
+- Print sales and rent on that page opens the sales and rent sheet for that payout, including a payout for one vendor. That sheet lists the sales on the check, including a sale dated after the closed month, and the rent deducted from them.
 - Two check disbursements cannot share a check number.
 - The Money record Void button refuses settlement and disbursement journals — use payout reverse, then re-pay if needed.
 

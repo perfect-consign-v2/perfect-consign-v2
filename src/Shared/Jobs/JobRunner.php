@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
+use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -33,23 +34,29 @@ final class JobRunner
             }
             while (($job = $this->queue->claim($this->pdo, $worker)) !== null) {
                 $error = '';
+                $failure = null;
                 try {
                     $this->handle($job);
-                } catch (\Throwable $failure) {
-                    $error = $failure->getMessage();
-                    $this->logger->error('job failed', ['kind' => $job['kind'], 'tenant' => $job['tenant'], 'error' => $error]);
+                } catch (\Throwable $caught) {
+                    $failure = $caught;
+                    $error = $caught->getMessage();
+                    $this->logger->error('job failed', MailDeliveryFailed::context($caught, [
+                        'kind' => $job['kind'],
+                        'tenant' => $job['tenant'],
+                        'error' => $error,
+                    ]));
                 }
                 $this->queue->finish($this->pdo, $job['id'], $error);
                 $finished++;
                 if ($error !== '') {
                     $failed++;
                 }
-                if ($error !== '' && $job['attempts'] >= 5) {
-                    $this->logger->error('job will not be retried', [
+                if ($failure !== null && $job['attempts'] >= 5) {
+                    $this->logger->error('job will not be retried', MailDeliveryFailed::context($failure, [
                         'kind' => $job['kind'],
                         'tenant' => $job['tenant'],
                         'error' => $error,
-                    ]);
+                    ]));
                 }
             }
         } finally {

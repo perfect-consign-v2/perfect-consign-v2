@@ -25,25 +25,35 @@ final class PlatformOperatorNoticeTest extends TestCase
             /** @var list<string> */
             public array $errors = [];
 
+            /** @var list<array<string, mixed>> */
+            public array $contexts = [];
+
             public function log($level, string|\Stringable $message, array $context = []): void
             {
                 if ($level === 'error') {
                     $this->errors[] = (string) $message;
+                    $this->contexts[] = $context;
                 }
             }
         };
         try {
             $notices = new PlatformOperatorNotice($log);
-            $notices->mailFailed('password reset mail was refused', new MailDeliveryFailed(535, 'auth'), [
-                'slug' => 'mall',
-            ]);
+            $notices->mailFailed(
+                'password reset mail was refused',
+                new MailDeliveryFailed(535, 'auth', 'Username and Password not accepted'),
+                [
+                    'slug' => 'mall',
+                ],
+            );
             $text = file_get_contents($path);
             self::assertIsString($text);
             self::assertStringContainsString('To: ops@example.com', $text);
             self::assertStringContainsString('Subject: Perfect Consign: mail delivery failed', $text);
             self::assertStringContainsString('Purpose: password reset mail was refused', $text);
             self::assertStringContainsString('SMTP status: 535', $text);
+            self::assertStringContainsString('SMTP reply: Username and Password not accepted', $text);
             self::assertContains('password reset mail was refused', $log->errors);
+            self::assertSame('Username and Password not accepted', $log->contexts[0]['reply'] ?? null);
         } finally {
             if (is_string($previousFile) && $previousFile !== '') {
                 putenv('STALL_MAIL_FILE=' . $previousFile);
@@ -81,6 +91,7 @@ final class PlatformOperatorNoticeTest extends TestCase
                 'message' => 'hidden',
                 'status' => 'hidden',
                 'stage' => 'hidden',
+                'reply' => 'hidden',
                 'slug' => 'mall',
             ]);
             $text = file_get_contents($path);

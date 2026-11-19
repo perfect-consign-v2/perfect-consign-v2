@@ -5,14 +5,12 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Payout;
 
 use PerfectConsign\Bootstrap\MallApp;
-use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class PrintedChecks
 {
     public function __construct(
         private readonly MallApp $app,
         private readonly PayoutRunStore $runs,
-        private readonly PayoutRunSheets $sheets,
         private readonly PayoutOnce $once,
     ) {
     }
@@ -30,9 +28,6 @@ final class PrintedChecks
         if (!$this->printable($run)) {
             return 'Those checks are not ready to print.';
         }
-        if ($this->blankChecks($runId)) {
-            return $this->ask($slug, $runId);
-        }
 
         return $this->faces($slug, $runId, $run);
     }
@@ -43,57 +38,6 @@ final class PrintedChecks
     private function printable(array $run): bool
     {
         return $run['status'] === 'paid' && $run['tender'] === 'check' && $this->day($run['posting_date']) !== '';
-    }
-
-    private function ask(string $slug, string $runId): ?string
-    {
-        $error = $this->app->request()->method === 'POST' ? $this->fillBlanks($runId) : null;
-        if ($this->blankChecks($runId)) {
-            $this->numberForm($slug, $runId, $error);
-
-            return null;
-        }
-
-        return $this->faces($slug, $runId, $this->runs->run($runId));
-    }
-
-    private function fillBlanks(string $runId): ?string
-    {
-        $start = $this->app->request()->field('starting_check');
-        $number = ctype_digit($start) ? (int) $start : 0;
-        if ($number <= 0) {
-            return 'Type the number on the first check.';
-        }
-        try {
-            $this->once->numberChecks($runId, $number);
-        } catch (DatabaseRefusal $refusal) {
-            return $this->app->catchRefusal($refusal);
-        }
-
-        return null;
-    }
-
-    private function blankChecks(string $runId): bool
-    {
-        foreach ($this->sheets->envelopes($runId) as $row) {
-            if ($row['check'] > 0 && $row['check_number'] === '') {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function numberForm(string $slug, string $runId, ?string $error): void
-    {
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Payout/check-number', [
-            'title' => 'Print checks',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'runId' => $runId,
-            'error' => $error,
-        ]);
     }
 
     /**
@@ -112,6 +56,7 @@ final class PrintedChecks
             'title' => 'Checks',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
+            'runId' => $runId,
             'dated' => (new \DateTimeImmutable($run['posting_date']))->format('m-d-Y'),
             'monthName' => $monthName,
             'checks' => $checks,

@@ -44,7 +44,7 @@ final class OutboundMail
         try {
             $this->deliver($to, $subject, $body);
         } catch (MailDeliveryFailed | \InvalidArgumentException | \RuntimeException $failed) {
-            $this->logger->error($failed->getMessage());
+            $this->logger->error($failed->getMessage(), MailDeliveryFailed::context($failed));
             throw $failed;
         }
     }

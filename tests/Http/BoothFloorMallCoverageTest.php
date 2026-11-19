@@ -110,14 +110,14 @@ final class BoothFloorMallCoverageTest extends WebTestCase
             'amount' => '20.00',
             'posting_date' => ProbeMall::POSTING_DATE,
         ]);
-        self::assertSees('a drawer journal needs an open register', $deposited);
+        self::assertSees('Booth deposit posted.', $deposited);
         $released = $this->client->post('/' . self::SLUG . '/booth-deposit/release', [
             'booth_id' => $boothId,
             'source_reference' => 'rel-' . $tag,
             'amount' => '20.00',
             'posting_date' => ProbeMall::POSTING_DATE,
         ]);
-        self::assertSees('a release is larger than the deposit held', $released);
+        self::assertSees('Booth deposit returned posted.', $released);
     }
 
     public function testTheFloorNotesAFindingAndAPickup(): void
@@ -161,7 +161,7 @@ final class BoothFloorMallCoverageTest extends WebTestCase
             'noted_on' => ProbeMall::POSTING_DATE,
             'noted_by' => 'Ada',
         ]);
-        self::assertSees('expected a string', $unknown);
+        self::assertSees('That tag is not on the floor.', $unknown);
         $spaced = $this->client->post('/' . self::SLUG . '/floor', [
             'code' => $code,
             'kind' => 'misplaced',
@@ -185,7 +185,7 @@ final class BoothFloorMallCoverageTest extends WebTestCase
             'picked_up_on' => ProbeMall::POSTING_DATE,
             'received_by' => 'Bea',
         ]);
-        self::assertSees('expected a string', $noPickup);
+        self::assertSees('That tag is not on the floor.', $noPickup);
         $picked = $this->client->post('/' . self::SLUG . '/pickups', [
             'code' => $code,
             'picked_up_on' => ProbeMall::POSTING_DATE,

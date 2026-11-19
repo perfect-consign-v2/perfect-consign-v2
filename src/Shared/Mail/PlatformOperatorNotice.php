@@ -23,10 +23,7 @@ final class PlatformOperatorNotice
      */
     public function mailFailed(string $purpose, \Throwable $error, array $context = []): void
     {
-        if ($error instanceof MailDeliveryFailed) {
-            $context['status'] = $error->status();
-            $context['stage'] = $error->stage();
-        }
+        $context = MailDeliveryFailed::context($error, $context);
         $context['message'] = $error->getMessage();
         $this->logger->error($purpose, $context);
         $lines = [
@@ -38,9 +35,12 @@ final class PlatformOperatorNotice
         if ($error instanceof MailDeliveryFailed) {
             $lines[] = 'SMTP status: ' . (string) $error->status();
             $lines[] = 'SMTP stage: ' . $error->stage();
+            if ($error->reply() !== '') {
+                $lines[] = 'SMTP reply: ' . $error->reply();
+            }
         }
         foreach ($context as $key => $value) {
-            if ($key === 'message' || $key === 'status' || $key === 'stage') {
+            if ($key === 'message' || $key === 'status' || $key === 'stage' || $key === 'reply') {
                 continue;
             }
             if (is_scalar($value) || $value === null) {
@@ -94,9 +94,12 @@ final class PlatformOperatorNotice
         try {
             $this->deliver($to, $subject, $body);
         } catch (\Throwable $error) {
-            $this->logger->error('platform operator notice was not sent', [
-                'message' => $error->getMessage(),
-            ]);
+            $this->logger->error(
+                'platform operator notice was not sent',
+                MailDeliveryFailed::context($error, [
+                    'message' => $error->getMessage(),
+                ]),
+            );
         } finally {
             self::$sending = false;
         }

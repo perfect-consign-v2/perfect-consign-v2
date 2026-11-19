@@ -79,7 +79,7 @@ final class VendorHomeController
         if (!(new VendorPortalAccess($this->mall))->inventoryEnabled()) {
             $this->app->notFound();
         }
-        $this->app->redirect('/' . $slug . '/vendor/inventory');
+        $this->app->redirect($this->preview->url('/' . $slug . '/vendor/inventory'));
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/vendor/labels', ['POST'])]

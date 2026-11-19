@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Pos;
 
+use PerfectConsign\Feature\Catalog\NameList;
 use PerfectConsign\Shared\Http\View;
 use PHPUnit\Framework\TestCase;
 
@@ -430,6 +431,33 @@ final class RegisterPageTest extends TestCase
         ]);
         self::assertStringNotContainsString('>Return</button>', $voided);
         self::assertStringContainsString('id="tax-waived"', $voided);
+    }
+
+    public function testInstantAddKeepsTheNewCategoryButtonAfterTheRefusal(): void
+    {
+        $category = new NameList('category', 'categories', 'category_id', 'use_category', 'categories', 'category', 'Categories');
+        $refused = $this->page([
+            'openInstant' => true,
+            'instantError' => 'Add that category before saving the item.',
+            'instantAttributes' => [
+                'category' => ['id' => '', 'label' => 'Wool Coats'],
+            ],
+            'attributeLists' => [$category],
+        ]);
+        $other = $this->page([
+            'openInstant' => true,
+            'instantError' => 'Enter a price.',
+            'instantAttributes' => [
+                'category' => ['id' => '', 'label' => 'Wool Coats'],
+            ],
+            'attributeLists' => [$category],
+        ]);
+
+        self::assertStringContainsString('data-name-new="1" data-search="/demo/inventory/categories.json"', $refused);
+        self::assertStringContainsString('Add category <strong data-create-name>Wool Coats</strong>?', $refused);
+        self::assertStringContainsString('<div class="row gap-2" data-create-row>', $refused);
+        self::assertStringNotContainsString('data-name-new="1"', $other);
+        self::assertStringNotContainsString('<div class="row gap-2" data-create-row>', $other);
     }
 
     public function testAGiftNumberOpensItsBalance(): void

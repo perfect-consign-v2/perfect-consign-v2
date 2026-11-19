@@ -37,41 +37,77 @@ final class PayoutRunChecks
         return $checks;
     }
 
-    public function assignNumbers(string $runId, int $start): void
+    public function assignNumbers(string $runId, int $start): int
     {
         if ($start <= 0) {
             throw new DatabaseRefusal('Type the number on the first check.');
         }
-        $this->statements->transaction(function () use ($runId, $start): void {
-            $rows = $this->statements->bound(
-                "SELECT line.vendor_id, line.disbursement_journal_id
-                 FROM payout_run_lines AS line
-                 JOIN vendors AS vendor ON vendor.id = line.vendor_id
-                 WHERE line.run_id = ?::uuid AND line.mode = 'pay' AND line.check_minor > 0
-                   AND line.check_number IS NULL
-                   AND line.disbursement_journal_id IS NOT NULL
-                 ORDER BY vendor.code",
-                [$runId]
-            );
-            foreach ($rows as $row) {
-                $vendorId = RowValue::string($row['vendor_id'] ?? null);
-                $journalId = RowValue::string($row['disbursement_journal_id'] ?? null);
+        $written = 0;
+        $this->statements->transaction(function () use ($runId, &$start, &$written): void {
+            foreach ($this->waiting($runId) as $row) {
                 $number = (string) $start;
-                $written = $this->statements->affected(
+                $updated = $this->statements->affected(
                     'UPDATE payout_run_lines
                      SET check_number = ?
                      WHERE run_id = ?::uuid AND vendor_id = ?::uuid AND check_number IS NULL',
-                    [$number, $runId, $vendorId]
+                    [$number, $runId, $row['vendor_id']]
                 );
-                if ($written !== 1) {
+                if ($updated !== 1) {
                     continue;
                 }
                 $this->statements->change(
                     'INSERT INTO register_checks (journal_id, check_number) VALUES (?::uuid, ?)',
-                    [$journalId, $number]
+                    [$row['journal_id'], $number]
                 );
                 $start++;
+                $written++;
             }
         });
+
+        return $written;
+    }
+
+    /**
+     * @return list<array{vendor_id: string, journal_id: string}>
+     */
+    private function waiting(string $runId): array
+    {
+        $rows = $this->statements->bound(
+            "SELECT line.vendor_id,
+                    COALESCE(line.disbursement_journal_id, linked.journal_id) AS disbursement_journal_id
+             FROM payout_run_lines AS line
+             JOIN vendors AS vendor ON vendor.id = line.vendor_id
+             LEFT JOIN LATERAL (
+                 SELECT journal.id AS journal_id
+                 FROM payout_run_journals AS link
+                 JOIN journals AS journal ON journal.id = link.journal_id
+                 WHERE link.run_id = line.run_id
+                   AND link.role = 'disbursement'
+                   AND NOT journal.is_reversal
+                   AND journal.posting_key = 'disbursement:' || line.run_id::text || ':' || line.vendor_id::text
+                   AND NOT EXISTS (
+                       SELECT 1 FROM journals AS reversal
+                       WHERE reversal.reverses_journal_id = journal.id
+                   )
+                 ORDER BY journal.journal_no
+                 LIMIT 1
+             ) AS linked ON true
+             WHERE line.run_id = ?::uuid
+               AND line.mode = 'pay'
+               AND line.check_minor > 0
+               AND line.check_number IS NULL
+               AND COALESCE(line.disbursement_journal_id, linked.journal_id) IS NOT NULL
+             ORDER BY vendor.code",
+            [$runId]
+        );
+        $waiting = [];
+        foreach ($rows as $row) {
+            $waiting[] = [
+                'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
+                'journal_id' => RowValue::string($row['disbursement_journal_id'] ?? null),
+            ];
+        }
+
+        return $waiting;
     }
 }

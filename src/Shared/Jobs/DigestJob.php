@@ -10,6 +10,7 @@ use PerfectConsign\Feature\Vendor\VendorFigures;
 use PerfectConsign\Feature\Vendor\VendorLetter;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Mail\MailAttempt;
+use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\MailBounce;
 use PerfectConsign\Shared\Mail\MailProgress;
 use PerfectConsign\Shared\Mail\OutboundMail;
@@ -74,7 +75,10 @@ final class DigestJob
                     VendorLetter::body(RowValue::string($vendor['name'] ?? null), $numbers['payable'], $numbers['rent'])
                 );
             } catch (\RuntimeException $failed) {
-                $this->logger->error('a letter is still waiting', ['email' => $email, 'error' => $failed->getMessage()]);
+                $this->logger->error('a letter is still waiting', MailDeliveryFailed::context($failed, [
+                    'email' => $email,
+                    'error' => $failed->getMessage(),
+                ]));
                 $waiting = true;
                 continue;
             }

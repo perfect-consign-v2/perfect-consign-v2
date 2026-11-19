@@ -65,7 +65,7 @@ final class FloorController
                      RETURNING id::text AS id',
                     [$kind, $request->field('noted_on'), $request->field('noted_by'), $request->field('code')]
                 );
-                $id = RowValue::string($rows[0]['id'] ?? null);
+                $id = $this->insertedId($rows);
                 $this->audit->record('floor.note', $id, 'floor_finding');
             });
         } catch (DatabaseRefusal | \InvalidArgumentException $error) {
@@ -90,13 +90,28 @@ final class FloorController
                      RETURNING id::text AS id',
                     [$request->field('picked_up_on'), $request->field('received_by'), $request->field('code')]
                 );
-                $id = RowValue::string($rows[0]['id'] ?? null);
+                $id = $this->insertedId($rows);
                 $this->audit->record('pickup.record', $id, 'pickup');
             });
         } catch (DatabaseRefusal | \InvalidArgumentException $error) {
             $this->app->redirect('/' . $slug . '/floor', $this->app->catchRefusal($error));
         }
         $this->app->redirect('/' . $slug . '/floor', 'Pickup saved.');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function insertedId(array $rows): string
+    {
+        foreach ($rows as $row) {
+            $id = $row['id'] ?? null;
+            if (is_string($id) && $id !== '') {
+                return $id;
+            }
+        }
+
+        throw new DatabaseRefusal('That tag is not on the floor.');
     }
 
     /**

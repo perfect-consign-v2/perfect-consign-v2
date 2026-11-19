@@ -38,14 +38,17 @@ final class PayoutSingle
                 $this->lines->link($runId, $rentId, 'rent_charge');
             }
             $this->lines->carryPack($runId, $quoted['run_id'], $vendorId);
+            $this->lines->copySalesAfterWindow($runId, $vendorId);
             $journalId = $this->settler->settle($runId, $vendorId, $postingDate, $quoted['settled']);
             if ($journalId !== '') {
                 $this->lines->link($runId, $journalId, 'settlement');
+                $this->lines->attachSettlement($runId, $vendorId, $journalId);
             }
             $this->lines->mark($runId, 'settled');
             $paid = $this->disburser->disburse($runId, $vendorId, $postingDate, $quoted['check'], null);
             if ($paid !== '') {
                 $this->lines->link($runId, $paid, 'disbursement');
+                $this->lines->attachDisbursement($runId, $vendorId, $paid, null);
                 $this->lines->mark($runId, 'paid');
                 $journalId = $paid;
             }

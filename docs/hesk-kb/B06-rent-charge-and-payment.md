@@ -1,15 +1,15 @@
 ---
 title: What a rent charge posts; what a rent payment posts
 category: Rent
-hesk: published 2026-11-18
-as_of: 2026-10-25
+hesk: published 2026-11-19
+as_of: 2026-11-18
 ---
 
 # What a rent charge posts; what a rent payment posts
 
 ## As of
 
-2026-10-25
+2026-11-18 — When more than one register is open and this session has not chosen one, a cash rent payment stays on the rent form and says Choose the active register. 2026-10-25.
 
 ## In one sentence
 
@@ -24,7 +24,7 @@ Periodic rent charge for a booth/month, or cash rent paid at the desk / register
 - **Rent charge:** one posting key per booth per period. Debit that booth’s rent receivable, credit rent revenue. Amount comes from the rate stored for that period — payout does not recalculate it.
 - **Rent payment:** debit cash, credit that booth’s receivable, for rent paid outside a payout/settlement.
 - A charge requires an assignment covering the charge date.
-- Cash rent payment on the register must name the open shift.
+- Cash rent payment on the register must name the open shift. When more than one register is open and this session has not chosen one, the rent form says Choose the active register.
 
 ## What is refused
 

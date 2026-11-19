@@ -19,7 +19,7 @@ final class MailAttempt
         try {
             $mail->deliver($email, $subject, $body);
         } catch (MailDeliveryFailed $failed) {
-            $logger->error('mail was not delivered', ['status' => $failed->status(), 'stage' => $failed->stage()]);
+            $logger->error('mail was not delivered', MailDeliveryFailed::context($failed));
             if ($failed->permanent()) {
                 $bounce->mark($email);
 

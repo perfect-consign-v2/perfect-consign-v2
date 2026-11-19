@@ -1,15 +1,15 @@
 ---
 title: Ticket vs sale journal
 category: Sales and register
-hesk: published 2026-11-18
-as_of: 2026-11-10
+hesk: published 2026-11-19
+as_of: 2026-11-18
 ---
 
 # Ticket vs sale journal
 
 ## As of
 
-2026-11-10 — Emailing a receipt keeps the success/failure flash (receipt posts are not register-swapped).
+2026-11-18 — Instant Add keeps a typed name that was not added on the form. The Add button stays available for that name and for a different new name. Saving again repeats the refusal until the name is added. 2026-11-10 — Emailing a receipt keeps the success/failure flash (receipt posts are not register-swapped).
 
 ## In one sentence
 
@@ -26,6 +26,7 @@ Scanning items, changing prices, parking, layaway deposits, and finally paying.
 - Discard removes a ticket only before pay. Close is refused while an open ticket remains.
 - Receipt is that same ticket for later lookup, return, or void.
 - Email receipt (and other receipt posts) use a full page round-trip so the flash “Receipt emailed.” (or the failure line) is not eaten by the register swap.
+- Instant Add follows the inventory name lists. A typed brand, color, category, size, condition, or department that was not added is refused. That refusal stays on the form, and the Add button stays available for that name and for a different new name. Saving again repeats the refusal until the name is added.
 
 ## What is refused
 

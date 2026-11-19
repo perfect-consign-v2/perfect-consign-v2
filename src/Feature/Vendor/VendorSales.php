@@ -77,10 +77,12 @@ final class VendorSales
      */
     private function since(string $today, ?string $lastCheck, array $window): array
     {
-        $start = $window['from'];
         if ($lastCheck !== null) {
             $start = (new DateTimeImmutable($lastCheck))->modify('+1 day')->format('Y-m-d');
+
+            return ['from' => $start, 'to' => $today, 'label' => 'Since your last check'];
         }
+        $start = $window['from'];
         if ($start > $today) {
             $start = $today;
         }
@@ -110,6 +112,9 @@ final class VendorSales
      */
     public function lines(string $vendorId, string $from, string $to): array
     {
+        if ($from > $to) {
+            return ['rows' => [], 'total' => 0];
+        }
         $rows = [];
         foreach ($this->posted($vendorId, $from, $to) as $row) {
             $rows[] = $row;

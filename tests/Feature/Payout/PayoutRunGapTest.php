@@ -169,7 +169,7 @@ final class PayoutRunGapTest extends TestCase
             new PayoutReverser($door->ledger, $door->statements),
             $door->register,
             new \PerfectConsign\Feature\Mall\MallClock($door->mall),
-            new PrintedChecks($door->app, $runs, $sheets, $once),
+            new PrintedChecks($door->app, $runs, $once),
         );
     }
 }

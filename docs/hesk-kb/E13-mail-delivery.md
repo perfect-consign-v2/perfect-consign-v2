@@ -1,15 +1,15 @@
 ---
 title: When mail sends (web vs worker)
 category: Platform notes
-hesk: published 2026-11-18
-as_of: 2026-11-16
+hesk: published 2026-11-19
+as_of: 2026-11-18
 ---
 
 # When mail sends (web vs worker)
 
 ## As of
 
-2026-11-16 — Sunday mail starts off. Building turns Weekly vendor letter on. When it is on, the letter goes to each active vendor whose email has not bounced. Subject is This week. The body is the vendor name, Payable, and Rent you owe. Saving money leaves that switch as it is. The rent-cycle reminder uses that body only when rent is still owed. A sale day notice uses subject Sold today and one line per tag. The store home page names work waiting for that store only. Another store’s queue, and mail that has already gone out, stay off that page. Password-reset and receipt mail still send in the web request; other store mail waits in the outbox for `php bin/work.php`.
+2026-11-18 — a refused send is logged with the SMTP status, the stage, and the server's reply. That reply is also in the operator notice.
 
 ## In one sentence
 
@@ -26,6 +26,7 @@ An owner resets a password, a cashier emails a receipt, a consignor entry link i
 - The store home page says when that store has work waiting to run. Another store’s queue, and mail that has already gone out, stay off that page.
 - Admin → Mail worker shows whether `STALL_WORKER_PASSWORD` is set, the last `php bin/work.php` run, waiting outbox rows, the whole queue, and a pruneable run log.
 - Store-facing mail uses each mall’s Settings mailbox. Platform mail uses the platform Gmail/SMTP env.
+- A refused send is logged with the SMTP status, the stage, and the server's reply. The operator notice includes that reply.
 
 ## What is refused
 

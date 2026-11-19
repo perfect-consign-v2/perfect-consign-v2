@@ -114,6 +114,9 @@
                 document.title = parsed.title;
             }
             runScripts(main);
+            if (typeof window.pcNameLists === 'function') {
+                window.pcNameLists();
+            }
             showFlash(parsed);
             return;
         }
@@ -124,6 +127,9 @@
         rememberSale(response.url);
         if (typeof window.pcRegister === 'function') {
             window.pcRegister();
+        }
+        if (typeof window.pcNameLists === 'function') {
+            window.pcNameLists();
         }
         showFlash(parsed);
     }

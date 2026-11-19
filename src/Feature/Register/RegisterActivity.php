@@ -33,6 +33,7 @@ final class RegisterActivity
         'layaway_refund' => 'Layaway refund',
         'payout' => 'Cash payouts',
         'cash_drop' => 'Cash drops',
+        'booth_deposit' => 'Booth deposits',
     ];
 
     public function __construct(

@@ -116,7 +116,7 @@ final class PayoutOnce
     {
         $checks = [];
         foreach ($this->sheets->envelopes($runId) as $row) {
-            if ($row['check'] <= 0 || $row['check_number'] === '' || isset($checks[$row['vendor_id']])) {
+            if ($row['check'] <= 0 || isset($checks[$row['vendor_id']])) {
                 continue;
             }
             $checks[$row['vendor_id']] = [
@@ -132,9 +132,9 @@ final class PayoutOnce
         return array_values($checks);
     }
 
-    public function numberChecks(string $runId, int $start): void
+    public function numberChecks(string $runId, int $start): int
     {
-        $this->disburser->numberChecks($runId, $start);
+        return $this->disburser->numberChecks($runId, $start);
     }
 
     /**

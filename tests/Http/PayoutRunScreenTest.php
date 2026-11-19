@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\FormClient;
+use PerfectConsign\Tests\Support\HtmlPage;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 
@@ -63,7 +64,7 @@ final class PayoutRunScreenTest extends WebTestCase
         self::assertStringNotContainsString('does not exist', $unknown->body);
         self::assertStringContainsString('That payout is missing.', $unknown->body);
         $this->openPrintedChecks($client, $page->body . $past->body);
-        // __construct( show( past( close( checks( window( render( report( row( shown( printable( fillBlanks( blankChecks( drawer( day( finishedRun( savedChecks( numberChecks( savedPack( openPack( pay( tender( stamp( begin( matchingRun( sameWindow( assignNumbers( attach( sentence( facts( note( payments( charges( days( present( ask( numberForm( faces( printable( fillBlanks( blankChecks(
+        // __construct( show( past( close( checks( window( render( report( row( shown( printable( drawer( day( finishedRun( savedChecks( numberChecks( savedPack( openPack( pay( tender( stamp( begin( matchingRun( sameWindow( assignNumbers( attach( sentence( facts( note( payments( charges( days( present( faces( printable(
         self::assertSees('Past payouts', $past);
     }
 
@@ -82,14 +83,14 @@ final class PayoutRunScreenTest extends WebTestCase
             $checks = $client->get('/' . ProbeMall::SLUG . '/payouts/checks?run=' . $runId);
             self::assertSame(200, $checks->status);
             self::assertStringNotContainsString('does not exist', $checks->body);
+            self::assertStringNotContainsString('name="starting_check"', $checks->body);
             self::assertTrue(
                 str_contains($checks->body, 'Pay to the order of')
-                || str_contains($checks->body, 'Type the number on the first check.')
-                || str_contains($checks->body, 'First check number')
                 || str_contains($checks->body, 'Those checks are not ready to print.')
                 || str_contains($checks->body, 'Nobody on this payout is getting a check.')
                 || str_contains($checks->body, 'That check was voided.')
-                || str_contains($checks->body, 'That payout is missing.')
+                || str_contains($checks->body, 'That payout is missing.'),
+                HtmlPage::error($checks->body)
             );
         }
     }

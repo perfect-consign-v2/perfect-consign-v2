@@ -180,7 +180,7 @@ final class PayoutCoverageTest extends TestCase
         self::assertNull($missed);
     }
 
-    public function testSavedChecksSkipBlankAndDuplicateVendors(): void
+    public function testSavedChecksPrintWithoutANumberAndSkipAZeroAndADuplicate(): void
     {
         $vendor = '00000000-0000-7000-8000-0000000000a1';
         $sheets = $this->runStatements([], [
@@ -192,9 +192,11 @@ final class PayoutCoverageTest extends TestCase
         $once = $this->payoutOnce($this->runStatements([]), $sheets);
         self::assertSame([], $once->envelopes('not-a-run'));
         $checks = $once->savedChecks('00000000-0000-7000-8000-000000000020');
-        self::assertSame('1042', $checks[0]['number'] ?? null);
-        self::assertSame(2500, $checks[0]['amount'] ?? null);
-        self::assertCount(1, $checks);
+        self::assertCount(2, $checks);
+        self::assertSame('', $checks[0]['number'] ?? null);
+        self::assertSame(1500, $checks[0]['amount'] ?? null);
+        self::assertSame('1042', $checks[1]['number'] ?? null);
+        self::assertSame(2500, $checks[1]['amount'] ?? null);
     }
 
     public function testOpenPackUsesADraftWhenOneExists(): void

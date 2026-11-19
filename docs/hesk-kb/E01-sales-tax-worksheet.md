@@ -1,7 +1,7 @@
 ---
 title: Monthly sales-tax worksheet strips
 category: Tax reports and export
-hesk: published 2026-11-18
+hesk: published 2026-11-19
 as_of: 2026-11-12
 ---
 

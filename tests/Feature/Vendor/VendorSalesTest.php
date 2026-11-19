@@ -32,6 +32,10 @@ final class VendorSalesTest extends TestCase
         $named = $sales->span('2026-10-17', 'other', '2026-10-03', '2026-10-04', '2026-10-10', $window);
         self::assertSame('2026-10-11', $named['from']);
         self::assertSame('Since your last check', $named['label']);
+        $paidToday = $sales->span('2026-11-18', '', '', '', '2026-11-18', $window);
+        self::assertSame('2026-11-19', $paidToday['from']);
+        self::assertSame('2026-11-18', $paidToday['to']);
+        self::assertSame(['rows' => [], 'total' => 0], $sales->lines('vendor', $paidToday['from'], $paidToday['to']));
     }
 
     public function testAPreviewTokenMustBeAUuid(): void

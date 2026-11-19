@@ -74,6 +74,8 @@ final class SurvivorPinsTest extends TestCase
         $html = ob_get_clean();
         self::assertIsString($html);
         self::assertStringContainsString('No sales in this range.', $html);
+        self::assertStringContainsString('class="row gap-2 sales-range"', $html);
+        self::assertStringContainsString('<button class="btn" type="submit">Show</button>', $html);
 
         $rows = [[
             'date' => '2026-06-01',

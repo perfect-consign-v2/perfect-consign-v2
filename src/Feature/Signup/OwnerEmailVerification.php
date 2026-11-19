@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Signup;
 
 use PerfectConsign\Feature\Admin\AdminAudit;
+use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\PlatformMailbox;
 use PDO;
 use Psr\Log\LoggerInterface;
@@ -45,9 +46,9 @@ final class OwnerEmailVerification
                 'signup verify mail was refused',
             );
         } catch (\Throwable $error) {
-            $this->logger->error('signup verify mail was refused', [
+            $this->logger->error('signup verify mail was refused', MailDeliveryFailed::context($error, [
                 'message' => $error->getMessage(),
-            ]);
+            ]));
             throw new RuntimeException('The confirmation email could not be sent.', 0, $error);
         }
     }

@@ -17,4 +17,28 @@ final class MailDeliveryFailedTest extends TestCase
         self::assertFalse((new MailDeliveryFailed(600, 'rcpt'))->permanent());
         self::assertFalse((new MailDeliveryFailed(550, 'mail'))->permanent());
     }
+
+    public function testTheServerReplyIsLoggedWhenTheServerSentOne(): void
+    {
+        $plain = new MailDeliveryFailed(550, 'data');
+        self::assertSame('', $plain->reply());
+        self::assertSame(
+            ['status' => 550, 'stage' => 'data'],
+            MailDeliveryFailed::context($plain),
+        );
+        $failed = new MailDeliveryFailed(550, 'data', '5.4.5 Daily user sending limit exceeded.');
+        self::assertSame(
+            [
+                'message' => 'smtp send failed',
+                'status' => 550,
+                'stage' => 'data',
+                'reply' => '5.4.5 Daily user sending limit exceeded.',
+            ],
+            MailDeliveryFailed::context($failed, ['message' => 'smtp send failed']),
+        );
+        self::assertSame(
+            ['message' => 'other'],
+            MailDeliveryFailed::context(new \RuntimeException('other'), ['message' => 'other']),
+        );
+    }
 }

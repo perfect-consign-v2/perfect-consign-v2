@@ -103,7 +103,15 @@ if (instantForm) {
     const vendorHint = document.getElementById('instant-vendor-hint');
     const vendorsUrl = instantForm.getAttribute('data-vendors') || '';
     let vendorLookup = 0;
-    function showVendorMiss() {
+    function showInstantError(message) {
+        const banner = document.getElementById('instant-error');
+        if (!banner) {
+            return;
+        }
+        banner.hidden = false;
+        banner.textContent = message;
+    }
+    function showVendorMiss(announce) {
         if (vendorId) {
             vendorId.value = '';
         }
@@ -114,6 +122,9 @@ if (instantForm) {
         if (vendorError) {
             vendorError.textContent = 'Choose a vendor.';
             vendorError.hidden = false;
+        }
+        if (announce) {
+            showInstantError('Choose a vendor.');
         }
     }
     function sameVendor(left, right) {
@@ -142,7 +153,7 @@ if (instantForm) {
     }
     function acceptVendor(row, submitter) {
         if (!row || !row.id) {
-            showVendorMiss();
+            showVendorMiss(!!submitter);
             return;
         }
         if (vendorId) {
@@ -202,6 +213,9 @@ if (instantForm) {
                     vendorError.textContent = 'Could not look up that vendor. Try again.';
                     vendorError.hidden = false;
                 }
+                if (submitter) {
+                    showInstantError('Could not look up that vendor. Try again.');
+                }
             });
     }
     vendorPick(
@@ -246,6 +260,51 @@ if (instantForm) {
         }
         return '';
     }
+    function catalogLabelPending() {
+        const boxes = instantForm.querySelectorAll('[data-name-list]');
+        for (let i = 0; i < boxes.length; i += 1) {
+            const input = boxes[i].querySelector('input.input:not([type="hidden"])');
+            const hidden = boxes[i].querySelector('input[type="hidden"]');
+            if (input && hidden && input.value.trim() !== '' && hidden.value === '') {
+                return true;
+            }
+        }
+        return false;
+    }
+    function refusedCatalogName() {
+        const description = document.getElementById('instant_description');
+        const price = document.getElementById('instant_price');
+        if (!vendorId || vendorId.value === '' || !description || description.value.trim() === '' || !price || price.value.trim() === '') {
+            return null;
+        }
+        const boxes = instantForm.querySelectorAll('[data-name-list][data-name-new="1"]');
+        for (let i = 0; i < boxes.length; i += 1) {
+            const box = boxes[i];
+            const input = box.querySelector('input.input:not([type="hidden"])');
+            const hidden = box.querySelector('input[type="hidden"]');
+            if (!input || !hidden || hidden.value !== '' || input.value.trim() === '') {
+                continue;
+            }
+            const create = box.querySelector('[data-create-row]');
+            const createName = box.querySelector('[data-create-name]');
+            const title = box.querySelector('label');
+            const word = title && title.textContent ? title.textContent.trim().toLowerCase() : 'name';
+            const message = 'Add that ' + word + ' before saving the item.';
+            if (createName && input) {
+                createName.textContent = input.value.trim();
+            }
+            if (create) {
+                create.hidden = false;
+            }
+            const fieldError = box.querySelector('.field-error');
+            if (fieldError) {
+                fieldError.textContent = message;
+                fieldError.hidden = false;
+            }
+            return { message: message, field: input };
+        }
+        return null;
+    }
     instantForm.addEventListener('submit', function (event) {
         const price = document.getElementById('instant_price');
         const banner = document.getElementById('instant-error');
@@ -264,6 +323,13 @@ if (instantForm) {
                 problem = instantAmount(discount.value);
             } else if (!/^(\d{1,3})(?:\.\d{1,2})?$/.test(discount.value.trim())) {
                 problem = 'enter a percent from 0 to 100';
+            }
+        }
+        if (problem === '') {
+            const pending = refusedCatalogName();
+            if (pending) {
+                problem = pending.message;
+                field = pending.field || field;
             }
         }
         if (problem !== '') {
@@ -289,7 +355,7 @@ if (instantForm) {
             }
             return;
         }
-        if (banner) {
+        if (banner && !catalogLabelPending()) {
             banner.hidden = true;
             banner.textContent = '';
         }

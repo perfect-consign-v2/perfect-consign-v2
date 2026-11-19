@@ -65,7 +65,7 @@ final class VendorLetterJob
         try {
             $this->mailbox->send($email, $subject, $body);
         } catch (MailDeliveryFailed $failed) {
-            $this->logger->error('mail was not delivered', ['status' => $failed->status(), 'stage' => $failed->stage()]);
+            $this->logger->error('mail was not delivered', MailDeliveryFailed::context($failed));
             if ($failed->permanent()) {
                 $this->bounce->mark($email);
 

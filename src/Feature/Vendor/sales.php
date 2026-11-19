@@ -21,7 +21,13 @@ $salesLink = static function (string $query) use ($base, $previewAs): string {
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Your sales</h1>
-        <p class="muted"><?= View::text($span['label']) ?> · <?= View::date($span['from']) ?> to <?= View::date($span['to']) ?></p>
+        <?php
+        $open = $span['from'] <= $span['to'];
+        $dates = $open
+            ? ' · ' . View::date($span['from']) . ' to ' . View::date($span['to'])
+            : '';
+        ?>
+        <p class="muted"><?= View::text($span['label'] . $dates) ?></p>
     </div>
 </div>
 <p class="mt-4">
@@ -37,16 +43,16 @@ $salesLink = static function (string $query) use ($base, $previewAs): string {
     <?php if ($previewAs !== ''): ?>
         <input type="hidden" name="as" value="<?= View::text($previewAs) ?>">
     <?php endif; ?>
-    <div class="row gap-2">
+    <div class="row gap-2 sales-range">
         <div class="field">
             <label for="from">From</label>
-            <input class="input" id="from" name="from" type="date" value="<?= View::text($span['from']) ?>">
+            <input class="input" id="from" name="from" type="date" value="<?= View::text($open ? $span['from'] : '') ?>">
         </div>
         <div class="field">
             <label for="to">To</label>
-            <input class="input" id="to" name="to" type="date" min="<?= View::text($span['from']) ?>" value="<?= View::text($span['to']) ?>">
+            <input class="input" id="to" name="to" type="date"<?= $open ? ' min="' . View::text($span['from']) . '"' : '' ?> value="<?= View::text($open ? $span['to'] : '') ?>">
         </div>
-        <p><button class="btn" type="submit">Show</button></p>
+        <button class="btn" type="submit">Show</button>
     </div>
 </form>
 <p class="h3 mt-6" id="sales-share">Your share <?= View::text(View::money($total)) ?></p>

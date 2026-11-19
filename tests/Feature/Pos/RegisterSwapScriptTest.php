@@ -18,5 +18,6 @@ final class RegisterSwapScriptTest extends TestCase
         self::assertStringContainsString('takeFlash', $source);
         self::assertStringContainsString('return false;', $source);
         self::assertStringContainsString("cashiers never see \"Receipt emailed.\"", $source);
+        self::assertStringContainsString('window.pcNameLists', $source);
     }
 }

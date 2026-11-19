@@ -55,8 +55,19 @@ final class PayoutRunChecksTest extends TestCase
         $statements->method('change')->willReturnCallback(static function (string $sql, array $params) use (&$changed): void {
             $changed[] = $params;
         });
-        (new PayoutRunChecks($statements))->assignNumbers('00000000-0000-7000-8000-000000000020', 40);
+        $written = (new PayoutRunChecks($statements))->assignNumbers('00000000-0000-7000-8000-000000000020', 40);
+        self::assertSame(1, $written);
         self::assertCount(1, $changed);
         self::assertSame(['00000000-0000-7000-8000-0000000000j2', '40'], $changed[0]);
+    }
+
+    public function testNumberingReportsWhenNoCheckIsWaiting(): void
+    {
+        $statements = $this->createStub(Statements::class);
+        $statements->method('transaction')->willReturnCallback(static function (callable $work): mixed {
+            return $work();
+        });
+        $statements->method('bound')->willReturn([]);
+        self::assertSame(0, (new PayoutRunChecks($statements))->assignNumbers('00000000-0000-7000-8000-000000000020', 40));
     }
 }

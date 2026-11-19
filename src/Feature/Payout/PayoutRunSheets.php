@@ -173,6 +173,26 @@ final class PayoutRunSheets
                     FROM payout_run_sales AS stored
                     WHERE stored.run_id = line.run_id AND stored.vendor_id = line.vendor_id
                     UNION ALL
+                    SELECT journal.posting_date, item.code, item.description, sale.price_minor,
+                           sale.quantity, sale.commission_minor, sale.line_no
+                    FROM payout_runs AS single
+                    JOIN journals AS journal
+                      ON journal.source_type = 'sale'
+                     AND NOT journal.is_reversal
+                     AND journal.posting_date > single.sales_to
+                     AND journal.posting_date <= single.posting_date
+                    JOIN sale_lines AS sale ON sale.journal_id = journal.id
+                    JOIN items AS item
+                      ON item.id = sale.item_id AND item.vendor_id = line.vendor_id
+                    WHERE single.id = line.run_id
+                      AND single.kind = 'single'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM payout_run_sales AS stored
+                          WHERE stored.run_id = line.run_id
+                            AND stored.journal_id = journal.id
+                            AND stored.line_no = sale.line_no
+                      )
+                    UNION ALL
                     SELECT pack.sold_on, pack.item_code, pack.description, pack.price_minor,
                            pack.quantity, pack.commission_minor, pack.line_no
                     FROM payout_pack_sales AS pack
