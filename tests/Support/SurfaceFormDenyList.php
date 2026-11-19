@@ -20,7 +20,7 @@ final class SurfaceFormDenyList
         if ($rest === false || $rest === '') {
             return true;
         }
-        if (str_ends_with($rest, '/delete')) {
+        if (str_ends_with($rest, '/delete') || str_ends_with($rest, '/standing')) {
             return true;
         }
         if (in_array($rest, [

@@ -1,6 +1,6 @@
 # Codeception (PC2)
 
-Functional (PhpBrowser) and acceptance (Chrome) suites run beside PHPUnit. Money proofs, PHPStan, and `composer check` stay on PHPUnit — but Codeception now owns the full mall user-surface bar: every static route, every discoverable link, every safe form, explicit money paths, and Chrome clicks on safe controls.
+Functional (PhpBrowser) and acceptance (Chrome) suites run beside PHPUnit. Money proofs, PHPStan, and `composer check` stay on PHPUnit — but Codeception owns the mall user-surface bar. `OwnerActionCest` is the owner obligation: it signs in as the tenant owner and requests every mall route, then fails if a route was never requested or a screen returned the wrong sentence.
 
 ## Commands
 
@@ -21,12 +21,12 @@ composer test:codeception
 
 | Suite | Driver | What it covers |
 |---|---|---|
-| `functional` | PhpBrowser | Guest doors; owner sign-in; **every static mall GET** (`RouteCatalogCest`); seeded entity GETs; **all-href link crawl** + **safe form crawl** from role hubs (owner/cashier/books/vendor/preview); cash sale + rent charge + refused payout |
+| `functional` | PhpBrowser | Guest doors; owner sign-in; **every owner mall route** (`OwnerActionCest`, including posts); **every static mall GET** (`RouteCatalogCest`); seeded entity GETs; link crawl + safe form crawl; cash sale + rent charge + refused payout |
 | `acceptance` | `ChromeBrowser` (chrome-php) | Owner Chrome sign-in; Sale nav; Print/Back; **click every safe nav/seg/print control** on dashboard/POS/settings, every static mall GET, vendor portal, and owner preview |
 
 ### Safe vs money
 
-The form/click crawls **skip** logout, delete, pay, payout, void, password, backup, rent charge, register close, export, letters, etc. (`SurfaceFormDenyList` + click deny list). Those are covered by **MoneyPathCest** (sale/pay, rent charge, payout refuse) and dedicated journeys — not by blind submits.
+The form/click crawls **skip** logout, delete, standing, pay, payout, void, password, backup, rent charge, register close, export, letters, etc. (`SurfaceFormDenyList` + click deny list). `OwnerActionCest` submits those owner actions and checks the sentence on the screen. It does not reset the probe mall, does not close the 2020–2035 period, and puts the probe owner password back before it signs out. Before the vendor portal pages it saves building with the portal and vendor inventory on, and it removes only the floor it just added.
 
 ### Link + form crawl
 
