@@ -365,7 +365,7 @@ final class UserActionCest
             'picked_up_on' => ProbeMall::POSTING_DATE,
             'received_by' => ProbeMall::USERNAME,
         ]);
-        $I->assertStringContainsString('expected a string', $pickup->body);
+        $I->assertStringContainsString('That tag is not on the floor.', $pickup->body);
         $I->assertStringNotContainsString('Pickup saved.', $pickup->body);
     }
 
