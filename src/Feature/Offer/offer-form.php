@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
 
+/** @var string $slug */
 /** @var string $csrf */
 /** @var string $base */
 /** @var string $id */
@@ -17,11 +18,13 @@ $action = $id === '' ? $base : $base . '/' . $id;
 $previewAs = is_string($previewAs ?? null) ? $previewAs : '';
 $action = VendorPreview::with($action, $previewAs);
 $back = VendorPreview::with($base, $previewAs);
+$each = $draft['kind'] === 'unit_break';
+$seller = ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor';
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1"><?= $id === '' ? 'New deal' : 'Edit deal' ?></h1>
-        <p class="muted">Three for $25 leaves one or two at the tag price. N or more reprices every unit on the line.</p>
+        <p class="muted">Buy a bunch for one price, or a lower price each once they buy enough. The sticker price does not change.</p>
     </div>
     <a class="btn" href="<?= View::text($back) ?>">Back</a>
 </div>
@@ -38,8 +41,18 @@ $back = VendorPreview::with($base, $previewAs);
                 <option value="store"<?= $draft['scope'] === 'store' ? ' selected' : '' ?>>Whole store</option>
             <?php endif; ?>
         </select>
-        <label for="item_code">Item tag</label>
-        <input class="input" id="item_code" name="item_code" value="<?= View::text($draft['item_code']) ?>" autocomplete="off">
+        <?php if ($locked): ?>
+            <?php $itemSearch = VendorPreview::with('/' . $slug . '/vendor/offers/items.json', $previewAs); ?>
+            <div class="combo" id="item-lookup" data-item-lookup data-search="<?= View::text($itemSearch) ?>"<?= $draft['scope'] === 'item' ? '' : ' hidden' ?>>
+                <label for="item_label">Item</label>
+                <input class="input" id="item_label" value="<?= View::text(is_string($itemLabel ?? null) ? $itemLabel : '') ?>" autocomplete="off" placeholder="Search tag, barcode, or description">
+                <input type="hidden" id="item_code" name="item_code" value="<?= View::text($draft['item_code']) ?>">
+                <div class="suggest" hidden></div>
+            </div>
+        <?php else: ?>
+            <label for="item_code">Item tag</label>
+            <input class="input" id="item_code" name="item_code" value="<?= View::text($draft['item_code']) ?>" autocomplete="off">
+        <?php endif; ?>
         <?php if (!$locked): ?>
             <label for="vendor_id"><?= ($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor' ?></label>
             <select class="input" id="vendor_id" name="vendor_id">
@@ -48,24 +61,25 @@ $back = VendorPreview::with($base, $previewAs);
                     <option value="<?= View::text($vendor['id']) ?>"<?= $draft['vendor_id'] === $vendor['id'] ? ' selected' : '' ?>><?= View::text($vendor['code'] . ' ' . $vendor['name']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <label for="funded_by">Who pays</label>
+            <label for="funded_by">The check</label>
             <select class="input" id="funded_by" name="funded_by">
-                <option value="vendor"<?= $draft['funded_by'] !== 'store' ? ' selected' : '' ?>><?= ($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor' ?> — the check uses the lower price</option>
-                <option value="store"<?= $draft['funded_by'] === 'store' ? ' selected' : '' ?>>Store — the <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?>'s check stays on the tag price</option>
+                <option value="vendor"<?= $draft['funded_by'] !== 'store' ? ' selected' : '' ?>>The <?= View::text($seller) ?> is paid on the sale price</option>
+                <option value="store"<?= $draft['funded_by'] === 'store' ? ' selected' : '' ?>>The <?= View::text($seller) ?> is paid on the tag price. The store covers the difference.</option>
             </select>
-            <p class="muted">A store-wide deal is usually paid by the store.</p>
+            <p class="muted">A whole-store sale is usually paid on the tag price.</p>
         <?php else: ?>
             <input type="hidden" name="funded_by" value="vendor">
             <input type="hidden" name="vendor_id" value="">
         <?php endif; ?>
-        <label for="kind">Kind</label>
+        <label for="kind">The sale</label>
         <select class="input" id="kind" name="kind">
-            <option value="bundle"<?= $draft['kind'] !== 'unit_break' ? ' selected' : '' ?>>N for a price</option>
-            <option value="unit_break"<?= $draft['kind'] === 'unit_break' ? ' selected' : '' ?>>N or more at a unit price</option>
+            <option value="bundle"<?= $each ? '' : ' selected' ?>>Buy this many for one price</option>
+            <option value="unit_break"<?= $each ? ' selected' : '' ?>>This many or more, at a lower price each</option>
         </select>
-        <label for="threshold">Quantity</label>
+        <p class="muted" id="kind-hint"><?= $each ? 'Once they buy that many, each one rings at this price.' : 'One or two still ring at the tag price.' ?></p>
+        <label for="threshold">How many</label>
         <input class="input" id="threshold" name="threshold" inputmode="numeric" value="<?= View::text($draft['threshold']) ?>" required>
-        <label for="price">Deal price</label>
+        <label for="price" id="price-label"><?= $each ? 'Price each' : 'Price for the bunch' ?></label>
         <input class="input" id="price" name="price" inputmode="decimal" value="<?= View::text($draft['price']) ?>" required>
         <label for="starts_on">Starts</label>
         <input class="input" id="starts_on" name="starts_on" type="date" value="<?= View::text($draft['starts_on']) ?>" required>
@@ -74,6 +88,4 @@ $back = VendorPreview::with($base, $previewAs);
         <button class="btn btn-primary" type="submit">Save deal</button>
     </div>
 </form>
-<?php if (!$locked): ?>
-<script src="/assets/js/offer-form.js"></script>
-<?php endif; ?>
+<script src="<?= View::asset('/assets/js/offer-form.js') ?>" defer></script>

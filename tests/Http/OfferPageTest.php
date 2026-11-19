@@ -23,6 +23,13 @@ final class OfferPageTest extends WebTestCase
         $form = $owner->get('/' . self::SLUG . '/offers/new');
         self::assertSees('New deal', $form);
         self::assertSees('Whole store', $form);
+        self::assertSees('Item tag', $form);
+        self::assertSees('Buy this many for one price', $form);
+        self::assertSees('Price for the bunch', $form);
+        self::assertSees('One or two still ring at the tag price.', $form);
+        self::assertSees('paid on the sale price', $form);
+        self::assertSees('paid on the tag price', $form);
+        self::assertStringNotContainsString('data-item-lookup', $form->body);
         $starts = $this->value($form->body, 'starts_on');
         $blank = $owner->post('/' . self::SLUG . '/offers', $this->deal($starts, ['name' => '']));
         self::assertSees('Enter a deal name of 80 characters or less.', $blank);
@@ -40,7 +47,7 @@ final class OfferPageTest extends WebTestCase
         self::assertSees($name, $saved);
         self::assertSees('Whole store', $saved);
         self::assertSees('3 for $25.00', $saved);
-        self::assertSees('Store', $saved);
+        self::assertSees('Tag price', $saved);
         $id = $this->match($saved->body, '#/offers/([0-9a-fA-F-]{36})">' . preg_quote($name, '#') . '#');
 
         $edit = $owner->get('/' . self::SLUG . '/offers/' . $id);
@@ -94,6 +101,11 @@ final class OfferPageTest extends WebTestCase
         ]));
         self::assertSees('Deal saved.', $priced);
         self::assertSees('3 or more at $8.00 each', $priced);
+        self::assertSees('Sale price', $priced);
+        $breakId = $this->match($priced->body, '#/offers/([0-9a-fA-F-]{36})">' . preg_quote($itemDeal, '#') . '#');
+        $breakForm = $owner->get('/' . self::SLUG . '/offers/' . $breakId);
+        self::assertSees('Price each', $breakForm);
+        self::assertSees('Once they buy that many, each one rings at this price.', $breakForm);
     }
 
     public function testAVendorDealStaysOnThatVendor(): void
@@ -119,6 +131,20 @@ final class OfferPageTest extends WebTestCase
         $form = $client->get('/' . self::SLUG . '/vendor/offers/new');
         self::assertSees('All my items', $form);
         self::assertStringNotContainsString('Whole store', $form->body);
+        self::assertStringContainsString('data-item-lookup', $form->body);
+        self::assertStringContainsString('/vendor/offers/items.json', $form->body);
+        self::assertStringContainsString('type="hidden" id="item_code"', $form->body);
+        $own = $client->get('/' . self::SLUG . '/vendor/offers/items.json?q=' . rawurlencode($item['code']));
+        self::assertSame(200, $own->status);
+        self::assertStringContainsString('"code":"' . $item['code'] . '"', $own->body);
+        self::assertStringContainsString('Deal item ' . $item['code'], $own->body);
+        self::assertStringContainsString('$20.00', $own->body);
+        $byText = $client->get('/' . self::SLUG . '/vendor/offers/items.json?q=' . rawurlencode('Deal item ' . $item['code']));
+        self::assertStringContainsString($item['code'], $byText->body);
+        $closed = $owner->get('/' . self::SLUG . '/vendor/offers/items.json?q=' . rawurlencode($item['code']));
+        self::assertSame(404, $closed->status);
+        $preview = $owner->get('/' . self::SLUG . '/vendor/offers/items.json?as=' . $vendor['id'] . '&q=' . rawurlencode($item['code']));
+        self::assertStringContainsString($item['code'], $preview->body);
         $starts = $this->value($form->body, 'starts_on');
         $store = $client->post('/' . self::SLUG . '/vendor/offers', $this->deal($starts, [
             'name' => 'Storewide ' . $vendor['code'],
@@ -165,6 +191,23 @@ final class OfferPageTest extends WebTestCase
             'item_code' => $otherItem['code'],
         ]));
         self::assertSees('That item is not yours.', $theirs);
+        $hidden = $client->get('/' . self::SLUG . '/vendor/offers/items.json?q=' . rawurlencode($otherItem['code']));
+        self::assertSame(200, $hidden->status);
+        self::assertSame('[]', $hidden->body);
+        $spoof = $client->get('/' . self::SLUG . '/vendor/offers/items.json?as=' . $other['id'] . '&q=' . rawurlencode($otherItem['code']));
+        self::assertSame('[]', $spoof->body);
+        $mine = 'Piece ' . $item['code'];
+        $savedItem = $client->post('/' . self::SLUG . '/vendor/offers', $this->deal($starts, [
+            'name' => $mine,
+            'scope' => 'item',
+            'item_code' => $item['code'],
+            'price' => '8.00',
+        ]));
+        self::assertSees('Deal saved.', $savedItem);
+        $itemDeal = $this->match($savedItem->body, '#/vendor/offers/([0-9a-fA-F-]{36})">' . preg_quote($mine, '#') . '#');
+        $opened = $client->get('/' . self::SLUG . '/vendor/offers/' . $itemDeal);
+        self::assertStringContainsString('Deal item ' . $item['code'], $opened->body);
+        self::assertStringContainsString('value="' . $item['code'] . '"', $opened->body);
         $missingSave = $client->post('/' . self::SLUG . '/vendor/offers/01900000-0000-7000-8000-00000000abcd', $this->deal($starts, [
             'name' => 'Gone ' . $vendor['code'],
             'scope' => 'vendor',

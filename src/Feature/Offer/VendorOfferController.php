@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Offer;
 use InvalidArgumentException;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Shared\Http\JsonResponse;
 
 final class VendorOfferController extends OfferController
 {
@@ -14,6 +15,17 @@ final class VendorOfferController extends OfferController
     public function vendorShow(string $slug): void
     {
         $this->list($slug, null, $this->vendor($slug));
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/vendor/offers/items\.json', ['GET'])]
+    public function vendorItems(string $slug): void
+    {
+        $vendorId = $this->vendor($slug);
+        JsonResponse::send(
+            $this->offers->itemChoices($vendorId, $this->app->request()->query('q')),
+            200,
+            'The items could not be sent.',
+        );
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/vendor/offers/new', ['GET'])]

@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Offer;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -116,6 +117,76 @@ final class OfferStore
         }
 
         return $vendors;
+    }
+
+    /**
+     * @return list<array{code: string, name: string}>
+     */
+    public function itemChoices(string $vendorId, string $query): array
+    {
+        $needle = strtolower(trim($query));
+        $params = [$vendorId];
+        $filter = '';
+        if ($needle !== '') {
+            $filter = ' AND (strpos(lower(item.code), ?) > 0
+                OR strpos(lower(COALESCE(item.barcode, \'\')), ?) > 0
+                OR strpos(lower(item.description), ?) > 0)';
+            $params[] = $needle;
+            $params[] = $needle;
+            $params[] = $needle;
+        }
+        $rows = $this->statements->bound(
+            'SELECT item.code, item.description, item.price_minor
+             FROM items AS item
+             WHERE item.vendor_id = ?::uuid' . $filter . '
+             ORDER BY (item.quantity > 0) DESC, lower(item.code), item.code
+             LIMIT 20',
+            $params
+        );
+        $choices = [];
+        foreach ($rows as $row) {
+            $choices[] = [
+                'code' => RowValue::string($row['code'] ?? null),
+                'name' => $this->choiceName($row),
+            ];
+        }
+
+        return $choices;
+    }
+
+    public function itemLabel(string $vendorId, string $code): string
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return '';
+        }
+        $rows = $this->statements->bound(
+            'SELECT item.code, item.description, item.price_minor
+             FROM items AS item
+             WHERE item.vendor_id = ?::uuid AND lower(item.code) = lower(?)',
+            [$vendorId, $code]
+        );
+        $row = $rows[0] ?? null;
+        if (!is_array($row)) {
+            return $code;
+        }
+
+        return $this->choiceName($row);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function choiceName(array $row): string
+    {
+        $code = RowValue::string($row['code'] ?? null);
+        $description = trim(RowValue::string($row['description'] ?? null));
+        $price = Money::format(RowValue::integer($row['price_minor'] ?? null));
+        if ($description === '') {
+            return $code . ' · ' . $price;
+        }
+
+        return $code . ' — ' . $description . ' · ' . $price;
     }
 
     /**

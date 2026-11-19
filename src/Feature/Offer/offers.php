@@ -37,7 +37,7 @@ $dealLink = static function (string $path) use ($previewAs): string {
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Deals</h1>
-        <p class="muted">Quantity prices. The tag price stays on the item.</p>
+        <p class="muted">Buy a bunch for one price, or a lower price each once they buy enough. The sticker price does not change.</p>
     </div>
     <a class="btn btn-primary" href="<?= View::text($dealLink($base . '/new')) ?>">New deal</a>
 </div>
@@ -55,7 +55,7 @@ $dealLink = static function (string $path) use ($previewAs): string {
                     <th>Name</th>
                     <th>Applies to</th>
                     <th>Deal</th>
-                    <th>Pays</th>
+                    <th>Check uses</th>
                     <th>Dates</th>
                     <th></th>
                 </tr>
@@ -69,7 +69,7 @@ $dealLink = static function (string $path) use ($previewAs): string {
                         </td>
                         <td><?= View::text($scopeName($offer['scope'], $offer['scope_label'])) ?></td>
                         <td><?= View::text($dealName($offer['kind'], $offer['threshold'], $offer['deal_minor'])) ?></td>
-                        <td><?= View::text($offer['funded_by'] === 'store' ? 'Store' : (($consignmentOnly ?? false) === true ? 'Consignor' : 'Vendor')) ?></td>
+                        <td><?= View::text($offer['funded_by'] === 'store' ? 'Tag price' : 'Sale price') ?></td>
                         <td><?= View::text(View::date($offer['starts_on'])) ?><?php if ($offer['ends_on'] !== ''): ?> – <?= View::text(View::date($offer['ends_on'])) ?><?php endif; ?></td>
                         <td>
                             <?php if (!$offer['ended']): ?>

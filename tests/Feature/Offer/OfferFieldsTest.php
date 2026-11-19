@@ -54,10 +54,10 @@ final class OfferFieldsTest extends TestCase
         $this->refused($fields, ['name' => ''], 'Enter a deal name of 80 characters or less.');
         $this->refused($fields, ['name' => str_repeat('a', 81)], 'Enter a deal name of 80 characters or less.');
         $this->refused($fields, ['scope' => 'booth'], 'Choose an item, a vendor, or the whole store.');
-        $this->refused($fields, ['kind' => 'half'], 'Choose N for a price, or N or more at a unit price.');
-        $this->refused($fields, ['threshold' => '0'], 'The quantity has to be a whole number.');
-        $this->refused($fields, ['threshold' => '1'], 'A quantity deal starts at two.');
-        $this->refused($fields, ['funded_by' => 'mall'], 'Choose who pays for the deal.');
+        $this->refused($fields, ['kind' => 'half'], 'Choose a bunch for one price, or a lower price each.');
+        $this->refused($fields, ['threshold' => '0'], 'Enter how many as a whole number.');
+        $this->refused($fields, ['threshold' => '1'], 'They have to buy at least two.');
+        $this->refused($fields, ['funded_by' => 'mall'], 'Choose whether the check uses the sale price or the tag price.');
         $this->refused($fields, ['vendor_id' => 'vendor'], 'Choose the vendor.');
         $this->refused($fields, ['starts_on' => '2026-02-31'], 'The start needs a date.');
         $this->refused($fields, ['ends_on' => 'not-a-day'], 'The end needs a date.');

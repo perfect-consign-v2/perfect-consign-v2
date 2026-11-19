@@ -123,6 +123,7 @@ class OfferController
             'draft' => $draft,
             'vendors' => $vendorId === null ? $this->offers->vendors() : [],
             'locked' => $vendorId !== null,
+            'itemLabel' => $vendorId === null ? '' : $this->offers->itemLabel($vendorId, $draft['item_code']),
             'error' => $error,
         ]);
     }

@@ -24,7 +24,7 @@ final class OfferFields
     {
         $name = $this->name($fields['name']);
         $scope = $this->choice($fields['scope'], ['item', 'vendor', 'store'], 'Choose an item, a vendor, or the whole store.');
-        $kind = $this->choice($fields['kind'], ['bundle', 'unit_break'], 'Choose N for a price, or N or more at a unit price.');
+        $kind = $this->choice($fields['kind'], ['bundle', 'unit_break'], 'Choose a bunch for one price, or a lower price each.');
         $funded = $this->payer($vendorId, $fields['funded_by'], $scope);
         [$starts, $ends] = $this->span($fields['starts_on'], $fields['ends_on']);
 
@@ -66,11 +66,11 @@ final class OfferFields
     private function quantity(string $threshold): int
     {
         if (preg_match('/^[1-9]\d*$/', $threshold) !== 1) {
-            throw new InvalidArgumentException('The quantity has to be a whole number.');
+            throw new InvalidArgumentException('Enter how many as a whole number.');
         }
         $count = (int) $threshold;
         if ($count < 2) {
-            throw new InvalidArgumentException('A quantity deal starts at two.');
+            throw new InvalidArgumentException('They have to buy at least two.');
         }
 
         return $count;
@@ -80,7 +80,7 @@ final class OfferFields
     {
         $funded = $vendorId === null ? $funded : 'vendor';
         if (!in_array($funded, ['vendor', 'store'], true)) {
-            throw new InvalidArgumentException('Choose who pays for the deal.');
+            throw new InvalidArgumentException('Choose whether the check uses the sale price or the tag price.');
         }
         if ($vendorId !== null && $scope === 'store') {
             throw new InvalidArgumentException('A vendor deal stays on that vendor\'s items.');
