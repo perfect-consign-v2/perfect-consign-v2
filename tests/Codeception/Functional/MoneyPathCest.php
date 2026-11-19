@@ -9,6 +9,7 @@ use PerfectConsign\Tests\Codeception\Support\FunctionalTester;
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
 use PerfectConsign\Tests\Support\ProbeMall;
+use PerfectConsign\Tests\Support\SingleVendorCheckPrint;
 use RuntimeException;
 
 /**
@@ -140,6 +141,21 @@ final class MoneyPathCest
         $I->assertStringContainsString(
             'a payout clears a positive open payable or open rent receivable',
             $refused->body
+        );
+    }
+
+    public function ownerPrintsASingleVendorCheckAndTheSalesSheet(FunctionalTester $I): void
+    {
+        $I->wantTo('pay one vendor and open the check and the sales and rent sheet without a check number');
+        $client = ProbeHarness::require()->client();
+        $client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        $paid = SingleVendorCheckPrint::payOneVendor($client, ProbeMall::SLUG);
+        SingleVendorCheckPrint::assertFace($client, ProbeMall::SLUG, $paid['runId']);
+        SingleVendorCheckPrint::assertSheet(
+            $client,
+            ProbeMall::SLUG,
+            $paid['runId'],
+            $paid['description']
         );
     }
 
