@@ -35,7 +35,10 @@ final class MissingPageExpiredFormTest extends TestCase
             self::assertSame('csrf', $sent->getMessage());
             self::assertIsString($body);
             self::assertSame(400, http_response_code());
-            self::assertStringContainsString('The form expired. Go back and try again.', $body);
+            self::assertStringContainsString('The form expired.', $body);
+            self::assertStringContainsString('href="/demo/logout"', $body);
+            self::assertStringContainsString('href="/"', $body);
+            self::assertStringContainsString('href="/demo/"', $body);
             self::assertStringContainsString('Form expired', $body);
         }
     }
@@ -70,7 +73,9 @@ final class MissingPageExpiredFormTest extends TestCase
             $withoutHome = ob_get_clean();
             self::assertIsString($withoutHome);
             self::assertStringNotContainsString('class="app"', $withoutHome);
-            self::assertStringContainsString('The form expired. Go back and try again.', $withoutHome);
+            self::assertStringContainsString('href="/"', $withoutHome);
+            self::assertStringContainsString('Try again', $withoutHome);
+            self::assertStringNotContainsString('Open your store', $withoutHome);
         }
     }
 }

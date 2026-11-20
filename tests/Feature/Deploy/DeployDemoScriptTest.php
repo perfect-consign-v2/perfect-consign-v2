@@ -19,6 +19,9 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringContainsString('/opt/plesk/php/8.5/bin/php', $script);
         self::assertStringContainsString('# pc2-php-8.5', $script);
         self::assertStringContainsString('export PATH="%s:${PATH:-}"', $script);
+        self::assertStringContainsString('printf \'%s\\n\' \'8.5\' > "${phpenv_root}/version"', $script);
+        $versionFile = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . '.php-version';
+        self::assertSame("8.5\n", file_get_contents($versionFile));
         $markerAt = strpos($script, '# pc2-php-8.5');
         $loginPathAt = strpos($script, 'export PATH="$(dirname -- "$php_bin"):${PATH:-}"');
         self::assertNotFalse($markerAt);

@@ -30,8 +30,14 @@ final class AdminTenantWipe
         string $confirmation,
         string $secondEmail,
         string $secondPassword,
+        bool $countersign = true,
     ): void {
         $this->requireSlug($admin, $tenant, $confirmation);
+        if (!$countersign) {
+            $this->drop($admin, $tenant, null);
+
+            return;
+        }
         $email = strtolower(trim($secondEmail));
         if ($this->usableSecondCredentials($email, $secondPassword) && $this->wipeLocked($email)) {
             $this->refuse($admin, $tenant, 'second_admin_locked');
@@ -80,9 +86,10 @@ final class AdminTenantWipe
     /**
      * @param array{id: string, email: string, version: string} $admin
      */
-    private function drop(array $admin, TenantRecord $tenant, string $secondEmail): void
+    private function drop(array $admin, TenantRecord $tenant, ?string $secondEmail): void
     {
         $statement = $this->pdo->prepare('SELECT platform.wipe_tenant(?)');
+        $detail = $this->dropDetail($tenant, $secondEmail);
         try {
             $statement->execute([$tenant->slug]);
         } catch (\PDOException $error) {
@@ -93,11 +100,7 @@ final class AdminTenantWipe
                 'failed',
                 $tenant->id,
                 $tenant->slug,
-                [
-                    'display_name' => $tenant->displayName,
-                    'second_admin' => $secondEmail,
-                    'error' => $error->getMessage(),
-                ],
+                $detail + ['error' => $error->getMessage()],
             );
             throw new RuntimeException($error->getMessage(), 0, $error);
         }
@@ -108,11 +111,24 @@ final class AdminTenantWipe
             'ok',
             $tenant->id,
             $tenant->slug,
-            [
-                'display_name' => $tenant->displayName,
-                'second_admin' => $secondEmail,
-            ],
+            $detail,
         );
+    }
+
+    /**
+     * @return array{display_name: string, second_admin?: string, confirmation?: string}
+     */
+    private function dropDetail(TenantRecord $tenant, ?string $secondEmail): array
+    {
+        $detail = ['display_name' => $tenant->displayName];
+        if ($secondEmail === null) {
+            $detail['confirmation'] = 'slug';
+
+            return $detail;
+        }
+        $detail['second_admin'] = $secondEmail;
+
+        return $detail;
     }
 
     /**

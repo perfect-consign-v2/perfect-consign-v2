@@ -70,7 +70,9 @@ if [[ ! -x "$php_bin" ]]; then
 fi
 # SSH does not put Plesk PHP on PATH. Debian bash reads ~/.bashrc for ssh
 # sessions, including non-interactive ones, until the interactive-only return.
-# Keep this marker at the top so `php bin/migrate.php` is 8.5 in a new shell.
+# Keep this marker at the top so a shell without phpenv finds 8.5.
+# phpenv init runs later and puts its shim first. With no version selected,
+# `php` is "command not found" even though 8.5 is installed. Pin that shim.
 php_dir=$(dirname -- "$php_bin")
 bashrc="${HOME}/.bashrc"
 marker='# pc2-php-8.5'
@@ -84,6 +86,10 @@ if [[ ! -f "$bashrc" ]] || ! grep -F -q "$marker" "$bashrc"; then
         fi
     } > "$pin"
     mv "$pin" "$bashrc"
+fi
+phpenv_root="${PHPENV_ROOT:-${HOME}/.phpenv}"
+if [[ -d "${phpenv_root}/versions/8.5" ]]; then
+    printf '%s\n' '8.5' > "${phpenv_root}/version"
 fi
 # Host-only binary. Reinstall when missing (e.g. after a mistaken whole-tree clean).
 # Verify the installer sha384 against Composer's published signature before executing.

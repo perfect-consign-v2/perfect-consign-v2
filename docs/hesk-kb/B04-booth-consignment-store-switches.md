@@ -1,7 +1,7 @@
 ---
 title: Booth / consignment / store-stock switches
 category: Vendors and booths
-hesk: published 2026-11-19
+hesk: published 2026-11-20
 as_of: 2026-10-30
 ---
 

@@ -152,15 +152,7 @@ final class ThinPageRenderTest extends TestCase
         ]);
         self::assertStringContainsString('Enter a store name.', $form);
         self::assertStringContainsString('name="store_name"', $form);
-        self::assertStringNotContainsString('name="password"', $form);
-        $password = $this->capture($view, 'Feature/Signup/signup', [
-            'csrf' => 'tok',
-            'error' => null,
-            'enabled' => true,
-            'checkEmail' => false,
-            'choosePassword' => true,
-        ]);
-        self::assertStringContainsString('name="password"', $password);
+        self::assertStringContainsString('name="password"', $form);
     }
 
     /**

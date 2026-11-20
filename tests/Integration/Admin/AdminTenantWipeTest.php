@@ -32,6 +32,26 @@ final class AdminTenantWipeTest extends TestCase
         self::assertGreaterThan(0, $this->refusedDeletes($pdo, $tenant->id, $acting['email'], 'second_admin'));
     }
 
+    public function testASlugConfirmationDeletesWithoutASecondAdminOrBackup(): void
+    {
+        $root = dirname(__DIR__, 3);
+        ProbeMall::ensure($root);
+        $pdo = $this->pdo();
+        $slug = 'wipeslug' . bin2hex(random_bytes(2));
+        $tenant = $this->provisionDisposable($root, $pdo, $slug);
+        $acting = $this->plantAdmin($pdo, 'wipe-s-' . bin2hex(random_bytes(3)) . '@example.test', 'WipeActingPass1!');
+        $wipe = $this->wipe($pdo);
+        try {
+            $wipe->wipe($acting, $tenant, $tenant->slug, '', '', false);
+            self::assertSame(1, $this->okDeletes($pdo, $tenant->id, $acting['email']));
+            $still = $pdo->prepare('SELECT 1 FROM platform.tenants WHERE slug = ?');
+            $still->execute([$slug]);
+            self::assertFalse($still->fetchColumn() !== false);
+        } finally {
+            $this->dropDisposable($root, $pdo, $slug);
+        }
+    }
+
     public function testMissingOwnerBackupIsRefused(): void
     {
         $root = dirname(__DIR__, 3);

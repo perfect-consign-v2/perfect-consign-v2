@@ -8,8 +8,15 @@ use PerfectConsign\Shared\Http\View;
 /** @var string|null $error */
 /** @var bool $enabled */
 /** @var bool $checkEmail */
+/** @var string $storeName */
+/** @var string $email */
+/** @var string $password */
+/** @var string $passwordConfirm */
 $checkEmail = ($checkEmail ?? false) === true;
-$choosePassword = ($choosePassword ?? false) === true;
+$storeName = is_string($storeName ?? null) ? $storeName : '';
+$email = is_string($email ?? null) ? $email : '';
+$password = is_string($password ?? null) ? $password : '';
+$passwordConfirm = is_string($passwordConfirm ?? null) ? $passwordConfirm : '';
 ?>
 <div class="login-wrap">
     <div class="panel">
@@ -29,7 +36,7 @@ $choosePassword = ($choosePassword ?? false) === true;
                 </div>
             <?php elseif ($checkEmail): ?>
                 <div class="card-body">
-                    <p>Check your email for a confirmation link. Choose your password on that page before you sign in.</p>
+                    <p>Check your email for a confirmation link. Open it to confirm your email and enter your store.</p>
                     <p class="mt-4"><a class="btn" href="/">Back to sign in</a></p>
                 </div>
             <?php else: ?>
@@ -37,28 +44,24 @@ $choosePassword = ($choosePassword ?? false) === true;
                     <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                         <?php if ($error !== null && $error !== ''): ?>
-                            <p role="alert"><?= View::text($error) ?></p>
+                            <p class="field-error" role="alert"><?= View::text($error) ?></p>
                         <?php endif; ?>
                         <div class="field">
                             <label for="store_name">Store name</label>
-                            <input class="input" id="store_name" name="store_name" required maxlength="120" autocomplete="organization">
+                            <input class="input" id="store_name" name="store_name" required maxlength="120" autocomplete="organization" value="<?= View::text($storeName) ?>">
                         </div>
                         <div class="field">
                             <label for="email">Owner email</label>
-                            <input class="input" id="email" name="email" type="email" required maxlength="200" autocomplete="username">
+                            <input class="input" id="email" name="email" type="email" required maxlength="200" autocomplete="username" value="<?= View::text($email) ?>">
                         </div>
-                        <?php if ($choosePassword): ?>
                         <div class="field">
                             <label for="password">Password</label>
-                            <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password'); ?>
+                            <?php View::requiredPasswordField(id: 'password', name: 'password', minlength: 8, autocomplete: 'new-password', value: $password); ?>
                         </div>
                         <div class="field">
                             <label for="password_confirm">Confirm password</label>
-                            <?php View::requiredPasswordField(id: 'password_confirm', name: 'password_confirm', minlength: 8, autocomplete: 'new-password'); ?>
+                            <?php View::requiredPasswordField(id: 'password_confirm', name: 'password_confirm', minlength: 8, autocomplete: 'new-password', value: $passwordConfirm); ?>
                         </div>
-                        <?php else: ?>
-                        <p class="muted">We email a link. You choose the password there.</p>
-                        <?php endif; ?>
                     </div>
                     <div class="card-foot row between">
                         <a href="/">Sign in</a>

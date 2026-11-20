@@ -71,6 +71,30 @@ final class OwnerGate
         return true;
     }
 
+    public function openVerifiedOwner(string $slug, string $username): bool
+    {
+        $tenant = $this->tenants->find($slug);
+        $username = strtolower(trim($username));
+        if ($tenant === null || preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
+            $this->logger->info('verified owner open refused', ['slug' => $slug]);
+
+            return false;
+        }
+        $owner = $this->owner($tenant->id, $username);
+        if ($owner === null || !$owner['can_sign_in'] || !$owner['verified']) {
+            $this->logger->info('verified owner open refused', ['slug' => $slug]);
+
+            return false;
+        }
+        $clear = $this->pdo->prepare(
+            'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = ?::uuid AND username = ?'
+        );
+        $clear->execute([$tenant->id, $username]);
+        $this->sessions->open($slug, $tenant->id, $username, 'owner', $owner['id'], $owner['version'], '', '');
+
+        return true;
+    }
+
     /**
      * @return array{id: string, hash: string, version: string, verified: bool, can_sign_in: bool}|null
      */

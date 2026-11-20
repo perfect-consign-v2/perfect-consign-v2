@@ -7,6 +7,7 @@ namespace PerfectConsign\Feature\Signup;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\OwnerGate;
+use PerfectConsign\Shared\Http\Request;
 use RuntimeException;
 
 final class SignupController
@@ -28,7 +29,7 @@ final class SignupController
 
             return;
         }
-        $this->form(null, false, !$this->settings->requireEmailVerification());
+        $this->form(null, false);
     }
 
     #[Route('/signup', ['POST'])]
@@ -50,14 +51,14 @@ final class SignupController
                 $request->address,
             );
         } catch (RuntimeException $error) {
-            $this->form($error->getMessage(), false, !$this->settings->requireEmailVerification());
+            $this->form($error->getMessage(), false, $request);
 
             return;
         }
         if (!$created['verified']) {
             $ownerId = $this->signup->ownerIdForSlug($created['slug']);
             if ($ownerId === null) {
-                $this->form('That store could not be created.', false, false);
+                $this->form('That store could not be created.', false, $request);
 
                 return;
             }
@@ -65,11 +66,11 @@ final class SignupController
                 $this->verification->send($ownerId, $created['email'], $request->origin);
             } catch (RuntimeException $error) {
                 $this->signup->abandon($created['slug']);
-                $this->form($error->getMessage(), false, false);
+                $this->form($error->getMessage(), false, $request);
 
                 return;
             }
-            $this->form(null, true, false);
+            $this->form(null, true);
 
             return;
         }
@@ -84,39 +85,37 @@ final class SignupController
         if ($pending === null) {
             $this->app->redirect('/', null, 'That confirmation link is invalid or expired.');
         }
-        $this->passwordForm($token, $pending['email'], null);
+        $this->confirmForm($token, $pending['email'], null);
     }
 
     #[Route('/signup/verify/([A-Za-z0-9_-]{43})', ['POST'])]
     public function choosePassword(string $token): void
     {
         $this->app->checkCsrf();
-        $request = $this->app->request();
         try {
-            $confirmed = $this->verification->confirm(
-                $token,
-                $request->field('password'),
-                $request->field('password_confirm'),
-            );
+            $confirmed = $this->verification->confirm($token);
         } catch (RuntimeException $error) {
             $pending = $this->verification->pending($token);
             if ($pending === null) {
                 $this->app->redirect('/', null, 'That confirmation link is invalid or expired.');
             }
-            $this->passwordForm($token, $pending['email'], $error->getMessage());
+            $this->confirmForm($token, $pending['email'], $error->getMessage());
 
             return;
         }
         if ($confirmed === null) {
             $this->app->redirect('/', null, 'That confirmation link is invalid or expired.');
         }
-        $this->app->redirect(
-            '/?email=' . rawurlencode($confirmed['email']),
-            'Email confirmed. Sign in to open your store.'
-        );
+        if (!$this->owners->openVerifiedOwner($confirmed['slug'], $confirmed['username'])) {
+            $this->app->redirect(
+                '/?email=' . rawurlencode($confirmed['email']),
+                'Email confirmed. Sign in to open your store.'
+            );
+        }
+        $this->app->redirect('/' . $confirmed['slug'] . '/', 'Your store is ready.');
     }
 
-    private function form(?string $error, bool $checkEmail, bool $choosePassword): void
+    private function form(?string $error, bool $checkEmail, ?Request $posted = null): void
     {
         $this->app->show('Feature/Signup/signup', [
             'title' => 'Create your store',
@@ -125,14 +124,17 @@ final class SignupController
             'error' => $error,
             'enabled' => true,
             'checkEmail' => $checkEmail,
-            'choosePassword' => $choosePassword,
+            'storeName' => $posted?->field('store_name') ?? '',
+            'email' => $posted?->field('email') ?? '',
+            'password' => $posted?->field('password') ?? '',
+            'passwordConfirm' => $posted?->field('password_confirm') ?? '',
         ]);
     }
 
-    private function passwordForm(string $token, string $email, ?string $error): void
+    private function confirmForm(string $token, string $email, ?string $error): void
     {
         $this->app->show('Feature/Signup/verify', [
-            'title' => 'Choose your password',
+            'title' => 'Confirm your store',
             'displayName' => '',
             'slug' => '',
             'token' => $token,
@@ -150,7 +152,6 @@ final class SignupController
             'error' => null,
             'enabled' => false,
             'checkEmail' => false,
-            'choosePassword' => false,
         ]);
     }
 }

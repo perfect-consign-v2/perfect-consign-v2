@@ -53,6 +53,8 @@ final class StoreSignupTest extends TestCase
             [str_repeat('H', 121), 'owner@harbor.test', 'password1', 'password1', 'Enter a store name.'],
             ['Harbor', 'not-an-email', 'password1', 'password1', 'Enter a valid email address.'],
             ['Harbor', str_repeat('a', 190) . '@harbor.test', 'password1', 'password1', 'Enter a valid email address.'],
+            ['Harbor', 'owner@harbor.test', 'short', 'short', 'Password must be at least 8 characters.'],
+            ['Harbor', 'owner@harbor.test', 'password1', 'password2', 'Password confirmation does not match.'],
         ];
         foreach ($cases as [$name, $email, $password, $confirm, $message]) {
             try {
@@ -88,8 +90,8 @@ final class StoreSignupTest extends TestCase
         $this->signup($pdo)->registerPublic(
             'Harbor',
             'owner@harbor.test',
-            'x',
-            'x',
+            'password1',
+            'password1',
             '127.0.0.1',
         );
     }
@@ -345,6 +347,52 @@ final class StoreSignupTest extends TestCase
             '01900000-0000-7000-8000-0000000000aa',
             'admin@harbor.test',
         );
+    }
+
+    public function testAWrappedDatabaseFailureLogsTheCause(): void
+    {
+        $statement = $this->createStub(PDOStatement::class);
+        $statement->method('fetchColumn')->willReturn(false);
+        $statement->method('execute')->willReturn(true);
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturn($statement);
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())->method('error')->with(
+            'store signup failed',
+            $this->callback(static function (array $context): bool {
+                $cause = $context['cause'] ?? null;
+
+                return ($context['slug'] ?? null) === 'harbor'
+                    && ($context['email'] ?? null) === 'owner@harbor.test'
+                    && ($context['message'] ?? null) === 'That store could not be created.'
+                    && is_string($cause)
+                    && str_contains($cause, 'SQLSTATE[23505]')
+                    && str_contains($cause, 'owners_email_key');
+            }),
+        );
+        $signup = new StoreSignup(
+            $pdo,
+            $this->settings('true'),
+            $this->limits(0),
+            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            $logger,
+        );
+        $signup->useAdmin(static fn (): PDO => $pdo);
+        $signup->useInstaller(static function (): void {
+            throw new RuntimeException(
+                'That store could not be created.',
+                0,
+                new PDOException(
+                    'SQLSTATE[23505]: Unique violation: duplicate key value violates unique constraint "owners_email_key"',
+                ),
+            );
+        });
+        try {
+            $signup->registerPublic('Harbor', 'owner@harbor.test', 'password1', 'password1', '127.0.0.1');
+            self::fail('a duplicate email was stored');
+        } catch (RuntimeException $error) {
+            self::assertSame('That store could not be created.', $error->getMessage());
+        }
     }
 
     public function testAnInstallerFailureThatIsNotARefusalIsWrapped(): void

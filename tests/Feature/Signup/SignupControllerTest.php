@@ -60,7 +60,7 @@ final class SignupControllerTest extends TestCase
             $controller->show();
         });
         self::assertStringContainsString('name="store_name"', $on);
-        self::assertStringNotContainsString('name="password"', $on);
+        self::assertStringContainsString('name="password"', $on);
         self::assertStringNotContainsString('Self-serve signup is turned off', $on);
 
         $open = $this->capture(function (): void {
@@ -100,7 +100,31 @@ final class SignupControllerTest extends TestCase
         });
 
         self::assertStringContainsString('Enter a valid email address.', $html);
-        self::assertStringContainsString('name="store_name"', $html);
+        self::assertStringContainsString('class="field-error" role="alert"', $html);
+        self::assertStringContainsString('value="Harbor"', $html);
+        self::assertStringContainsString('value="not-an-email"', $html);
+        self::assertStringContainsString('value="password1"', $html);
+    }
+
+    public function testAPasswordMismatchKeepsEveryField(): void
+    {
+        $html = $this->capture(function (): void {
+            [$controller] = $this->controller($this->request('POST', [
+                'csrf' => 'csrf-token',
+                'store_name' => 'Harbor Mall',
+                'email' => 'owner@harbor.test',
+                'password' => 'password1',
+                'password_confirm' => 'password2',
+            ]), $this->settings(true));
+            $controller->create();
+        });
+
+        self::assertStringContainsString('Password confirmation does not match.', $html);
+        self::assertStringContainsString('class="field-error" role="alert"', $html);
+        self::assertStringContainsString('value="Harbor Mall"', $html);
+        self::assertStringContainsString('value="owner@harbor.test"', $html);
+        self::assertStringContainsString('id="password" name="password" class="input" required minlength="8" autocomplete="new-password" value="password1"', $html);
+        self::assertStringContainsString('id="password_confirm" name="password_confirm" class="input" required minlength="8" autocomplete="new-password" value="password2"', $html);
     }
 
     public function testAPostWithoutTheSessionTokenExpiresTheForm(): void
@@ -149,40 +173,21 @@ final class SignupControllerTest extends TestCase
             $controller->verify(str_repeat('a', 43));
         });
 
-        self::assertStringContainsString('Choose your password', $html);
-        self::assertStringContainsString('name="password"', $html);
+        self::assertStringContainsString('Confirm and open your store', $html);
+        self::assertStringNotContainsString('name="password"', $html);
         self::assertStringNotContainsString('Email confirmed', $html);
     }
 
-    public function testAShortConfirmPasswordStaysOnTheForm(): void
-    {
-        $html = $this->capture(function (): void {
-            [$controller] = $this->controller(
-                $this->request('POST', [
-                    'csrf' => 'csrf-token',
-                    'password' => 'short',
-                    'password_confirm' => 'short',
-                ]),
-                $this->settings(false),
-                $this->confirmingVerification(),
-            );
-            $controller->choosePassword(str_repeat('a', 43));
-        });
-
-        self::assertStringContainsString('Password must be at least 8 characters.', $html);
-        self::assertStringContainsString('Choose your password', $html);
-    }
-
-    public function testAConfirmedMailboxReturnsToSignIn(): void
+    public function testAConfirmedMailboxWithoutAnOwnerSessionReturnsToSignIn(): void
     {
         [$controller, $bag] = $this->controller(
             $this->request('POST', [
                 'csrf' => 'csrf-token',
-                'password' => 'password1',
-                'password_confirm' => 'password1',
             ]),
             $this->settings(false),
             $this->confirmingVerification(),
+            null,
+            $this->quietPdo(),
         );
         try {
             $controller->choosePassword(str_repeat('a', 43));
@@ -192,6 +197,28 @@ final class SignupControllerTest extends TestCase
         }
 
         self::assertSame('Email confirmed. Sign in to open your store.', $bag['notice'] ?? null);
+    }
+
+    public function testAConfirmedMailboxOpensTheStore(): void
+    {
+        [$controller, $bag] = $this->controller(
+            $this->request('POST', [
+                'csrf' => 'csrf-token',
+            ]),
+            $this->settings(false),
+            $this->confirmingVerification(),
+            null,
+            $this->signingPdo(password_hash('password1', PASSWORD_DEFAULT)),
+        );
+        try {
+            $controller->choosePassword(str_repeat('a', 43));
+            self::fail('a confirmed mailbox stayed on the verify page');
+        } catch (ResponseSent $sent) {
+            self::assertSame('redirect', $sent->getMessage());
+        }
+
+        self::assertSame('Your store is ready.', $bag['notice'] ?? null);
+        self::assertSame('cov-harbor', $bag['owner_slug'] ?? null);
     }
 
     public function testACreatedStoreAsksTheOwnerToConfirmEmail(): void
@@ -336,6 +363,15 @@ final class SignupControllerTest extends TestCase
         $statement->method('rowCount')->willReturn(1);
 
         return $statement;
+    }
+
+    private function quietPdo(): PDO
+    {
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('exec')->willReturn(0);
+        $pdo->method('prepare')->willReturn($this->valueStatement(false));
+
+        return $pdo;
     }
 
     private function signingPdo(string $hash): PDO
@@ -528,6 +564,7 @@ final class SignupControllerTest extends TestCase
             'id' => '01900000-0000-7000-8000-000000000010',
             'owner_id' => '01900000-0000-7000-8000-000000000011',
             'email' => 'owner@harbor.test',
+            'username' => 'owner',
             'slug' => 'cov-harbor',
             'tenant_id' => '01900000-0000-7000-8000-000000000012',
         ];

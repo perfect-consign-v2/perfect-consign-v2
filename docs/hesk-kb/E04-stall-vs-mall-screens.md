@@ -1,7 +1,7 @@
 ---
 title: What Stall / perfect-consign is today vs full mall screens
 category: Platform notes
-hesk: published 2026-11-19
+hesk: published 2026-11-20
 as_of: 2026-11-11
 ---
 

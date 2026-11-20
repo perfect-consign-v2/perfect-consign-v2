@@ -64,28 +64,13 @@ final class StoreSignup
             throw new RuntimeException('Too many signup attempts. Try again later.');
         }
         $this->limits->remember($clientAddress);
-        if ($this->settings->requireEmailVerification()) {
-            [$storeName, $email] = $this->normalizedIdentity($storeName, $email);
-            $secret = bin2hex(random_bytes(32));
-
-            return $this->register(
-                $storeName,
-                $email,
-                $secret,
-                $secret,
-                false,
-                'store.signup',
-                null,
-                $email,
-            );
-        }
 
         return $this->register(
             $storeName,
             $email,
             $password,
             $confirm,
-            true,
+            !$this->settings->requireEmailVerification(),
             'store.signup',
             null,
             $email,
@@ -210,10 +195,16 @@ final class StoreSignup
             $provisioner->provision($slug, $storeName);
             $this->createOwner($admin, $slug, $username, $password, $email, $emailVerified);
         } catch (Throwable $error) {
-            $this->logger->error('store signup failed', [
+            $context = [
                 'slug' => $slug,
+                'email' => $email,
                 'message' => $error->getMessage(),
-            ]);
+            ];
+            $cause = $this->failureCause($error);
+            if ($cause !== '') {
+                $context['cause'] = $cause;
+            }
+            $this->logger->error('store signup failed', $context);
             $this->compensate($admin, $slug);
             if ($error instanceof RuntimeException) {
                 throw $error;
@@ -289,6 +280,27 @@ final class StoreSignup
         if ($statement->rowCount() < 1) {
             throw new RuntimeException('That store was not found after provisioning.');
         }
+    }
+
+    private function failureCause(Throwable $error): string
+    {
+        $parts = [];
+        $current = $error;
+        for ($depth = 0; $depth < 8; $depth++) {
+            $previous = $current->getPrevious();
+            if (!$previous instanceof Throwable) {
+                break;
+            }
+            $code = (string) $previous->getCode();
+            $line = $previous::class . ': ' . $previous->getMessage();
+            if ($code !== '' && $code !== '0') {
+                $line .= ' [' . $code . ']';
+            }
+            $parts[] = $line;
+            $current = $previous;
+        }
+
+        return implode(' | ', $parts);
     }
 
     private function compensate(PDO $admin, string $slug): void

@@ -98,6 +98,20 @@ final class AdminTenantWipeCoverageTest extends TestCase
         }
     }
 
+    public function testASlugMatchDeletesWithoutASecondAdminOrBackup(): void
+    {
+        $outcomes = [];
+        $details = [];
+        $wipe = $this->wipe($this->pdo(false, false, false, null, $outcomes, $details));
+        $wipe->wipe($this->admin(), $this->tenant(), 'zcov-wipe', '', '', false);
+        self::assertSame(['ok'], $outcomes);
+        self::assertNotSame([], $details);
+        $encoded = $details[0];
+        self::assertIsString($encoded);
+        self::assertStringContainsString('"confirmation":"slug"', $encoded);
+        self::assertStringNotContainsString('second_admin', $encoded);
+    }
+
     public function testAPasswordResetDoesNotBlockDeletion(): void
     {
         $outcomes = [];

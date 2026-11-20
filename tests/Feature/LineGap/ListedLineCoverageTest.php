@@ -909,7 +909,7 @@ final class ListedLineCoverageTest extends TestCase
             new Statements($empty),
         );
         $wipe = new AdminTenantWipe($empty, new AdminAudit($empty, $request), new \PerfectConsign\Feature\Backup\BackupStore($empty), $request);
-        $controller = new AdminTenantController($app, $list, $enter, $wipe);
+        $controller = new AdminTenantController($app, $list, $enter, $wipe, new \PerfectConsign\Feature\Admin\TenantDeletePolicy());
         $this->sent(static function () use ($controller): void {
             $controller->enter(self::SLUG);
         }, 'redirect');
@@ -1025,7 +1025,23 @@ final class ListedLineCoverageTest extends TestCase
         $deleteApp = $this->adminApp($session, $deleteRequest, $this->adminRowPdo());
         $deleteList = new AdminTenantList($found, new DatabaseRole($found));
         $deleteWipe = new AdminTenantWipe($wipePdo, new AdminAudit($wipePdo, $deleteRequest), new \PerfectConsign\Feature\Backup\BackupStore($wipePdo), $deleteRequest);
-        $delete = new AdminTenantController($deleteApp, $deleteList, $enter, $deleteWipe);
+        $delete = new AdminTenantController($deleteApp, $deleteList, $enter, $deleteWipe, new \PerfectConsign\Feature\Admin\TenantDeletePolicy());
+        $savedEnv = getenv('APP_ENV');
+        putenv('APP_ENV=production');
+        ob_start();
+        try {
+            $delete->deleteForm(self::SLUG);
+            $productionForm = ob_get_contents();
+        } finally {
+            ob_end_clean();
+            if ($savedEnv === false) {
+                putenv('APP_ENV');
+            } else {
+                putenv('APP_ENV=' . $savedEnv);
+            }
+        }
+        self::assertIsString($productionForm);
+        self::assertStringContainsString('Second admin email', $productionForm);
         ob_start();
         try {
             $delete->deleteSubmit(self::SLUG);

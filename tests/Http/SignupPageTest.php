@@ -34,7 +34,7 @@ final class SignupPageTest extends TestCase
             $on = $client->get('/signup');
             self::assertSame(200, $on->status);
             self::assertStringContainsString('name="store_name"', $on->body);
-            self::assertStringNotContainsString('name="password"', $on->body);
+            self::assertStringContainsString('name="password"', $on->body);
             self::assertStringNotContainsString('Self-serve signup is turned off', $on->body);
 
             $settings->setRequireEmailVerification(false);
@@ -59,7 +59,7 @@ final class SignupPageTest extends TestCase
         }
     }
 
-    public function testALiveSignupChoosesThePasswordOnConfirm(): void
+    public function testALiveSignupConfirmsTheEmailAndOpensTheStore(): void
     {
         $pdo = $this->database();
         $previous = $this->setting($pdo, 'store_signup_enabled');
@@ -81,33 +81,32 @@ final class SignupPageTest extends TestCase
             $server = ProbeServer::startOn(dirname(__DIR__, 2), 8101);
             $client = new FormClient($server->baseUrl());
             $client->get('/signup');
+            $short = $client->post('/signup', [
+                'store_name' => $slug,
+                'email' => $email,
+                'password' => 'short',
+                'password_confirm' => 'short',
+            ]);
+            self::assertStringContainsString('Password must be at least 8 characters.', $short->body);
             $sent = $client->post('/signup', [
                 'store_name' => $slug,
                 'email' => $email,
-                'password' => 'ignored-password',
-                'password_confirm' => 'ignored-password',
+                'password' => 'chosen-password',
+                'password_confirm' => 'chosen-password',
             ]);
             self::assertStringContainsString('Check your email', $sent->body);
             $created = true;
             $mail = file_get_contents(ProbeServer::mailFile());
             self::assertIsString($mail);
             self::assertSame(1, preg_match('#/signup/verify/([A-Za-z0-9_-]{43})#', $mail, $tokens));
+            self::assertStringContainsString('You chose the password when you created the store.', $mail);
             $page = $client->get('/signup/verify/' . $tokens[1]);
-            self::assertStringContainsString('Choose your password', $page->body);
-            self::assertStringNotContainsString('Email confirmed', $page->body);
-            $short = $client->post('/signup/verify/' . $tokens[1], [
-                'password' => 'short',
-                'password_confirm' => 'short',
-            ]);
-            self::assertStringContainsString('Password must be at least 8 characters.', $short->body);
-            $saved = $client->post('/signup/verify/' . $tokens[1], [
-                'password' => 'chosen-password',
-                'password_confirm' => 'chosen-password',
-            ]);
-            self::assertStringContainsString('Email confirmed. Sign in to open your store.', $saved->body);
-            $home = $client->signInByEmail($email, 'chosen-password');
-            self::assertStringNotContainsString('That email or password is wrong.', $home->body);
-            self::assertStringContainsString($slug, $home->body);
+            self::assertStringContainsString('Confirm and open your store', $page->body);
+            self::assertStringNotContainsString('name="password"', $page->body);
+            self::assertStringNotContainsString('Your store is ready.', $page->body);
+            $saved = $client->post('/signup/verify/' . $tokens[1], []);
+            self::assertStringContainsString('Your store is ready.', $saved->body);
+            self::assertStringContainsString($slug, $saved->body);
         } finally {
             if ($server !== null) {
                 $server->stop();

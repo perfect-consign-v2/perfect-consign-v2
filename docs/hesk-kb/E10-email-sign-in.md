@@ -1,15 +1,15 @@
 ---
 title: Email sign-in finds the mall
 category: Platform notes
-hesk: published 2026-11-19
-as_of: 2026-11-12
+hesk: published 2026-11-20
+as_of: 2026-11-19
 ---
 
 # Email sign-in finds the mall
 
 ## As of
 
-2026-11-12 — local demo owners on `dev` / `mall` / `shop` can Reset Test Data (type `RESET`) when `STALL_ALLOW_TENANT_RESET=1`; forgot-password success flash when reset mail fails still notifies operators.
+2026-11-19 — a form whose session check fails shows Try again, Sign in, and Open your store when the session already belongs to a store. 2026-11-12 — local demo owners on `dev` / `mall` / `shop` can Reset Test Data (type `RESET`) when `STALL_ALLOW_TENANT_RESET=1`; forgot-password success flash when reset mail fails still notifies operators.
 
 ## In one sentence
 
@@ -27,6 +27,7 @@ An owner, manager, cashier, books login, or vendor opens the site root, or uses 
 - The account menu Change password screen updates the password first, then the sign-in email. The mall company email is not a password-reset fallback.
 - Wrong password and unknown email show the same message. Five failures in fifteen minutes for the same email and client address lock that pair. Forty failures from one client address across any emails lock that address. Twenty failures for the same email from any addresses lock the email. Older failure rows are pruned when a new failure is recorded. Mall username and platform admin failure rows prune the same way.
 - `/forgot` looks up the email and, when found, sends the reset email in that request through the mall mailbox in Settings; the success message is always the same whether the email is known or not (anti-enumeration). When the email is known and mail setup or delivery fails, the user still sees that same success flash; operators get a platform notice so the failure is not silent.
+- A form whose session check fails shows Try again (a fresh copy of that page) and Sign in. When the session already belongs to a store, the same page also links to that store.
 
 ## What is refused
 

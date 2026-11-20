@@ -36,7 +36,7 @@ final class MissingPage
             'slug' => $home,
             'nav' => $home !== '',
             'csrf' => $csrf,
-            'error' => 'The form expired. Go back and try again.',
+            'error' => null,
             'notice' => null,
             'warning' => null,
             'path' => $this->request->path,

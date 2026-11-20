@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class AdminTenantController
 {
@@ -13,6 +14,7 @@ final class AdminTenantController
         private readonly AdminTenantList $tenants,
         private readonly AdminEnterAs $enterAs,
         private readonly AdminTenantWipe $wipe,
+        private readonly TenantDeletePolicy $deletePolicy,
     ) {
     }
 
@@ -56,6 +58,7 @@ final class AdminTenantController
         $this->app->show('Feature/Admin/delete', [
             'title' => 'Delete ' . $tenant->displayName,
             'tenant' => $tenant,
+            'requiresCountersign' => $this->deletePolicy->requiresCountersign(),
             'error' => null,
         ]);
     }
@@ -69,6 +72,7 @@ final class AdminTenantController
         if ($tenant === null) {
             $this->app->redirect('/admin/tenants', null, 'That store was not found.');
         }
+        $requiresCountersign = $this->deletePolicy->requiresCountersign();
         try {
             $request = $this->app->request();
             $this->wipe->wipe(
@@ -77,24 +81,27 @@ final class AdminTenantController
                 $request->field('confirm_slug'),
                 $request->field('second_email'),
                 $request->field('second_password'),
+                $requiresCountersign,
             );
         } catch (\InvalidArgumentException $error) {
-            $this->app->show('Feature/Admin/delete', [
-                'title' => 'Delete ' . $tenant->displayName,
-                'tenant' => $tenant,
-                'error' => $error->getMessage(),
-            ]);
+            $this->showDeleteError($tenant, $requiresCountersign, $error->getMessage());
 
             return;
         } catch (\RuntimeException $error) {
-            $this->app->show('Feature/Admin/delete', [
-                'title' => 'Delete ' . $tenant->displayName,
-                'tenant' => $tenant,
-                'error' => $error->getMessage(),
-            ]);
+            $this->showDeleteError($tenant, $requiresCountersign, $error->getMessage());
 
             return;
         }
         $this->app->redirect('/admin/tenants', 'Deleted ' . $slug . '.');
+    }
+
+    private function showDeleteError(TenantRecord $tenant, bool $requiresCountersign, string $error): void
+    {
+        $this->app->show('Feature/Admin/delete', [
+            'title' => 'Delete ' . $tenant->displayName,
+            'tenant' => $tenant,
+            'requiresCountersign' => $requiresCountersign,
+            'error' => $error,
+        ]);
     }
 }
