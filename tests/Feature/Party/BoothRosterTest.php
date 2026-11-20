@@ -106,6 +106,42 @@ final class BoothRosterTest extends TestCase
         self::assertNull($rows[0]['incoming_vendor_id']);
     }
 
+    public function testANonTextLocationIsRefused(): void
+    {
+        $booth = $this->booth(self::NORTH, 'A1', 'North', null, null, null, null);
+        $booth['location'] = 4;
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('a booth field is missing');
+        $this->roster()->assemble([$booth], [], [], [], [], '2026-09-27', 10, 10);
+    }
+
+    public function testLocationIsListedAndSearched(): void
+    {
+        $north = $this->booth(self::NORTH, 'A1', 'North', null, null, null, null);
+        $north['location'] = 'North wall';
+        $south = $this->booth(self::SOUTH, 'B1', 'South hall', null, null, null, null);
+        $south['location'] = '';
+        $rows = $this->roster()->assemble(
+            [$north, $south],
+            [],
+            [],
+            [],
+            [],
+            '2026-09-27',
+            10,
+            10
+        );
+        $byCode = [];
+        foreach ($rows as $row) {
+            $byCode[$row['code']] = $row;
+        }
+
+        self::assertSame('North wall', $byCode['A1']['location']);
+        self::assertNull($byCode['B1']['location']);
+        self::assertSame(['A1'], array_column($this->filter()->matching($rows, 'WALL'), 'code'));
+        self::assertSame(['B1'], array_column($this->filter()->matching($rows, 'hall'), 'code'));
+    }
+
     public function testSearchMatchesCodeOrName(): void
     {
         $rows = $this->roster()->assemble(

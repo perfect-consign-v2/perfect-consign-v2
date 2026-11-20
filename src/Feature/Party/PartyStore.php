@@ -137,7 +137,7 @@ class PartyStore
     public function booths(): array
     {
         return $this->statements->rows(
-            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id, active FROM booths ORDER BY code'
+            'SELECT id, code, name, location, width_ft, depth_ft, x_ft, z_ft, floor_id, active FROM booths ORDER BY code'
         );
     }
 
@@ -328,7 +328,7 @@ class PartyStore
     public function findBooth(string $id): ?array
     {
         $rows = $this->statements->bound(
-            'SELECT id, code, name, width_ft, depth_ft, x_ft, z_ft, floor_id, active FROM booths WHERE id = ?::uuid',
+            'SELECT id, code, name, location, width_ft, depth_ft, x_ft, z_ft, floor_id, active FROM booths WHERE id = ?::uuid',
             [$id]
         );
 
@@ -340,12 +340,13 @@ class PartyStore
         string $name,
         ?int $width,
         ?int $depth,
+        ?string $location,
         ?int $amount = null,
     ): void {
-        $insert = function () use ($code, $name, $width, $depth, $amount): void {
+        $insert = function () use ($code, $name, $width, $depth, $location, $amount): void {
             $rows = $this->statements->bound(
-                'INSERT INTO booths (code, name, width_ft, depth_ft) VALUES (?, ?, ?, ?) RETURNING id',
-                [$code, $name, $width, $depth]
+                'INSERT INTO booths (code, name, width_ft, depth_ft, location) VALUES (?, ?, ?, ?, ?) RETURNING id',
+                [$code, $name, $width, $depth, $location]
             );
             $id = $rows[0]['id'] ?? null;
             if (!is_string($id) || $id === '') {
@@ -363,11 +364,17 @@ class PartyStore
         $this->statements->transaction($insert);
     }
 
-    public function saveBooth(string $id, string $code, string $name, ?int $width, ?int $depth): void
-    {
+    public function saveBooth(
+        string $id,
+        string $code,
+        string $name,
+        ?int $width,
+        ?int $depth,
+        ?string $location,
+    ): void {
         $count = $this->statements->affected(
-            'UPDATE booths SET code = ?, name = ?, width_ft = ?, depth_ft = ? WHERE id = ?::uuid',
-            [$code, $name, $width, $depth, $id]
+            'UPDATE booths SET code = ?, name = ?, width_ft = ?, depth_ft = ?, location = ? WHERE id = ?::uuid',
+            [$code, $name, $width, $depth, $location, $id]
         );
         if ($count === 0) {
             throw new \InvalidArgumentException('that booth is not in this mall');

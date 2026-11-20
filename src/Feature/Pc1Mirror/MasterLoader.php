@@ -146,7 +146,7 @@ final class MasterLoader
                 $rent = $asked >= 1 ? $asked : null;
             }
             $code = $this->uniqueCode($code, $this->usedBoothCodes);
-            $mall->parties->addBooth($code, MirrorFields::text($row['name'] ?? null, $code), null, null, $rent);
+            $mall->parties->addBooth($code, MirrorFields::text($row['name'] ?? null, $code), null, null, null, $rent);
             $found = $mall->statements->bound('SELECT id::text AS id FROM booths WHERE code = ?', [$code]);
             $id = MirrorFields::text($found[0]['id'] ?? null);
             if ($id === '') {

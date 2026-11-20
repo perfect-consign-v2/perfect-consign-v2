@@ -14,6 +14,7 @@ final class BoothListFilter
      *   id: string,
      *   code: string,
      *   name: string,
+     *   location: ?string,
      *   width: int,
      *   depth: int,
      *   status: string,
@@ -33,6 +34,7 @@ final class BoothListFilter
      *   id: string,
      *   code: string,
      *   name: string,
+     *   location: ?string,
      *   width: int,
      *   depth: int,
      *   status: string,
@@ -57,7 +59,10 @@ final class BoothListFilter
         }
         $visible = [];
         foreach ($rows as $row) {
-            $named = str_contains(strtolower($row['code']), $needle) || str_contains(strtolower($row['name']), $needle);
+            $place = $row['location'] ?? '';
+            $named = str_contains(strtolower($row['code']), $needle)
+                || str_contains(strtolower($row['name']), $needle)
+                || str_contains(strtolower($place), $needle);
             if ($named) {
                 $visible[] = $row;
             }
@@ -89,6 +94,7 @@ final class BoothListFilter
      *   id: string,
      *   code: string,
      *   name: string,
+     *   location: ?string,
      *   width: int,
      *   depth: int,
      *   status: string,
@@ -108,6 +114,7 @@ final class BoothListFilter
      *   id: string,
      *   code: string,
      *   name: string,
+     *   location: ?string,
      *   width: int,
      *   depth: int,
      *   status: string,

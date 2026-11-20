@@ -34,6 +34,16 @@ BEGIN
     END IF;
 
     IF (
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'booths'
+          AND column_name = 'location'
+    ) <> 'text' THEN
+        RAISE EXCEPTION 'booth location is missing';
+    END IF;
+
+    IF (
         SELECT count(*)
         FROM information_schema.columns
         WHERE table_schema = current_schema()
@@ -384,6 +394,59 @@ BEGIN
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, location) VALUES ('blank-loc', 'Blank location', '');
+    RAISE EXCEPTION 'a blank booth location was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, location) VALUES ('pad-loc', 'Padded location', ' north');
+    RAISE EXCEPTION 'an untrimmed booth location was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, location) VALUES ('line-loc', 'Line location', E'north\nwall');
+    RAISE EXCEPTION 'a booth location with a line break was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO booths (code, name, location) VALUES ('long-loc', 'Long location', repeat('x', 201));
+    RAISE EXCEPTION 'a booth location over 200 characters was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        NULL;
+END $$;
+
+INSERT INTO booths (id, code, name, location)
+VALUES (
+    '01900000-0000-7000-8000-00000000021a',
+    'loc1',
+    'Located booth',
+    repeat('y', 200)
+);
+
+DO $$
+BEGIN
+    IF (
+        SELECT location FROM booths WHERE id = '01900000-0000-7000-8000-00000000021a'
+    ) IS DISTINCT FROM repeat('y', 200) THEN
+        RAISE EXCEPTION 'a booth location was not stored';
+    END IF;
 END $$;
 
 INSERT INTO booths (id, code, name, width_ft, depth_ft)

@@ -36,6 +36,7 @@ final class SchemaCatalog
         '098_booth_active.sql',
         '099_vendor_delete.sql',
         '100_booth_deposit_session.sql',
+        '101_booth_location.sql',
     ];
 
     public function __construct(private readonly string $directory)

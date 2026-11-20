@@ -29,6 +29,19 @@ final class BoothFields
         return ['width' => $width, 'depth' => $depth];
     }
 
+    public function location(): ?string
+    {
+        $value = trim($this->app->request()->field('location'));
+        if ($value === '') {
+            return null;
+        }
+        if (preg_match('/\R/u', $value) === 1 || preg_match('/^.{1,200}$/u', $value) !== 1) {
+            throw new \InvalidArgumentException('location is one line of at most 200 characters');
+        }
+
+        return $value;
+    }
+
     private function feet(string $value): int|false|null
     {
         if ($value === '') {

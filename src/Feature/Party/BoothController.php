@@ -47,6 +47,7 @@ final class BoothController
                 $this->app->request()->field('name'),
                 $size['width'],
                 $size['depth'],
+                $this->fields->location(),
                 $this->askingAmount()
             );
         });
@@ -74,7 +75,8 @@ final class BoothController
                 $this->app->request()->field('code'),
                 $this->app->request()->field('name'),
                 $size['width'],
-                $size['depth']
+                $size['depth'],
+                $this->fields->location()
             );
             $amount = $this->askingAmount();
             if ($amount !== null) {
@@ -197,6 +199,7 @@ final class BoothController
         $booth = [
             'code' => $this->app->request()->field('code'),
             'name' => $this->app->request()->field('name'),
+            'location' => $this->app->request()->field('location'),
             'width_ft' => $this->app->request()->field('width_ft'),
             'depth_ft' => $this->app->request()->field('depth_ft'),
             'amount' => $this->app->request()->field('amount'),

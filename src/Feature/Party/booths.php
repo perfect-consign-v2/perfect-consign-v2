@@ -16,7 +16,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var array{available: int, occupied: int, ending: int, incoming: int} $counts */
 /** @var string $confirm */
 /** @var int $total */
-/** @var list<array{id: string, code: string, name: string, width: int, depth: int, status: string, status_label: string, vendor_id: ?string, vendor_name: ?string, status_tip: ?string, incoming_vendor_id: ?string, incoming_vendor_code: ?string, incoming_tip: ?string, rent_minor: ?int, open_minor: ?int, placed: bool, deletable: bool}> $booths */
+/** @var list<array{id: string, code: string, name: string, location: ?string, width: int, depth: int, status: string, status_label: string, vendor_id: ?string, vendor_name: ?string, status_tip: ?string, incoming_vendor_id: ?string, incoming_vendor_code: ?string, incoming_tip: ?string, rent_minor: ?int, open_minor: ?int, placed: bool, deletable: bool}> $booths */
 
 $blank = '—';
 $list = '/' . $slug . '/booths';
@@ -101,6 +101,7 @@ $legend = [
             ListTable::head([
                 ['label' => 'Custom ID'],
                 ['label' => 'Name'],
+                ['label' => 'Location'],
                 ['label' => 'Size'],
                 ['label' => 'Status'],
                 ['label' => 'Vendor'],
@@ -128,6 +129,13 @@ $legend = [
                     <tr id="booth-<?= View::text($booth['id']) ?>">
                         <td><a class="strong" href="/<?= View::text($slug) ?>/booths/<?= View::text($booth['id']) ?>/edit"><?= View::text($booth['code']) ?></a></td>
                         <td><?= View::text($booth['name']) ?></td>
+                        <td>
+                            <?php if ($booth['location'] === null || $booth['location'] === ''): ?>
+                                <span class="muted"><?= $blank ?></span>
+                            <?php else: ?>
+                                <?= View::text($booth['location']) ?>
+                            <?php endif; ?>
+                        </td>
                         <td class="tnum"><?= View::text($booth['width']) ?> × <?= View::text($booth['depth']) ?> ft</td>
                         <td>
                             <?php

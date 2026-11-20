@@ -20,6 +20,7 @@ $heading = $editing ? 'Edit booth' : 'New booth';
 $crumb = $editing && is_string($code) && $code !== '' ? $code : 'New';
 $width = is_array($booth) ? ($booth['width_ft'] ?? '') : '';
 $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
+$location = is_array($booth) ? ($booth['location'] ?? '') : '';
 ?>
 <div class="page-head">
     <div class="titles">
@@ -44,6 +45,10 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
                 <label for="name">Name</label>
                 <input class="input" id="name" name="name" value="<?= View::text(is_array($booth) ? ($booth['name'] ?? '') : '') ?>" required>
             </div>
+            <div class="field span-2">
+                <label for="location">Location</label>
+                <input class="input" id="location" name="location" maxlength="200" value="<?= View::text($location) ?>">
+            </div>
             <div class="field">
                 <label for="width_ft">Width (ft)</label>
                 <input class="input" id="width_ft" name="width_ft" inputmode="numeric" value="<?= View::text($width) ?>" placeholder="<?= View::text($defaultWidth) ?>">
@@ -61,7 +66,7 @@ $depth = is_array($booth) ? ($booth['depth_ft'] ?? '') : '';
     <div class="card">
         <div class="card-head"><div class="h3">Notes</div></div>
         <div class="card-body">
-            <p class="muted text-sm">Leave the size empty to use the mall default, <?= View::text($defaultWidth) ?> by <?= View::text($defaultDepth) ?> feet. Asking rent is the price copied onto the next assignment. Delete a booth only while no assignment, rate, or posted rent uses it.</p>
+            <p class="muted text-sm">Location is one line and may be empty. Leave the size empty to use the mall default, <?= View::text($defaultWidth) ?> by <?= View::text($defaultDepth) ?> feet. Asking rent is the price copied onto the next assignment. Delete a booth only while no assignment, rate, or posted rent uses it.</p>
         </div>
         <div class="card-foot row between">
             <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/booths">Cancel</a>

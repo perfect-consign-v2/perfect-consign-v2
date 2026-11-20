@@ -27,6 +27,7 @@ final class BoothRoster
      *   id: string,
      *   code: string,
      *   name: string,
+     *   location: ?string,
      *   width: int,
      *   depth: int,
      *   status: string,
@@ -80,6 +81,7 @@ final class BoothRoster
      *   id: string,
      *   code: string,
      *   name: string,
+     *   location: ?string,
      *   width: int,
      *   depth: int,
      *   status: string,
@@ -119,6 +121,7 @@ final class BoothRoster
             'id' => $id,
             'code' => $this->text($booth['code'] ?? null),
             'name' => $this->text($booth['name'] ?? null),
+            'location' => $this->place($booth['location'] ?? null),
             'width' => $size['width'],
             'depth' => $size['depth'],
             'status' => $spot['status'],
@@ -186,6 +189,18 @@ final class BoothRoster
     private function text(mixed $value): string
     {
         if (!is_string($value) || $value === '') {
+            throw new InvalidArgumentException('a booth field is missing');
+        }
+
+        return $value;
+    }
+
+    private function place(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_string($value)) {
             throw new InvalidArgumentException('a booth field is missing');
         }
 

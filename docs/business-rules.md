@@ -30,6 +30,8 @@ A vendor with open rent cannot be made Inactive. Open rent is a positive rent re
 
 A booth is Active or Inactive. That is whether the booth is offered. It is not the same fact as who holds it. The booth list opens on Active. Inactive booths are on the Inactive list. Make inactive is on an empty booth and on that booth's row. Make active is on an inactive booth and on the Inactive list, and it offers the booth again. Making a booth Inactive hides it from that default list, from the assignment choices, and from the map. A current or scheduled assignment refuses Inactive until that assignment ends, and those booths do not show Make inactive. Open rent on a booth whose assignment has ended does not by itself refuse Inactive.
 
+A booth location may be empty. When it is present, it is one line of at most 200 characters, with no leading or trailing space and no line break. The add and edit forms take it, and the booth list shows it. An empty location shows as a blank on that list.
+
 Booth rent can be turned off. While it is off, the mall does not post a rent charge, pay-vendors does not take rent from the check, and the booth, rent, wait list, and map pages stay closed. The Collect rent button on the register is hidden too. A consignment-only store hides the same rent and booth screens. Turning booth rent off is refused while a booth still owes rent.
 
 Consignment and store stock are separate switches. At least one of booth rent, consignment, and store stock stays on. Turning consignment off is refused while a consigned item is still on hand. Turning store stock off is refused while a store item is still on hand. Days on the floor save only while consignment is on. Empty days still mean consigned items do not expire.

@@ -1,7 +1,7 @@
 ---
 title: Booth Active vs Inactive
 category: Vendors and booths
-hesk: published 2026-11-19
+hesk: published 2026-11-20
 as_of: 2026-11-17
 ---
 
@@ -42,4 +42,5 @@ Open an empty booth: Status has Make inactive, and its row on the Active list do
 ## Related
 
 - Vendor Active vs booth assignment vs Unassigned
+- Booth location
 - Booth / consignment / store-stock switches

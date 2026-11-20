@@ -610,6 +610,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: var(--text-base
 .gap-4 { gap: var(--space-4); }
 .wrap { flex-wrap: wrap; }
 .grid { display: grid; gap: var(--space-5); }
+.cols-2 > .span-2,
+.cols-3 > .span-2,
+.cols-4 > .span-2 { grid-column: 1 / -1; }
 .cols-2, .cols-3, .cols-4, .form-split, .split-aside { grid-template-columns: 1fr; }
 .mt-2 { margin-top: var(--space-2); }
 .mt-4 { margin-top: var(--space-4); }

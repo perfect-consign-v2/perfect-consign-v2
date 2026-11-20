@@ -150,15 +150,15 @@ final class PartyStoreBranchesTest extends TestCase
         self::assertSame(self::VENDOR, $store->addVendor(new VendorDraft($this->fields(), null)));
         self::assertTrue($usedTransaction);
         $usedTransaction = false;
-        $store->addBooth('A1', 'North', 10, 8, null);
+        $store->addBooth('A1', 'North', 10, 8, null, null);
         self::assertFalse($usedTransaction);
-        $store->addBooth('A2', 'South', null, null, 2500);
+        $store->addBooth('A2', 'South', null, null, 'South hall', 2500);
         self::assertTrue($usedTransaction);
         $store->setPayoutMode(self::VENDOR, 'nope');
         self::assertSame(['pay', self::VENDOR], $payout);
         $store->setPayoutMode(self::VENDOR, 'hold');
         self::assertSame(['hold', self::VENDOR], $payout);
-        $store->saveBooth(self::BOOTH, 'A1', 'North wing', 10, 8);
+        $store->saveBooth(self::BOOTH, 'A1', 'North wing', 10, 8, 'North wall');
         $store->removeBooth(self::BOOTH);
         $store->removeVendor(self::VENDOR);
     }

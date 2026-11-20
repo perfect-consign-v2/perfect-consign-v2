@@ -34,6 +34,50 @@ final class BoothFloorMallCoverageTest extends WebTestCase
         self::assertSees("Today's sales", $signedIn);
     }
 
+    public function testABoothLocationShowsOnTheFormAndTheList(): void
+    {
+        $tag = bin2hex(random_bytes(3));
+        $code = 'l' . $tag;
+        $name = 'Located ' . $tag;
+        $place = 'North wall ' . $tag;
+        $form = $this->client->get('/' . self::SLUG . '/booths/new');
+        self::assertSees('Location', $form);
+        $broken = $this->client->post('/' . self::SLUG . '/booths', [
+            'code' => $code,
+            'name' => $name,
+            'location' => "North\nwall",
+        ]);
+        self::assertSees('location is one line of at most 200 characters', $broken);
+        $long = $this->client->post('/' . self::SLUG . '/booths', [
+            'code' => $code,
+            'name' => $name,
+            'location' => str_repeat('x', 201),
+        ]);
+        self::assertSees('location is one line of at most 200 characters', $long);
+        $created = $this->client->post('/' . self::SLUG . '/booths', [
+            'code' => $code,
+            'name' => $name,
+            'location' => '  ' . $place . '  ',
+        ]);
+        self::assertSees('Booth created.', $created);
+        self::assertSees('Location', $created);
+        self::assertSees($place, $created);
+        $id = HtmlPage::taggedId($created->body, 'tr', 'booth', $code);
+        $edit = $this->client->get('/' . self::SLUG . '/booths/' . $id . '/edit');
+        self::assertStringContainsString('id="location" name="location" maxlength="200" value="' . $place . '"', $edit->body);
+        $cleared = $this->client->post('/' . self::SLUG . '/booths/' . $id, [
+            'code' => $code,
+            'name' => $name,
+            'location' => '   ',
+        ]);
+        self::assertSees('Booth saved.', $cleared);
+        $again = $this->client->get('/' . self::SLUG . '/booths/' . $id . '/edit');
+        self::assertStringContainsString('id="location" name="location" maxlength="200" value=""', $again->body);
+        $row = $this->client->get('/' . self::SLUG . '/booths');
+        self::assertStringContainsString('id="booth-' . $id . '"', $row->body);
+        self::assertStringNotContainsString($place, $row->body);
+    }
+
     public function testBoothExtrasChargeDepositAndRelease(): void
     {
         $page = $this->client->get('/' . self::SLUG . '/booth-extras');

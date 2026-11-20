@@ -177,7 +177,7 @@ final class PartyCoverageTest extends TestCase
             self::assertSame('that vendor is not in this mall', $error->getMessage());
         }
         try {
-            $store->saveBooth('00000000-0000-7000-8000-000000000001', 'A1', 'North', 10, 10);
+            $store->saveBooth('00000000-0000-7000-8000-000000000001', 'A1', 'North', 10, 10, null);
             self::fail('a missing booth was saved');
         } catch (InvalidArgumentException $error) {
             self::assertSame('that booth is not in this mall', $error->getMessage());
@@ -189,7 +189,7 @@ final class PartyCoverageTest extends TestCase
             self::assertSame('that booth is not in this mall', $error->getMessage());
         }
         try {
-            $store->addBooth('A1', 'North', 10, 10, 1000);
+            $store->addBooth('A1', 'North', 10, 10, null, 1000);
             self::fail('an empty booth insert was accepted');
         } catch (InvalidArgumentException $error) {
             self::assertSame('that booth was not created', $error->getMessage());
@@ -375,7 +375,7 @@ final class PartyCoverageTest extends TestCase
         }
         $usedTransaction = false;
         try {
-            $store->addBooth('A1', 'North', 10, 10, null);
+            $store->addBooth('A1', 'North', 10, 10, null, null);
             self::fail('a numeric booth id was accepted');
         } catch (InvalidArgumentException $error) {
             self::assertSame('that booth was not created', $error->getMessage());
