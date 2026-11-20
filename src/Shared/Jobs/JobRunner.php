@@ -19,6 +19,7 @@ final class JobRunner
         private readonly JobSchedule $schedule,
         private readonly JobDispatch $jobs,
         private readonly WorkerRuns $runs,
+        private readonly JobAttention $attention,
     ) {
     }
 
@@ -60,7 +61,19 @@ final class JobRunner
                 }
             }
         } finally {
+            $this->reportAttention();
             $this->runs->completePass($worker, $finished, $failed);
+        }
+    }
+
+    private function reportAttention(): void
+    {
+        try {
+            $this->attention->report();
+        } catch (\Throwable $error) {
+            $this->logger->error('job attention was not sent', MailDeliveryFailed::context($error, [
+                'message' => $error->getMessage(),
+            ]));
         }
     }
 

@@ -13,6 +13,7 @@ final class SchemaCatalog
     public const PLATFORM = [
         '000_platform.sql',
         '094_wipe_keeps_reset_history.sql',
+        '102_job_attention.sql',
     ];
 
     /** @var list<string> */

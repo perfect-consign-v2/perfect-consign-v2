@@ -9,7 +9,7 @@ as_of: 2026-11-19
 
 ## As of
 
-2026-11-19 — outside production, deleting a store asks for the slug only. Production still requires a second platform admin and a recent owner backup.
+2026-11-19 — Mail worker lists each open job and each job given up after five attempts, warns when the heartbeat is older than two minutes, and shows whether site SMTP and platform Gmail are set. A worker pass emails the platform admin once for a job still open more than fifteen minutes past due, and once when a job is given up. Outside production, deleting a store asks for the slug only. Production still requires a second platform admin and a recent owner backup.
 
 ## In one sentence
 
@@ -31,7 +31,7 @@ You operate Perfect Consign across malls, not while ringing a sale as a cashier.
 - Admin sign-in lockout: five failures for the same email+address, forty spray failures from one address, twenty failures for one email across addresses (fifteen-minute window); stale failure rows prune on insert.
 - Gmail/SMTP send failures are logged with the server's reply text and emailed to `STALL_PLATFORM_ADMIN_EMAIL`. The notice includes that reply.
 - Uncaught exceptions and fatal errors (HTTP 500) are logged and emailed to that same address.
-- Mail worker shows whether `STALL_WORKER_PASSWORD` is set, last `php bin/work.php` run, waiting outbox mail, and a prune/clear run log.
+- Mail worker shows whether `STALL_WORKER_PASSWORD` is set, whether the last `php bin/work.php` heartbeat is missing or older than two minutes, whether site SMTP and platform Gmail are set, each open job (store, kind, due time, attempts, subject, recipients, transport, last error), jobs given up after five attempts, waiting outbox mail, and a prune/clear run log. A worker pass emails `STALL_PLATFORM_ADMIN_EMAIL` once when a job stays open more than fifteen minutes past due, and once when a job is given up. A stopped worker cannot send that mail. The host runs `php bin/work.php --forever`.
 - App log shows the newest slice of `var/log/app.log` (signup failures and other PSR-3 errors) and can empty that file; clear is audited.
 
 ## What is refused

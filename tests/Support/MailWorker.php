@@ -8,6 +8,7 @@ use PerfectApp\Logger\FileLogger;
 use PerfectConsign\Feature\Mall\ReceiptMailSettings;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Jobs\DigestJob;
+use PerfectConsign\Shared\Jobs\JobAttention;
 use PerfectConsign\Shared\Jobs\JobDispatch;
 use PerfectConsign\Shared\Jobs\JobQueue;
 use PerfectConsign\Shared\Jobs\JobRunner;
@@ -82,6 +83,7 @@ final class MailWorker
                     ),
                 ),
                 new WorkerRuns($pdo),
+                new JobAttention($pdo, $mail, new PlatformMailbox($mail, $gmail, $notices), $notices),
             );
             $runner->pass('test-mail');
         } finally {

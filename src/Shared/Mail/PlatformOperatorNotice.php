@@ -79,6 +79,29 @@ final class PlatformOperatorNotice
         $this->alert('Perfect Consign: server error', implode("\n", $lines) . "\n");
     }
 
+    /**
+     * True when the notice was sent, or when there is no platform admin address.
+     * False when a notice is already in flight. A failed send throws.
+     */
+    public function reportJobs(string $subject, string $body): bool
+    {
+        if (self::$sending) {
+            return false;
+        }
+        $to = $this->adminEmail();
+        if ($to === null) {
+            return true;
+        }
+        self::$sending = true;
+        try {
+            $this->deliver($to, $subject, $body);
+        } finally {
+            self::$sending = false;
+        }
+
+        return true;
+    }
+
     private function alert(string $subject, string $body): void
     {
         if (self::$sending) {

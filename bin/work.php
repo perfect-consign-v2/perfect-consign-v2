@@ -9,6 +9,7 @@ loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
 
 use PerfectApp\Logger\FileLogger;
 use PerfectConsign\Shared\Jobs\DigestJob;
+use PerfectConsign\Shared\Jobs\JobAttention;
 use PerfectConsign\Shared\Jobs\JobDispatch;
 use PerfectConsign\Shared\Jobs\JobQueue;
 use PerfectConsign\Shared\Jobs\JobRunner;
@@ -78,6 +79,7 @@ $runner = new JobRunner(
         ),
     ),
     new WorkerRuns($pdo),
+    new JobAttention($pdo, $mail, new PlatformMailbox($mail, $gmail, $notices), $notices),
 );
 $forever = in_array('--forever', $argv, true);
 do {

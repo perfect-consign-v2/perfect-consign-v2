@@ -24,6 +24,7 @@ use PerfectConsign\Feature\Signup\StoreSignup;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Shared\Jobs\JobAttention;
 use PerfectConsign\Shared\Jobs\WorkerRuns;
 use PerfectConsign\Shared\Mail\GmailSender;
 use PerfectConsign\Shared\Mail\OutboundMail;
@@ -218,6 +219,8 @@ final class AdminSurfaceCoverageTest extends TestCase
         $seen = $this->shown(function (): void {
             $this->worker($this->request('GET', '/admin/worker', []), [
                 'seen_at' => '2026-11-12 01:00',
+                'worker' => 'mail',
+                'worker_stale' => 'f',
                 'last_jobs_finished' => 4,
                 'last_jobs_failed' => 0,
             ], [[
@@ -370,6 +373,12 @@ final class AdminSurfaceCoverageTest extends TestCase
         });
         $pdo->method('prepare')->willReturnCallback(function (string $sql) use ($runs, &$days): PDOStatement {
             $statement = $this->createStub(PDOStatement::class);
+            if (str_contains($sql, 'job_attention')) {
+                $statement->method('execute')->willReturn(true);
+                $statement->method('fetch')->willReturn(false);
+
+                return $statement;
+            }
             if (str_contains($sql, 'make_interval')) {
                 $statement->method('execute')->willReturnCallback(static function (array $params) use (&$days): bool {
                     $days = $params[0];
@@ -393,7 +402,15 @@ final class AdminSurfaceCoverageTest extends TestCase
             return $statement;
         });
 
-        return new AdminWorkerController($this->app($request, $this->adminPdo()), new WorkerRuns($pdo));
+        $logger = new NullLogger();
+        $mail = new OutboundMail($logger);
+        $notices = new PlatformOperatorNotice($logger);
+
+        return new AdminWorkerController(
+            $this->app($request, $this->adminPdo()),
+            new WorkerRuns($pdo),
+            new JobAttention($pdo, $mail, new PlatformMailbox($mail, new GmailSender($notices), $notices), $notices),
+        );
     }
 
     private function stores(Request $request): AdminTenantCreateController

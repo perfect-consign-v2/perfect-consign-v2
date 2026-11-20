@@ -172,11 +172,15 @@ final class WorkerRunsTest extends TestCase
         $this->password('secret');
         $withBeat = (new WorkerRuns($this->statusPdo([
             'seen_at' => '2026-11-12 01:00',
+            'worker' => 'work',
+            'worker_stale' => 't',
             'last_jobs_finished' => 4,
             'last_jobs_failed' => '0',
         ], 3, 5)))->status();
         self::assertTrue($withBeat['password_configured']);
         self::assertSame('2026-11-12 01:00', $withBeat['last_seen_at']);
+        self::assertSame('work', $withBeat['last_worker']);
+        self::assertTrue($withBeat['worker_stale']);
         self::assertSame(4, $withBeat['last_jobs_finished']);
         self::assertSame(0, $withBeat['last_jobs_failed']);
         self::assertSame(3, $withBeat['waiting_mail']);
@@ -187,6 +191,8 @@ final class WorkerRunsTest extends TestCase
         $missing = (new WorkerRuns($this->statusPdo(false, 0, 0)))->status();
         self::assertFalse($missing['password_configured']);
         self::assertSame('', $missing['last_seen_at']);
+        self::assertSame('', $missing['last_worker']);
+        self::assertFalse($missing['worker_stale']);
         self::assertSame(0, $missing['last_jobs_finished']);
         self::assertSame(0, $missing['last_jobs_failed']);
     }

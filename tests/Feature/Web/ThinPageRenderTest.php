@@ -14,15 +14,9 @@ final class ThinPageRenderTest extends TestCase
         $view = new View(dirname(__DIR__, 3) . '/src');
         $missing = $this->capture($view, 'Feature/Admin/worker', [
             'csrf' => 'tok',
-            'status' => [
-                'password_configured' => false,
-                'last_seen_at' => '',
-                'last_jobs_finished' => 0,
-                'last_jobs_failed' => 0,
-                'waiting_mail' => 1,
-                'overdue_jobs' => 2,
-                'auto_prune_days' => 14,
-            ],
+            'status' => $this->workerStatus(false, '', '', false),
+            'queue' => [],
+            'givenUp' => [],
             'runs' => [],
         ]);
         self::assertStringContainsString('STALL_WORKER_PASSWORD', $missing);
@@ -31,15 +25,9 @@ final class ThinPageRenderTest extends TestCase
 
         $idle = $this->capture($view, 'Feature/Admin/worker', [
             'csrf' => 'tok',
-            'status' => [
-                'password_configured' => true,
-                'last_seen_at' => '',
-                'last_jobs_finished' => 0,
-                'last_jobs_failed' => 0,
-                'waiting_mail' => 0,
-                'overdue_jobs' => 0,
-                'auto_prune_days' => 14,
-            ],
+            'status' => $this->workerStatus(true, '', '', false),
+            'queue' => [],
+            'givenUp' => [],
             'runs' => [[
                 'id' => '1',
                 'worker' => 'mail',
@@ -54,15 +42,21 @@ final class ThinPageRenderTest extends TestCase
 
         $seen = $this->capture($view, 'Feature/Admin/worker', [
             'csrf' => 'tok',
-            'status' => [
-                'password_configured' => true,
-                'last_seen_at' => '2026-11-12 01:00',
-                'last_jobs_finished' => 4,
-                'last_jobs_failed' => 0,
-                'waiting_mail' => 0,
-                'overdue_jobs' => 0,
-                'auto_prune_days' => 14,
-            ],
+            'status' => $this->workerStatus(true, '2026-11-12 01:00', 'work', true),
+            'queue' => [[
+                'id' => '01900000-0000-7000-8000-00000000d203',
+                'tenant' => 'webprobe',
+                'kind' => 'vendor-letter',
+                'run_at' => '2026-11-19 06:20:51+00',
+                'finished_at' => '',
+                'attempts' => 0,
+                'error' => '',
+                'subject' => 'Sweep 5cc961',
+                'recipients' => '3a93a0@example.test',
+                'transport' => 'site SMTP missing',
+                'due' => true,
+            ]],
+            'givenUp' => [],
             'runs' => [[
                 'id' => '2',
                 'worker' => 'mail',
@@ -74,6 +68,43 @@ final class ThinPageRenderTest extends TestCase
         ]);
         self::assertStringContainsString('2026-11-12 01:01', $seen);
         self::assertStringNotContainsString('no heartbeat', $seen);
+        self::assertStringContainsString('Sweep 5cc961', $seen);
+        self::assertStringContainsString('3a93a0@example.test', $seen);
+        self::assertStringContainsString('site SMTP missing', $seen);
+        self::assertStringContainsString('The worker last ran at 2026-11-12 01:00 as work.', $seen);
+        self::assertStringContainsString('No jobs have been given up.', $seen);
+    }
+
+    /**
+     * @return array{
+     *     password_configured: bool,
+     *     last_seen_at: string,
+     *     last_worker: string,
+     *     worker_stale: bool,
+     *     last_jobs_finished: int,
+     *     last_jobs_failed: int,
+     *     waiting_mail: int,
+     *     overdue_jobs: int,
+     *     auto_prune_days: int,
+     *     site_smtp: bool,
+     *     platform_gmail: bool
+     * }
+     */
+    private function workerStatus(bool $password, string $seen, string $worker, bool $stale): array
+    {
+        return [
+            'password_configured' => $password,
+            'last_seen_at' => $seen,
+            'last_worker' => $worker,
+            'worker_stale' => $stale,
+            'last_jobs_finished' => 0,
+            'last_jobs_failed' => 0,
+            'waiting_mail' => 0,
+            'overdue_jobs' => 0,
+            'auto_prune_days' => 14,
+            'site_smtp' => false,
+            'platform_gmail' => false,
+        ];
     }
 
     public function testTheSalesTaxPagePrintsAndLists(): void

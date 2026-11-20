@@ -10,9 +10,13 @@ use PerfectConsign\Feature\Mall\ReceiptMailSettings;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Jobs\DigestJob;
 use PerfectConsign\Shared\Jobs\JobDispatch;
+use PerfectConsign\Shared\Jobs\JobAttention;
 use PerfectConsign\Shared\Jobs\JobQueue;
 use PerfectConsign\Shared\Jobs\JobRunner;
 use PerfectConsign\Shared\Jobs\JobSchedule;
+use PerfectConsign\Shared\Mail\GmailSender;
+use PerfectConsign\Shared\Mail\PlatformMailbox;
+use PerfectConsign\Shared\Mail\PlatformOperatorNotice;
 use PerfectConsign\Shared\Jobs\LateFeeJob;
 use PerfectConsign\Shared\Jobs\MarkdownJob;
 use PerfectConsign\Shared\Jobs\OutboundMailJob;
@@ -214,13 +218,23 @@ final class JobDispatchTest extends TestCase
 
     private function runner(PDO $pdo): JobRunner
     {
+        $logger = $this->createStub(LoggerInterface::class);
+        $mail = new OutboundMail($logger);
+        $notices = new PlatformOperatorNotice($logger);
+
         return new JobRunner(
             $pdo,
             new JobQueue(),
-            $this->createStub(LoggerInterface::class),
-            new JobSchedule($pdo, new JobQueue(), $this->createStub(LoggerInterface::class)),
+            $logger,
+            new JobSchedule($pdo, new JobQueue(), $logger),
             $this->jobs($pdo),
             new \PerfectConsign\Shared\Jobs\WorkerRuns($pdo),
+            new JobAttention(
+                $pdo,
+                $mail,
+                new PlatformMailbox($mail, new GmailSender($notices), $notices),
+                $notices,
+            ),
         );
     }
 

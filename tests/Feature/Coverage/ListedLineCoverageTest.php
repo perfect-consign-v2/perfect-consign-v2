@@ -99,6 +99,7 @@ use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Jobs\DigestJob;
 use PerfectConsign\Shared\Jobs\JobDispatch;
 use PerfectConsign\Shared\Jobs\JobQueue;
+use PerfectConsign\Shared\Jobs\JobAttention;
 use PerfectConsign\Shared\Jobs\JobRunner;
 use PerfectConsign\Shared\Jobs\JobSchedule;
 use PerfectConsign\Shared\Jobs\LateFeeJob;
@@ -1111,6 +1112,12 @@ final class ListedLineCoverageTest extends TestCase
             new JobSchedule($runnerPdo, new JobQueue(), $this->createStub(LoggerInterface::class)),
             $dispatch,
             new WorkerRuns($runnerPdo),
+            new JobAttention(
+                $runnerPdo,
+                new OutboundMail($this->createStub(LoggerInterface::class)),
+                $this->platformMailbox(),
+                new PlatformOperatorNotice($this->createStub(LoggerInterface::class)),
+            ),
         );
         try {
             $runner->handle($this->claimed('platform', 'assess-late-fees', 1));
@@ -1901,6 +1908,12 @@ final class ListedLineCoverageTest extends TestCase
                 new OutboundMailJob(new MailOutbox($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), $this->platformMailbox()),
             ),
             new WorkerRuns($pdo),
+            new JobAttention(
+                $pdo,
+                new OutboundMail($this->createStub(LoggerInterface::class)),
+                $this->platformMailbox(),
+                new PlatformOperatorNotice($this->createStub(LoggerInterface::class)),
+            ),
         );
         $runner->pass('worker');
         self::assertSame(2, $claims);

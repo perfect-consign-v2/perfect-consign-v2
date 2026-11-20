@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
+use PerfectConsign\Feature\Mall\MallGuard;
 use PerfectConsign\Shared\Scalar\RowValue;
 use RuntimeException;
 
@@ -126,6 +127,8 @@ final class WorkerRuns
      * @return array{
      *     password_configured: bool,
      *     last_seen_at: string,
+     *     last_worker: string,
+     *     worker_stale: bool,
      *     last_jobs_finished: int,
      *     last_jobs_failed: int,
      *     waiting_mail: int,
@@ -137,7 +140,8 @@ final class WorkerRuns
     {
         $password = getenv('STALL_WORKER_PASSWORD');
         $last = $this->pdo->query(
-            'SELECT seen_at::text AS seen_at, last_jobs_finished, last_jobs_failed
+            'SELECT worker, seen_at::text AS seen_at, last_jobs_finished, last_jobs_failed,
+                    (seen_at < clock_timestamp() - interval \'2 minutes\') AS worker_stale
              FROM platform.worker_heartbeat
              ORDER BY seen_at DESC
              LIMIT 1'
@@ -156,6 +160,8 @@ final class WorkerRuns
         return [
             'password_configured' => is_string($password) && $password !== '',
             'last_seen_at' => is_array($row) ? RowValue::string($row['seen_at'] ?? null) : '',
+            'last_worker' => is_array($row) ? RowValue::string($row['worker'] ?? null) : '',
+            'worker_stale' => is_array($row) && MallGuard::flag($row['worker_stale'] ?? false),
             'last_jobs_finished' => is_array($row)
                 ? RowValue::integer($row['last_jobs_finished'] ?? 0)
                 : 0,

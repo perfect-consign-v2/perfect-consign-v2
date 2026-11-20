@@ -33,7 +33,11 @@ final class SchemaCatalogTest extends TestCase
             '101_booth_location.sql',
         ], $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
-        self::assertSame(['000_platform.sql', '094_wipe_keeps_reset_history.sql'], $platform);
+        self::assertSame([
+            '000_platform.sql',
+            '094_wipe_keeps_reset_history.sql',
+            '102_job_attention.sql',
+        ], $platform);
         self::assertSame([], $catalog->platformAfterFiles());
         $checksum = $catalog->checksum('001_tenant.sql');
         self::assertSame(64, strlen($checksum));

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Shared\Jobs\JobAttention;
 use PerfectConsign\Shared\Jobs\WorkerRuns;
 
 final class AdminWorkerController
@@ -12,6 +13,7 @@ final class AdminWorkerController
     public function __construct(
         private readonly AdminApp $app,
         private readonly WorkerRuns $runs,
+        private readonly JobAttention $jobs,
     ) {
     }
 
@@ -19,9 +21,14 @@ final class AdminWorkerController
     public function index(): void
     {
         $this->app->requireAdmin();
+        $status = $this->runs->status();
+        $status['site_smtp'] = $this->jobs->siteReady();
+        $status['platform_gmail'] = $this->jobs->gmailReady();
         $this->app->show('Feature/Admin/worker', [
             'title' => 'Mail worker',
-            'status' => $this->runs->status(),
+            'status' => $status,
+            'queue' => $this->jobs->open(),
+            'givenUp' => $this->jobs->givenUp(),
             'runs' => $this->runs->recent(100),
         ]);
     }
