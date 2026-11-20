@@ -57,7 +57,7 @@ foreach ($ledgerFiles as $path) {
     if (str_contains($sql, "set_config('event_triggers'") && !eventTriggerWipeAllowlist($file)) {
         $failures[] = $file . ' uses set_config event_triggers outside an allowlisted wipe migration';
     }
-    if (eventTriggersLeftOff($sql)) {
+    if (eventTriggersLeftOff($sql) && !stampedFileRestoredByProvisioner($file, $root)) {
         $failures[] = $file . ' leaves event triggers off';
     }
     if (!isset($tenantFiles[$file])) {
@@ -108,6 +108,32 @@ if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath((string) $argv[0]) === rea
 function eventTriggerWipeAllowlist(string $file): bool
 {
     return $file === '000_platform.sql';
+}
+
+function stampedFileRestoredByProvisioner(string $file, string $root): bool
+{
+    if ($file !== '100_booth_deposit_session.sql') {
+        return false;
+    }
+    $schema = $root . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Schema' . DIRECTORY_SEPARATOR;
+    $provisioner = readSql($schema . 'TenantProvisioner.php');
+    $migrator = readSql($schema . 'TenantMigrator.php');
+    $ledger = methodBody($provisioner, 'function applyLedger', 'function rewrite');
+    $transaction = methodBody($migrator, 'function transaction', 'function roleName');
+
+    return str_contains($ledger, "SET LOCAL event_triggers = true")
+        && str_contains($transaction, "SET LOCAL event_triggers = true");
+}
+
+function methodBody(string $source, string $startMarker, string $endMarker): string
+{
+    $start = strpos($source, $startMarker);
+    $end = $start === false ? false : strpos($source, $endMarker, $start + strlen($startMarker));
+    if ($start === false || $end === false || $end <= $start) {
+        return '';
+    }
+
+    return substr($source, $start, $end - $start);
 }
 
 function eventTriggersLeftOff(string $sql): bool

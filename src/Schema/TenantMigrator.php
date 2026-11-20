@@ -104,6 +104,9 @@ final class TenantMigrator
         }
         try {
             $work();
+            // A file such as 100 turns event triggers off for its own statements.
+            // The next file in an outer transaction still has to be guarded.
+            $this->pdo->exec('SET LOCAL event_triggers = true');
             if ($own) {
                 $this->pdo->commit();
             }

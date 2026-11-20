@@ -112,6 +112,10 @@ final class TenantProvisioner
                 throw new RuntimeException('could not read ' . $file);
             }
             $this->pdo->exec($this->rewrite($sql, $schema, $role));
+            // 100_booth_deposit_session.sql is already stamped, so it cannot
+            // gain the line that turns event triggers back on. This transaction
+            // applies every later file, and those files stay guarded.
+            $this->pdo->exec('SET LOCAL event_triggers = true');
         }
         (new SchemaMigrator(
             $this->pdo,
