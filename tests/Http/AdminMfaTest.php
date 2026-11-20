@@ -30,6 +30,8 @@ final class AdminMfaTest extends WebTestCase
         self::assertStringContainsString('Set up authenticator', $enroll->body);
         self::assertStringContainsString('PC2', $enroll->body);
         self::assertStringContainsString($email, $enroll->body);
+        self::assertStringContainsString('<svg', $enroll->body);
+        self::assertStringNotContainsString('otpauth://', $enroll->body);
         $secret = $this->secret($enroll->body);
         $confirmed = $client->post(AdminDoor::path('/mfa/enroll'), [
             'code' => Totp::codeForStep($secret, Totp::stepForTime(time())),

@@ -8,6 +8,7 @@ use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaChallenge;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaEnrollment;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
+use PerfectConsign\Feature\Admin\Mfa\SetupCode;
 
 final class AdminMfaController
 {
@@ -16,6 +17,7 @@ final class AdminMfaController
         private readonly AdminMfaPending $pending,
         private readonly AdminMfaEnrollment $enrollment,
         private readonly AdminMfaChallenge $challenge,
+        private readonly SetupCode $setup,
     ) {
     }
 
@@ -27,7 +29,7 @@ final class AdminMfaController
         if ($pending === null) {
             $this->app->redirect($this->app->url('/login'), 'That sign-in expired. Sign in again.');
         }
-        $this->showEnroll($pending['grouped'], $pending['email'], null);
+        $this->showEnroll($pending['secret'], $pending['grouped'], $pending['email'], null);
     }
 
     #[AdminRoute('/mfa/enroll', ['POST'])]
@@ -42,12 +44,12 @@ final class AdminMfaController
         try {
             $attempt = $this->enrollment->confirm($this->app->request()->field('code'), time());
         } catch (SignInLocked) {
-            $this->showEnroll($pending['grouped'], $pending['email'], 'Too many sign-in attempts. Try again in a few minutes.');
+            $this->showEnroll($pending['secret'], $pending['grouped'], $pending['email'], 'Too many sign-in attempts. Try again in a few minutes.');
 
             return;
         }
         if (!$attempt->opened()) {
-            $this->showEnroll($pending['grouped'], $pending['email'], $attempt->message());
+            $this->showEnroll($pending['secret'], $pending['grouped'], $pending['email'], $attempt->message());
 
             return;
         }
@@ -127,11 +129,12 @@ final class AdminMfaController
         }
     }
 
-    private function showEnroll(string $secret, string $email, ?string $error): void
+    private function showEnroll(string $secret, string $grouped, string $email, ?string $error): void
     {
         $this->app->showGuest('Feature/Admin/mfa-enroll', [
             'title' => 'Authenticator',
-            'secret' => $secret,
+            'secret' => $grouped,
+            'qr' => $this->setup->svg($this->setup->uri($email, $secret)),
             'email' => $email,
             'error' => $error,
         ]);

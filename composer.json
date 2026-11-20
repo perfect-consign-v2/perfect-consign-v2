@@ -1,14 +1,15 @@
 {
     "require": {
         "php": "^8.5",
-        "krubio/perfect-router": "^0.2.0",
-        "krubio/perfect-session": "^0.1.2",
-        "krubio/perfect-logger": "^0.1.0",
-        "krubio/perfect-database": "^0.1.0",
-        "krubio/perfect-container-psr-11": "^2.0",
-        "ext-pdo": "*",
         "ext-ctype": "*",
-        "ext-zip": "*"
+        "ext-pdo": "*",
+        "ext-zip": "*",
+        "chillerlan/php-qrcode": "^6.0",
+        "krubio/perfect-container-psr-11": "^2.0",
+        "krubio/perfect-database": "^0.1.0",
+        "krubio/perfect-logger": "^0.1.0",
+        "krubio/perfect-router": "^0.2.0",
+        "krubio/perfect-session": "^0.1.2"
     },
     "autoload": {
         "psr-4": {

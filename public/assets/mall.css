@@ -680,6 +680,8 @@ canvas { width: 100%; height: auto; background: #e7e2d6; border: 1px solid #cfc6
     background: var(--bg);
 }
 .login-wrap .panel { width: 100%; max-width: 420px; }
+.setup-qr { display: grid; justify-items: center; }
+.setup-qr svg { width: 12rem; height: auto; }
 
 .keep-lines { white-space: pre-wrap; }
 

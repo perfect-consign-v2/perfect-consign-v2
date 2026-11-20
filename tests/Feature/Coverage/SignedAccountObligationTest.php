@@ -27,6 +27,7 @@ use PerfectConsign\Feature\Admin\Mfa\AdminMfaFailures;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaLogin;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
+use PerfectConsign\Feature\Admin\Mfa\SetupCode;
 use PerfectConsign\Feature\Admin\Mfa\Totp;
 use PerfectConsign\Feature\Inventory\InventoryStore;
 use PerfectConsign\Feature\Inventory\ItemDates;
@@ -515,6 +516,7 @@ final class SignedAccountObligationTest extends TestCase
             $pending,
             new AdminMfaEnrollment($pending, $store, $failures, $login, $this->createStub(LoggerInterface::class)),
             new AdminMfaChallenge($pending, $store, $failures, $login, $this->createStub(LoggerInterface::class)),
+            new SetupCode($this->createStub(LoggerInterface::class)),
         );
     }
 

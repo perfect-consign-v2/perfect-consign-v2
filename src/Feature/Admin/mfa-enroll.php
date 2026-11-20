@@ -6,6 +6,7 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
 /** @var string $secret */
+/** @var string $qr */
 /** @var string $email */
 /** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 ?>
@@ -23,7 +24,8 @@ use PerfectConsign\Shared\Http\View;
             <form method="post" action="<?= View::text($adminPath->url('/mfa/enroll')) ?>">
                 <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <p class="text-sm">Add this key to the authenticator app for <?= View::text($email) ?>. The account name is that email. The issuer is PC2.</p>
+                    <p class="text-sm">Scan this code in the authenticator app for <?= View::text($email) ?>. The account name is that email. The issuer is PC2. If the camera cannot scan, enter the key below.</p>
+                    <div class="setup-qr"><?= $qr ?></div>
                     <p class="h2" data-style-prop="letter-spacing:0.04em"><?= View::text($secret) ?></p>
                     <div class="field">
                         <label for="code">Code from the app</label>
