@@ -1,8 +1,8 @@
 -- A cash booth deposit and its return name the open shift.
 -- register_session_posts_append_only binds stall_reject_session_post, so a
--- poster cannot replace that function. The migration role turns event
--- triggers off for this transaction, adds booth_deposit, and turns them
--- back on when the transaction ends.
+-- poster cannot replace that function. This file turns event triggers off
+-- only while those two functions are replaced, then turns them back on.
+-- A later statement in the same transaction stays guarded.
 
 SET LOCAL event_triggers = false;
 
@@ -113,3 +113,5 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+
+SET LOCAL event_triggers = true;

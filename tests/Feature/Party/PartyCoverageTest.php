@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Feature\Party;
 
 use InvalidArgumentException;
+use PerfectConsign\Feature\Party\AssignmentBook;
 use PerfectConsign\Feature\Party\BoothMeasures;
 use PerfectConsign\Feature\Party\MapStore;
 use PerfectConsign\Feature\Party\PartyIdentity;
@@ -120,7 +121,7 @@ final class PartyCoverageTest extends TestCase
         $statements->method('change');
         $store = new PartyStore(
             $statements,
-            QuietAudit::make($statements),
+            QuietAudit::owner($statements),
             new \PerfectConsign\Feature\Party\AssignmentBook($statements),
             new PartyIdentity($statements),
         );
@@ -329,7 +330,7 @@ final class PartyCoverageTest extends TestCase
             return $work();
         });
         $statements->method('bound')->willReturn([]);
-        $move = new VendorMove($statements);
+        $move = new VendorMove($statements, new AssignmentBook($statements), QuietAudit::make($statements));
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('That booth stay is already finished.');
         $move->move(

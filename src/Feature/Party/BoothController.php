@@ -15,12 +15,12 @@ final class BoothController
     public function __construct(
         private readonly MallApp $app,
         private readonly PartyStore $booths,
-        private readonly AssignmentBook $asking,
         private readonly MallSettings $mall,
         private readonly BoothRoster $roster,
         private readonly BoothListFilter $filter,
         private readonly BoothListStore $lists,
         private readonly BoothFields $fields,
+        private readonly BoothWrite $writes,
     ) {
     }
 
@@ -42,7 +42,7 @@ final class BoothController
         $this->app->checkCsrf();
         $this->change($slug, null, function (): void {
             $size = $this->fields->size();
-            $this->booths->addBooth(
+            $this->writes->addPricedBooth(
                 $this->app->request()->field('code'),
                 $this->app->request()->field('name'),
                 $size['width'],
@@ -70,18 +70,15 @@ final class BoothController
         $this->app->checkCsrf();
         $this->change($slug, $id, function () use ($id): void {
             $size = $this->fields->size();
-            $this->booths->saveBooth(
+            $this->writes->setBooth(
                 $id,
                 $this->app->request()->field('code'),
                 $this->app->request()->field('name'),
                 $size['width'],
                 $size['depth'],
-                $this->fields->location()
+                $this->fields->location(),
+                $this->askingAmount()
             );
-            $amount = $this->askingAmount();
-            if ($amount !== null) {
-                $this->asking->setAskingRent($id, $amount);
-            }
         });
     }
 
@@ -144,7 +141,7 @@ final class BoothController
             if ($amount === null) {
                 throw new \InvalidArgumentException('enter an asking rent');
             }
-            $this->asking->setAskingRent($id, $amount);
+            $this->writes->setBoothPrice($id, $amount);
         });
         if ($error !== null) {
             $booth = $this->booths->findBooth($id);
@@ -296,7 +293,7 @@ final class BoothController
         if (!is_string($id) || $id === '') {
             return $booth;
         }
-        $minor = $this->asking->askingRent($id);
+        $minor = $this->writes->askingRent($id);
         if ($minor !== null) {
             $booth['amount'] = \PerfectConsign\Shared\Http\View::money($minor);
         }

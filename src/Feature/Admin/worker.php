@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 /** @var array{
  *     password_configured: bool,
  *     last_seen_at: string,
@@ -177,12 +178,12 @@ $givenUp = is_array($givenUp ?? null) ? $givenUp : [];
     </div>
 </div>
 <div class="row gap-3 mt-4">
-    <form method="post" action="/admin/worker/prune">
+    <form method="post" action="<?= View::text($adminPath->url('/worker/prune')) ?>">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
         <input type="hidden" name="days" value="30">
         <button class="btn" type="submit">Prune older than 30 days</button>
     </form>
-    <form method="post" action="/admin/worker/clear">
+    <form method="post" action="<?= View::text($adminPath->url('/worker/clear')) ?>">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
         <button class="btn" type="submit">Clear entire run log</button>
     </form>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Party;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Feature\Party\AssignmentBook;
@@ -90,7 +91,7 @@ final class PartyControllerGapTest extends TestCase
 
     private function controller(MallDoor $door): PartyController
     {
-        $audit = new JournalAudit($door->actor, new AuditLog($door->statements));
+        $audit = QuietAudit::journal($door->statements, $door->actor);
         $stays = new AssignmentBook($door->statements);
         $parties = new PartyStore($door->statements, $audit, $stays);
         $roster = new VendorRoster(new VendorPlacement());

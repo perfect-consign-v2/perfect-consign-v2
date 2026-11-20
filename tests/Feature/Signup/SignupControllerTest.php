@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Signup;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use ArrayObject;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\ActiveRegister;
@@ -316,7 +317,7 @@ final class SignupControllerTest extends TestCase
             $pdo,
             $this->verificationSettings($verify),
             $this->limits(),
-            new AdminAudit($pdo, $request),
+            QuietAudit::admin($pdo, $request),
             $this->createStub(LoggerInterface::class),
         );
         $signup->useAdmin(static fn (): PDO => $admin);
@@ -507,7 +508,7 @@ final class SignupControllerTest extends TestCase
                 $pdo,
                 $settings,
                 $this->limits(),
-                new AdminAudit($pdo, $request),
+                QuietAudit::admin($pdo, $request),
                 $logger,
             ),
             $verification ?? new OwnerEmailVerification($pdo, $this->mailbox(), $this->audit(), $logger),
@@ -555,7 +556,7 @@ final class SignupControllerTest extends TestCase
         $pdo = $this->createStub(PDO::class);
         $pdo->method('prepare')->willReturn($statement);
 
-        return new AdminAudit($pdo, new Request('GET', '/signup', [], []));
+        return QuietAudit::admin($pdo, new Request('GET', '/signup', [], []));
     }
 
     private function confirmingVerification(): OwnerEmailVerification

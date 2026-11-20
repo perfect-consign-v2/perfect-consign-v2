@@ -33,7 +33,7 @@ final class ProbeServerPortTest extends TestCase
         if (isset($pipes[0]) && is_resource($pipes[0])) {
             fclose($pipes[0]);
         }
-        usleep(400000);
+        self::assertTrue($this->listening(), 'the stale server did not listen');
         try {
             $this->expectException(RuntimeException::class);
             $this->expectExceptionMessage('probe port 8099 is already in use');
@@ -54,5 +54,29 @@ final class ProbeServerPortTest extends TestCase
             }
             proc_close($stale);
         }
+    }
+
+    private function listening(): bool
+    {
+        $deadline = microtime(true) + 5;
+        while (microtime(true) < $deadline) {
+            $errno = 0;
+            $errstr = '';
+            $socket = false;
+            set_error_handler(static fn (): bool => true);
+            try {
+                $socket = stream_socket_client('tcp://127.0.0.1:8099', $errno, $errstr, 0.2);
+            } finally {
+                restore_error_handler();
+            }
+            if (is_resource($socket)) {
+                fclose($socket);
+
+                return true;
+            }
+            usleep(100000);
+        }
+
+        return false;
     }
 }

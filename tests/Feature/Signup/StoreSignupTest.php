@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Signup;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Signup\PlatformSettings;
 use PerfectConsign\Feature\Signup\SignupRateLimit;
+use PerfectConsign\Feature\Signup\SignupSlug;
 use PerfectConsign\Feature\Signup\StoreSignup;
 use PerfectConsign\Shared\Http\Request;
 use PDO;
@@ -141,20 +143,18 @@ final class StoreSignupTest extends TestCase
 
     public function testAUsernameIsTakenFromTheMailbox(): void
     {
-        $signup = $this->signup($this->createStub(PDO::class));
-        $username = new ReflectionMethod(StoreSignup::class, 'usernameFromEmail');
-        self::assertSame('owner', $username->invoke($signup, 'Owner@Harbor.test'));
-        self::assertSame('u123-shop', $username->invoke($signup, '123 shop@harbor.test'));
-        self::assertSame('u', $username->invoke($signup, '---@harbor.test'));
-        self::assertSame(str_repeat('a', 63), $username->invoke($signup, str_repeat('A', 80) . '@harbor.test'));
+        self::assertSame('owner', SignupSlug::username('Owner@Harbor.test'));
+        self::assertSame('u123-shop', SignupSlug::username('123 shop@harbor.test'));
+        self::assertSame('u', SignupSlug::username('---@harbor.test'));
+        self::assertSame(str_repeat('a', 63), SignupSlug::username(str_repeat('A', 80) . '@harbor.test'));
         self::assertSame(
             str_repeat('a', 62),
-            $username->invoke($signup, str_repeat('a', 62) . '-' . str_repeat('b', 20) . '@harbor.test'),
+            SignupSlug::username(str_repeat('a', 62) . '-' . str_repeat('b', 20) . '@harbor.test'),
         );
 
         foreach (['@harbor.test', 'owner'] as $email) {
             try {
-                $username->invoke($signup, $email);
+                SignupSlug::username($email);
                 self::fail($email);
             } catch (RuntimeException $error) {
                 self::assertSame('Enter a valid email address.', $error->getMessage());
@@ -267,7 +267,7 @@ final class StoreSignupTest extends TestCase
             $this->createStub(PDO::class),
             $this->settings('true'),
             $this->limits(0),
-            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $logger,
         );
         (new ReflectionMethod(StoreSignup::class, 'compensate'))->invoke($signup, $admin, 'cov-line');
@@ -333,7 +333,7 @@ final class StoreSignupTest extends TestCase
             $app,
             $this->settings('true'),
             $this->limits(0),
-            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $logger,
         );
         $signup->useAdmin(static fn (): PDO => $admin);
@@ -374,7 +374,7 @@ final class StoreSignupTest extends TestCase
             $pdo,
             $this->settings('true'),
             $this->limits(0),
-            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $logger,
         );
         $signup->useAdmin(static fn (): PDO => $pdo);
@@ -405,7 +405,7 @@ final class StoreSignupTest extends TestCase
             $pdo,
             $this->settings('true'),
             $this->limits(0),
-            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $this->createStub(LoggerInterface::class),
         );
         $signup->useAdmin(static fn (): PDO => $pdo);
@@ -443,7 +443,7 @@ final class StoreSignupTest extends TestCase
             $this->createStub(PDO::class),
             $this->settings('true'),
             $this->limits(0),
-            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $this->createStub(LoggerInterface::class),
         );
         $signup->useAdmin(static fn (): PDO => $admin);
@@ -463,7 +463,7 @@ final class StoreSignupTest extends TestCase
             $this->createStub(PDO::class),
             $this->settings('true'),
             $this->limits(0),
-            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $logger,
         );
         $signup->useAdmin(static function (): PDO {
@@ -490,7 +490,7 @@ final class StoreSignupTest extends TestCase
             $pdo,
             $settings ?? $this->settings('true'),
             $limits ?? $this->limits(0),
-            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $this->createStub(LoggerInterface::class),
         );
     }

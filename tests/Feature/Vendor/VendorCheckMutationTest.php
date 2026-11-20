@@ -132,7 +132,15 @@ final class VendorCheckMutationTest extends TestCase
                 if (str_contains($sql, 'assignment.starts_on')) {
                     return $this->stays();
                 }
-                if (str_contains($sql, 'payout_run_journals')) {
+                if (str_contains($sql, 'AS paid_on')) {
+                    return [[
+                        'run_id' => '00000000-0000-7000-8000-0000000000c1',
+                        'paid_on' => '2026-10-02',
+                        'check_minor' => 100,
+                        'check_number' => '9',
+                    ]];
+                }
+                if (str_contains($sql, 'settlement_journal_id')) {
                     return [$this->line('late_fee', 'vendor_payable', 0, 100, false)];
                 }
                 if (str_contains($sql, 'vendor_statement')) {
@@ -144,15 +152,6 @@ final class VendorCheckMutationTest extends TestCase
                         $this->line('sale', 'booth_rent_receivable', 500, 200, false),
                     ];
                 }
-                if (str_contains($sql, 'payout_run_lines')) {
-                    return [[
-                        'run_id' => '00000000-0000-7000-8000-0000000000c1',
-                        'paid_on' => '2026-10-02',
-                        'check_minor' => 100,
-                        'check_number' => '9',
-                    ]];
-                }
-
                 return [];
             }
 

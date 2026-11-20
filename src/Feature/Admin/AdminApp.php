@@ -22,7 +22,13 @@ final class AdminApp
         private readonly LoggerInterface $logger,
         private readonly AdminSession $admins,
         private readonly LoginSession $tenants,
+        private readonly AdminPath $paths,
     ) {
+    }
+
+    public function url(string $suffix): string
+    {
+        return $this->paths->url($suffix);
     }
 
     public function endSurface(): void
@@ -50,7 +56,7 @@ final class AdminApp
     {
         $current = $this->admins->current();
         if ($current === null) {
-            $this->redirect('/admin/login');
+            $this->redirect($this->url('/login'));
         }
         $statement = $this->pdo->prepare(
             'SELECT id::text AS id, email, credentials_version
@@ -61,7 +67,7 @@ final class AdminApp
         $row = $statement->fetch();
         if (!is_array($row)) {
             $this->endSurface();
-            $this->redirect('/admin/login');
+            $this->redirect($this->url('/login'));
         }
         $version = $row['credentials_version'] ?? null;
         if (is_int($version)) {
@@ -71,11 +77,11 @@ final class AdminApp
         $id = $row['id'] ?? null;
         if (!is_string($id) || !is_string($email) || !is_string($version) || $version !== $current['version']) {
             $this->endSurface();
-            $this->redirect('/admin/login');
+            $this->redirect($this->url('/login'));
         }
         if ($this->admins->stale(time())) {
             $this->endSurface();
-            $this->redirect('/admin/login');
+            $this->redirect($this->url('/login'));
         }
         $this->admins->touch();
 
@@ -90,6 +96,7 @@ final class AdminApp
             return;
         }
         $this->logger->warning('csrf token refused', ['path' => $this->request->path]);
+        $this->admins->clear();
         http_response_code(400);
         $this->showGuest('Feature/Admin/expired', [
             'title' => 'Form expired',
@@ -138,6 +145,7 @@ final class AdminApp
         $data['nav'] = ($data['nav'] ?? false) === true;
         $admin = $this->admins->current();
         $data['adminEmail'] = $admin['email'] ?? '';
+        $data['adminPath'] = $this->paths;
         $this->view->render('Feature/Admin/layout', $data + ['body' => $template]);
     }
 

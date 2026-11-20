@@ -148,6 +148,7 @@ final class ProbeServer
         }
         $env['STALL_MAIL_FILE'] = $mail;
         $env['STALL_PUBLIC_ORIGIN'] = 'http://127.0.0.1:' . $port;
+        $env['STALL_ADMIN_PATH'] = AdminDoor::prefix();
         $coverage = $env['PC_COVERAGE'] ?? '';
         if (is_string($coverage) && $coverage !== '') {
             // Unit tests may putenv(APP_ENV) before the first WebTestCase boots the

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Close;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -19,6 +20,7 @@ final class CloseController
         private readonly LedgerStore $ledger,
         private readonly CloseStore $close,
         private readonly MallSettings $mall,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -38,7 +40,10 @@ final class CloseController
         try {
             $movement = $this->close->periodMovement($periodId);
             if ($movement === []) {
-                $this->close->closeQuiet($periodId);
+                $this->audit->within(function () use ($periodId): void {
+                    $this->close->closeQuiet($periodId);
+                    $this->audit->record('year.close', 'period', $periodId);
+                });
                 $this->app->redirect('/' . $slug . '/close', 'Period closed.');
             }
             $lines = [];
@@ -68,12 +73,23 @@ final class CloseController
                 postingDate: $endsOn,
                 source: new JournalSource('period_close', $periodId, 'Period close'),
                 lines: $lines,
+                beforeCommit: function (string $journalId) use ($periodId): void {
+                    $this->auditClosed($journalId, $periodId);
+                },
             ));
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
             return;
         }
         $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Period closed.');
+    }
+
+    private function auditClosed(string $journalId, string $periodId): void
+    {
+        if ($journalId === '') {
+            throw new DatabaseRefusal('the period was not closed');
+        }
+        $this->audit->record('year.close', 'period', $periodId);
     }
 
     private function closeDate(string $periodId, string $posted): string

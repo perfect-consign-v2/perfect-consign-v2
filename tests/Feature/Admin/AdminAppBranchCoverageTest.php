@@ -7,6 +7,7 @@ namespace PerfectConsign\Tests\Feature\Admin;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Feature\Admin\AdminApp;
+use PerfectConsign\Feature\Admin\AdminPath;
 use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
@@ -289,6 +290,7 @@ final class AdminAppBranchCoverageTest extends TestCase
             new NullLogger(),
             new AdminSession($session),
             new LoginSession($session),
+            new AdminPath(\PerfectConsign\Tests\Support\AdminDoor::prefix()),
         );
     }
 }

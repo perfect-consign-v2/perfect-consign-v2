@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Payout;
 
 use PerfectApp\Routing\Route;
-use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallSettings;
@@ -20,7 +19,6 @@ final class PayoutController
         private readonly PartyStore $parties,
         private readonly PayoutSingle $single,
         private readonly MallSettings $mall,
-        private readonly ActiveRegister $register,
         private readonly MallClock $clock,
     ) {
     }
@@ -40,7 +38,7 @@ final class PayoutController
         $runId = $this->app->request()->field('run_id');
         $reason = trim($this->app->request()->field('reason'));
         try {
-            $this->single->undo($runId, $this->mall->today(), $this->register->ownerName(), $reason);
+            $this->single->undo($runId, $this->mall->today(), $reason);
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $vendorId, $this->app->catchRefusal($refusal));
 

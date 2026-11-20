@@ -41,14 +41,11 @@ final class MallTenantReset
         \wipeTenant($pdo, self::SLUG, self::SLUG);
         $provisioner = new \TenantProvisioner($pdo, $this->sqlDirectory());
         $schema = $provisioner->provision(self::SLUG, 'Mall');
-        try {
-            $this->keepProgress();
-            (new \MallDemo($pdo, $schema))->load();
-        } finally {
-            foreach ($owners as $owner) {
-                $this->restoreOwner($pdo, $owner);
-            }
+        $this->keepProgress();
+        foreach ($owners as $owner) {
+            $this->restoreOwner($pdo, $owner);
         }
+        (new \MallDemo($pdo, $schema))->load();
         (new ShopTenantReset())->load();
 
         return $schema;

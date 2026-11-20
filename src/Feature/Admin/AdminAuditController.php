@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectApp\Routing\Route;
 use PDO;
 use RuntimeException;
 
@@ -16,7 +15,7 @@ final class AdminAuditController
     ) {
     }
 
-    #[Route('/admin/audit', ['GET'])]
+    #[AdminRoute('/audit', ['GET'])]
     public function index(): void
     {
         $this->app->requireAdmin();
@@ -38,7 +37,7 @@ final class AdminAuditController
             $rows[] = $event;
         }
         $this->app->show('Feature/Admin/audit', [
-            'title' => 'Audit',
+            'title' => 'Operator audit',
             'events' => $rows,
         ]);
     }

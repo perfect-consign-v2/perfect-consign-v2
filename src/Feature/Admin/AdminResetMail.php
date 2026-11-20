@@ -14,6 +14,7 @@ final class AdminResetMail
         private readonly AdminResetTokens $tokens,
         private readonly PlatformMailbox $platformMail,
         private readonly LoggerInterface $logger,
+        private readonly AdminPath $paths,
     ) {
     }
 
@@ -33,7 +34,7 @@ final class AdminResetMail
         $token = $this->tokens->issue($row['id']);
         $body = "A password reset was requested for the Perfect Consign platform admin.\n\n"
             . "Open this link within 30 minutes:\n"
-            . $origin . '/admin/reset/' . $token . "\n\n"
+            . $origin . $this->paths->url('/reset/' . $token) . "\n\n"
             . "If you did not ask, you can ignore this message.\n";
         try {
             $this->platformMail->send(

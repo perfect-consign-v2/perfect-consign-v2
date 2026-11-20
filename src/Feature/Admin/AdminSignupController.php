@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectApp\Routing\Route;
 use PerfectConsign\Feature\Signup\PlatformSettings;
 
 final class AdminSignupController
@@ -16,7 +15,7 @@ final class AdminSignupController
     ) {
     }
 
-    #[Route('/admin/signup', ['GET'])]
+    #[AdminRoute('/signup', ['GET'])]
     public function show(): void
     {
         $this->app->requireAdmin();
@@ -28,7 +27,7 @@ final class AdminSignupController
         ]);
     }
 
-    #[Route('/admin/signup', ['POST'])]
+    #[AdminRoute('/signup', ['POST'])]
     public function save(): void
     {
         $this->app->checkCsrf();
@@ -47,7 +46,7 @@ final class AdminSignupController
             ['enabled' => $enabled, 'require_email_verification' => $require],
         );
         $this->app->redirect(
-            '/admin/signup',
+            $this->app->url('/signup'),
             $enabled
                 ? ($require
                     ? 'Public store signup is on. Email confirmation is required.'

@@ -60,7 +60,7 @@ final class StoreUse
                      VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?)',
                     [$journalId, $vendorId, $itemId, $amount, $trimmedDescription, $trimmedMemo]
                 );
-                $this->audit->record('store_use.record', $journalId);
+                $this->audit->record('store_use.record', 'journal', $journalId);
             },
         ));
     }

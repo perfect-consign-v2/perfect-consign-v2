@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Password;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 
@@ -16,6 +17,7 @@ final class PasswordController
         private readonly OwnPassword $passwords,
         private readonly LoginAccounts $accounts,
         private readonly Actor $actor,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -68,14 +70,15 @@ final class PasswordController
 
     private function changed(TenantRecord $tenant, string $current, string $next, string $confirm): void
     {
-        $account = $this->account();
-        if ($this->actor->role() === 'owner') {
-            $this->passwords->changeOwner($tenant, $account, $current, $next, $confirm);
-
-            return;
-        }
-
-        $this->passwords->changeStaff($tenant, $account, $current, $next, $confirm);
+        $account = $this->actor->account();
+        $this->audit->within(function () use ($tenant, $account, $current, $next, $confirm): void {
+            if ($this->actor->role() === 'owner') {
+                $this->passwords->changeOwner($tenant, $account, $current, $next, $confirm);
+            } else {
+                $this->passwords->changeStaff($tenant, $account, $current, $next, $confirm);
+            }
+            $this->audit->record('password.change', 'account', $this->actor->account());
+        });
     }
 
     private function signInPath(string $email): string

@@ -32,11 +32,10 @@ final class AssignmentController
         $vendorId = $this->app->request()->field('vendor_id');
         $this->attempt($slug, $vendorId, 'Booth assigned.', function (): void {
             $boothId = $this->app->request()->field('booth_id');
-            $startsOn = $this->app->request()->field('starts_on');
-            $this->stays->addAssignment(
+            $this->moves->addStay(
                 $boothId,
                 $this->app->request()->field('vendor_id'),
-                $startsOn,
+                $this->app->request()->field('starts_on'),
                 $this->app->request()->field('ends_on'),
                 $this->offers->contract($boothId, $this->app->request()->field('rent'))
             );
@@ -50,7 +49,7 @@ final class AssignmentController
         $this->app->open($slug, true);
         $vendorId = $this->vendorOf($id);
         $this->attempt($slug, $vendorId, 'Booth assignment ended.', function () use ($id): void {
-            $this->stays->endAssignment($id, $this->app->request()->field('ends_on'));
+            $this->moves->setStayEnd($id, $this->app->request()->field('ends_on'));
         });
     }
 
@@ -61,7 +60,7 @@ final class AssignmentController
         $this->app->open($slug, true);
         $vendorId = $this->vendorOf($id);
         $this->attempt($slug, $vendorId, 'Rent rate saved.', function () use ($id): void {
-            $this->stays->changeRent(
+            $this->moves->setStayRent(
                 $id,
                 $this->app->request()->field('starts_on'),
                 Money::parseMinor($this->app->request()->field('rent')),

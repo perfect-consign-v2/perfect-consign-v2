@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Integration\Party;
 
 use PDO;
+use PerfectApp\Session\Session;
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Feature\Dev\DemoSubject;
 use PerfectConsign\Feature\Party\AssignmentBook;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
@@ -21,11 +24,14 @@ final class VendorSaveNullEmailTest extends TestCase
         $root = dirname(__DIR__, 3);
         ProbeMall::ensure($root);
         $pdo = $this->connection();
-        $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
+        $schema = $this->schema($pdo);
+        $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
+        $session = new Session(null, false);
+        DemoSubject::stamp($pdo, $schema, $session);
         $statements = new Statements($pdo);
         $store = new PartyStore(
             $statements,
-            QuietAudit::make($statements),
+            QuietAudit::journal($statements, new Actor($session), $session),
             new AssignmentBook($statements),
         );
         $pdo->beginTransaction();

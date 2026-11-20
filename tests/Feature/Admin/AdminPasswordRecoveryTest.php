@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Admin;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Feature\Admin\AdminAudit;
+use PerfectConsign\Feature\Admin\AdminPath;
 use PerfectConsign\Feature\Admin\AdminPasswordRecovery;
 use PerfectConsign\Feature\Admin\AdminResetMail;
 use PerfectConsign\Feature\Admin\AdminResetTokens;
@@ -151,7 +153,8 @@ final class AdminPasswordRecoveryTest extends TestCase
         self::assertIsString($mail);
         $body = file_get_contents($mail);
         self::assertIsString($body);
-        self::assertStringContainsString('/admin/reset/', $body);
+        self::assertStringContainsString(\PerfectConsign\Tests\Support\AdminDoor::path('/reset/'), $body);
+        self::assertStringNotContainsString('/admin/reset/', $body);
     }
 
     public function testAFailedResetClaimRollsBack(): void
@@ -460,8 +463,9 @@ final class AdminPasswordRecoveryTest extends TestCase
                     new PlatformOperatorNotice($logger),
                 ),
                 $logger,
+                new AdminPath(\PerfectConsign\Tests\Support\AdminDoor::prefix()),
             ),
-            new AdminAudit($pdo, new Request('GET', '/', [], [])),
+            QuietAudit::admin($pdo, new Request('GET', '/', [], [])),
             new AdminSession($session),
             new LoginSession($session),
         );

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Pos;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Feature\Party\PartyIdentity;
@@ -73,7 +74,7 @@ final class PosPageGapTest extends TestCase
         $door = MallDoor::open($this, new Request('POST', '/' . MallDoor::SLUG . '/pos', ['instant' => '1'], $post));
         $statements = $door->statements;
         $pricing = new TicketPricing($statements);
-        $ceiling = new SaleCeiling($statements, $door->actor, new AuditLog($statements), $door->app->request());
+        $ceiling = new SaleCeiling($statements, $door->actor, QuietAudit::journal($statements, $door->actor), $door->app->request());
         $tickets = new TicketStore(
             $statements,
             $pricing,
@@ -81,7 +82,7 @@ final class PosPageGapTest extends TestCase
             new TicketQueue($statements, $pricing),
             new TicketCustomer($statements, new CustomerStore($statements, new PartyIdentity($statements))),
             $ceiling,
-            new TicketPriceChange($statements, $pricing, $door->actor, new AuditLog($statements)),
+            new TicketPriceChange($statements, $pricing, QuietAudit::journal($statements, $door->actor)),
         );
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $payouts = new PayoutStore($door->pdo, $statements, $runs, new PayoutWindow());
@@ -112,6 +113,7 @@ final class PosPageGapTest extends TestCase
                 new ReceiptChange(),
                 new SaleTicketAttach($statements),
                 new SaleReversal($door->ledger, $statements, $ceiling, new VendorClawback($door->ledger, $statements)),
+                QuietAudit::make($statements),
             ),
             $payouts,
         );

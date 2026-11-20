@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Integration\Tenant;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PDO;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\Actor;
@@ -35,8 +36,8 @@ final class TenantBoundaryTest extends TestCase
             $pdo->exec('UPDATE mall SET require_second_signature = true');
             $ceiling = new SaleCeiling(
                 new Statements($pdo),
-                $this->actor(ProbeMall::SLUG, $tenantId, $cashier['id'], 'cashier'),
-                new AuditLog(new Statements($pdo)),
+                $this->actor(ProbeMall::SLUG, $tenantId, $cashier),
+                QuietAudit::journal(new Statements($pdo), $this->actor(ProbeMall::SLUG, $tenantId, $cashier)),
                 $this->request(),
             );
             $ceiling->discount(5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce01');
@@ -91,8 +92,8 @@ final class TenantBoundaryTest extends TestCase
             $pdo->exec('UPDATE mall SET require_second_signature = true');
             $asCashier = new SaleCeiling(
                 new Statements($pdo),
-                $this->actor(ProbeMall::SLUG, $tenantId, $cashier['id'], 'cashier'),
-                new AuditLog(new Statements($pdo)),
+                $this->actor(ProbeMall::SLUG, $tenantId, $cashier),
+                QuietAudit::journal(new Statements($pdo), $this->actor(ProbeMall::SLUG, $tenantId, $cashier)),
                 $this->request(),
             );
             try {
@@ -104,8 +105,8 @@ final class TenantBoundaryTest extends TestCase
             $asCashier->discount(5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce11');
             $asManager = new SaleCeiling(
                 new Statements($pdo),
-                $this->actor(ProbeMall::SLUG, $tenantId, $manager['id'], 'manager'),
-                new AuditLog(new Statements($pdo)),
+                $this->actor(ProbeMall::SLUG, $tenantId, $manager),
+                QuietAudit::journal(new Statements($pdo), $this->actor(ProbeMall::SLUG, $tenantId, $manager)),
                 $this->request(),
             );
             try {
@@ -251,7 +252,7 @@ final class TenantBoundaryTest extends TestCase
     }
 
     /**
-     * @return array{id: string, username: string}
+     * @return array{id: string, username: string, name: string, role: string}
      */
     private function staff(PDO $pdo, string $prefix, int $ceiling): array
     {
@@ -269,11 +270,11 @@ final class TenantBoundaryTest extends TestCase
             self::fail('staff was not saved');
         }
 
-        return ['id' => $id, 'username' => $username];
+        return ['id' => $id, 'username' => $username, 'name' => ucfirst($prefix), 'role' => $role];
     }
 
     /**
-     * @return array{id: string, username: string}
+     * @return array{id: string, username: string, name: string, role: string}
      */
     private function booksStaff(PDO $pdo, string $prefix, int $ceiling): array
     {
@@ -290,7 +291,7 @@ final class TenantBoundaryTest extends TestCase
             self::fail('books staff was not saved');
         }
 
-        return ['id' => $id, 'username' => $username];
+        return ['id' => $id, 'username' => $username, 'name' => ucfirst($prefix), 'role' => 'books'];
     }
 
     private function request(): Request
@@ -298,15 +299,20 @@ final class TenantBoundaryTest extends TestCase
         return new Request('POST', '/pos', [], [], '', '', '127.0.0.1');
     }
 
-    private function actor(string $slug, string $tenantId, string $account, string $role): Actor
+    /**
+     * @param array{id: string, username: string, name: string, role: string} $staff
+     */
+    private function actor(string $slug, string $tenantId, array $staff): Actor
     {
         $now = (string) time();
 
         return new Actor($this->session([
             'owner_slug' => $slug,
             'tenant_id' => $tenantId,
-            'actor_role' => $role,
-            'actor_account' => $account,
+            'actor_role' => $staff['role'],
+            'actor_account' => $staff['id'],
+            'actor_username' => $staff['username'],
+            'owner_name' => $staff['name'],
             'signed_in_at' => $now,
             'last_seen_at' => $now,
         ]));

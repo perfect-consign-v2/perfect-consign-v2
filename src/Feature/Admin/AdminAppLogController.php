@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectApp\Routing\Route;
+use PerfectConsign\Shared\Http\ProbeBanStore;
 use Psr\Log\LoggerInterface;
 
 final class AdminAppLogController
@@ -14,10 +14,11 @@ final class AdminAppLogController
         private readonly AppLogFile $logFile,
         private readonly AdminAudit $audit,
         private readonly LoggerInterface $logger,
+        private readonly ProbeBanStore $bans,
     ) {
     }
 
-    #[Route('/admin/log', ['GET'])]
+    #[AdminRoute('/log', ['GET'])]
     public function index(): void
     {
         $this->app->requireAdmin();
@@ -25,10 +26,32 @@ final class AdminAppLogController
             'title' => 'App log',
             'log' => $this->logFile->snapshot(),
             'tailKb' => (int) (AppLogFile::TAIL_BYTES / 1000),
+            'bans' => $this->bans->listBans(),
         ]);
     }
 
-    #[Route('/admin/log/clear', ['POST'])]
+    #[AdminRoute('/log/lift', ['POST'])]
+    public function lift(): void
+    {
+        $this->app->checkCsrf();
+        $admin = $this->app->requireAdmin();
+        $address = $this->app->request()->field('address');
+        if (preg_match('/\A[A-Za-z0-9:.]{1,64}\z/', $address) !== 1 || !$this->bans->lift($address)) {
+            $this->app->redirect($this->app->url('/log'), null, 'That address is not banned.');
+        }
+        $this->audit->record(
+            $admin['id'],
+            $admin['email'],
+            'probe_ban_lift',
+            'ok',
+            null,
+            null,
+            ['address' => $address],
+        );
+        $this->app->redirect($this->app->url('/log'), 'Lifted the ban for ' . $address . '.');
+    }
+
+    #[AdminRoute('/log/clear', ['POST'])]
     public function clear(): void
     {
         $this->app->checkCsrf();
@@ -46,7 +69,7 @@ final class AdminAppLogController
             ['bytes_removed' => $bytes],
         );
         $this->app->redirect(
-            '/admin/log',
+            $this->app->url('/log'),
             'Cleared application log (' . (string) $bytes . ' byte(s) removed).',
         );
     }

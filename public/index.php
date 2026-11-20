@@ -8,14 +8,21 @@ use PerfectApp\Routing\Router;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\RegisterFeatures;
+use PerfectConsign\Feature\Admin\AdminPath;
+use PerfectConsign\Feature\Admin\AdminRouter;
 use PerfectConsign\Feature\Inventory\PhotoFacts;
 use PerfectConsign\Feature\Inventory\ServerPhotoFacts;
 use PerfectConsign\Shared\Database\AppDatabase;
 use PerfectConsign\Shared\Http\AssetServer;
 use PerfectConsign\Shared\Http\DatabaseConfig;
+use PerfectConsign\Shared\Http\EdgeFile;
+use PerfectConsign\Shared\Http\EmptyNotFound;
 use PerfectConsign\Shared\Http\ErrorHandling;
+use PerfectConsign\Shared\Http\ProbeBanStore;
+use PerfectConsign\Shared\Http\ProbeShield;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\RequestCoverage;
+use PerfectConsign\Shared\Http\RequestId;
 use PerfectConsign\Shared\Http\RequestFactory;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\TlsSignal;
@@ -76,31 +83,54 @@ if ($https) {
 
 $requestId = bin2hex(random_bytes(8));
 $request = null;
+$shield = null;
+$pdo = null;
+$countOutcome = false;
 try {
     ob_start();
     $request = RequestFactory::fromGlobals();
     if (str_starts_with($request->path, '/assets/')) {
         AssetServer::send($request->path);
-        exit;
+
+        return;
     }
+    if (EdgeFile::send($request->path)) {
+        return;
+    }
+    $adminPath = AdminPath::fromEnv();
     $pdo = (new AppDatabase())->connect(DatabaseConfig::fromEnv());
+    $probeLog = new FileLogger($logDirectory . DIRECTORY_SEPARATOR . 'probe.log');
+    $shield = new ProbeShield(new ProbeBanStore($pdo), $probeLog);
+    if ($shield->blocked($request)) {
+        EmptyNotFound::send();
+
+        return;
+    }
+    $countOutcome = true;
     $container = new Container();
     $container->set(PDO::class, $pdo);
     $container->set(LoggerInterface::class, $logger);
     $container->set(PhotoFacts::class, ServerPhotoFacts::class);
+    $container->set(AdminPath::class, $adminPath);
     $session = null;
     $container->set(Session::class, static function () use (&$session): Session {
         return $session ??= new Session();
     });
     $container->set(Request::class, $request);
+    $container->set(RequestId::class, new RequestId($requestId));
     $container->set(View::class, new View(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src'));
     $container->set(MallApp::class, $container->get(MallApp::class));
-    $router = new Router($container);
-    $router->setNotFoundHandler(static function () use ($container): void {
-        $container->get(MallApp::class)->notFound(MallApp::MISS_ROUTE);
-    });
-    RegisterFeatures::register($router, dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature');
-    $router->dispatch($request->path, $request->method);
+    $featureDirectory = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature';
+    $adminRouter = new AdminRouter($adminPath);
+    $adminRouter->register($featureDirectory);
+    if (!$adminRouter->dispatch($request->path, $request->method, $container)) {
+        $router = new Router($container);
+        $router->setNotFoundHandler(static function () use ($container): void {
+            $container->get(MallApp::class)->notFound(MallApp::MISS_ROUTE);
+        });
+        RegisterFeatures::register($router, $featureDirectory);
+        $router->dispatch($request->path, $request->method);
+    }
 } catch (ResponseSent) {
     return;
 } catch (Throwable $error) {
@@ -124,5 +154,12 @@ try {
     }
     echo $debug ? $error->getMessage() : 'The page could not be shown.';
 } finally {
+    if ($pdo instanceof PDO) {
+        $pdo->exec('RESET ROLE');
+    }
+    $status = http_response_code();
+    if ($countOutcome && $shield instanceof ProbeShield && $request instanceof Request && is_int($status)) {
+        $shield->finished($request, $status);
+    }
     RequestCoverage::flush($coverageStarted, $coverageDirectory);
 }

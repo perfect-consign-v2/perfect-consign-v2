@@ -6,7 +6,7 @@ namespace PerfectConsign\Feature\Check;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\Actor;
-use PerfectConsign\Bootstrap\AuditLog;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\SignedInPerson;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -20,7 +20,7 @@ final class NsfController
     public function __construct(
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
-        private readonly AuditLog $audit,
+        private readonly JournalAudit $audit,
         private readonly Actor $actor,
     ) {
     }
@@ -72,8 +72,8 @@ final class NsfController
                         'subledger_ref' => null,
                     ],
                 ],
-                beforeCommit: function (string $journalId) use ($actor, $role): void {
-                    $this->audit->record($actor, $role, 'check.return', 'journal', $journalId);
+                beforeCommit: function (string $journalId): void {
+                    $this->audit->record('check.return', 'journal', $journalId);
                 },
             ));
         } catch (DatabaseRefusal $refusal) {

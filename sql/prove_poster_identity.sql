@@ -1,5 +1,5 @@
--- The mall poster may add a vendor and a period, and cannot delete them.
--- The script rolls back.
+-- The mall poster may add a vendor and a period, may delete a vendor no posted
+-- line names, and cannot delete a period. The script rolls back.
 
 BEGIN;
 
@@ -13,13 +13,10 @@ BEGIN
     INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
     VALUES (period_id, '01900000-0000-7000-8000-000000000001', '2099-01-01', '2099-12-31', 'open');
 
-    BEGIN
-        DELETE FROM vendors WHERE id = vendor_id;
-        RAISE EXCEPTION 'the poster deleted a vendor';
-    EXCEPTION
-        WHEN insufficient_privilege THEN
-            NULL;
-    END;
+    DELETE FROM vendors WHERE id = vendor_id;
+    IF (SELECT count(*) FROM vendors WHERE id = vendor_id) <> 0 THEN
+        RAISE EXCEPTION 'the poster could not delete an unreferenced vendor';
+    END IF;
 
     BEGIN
         DELETE FROM accounting_periods WHERE id = period_id;
@@ -29,8 +26,8 @@ BEGIN
             NULL;
     END;
 
-    IF (SELECT count(*) FROM vendors WHERE id = vendor_id) <> 1 THEN
-        RAISE EXCEPTION 'the poster vendor was not kept';
+    IF (SELECT count(*) FROM accounting_periods WHERE id = period_id) <> 1 THEN
+        RAISE EXCEPTION 'the poster period was not kept';
     END IF;
 END $$;
 

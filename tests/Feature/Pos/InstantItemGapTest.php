@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Pos;
 
-use PerfectApp\Session\Session;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Feature\Catalog\NameListStore;
@@ -141,9 +141,9 @@ final class InstantItemGapTest extends TestCase
             new MallDay($statements),
         );
         $pricing = new TicketPricing($statements);
-        $session = $this->createStub(Session::class);
+        $session = QuietAudit::session();
         $actor = new Actor($session);
-        $ceiling = new SaleCeiling($statements, $actor, new AuditLog($statements), new Request('GET', '/gapmall/pos', [], []));
+        $ceiling = new SaleCeiling($statements, $actor, QuietAudit::journal($statements, $actor), new Request('GET', '/gapmall/pos', [], []));
         $tickets = new TicketStore(
             $statements,
             $pricing,
@@ -151,12 +151,12 @@ final class InstantItemGapTest extends TestCase
             new TicketQueue($statements, $pricing),
             new TicketCustomer($statements, new CustomerStore($statements, new PartyIdentity($statements))),
             $ceiling,
-            new TicketPriceChange($statements, $pricing, $actor, new AuditLog($statements)),
+            new TicketPriceChange($statements, $pricing, QuietAudit::journal($statements, $actor)),
         );
 
         return [new InstantItem(
             new ItemWriter(new IntakeCatalog($statements), new NameListStore($statements, new CatalogLinks($statements)), $mall, new StoreTake()),
-            new InventoryStore($statements, new CatalogLinks($statements), $mall),
+            new InventoryStore($statements, new CatalogLinks($statements), $mall, QuietAudit::journal($statements, $actor, $session)),
             $tickets,
             new TicketLines($statements, $pricing),
             new TicketDrafts($statements),

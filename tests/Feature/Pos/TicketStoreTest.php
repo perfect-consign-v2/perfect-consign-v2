@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Pos;
 
-use PerfectConsign\Bootstrap\Actor;
-use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Feature\Pos\TicketPriceChange;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Feature\Pos\TicketPricing;
 use PerfectConsign\Feature\Pos\TicketStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -174,14 +173,7 @@ final class TicketStoreTest extends TestCase
         $prices = (new ReflectionClass(TicketPriceChange::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(TicketPriceChange::class, 'statements'))->setValue($prices, $statements);
         (new ReflectionProperty(TicketPriceChange::class, 'pricing'))->setValue($prices, $pricing);
-        (new ReflectionProperty(TicketPriceChange::class, 'actor'))->setValue(
-            $prices,
-            (new ReflectionClass(Actor::class))->newInstanceWithoutConstructor(),
-        );
-        (new ReflectionProperty(TicketPriceChange::class, 'audit'))->setValue(
-            $prices,
-            (new ReflectionClass(AuditLog::class))->newInstanceWithoutConstructor(),
-        );
+        (new ReflectionProperty(TicketPriceChange::class, 'audit'))->setValue($prices, QuietAudit::owner($statements));
         (new ReflectionProperty(TicketStore::class, 'prices'))->setValue($store, $prices);
 
         return $store;

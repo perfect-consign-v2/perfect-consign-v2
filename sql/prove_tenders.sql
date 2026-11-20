@@ -58,8 +58,10 @@ BEGIN
     INSERT INTO stored_values (kind, number) VALUES ('gift_certificate', 'gc-1');
     RAISE EXCEPTION 'stored value number case collision was accepted';
 EXCEPTION
-    WHEN SQLSTATE '23505' THEN
-        NULL;
+    WHEN SQLSTATE 'P1003' THEN
+        IF SQLERRM IS DISTINCT FROM 'That certificate number is already used.' THEN
+            RAISE;
+        END IF;
 END $$;
 
 DO $$

@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Offer;
 
-use InvalidArgumentException;
 use PerfectApp\Routing\Route;
-use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Http\JsonResponse;
 
 final class VendorOfferController extends OfferController
@@ -60,17 +58,6 @@ final class VendorOfferController extends OfferController
     {
         $this->app->checkCsrf();
         $vendorId = $this->vendor($slug);
-        try {
-            $this->offers->end($id, $this->mall->today(), $vendorId);
-        } catch (DatabaseRefusal $refusal) {
-            $this->list($slug, $this->app->catchRefusal($refusal), $vendorId);
-
-            return;
-        } catch (InvalidArgumentException $error) {
-            $this->list($slug, $error->getMessage(), $vendorId);
-
-            return;
-        }
-        $this->app->redirect($this->preview->url('/' . $slug . '/vendor/offers'), 'Deal ended.');
+        $this->endOffer($slug, $id, $vendorId, $this->preview->url('/' . $slug . '/vendor/offers'));
     }
 }

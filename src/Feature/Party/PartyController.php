@@ -103,14 +103,16 @@ final class PartyController
         $error = null;
         $id = '';
         try {
-            $id = $this->parties->addVendor($this->forms->postedDraft());
+            $id = $this->parties->addPricedVendor(
+                $this->forms->postedDraft(),
+                $this->app->request()->field('payout_mode'),
+            );
         } catch (DatabaseRefusal $refusal) {
             $error = $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
         if ($error === null) {
-            $this->parties->setPayoutMode($id, $this->app->request()->field('payout_mode'));
             $this->app->redirect(
                 $this->paths->record($slug, $id),
                 $this->mall->getPartyLabel('Vendor created.', 'Consignor created.')

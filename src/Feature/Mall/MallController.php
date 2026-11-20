@@ -10,7 +10,6 @@ use PerfectConsign\Feature\Backup\BackupHeadline;
 use PerfectConsign\Feature\Backup\BackupStore;
 use PerfectConsign\Feature\Backup\NightlyCopy;
 use PerfectConsign\Feature\Inventory\LabelCatalog;
-use PerfectConsign\Ledger\DatabaseRefusal;
 
 final class MallController
 {
@@ -35,8 +34,6 @@ final class MallController
 
     private string $settingsPart = 'money';
 
-    private MallRentDraft $rentDraft;
-
     public function __construct(
         private readonly MallApp $app,
         private readonly MallSettings $mall,
@@ -44,8 +41,8 @@ final class MallController
         private readonly BackupStore $backups,
         private readonly NightlyCopy $nightly,
         private readonly LabelCatalog $stocks,
+        private readonly MallRentDraft $rentDraft,
     ) {
-        $this->rentDraft = new MallRentDraft($app, $payouts);
     }
 
     public function showError(string $slug, string $error, string $part = 'backup'): void
@@ -150,23 +147,22 @@ final class MallController
         $this->settingsPart = 'receipt';
         $footer = $this->app->request()->field('receipt_footer');
         $this->postedFooter = $footer;
-        $this->postedMailVia = $this->app->request()->field('receipt_mail_via');
-        $this->postedGmail = $this->app->request()->field('gmail_address');
-        try {
+        $mailVia = $this->app->request()->field('receipt_mail_via');
+        $gmail = $this->app->request()->field('gmail_address');
+        $this->postedMailVia = $mailVia;
+        $this->postedGmail = $gmail;
+        $error = $this->rentDraft->keep(function () use ($footer, $mailVia, $gmail): void {
             $this->mall->setReceiptFooter($footer);
-            if ($this->postedMailVia !== '') {
+            if ($mailVia !== '') {
                 $this->mall->setReceiptMail(
-                    $this->postedMailVia,
-                    $this->postedGmail,
+                    $mailVia,
+                    $gmail,
                     $this->app->request()->raw('gmail_app_password'),
                 );
             }
-        } catch (DatabaseRefusal $refusal) {
-            $this->showError($slug, $this->app->catchRefusal($refusal), 'receipt');
-
-            return;
-        } catch (\InvalidArgumentException $error) {
-            $this->showError($slug, $error->getMessage(), 'receipt');
+        }, $this->app->open($slug, true)->id);
+        if ($error !== null) {
+            $this->showError($slug, $error, 'receipt');
 
             return;
         }
@@ -188,7 +184,12 @@ final class MallController
         $days = MallMeasure::wholeDays($floorRaw);
         $error = $this->buildingError($width, $depth, $floorWidth, $floorDepth, $days);
         if ($error === null && is_int($width) && is_int($depth) && is_int($floorWidth) && is_int($floorDepth) && $days !== false) {
-            $error = $this->writeBuilding($timeZone, $width, $depth, $floorWidth, $floorDepth, $days);
+            $failed = $this->rentDraft->keep(function () use ($timeZone, $width, $depth, $floorWidth, $floorDepth, $days): void {
+                $this->writeBuilding($timeZone, $width, $depth, $floorWidth, $floorDepth, $days);
+            }, $this->app->open($slug, true)->id);
+            if ($failed !== null) {
+                $error = $failed;
+            }
         }
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings/building', 'Building saved.');
@@ -211,26 +212,18 @@ final class MallController
         int $floorWidth,
         int $floorDepth,
         ?int $days,
-    ): ?string {
+    ): void {
         $days = $this->payouts->getDaysWhenConsigned($days, $this->app->request()->field('consignment_enabled'));
-        try {
-            $this->mall->save(
-                $timeZone,
-                MallWrite::posted($width, $depth, $floorWidth, $floorDepth, $this->requestFlags()),
-                $this->mall->storeTake(),
-                $days,
-                $this->mall->getCashRoundText(),
-                $this->mall->taxRate(),
-                $this->app->request()->field('vendor_weekly_mail_enabled') === '1',
-            );
-            $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
-        } catch (DatabaseRefusal $refusal) {
-            return $this->app->catchRefusal($refusal);
-        } catch (\InvalidArgumentException $errorValue) {
-            return $errorValue->getMessage();
-        }
-
-        return null;
+        $this->mall->save(
+            $timeZone,
+            MallWrite::posted($width, $depth, $floorWidth, $floorDepth, $this->requestFlags()),
+            $this->mall->storeTake(),
+            $days,
+            $this->mall->getCashRoundText(),
+            $this->mall->taxRate(),
+            $this->app->request()->field('vendor_weekly_mail_enabled') === '1',
+        );
+        $this->mall->setLabelStock($this->postedStock ?? $this->mall->getLabelStock());
     }
 
     /**

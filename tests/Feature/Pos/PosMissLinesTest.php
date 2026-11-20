@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Pos;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\AuditLog;
@@ -98,6 +99,7 @@ use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Database\CatalogLinks;
 use PerfectConsign\Shared\Http\Request;
+use PerfectConsign\Shared\Http\RequestTrace;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Mail\GmailSender;
 use PerfectConsign\Shared\Mail\OutboundMail;
@@ -327,8 +329,8 @@ final class PosMissLinesTest extends TestCase
             'tax_exempt' => false,
             'returned' => false,
         ]]];
-        $poster = new SalePoster($sale, new SaleReceipt($sale, $receipts), new ReceiptChange(), new SaleTicketAttach($receipts), $this->reversal($sale, $receipts));
-        $view = new ReceiptView($door->app, new SalePoster($door->ledger, new SaleReceipt($door->ledger, $door->statements), new ReceiptChange(), new SaleTicketAttach($door->statements), $this->reversal($door->ledger, $door->statements)), new JournalCash($door->pdo), new ReceiptChange(), $this->parties($door));
+        $poster = new SalePoster($sale, new SaleReceipt($sale, $receipts), new ReceiptChange(), new SaleTicketAttach($receipts), $this->reversal($sale, $receipts), QuietAudit::make($receipts));
+        $view = new ReceiptView($door->app, new SalePoster($door->ledger, new SaleReceipt($door->ledger, $door->statements), new ReceiptChange(), new SaleTicketAttach($door->statements), $this->reversal($door->ledger, $door->statements), QuietAudit::make($door->statements)), new JournalCash($door->pdo), new ReceiptChange(), $this->parties($door));
         $this->capture(function () use ($door, $sale, $poster, $view): void {
             $this->pay($door, $sale, $poster, $view)->returnItem(MallDoor::SLUG, MallDoor::JOURNAL);
         });
@@ -514,7 +516,7 @@ final class PosMissLinesTest extends TestCase
 
         $bare = $this->createStub(LedgerStore::class);
         $bare->method('roleAccount')->willReturn(MallDoor::ACCOUNT);
-        $poster = new SalePoster($bare, new SaleReceipt($bare, new RoutedStatements($this->createStub(PDO::class))), new ReceiptChange(), new SaleTicketAttach(new RoutedStatements($this->createStub(PDO::class))), $this->reversal($bare, new RoutedStatements($this->createStub(PDO::class))));
+        $poster = new SalePoster($bare, new SaleReceipt($bare, new RoutedStatements($this->createStub(PDO::class))), new ReceiptChange(), new SaleTicketAttach(new RoutedStatements($this->createStub(PDO::class))), $this->reversal($bare, new RoutedStatements($this->createStub(PDO::class))), QuietAudit::make(new RoutedStatements($this->createStub(PDO::class))));
         try {
             $poster->pay(MallDoor::DRAWER, '2026-11-12', 0, [
                 'ticket_id' => self::TICKET,
@@ -543,8 +545,8 @@ final class PosMissLinesTest extends TestCase
                 new TicketBuyer($statements, $this->mall($statements)),
                 new TicketQueue($statements, new TicketPricing($statements)),
                 new TicketCustomer($statements, new CustomerStore($statements, new PartyIdentity($statements))),
-                new SaleCeiling($statements, $this->actor(), new AuditLog($statements), new Request('GET', '/', [], [])),
-                new TicketPriceChange($statements, new TicketPricing($statements), $this->actor(), new AuditLog($statements)),
+                new SaleCeiling($statements, $this->actor(), QuietAudit::journal($statements, $this->actor()), new Request('GET', '/', [], [])),
+                new TicketPriceChange($statements, new TicketPricing($statements), QuietAudit::journal($statements, $this->actor())),
             ), new TicketTenders($statements, $ledger, new RegisterStore($statements, new MallClock($this->mall($statements)), new RegisterActivity($statements, new MallClock($this->mall($statements)))), new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), $this->mall($statements)), new LayawayBook($statements, $ledger), new TicketDrafts($statements)),
             $this->split($this->door('GET', '/', [], [])),
             $poster,
@@ -665,7 +667,7 @@ final class PosMissLinesTest extends TestCase
             'commission_minor' => 0,
         ]]];
         try {
-            (new BoothCorrection($booth, $sale, new SaleCeiling($booth, $this->actor(), new AuditLog($booth), new Request('GET', '/', [], []))))->move('2026-11-12', MallDoor::JOURNAL, self::ITEM, self::TICKET);
+            (new BoothCorrection($booth, $sale, new SaleCeiling($booth, $this->actor(), QuietAudit::journal($booth, $this->actor()), new Request('GET', '/', [], []))))->move('2026-11-12', MallDoor::JOURNAL, self::ITEM, self::TICKET);
             self::fail('a zero commission must be refused');
         } catch (DatabaseRefusal) {
         }
@@ -770,14 +772,14 @@ final class PosMissLinesTest extends TestCase
         $prices->affectedCount = 0;
         $prices->boundRoutes[] = ['match' => 'floor_minor', 'rows' => [['item_id' => self::ITEM, 'floor_minor' => null]]];
         try {
-            (new TicketPriceChange($prices, new TicketPricing($prices), $this->actor(), new AuditLog($prices)))->apply(self::TICKET, 1, 100);
+            (new TicketPriceChange($prices, new TicketPricing($prices), QuietAudit::journal($prices, $this->actor())))->apply(self::TICKET, 1, 100);
             self::fail('a missed price must be refused');
         } catch (DatabaseRefusal) {
         }
         $floor = new RoutedStatements($this->createStub(PDO::class));
         $floor->boundRoutes[] = ['match' => 'floor_minor', 'rows' => [['item_id' => self::ITEM, 'floor_minor' => 500]]];
         try {
-            (new TicketPriceChange($floor, new TicketPricing($floor), $this->actor(), new AuditLog($floor)))->apply(self::TICKET, 1, 100);
+            (new TicketPriceChange($floor, new TicketPricing($floor), QuietAudit::journal($floor, $this->actor())))->apply(self::TICKET, 1, 100);
             self::fail('a price under the floor must be refused');
         } catch (DatabaseRefusal) {
         }
@@ -858,7 +860,7 @@ final class PosMissLinesTest extends TestCase
         $door = $this->door('GET', '/' . MallDoor::SLUG . '/customers', [], []);
         $directory = new RoutedStatements($this->createStub(PDO::class));
         $html = $this->capture(function () use ($door, $directory): void {
-            (new CustomerController($door->app, new CustomerDirectory($directory), new CustomerStore($directory, new PartyIdentity($directory)), new SellerPaths($door->mall)))->show(MallDoor::SLUG);
+            (new CustomerController($door->app, new CustomerDirectory($directory), new CustomerStore($directory, new PartyIdentity($directory)), new SellerPaths($door->mall), QuietAudit::journal($directory, $door->actor)))->show(MallDoor::SLUG);
         });
         self::assertStringContainsString('No customers yet.', $html);
 
@@ -873,7 +875,7 @@ final class PosMissLinesTest extends TestCase
             'customer_email' => 'ada@example.test',
         ]);
         $this->capture(function () use ($door, $store, $statements): void {
-            (new CustomerController($door->app, new CustomerDirectory($statements), $store, new SellerPaths($door->mall)))->save(MallDoor::SLUG, MallDoor::PARTY);
+            (new CustomerController($door->app, new CustomerDirectory($statements), $store, new SellerPaths($door->mall), QuietAudit::journal($statements, $door->actor)))->save(MallDoor::SLUG, MallDoor::PARTY);
         });
 
         $missing = new RoutedStatements($this->createStub(PDO::class));
@@ -884,7 +886,7 @@ final class PosMissLinesTest extends TestCase
             'customer_email' => 'ada@example.test',
         ]);
         $html = $this->capture(function () use ($door, $missing): void {
-            (new CustomerController($door->app, new CustomerDirectory($missing), new CustomerStore($missing, new PartyIdentity($missing)), new SellerPaths($door->mall)))->save(MallDoor::SLUG, MallDoor::PARTY);
+            (new CustomerController($door->app, new CustomerDirectory($missing), new CustomerStore($missing, new PartyIdentity($missing)), new SellerPaths($door->mall), QuietAudit::journal($missing, $door->actor)))->save(MallDoor::SLUG, MallDoor::PARTY);
         });
         self::assertStringContainsString('ada@example.test', $html);
 
@@ -893,7 +895,7 @@ final class PosMissLinesTest extends TestCase
             'code' => 'ADA',
         ]);
         $this->capture(function () use ($door, $missing): void {
-            (new CustomerController($door->app, new CustomerDirectory($missing), new CustomerStore($missing, new PartyIdentity($missing)), new SellerPaths($door->mall)))->addVendorRole(MallDoor::SLUG, MallDoor::PARTY);
+            (new CustomerController($door->app, new CustomerDirectory($missing), new CustomerStore($missing, new PartyIdentity($missing)), new SellerPaths($door->mall), QuietAudit::journal($missing, $door->actor)))->addVendorRole(MallDoor::SLUG, MallDoor::PARTY);
         });
     }
 
@@ -916,7 +918,7 @@ final class PosMissLinesTest extends TestCase
             'tax_exempt' => false,
             'returned' => false,
         ]]];
-        $poster = new SalePoster($sale, new SaleReceipt($sale, $bad), new ReceiptChange(), new SaleTicketAttach($bad), $this->reversal($sale, $bad));
+        $poster = new SalePoster($sale, new SaleReceipt($sale, $bad), new ReceiptChange(), new SaleTicketAttach($bad), $this->reversal($sale, $bad), QuietAudit::make($bad));
         $door = $this->door('POST', '/' . MallDoor::SLUG . '/pos/receipt/' . MallDoor::JOURNAL . '/return', [], [
             'csrf' => 'csrf-token',
             'item_id' => self::ITEM,
@@ -950,7 +952,7 @@ final class PosMissLinesTest extends TestCase
         $posted->boundRoutes[] = ['match' => 'item.placement', 'rows' => [$line]];
         $posted->boundRoutes[] = ['match' => 'AS total', 'rows' => [['total' => 0]]];
         $posted->boundRoutes[] = ['match' => 'line.debit_minor > 0', 'rows' => [['account_id' => MallDoor::ACCOUNT]]];
-        $ready = new SalePoster($sale, new SaleReceipt($sale, $posted), new ReceiptChange(), new SaleTicketAttach($posted), $this->reversal($sale, $posted));
+        $ready = new SalePoster($sale, new SaleReceipt($sale, $posted), new ReceiptChange(), new SaleTicketAttach($posted), $this->reversal($sale, $posted), QuietAudit::make($posted));
         $again = $this->door('POST', '/' . MallDoor::SLUG . '/pos/receipt/' . MallDoor::JOURNAL . '/return', [], [
             'csrf' => 'csrf-token',
             'item_id' => self::ITEM,
@@ -979,14 +981,14 @@ final class PosMissLinesTest extends TestCase
      */
     private function door(string $method, string $path, array $query, array $post, string $accept = ''): MallDoor
     {
-        return MallDoor::open($this, new Request($method, $path, $query, $post, '', '', '', [], $accept));
+        return MallDoor::open($this, new Request($method, $path, $query, $post, '', '', '', [], new RequestTrace(accept: $accept)));
     }
 
     private function page(MallDoor $door, \PerfectConsign\Shared\Database\Statements $statements, TicketDrafts $drafts, ?LedgerStore $ledger = null): PosPage
     {
         $ledger ??= $door->ledger;
         $pricing = new TicketPricing($statements);
-        $ceiling = new SaleCeiling($statements, $door->actor, new AuditLog($statements), $door->app->request());
+        $ceiling = new SaleCeiling($statements, $door->actor, QuietAudit::journal($statements, $door->actor), $door->app->request());
         $tickets = $this->store($statements, $ledger, $ceiling);
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $payouts = new PayoutStore($door->pdo, $statements, $runs, new PayoutWindow());
@@ -1006,7 +1008,7 @@ final class PosMissLinesTest extends TestCase
             $register,
             new GiftIssue($statements, $door->ledger),
             $hold,
-            new SalePoster($ledger, new SaleReceipt($ledger, $statements), new ReceiptChange(), new SaleTicketAttach($statements), $this->reversal($ledger, $statements)),
+            new SalePoster($ledger, new SaleReceipt($ledger, $statements), new ReceiptChange(), new SaleTicketAttach($statements), $this->reversal($ledger, $statements), QuietAudit::make($statements)),
             $payouts,
         ), $hold);
     }
@@ -1022,8 +1024,8 @@ final class PosMissLinesTest extends TestCase
             new TicketBuyer($statements, $mall),
             new TicketQueue($statements, $pricing),
             new TicketCustomer($statements, new CustomerStore($statements, new PartyIdentity($statements))),
-            $ceiling ?? new SaleCeiling($statements, $this->actor(), new AuditLog($statements), new Request('GET', '/', [], [])),
-            new TicketPriceChange($statements, $pricing, $this->actor(), new AuditLog($statements)),
+            $ceiling ?? new SaleCeiling($statements, $this->actor(), QuietAudit::journal($statements, $this->actor()), new Request('GET', '/', [], [])),
+            new TicketPriceChange($statements, $pricing, QuietAudit::journal($statements, $this->actor())),
         );
     }
 
@@ -1143,7 +1145,7 @@ final class PosMissLinesTest extends TestCase
 
     private function parties(MallDoor $door): PartyStore
     {
-        return new PartyStore($door->statements, new JournalAudit($door->actor, new AuditLog($door->statements)), new AssignmentBook($door->statements));
+        return new PartyStore($door->statements, QuietAudit::journal($door->statements, $door->actor), new AssignmentBook($door->statements));
     }
 
     private function actor(): \PerfectConsign\Bootstrap\Actor
@@ -1180,11 +1182,11 @@ final class PosMissLinesTest extends TestCase
         $tickets = $this->store($statements, $door->ledger);
         $item = new InstantItem(
             new ItemWriter(new IntakeCatalog($statements), new NameListStore($statements, new CatalogLinks($statements)), $mall, new StoreTake()),
-            new InventoryStore($statements, new CatalogLinks($statements), $mall),
+            new InventoryStore($statements, new CatalogLinks($statements), $mall, QuietAudit::make($statements)),
             $tickets,
             new TicketLines($statements, $pricing),
             new TicketDrafts($statements),
-            new SaleCeiling($statements, $door->actor, new AuditLog($statements), $door->app->request()),
+            new SaleCeiling($statements, $door->actor, QuietAudit::journal($statements, $door->actor), $door->app->request()),
             $mall,
         );
 
@@ -1212,7 +1214,7 @@ final class PosMissLinesTest extends TestCase
             $this->store($door->statements, $door->ledger),
             new TicketLines($door->statements, new TicketPricing($door->statements)),
             new SaleHold($door->session),
-            new SaleCeiling($door->statements, $door->actor, new AuditLog($door->statements), $door->app->request()),
+            new SaleCeiling($door->statements, $door->actor, QuietAudit::journal($door->statements, $door->actor), $door->app->request()),
         );
     }
 
@@ -1263,7 +1265,7 @@ final class PosMissLinesTest extends TestCase
         return new SaleCheckout(
             new CheckoutBasket($this->store($door->statements, $door->ledger), new TicketTenders($door->statements, $door->ledger, new RegisterStore($door->statements, new MallClock($door->mall), new RegisterActivity($door->statements, new MallClock($door->mall))), new PayoutStore($door->pdo, $door->statements, new PayoutRunStore($door->statements, new OccupiedPack($door->statements)), new PayoutWindow()), $door->mall), new LayawayBook($door->statements, $door->ledger), $drafts),
             $this->split($door),
-            new SalePoster($door->ledger, new SaleReceipt($door->ledger, $door->statements), new ReceiptChange(), new SaleTicketAttach($door->statements), $this->reversal($door->ledger, $door->statements)),
+            new SalePoster($door->ledger, new SaleReceipt($door->ledger, $door->statements), new ReceiptChange(), new SaleTicketAttach($door->statements), $this->reversal($door->ledger, $door->statements), QuietAudit::make($door->statements)),
             $door->mall,
             new SaleHold($door->session),
             new TicketCustomer($door->statements, new CustomerStore($door->statements, new PartyIdentity($door->statements))),
@@ -1273,7 +1275,7 @@ final class PosMissLinesTest extends TestCase
     private function pay(MallDoor $door, ?LedgerStore $ledger = null, ?SalePoster $poster = null, ?ReceiptView $view = null, ?TicketDrafts $drafts = null): PosPayController
     {
         $ledger ??= $door->ledger;
-        $poster ??= new SalePoster($ledger, new SaleReceipt($ledger, $door->statements), new ReceiptChange(), new SaleTicketAttach($door->statements), $this->reversal($ledger, $door->statements));
+        $poster ??= new SalePoster($ledger, new SaleReceipt($ledger, $door->statements), new ReceiptChange(), new SaleTicketAttach($door->statements), $this->reversal($ledger, $door->statements), QuietAudit::make($door->statements));
         $view ??= new ReceiptView($door->app, $poster, new JournalCash($door->pdo), new ReceiptChange(), $this->parties($door));
 
         return new PosPayController(
@@ -1301,7 +1303,7 @@ final class PosMissLinesTest extends TestCase
 
         return new ReceiptView(
             $app ?? $door->app,
-            new SalePoster($ledger, new SaleReceipt($ledger, $statements), new ReceiptChange(), new SaleTicketAttach($statements), $this->reversal($ledger, $statements)),
+            new SalePoster($ledger, new SaleReceipt($ledger, $statements), new ReceiptChange(), new SaleTicketAttach($statements), $this->reversal($ledger, $statements), QuietAudit::make($statements)),
             new JournalCash($door->pdo),
             new ReceiptChange(),
             $this->parties($door),
@@ -1312,12 +1314,12 @@ final class PosMissLinesTest extends TestCase
     {
         $app ??= $door->app;
 
-        return new ReceiptEmailController($app, new SalePoster($ledger, new SaleReceipt($ledger, $statements ?? $door->statements), new ReceiptChange(), new SaleTicketAttach($statements ?? $door->statements), $this->reversal($ledger, $statements ?? $door->statements)), $this->receipts($door, $ledger, $statements, $app), $mailer);
+        return new ReceiptEmailController($app, new SalePoster($ledger, new SaleReceipt($ledger, $statements ?? $door->statements), new ReceiptChange(), new SaleTicketAttach($statements ?? $door->statements), $this->reversal($ledger, $statements ?? $door->statements), QuietAudit::make($statements ?? $door->statements)), $this->receipts($door, $ledger, $statements, $app), $mailer);
     }
 
     private function reversal(LedgerStore $ledger, \PerfectConsign\Shared\Database\Statements $statements): SaleReversal
     {
-        return new SaleReversal($ledger, $statements, new SaleCeiling($statements, $this->actor(), new AuditLog($statements), new Request('GET', '/', [], [])), new VendorClawback($ledger, $statements));
+        return new SaleReversal($ledger, $statements, new SaleCeiling($statements, $this->actor(), QuietAudit::journal($statements, $this->actor()), new Request('GET', '/', [], [])), new VendorClawback($ledger, $statements));
     }
 
     /**

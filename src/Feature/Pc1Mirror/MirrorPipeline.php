@@ -15,15 +15,18 @@ final class MirrorPipeline
     ) {
     }
 
-    public function load(string $extractPath, string $targetName, string $postingDate): string
+    public function load(string $extractPath, string $targetName, string $postingDate, string $adminEmail): string
     {
         $target = MirrorTarget::open($targetName);
         $artifact = MirrorArtifact::open($extractPath);
         $pdo = $target->connection->pdo();
+        $loads = new StoreLoadAudit();
+        $admin = $loads->requireAdmin($pdo, $adminEmail);
         (new MirrorWiper())->wipe($pdo, MirrorConstants::TARGET_SLUG);
         $mall = MirrorMall::provision($pdo, $this->sqlDirectory);
         $idMap = (new MasterLoader($this->logger))->load($mall, $artifact);
         $journalId = (new OpeningLoader())->load($mall, $artifact, $idMap, $postingDate);
+        $loads->record($pdo, $admin, $loads->tenantId($pdo, $mall->schema), $extractPath);
         $this->plantOwner();
 
         return $journalId;

@@ -6,6 +6,8 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
 /** @var int $tailKb */
+/** @var list<array{address: string, banned_at: string, reason: string, path: string}> $bans */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 /** @var array{
  *     path: string,
  *     exists: bool,
@@ -42,10 +44,47 @@ use PerfectConsign\Shared\Http\View;
     </div>
 </div>
 <div class="row gap-3 mt-4">
-    <form method="post" action="/admin/log/clear">
+    <form method="post" action="<?= View::text($adminPath->url('/log/clear')) ?>">
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
         <button class="btn" type="submit">Clear application log</button>
     </form>
+</div>
+<div class="card mt-6">
+    <div class="card-head"><div class="h3">Banned addresses</div></div>
+    <div class="card-body">
+        <?php if ($bans === []): ?>
+            <p class="muted">No addresses are banned.</p>
+        <?php else: ?>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Address</th>
+                        <th>When</th>
+                        <th>Reason</th>
+                        <th>Path</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($bans as $ban): ?>
+                        <tr>
+                            <td><?= View::text($ban['address']) ?></td>
+                            <td><?= View::text($ban['banned_at']) ?></td>
+                            <td><?= View::text($ban['reason']) ?></td>
+                            <td><?= View::text($ban['path']) ?></td>
+                            <td>
+                                <form method="post" action="<?= View::text($adminPath->url('/log/lift')) ?>">
+                                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                    <input type="hidden" name="address" value="<?= View::text($ban['address']) ?>">
+                                    <button class="btn btn-sm" type="submit">Lift ban</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
 </div>
 <div class="card mt-6">
     <div class="card-head"><div class="h3">Contents</div></div>

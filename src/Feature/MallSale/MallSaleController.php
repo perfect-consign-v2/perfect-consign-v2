@@ -6,7 +6,7 @@ namespace PerfectConsign\Feature\MallSale;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\Actor;
-use PerfectConsign\Bootstrap\AuditLog;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
@@ -18,7 +18,7 @@ final class MallSaleController
         private readonly MallApp $app,
         private readonly Statements $statements,
         private readonly Actor $actor,
-        private readonly AuditLog $audit,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -56,14 +56,14 @@ final class MallSaleController
             $this->app->redirect('/' . $slug . '/mall-sale', 'The signed-in person is missing.');
         }
         try {
-            $this->statements->transaction(function () use ($request, $bps, $absorbed, $name, $role): void {
+            $this->statements->transaction(function () use ($request, $bps, $absorbed): void {
                 $rows = $this->statements->bound(
                     'INSERT INTO mall_sales (name, starts_on, ends_on, percent_bps, absorbed_by)
                      VALUES (?, ?::date, ?::date, ?, ?)
                      RETURNING id::text AS id',
                     [$request->field('name'), $request->field('starts_on'), $request->field('ends_on'), $bps, $absorbed]
                 );
-                $this->audit->record($name, $role, 'mall_sale.create', 'mall_sale', RowValue::string($rows[0]['id'] ?? null));
+                $this->audit->record('mall_sale.create', 'mall_sale', RowValue::string($rows[0]['id'] ?? null));
             });
         } catch (DatabaseRefusal $refusal) {
             $this->app->redirect('/' . $slug . '/mall-sale', $this->app->catchRefusal($refusal));

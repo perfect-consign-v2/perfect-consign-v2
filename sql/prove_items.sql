@@ -386,8 +386,10 @@ BEGIN
     VALUES ('Bare', '01900000-0000-7000-8000-000000000c10', 'Vase', 100, 'bc-ada', DATE '2026-09-27');
     RAISE EXCEPTION 'barcode case collision was accepted';
 EXCEPTION
-    WHEN SQLSTATE '23505' THEN
-        NULL;
+    WHEN SQLSTATE 'P1002' THEN
+        IF SQLERRM IS DISTINCT FROM 'That barcode is already used.' THEN
+            RAISE;
+        END IF;
 END $$;
 
 DO $$
@@ -396,8 +398,10 @@ BEGIN
     VALUES ('Ada', '01900000-0000-7000-8000-000000000c10', 'Copy', 100, 'BC-TRY', DATE '2026-09-27');
     RAISE EXCEPTION 'duplicate tag was accepted';
 EXCEPTION
-    WHEN SQLSTATE '23505' THEN
-        NULL;
+    WHEN SQLSTATE 'P1001' THEN
+        IF SQLERRM IS DISTINCT FROM 'That tag is already used.' THEN
+            RAISE;
+        END IF;
 END $$;
 
 DO $$
@@ -406,8 +410,10 @@ BEGIN
     VALUES ('ada', '01900000-0000-7000-8000-000000000c11', 'Copy', 100, 'BC-TRY', DATE '2026-09-27');
     RAISE EXCEPTION 'tag case collision was accepted';
 EXCEPTION
-    WHEN SQLSTATE '23505' THEN
-        NULL;
+    WHEN SQLSTATE 'P1001' THEN
+        IF SQLERRM IS DISTINCT FROM 'That tag is already used.' THEN
+            RAISE;
+        END IF;
 END $$;
 
 DO $$
@@ -417,8 +423,10 @@ BEGIN
     WHERE id = '01900000-0000-7000-8000-000000000c02';
     RAISE EXCEPTION 'tag collision was accepted';
 EXCEPTION
-    WHEN SQLSTATE '23505' THEN
-        NULL;
+    WHEN SQLSTATE 'P1001' THEN
+        IF SQLERRM IS DISTINCT FROM 'That tag is already used.' THEN
+            RAISE;
+        END IF;
 END $$;
 
 UPDATE items

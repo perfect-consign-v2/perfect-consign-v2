@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Adjustment;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
@@ -17,6 +18,7 @@ final class AdjustmentController
     public function __construct(
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -47,6 +49,7 @@ final class AdjustmentController
                 postingDate: $this->app->request()->field('posting_date'),
                 source: new JournalSource('adjustment', $reference, $this->app->request()->field('description')),
                 lines: PostedLines::read($this->app->request(), 4, false),
+                beforeCommit: $this->audit->on('adjustment.post'),
             ));
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Adjustment/adjustment', [

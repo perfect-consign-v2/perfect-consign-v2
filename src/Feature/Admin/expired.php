@@ -1,6 +1,10 @@
 <?php
 
 declare(strict_types=1);
+
+use PerfectConsign\Shared\Http\View;
+
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 ?>
 <div class="login-wrap">
     <div class="panel">
@@ -10,7 +14,7 @@ declare(strict_types=1);
                 <p class="muted">The form expired. Go back and try again.</p>
             </div>
             <div class="card-foot">
-                <a class="btn" href="/admin/login">Back to sign in</a>
+                <a class="btn" href="<?= View::text($adminPath->url('/login')) ?>">Back to sign in</a>
             </div>
         </div>
     </div>

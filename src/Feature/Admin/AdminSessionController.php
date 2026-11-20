@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Bootstrap\SignInLocked;
 
@@ -17,18 +16,22 @@ final class AdminSessionController
     ) {
     }
 
-    #[Route('/admin', ['GET'])]
+    #[AdminRoute('/', ['GET'])]
     public function home(): void
     {
         $this->app->requireAdmin();
-        $this->app->redirect('/admin/tenants');
+        $this->app->redirect($this->app->url('/tenants'));
     }
 
-    #[Route('/admin/login', ['GET'])]
+    #[AdminRoute('/login', ['GET'])]
     public function form(): void
     {
         if ($this->app->session()->current() !== null) {
-            $this->app->redirect('/admin/tenants');
+            $this->app->redirect($this->app->url('/tenants'));
+        }
+        $pending = $this->app->session()->pendingTarget(time());
+        if ($pending !== null) {
+            $this->app->redirect($this->app->url($pending));
         }
         $this->app->showGuest('Feature/Admin/login', [
             'title' => 'Platform admin',
@@ -36,7 +39,7 @@ final class AdminSessionController
         ]);
     }
 
-    #[Route('/admin/login', ['POST'])]
+    #[AdminRoute('/login', ['POST'])]
     public function submit(): void
     {
         $this->app->checkCsrf();
@@ -52,7 +55,7 @@ final class AdminSessionController
 
             return;
         }
-        if (!$signedIn) {
+        if (!$signedIn->accepted()) {
             $this->app->showGuest('Feature/Admin/login', [
                 'title' => 'Platform admin',
                 'error' => 'That email or password is wrong.',
@@ -60,15 +63,16 @@ final class AdminSessionController
 
             return;
         }
-        $this->app->redirect('/admin/tenants');
+        $next = $signedIn->needsEnrollment() ? '/mfa/enroll' : '/mfa';
+        $this->app->redirect($this->app->url($next));
     }
 
-    #[Route('/admin/logout', ['POST'])]
+    #[AdminRoute('/logout', ['POST'])]
     public function logout(): void
     {
         $this->app->checkCsrf();
         $this->tenants->clear();
         $this->app->session()->clear();
-        $this->app->redirect('/admin/login', 'Signed out.');
+        $this->app->redirect($this->app->url('/login'), 'Signed out.');
     }
 }

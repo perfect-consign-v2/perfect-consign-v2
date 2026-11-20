@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Admin;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Bootstrap\LoginSession;
@@ -180,8 +181,8 @@ final class AdminEnterAsCoverageTest extends TestCase
             new DatabaseRole($pdo),
             new LoginSession($session),
             new AdminSession($session),
-            new AdminAudit($pdo, new Request('POST', '/admin/tenants/zcov-enter/enter', [], [], '', '', '127.0.0.1')),
-            new Statements($pdo),
+            QuietAudit::admin($pdo, new Request('POST', '/admin/tenants/zcov-enter/enter', [], [], '', '', '127.0.0.1')),
+            QuietAudit::make(new Statements($pdo), $session),
         );
     }
 

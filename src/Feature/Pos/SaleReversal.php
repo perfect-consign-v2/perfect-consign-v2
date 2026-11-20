@@ -36,16 +36,17 @@ final class SaleReversal
             throw new DatabaseRefusal('a second void is refused');
         }
 
-        $this->ceiling->second('sale.void', $journalId, $overrideUser, $overridePassword);
-
         $posted = '';
         $this->statements->transaction(function () use (
             $sessionId,
             $date,
             $journalId,
             $journal,
+            $overrideUser,
+            $overridePassword,
             &$posted,
         ): void {
+            $this->ceiling->second('sale.void', $journalId, $overrideUser, $overridePassword);
             $this->clawbackBeforeVoid($journalId, $date);
             $posted = $this->ledger->post(new JournalDraft(
                 postingKey: 'reversal:' . $journalId,
@@ -79,7 +80,6 @@ final class SaleReversal
     ): string {
         $item = $this->item($saleId, $itemId);
         $openPayable = $this->clawback->openPayable($item['vendor_id']);
-        $this->requireReturnTender($saleId, $credit['account_id'], $overrideUser, $overridePassword);
 
         return $this->ledger->post(new JournalDraft(
             postingKey: 'return:' . $saleId . ':' . $itemId,
@@ -88,12 +88,14 @@ final class SaleReversal
             lines: SaleJournal::giveBack($this->ledger, $item, $item['vendor_id'], $credit, $openPayable),
             sessionId: $sessionId,
             checkNumber: $check,
-            beforeCommit: function (string $journalId) use ($saleId, $itemId, $item): void {
+            beforeCommit: function (string $journalId) use ($saleId, $itemId, $item, $credit, $overrideUser, $overridePassword): void {
                 $this->statements->change(
                     'INSERT INTO item_returns (journal_id, sale_journal_id, item_id, price_minor, quantity, commission_minor, tax_minor, discount_minor, store_discount_minor)
                      VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?)',
                     [$journalId, $saleId, $itemId, $item['price'], $item['quantity'], $item['commission'], $item['tax'], $item['discount'], $item['store_discount']]
                 );
+                $this->requireReturnTender($saleId, $credit['account_id'], $overrideUser, $overridePassword);
+                $this->ceiling->note('sale.return', 'journal', $journalId);
             },
         ));
     }

@@ -55,9 +55,6 @@ final class RentReceipt
         array $waived = [],
         string $note = '',
     ): string {
-        if ($waived !== []) {
-            $this->signOff($vendorId, $tender['override_user'] ?? '', $tender['override_password'] ?? '');
-        }
         $figure = $this->figure($vendorId, $boothId, $today);
         if ($figure === null) {
             throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
@@ -67,6 +64,9 @@ final class RentReceipt
             $this->pdo->beginTransaction();
         }
         try {
+            if ($waived !== []) {
+                $this->signOff($vendorId, $tender['override_user'] ?? '', $tender['override_password'] ?? '');
+            }
             $this->clearFees($figure, $today, $waived, $note);
             $journalId = '';
             if ($waived === [] || !$this->unpaid($tender, $amount)) {
@@ -84,6 +84,31 @@ final class RentReceipt
     public function signOff(string $vendorId, string $overrideUser, string $overridePassword): void
     {
         $this->ceiling->second('rent.waive', $vendorId, $overrideUser, $overridePassword);
+    }
+
+    /**
+     * The second signature and the late-fee waive commit or roll back together.
+     *
+     * @param callable(): void $waive
+     */
+    public function waiveSigned(string $vendorId, string $overrideUser, string $overridePassword, callable $waive): void
+    {
+        $owned = !$this->pdo->inTransaction();
+        if ($owned) {
+            $this->pdo->beginTransaction();
+        }
+        try {
+            $this->signOff($vendorId, $overrideUser, $overridePassword);
+            $waive();
+            if ($owned) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $error) {
+            if ($owned && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $error;
+        }
     }
 
     /**

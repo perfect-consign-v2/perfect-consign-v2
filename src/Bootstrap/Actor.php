@@ -78,6 +78,16 @@ final class Actor
         return $account;
     }
 
+    public function username(): string
+    {
+        $username = $this->session->get('actor_username');
+        if (!is_string($username) || preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
+            return '';
+        }
+
+        return $username;
+    }
+
     public function vendor(): string
     {
         $vendor = $this->session->get('actor_vendor');

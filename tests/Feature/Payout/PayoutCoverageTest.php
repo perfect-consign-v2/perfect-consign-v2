@@ -6,6 +6,8 @@ namespace PerfectConsign\Tests\Feature\Payout;
 
 use PDO;
 use PDOException;
+use PerfectApp\Session\Session;
+use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Feature\Payout\CheckWords;
 use PerfectConsign\Feature\Payout\OccupiedPack;
 use PerfectConsign\Feature\Payout\PayoutDisburser;
@@ -107,7 +109,8 @@ final class PayoutCoverageTest extends TestCase
         $ledger->method('journal')->willReturn(null);
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('that payout journal is not in this mall');
-        (new PayoutReverser($ledger, $this->createStub(Statements::class)))->reverse(
+        $statements = $this->createStub(Statements::class);
+        (new PayoutReverser($ledger, $statements, new Actor($this->createStub(Session::class)), QuietAudit::make($statements)))->reverse(
             '00000000-0000-7000-8000-000000000099',
             '2026-10-01'
         );

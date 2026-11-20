@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 ?>
 <div class="login-wrap">
     <div class="panel">
@@ -17,7 +18,7 @@ use PerfectConsign\Shared\Http\View;
         </div>
         <div class="card">
             <div class="card-head"><h1>Sign in</h1></div>
-            <form method="post" action="/admin/login">
+            <form method="post" action="<?= View::text($adminPath->url('/login')) ?>">
                 <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <div class="field">
@@ -30,7 +31,7 @@ use PerfectConsign\Shared\Http\View;
                     </div>
                 </div>
                 <div class="card-foot row between">
-                    <a href="/admin/forgot">Forgot password</a>
+                    <a href="<?= View::text($adminPath->url('/forgot')) ?>">Forgot password</a>
                     <button class="btn btn-primary" type="submit">Sign in</button>
                 </div>
             </form>

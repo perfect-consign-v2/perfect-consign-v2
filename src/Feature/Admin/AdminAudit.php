@@ -5,18 +5,17 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectConsign\Shared\Http\Request;
+use PerfectConsign\Shared\Http\RequestId;
 use PDO;
 use RuntimeException;
 
 final class AdminAudit
 {
-    private readonly string $requestId;
-
     public function __construct(
         private readonly PDO $pdo,
         private readonly Request $request,
+        private readonly RequestId $requestId,
     ) {
-        $this->requestId = bin2hex(random_bytes(8));
     }
 
     /**
@@ -50,7 +49,7 @@ final class AdminAudit
             $tenantId,
             $slug,
             $encoded,
-            $this->requestId,
+            $this->requestId->value,
             $this->request->address,
         ]);
         if ($statement->rowCount() !== 1) {

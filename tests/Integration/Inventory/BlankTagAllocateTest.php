@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Integration\Inventory;
 
 use PDO;
+use PerfectApp\Session\Session;
+use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\DatabaseRole;
+use PerfectConsign\Feature\Dev\DemoSubject;
 use PerfectConsign\Feature\Company\CompanyLines;
 use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Feature\Inventory\InventoryStore;
@@ -17,6 +20,7 @@ use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Shared\Database\CatalogLinks;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Support\ProbeMall;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Tests\Support\SeedVendor;
 use PHPUnit\Framework\TestCase;
 
@@ -27,14 +31,17 @@ final class BlankTagAllocateTest extends TestCase
         $root = dirname(__DIR__, 3);
         ProbeMall::ensure($root);
         $pdo = $this->connection();
-        $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
+        $schema = $this->schema($pdo);
+        $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
+        $session = new Session(null, false);
+        DemoSubject::stamp($pdo, $schema, $session);
         $statements = new Statements($pdo);
         $mall = new MallSettings(
             $statements,
             new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines()),
             new MallDay($statements),
         );
-        $store = new InventoryStore($statements, new CatalogLinks($statements), $mall);
+        $store = new InventoryStore($statements, new CatalogLinks($statements), $mall, QuietAudit::journal($statements, new Actor($session), $session));
         $today = '2099-04-02';
         $pdo->beginTransaction();
         try {

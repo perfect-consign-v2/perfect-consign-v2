@@ -7,10 +7,12 @@ namespace PerfectConsign\Tests\Feature\Admin;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Feature\Admin\AdminApp;
+use PerfectConsign\Feature\Admin\AdminPath;
 use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Tests\Support\AdminDoor;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -28,6 +30,7 @@ final class AdminExpiredFormTest extends TestCase
             new NullLogger(),
             new AdminSession($session),
             new LoginSession($session),
+            new AdminPath(AdminDoor::prefix()),
         );
         ob_start();
         try {
@@ -42,7 +45,7 @@ final class AdminExpiredFormTest extends TestCase
         self::assertIsString($html);
         self::assertStringContainsString('Form expired', $html);
         self::assertStringContainsString('The form expired. Go back and try again.', $html);
-        self::assertStringContainsString('href="/admin/login"', $html);
+        self::assertStringContainsString('href="' . AdminDoor::path('/login') . '"', $html);
         self::assertStringContainsString('Back to sign in', $html);
     }
 }

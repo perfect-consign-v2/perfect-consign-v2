@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Session\Session;
+use PerfectConsign\Shared\Http\MissLog;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Http\View;
@@ -84,11 +85,7 @@ final class MissingPage
 
     private function recordMiss(string $reason, bool $debug): void
     {
-        $context = [
-            'method' => $this->request->method,
-            'path' => $this->request->path,
-            'reason' => $reason,
-        ];
+        $context = MissLog::context($this->request, $reason);
         if ($debug) {
             $this->logger->debug('page not found', $context);
 

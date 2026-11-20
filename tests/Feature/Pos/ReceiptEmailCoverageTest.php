@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Pos;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use ArrayObject;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\ActiveRegister;
@@ -339,9 +340,10 @@ final class ReceiptEmailCoverageTest extends TestCase
             new SaleReversal(
                 $ledger,
                 $rows,
-                new SaleCeiling($rows, $actor, new AuditLog($rows), $request),
+                new SaleCeiling($rows, $actor, QuietAudit::journal($rows, $actor), $request),
                 new VendorClawback($ledger, $rows),
             ),
+            QuietAudit::make($rows),
         );
 
         return [
@@ -350,7 +352,7 @@ final class ReceiptEmailCoverageTest extends TestCase
                 $poster,
                 new ReceiptView($app, $poster, $cash, new ReceiptChange(), new PartyStore(
                     $rows,
-                    new JournalAudit($actor, new AuditLog($rows)),
+                    QuietAudit::journal($rows, $actor),
                     new AssignmentBook($rows),
                 )),
                 $this->mailer($mode),

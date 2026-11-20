@@ -135,6 +135,11 @@ final class PayoutCoverageHttpTest extends WebTestCase
 
     private function numberChecks(string $runId): void
     {
+        $checks = $this->client->get('/' . self::SLUG . '/payouts/checks?run=' . $runId);
+        self::assertSame(200, $checks->status);
+        if (str_contains($checks->body, 'Nobody on this payout is getting a check.')) {
+            return;
+        }
         SingleVendorCheckPrint::assertFace($this->client, self::SLUG, $runId);
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Integration\Bootstrap;
 
+use PerfectConsign\Tests\Support\AdminDoor;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -17,11 +18,15 @@ final class SetPlatformAdminIdempotentTest extends TestCase
         $root = dirname(__DIR__, 3);
         $pdo = $this->pdo();
         $this->ensureAdmin($pdo);
+        AdminDoor::plant($pdo, self::EMAIL);
+        $secret = $this->authenticator($pdo);
         $before = $this->credentialsVersion($pdo);
         $this->runSetPlatformAdmin($root);
         self::assertSame($before, $this->credentialsVersion($pdo));
+        self::assertSame($secret, $this->authenticator($pdo));
         $this->runSetPlatformAdmin($root);
         self::assertSame($before, $this->credentialsVersion($pdo));
+        self::assertSame($secret, $this->authenticator($pdo));
     }
 
     private function ensureAdmin(PDO $pdo): void
@@ -49,6 +54,19 @@ final class SetPlatformAdminIdempotentTest extends TestCase
         self::assertNotFalse($version);
 
         return (int) $version;
+    }
+
+    private function authenticator(PDO $pdo): string
+    {
+        $statement = $pdo->prepare(
+            'SELECT mfa_secret FROM platform.admins WHERE lower(email) = lower(?)'
+        );
+        $statement->execute([self::EMAIL]);
+        $secret = $statement->fetchColumn();
+        self::assertIsString($secret);
+        self::assertNotSame('', $secret);
+
+        return $secret;
     }
 
     private function runSetPlatformAdmin(string $root): void

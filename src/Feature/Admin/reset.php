@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 /** @var string $token */
 /** @var bool $expired */
 $expired = ($expired ?? false) === true;
@@ -25,11 +26,11 @@ $expired = ($expired ?? false) === true;
                     <p class="muted">That reset link expired. Request a new one.</p>
                 </div>
                 <div class="card-foot row between">
-                    <a href="/admin/forgot">Request a new link</a>
-                    <a class="btn" href="/admin/login">Sign in</a>
+                    <a href="<?= View::text($adminPath->url('/forgot')) ?>">Request a new link</a>
+                    <a class="btn" href="<?= View::text($adminPath->url('/login')) ?>">Sign in</a>
                 </div>
             <?php else: ?>
-                <form method="post" action="/admin/reset/<?= View::text($token) ?>">
+                <form method="post" action="<?= View::text($adminPath->url('/reset/' . $token)) ?>">
                     <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                         <div class="field">
@@ -42,7 +43,7 @@ $expired = ($expired ?? false) === true;
                         </div>
                     </div>
                     <div class="card-foot row between">
-                        <a href="/admin/login">Back to sign in</a>
+                        <a href="<?= View::text($adminPath->url('/login')) ?>">Back to sign in</a>
                         <button class="btn btn-primary" type="submit">Save password</button>
                     </div>
                 </form>

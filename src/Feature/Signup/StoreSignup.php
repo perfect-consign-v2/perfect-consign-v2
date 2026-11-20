@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Signup;
 
 use PerfectConsign\Feature\Admin\AdminAudit;
-use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Feature\Backup\BackupConnection;
 use PerfectConsign\Schema\TenantProvisioner;
 use PDO;
@@ -118,7 +117,7 @@ final class StoreSignup
         if ($this->slugTaken($slug)) {
             throw new RuntimeException('That store address is already taken.');
         }
-        $username = $this->usernameFromEmail($email);
+        $username = SignupSlug::username($email);
         $this->provisionOwner($slug, $storeName, $username, $password, $email, $emailVerified);
         $this->audit->record(
             $adminId,
@@ -215,38 +214,7 @@ final class StoreSignup
 
     public function slugFromName(string $name): string
     {
-        $slug = strtolower(trim($name));
-        $slug = preg_replace('/[^a-z0-9]+/', '-', $slug) ?? '';
-        $slug = trim($slug, '-');
-        if ($slug === '' || preg_match('/^[a-z]/', $slug) !== 1) {
-            $slug = 's' . $slug;
-        }
-        if (strlen($slug) > 63) {
-            $slug = substr($slug, 0, 63);
-            $slug = rtrim($slug, '-');
-        }
-
-        return $slug;
-    }
-
-    private function usernameFromEmail(string $email): string
-    {
-        $local = strstr($email, '@', true);
-        if (!is_string($local) || $local === '') {
-            throw new RuntimeException('Enter a valid email address.');
-        }
-        $base = strtolower($local);
-        $base = preg_replace('/[^a-z0-9]+/', '-', $base) ?? '';
-        $base = trim($base, '-');
-        if ($base === '' || preg_match('/^[a-z]/', $base) !== 1) {
-            $base = 'u' . $base;
-        }
-        if (strlen($base) > 63) {
-            $base = substr($base, 0, 63);
-            $base = rtrim($base, '-');
-        }
-
-        return $base;
+        return SignupSlug::fromName($name);
     }
 
     private function slugTaken(string $slug): bool
@@ -273,7 +241,7 @@ final class StoreSignup
              WHERE slug = ?'
         );
         try {
-            $statement->execute([$username, $hash, $email, PgBool::literal($emailVerified), $slug]);
+            $statement->execute([$username, $hash, $email, $emailVerified ? 'true' : 'false', $slug]);
         } catch (PDOException $error) {
             throw new RuntimeException('That store could not be created.', 0, $error);
         }

@@ -20,13 +20,13 @@ final class Request
         public readonly string $origin = '',
         public readonly string $address = '',
         public readonly array $uploads = [],
-        public readonly string $accept = '',
+        public readonly RequestTrace $trace = new RequestTrace(),
     ) {
     }
 
     public function wantsJson(): bool
     {
-        return str_contains(strtolower($this->accept), 'application/json');
+        return str_contains(strtolower($this->trace->accept), 'application/json');
     }
 
     /**

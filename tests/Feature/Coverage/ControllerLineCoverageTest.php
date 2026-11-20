@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Coverage;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Feature\Admin\AdminAudit;
@@ -23,6 +24,7 @@ use PerfectConsign\Feature\Inventory\StoreTake;
 use PerfectConsign\Feature\Party\AssignmentBook;
 use PerfectConsign\Feature\Party\AssignmentOffer;
 use PerfectConsign\Feature\Party\BoothController;
+use PerfectConsign\Feature\Party\BoothWrite;
 use PerfectConsign\Feature\Party\BoothFields;
 use PerfectConsign\Feature\Party\BoothListFilter;
 use PerfectConsign\Feature\Party\BoothListStore;
@@ -391,7 +393,7 @@ final class ControllerLineCoverageTest extends TestCase
 
     private function audit(MallDoor $door): JournalAudit
     {
-        return new JournalAudit($door->actor, new AuditLog($door->statements));
+        return QuietAudit::journal($door->statements, $door->actor);
     }
 
     private function booths(MallDoor $door, RoutedStatements $lists): BoothController
@@ -401,12 +403,12 @@ final class ControllerLineCoverageTest extends TestCase
         return new BoothController(
             $door->app,
             $parties,
-            new AssignmentBook($door->statements),
             $door->mall,
             new BoothRoster(new BoothMeasures()),
             new BoothListFilter(),
             new BoothListStore($lists),
             new BoothFields($door->app),
+            new BoothWrite($parties, new AssignmentBook($door->statements), $this->audit($door)),
         );
     }
 
@@ -492,7 +494,7 @@ final class ControllerLineCoverageTest extends TestCase
 
     private function items(MallDoor $door, RoutedStatements $rows): VendorItemController
     {
-        $store = new InventoryStore($rows, new CatalogLinks($rows), $door->mall);
+        $store = new InventoryStore($rows, new CatalogLinks($rows), $door->mall, QuietAudit::make($rows));
         $form = new ItemForm(new IntakeCatalog($rows), new NameListStore($rows, new CatalogLinks($rows)), $door->mall, new StoreTake());
 
         return new VendorItemController(

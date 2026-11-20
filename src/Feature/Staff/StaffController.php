@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Staff;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Tenant\TenantRecord;
@@ -17,6 +18,7 @@ final class StaffController
         private readonly StaffStore $staff,
         private readonly MallOwners $owners,
         private readonly Actor $actor,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -61,7 +63,9 @@ final class StaffController
         $this->app->open($slug, true);
         $request = $this->app->request();
         try {
-            $this->staff->replaceCashier($id, $request->raw('password'), $request->field('email'));
+            $this->kept($id, 'staff.password', function () use ($id, $request): void {
+                $this->staff->replaceCashier($id, $request->raw('password'), $request->field('email'));
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -81,7 +85,9 @@ final class StaffController
         $this->app->open($slug, true);
         $request = $this->app->request();
         try {
-            $this->staff->replaceManager($id, $request->raw('password'), $request->field('email'));
+            $this->kept($id, 'staff.password', function () use ($id, $request): void {
+                $this->staff->replaceManager($id, $request->raw('password'), $request->field('email'));
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -101,7 +107,9 @@ final class StaffController
         $this->app->open($slug, true);
         $request = $this->app->request();
         try {
-            $this->staff->replaceBooks($id, $request->raw('password'), $request->field('email'));
+            $this->kept($id, 'staff.password', function () use ($id, $request): void {
+                $this->staff->replaceBooks($id, $request->raw('password'), $request->field('email'));
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -121,7 +129,9 @@ final class StaffController
         $tenant = $this->app->open($slug, true);
         $request = $this->app->request();
         try {
-            $this->owners->replaceSignIn($tenant, $id, $request->raw('password'), $request->field('email'));
+            $this->kept($id, 'owner.password', function () use ($tenant, $id, $request): void {
+                $this->owners->replaceSignIn($tenant, $id, $request->raw('password'), $request->field('email'));
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -140,7 +150,9 @@ final class StaffController
         $this->app->checkCsrf();
         $tenant = $this->app->open($slug, true);
         try {
-            $this->owners->remove($tenant, $id, $this->actor->account());
+            $this->kept($id, 'owner.remove', function () use ($tenant, $id): void {
+                $this->owners->remove($tenant, $id, $this->actor->account());
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -171,7 +183,9 @@ final class StaffController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         try {
-            $this->staff->changeRole($id, $this->app->request()->field('role'));
+            $this->kept($id, 'staff.role', function () use ($id): void {
+                $this->staff->changeRole($id, $this->app->request()->field('role'));
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -201,7 +215,9 @@ final class StaffController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         try {
-            $this->staff->setCanSignIn($id, $canSignIn);
+            $this->kept($id, $canSignIn ? 'staff.restore' : 'staff.suspend', function () use ($id, $canSignIn): void {
+                $this->staff->setCanSignIn($id, $canSignIn);
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -219,7 +235,9 @@ final class StaffController
         $this->app->checkCsrf();
         $tenant = $this->app->open($slug, true);
         try {
-            $this->owners->setCanSignIn($tenant, $id, $canSignIn);
+            $this->kept($id, $canSignIn ? 'owner.restore' : 'owner.suspend', function () use ($tenant, $id, $canSignIn): void {
+                $this->owners->setCanSignIn($tenant, $id, $canSignIn);
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
 
@@ -251,21 +269,27 @@ final class StaffController
 
     private function addCashier(string $username, string $displayName, string $password, string $email): string
     {
-        $this->staff->addCashier($username, $displayName, $password, $email);
+        $this->created('staff.create', function () use ($username, $displayName, $password, $email): string {
+            return $this->staff->addCashier($username, $displayName, $password, $email);
+        });
 
         return 'Cashier added.';
     }
 
     private function addManager(string $username, string $displayName, string $password, string $email): string
     {
-        $this->staff->addManager($username, $displayName, $password, $email);
+        $this->created('staff.create', function () use ($username, $displayName, $password, $email): string {
+            return $this->staff->addManager($username, $displayName, $password, $email);
+        });
 
         return 'Manager added.';
     }
 
     private function addBooks(string $username, string $displayName, string $password, string $email): string
     {
-        $this->staff->addBooks($username, $displayName, $password, $email);
+        $this->created('staff.create', function () use ($username, $displayName, $password, $email): string {
+            return $this->staff->addBooks($username, $displayName, $password, $email);
+        });
 
         return 'Books login added.';
     }
@@ -276,9 +300,35 @@ final class StaffController
         string $password,
         string $email,
     ): string {
-        $this->owners->add($tenant, $username, $password, $email);
+        $this->created('owner.create', function () use ($tenant, $username, $password, $email): string {
+            return $this->owners->add($tenant, $username, $password, $email);
+        });
 
         return 'Owner added.';
+    }
+
+    private function kept(string $id, string $action, callable $work): void
+    {
+        $this->audit->within(function () use ($id, $action, $work): void {
+            $work();
+            $this->audit->record($action, $this->subject($action), $id);
+        });
+    }
+
+    private function created(string $action, callable $work): void
+    {
+        $this->audit->within(function () use ($action, $work): void {
+            $id = $work();
+            if (!is_string($id) || $id === '') {
+                throw new \RuntimeException('the staff row was not stored');
+            }
+            $this->audit->record($action, $this->subject($action), $id);
+        });
+    }
+
+    private function subject(string $action): string
+    {
+        return str_starts_with($action, 'owner.') ? 'owner' : 'staff';
     }
 
     private function render(string $slug, ?string $error): void

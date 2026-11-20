@@ -66,7 +66,7 @@ final class FloorController
                     [$kind, $request->field('noted_on'), $request->field('noted_by'), $request->field('code')]
                 );
                 $id = $this->insertedId($rows);
-                $this->audit->record('floor.note', $id, 'floor_finding');
+                $this->audit->record('floor.note', 'floor_finding', $id);
             });
         } catch (DatabaseRefusal | \InvalidArgumentException $error) {
             $this->app->redirect('/' . $slug . '/floor', $this->app->catchRefusal($error));
@@ -91,7 +91,7 @@ final class FloorController
                     [$request->field('picked_up_on'), $request->field('received_by'), $request->field('code')]
                 );
                 $id = $this->insertedId($rows);
-                $this->audit->record('pickup.record', $id, 'pickup');
+                $this->audit->record('pickup.record', 'pickup', $id);
             });
         } catch (DatabaseRefusal | \InvalidArgumentException $error) {
             $this->app->redirect('/' . $slug . '/floor', $this->app->catchRefusal($error));

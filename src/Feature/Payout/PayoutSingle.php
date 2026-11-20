@@ -57,13 +57,9 @@ final class PayoutSingle
         return $journalId;
     }
 
-    public function undo(string $runId, string $postingDate, string $actor, string $reason): string
+    public function undo(string $runId, string $postingDate, string $reason): string
     {
-        if (trim($actor) === '' || trim($reason) === '') {
-            throw new DatabaseRefusal('a payout reversal needs the operator and a reason');
-        }
-
-        return $this->reverser->undo($runId, $postingDate, trim($actor), trim($reason));
+        return $this->reverser->undo($runId, $postingDate, $reason);
     }
 
     public function openSingle(string $vendorId): string

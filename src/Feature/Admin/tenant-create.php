@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 /** @var string|null $error */
 /** @var string $storeName */
 /** @var string $email */
@@ -15,7 +16,7 @@ use PerfectConsign\Shared\Http\View;
         <p class="muted">Creates a mall and owner immediately. Email is marked verified — no confirmation link.</p>
     </div>
 </div>
-<form class="card mt-6" method="post" action="/admin/tenants/create">
+<form class="card mt-6" method="post" action="<?= View::text($adminPath->url('/tenants/create')) ?>">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
     <div class="card-body stack">
         <?php if ($error !== null && $error !== ''): ?>
@@ -39,7 +40,7 @@ use PerfectConsign\Shared\Http\View;
         </div>
         <p class="row gap-2">
             <button class="btn btn-primary" type="submit">Create store</button>
-            <a class="btn" href="/admin/tenants">Cancel</a>
+            <a class="btn" href="<?= View::text($adminPath->url('/tenants')) ?>">Cancel</a>
         </p>
     </div>
 </form>

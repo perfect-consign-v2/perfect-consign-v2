@@ -204,14 +204,14 @@ final class ReportAndPartyCoverageTest extends WebTestCase
         ]);
         self::assertSees('Item created.', $held);
         $blocked = $this->client->post('/' . self::SLUG . '/vendors/' . $vendorId . '/delete', []);
-        self::assertSees('permission denied for table vendors', $blocked);
+        self::assertSees('That could not be saved.', $blocked);
         self::assertSees('p' . $tag, $blocked);
 
         $removed = $this->client->post('/' . self::SLUG . '/vendors/' . $otherId . '/delete', []);
-        self::assertSees('permission denied for table vendors', $removed);
-        self::assertSees('q' . $tag, $removed);
+        self::assertSees('Vendor deleted.', $removed);
+        self::assertStringNotContainsString('q' . $tag, $removed->body);
         $gone = $this->client->post('/' . self::SLUG . '/vendors/' . self::MISSING . '/delete', []);
-        self::assertSees('permission denied for table vendors', $gone);
+        self::assertSees('that vendor is not in this mall', $gone);
         self::assertSees('Vendors', $gone);
     }
 

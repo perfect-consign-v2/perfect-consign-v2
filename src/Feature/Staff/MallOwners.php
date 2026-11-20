@@ -61,8 +61,7 @@ final class MallOwners
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $ownerId) !== 1) {
             throw new \InvalidArgumentException('Choose an owner.');
         }
-        $this->roles->reset();
-        try {
+        $this->asOwner($tenant, function () use ($tenant, $ownerId, $canSignIn): void {
             if (!$canSignIn) {
                 $this->refuseLastActiveSuspend($tenant->id, $ownerId);
             }
@@ -78,9 +77,7 @@ final class MallOwners
             if ($statement->rowCount() !== 1) {
                 throw new \InvalidArgumentException('Choose an owner.');
             }
-        } finally {
-            $this->roles->assume($tenant->role);
-        }
+        });
     }
 
     private function refuseLastActiveSuspend(string $tenantId, string $ownerId): void
@@ -101,7 +98,7 @@ final class MallOwners
         return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
-    public function add(TenantRecord $tenant, string $username, string $password, string $email): void
+    public function add(TenantRecord $tenant, string $username, string $password, string $email): string
     {
         $username = strtolower(trim($username));
         if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $username) !== 1) {
@@ -109,17 +106,23 @@ final class MallOwners
         }
         $hash = $this->passwords->hash($password);
         $address = $this->addresses->parse($email);
-        $this->roles->reset();
-        try {
-            $statement = $this->pdo->prepare(
-                'SELECT platform.add_mall_owner(?::uuid, ?, ?, ?)'
-            );
-            $statement->execute([$tenant->id, $username, $hash, $address]);
-        } catch (PDOException $error) {
-            throw DatabaseRefusal::fromPdo($error);
-        } finally {
-            $this->roles->assume($tenant->role);
+        $id = $this->asOwner($tenant, function () use ($tenant, $username, $hash, $address): mixed {
+            try {
+                $statement = $this->pdo->prepare(
+                    'SELECT platform.add_mall_owner(?::uuid, ?, ?, ?) AS id'
+                );
+                $statement->execute([$tenant->id, $username, $hash, $address]);
+
+                return $statement->fetchColumn();
+            } catch (PDOException $error) {
+                throw DatabaseRefusal::fromPdo($error);
+            }
+        });
+        if (!is_string($id) || preg_match('/^[0-9a-fA-F-]{36}$/', $id) !== 1) {
+            throw new \RuntimeException('the owner row was not stored');
         }
+
+        return $id;
     }
 
     public function replaceSignIn(TenantRecord $tenant, string $id, string $password, string $email): void
@@ -129,8 +132,7 @@ final class MallOwners
         }
         $hash = $this->passwords->hash($password);
         $address = $this->addresses->parse($email);
-        $this->roles->reset();
-        try {
+        $this->asOwner($tenant, function () use ($tenant, $id, $hash, $address): void {
             $statement = $this->pdo->prepare(
                 'UPDATE platform.owners
                  SET password_hash = ?, email = ?, credentials_version = credentials_version + 1
@@ -148,9 +150,7 @@ final class MallOwners
             if ($statement->rowCount() !== 1) {
                 throw new \InvalidArgumentException('Choose an owner.');
             }
-        } finally {
-            $this->roles->assume($tenant->role);
-        }
+        });
     }
 
     public function remove(TenantRecord $tenant, string $ownerId, string $actorOwnerId): void
@@ -161,16 +161,67 @@ final class MallOwners
         if ($ownerId === $actorOwnerId) {
             throw new \InvalidArgumentException('You cannot remove your own owner sign-in.');
         }
+        $this->asOwner($tenant, function () use ($tenant, $ownerId): void {
+            try {
+                $statement = $this->pdo->prepare(
+                    'SELECT platform.remove_mall_owner(?::uuid, ?::uuid)'
+                );
+                $statement->execute([$tenant->id, $ownerId]);
+            } catch (PDOException $error) {
+                throw DatabaseRefusal::fromPdo($error);
+            }
+        });
+    }
+
+    /**
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    private function asOwner(TenantRecord $tenant, callable $work): mixed
+    {
         $this->roles->reset();
         try {
-            $statement = $this->pdo->prepare(
-                'SELECT platform.remove_mall_owner(?::uuid, ?::uuid)'
-            );
-            $statement->execute([$tenant->id, $ownerId]);
-        } catch (PDOException $error) {
-            throw DatabaseRefusal::fromPdo($error);
+            return $this->guarded($work);
         } finally {
             $this->roles->assume($tenant->role);
+        }
+    }
+
+    /**
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    private function guarded(callable $work): mixed
+    {
+        if (!$this->pdo->inTransaction()) {
+            return $work();
+        }
+        if ($this->pdo->exec('SAVEPOINT mall_owner') === false) {
+            throw new \RuntimeException('the owner change could not start');
+        }
+        try {
+            $result = $work();
+        } catch (\Throwable $error) {
+            $this->undoOwnerChange($error);
+
+            throw $error;
+        }
+        if ($this->pdo->exec('RELEASE SAVEPOINT mall_owner') === false) {
+            throw new \RuntimeException('the owner change could not finish');
+        }
+
+        return $result;
+    }
+
+    private function undoOwnerChange(\Throwable $error): void
+    {
+        if ($this->pdo->exec('ROLLBACK TO SAVEPOINT mall_owner') === false) {
+            throw new \RuntimeException('the owner change could not be undone', 0, $error);
+        }
+        if ($this->pdo->exec('RELEASE SAVEPOINT mall_owner') === false) {
+            throw new \RuntimeException('the owner change could not be undone', 0, $error);
         }
     }
 }

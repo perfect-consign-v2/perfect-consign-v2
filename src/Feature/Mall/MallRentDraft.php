@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Mall;
 
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\Money;
 
 final class MallRentDraft
@@ -26,12 +28,32 @@ final class MallRentDraft
     public function __construct(
         private readonly MallApp $app,
         private readonly MallPayoutSettings $payouts,
+        private readonly JournalAudit $audit,
     ) {
     }
 
     public function money(MallSettings $mall): MallMoneyForm
     {
-        return new MallMoneyForm($this->app, $mall, $this->payouts, $this);
+        return new MallMoneyForm($this->app, $mall, $this->payouts, $this, $this->audit);
+    }
+
+    /**
+     * @param callable(): void $work
+     */
+    public function keep(callable $work, string $tenantId): ?string
+    {
+        try {
+            $this->audit->within(function () use ($work, $tenantId): void {
+                $work();
+                $this->audit->record('settings.mall', 'mall', $tenantId);
+            });
+        } catch (DatabaseRefusal $refusal) {
+            return $this->app->catchRefusal($refusal);
+        } catch (\InvalidArgumentException $error) {
+            return $error->getMessage();
+        }
+
+        return null;
     }
 
     public function read(): ?string

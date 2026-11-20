@@ -145,7 +145,15 @@ final class StaffStoreTest extends TestCase
 
             public function bound(string $sql, array $params): array
             {
-                return [];
+                if (!str_contains($sql, 'INSERT INTO staff')) {
+                    return [];
+                }
+                $role = $params[3] ?? '';
+                if (is_string($role)) {
+                    $this->test->rememberRole($role);
+                }
+
+                return [['id' => '01900000-0000-7000-8000-0000000000d1']];
             }
         };
 

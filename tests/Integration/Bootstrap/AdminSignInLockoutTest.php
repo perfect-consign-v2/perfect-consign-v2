@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Integration\Bootstrap;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\SignInFailureRetention;
 use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Feature\Admin\AdminSignIn;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PDO;
@@ -113,7 +116,7 @@ final class AdminSignInLockoutTest extends TestCase
             $next = 'admin-under-next-' . bin2hex(random_bytes(4)) . '@example.com';
             $emails[] = $next;
             $signIn = $this->signIn($pdo, '10.10.0.9');
-            self::assertFalse($signIn->attempt($next, 'wrong-password'));
+            self::assertFalse($signIn->attempt($next, 'wrong-password')->accepted());
         } finally {
             foreach ($emails as $email) {
                 $this->clear($pdo, $email);
@@ -130,14 +133,17 @@ final class AdminSignInLockoutTest extends TestCase
     private function signIn(PDO $pdo, string $address): AdminSignIn
     {
         $request = new Request('POST', '/', [], [], '', '', $address);
+        $session = $this->session();
+        $audit = QuietAudit::admin($pdo, $request);
 
         return new AdminSignIn(
             $pdo,
             $request,
             new NullLogger(),
-            new AdminSession($this->session()),
-            new AdminAudit($pdo, $request),
+            $audit,
             new SignInFailureRetention($pdo),
+            new AdminMfaStore($pdo, $audit),
+            new AdminMfaPending($session, new AdminSession($session)),
         );
     }
 

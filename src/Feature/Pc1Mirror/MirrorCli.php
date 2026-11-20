@@ -77,10 +77,15 @@ final class MirrorCli
         if (!($options['wipe'] ?? false)) {
             throw new MirrorException('--wipe is required for load');
         }
+        $admin = $this->string($options, 'admin', '');
+        if ($admin === '') {
+            throw new MirrorException('--admin=email is required for load');
+        }
         $journalId = $this->pipeline()->load(
             $extract,
             $this->string($options, 'target', 'local'),
             $this->string($options, 'date', gmdate('Y-m-d')),
+            $admin,
         );
         fwrite(STDOUT, MirrorConstants::TARGET_SLUG . ' loaded opening=' . $journalId . "\n");
 
@@ -119,10 +124,15 @@ final class MirrorCli
         $slug = $this->string($options, 'slug', MirrorConstants::SOURCE_SLUG);
         $targetName = $this->string($options, 'target', 'local');
         $artifact = (new Pc1Extractor(Pc1ReadOnlyConnection::fromEnv()))->extract($slug, $this->artifactRoot);
+        $admin = $this->string($options, 'admin', '');
+        if ($admin === '') {
+            throw new MirrorException('--admin=email is required for load');
+        }
         $code = $this->load([
             'extract' => $artifact->path(),
             'target' => $targetName,
             'wipe' => true,
+            'admin' => $admin,
             'date' => $this->string($options, 'date', gmdate('Y-m-d')),
         ]);
         if ($code !== 0) {
@@ -139,9 +149,9 @@ final class MirrorCli
     {
         fwrite(STDERR, "usage:\n"
             . "  php bin/pc1-mirror.php extract [--slug=beccas-bargains]\n"
-            . "  php bin/pc1-mirror.php load --extract=DIR --target=local|v2 --wipe [--date=YYYY-MM-DD]\n"
+            . "  php bin/pc1-mirror.php load --extract=DIR --target=local|v2 --wipe --admin=email [--date=YYYY-MM-DD]\n"
             . "  php bin/pc1-mirror.php prove --extract=DIR --target=local|v2\n"
-            . "  php bin/pc1-mirror.php refresh [--slug=beccas-bargains] --target=local|v2\n");
+            . "  php bin/pc1-mirror.php refresh [--slug=beccas-bargains] --target=local|v2 --admin=email\n");
 
         return 1;
     }

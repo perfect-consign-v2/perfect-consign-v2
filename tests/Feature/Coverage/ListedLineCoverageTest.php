@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Feature\Coverage;
 
 use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Bootstrap\EmailSignIn;
 use PerfectConsign\Bootstrap\FrontDoor;
@@ -672,7 +673,7 @@ final class ListedLineCoverageTest extends TestCase
         $ledger = $this->createStub(LedgerStore::class);
         $ledger->method('roleAccount')->willReturn(self::ACCOUNT);
         $ledger->method('post')->willReturn(MallDoor::JOURNAL);
-        $controller = new TaxController($door->app, $ledger, new TaxStore($door->pdo));
+        $controller = new TaxController($door->app, $ledger, new TaxStore($door->pdo), QuietAudit::journal($door->statements, $door->actor));
         $html = $this->capture(static function () use ($controller): void {
             $controller->submit(MallDoor::SLUG);
         });
@@ -1457,7 +1458,7 @@ final class ListedLineCoverageTest extends TestCase
         return new RentPosting(
             $ledger,
             $payouts,
-            new PayoutSettler($ledger, $payouts, $runs, new \PerfectConsign\Feature\Payout\PayoutRunLines($quoted), new \PerfectConsign\Bootstrap\JournalAudit(new Actor($this->createStub(\PerfectApp\Session\Session::class)), new \PerfectConsign\Bootstrap\AuditLog($quoted)), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $quoted)),
+            new PayoutSettler($ledger, $payouts, $runs, new \PerfectConsign\Feature\Payout\PayoutRunLines($quoted), QuietAudit::journal($quoted, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $quoted)),
             new MallPayoutSettings($statements),
             new \PerfectConsign\Feature\Rent\RentMoves($statements, new MallPayoutSettings($statements)),
         );
@@ -1492,7 +1493,7 @@ final class ListedLineCoverageTest extends TestCase
         $posting = new RentPosting(
             $ledger,
             new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
-            new PayoutSettler($ledger, new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), new PayoutRunStore($statements, new OccupiedPack($statements)), new \PerfectConsign\Feature\Payout\PayoutRunLines($statements), new \PerfectConsign\Bootstrap\JournalAudit(new Actor($this->createStub(\PerfectApp\Session\Session::class)), new \PerfectConsign\Bootstrap\AuditLog($statements)), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $statements)),
+            new PayoutSettler($ledger, new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), new PayoutRunStore($statements, new OccupiedPack($statements)), new \PerfectConsign\Feature\Payout\PayoutRunLines($statements), QuietAudit::journal($statements, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $statements)),
             new MallPayoutSettings($statements),
             new \PerfectConsign\Feature\Rent\RentMoves($statements, new MallPayoutSettings($statements)),
         );
@@ -1594,7 +1595,7 @@ final class ListedLineCoverageTest extends TestCase
         return new VendorStickers(
             $door->app,
             $account,
-            new InventoryStore($statements, new CatalogLinks($statements), $door->mall),
+            new InventoryStore($statements, new CatalogLinks($statements), $door->mall, QuietAudit::make($statements)),
             $door->mall,
             new LabelRequest(new LabelCatalog()),
             new LabelSheet(new Code128(), new BarcodePng(), new LabelFace(new Code128(), $door->mall)),

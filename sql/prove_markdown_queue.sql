@@ -50,14 +50,51 @@ BEGIN
     END IF;
     SELECT id INTO proposal FROM markdown_proposals WHERE item_id = '01900000-0000-7000-8000-0000000005a1';
     BEGIN
-        PERFORM public.stall_confirm_markdown(proposal, '', false);
+        PERFORM public.stall_confirm_markdown(
+            proposal,
+            '00000000-0000-0000-0000-000000000000',
+            'staff',
+            'ada',
+            'Ada',
+            false
+        );
         RAISE EXCEPTION 'the floor was ignored';
     EXCEPTION WHEN SQLSTATE '23514' THEN
         IF SQLERRM IS DISTINCT FROM 'a markdown stays at or above the floor' THEN
             RAISE;
         END IF;
     END;
-    PERFORM public.stall_confirm_markdown(proposal, 'Ada', true);
+    BEGIN
+        PERFORM public.stall_confirm_markdown(
+            proposal,
+            '00000000-0000-0000-0000-000000000000',
+            'staff',
+            'ada',
+            'Ada',
+            true
+        );
+        RAISE EXCEPTION 'a nameless floor override was accepted';
+    EXCEPTION WHEN SQLSTATE '23514' THEN
+        IF SQLERRM IS DISTINCT FROM 'a floor override names its actor' THEN
+            RAISE;
+        END IF;
+    END;
+    INSERT INTO staff (id, username, display_name, password_hash, role)
+    VALUES (
+        '01900000-0000-7000-8000-00000000a011',
+        'ada',
+        'Ada',
+        'hash-hash-hash-hash-hash',
+        'cashier'
+    );
+    PERFORM public.stall_confirm_markdown(
+        proposal,
+        '01900000-0000-7000-8000-00000000a011',
+        'staff',
+        'ada',
+        'Ada',
+        true
+    );
 END $$;
 
 DO $$
@@ -65,7 +102,16 @@ BEGIN
     IF (SELECT price_minor FROM items WHERE id = '01900000-0000-7000-8000-0000000005a1') IS DISTINCT FROM 9000 THEN
         RAISE EXCEPTION 'confirmation did not change the tag price';
     END IF;
-    IF (SELECT count(*) FROM audit_events WHERE action = 'markdown-floor' AND actor = 'Ada') IS DISTINCT FROM 1 THEN
+    IF (
+        SELECT count(*)
+        FROM audit_events
+        WHERE action = 'markdown-floor'
+          AND actor = 'Ada'
+          AND role = 'cashier'
+          AND username = 'ada'
+          AND account_id = '01900000-0000-7000-8000-00000000a011'
+          AND account_kind = 'staff'
+    ) IS DISTINCT FROM 1 THEN
         RAISE EXCEPTION 'the floor override was not audited';
     END IF;
 END $$;

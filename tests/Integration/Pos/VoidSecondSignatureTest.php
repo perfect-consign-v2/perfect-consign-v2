@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Integration\Pos;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PDO;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\Actor;
@@ -105,13 +106,14 @@ final class VoidSecondSignatureTest extends TestCase
                 },
             ));
             $onHand = $this->quantity($statements, $itemId);
+            $cashierActor = $this->actor(ProbeMall::SLUG, $tenantId, $cashier['id'], 'cashier', $cashier['username'], 'Cash');
             $reversals = new SaleReversal(
                 $ledger,
                 $statements,
                 new SaleCeiling(
                     $statements,
-                    $this->actor(ProbeMall::SLUG, $tenantId, $cashier['id'], 'cashier'),
-                    new AuditLog($statements),
+                    $cashierActor,
+                    QuietAudit::journal($statements, $cashierActor),
                     $this->request(),
                 ),
                 new VendorClawback($ledger, $statements),
@@ -134,6 +136,26 @@ final class VoidSecondSignatureTest extends TestCase
                 ['reversal:' . $saleId]
             );
             self::assertSame([], $reversal);
+            $manager = $this->staff($pdo, 'mgr', 10000);
+            $statements->change(
+                'UPDATE staff SET role = ? WHERE id = ?::uuid',
+                ['manager', $manager['id']]
+            );
+            $reversals->voidSale($sessionId, $date, $saleId, $manager['username'], 'manager-pass-word');
+            $signed = $statements->bound(
+                "SELECT account_id::text AS account_id, account_kind, username, role,
+                        authority_account_id::text AS authority_account_id, authority_username, request_id
+                 FROM audit_events
+                 WHERE action = 'sale.void' AND entity_id = ?",
+                [$saleId]
+            );
+            self::assertSame($cashier['id'], $signed[0]['account_id'] ?? null);
+            self::assertSame('staff', $signed[0]['account_kind'] ?? null);
+            self::assertSame($cashier['username'], $signed[0]['username'] ?? null);
+            self::assertSame('cashier', $signed[0]['role'] ?? null);
+            self::assertSame($manager['id'], $signed[0]['authority_account_id'] ?? null);
+            self::assertSame($manager['username'], $signed[0]['authority_username'] ?? null);
+            self::assertSame('test-request', $signed[0]['request_id'] ?? null);
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -185,7 +207,7 @@ final class VoidSecondSignatureTest extends TestCase
         return ['id' => $id, 'username' => $username];
     }
 
-    private function actor(string $slug, string $tenantId, string $account, string $role): Actor
+    private function actor(string $slug, string $tenantId, string $account, string $role, string $username, string $name): Actor
     {
         $now = (string) time();
 
@@ -194,6 +216,8 @@ final class VoidSecondSignatureTest extends TestCase
             'tenant_id' => $tenantId,
             'actor_role' => $role,
             'actor_account' => $account,
+            'actor_username' => $username,
+            'owner_name' => $name,
             'signed_in_at' => $now,
             'last_seen_at' => $now,
         ]));

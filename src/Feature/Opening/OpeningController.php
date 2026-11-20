@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Opening;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -20,6 +21,7 @@ final class OpeningController
         private readonly LedgerStore $ledger,
         private readonly OpeningStore $openings,
         private readonly PartyStore $parties,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -43,6 +45,7 @@ final class OpeningController
                 postingDate: $this->app->request()->field('posting_date'),
                 source: new JournalSource('opening', 'opening', 'Opening balance'),
                 lines: PostedLines::read($this->app->request(), 6, true),
+                beforeCommit: $this->audit->on('opening.post'),
             ));
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));

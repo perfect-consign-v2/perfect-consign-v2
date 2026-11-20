@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Integration\Bootstrap;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\SignInFailureRetention;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Feature\Admin\AdminSignIn;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectApp\Session\Session;
@@ -84,6 +87,32 @@ final class SignInFailureRetentionTest extends TestCase
         }
     }
 
+    public function testAdminMfaFailurePrunesStaleRowsOnInsert(): void
+    {
+        ProbeMall::ensure(dirname(__DIR__, 3));
+        $pdo = $this->pdo();
+        $email = 'stale-mfa-' . bin2hex(random_bytes(4)) . '@example.com';
+        $retention = new SignInFailureRetention($pdo);
+        try {
+            $stale = $pdo->prepare(
+                "INSERT INTO platform.admin_mfa_failures (email, client_address, failed_at)
+                 VALUES (?, '10.23.0.1', clock_timestamp() - interval '20 minutes')"
+            );
+            $stale->execute([$email]);
+            $retention->pruneAdminMfa($email);
+            $failed = $pdo->prepare(
+                'INSERT INTO platform.admin_mfa_failures (email, client_address) VALUES (?, ?)'
+            );
+            $failed->execute([$email, '10.23.0.2']);
+            $count = $pdo->prepare('SELECT count(*) FROM platform.admin_mfa_failures WHERE email = ?');
+            $count->execute([$email]);
+            self::assertSame(1, (int) $count->fetchColumn());
+        } finally {
+            $clear = $pdo->prepare('DELETE FROM platform.admin_mfa_failures WHERE email = ?');
+            $clear->execute([$email]);
+        }
+    }
+
     public function testUnknownAdminEmailDoesNotAuditRefusal(): void
     {
         ProbeMall::ensure(dirname(__DIR__, 3));
@@ -91,7 +120,7 @@ final class SignInFailureRetentionTest extends TestCase
         $email = 'unknown-admin-' . bin2hex(random_bytes(4)) . '@example.com';
         $before = $this->auditCount($pdo, $email);
         $signIn = $this->adminSignIn($pdo, '10.22.0.8');
-        self::assertFalse($signIn->attempt($email, 'wrong-password'));
+        self::assertFalse($signIn->attempt($email, 'wrong-password')->accepted());
         self::assertSame($before, $this->auditCount($pdo, $email));
         $failures = $pdo->prepare('SELECT count(*) FROM platform.admin_sign_in_failures WHERE email = ?');
         $failures->execute([$email]);
@@ -100,33 +129,53 @@ final class SignInFailureRetentionTest extends TestCase
         $clear->execute([$email]);
     }
 
-    public function testKnownAdminWrongPasswordStillAuditsRefusal(): void
-    {
-        ProbeMall::ensure(dirname(__DIR__, 3));
-        $pdo = $this->pdo();
-        $email = 'known-admin-' . bin2hex(random_bytes(4)) . '@example.com';
-        $hash = password_hash('correct-horse', PASSWORD_DEFAULT);
-        if ($hash === false) {
-            self::fail('hash failed');
-        }
-        $insert = $pdo->prepare(
-            'INSERT INTO platform.admins (id, email, password_hash)
-             VALUES (uuidv7(), ?, ?)'
-        );
-        $insert->execute([$email, $hash]);
-        $before = $this->auditCount($pdo, $email);
-        $signIn = $this->adminSignIn($pdo, '10.22.0.9');
-        self::assertFalse($signIn->attempt($email, 'wrong-password'));
-        self::assertSame($before + 1, $this->auditCount($pdo, $email));
-        $pdo->prepare('DELETE FROM platform.admin_sign_in_failures WHERE email = ?')->execute([$email]);
-        // admin_audit is append-only and references admins; leave both rows
+    public function testKnownAdminWrongPasswordStillAuditsRefusal(): void
+
+    {
+
+        ProbeMall::ensure(dirname(__DIR__, 3));
+
+        $pdo = $this->pdo();
+
+        $email = 'known-admin-' . bin2hex(random_bytes(4)) . '@example.com';
+
+        $hash = password_hash('correct-horse', PASSWORD_DEFAULT);
+
+        if ($hash === false) {
+
+            self::fail('hash failed');
+
+        }
+
+        $insert = $pdo->prepare(
+
+            'INSERT INTO platform.admins (id, email, password_hash)
+
+             VALUES (uuidv7(), ?, ?)'
+
+        );
+
+        $insert->execute([$email, $hash]);
+
+        $before = $this->auditCount($pdo, $email);
+
+        $signIn = $this->adminSignIn($pdo, '10.22.0.9');
+
+        self::assertFalse($signIn->attempt($email, 'wrong-password')->accepted());
+
+        self::assertSame($before + 1, $this->auditCount($pdo, $email));
+
+        $pdo->prepare('DELETE FROM platform.admin_sign_in_failures WHERE email = ?')->execute([$email]);
+
+        // admin_audit is append-only and references admins; leave both rows
+
     }
 
     public function testStaleIndexesExistAfterMigration(): void
     {
         ProbeMall::ensure(dirname(__DIR__, 3));
         $pdo = $this->pdo();
-        foreach (['owner_sign_in_failures_stale', 'admin_sign_in_failures_stale'] as $index) {
+        foreach (['owner_sign_in_failures_stale', 'admin_sign_in_failures_stale', 'admin_mfa_failures_stale'] as $index) {
             $check = $pdo->prepare(
                 "SELECT 1 FROM pg_indexes
                  WHERE schemaname = 'platform' AND indexname = ?"
@@ -141,15 +190,16 @@ final class SignInFailureRetentionTest extends TestCase
         $session = (new ReflectionClass(Session::class))->newInstanceWithoutConstructor();
         $adminSession = new AdminSession($session);
         $request = new Request('POST', '/admin/login', [], [], '', '', $address);
-        $audit = new AdminAudit($pdo, $request);
+        $audit = QuietAudit::admin($pdo, $request);
 
         return new AdminSignIn(
             $pdo,
             $request,
             new NullLogger(),
-            $adminSession,
             $audit,
             new SignInFailureRetention($pdo),
+            new AdminMfaStore($pdo, $audit),
+            new AdminMfaPending($session, $adminSession),
         );
     }
 

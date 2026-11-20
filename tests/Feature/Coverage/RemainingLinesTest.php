@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Coverage;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\DatabaseRole;
@@ -325,6 +326,7 @@ final class RemainingLinesTest extends TestCase
                 new CustomerDirectory($missing),
                 new CustomerStore($missing, new PartyIdentity($missing)),
                 new SellerPaths($door->mall),
+                QuietAudit::journal($missing, $door->actor),
             ))->save(MallDoor::SLUG, MallDoor::PARTY);
         });
         self::assertStringContainsString('ada@example.test', $html);
@@ -410,10 +412,12 @@ final class RemainingLinesTest extends TestCase
         ]]);
         $statements = new RoutedStatements($this->createStub(PDO::class));
         $statements->boundRoutes[] = ['match' => 'AS total', 'rows' => [['total' => 0]]];
+        $signed = QuietAudit::session();
+        $actor = new Actor($signed);
         $reversal = new SaleReversal(
             $ledger,
             $statements,
-            new SaleCeiling($statements, new Actor($this->createStub(\PerfectApp\Session\Session::class)), new AuditLog($statements), new Request('GET', '/', [], [])),
+            new SaleCeiling($statements, $actor, QuietAudit::journal($statements, $actor, $signed), new Request('GET', '/', [], [])),
             new VendorClawback($ledger, $statements),
         );
         self::assertSame(MallDoor::JOURNAL, $reversal->voidSale(MallDoor::DRAWER, '2026-11-12', MallDoor::JOURNAL));
@@ -429,9 +433,10 @@ final class RemainingLinesTest extends TestCase
             new SaleReversal(
                 $broken,
                 $statements,
-                new SaleCeiling($statements, $door->actor, new AuditLog($statements), new Request('GET', '/', [], [])),
+                new SaleCeiling($statements, $door->actor, QuietAudit::journal($statements, $door->actor), new Request('GET', '/', [], [])),
                 new VendorClawback($broken, $statements),
             ),
+            QuietAudit::make($statements),
         );
         $view = new ReceiptView(
             $door->app,

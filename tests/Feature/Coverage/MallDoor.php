@@ -96,6 +96,7 @@ final class MallDoor
             'actor_account' => self::ACCOUNT,
             'credentials_version' => '1',
             'owner_name' => 'Ada',
+            'actor_username' => 'ada',
             'signed_in_at' => (string) time(),
             'last_seen_at' => (string) time(),
         ]);

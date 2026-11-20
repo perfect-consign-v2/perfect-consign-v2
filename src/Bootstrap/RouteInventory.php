@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PerfectConsign\Bootstrap;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Feature\Admin\AdminPath;
+use PerfectConsign\Feature\Admin\AdminRouter;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
@@ -49,7 +51,7 @@ final class RouteInventory
             }
         }
 
-        return $routes;
+        return array_merge(AdminRouter::definedRoutes($featureDirectory, AdminPath::fromEnv()), $routes);
     }
 
     /**

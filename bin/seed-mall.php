@@ -65,15 +65,6 @@ if ($pdo->exec($provisioner->rewrite($mallSql, $schema, $provisioner->roleName('
     fwrite(STDERR, "could not load mall_tenant.sql\n");
     exit(1);
 }
-try {
-    (new MallDemo($pdo, $schema))->load();
-} catch (Throwable $error) {
-    $previous = $error->getPrevious();
-    $detail = $previous instanceof Throwable ? $previous->getMessage() : '';
-    fwrite(STDERR, $error->getMessage() . "\n" . $detail . "\n");
-    exit(1);
-}
-
 $hash = password_hash($ownerPassword, PASSWORD_DEFAULT);
 if ($hash === false) {
     fwrite(STDERR, "the password hash could not be created\n");
@@ -109,6 +100,15 @@ if ($ownerEmail !== null) {
     fwrite(STDOUT, "sign in at / with {$ownerEmail}. The password is STALL_OWNER_PASSWORD.\n");
 } else {
     fwrite(STDOUT, "set STALL_OWNER_EMAIL then re-run set-owner; sign-in is email-only at /\n");
+}
+
+try {
+    (new MallDemo($pdo, $schema))->load();
+} catch (Throwable $error) {
+    $previous = $error->getPrevious();
+    $detail = $previous instanceof Throwable ? $previous->getMessage() : '';
+    fwrite(STDERR, $error->getMessage() . "\n" . $detail . "\n");
+    exit(1);
 }
 
 try {

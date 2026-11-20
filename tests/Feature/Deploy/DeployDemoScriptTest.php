@@ -115,11 +115,17 @@ final class DeployDemoScriptTest extends TestCase
         $script = file_get_contents($path);
         self::assertIsString($script);
         self::assertStringContainsString('set-platform-admin.php', $script);
+        self::assertStringContainsString('ensure-admin-mfa-key.php', $script);
         self::assertStringContainsString('STALL_PLATFORM_ADMIN_PASSWORD', $script);
+        $mailKeyAt = strpos($script, 'ensure-mail-key.php');
+        $mfaKeyAt = strpos($script, 'ensure-admin-mfa-key.php');
         $ownerAt = strpos($script, 'set-owner.php');
         $adminAt = strpos($script, 'set-platform-admin.php');
+        self::assertNotFalse($mailKeyAt);
+        self::assertNotFalse($mfaKeyAt);
         self::assertNotFalse($ownerAt);
         self::assertNotFalse($adminAt);
+        self::assertGreaterThan($mailKeyAt, $mfaKeyAt);
         self::assertGreaterThan($ownerAt, $adminAt);
     }
 
@@ -141,6 +147,8 @@ final class DeployDemoScriptTest extends TestCase
         );
         self::assertStringContainsString('Sign-in is only at `/`', $script);
         self::assertStringContainsString('STALL_TRUSTED_PROXIES', $script);
+        self::assertStringContainsString('STALL_ADMIN_PATH is missing or not a private admin path', $script);
+        self::assertStringContainsString('^/[a-z0-9][a-z0-9-]{15,62}$', $script);
         self::assertStringContainsString('Secure cookie', $script);
         self::assertMatchesRegularExpression('/\\[Ss\\]et-\\[Cc\\]ookie/', $script);
     }

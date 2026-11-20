@@ -6,15 +6,10 @@ namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
 use PerfectConsign\Feature\Mall\MallGuard;
-use PerfectConsign\Feature\Vendor\VendorFigures;
-use PerfectConsign\Feature\Vendor\VendorLetter;
 use PerfectConsign\Shared\Database\Statements;
-use PerfectConsign\Shared\Mail\MailAttempt;
-use PerfectConsign\Shared\Mail\MailDeliveryFailed;
 use PerfectConsign\Shared\Mail\MailBounce;
 use PerfectConsign\Shared\Mail\MailProgress;
 use PerfectConsign\Shared\Mail\OutboundMail;
-use PerfectConsign\Shared\Scalar\RowValue;
 use Psr\Log\LoggerInterface;
 
 final class DigestJob
@@ -34,59 +29,18 @@ final class DigestJob
         if (!$this->weeklyMailOn()) {
             return;
         }
-        $this->send('vendor-digest', $date, 'This week', 0);
+        $this->letters()->send('vendor-digest', $date, 'This week', 0);
     }
 
     public function remind(string $tenant, string $date): void
     {
         unset($tenant);
-        $this->send('rent-reminder', $date, 'Rent is due', 1);
+        $this->letters()->send('rent-reminder', $date, 'Rent is due', 1);
     }
 
-    private function send(string $kind, string $date, string $subject, int $minimumRent): void
+    private function letters(): DigestLetters
     {
-        $statements = new Statements($this->pdo);
-        $figures = new VendorFigures($statements);
-        $vendors = $statements->rows(
-            "SELECT vendor.id, stall_party_primary_email(vendor.party_id) AS email, vendor.name
-             FROM vendors AS vendor
-             WHERE vendor.active = true
-               AND stall_party_primary_email(vendor.party_id) IS NOT NULL
-               AND stall_party_primary_email(vendor.party_id) <> ''
-               AND NOT vendor.email_bounced"
-        );
-        $waiting = false;
-        foreach ($vendors as $vendor) {
-            $email = RowValue::optionalString($vendor['email'] ?? null);
-            if ($email === null || $this->progress->sent($statements, $kind, $date, $email)) {
-                continue;
-            }
-            $numbers = $figures->numbers(RowValue::string($vendor['id'] ?? null));
-            if ($numbers['rent'] < $minimumRent) {
-                continue;
-            }
-            try {
-                MailAttempt::send(
-                    $this->mail,
-                    $this->bounce,
-                    $this->logger,
-                    $email,
-                    $subject,
-                    VendorLetter::body(RowValue::string($vendor['name'] ?? null), $numbers['payable'], $numbers['rent'])
-                );
-            } catch (\RuntimeException $failed) {
-                $this->logger->error('a letter is still waiting', MailDeliveryFailed::context($failed, [
-                    'email' => $email,
-                    'error' => $failed->getMessage(),
-                ]));
-                $waiting = true;
-                continue;
-            }
-            $this->progress->record($statements, $kind, $date, $email);
-        }
-        if ($waiting) {
-            throw new \RuntimeException('a letter is still waiting to be sent');
-        }
+        return new DigestLetters($this->pdo, $this->mail, $this->bounce, $this->logger, $this->progress);
     }
 
     private function weeklyMailOn(): bool

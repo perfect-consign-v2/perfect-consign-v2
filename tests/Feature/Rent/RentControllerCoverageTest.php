@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Rent;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\Actor;
@@ -376,7 +377,7 @@ final class RentControllerCoverageTest extends TestCase
                     $payouts,
                     new PayoutRunStore($statements, new OccupiedPack($statements)),
                     new PayoutRunLines($statements),
-                    new JournalAudit(new Actor($app['session']), new AuditLog($statements)),
+                    QuietAudit::journal($statements, new Actor($app['session'])),
                     new VendorClawback($ledger, $statements),
                 ),
                 $settings,
@@ -385,7 +386,7 @@ final class RentControllerCoverageTest extends TestCase
             new RentSlip($statements),
             new RentPayment(),
             $fees,
-            new SaleCeiling($statements, new Actor($app['session']), new AuditLog($statements), $request),
+            new SaleCeiling($statements, new Actor($app['session']), QuietAudit::journal($statements, new Actor($app['session'])), $request),
         );
 
         return new RentController(
@@ -411,6 +412,7 @@ final class RentControllerCoverageTest extends TestCase
             'owner_slug' => self::SLUG,
             'actor_role' => 'owner',
             'actor_account' => self::ACCOUNT,
+            'actor_username' => 'ada',
             'credentials_version' => '1',
             'owner_name' => 'Ada',
             'signed_in_at' => (string) time(),

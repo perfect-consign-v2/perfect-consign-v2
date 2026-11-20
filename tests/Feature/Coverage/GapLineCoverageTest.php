@@ -481,11 +481,11 @@ final class GapLineCoverageTest extends TestCase
 
     public function testAPasswordConfirmationMustMatch(): void
     {
-        $check = new ReflectionMethod(OwnerEmailVerification::class, 'requirePassword');
-        $owner = (new ReflectionClass(OwnerEmailVerification::class))->newInstanceWithoutConstructor();
+        $check = new ReflectionMethod(\PerfectConsign\Feature\Signup\StoreSignup::class, 'normalizedSignupInput');
+        $owner = (new ReflectionClass(\PerfectConsign\Feature\Signup\StoreSignup::class))->newInstanceWithoutConstructor();
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Password confirmation does not match.');
-        $check->invoke($owner, 'long-enough', 'different');
+        $check->invoke($owner, 'Harbor', 'owner@harbor.test', 'long-enough', 'different');
     }
 
     public function testAnOverdueCountRefusesAFailedPrepare(): void

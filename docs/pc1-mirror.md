@@ -19,12 +19,14 @@ Every load stamps an as-of in the extract `manifest.json`. Quote sandbox balance
 php bin/pc1-mirror.php extract --slug=beccas-bargains
 
 # Wipe + provision beccas-mirror + master + opening + prove
-php bin/pc1-mirror.php refresh --target=local
+php bin/pc1-mirror.php refresh --target=local --admin=operator@example.com
 
 # Or stepwise
-php bin/pc1-mirror.php load --extract=var/pc1-extracts/beccas-bargains/<UTC> --target=local --wipe
+php bin/pc1-mirror.php load --extract=var/pc1-extracts/beccas-bargains/<UTC> --target=local --wipe --admin=operator@example.com
 php bin/pc1-mirror.php prove --extract=var/pc1-extracts/beccas-bargains/<UTC> --target=local
 ```
+
+`--admin` is a platform admin email. Load looks that account up before the wipe and refuses an unknown admin. After a successful load it writes one `store.load` row on Operator audit for that admin. Replayed PC1 history is not stamped with a PC2 user. `beccas-mirror` activity shows that load, not invented cashiers.
 
 Artifacts land under `var/pc1-extracts/` (gitignored). Set `STALL_OWNER_PASSWORD` (and optional `STALL_OWNER_EMAIL`) so load can plant the mirror owner.
 
@@ -37,7 +39,7 @@ Artifacts land under `var/pc1-extracts/` (gitignored). Set `STALL_OWNER_PASSWORD
 3. On the v2 host (with `STALL_DB_*` pointing at the demo DB):
 
 ```text
-php bin/pc1-mirror.php load --extract=/path/to/artifact --target=v2 --wipe
+php bin/pc1-mirror.php load --extract=/path/to/artifact --target=v2 --wipe --admin=operator@example.com
 php bin/pc1-mirror.php prove --extract=/path/to/artifact --target=v2
 ```
 

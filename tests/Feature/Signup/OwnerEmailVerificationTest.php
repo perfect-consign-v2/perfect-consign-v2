@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Signup;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Signup\OwnerEmailVerification;
 use PerfectConsign\Shared\Http\Request;
@@ -301,7 +302,7 @@ final class OwnerEmailVerificationTest extends TestCase
         $pdo = $this->createStub(PDO::class);
         $pdo->method('prepare')->willReturn($statement);
 
-        return new AdminAudit($pdo, new Request('GET', '/signup/verify', [], [], '', '', '127.0.0.1'));
+        return QuietAudit::admin($pdo, new Request('GET', '/signup/verify', [], [], '', '', '127.0.0.1'));
     }
 
     /**

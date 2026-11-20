@@ -40,8 +40,6 @@ final class BoothCorrection
         if ($line['commission'] < 1) {
             throw new DatabaseRefusal('That item did not pay a vendor.');
         }
-        $this->ceiling->second('booth.correct', $journalId, $overrideUser, $overridePassword);
-
         return $this->ledger->post(new JournalDraft(
             'booth-correction:' . $journalId . ':' . $itemId,
             $date,
@@ -50,6 +48,12 @@ final class BoothCorrection
                 PostedLines::entry($this->ledger->roleAccount('vendor_payable'), $line['commission'], 0, 'vendor', $line['vendor_id']),
                 PostedLines::entry($this->ledger->roleAccount('vendor_payable'), 0, $line['commission'], 'vendor', $toVendorId),
             ],
+            beforeCommit: function (string $postedId) use ($journalId, $overrideUser, $overridePassword): void {
+                if ($postedId === '') {
+                    throw new DatabaseRefusal('that sale is not posted');
+                }
+                $this->ceiling->second('booth.correct', $journalId, $overrideUser, $overridePassword);
+            },
         ));
     }
 

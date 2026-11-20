@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Web;
 
+use PerfectConsign\Feature\Admin\AdminPath;
 use PerfectConsign\Shared\Http\View;
+use PerfectConsign\Tests\Support\AdminDoor;
 use PHPUnit\Framework\TestCase;
 
 final class ThinPageRenderTest extends TestCase
@@ -13,6 +15,7 @@ final class ThinPageRenderTest extends TestCase
     {
         $view = new View(dirname(__DIR__, 3) . '/src');
         $missing = $this->capture($view, 'Feature/Admin/worker', [
+            'adminPath' => new AdminPath(AdminDoor::prefix()),
             'csrf' => 'tok',
             'status' => $this->workerStatus(false, '', '', false),
             'queue' => [],
@@ -24,6 +27,7 @@ final class ThinPageRenderTest extends TestCase
         self::assertStringContainsString('No job-bearing runs recorded yet.', $missing);
 
         $idle = $this->capture($view, 'Feature/Admin/worker', [
+            'adminPath' => new AdminPath(AdminDoor::prefix()),
             'csrf' => 'tok',
             'status' => $this->workerStatus(true, '', '', false),
             'queue' => [],
@@ -41,6 +45,7 @@ final class ThinPageRenderTest extends TestCase
         self::assertStringContainsString('running', $idle);
 
         $seen = $this->capture($view, 'Feature/Admin/worker', [
+            'adminPath' => new AdminPath(AdminDoor::prefix()),
             'csrf' => 'tok',
             'status' => $this->workerStatus(true, '2026-11-12 01:00', 'work', true),
             'queue' => [[
@@ -144,6 +149,7 @@ final class ThinPageRenderTest extends TestCase
     {
         $view = new View(dirname(__DIR__, 3) . '/src');
         $blank = $this->capture($view, 'Feature/Admin/tenant-create', [
+            'adminPath' => new AdminPath(AdminDoor::prefix()),
             'csrf' => 'tok',
             'error' => null,
             'storeName' => '',
@@ -151,6 +157,7 @@ final class ThinPageRenderTest extends TestCase
         ]);
         self::assertStringNotContainsString('role="alert"', $blank);
         $failed = $this->capture($view, 'Feature/Admin/tenant-create', [
+            'adminPath' => new AdminPath(AdminDoor::prefix()),
             'csrf' => 'tok',
             'error' => 'Enter a store name.',
             'storeName' => 'A',

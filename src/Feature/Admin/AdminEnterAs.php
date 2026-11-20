@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\DatabaseRole;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\LoginSession;
-use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
 
@@ -19,7 +18,7 @@ final class AdminEnterAs
         private readonly LoginSession $sessions,
         private readonly AdminSession $admins,
         private readonly AdminAudit $audit,
-        private readonly Statements $statements,
+        private readonly JournalAudit $mall,
     ) {
     }
 
@@ -54,10 +53,11 @@ final class AdminEnterAs
             $owner['id'],
             $owner['version'],
             '',
-            ''
+            '',
+            $owner['username'],
         );
         $this->admins->restore($preserved);
-        $this->mallAudit($tenant, $owner['username'], 'owner', $owner['id']);
+        $this->mallAudit($tenant, $owner['id']);
         $this->audit->record(
             $admin['id'],
             $admin['email'],
@@ -166,9 +166,10 @@ final class AdminEnterAs
             $row['version'],
             $row['id'],
             '',
+            $row['username'],
         );
         $this->admins->restore($preserved);
-        $this->mallAudit($tenant, $row['display_name'], $role, $row['id']);
+        $this->mallAudit($tenant, $row['id']);
         $this->audit->record(
             $admin['id'],
             $admin['email'],
@@ -226,18 +227,32 @@ final class AdminEnterAs
         ];
     }
 
-    private function mallAudit(TenantRecord $tenant, string $actor, string $role, string $entityId): void
+    private function searchPath(string $schema): void
+    {
+        if (preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
+            throw new \RuntimeException('the mall search path could not be set');
+        }
+        $this->command(
+            'SET search_path TO ' . $schema . ', pg_catalog, extensions',
+            'the mall search path could not be set',
+        );
+    }
+
+    private function command(string $sql, string $failure): void
+    {
+        if ($this->pdo->exec($sql) === false) {
+            throw new \RuntimeException($failure);
+        }
+    }
+
+    private function mallAudit(TenantRecord $tenant, string $entityId): void
     {
         $this->roles->assume($tenant->role);
         try {
-            if ($this->pdo->exec('SET search_path TO ' . $tenant->schema . ', pg_catalog, extensions') === false) {
-                throw new \RuntimeException('the mall search path could not be set');
-            }
-            (new AuditLog($this->statements))->record($actor, $role, 'platform.enter', 'session', $entityId);
+            $this->searchPath($tenant->schema);
+            $this->mall->record('platform.enter', 'session', $entityId);
         } finally {
-            if ($this->pdo->exec('RESET search_path') === false) {
-                throw new \RuntimeException('the search path could not be reset');
-            }
+            $this->command('RESET search_path', 'the search path could not be reset');
             $this->roles->reset();
         }
     }

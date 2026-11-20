@@ -7,7 +7,7 @@ namespace PerfectConsign\Feature\Booth;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\Actor;
-use PerfectConsign\Bootstrap\AuditLog;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\SignedInPerson;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -24,7 +24,7 @@ final class BoothExtraController
         private readonly LedgerStore $ledger,
         private readonly ActiveRegister $register,
         private readonly Actor $actor,
-        private readonly AuditLog $audit,
+        private readonly JournalAudit $audit,
         private readonly Statements $statements,
     ) {
     }
@@ -89,7 +89,7 @@ final class BoothExtraController
             throw new DatabaseRefusal('that booth does not exist');
         }
         $amount = Money::parseMinor($request->field('amount'));
-        [$actor, $role] = $this->signer();
+        $this->signer();
         [$debit, $credit] = $this->sides($charge, $release);
         $debitBooth = $debit === 'booth_deposit_held' || $debit === 'booth_rent_receivable' ? $booth : null;
         $creditBooth = $credit === 'booth_deposit_held' || $credit === 'booth_rent_receivable' ? $booth : null;
@@ -98,8 +98,8 @@ final class BoothExtraController
             postingDate: $request->field('posting_date'),
             source: new JournalSource($source, $reference, $description),
             sessionId: $this->drawer($slug, $charge),
-            beforeCommit: function (string $journalId) use ($actor, $role, $source): void {
-                $this->audit->record($actor, $role, $source, 'journal', $journalId);
+            beforeCommit: function (string $journalId) use ($source): void {
+                $this->audit->record($source, 'journal', $journalId);
             },
             lines: [
                 $this->line($debit, $amount, 0, $debitBooth),
@@ -108,16 +108,9 @@ final class BoothExtraController
         ));
     }
 
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function signer(): array
+    private function signer(): void
     {
-        $actor = $this->actor->name();
-        $role = $this->actor->role();
-        SignedInPerson::require($actor, $role);
-
-        return [$actor, $role];
+        SignedInPerson::require($this->actor->name(), $this->actor->role());
     }
 
     private function drawer(string $slug, bool $charge): ?string

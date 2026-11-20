@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\LineGap;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\Actor;
@@ -26,6 +27,7 @@ use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Bootstrap\StaffSignIn;
 use PerfectConsign\Bootstrap\TenantLookup;
 use PerfectConsign\Feature\Admin\AdminApp;
+use PerfectConsign\Feature\Admin\AdminPath;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Admin\AdminAuditController;
 use PerfectConsign\Feature\Admin\AdminResetMail;
@@ -34,6 +36,8 @@ use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Feature\Admin\AdminSessionController;
 use PerfectConsign\Feature\Admin\AdminEnterAs;
 use PerfectConsign\Feature\Admin\AdminSignIn;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
 use PerfectConsign\Feature\Admin\AdminTenantController;
 use PerfectConsign\Feature\Admin\AdminTenantList;
 use PerfectConsign\Feature\Admin\AdminTenantWipe;
@@ -313,7 +317,7 @@ final class ListedLineCoverageTest extends TestCase
                     return [['ceiling' => 0]];
                 }
                 if (str_contains($sql, 'FROM staff')) {
-                    return [['id' => $this->other, 'password_hash' => $this->hash]];
+                    return [['id' => $this->other, 'username' => 'other', 'password_hash' => $this->hash]];
                 }
 
                 return [];
@@ -323,13 +327,15 @@ final class ListedLineCoverageTest extends TestCase
             'owner_slug' => self::SLUG,
             'actor_role' => 'cashier',
             'actor_account' => self::ACCOUNT,
+            'actor_username' => 'ada',
+            'owner_name' => 'Ada',
             'signed_in_at' => (string) time(),
             'last_seen_at' => (string) time(),
         ];
         $ceiling = new SaleCeiling(
             $statements,
             new Actor($this->session($bag)),
-            new AuditLog($statements),
+            QuietAudit::journal($statements, new Actor($this->session($bag))),
             new Request('POST', '/' . self::SLUG . '/pos', [], [], '', '', '203.0.113.11'),
         );
         try {
@@ -397,7 +403,7 @@ final class ListedLineCoverageTest extends TestCase
     public function testAdminAuditTokensSessionAndExpiredForm(): void
     {
         $request = new Request('POST', '/admin/login', [], ['csrf' => 'nope'], '', '', '203.0.113.12');
-        $audit = new AdminAudit($this->auditPdo(0), $request);
+        $audit = QuietAudit::admin($this->auditPdo(0), $request);
         try {
             $audit->record(null, '', 'admin.sign_in', 'ok');
             self::fail('an empty audit row was stored');
@@ -482,15 +488,17 @@ final class ListedLineCoverageTest extends TestCase
         $session = $this->session($bag);
         $request = new Request('GET', '/admin', [], []);
         $app = $this->adminApp($session, $request, $this->adminRowPdo());
+        $audit = QuietAudit::admin($this->auditPdo(1), $request);
         $signIn = new AdminSignIn(
             $this->countPdo(0),
             $request,
             new NullLogger(),
-            new AdminSession($session),
-            new AdminAudit($this->auditPdo(1), $request),
+            $audit,
             new SignInFailureRetention($this->countPdo(0)),
+            new AdminMfaStore($this->countPdo(0), $audit),
+            new AdminMfaPending($session, new AdminSession($session)),
         );
-        self::assertFalse($signIn->attempt('not-an-email', 'secret'));
+        self::assertFalse($signIn->attempt('not-an-email', 'secret')->accepted());
         $controller = new AdminSessionController($app, $signIn, new LoginSession($session));
         $this->sent(static function () use ($controller): void {
             $controller->home();
@@ -510,13 +518,15 @@ final class ListedLineCoverageTest extends TestCase
         $emptyBag = ['csrf' => 'csrf-token'];
         $empty = $this->session($emptyBag);
         $lockedApp = $this->adminApp($empty, $lockedRequest);
+        $lockedAudit = QuietAudit::admin($this->auditPdo(1), $lockedRequest);
         $lockedSignIn = new AdminSignIn(
             $this->countPdo(40),
             $lockedRequest,
             new NullLogger(),
-            new AdminSession($empty),
-            new AdminAudit($this->auditPdo(1), $lockedRequest),
+            $lockedAudit,
             new SignInFailureRetention($this->countPdo(0)),
+            new AdminMfaStore($this->countPdo(0), $lockedAudit),
+            new AdminMfaPending($empty, new AdminSession($empty)),
         );
         $locked = new AdminSessionController($lockedApp, $lockedSignIn, new LoginSession($empty));
         ob_start();
@@ -534,6 +544,7 @@ final class ListedLineCoverageTest extends TestCase
             new AdminResetTokens($this->countPdo(0)),
             new PlatformMailbox(new OutboundMail(new NullLogger()), new GmailSender(new PlatformOperatorNotice(new NullLogger())), new PlatformOperatorNotice(new NullLogger())),
             new NullLogger(),
+            new AdminPath(\PerfectConsign\Tests\Support\AdminDoor::prefix()),
         );
         $row = ['id' => self::ACCOUNT, 'email' => 'admin@example.test', 'hash' => 'hash'];
         $this->withEnv(['STALL_MAIL_FILE' => null, 'STALL_GMAIL_ADDRESS' => null, 'STALL_GMAIL_APP_PASSWORD' => null, 'STALL_SMTP_HOST' => null], function () use ($mail, $row): void {
@@ -905,10 +916,10 @@ final class ListedLineCoverageTest extends TestCase
             new DatabaseRole($empty),
             new LoginSession($session),
             new AdminSession($session),
-            new AdminAudit($empty, $request),
-            new Statements($empty),
+            QuietAudit::admin($empty, $request),
+            QuietAudit::make(new Statements($empty)),
         );
-        $wipe = new AdminTenantWipe($empty, new AdminAudit($empty, $request), new \PerfectConsign\Feature\Backup\BackupStore($empty), $request);
+        $wipe = new AdminTenantWipe($empty, QuietAudit::admin($empty, $request), new \PerfectConsign\Feature\Backup\BackupStore($empty), $request);
         $controller = new AdminTenantController($app, $list, $enter, $wipe, new \PerfectConsign\Feature\Admin\TenantDeletePolicy());
         $this->sent(static function () use ($controller): void {
             $controller->enter(self::SLUG);
@@ -1024,7 +1035,7 @@ final class ListedLineCoverageTest extends TestCase
         ]);
         $deleteApp = $this->adminApp($session, $deleteRequest, $this->adminRowPdo());
         $deleteList = new AdminTenantList($found, new DatabaseRole($found));
-        $deleteWipe = new AdminTenantWipe($wipePdo, new AdminAudit($wipePdo, $deleteRequest), new \PerfectConsign\Feature\Backup\BackupStore($wipePdo), $deleteRequest);
+        $deleteWipe = new AdminTenantWipe($wipePdo, QuietAudit::admin($wipePdo, $deleteRequest), new \PerfectConsign\Feature\Backup\BackupStore($wipePdo), $deleteRequest);
         $delete = new AdminTenantController($deleteApp, $deleteList, $enter, $deleteWipe, new \PerfectConsign\Feature\Admin\TenantDeletePolicy());
         $savedEnv = getenv('APP_ENV');
         putenv('APP_ENV=production');
@@ -1097,6 +1108,11 @@ final class ListedLineCoverageTest extends TestCase
                 new \PerfectConsign\Feature\Backup\BackupStore($pdo),
                 new \PerfectConsign\Feature\Backup\NightlyCopy(),
                 new \PerfectConsign\Feature\Inventory\LabelCatalog(),
+                new \PerfectConsign\Feature\Mall\MallRentDraft(
+                    $app,
+                    new \PerfectConsign\Feature\Mall\MallPayoutSettings($statements),
+                    QuietAudit::make($statements),
+                ),
             ),
             $logger,
         );
@@ -1551,8 +1567,7 @@ final class ListedLineCoverageTest extends TestCase
         $company = new \PerfectConsign\Feature\Company\CompanyController(
             $companyApp,
             new \PerfectConsign\Feature\Company\CompanyStore($refusing, new DatabaseRole($companyPdo), $companyPdo, new \PerfectConsign\Feature\Company\CompanyLines()),
-            new AuditLog($refusing),
-            new Actor($companySession),
+            QuietAudit::journal($refusing, new Actor($companySession)),
         );
         $companyPage = $this->capture(function () use ($company): void {
             $company->save(self::SLUG);
@@ -1571,8 +1586,8 @@ final class ListedLineCoverageTest extends TestCase
         $exportPdo = $this->mallPdo(false);
         $exportApp = $this->mallApp($exportPdo, $exportSession, $exportRequest);
         $exports = new \PerfectConsign\Feature\Export\ExportStore($exportPdo);
-        $exportPage = $this->capture(function () use ($exportApp, $exports): void {
-            (new \PerfectConsign\Feature\Export\ExportController($exportApp, $exports))->download(self::SLUG);
+        $exportPage = $this->capture(function () use ($exportApp, $exports, $exportPdo): void {
+            (new \PerfectConsign\Feature\Export\ExportController($exportApp, $exports, QuietAudit::make(new \PerfectConsign\Shared\Database\Statements($exportPdo))))->download(self::SLUG);
         });
         self::assertStringContainsString('Tax rate label is too long', $exportPage);
 
@@ -1675,6 +1690,7 @@ final class ListedLineCoverageTest extends TestCase
             new NullLogger(),
             new AdminSession($session),
             new LoginSession($session),
+            new AdminPath(\PerfectConsign\Tests\Support\AdminDoor::prefix()),
         );
     }
 

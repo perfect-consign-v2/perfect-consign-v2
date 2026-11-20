@@ -8,6 +8,7 @@ use PerfectConsign\Feature\Close\CloseController;
 use PerfectConsign\Feature\Close\CloseStore;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Tests\Feature\Coverage\CapturesPage;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Tests\Feature\Coverage\MallDoor;
 use PHPUnit\Framework\TestCase;
 
@@ -55,6 +56,7 @@ final class CloseControllerGapTest extends TestCase
             $door->ledger,
             new CloseStore($door->pdo, $door->statements),
             $door->mall,
+            QuietAudit::journal($door->statements, $door->actor),
         );
     }
 }

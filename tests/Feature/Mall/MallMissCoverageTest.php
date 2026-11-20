@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Mall;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Feature\Backup\BackupStore;
@@ -65,7 +66,7 @@ final class MallMissCoverageTest extends TestCase
             'ends_on' => '2026-01-02',
         ]));
         $door->session->set('owner_name', '');
-        $controller = new MallSaleController($door->app, $this->routed(), $door->actor, new AuditLog($this->routed()));
+        $controller = new MallSaleController($door->app, $this->routed(), $door->actor, QuietAudit::journal($this->routed(), $door->actor));
         $this->capture(function () use ($controller): void {
             $controller->save(MallDoor::SLUG);
         });
@@ -206,7 +207,7 @@ final class MallMissCoverageTest extends TestCase
         ]));
         $mall = $this->mall($statements);
         $store = new OfferStore($statements);
-        $controller = new OfferController($door->app, $store, $mall, new VendorPreview($door->app, $door->actor, $this->createStub(PartyStore::class), $door->mall));
+        $controller = new OfferController($door->app, $store, $mall, new VendorPreview($door->app, $door->actor, $this->createStub(PartyStore::class), $door->mall), QuietAudit::journal($statements, $door->actor));
         $html = $this->capture(function () use ($controller): void {
             $controller->end(MallDoor::SLUG, self::OFFER);
         });
@@ -236,6 +237,7 @@ final class MallMissCoverageTest extends TestCase
             new OfferStore($vendorStatements),
             $this->mall($vendorStatements),
             new VendorPreview($vendorDoor->app, $vendorDoor->actor, $this->createStub(PartyStore::class), $vendorDoor->mall),
+            QuietAudit::journal($vendorStatements, $vendorDoor->actor),
         );
         $page = $this->capture(function () use ($vendor): void {
             $vendor->vendorEnd(MallDoor::SLUG, self::OFFER);
@@ -319,13 +321,15 @@ final class MallMissCoverageTest extends TestCase
         $statement->method('fetchColumn')->willReturn(false);
         $pdo = $this->createStub(PDO::class);
         $pdo->method('prepare')->willReturn($statement);
+        $payouts = new MallPayoutSettings($statements);
         $controller = new MallController(
             $door->app,
             $this->mall($statements),
-            new MallPayoutSettings($statements),
+            $payouts,
             new BackupStore($pdo),
             new NightlyCopy(),
             new LabelCatalog(),
+            new MallRentDraft($door->app, $payouts, QuietAudit::journal($statements, $door->actor)),
         );
 
         return $this->capture(function () use ($controller, $part): void {
@@ -347,9 +351,10 @@ final class MallMissCoverageTest extends TestCase
             'operating_mode' => 'consignor',
         ]));
         $payouts = new MallPayoutSettings($statements);
-        $draft = new MallRentDraft($door->app, $payouts);
+        $audit = QuietAudit::journal($statements, $door->actor);
+        $draft = new MallRentDraft($door->app, $payouts, $audit);
 
-        return ['form' => new MallMoneyForm($door->app, $this->mall($statements), $payouts, $draft), 'statements' => $statements];
+        return ['form' => new MallMoneyForm($door->app, $this->mall($statements), $payouts, $draft, $audit), 'statements' => $statements];
     }
 
     /**
@@ -361,7 +366,7 @@ final class MallMissCoverageTest extends TestCase
         $this->routeMall($statements);
         $door = MallDoor::open($this, new Request('POST', '/' . MallDoor::SLUG . '/settings/money', [], ['csrf' => 'csrf-token'] + $post));
 
-        return new MallRentDraft($door->app, new MallPayoutSettings($statements));
+        return new MallRentDraft($door->app, new MallPayoutSettings($statements), QuietAudit::journal($statements, $door->actor));
     }
 
     /**
@@ -395,7 +400,7 @@ final class MallMissCoverageTest extends TestCase
         $parties->method('booths')->willReturn([]);
 
         return [
-            'controller' => new OpeningController($door->app, $ledger, new OpeningStore($pdo), $parties),
+            'controller' => new OpeningController($door->app, $ledger, new OpeningStore($pdo), $parties, QuietAudit::journal($door->statements, $door->actor)),
             'ledger' => $ledger,
             'door' => $door,
         ];

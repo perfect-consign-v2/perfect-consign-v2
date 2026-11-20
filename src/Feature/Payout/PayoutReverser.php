@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Payout;
 
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Bootstrap\JournalAudit;
+use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
@@ -16,17 +19,28 @@ final class PayoutReverser
     public function __construct(
         private readonly LedgerStore $ledger,
         private readonly Statements $statements,
+        private readonly Actor $actor,
+        private readonly JournalAudit $audit,
     ) {
     }
 
-    public function undo(string $runId, string $postingDate, string $actor, string $reason): string
+    public function undo(string $runId, string $postingDate, string $reason): string
     {
-        $rows = $this->statements->bound(
-            'SELECT stall_reverse_payout_run(?::uuid, ?::date, ?, ?) AS id',
-            [$runId, $postingDate, $actor, $reason]
-        );
+        $actor = $this->actor->username();
+        if ($actor === '' || trim($reason) === '') {
+            throw new DatabaseRefusal('a payout reversal needs the operator and a reason');
+        }
+        $journalId = '';
+        $this->audit->within(function () use ($runId, $postingDate, $actor, $reason, &$journalId): void {
+            $rows = $this->statements->bound(
+                'SELECT stall_reverse_payout_run(?::uuid, ?::date, ?, ?) AS id',
+                [$runId, $postingDate, $actor, trim($reason)]
+            );
+            $journalId = RowValue::string($rows[0]['id'] ?? null);
+            $this->audit->record('payout.undo', 'payout', $runId);
+        });
 
-        return RowValue::string($rows[0]['id'] ?? null);
+        return $journalId;
     }
 
     public function reverse(string $journalId, string $postingDate): string

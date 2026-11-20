@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 /** @var list<array{id: string, slug: string, displayName: string, mode: string, modeLabel: string, owners: list<array{id: string, username: string}>}> $tenants */
 ?>
 <h1>Tenants</h1>
@@ -12,7 +13,7 @@ use PerfectConsign\Shared\Http\View;
     <div class="card-head row between">
         <div class="h3">Stores</div>
         <div class="row gap-2">
-            <a class="btn btn-sm btn-primary" href="/admin/tenants/create">Create store</a>
+            <a class="btn btn-sm btn-primary" href="<?= View::text($adminPath->url('/tenants/create')) ?>">Create store</a>
             <span class="muted text-sm"><?= View::text((string) count($tenants)) ?> total</span>
         </div>
     </div>
@@ -39,24 +40,24 @@ use PerfectConsign\Shared\Http\View;
                             <td>
                                 <div class="row gap-2" data-style-prop="justify-content:flex-end; flex-wrap:wrap">
                                     <?php foreach ($tenant['owners'] as $owner): ?>
-                                        <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
+                                        <form method="post" action="<?= View::text($adminPath->url('/tenants/' . $tenant['slug'] . '/enter')) ?>" target="_blank" rel="noopener noreferrer">
                                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                             <input type="hidden" name="role" value="owner">
                                             <input type="hidden" name="owner_id" value="<?= View::text($owner['id']) ?>">
                                             <button class="btn btn-sm" type="submit">Enter as <?= View::text($owner['username']) ?></button>
                                         </form>
                                     <?php endforeach; ?>
-                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
+                                    <form method="post" action="<?= View::text($adminPath->url('/tenants/' . $tenant['slug'] . '/enter')) ?>" target="_blank" rel="noopener noreferrer">
                                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                         <input type="hidden" name="role" value="cashier">
                                         <button class="btn btn-sm" type="submit">Enter as cashier</button>
                                     </form>
-                                    <form method="post" action="/admin/tenants/<?= View::text($tenant['slug']) ?>/enter" target="_blank" rel="noopener noreferrer">
+                                    <form method="post" action="<?= View::text($adminPath->url('/tenants/' . $tenant['slug'] . '/enter')) ?>" target="_blank" rel="noopener noreferrer">
                                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                         <input type="hidden" name="role" value="manager">
                                         <button class="btn btn-sm" type="submit">Enter as manager</button>
                                     </form>
-                                    <a class="btn btn-sm btn-danger" href="/admin/tenants/<?= View::text($tenant['slug']) ?>/delete">Delete</a>
+                                    <a class="btn btn-sm btn-danger" href="<?= View::text($adminPath->url('/tenants/' . $tenant['slug'] . '/delete')) ?>">Delete</a>
                                 </div>
                             </td>
                         </tr>

@@ -129,17 +129,22 @@ final class RentController
 
             return;
         }
+        $count = 0;
         try {
             $request = $this->app->request();
-            $this->receipts->signOff($figure['vendor_id'], $request->field('override_user'), $request->field('override_password'));
-            $count = $this->waiveChosen($figure['vendor_id'], $figure['owed'], $today);
+            $this->receipts->waiveSigned(
+                $figure['vendor_id'],
+                $request->field('override_user'),
+                $request->field('override_password'),
+                function () use ($figure, $today, &$count): void {
+                    $count = $this->waiveChosen($figure['vendor_id'], $figure['owed'], $today);
+                    if ($count < 1) {
+                        throw new DatabaseRefusal('Choose a late fee.');
+                    }
+                },
+            );
         } catch (DatabaseRefusal $refusal) {
             $this->showCollect($slug, $this->app->catchRefusal($refusal));
-
-            return;
-        }
-        if ($count < 1) {
-            $this->showCollect($slug, 'Choose a late fee.');
 
             return;
         }

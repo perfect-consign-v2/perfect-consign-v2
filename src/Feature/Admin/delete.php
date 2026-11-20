@@ -6,13 +6,14 @@ use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 /** @var TenantRecord $tenant */
 /** @var bool $requiresCountersign */
 $requiresCountersign = ($requiresCountersign ?? true) === true;
 ?>
 <h1>Delete <?= View::text($tenant->displayName) ?></h1>
 <div class="card" data-style-prop="max-width:36rem">
-    <form method="post" action="/admin/tenants/<?= View::text($tenant->slug) ?>/delete">
+    <form method="post" action="<?= View::text($adminPath->url('/tenants/' . $tenant->slug . '/delete')) ?>">
         <div class="card-body grid" data-style-prop="gap:var(--space-4)">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <div class="alert alert-danger">
@@ -40,7 +41,7 @@ $requiresCountersign = ($requiresCountersign ?? true) === true;
             <?php } ?>
         </div>
         <div class="card-foot row between">
-            <a href="/admin/tenants">Cancel</a>
+            <a href="<?= View::text($adminPath->url('/tenants')) ?>">Cancel</a>
             <button class="btn btn-danger" type="submit">Delete permanently</button>
         </div>
     </form>

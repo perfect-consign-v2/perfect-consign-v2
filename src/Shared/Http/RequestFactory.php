@@ -36,7 +36,13 @@ final class RequestFactory
             RequestOrigin::resolve($server, $https),
             self::clientAddress($server, $trustedProxiesEnv),
             RequestUploads::normalize($files),
-            self::accept($server),
+            new RequestTrace(
+                self::accept($server),
+                self::target($server),
+                self::host($server),
+                self::userAgent($server),
+                self::rawReferer($server),
+            ),
         );
     }
 
@@ -114,14 +120,77 @@ final class RequestFactory
      */
     private static function accept(array $server): string
     {
-        $accept = $server['HTTP_ACCEPT'] ?? '';
-        if (!is_string($accept)) {
-            return '';
+        return self::plain($server['HTTP_ACCEPT'] ?? '', self::ACCEPT_MAX);
+    }
+
+    /**
+     * @param array<string, mixed> $server
+     */
+    private static function target(array $server): string
+    {
+        $uri = $server['REQUEST_URI'] ?? '/';
+        if (!is_string($uri) || $uri === '') {
+            return '/';
         }
-        if (strlen($accept) > self::ACCEPT_MAX) {
-            return substr($accept, 0, self::ACCEPT_MAX);
+        $cut = strpos($uri, '?');
+        $path = $cut === false ? $uri : substr($uri, 0, $cut);
+        $query = $cut === false ? '' : substr($uri, $cut + 1);
+        $keys = [];
+        if ($query !== '') {
+            foreach (explode('&', $query) as $pair) {
+                $name = explode('=', $pair, 2)[0];
+                $decoded = rawurldecode(str_replace('+', ' ', $name));
+                $clean = self::plain($decoded, 64);
+                if ($clean !== '') {
+                    $keys[] = $clean;
+                }
+            }
+        }
+        $target = $path;
+        if ($keys !== []) {
+            $target .= '?' . implode('&', $keys);
         }
 
-        return $accept;
+        return self::plain($target, 500);
+    }
+
+    /**
+     * @param array<string, mixed> $server
+     */
+    private static function host(array $server): string
+    {
+        return self::plain($server['HTTP_HOST'] ?? '', 200);
+    }
+
+    /**
+     * @param array<string, mixed> $server
+     */
+    private static function userAgent(array $server): string
+    {
+        return self::plain($server['HTTP_USER_AGENT'] ?? '', 200);
+    }
+
+    /**
+     * @param array<string, mixed> $server
+     */
+    private static function rawReferer(array $server): string
+    {
+        return self::plain($server['HTTP_REFERER'] ?? '', 500);
+    }
+
+    private static function plain(mixed $value, int $max): string
+    {
+        if (!is_string($value) || $value === '') {
+            return '';
+        }
+        $clean = preg_replace('/[\x00-\x1F\x7F]/', '', $value);
+        if (!is_string($clean) || $clean === '') {
+            return '';
+        }
+        if (strlen($clean) > $max) {
+            return substr($clean, 0, $max);
+        }
+
+        return $clean;
     }
 }

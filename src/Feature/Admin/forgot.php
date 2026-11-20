@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 ?>
 <div class="login-wrap">
     <div class="panel">
@@ -17,7 +18,7 @@ use PerfectConsign\Shared\Http\View;
         </div>
         <div class="card">
             <div class="card-head"><h1>Forgot password</h1></div>
-            <form method="post" action="/admin/forgot">
+            <form method="post" action="<?= View::text($adminPath->url('/forgot')) ?>">
                 <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                     <p class="muted">Enter the platform admin email. A reset link goes to that address when it matches an admin.</p>
@@ -27,7 +28,7 @@ use PerfectConsign\Shared\Http\View;
                     </div>
                 </div>
                 <div class="card-foot row between">
-                    <a href="/admin/login">Back to sign in</a>
+                    <a href="<?= View::text($adminPath->url('/login')) ?>">Back to sign in</a>
                     <button class="btn btn-primary" type="submit">Send reset link</button>
                 </div>
             </form>

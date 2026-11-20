@@ -10,6 +10,7 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 
 final class MissedSaleTest extends TestCase
@@ -159,6 +160,7 @@ final class MissedSaleTest extends TestCase
     {
         $statements = $this->createMock(Statements::class);
         $statements->method('bound')->willReturnOnConsecutiveCalls($rate, []);
+        $statements->method('affected')->willReturn(1);
         $statements->expects(self::once())->method('change')->with(
             self::callback(static fn (string $sql): bool => str_contains($sql, 'INSERT INTO missed_sales')),
             [self::JOURNAL, self::VENDOR, $itemId, 1000, 'Lamp', 'walked out'],
@@ -215,6 +217,6 @@ final class MissedSaleTest extends TestCase
 
     private function sale(Statements $statements, ?LedgerStore $ledger = null): MissedSale
     {
-        return new MissedSale($ledger ?? $this->createStub(LedgerStore::class), $statements);
+        return new MissedSale($ledger ?? $this->createStub(LedgerStore::class), $statements, QuietAudit::owner($statements));
     }
 }

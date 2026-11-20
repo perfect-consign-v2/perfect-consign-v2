@@ -6,7 +6,9 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/bin/load-env.php';
 
 loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
+PerfectConsign\Tests\Support\AdminDoor::ensure();
 installTestMailbox();
+installTestAdminMfaKey();
 
 function installTestMailbox(): void
 {
@@ -22,6 +24,20 @@ function installTestMailbox(): void
     if (!is_string($password) || $password === '') {
         putenv('STALL_GMAIL_APP_PASSWORD=ci-mailbox-password');
     }
+}
+
+function installTestAdminMfaKey(): void
+{
+    $key = getenv('STALL_ADMIN_MFA_KEY');
+    if (is_string($key) && $key !== '') {
+        return;
+    }
+    putenv(
+        'STALL_ADMIN_MFA_KEY=' . sodium_bin2base64(
+            str_repeat('m', SODIUM_CRYPTO_SECRETBOX_KEYBYTES),
+            SODIUM_BASE64_VARIANT_ORIGINAL
+        )
+    );
 }
 
 $coverage = getenv('PC_COVERAGE');

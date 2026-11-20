@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Payout;
 
+use PerfectApp\Session\Session;
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\SaleCeiling;
@@ -98,7 +101,7 @@ final class PayoutMissLinesTest extends TestCase
             new PayoutStore(MallDoor::open($this, new Request('GET', '/', [], []))->pdo, $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
             new PayoutRunStore($statements, new OccupiedPack($statements)),
             new PayoutRunLines($statements),
-            new JournalAudit(MallDoor::open($this, new Request('GET', '/', [], []))->actor, new AuditLog($statements)),
+            QuietAudit::journal($statements, MallDoor::open($this, new Request('GET', '/', [], []))->actor),
             new VendorClawback($ledger, $statements),
         );
 
@@ -143,7 +146,7 @@ final class PayoutMissLinesTest extends TestCase
                 new PayoutStore(MallDoor::open($this, new Request('GET', '/', [], []))->pdo, $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
                 new PayoutRunStore($statements, new OccupiedPack($statements)),
                 new PayoutRunLines($statements),
-                new JournalAudit(MallDoor::open($this, new Request('GET', '/', [], []))->actor, new AuditLog($statements)),
+                QuietAudit::journal($statements, MallDoor::open($this, new Request('GET', '/', [], []))->actor),
                 new VendorClawback($this->ledger(), $statements),
             ),
             new PayoutDisburser(
@@ -152,10 +155,10 @@ final class PayoutMissLinesTest extends TestCase
                 new PayoutRunStore($statements, new OccupiedPack($statements)),
                 new PayoutRunLines($statements),
                 new PayoutRunChecks($statements),
-                new JournalAudit(MallDoor::open($this, new Request('GET', '/', [], []))->actor, new AuditLog($statements)),
+                QuietAudit::journal($statements, MallDoor::open($this, new Request('GET', '/', [], []))->actor),
             ),
             new PayoutRunLines($statements),
-            new PayoutReverser($this->ledger(), $statements),
+            new PayoutReverser($this->ledger(), $statements, new Actor($this->createStub(Session::class)), QuietAudit::make($statements)),
             new VendorClawback($this->ledger(), $statements),
         );
 
@@ -322,7 +325,7 @@ final class PayoutMissLinesTest extends TestCase
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $lines = new PayoutRunLines($statements);
         $door = MallDoor::open($this, new Request('GET', '/', [], []));
-        $audit = new JournalAudit($door->actor, new AuditLog($statements));
+        $audit = QuietAudit::journal($statements, $door->actor);
 
         return new PayoutOnce(
             $runs,
@@ -332,7 +335,7 @@ final class PayoutMissLinesTest extends TestCase
             $statements,
             new CheckWords(),
             new RentShortfall($statements),
-            new SaleCeiling($statements, $door->actor, new AuditLog($statements), $door->app->request()),
+            new SaleCeiling($statements, $door->actor, QuietAudit::journal($statements, $door->actor), $door->app->request()),
         );
     }
 
@@ -370,18 +373,17 @@ final class PayoutMissLinesTest extends TestCase
         return new PayoutController(
             $door->app,
             $payouts,
-            new PartyStore($statements, new JournalAudit($door->actor, new AuditLog($statements)), new \PerfectConsign\Feature\Party\AssignmentBook($statements)),
+            new PartyStore($statements, QuietAudit::journal($statements, $door->actor), new \PerfectConsign\Feature\Party\AssignmentBook($statements)),
             new PayoutSingle(
                 $statements,
                 $payouts,
-                new PayoutSettler($door->ledger, $payouts, $runs, new PayoutRunLines($statements), new JournalAudit($door->actor, new AuditLog($statements)), new VendorClawback($door->ledger, $statements)),
-                new PayoutDisburser($door->ledger, $payouts, $runs, new PayoutRunLines($statements), new PayoutRunChecks($statements), new JournalAudit($door->actor, new AuditLog($statements))),
+                new PayoutSettler($door->ledger, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::journal($statements, $door->actor), new VendorClawback($door->ledger, $statements)),
+                new PayoutDisburser($door->ledger, $payouts, $runs, new PayoutRunLines($statements), new PayoutRunChecks($statements), QuietAudit::journal($statements, $door->actor)),
                 new PayoutRunLines($statements),
-                new PayoutReverser($door->ledger, $statements),
+                new PayoutReverser($door->ledger, $statements, $door->actor, QuietAudit::journal($statements, $door->actor)),
                 new VendorClawback($door->ledger, $statements),
             ),
             $door->mall,
-            $door->register,
             new MallClock($door->mall),
         );
     }
@@ -393,10 +395,10 @@ final class PayoutMissLinesTest extends TestCase
         $window = new PayoutWindow();
         $payouts = new PayoutStore($door->pdo, $door->statements, $runs, $window);
         $lines = new PayoutRunLines($door->statements);
-        $audit = new JournalAudit($door->actor, new AuditLog($door->statements));
+        $audit = QuietAudit::journal($door->statements, $door->actor);
         $settler = new PayoutSettler($door->ledger, $payouts, $runs, $lines, $audit, new VendorClawback($door->ledger, $door->statements));
         $disburser = new PayoutDisburser($door->ledger, $payouts, $runs, $lines, new PayoutRunChecks($door->statements), $audit);
-        $once = new PayoutOnce($runs, $sheets, $settler, $disburser, $door->statements, new CheckWords(), new RentShortfall($door->statements), new SaleCeiling($door->statements, $door->actor, new AuditLog($door->statements), $door->app->request()));
+        $once = new PayoutOnce($runs, $sheets, $settler, $disburser, $door->statements, new CheckWords(), new RentShortfall($door->statements), new SaleCeiling($door->statements, $door->actor, QuietAudit::journal($door->statements, $door->actor), $door->app->request()));
 
         return new PayoutRunController(
             $door->app,
@@ -404,7 +406,7 @@ final class PayoutMissLinesTest extends TestCase
             $runs,
             $window,
             $once,
-            new PayoutReverser($door->ledger, $door->statements),
+            new PayoutReverser($door->ledger, $door->statements, $door->actor, QuietAudit::journal($door->statements, $door->actor)),
             $door->register,
             new MallClock($door->mall),
             new PrintedChecks($door->app, $runs, $once),

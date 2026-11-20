@@ -204,8 +204,8 @@ final class RequestFactoryTest extends TestCase
             'REMOTE_ADDR' => '127.0.0.1',
             'HTTP_ACCEPT' => $long,
         ], [], [], [], '');
-        self::assertSame(1024, strlen($request->accept));
-        self::assertSame(substr($long, 0, 1024), $request->accept);
+        self::assertSame(1024, strlen($request->trace->accept));
+        self::assertSame(substr($long, 0, 1024), $request->trace->accept);
 
         $nonString = RequestFactory::from([
             'REQUEST_METHOD' => 'GET',
@@ -214,7 +214,7 @@ final class RequestFactoryTest extends TestCase
             'REMOTE_ADDR' => '127.0.0.1',
             'HTTP_ACCEPT' => ['text/html'],
         ], [], [], [], '');
-        self::assertSame('', $nonString->accept);
+        self::assertSame('', $nonString->trace->accept);
     }
 
     public function testHttpsRequestRejectsHttpRefererPath(): void

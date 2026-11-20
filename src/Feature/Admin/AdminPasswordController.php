@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectApp\Routing\Route;
 use PerfectConsign\Feature\Password\ResetNotice;
 
 final class AdminPasswordController
@@ -15,7 +14,7 @@ final class AdminPasswordController
     ) {
     }
 
-    #[Route('/admin/forgot', ['GET'])]
+    #[AdminRoute('/forgot', ['GET'])]
     public function forgotForm(): void
     {
         $this->app->showGuest('Feature/Admin/forgot', [
@@ -24,7 +23,7 @@ final class AdminPasswordController
         ]);
     }
 
-    #[Route('/admin/forgot', ['POST'])]
+    #[AdminRoute('/forgot', ['POST'])]
     public function forgotSubmit(): void
     {
         $this->app->checkCsrf();
@@ -32,14 +31,14 @@ final class AdminPasswordController
             $this->recovery->request($this->app->request()->field('email'), $this->app->request()->origin);
         } catch (\RuntimeException $error) {
             if ($error->getMessage() === AdminPasswordRecovery::MAIL_FAILED) {
-                $this->app->redirect('/admin/forgot', $error->getMessage());
+                $this->app->redirect($this->app->url('/forgot'), $error->getMessage());
             }
             throw $error;
         }
-        $this->app->redirect('/admin/forgot', ResetNotice::SENT);
+        $this->app->redirect($this->app->url('/forgot'), ResetNotice::SENT);
     }
 
-    #[Route('/admin/reset/([A-Za-z0-9_-]{43})', ['GET'])]
+    #[AdminRoute('/reset/([A-Za-z0-9_-]{43})', ['GET'])]
     public function resetForm(string $token): void
     {
         if (!$this->recovery->available($token)) {
@@ -60,7 +59,7 @@ final class AdminPasswordController
         ]);
     }
 
-    #[Route('/admin/reset/([A-Za-z0-9_-]{43})', ['POST'])]
+    #[AdminRoute('/reset/([A-Za-z0-9_-]{43})', ['POST'])]
     public function resetSubmit(string $token): void
     {
         $this->app->checkCsrf();
@@ -80,10 +79,10 @@ final class AdminPasswordController
 
             return;
         }
-        $this->app->redirect('/admin/login', 'Password saved. Sign in.');
+        $this->app->redirect($this->app->url('/login'), 'Password saved. Sign in.');
     }
 
-    #[Route('/admin/password', ['GET'])]
+    #[AdminRoute('/password', ['GET'])]
     public function changeForm(): void
     {
         $this->app->requireAdmin();
@@ -93,7 +92,7 @@ final class AdminPasswordController
         ]);
     }
 
-    #[Route('/admin/password', ['POST'])]
+    #[AdminRoute('/password', ['POST'])]
     public function changeSubmit(): void
     {
         $this->app->checkCsrf();
@@ -114,6 +113,6 @@ final class AdminPasswordController
             return;
         }
         $this->app->endSurface();
-        $this->app->redirect('/admin/login', 'Password saved. Sign in with your new password.');
+        $this->app->redirect($this->app->url('/login'), 'Password saved. Sign in with your new password.');
     }
 }

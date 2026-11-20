@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Pos;
 
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -18,6 +19,7 @@ final class SalePoster
         private readonly ReceiptChange $change,
         private readonly SaleTicketAttach $tickets,
         private readonly SaleReversal $reversals,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -67,6 +69,7 @@ final class SalePoster
                 beforeCommit: function (string $journalId) use ($ticketId, $items): void {
                     $this->tickets->attach($journalId, $ticketId, $items);
                     $this->tickets->clearTenders($ticketId);
+                    $this->audit->record('sale.pay', 'ticket', $ticketId);
                 },
                 tenderedMinor: $handed,
             ));

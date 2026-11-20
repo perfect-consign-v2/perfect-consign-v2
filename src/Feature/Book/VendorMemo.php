@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Book;
 
 use InvalidArgumentException;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -18,6 +19,7 @@ final class VendorMemo
     public function __construct(
         private readonly LedgerStore $ledger,
         private readonly Statements $statements,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -87,6 +89,7 @@ final class VendorMemo
                      VALUES (?::uuid, ?::uuid, ?, ?, ?)',
                     [$journalId, $vendorId, $direction, $amount, $trimmed]
                 );
+                $this->audit->record('vendor_memo.record', 'journal', $journalId);
             },
         ));
     }

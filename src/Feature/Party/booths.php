@@ -130,7 +130,7 @@ $legend = [
                         <td><a class="strong" href="/<?= View::text($slug) ?>/booths/<?= View::text($booth['id']) ?>/edit"><?= View::text($booth['code']) ?></a></td>
                         <td><?= View::text($booth['name']) ?></td>
                         <td>
-                            <?php if ($booth['location'] === null || $booth['location'] === ''): ?>
+                            <?php if (($booth['location'] ?? '') === ''): ?>
                                 <span class="muted"><?= $blank ?></span>
                             <?php else: ?>
                                 <?= View::text($booth['location']) ?>

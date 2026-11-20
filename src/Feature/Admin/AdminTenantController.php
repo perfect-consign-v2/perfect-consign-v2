@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectApp\Routing\Route;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 
 final class AdminTenantController
@@ -18,7 +17,7 @@ final class AdminTenantController
     ) {
     }
 
-    #[Route('/admin/tenants', ['GET'])]
+    #[AdminRoute('/tenants', ['GET'])]
     public function index(): void
     {
         $this->app->requireAdmin();
@@ -28,32 +27,32 @@ final class AdminTenantController
         ]);
     }
 
-    #[Route('/admin/tenants/([a-z][a-z0-9-]{0,62})/enter', ['POST'])]
+    #[AdminRoute('/tenants/([a-z][a-z0-9-]{0,62})/enter', ['POST'])]
     public function enter(string $slug): void
     {
         $this->app->checkCsrf();
         $admin = $this->app->requireAdmin();
         $tenant = $this->tenants->find($slug);
         if ($tenant === null) {
-            $this->app->redirect('/admin/tenants', null, 'That store was not found.');
+            $this->app->redirect($this->app->url('/tenants'), null, 'That store was not found.');
         }
         $role = $this->app->request()->field('role');
         $ownerId = $this->app->request()->field('owner_id');
         try {
             $path = $this->enterAs->enter($admin, $tenant, $role, $ownerId);
         } catch (\InvalidArgumentException $error) {
-            $this->app->redirect('/admin/tenants', null, $error->getMessage());
+            $this->app->redirect($this->app->url('/tenants'), null, $error->getMessage());
         }
         $this->app->redirect($path);
     }
 
-    #[Route('/admin/tenants/([a-z][a-z0-9-]{0,62})/delete', ['GET'])]
+    #[AdminRoute('/tenants/([a-z][a-z0-9-]{0,62})/delete', ['GET'])]
     public function deleteForm(string $slug): void
     {
         $this->app->requireAdmin();
         $tenant = $this->tenants->find($slug);
         if ($tenant === null) {
-            $this->app->redirect('/admin/tenants', null, 'That store was not found.');
+            $this->app->redirect($this->app->url('/tenants'), null, 'That store was not found.');
         }
         $this->app->show('Feature/Admin/delete', [
             'title' => 'Delete ' . $tenant->displayName,
@@ -63,26 +62,29 @@ final class AdminTenantController
         ]);
     }
 
-    #[Route('/admin/tenants/([a-z][a-z0-9-]{0,62})/delete', ['POST'])]
+    #[AdminRoute('/tenants/([a-z][a-z0-9-]{0,62})/delete', ['POST'])]
     public function deleteSubmit(string $slug): void
     {
         $this->app->checkCsrf();
         $admin = $this->app->requireAdmin();
         $tenant = $this->tenants->find($slug);
         if ($tenant === null) {
-            $this->app->redirect('/admin/tenants', null, 'That store was not found.');
+            $this->app->redirect($this->app->url('/tenants'), null, 'That store was not found.');
         }
         $requiresCountersign = $this->deletePolicy->requiresCountersign();
         try {
             $request = $this->app->request();
-            $this->wipe->wipe(
-                $admin,
-                $tenant,
-                $request->field('confirm_slug'),
-                $request->field('second_email'),
-                $request->field('second_password'),
-                $requiresCountersign,
-            );
+            if ($requiresCountersign) {
+                $this->wipe->wipe(
+                    $admin,
+                    $tenant,
+                    $request->field('confirm_slug'),
+                    $request->field('second_email'),
+                    $request->field('second_password'),
+                );
+            } else {
+                $this->wipe->removeWithoutSecond($admin, $tenant, $request->field('confirm_slug'));
+            }
         } catch (\InvalidArgumentException $error) {
             $this->showDeleteError($tenant, $requiresCountersign, $error->getMessage());
 
@@ -92,7 +94,7 @@ final class AdminTenantController
 
             return;
         }
-        $this->app->redirect('/admin/tenants', 'Deleted ' . $slug . '.');
+        $this->app->redirect($this->app->url('/tenants'), 'Deleted ' . $slug . '.');
     }
 
     private function showDeleteError(TenantRecord $tenant, bool $requiresCountersign, string $error): void

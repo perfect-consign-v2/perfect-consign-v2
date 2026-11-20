@@ -215,6 +215,7 @@ final class StaffSignIn
             $row['version'],
             $row['id'],
             $role === 'vendor' && is_string($vendor) ? $vendor : '',
+            $username,
         );
     }
 

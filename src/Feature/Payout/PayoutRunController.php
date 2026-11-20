@@ -74,8 +74,7 @@ final class PayoutRunController
         $this->app->open($slug, true);
         $runId = $this->app->request()->field('run_id');
         $reason = trim($this->app->request()->field('reason'));
-        $actor = $this->register->ownerName();
-        if ($actor === '' || $reason === '') {
+        if ($reason === '') {
             $this->pastWith($slug, 'a payout reversal needs the operator and a reason');
 
             return;
@@ -86,7 +85,7 @@ final class PayoutRunController
             return;
         }
         try {
-            $this->reverser->undo($runId, $this->mall->today(), $actor, $reason);
+            $this->reverser->undo($runId, $this->mall->today(), $reason);
         } catch (DatabaseRefusal $refusal) {
             $this->pastWith($slug, $this->app->catchRefusal($refusal));
 

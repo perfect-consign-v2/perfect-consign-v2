@@ -6,7 +6,7 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var list<array{email: string, action: string, outcome: string, slug: string, detail: string, at: string}> $events */
 ?>
-<h1>Audit</h1>
+<h1>Operator audit</h1>
 <div class="card">
     <div class="card-body">
         <?php if ($events === []): ?>

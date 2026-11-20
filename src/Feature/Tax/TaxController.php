@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Tax;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
@@ -18,6 +19,7 @@ final class TaxController
         private readonly MallApp $app,
         private readonly LedgerStore $ledger,
         private readonly TaxStore $tax,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -31,7 +33,7 @@ final class TaxController
     public function submit(string $slug): void
     {
         $this->app->checkCsrf();
-        $this->app->open($slug, true);
+        $tenant = $this->app->open($slug, true);
         $reference = $this->app->request()->field('source_reference');
         try {
             if ($reference === '') {
@@ -62,6 +64,12 @@ final class TaxController
                         'subledger_ref' => null,
                     ],
                 ],
+                beforeCommit: function (string $journalId) use ($tenant): void {
+                    if ($journalId === '') {
+                        throw new DatabaseRefusal('the tax payment was not posted');
+                    }
+                    $this->audit->record('tax.save', 'mall', $tenant->id);
+                },
             ));
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));

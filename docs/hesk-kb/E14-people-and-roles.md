@@ -2,12 +2,14 @@
 title: People and mall roles
 category: Floor and ops
 hesk: published 2026-11-20
-as_of: 2026-11-13
+as_of: 2026-11-20
 ---
 
 # People and mall roles
 
 ## As of
+
+2026-11-20 — Platform operators are not managed on Staff. Their door is `STALL_ADMIN_PATH`, not `/admin`.
 
 2026-11-13 — A manager may return or donate an expired piece and cannot post the expire-desk buy. Only an owner posts that buy, and only after the piece has expired.
 
@@ -30,7 +32,7 @@ An owner opens People → Staff (`/{slug}/staff`), or a staff member or owner si
 - **Vendor** — portal Check / Sales / Inventory / Deals. Sign-in is set on that vendor’s page, not on Staff.
 - Staff: one Add person form; roster sections with Suspend/Restore, Change role (cashier/manager/books), and password reset. Suspended people cannot sign in.
 - Staff is store logins and owners. Party identity (a person or an organization, and the vendor, customer, and wait-list roles) is `/{slug}/parties`, not this screen.
-- Platform `/admin` is not managed on Staff.
+- Platform operators are not managed on Staff. The platform door is `STALL_ADMIN_PATH`, not `/admin`.
 
 ## What is refused
 

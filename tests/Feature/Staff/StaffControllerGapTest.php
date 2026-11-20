@@ -8,6 +8,7 @@ use PerfectConsign\Feature\Password\PasswordChoice;
 use PerfectConsign\Feature\Password\RecoveryAddress;
 use PerfectConsign\Feature\Staff\MallOwners;
 use PerfectConsign\Feature\Staff\StaffController;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Feature\Staff\StaffStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Http\Request;
@@ -152,6 +153,7 @@ final class StaffControllerGapTest extends TestCase
             new StaffStore($door->statements, new RecoveryAddress(), new PasswordChoice()),
             new MallOwners($door->pdo, $door->roles, new RecoveryAddress(), new PasswordChoice()),
             $door->actor,
+            QuietAudit::journal($door->statements, $door->actor),
         );
     }
 }

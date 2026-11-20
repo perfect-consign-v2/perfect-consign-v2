@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Admin;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Feature\Admin\AdminApp;
+use PerfectConsign\Feature\Admin\AdminPath;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Admin\AdminPasswordController;
 use PerfectConsign\Feature\Admin\AdminPasswordRecovery;
@@ -284,6 +286,7 @@ final class AdminSurfaceCoverageTest extends TestCase
         $view = new View(dirname(__DIR__, 3) . '/src');
         ob_start();
         $view->render('Feature/Admin/tenant-create', [
+            'adminPath' => new AdminPath(\PerfectConsign\Tests\Support\AdminDoor::prefix()),
             'csrf' => 'tok',
             'error' => '',
             'storeName' => 'A',
@@ -313,8 +316,9 @@ final class AdminSurfaceCoverageTest extends TestCase
                     new PlatformOperatorNotice($logger),
                 ),
                 $logger,
+                new AdminPath(\PerfectConsign\Tests\Support\AdminDoor::prefix()),
             ),
-            new AdminAudit($pdo, new Request('GET', '/', [], [])),
+            QuietAudit::admin($pdo, new Request('GET', '/', [], [])),
             new AdminSession($this->session),
             new LoginSession($this->session),
         );
@@ -348,7 +352,7 @@ final class AdminSurfaceCoverageTest extends TestCase
         return new AdminSignupController(
             $this->app($request, $this->adminPdo()),
             new PlatformSettings($pdo, $logger),
-            new AdminAudit($pdo, new Request('GET', '/', [], [])),
+            QuietAudit::admin($pdo, new Request('GET', '/', [], [])),
         );
     }
 
@@ -420,7 +424,7 @@ final class AdminSurfaceCoverageTest extends TestCase
             $this->createStub(PDO::class),
             new PlatformSettings($this->createStub(PDO::class), $logger),
             new SignupRateLimit($this->createStub(PDO::class)),
-            new AdminAudit($this->createStub(PDO::class), new Request('GET', '/', [], [])),
+            QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
             $logger,
         );
 
@@ -446,6 +450,7 @@ final class AdminSurfaceCoverageTest extends TestCase
             new NullLogger(),
             new AdminSession($this->session),
             new LoginSession($this->session),
+            new AdminPath(\PerfectConsign\Tests\Support\AdminDoor::prefix()),
         );
     }
 

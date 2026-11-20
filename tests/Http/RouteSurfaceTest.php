@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Tests\Support\AdminDoor;
 use PerfectConsign\Bootstrap\RegisterFeatures;
 use PerfectConsign\Bootstrap\RouteInventory;
 use PerfectConsign\Feature\Home\HomeController;
@@ -69,8 +70,8 @@ final class RouteSurfaceTest extends WebTestCase
         self::assertArrayHasKey('/forgot', $paths);
         self::assertArrayHasKey('/signup', $paths);
         self::assertArrayHasKey('/', $paths);
-        self::assertArrayHasKey('/admin/login', $paths);
-        self::assertArrayHasKey('/admin/forgot', $paths);
+        self::assertArrayHasKey(AdminDoor::path('/login'), $paths);
+        self::assertArrayHasKey(AdminDoor::path('/forgot'), $paths);
         $client = self::client();
         foreach ($paths as $path => $route) {
             $page = $client->getWithoutRedirect($path);

@@ -14,6 +14,10 @@ final class SchemaCatalog
         '000_platform.sql',
         '094_wipe_keeps_reset_history.sql',
         '102_job_attention.sql',
+        '104_store_load_audit.sql',
+        '105_probe_ban.sql',
+        '106_probe_ban_audit.sql',
+        '107_admin_mfa.sql',
     ];
 
     /** @var list<string> */
@@ -38,6 +42,7 @@ final class SchemaCatalog
         '099_vendor_delete.sql',
         '100_booth_deposit_session.sql',
         '101_booth_location.sql',
+        '103_audit_subject.sql',
     ];
 
     public function __construct(private readonly string $directory)

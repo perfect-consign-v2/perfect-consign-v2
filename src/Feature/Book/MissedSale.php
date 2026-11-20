@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Book;
 
 use InvalidArgumentException;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
@@ -18,6 +19,7 @@ final class MissedSale
     public function __construct(
         private readonly LedgerStore $ledger,
         private readonly Statements $statements,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -64,6 +66,7 @@ final class MissedSale
                      VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?)',
                     [$journalId, $vendorId, $itemId, $price, $trimmedDescription, $trimmedMemo]
                 );
+                $this->audit->record('missed_sale.record', 'journal', $journalId);
             },
         ));
     }

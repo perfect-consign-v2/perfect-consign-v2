@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Inventory;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Feature\Catalog\NameListStore;
@@ -305,7 +306,7 @@ final class InventoryMissCoverageTest extends TestCase
         $statements->rowRoutes[] = ['match' => 'booth_width_ft', 'rows' => [$this->mallRow(false)]];
         $statements->boundRoutes[] = ['match' => 'SELECT id FROM vendors', 'rows' => [['id' => self::VENDOR]]];
         $statements->isolatedError = new DatabaseRefusal('used', 0, null, DatabaseRefusal::TAG_SQLSTATE);
-        $store = new InventoryStore($statements, new CatalogLinks($statements), $this->mall($statements));
+        $store = new InventoryStore($statements, new CatalogLinks($statements), $this->mall($statements), QuietAudit::make($statements));
         try {
             $store->add($this->entry('', ''), '2026-01-01');
             self::fail('a colliding tag was stored');
@@ -317,7 +318,7 @@ final class InventoryMissCoverageTest extends TestCase
         $insert->rowRoutes[] = ['match' => 'booth_width_ft', 'rows' => [$this->mallRow(false)]];
         $insert->boundRoutes[] = ['match' => 'SELECT id FROM vendors', 'rows' => [['id' => self::VENDOR]]];
         $insert->boundRoutes[] = ['match' => 'INSERT INTO items', 'rows' => [['id' => 4]]];
-        $blank = new InventoryStore($insert, new CatalogLinks($insert), $this->mall($insert));
+        $blank = new InventoryStore($insert, new CatalogLinks($insert), $this->mall($insert), QuietAudit::make($insert));
         try {
             $blank->add($this->entry('TAG', 'BC'), '2026-01-01');
             self::fail('a blank id was stored');
@@ -702,7 +703,7 @@ final class InventoryMissCoverageTest extends TestCase
         if ($row !== null) {
             $statements->boundRoutes[] = ['match' => 'stall_sticker_deal', 'rows' => [$row]];
         }
-        $store = new InventoryStore($statements, new CatalogLinks($statements), $this->mall($statements));
+        $store = new InventoryStore($statements, new CatalogLinks($statements), $this->mall($statements), QuietAudit::make($statements));
         try {
             $store->save(self::ITEM, $this->entry('TAG', 'BC'), '2026-01-01');
             self::fail($label . ' change was saved');
@@ -746,7 +747,7 @@ final class InventoryMissCoverageTest extends TestCase
 
         return new InventoryController(
             $door->app,
-            new InventoryStore($storeStatements, new CatalogLinks($storeStatements), $mall),
+            new InventoryStore($storeStatements, new CatalogLinks($storeStatements), $mall, QuietAudit::journal($storeStatements, $door->actor)),
             new ItemQueries($this->routed()),
             $forms,
             new ItemWriter($catalog, $lists, $mall, $take),
@@ -779,7 +780,7 @@ final class InventoryMissCoverageTest extends TestCase
         return new TagImport(
             $statements,
             new ItemWriter($catalog, $lists, $mall, new StoreTake()),
-            new InventoryStore($statements, new CatalogLinks($statements), $mall),
+            new InventoryStore($statements, new CatalogLinks($statements), $mall, QuietAudit::make($statements)),
             $catalog,
             $mall,
         );
@@ -792,7 +793,7 @@ final class InventoryMissCoverageTest extends TestCase
     {
         $statements = $this->routed();
         $door = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/inventory/expired', [], []));
-        $desk = new ExpireDesk($statements, $door->ledger, new JournalAudit($door->actor, new AuditLog($statements)));
+        $desk = new ExpireDesk($statements, $door->ledger, QuietAudit::journal($statements, $door->actor));
 
         return new class($desk, $statements) {
             public function __construct(public ExpireDesk $desk, public RoutedStatements $statements)

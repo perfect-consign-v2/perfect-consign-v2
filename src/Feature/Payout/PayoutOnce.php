@@ -33,9 +33,9 @@ final class PayoutOnce
         string $overrideUser = '',
         string $overridePassword = '',
     ): void {
-        $this->ceiling->second('payout.close', $rent, $overrideUser, $overridePassword);
         try {
-            $this->statements->transaction(function () use ($from, $to, $rent, $today, $tender, $sessionId): void {
+            $this->statements->transaction(function () use ($from, $to, $rent, $today, $tender, $sessionId, $overrideUser, $overridePassword): void {
+                $this->ceiling->second('payout.close', $rent, $overrideUser, $overridePassword);
                 $runId = $this->runs->ensureDraft($from, $to, $rent, $today, $tender);
                 $this->runs->review($runId);
                 $this->settler->close($runId, $today);

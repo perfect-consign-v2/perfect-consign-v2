@@ -32,22 +32,52 @@ final class PlatformOperatorNotice
             'Purpose: ' . $purpose,
             'Error: ' . $error->getMessage(),
         ];
-        if ($error instanceof MailDeliveryFailed) {
-            $lines[] = 'SMTP status: ' . (string) $error->status();
-            $lines[] = 'SMTP stage: ' . $error->stage();
-            if ($error->reply() !== '') {
-                $lines[] = 'SMTP reply: ' . $error->reply();
-            }
+        foreach ($this->smtpLines($error) as $line) {
+            $lines[] = $line;
         }
-        foreach ($context as $key => $value) {
-            if ($key === 'message' || $key === 'status' || $key === 'stage' || $key === 'reply') {
-                continue;
-            }
-            if (is_scalar($value) || $value === null) {
-                $lines[] = $key . ': ' . (string) $value;
-            }
+        foreach ($this->contextLines($context) as $line) {
+            $lines[] = $line;
         }
         $this->alert('Perfect Consign: mail delivery failed', implode("\n", $lines) . "\n");
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function smtpLines(\Throwable $error): array
+    {
+        if (!$error instanceof MailDeliveryFailed) {
+            return [];
+        }
+        $lines = [
+            'SMTP status: ' . (string) $error->status(),
+            'SMTP stage: ' . $error->stage(),
+        ];
+        if ($error->reply() !== '') {
+            $lines[] = 'SMTP reply: ' . $error->reply();
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return list<string>
+     */
+    private function contextLines(array $context): array
+    {
+        $lines = [];
+        foreach ($context as $key => $value) {
+            if (in_array($key, ['message', 'status', 'stage', 'reply'], true)) {
+                continue;
+            }
+            if (!is_scalar($value) && $value !== null) {
+                continue;
+            }
+            $lines[] = $key . ': ' . (string) $value;
+        }
+
+        return $lines;
     }
 
     /**

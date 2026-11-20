@@ -89,6 +89,8 @@ final class ShopDemo
 
     private readonly Statements $statements;
 
+    private readonly \PerfectApp\Session\Session $session;
+
     private readonly LedgerStore $ledger;
 
     private readonly PartyStore $parties;
@@ -136,9 +138,19 @@ final class ShopDemo
         }
         $this->statements = new Statements($pdo);
         $this->ledger = new LedgerStore($pdo, $this->statements, new LedgerPeriods($pdo), new JournalCash($pdo));
+        $this->session = new \PerfectApp\Session\Session(null, false);
+        $request = new \PerfectConsign\Shared\Http\Request('GET', '/', [], []);
+        $auditLog = new \PerfectConsign\Bootstrap\AuditLog(
+            $this->statements,
+            $request,
+            new \PerfectConsign\Shared\Http\RequestId('demo-load'),
+        );
+        $actor = new \PerfectConsign\Bootstrap\Actor($this->session);
         $journalAudit = new \PerfectConsign\Bootstrap\JournalAudit(
-            new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false)),
-            new \PerfectConsign\Bootstrap\AuditLog($this->statements),
+            $actor,
+            $auditLog,
+            new \PerfectConsign\Feature\Admin\AdminSession($this->session),
+            $this->statements,
         );
         $stays = new \PerfectConsign\Feature\Party\AssignmentBook($this->statements);
         $this->parties = new PartyStore(
@@ -148,13 +160,11 @@ final class ShopDemo
             new \PerfectConsign\Feature\Party\PartyIdentity($this->statements),
         );
         $pricing = new TicketPricing($this->statements);
-        $actor = new \PerfectConsign\Bootstrap\Actor(new \PerfectApp\Session\Session(null, false));
-        $auditLog = new \PerfectConsign\Bootstrap\AuditLog($this->statements);
         $ceiling = new \PerfectConsign\Bootstrap\SaleCeiling(
             $this->statements,
             $actor,
-            $auditLog,
-            new \PerfectConsign\Shared\Http\Request('GET', '/', [], []),
+            $journalAudit,
+            $request,
         );
         $identity = new \PerfectConsign\Feature\Party\PartyIdentity($this->statements);
         $this->customers = new CustomerStore($this->statements, $identity);
@@ -173,7 +183,7 @@ final class ShopDemo
             new TicketQueue($this->statements, $pricing),
             $this->shoppers,
             $ceiling,
-            new TicketPriceChange($this->statements, $pricing, $actor, $auditLog),
+            new TicketPriceChange($this->statements, $pricing, $journalAudit),
         );
         $attach = new \PerfectConsign\Feature\Pos\SaleTicketAttach($this->statements);
         $reversals = new \PerfectConsign\Feature\Pos\SaleReversal(
@@ -188,6 +198,7 @@ final class ShopDemo
             new ReceiptChange(),
             $attach,
             $reversals,
+            $journalAudit,
         );
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));
         $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
@@ -212,6 +223,7 @@ final class ShopDemo
 
     public function load(): void
     {
+        \PerfectConsign\Feature\Dev\DemoSubject::stamp($this->pdo, $this->schema, $this->session);
         $this->useShop();
         $this->companyProfile();
         $this->statements->change(

@@ -12,6 +12,9 @@ BEGIN
     BEGIN
         PERFORM public.stall_confirm_markdown(
             '01900000-0000-7000-8000-00000000b0a1'::uuid,
+            '00000000-0000-0000-0000-000000000000'::uuid,
+            'staff',
+            'ada',
             'Ada',
             false
         );
@@ -66,6 +69,9 @@ BEGIN
     BEGIN
         PERFORM public.stall_confirm_markdown(
             '01900000-0000-7000-8000-00000000b0a1'::uuid,
+            '00000000-0000-0000-0000-000000000000'::uuid,
+            'staff',
+            'ada',
             'Ada',
             false
         );

@@ -5,10 +5,11 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 ?>
 <h1>Change password</h1>
 <div class="card" data-style-prop="max-width:28rem">
-    <form method="post" action="/admin/password">
+    <form method="post" action="<?= View::text($adminPath->url('/password')) ?>">
         <div class="card-body grid" data-style-prop="gap:var(--space-4)">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
             <p class="muted">Changing your password signs you out. You will need to sign in again with the new password.</p>

@@ -21,6 +21,7 @@ final class LoginSession
         string $version,
         string $staffId,
         string $vendorId,
+        string $username,
     ): void {
         $now = (string) time();
         $this->session->regenerateId(true);
@@ -35,6 +36,7 @@ final class LoginSession
         $this->session->set('credentials_version', $version);
         $this->session->set('actor_staff', $staffId);
         $this->session->set('actor_vendor', $vendorId);
+        $this->session->set('actor_username', $username);
     }
 
     public function stamp(string $version): void
@@ -59,6 +61,7 @@ final class LoginSession
                 'credentials_version',
                 'actor_staff',
                 'actor_vendor',
+                'actor_username',
             ] as $key
         ) {
             $this->session->delete($key);

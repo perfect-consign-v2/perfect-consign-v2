@@ -9,6 +9,7 @@ require_once $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'aut
 require_once $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'load-env.php';
 
 loadStallEnv($root . DIRECTORY_SEPARATOR . '.env');
+PerfectConsign\Tests\Support\AdminDoor::ensure();
 
 $configured = getenv('WEB_BASE_URL');
 if (is_string($configured) && $configured !== '') {

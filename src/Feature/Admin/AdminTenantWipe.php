@@ -24,20 +24,23 @@ final class AdminTenantWipe
     /**
      * @param array{id: string, email: string, version: string} $admin
      */
+    public function removeWithoutSecond(array $admin, TenantRecord $tenant, string $confirmation): void
+    {
+        $this->requireSlug($admin, $tenant, $confirmation);
+        $this->drop($admin, $tenant, null);
+    }
+
+    /**
+     * @param array{id: string, email: string, version: string} $admin
+     */
     public function wipe(
         array $admin,
         TenantRecord $tenant,
         string $confirmation,
         string $secondEmail,
         string $secondPassword,
-        bool $countersign = true,
     ): void {
         $this->requireSlug($admin, $tenant, $confirmation);
-        if (!$countersign) {
-            $this->drop($admin, $tenant, null);
-
-            return;
-        }
         $email = strtolower(trim($secondEmail));
         if ($this->usableSecondCredentials($email, $secondPassword) && $this->wipeLocked($email)) {
             $this->refuse($admin, $tenant, 'second_admin_locked');

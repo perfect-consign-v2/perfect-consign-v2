@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Party;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\DatabaseRole;
@@ -18,6 +19,7 @@ use PerfectConsign\Feature\Party\AssignmentBook;
 use PerfectConsign\Feature\Party\AssignmentController;
 use PerfectConsign\Feature\Party\AssignmentOffer;
 use PerfectConsign\Feature\Party\BoothController;
+use PerfectConsign\Feature\Party\BoothWrite;
 use PerfectConsign\Feature\Party\BoothFields;
 use PerfectConsign\Feature\Party\BoothListFilter;
 use PerfectConsign\Feature\Party\BoothListStore;
@@ -238,7 +240,7 @@ final class PartyMissCoverageTest extends TestCase
         $boothStatements = $this->routed();
         $boothStatements->affectedError = new DatabaseRefusal('the books refused');
         $boothDoor = MallDoor::open($this, new Request('GET', '/', [], []));
-        $booths = new PartyStore($boothStatements, new JournalAudit($boothDoor->actor, new AuditLog($boothStatements)), new AssignmentBook($boothStatements));
+        $booths = new PartyStore($boothStatements, QuietAudit::journal($boothStatements, $boothDoor->actor), new AssignmentBook($boothStatements));
         $door = MallDoor::open($this, $this->post('/' . MallDoor::SLUG . '/booths/' . self::BOOTH . '/delete'));
         $rent = $this->withRentals($door);
         $removed = $this->capture(function () use ($door, $booths, $rent): void {
@@ -467,9 +469,9 @@ final class PartyMissCoverageTest extends TestCase
         $vendorStatements = $this->routed();
         $vendorStatements->rowRoutes[] = ['match' => 'INSERT INTO parties', 'rows' => [['id' => MallDoor::PARTY]]];
         $vendorStatements->boundRoutes[] = ['match' => 'INSERT INTO vendors', 'rows' => [['id' => 4]]];
-        $store = new PartyStore($vendorStatements, new JournalAudit(
+        $store = new PartyStore($vendorStatements, QuietAudit::journal(
+            $vendorStatements,
             MallDoor::open($this, new Request('GET', '/', [], []))->actor,
-            new AuditLog($vendorStatements),
         ), new AssignmentBook($vendorStatements));
         try {
             $store->addVendor($this->draft());
@@ -738,7 +740,7 @@ final class PartyMissCoverageTest extends TestCase
 
     private function controller(MallDoor $door): PartyController
     {
-        $audit = new JournalAudit($door->actor, new AuditLog($door->statements));
+        $audit = QuietAudit::journal($door->statements, $door->actor);
         $stays = new AssignmentBook($door->statements);
         $parties = new PartyStore($door->statements, $audit, $stays);
         $roster = new VendorRoster(new VendorPlacement());
@@ -765,15 +767,17 @@ final class PartyMissCoverageTest extends TestCase
 
     private function booths(MallDoor $door, PartyStore $parties, ?AssignmentBook $asking = null, ?MallApp $app = null, ?MallSettings $mall = null): BoothController
     {
+        $rates = $asking ?? new AssignmentBook($this->routed());
+
         return new BoothController(
             $app ?? $door->app,
             $parties,
-            $asking ?? new AssignmentBook($this->routed()),
             $mall ?? $door->mall,
             new BoothRoster(new BoothMeasures()),
             new BoothListFilter(),
             new BoothListStore($this->routed()),
             new BoothFields($door->app),
+            new BoothWrite($parties, $rates, QuietAudit::journal($door->statements, $door->actor)),
         );
     }
 
@@ -794,7 +798,7 @@ final class PartyMissCoverageTest extends TestCase
     private function signIn(MallDoor $door, RoutedStatements $statements): VendorSignInController
     {
         $stays = new AssignmentBook($this->routed());
-        $parties = new PartyStore($this->routed(), new JournalAudit($door->actor, new AuditLog($statements)), $stays);
+        $parties = new PartyStore($this->routed(), QuietAudit::journal($statements, $door->actor), $stays);
         $roster = new VendorRoster(new VendorPlacement());
         $forms = new VendorForm($door->app, $door->mall, new SellerPaths($door->mall));
         $page = (new ReflectionClass(VendorPage::class))->newInstanceWithoutConstructor();

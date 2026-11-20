@@ -111,6 +111,7 @@ if ($actorRole === 'owner') {
         ['/opening', 'Opening amounts', 'i-plus'],
         ['/close', 'Close the year', 'i-lock'],
         ['/export', 'Download records', 'i-arrow-down'],
+        ['/activity', 'Activity', 'i-receipt'],
     ];
 }
 if ($actorRole === 'manager') {
@@ -138,6 +139,7 @@ if ($actorRole === 'manager') {
             ['/month', 'This month', 'i-report'],
             ['/payouts', $viewPayoutsLabel, 'i-wallet'],
             ['/reports', 'Reports', 'i-report'],
+            ['/activity', 'Activity', 'i-receipt'],
         ],
     ];
 }
@@ -150,6 +152,7 @@ if ($actorRole === 'books') {
             ['/payouts', $viewPayoutsLabel, 'i-wallet'],
             ['/journals', 'Money record', 'i-receipt'],
             ['/reports', 'Reports', 'i-report'],
+            ['/activity', 'Activity', 'i-receipt'],
         ],
     ];
 }
@@ -222,6 +225,8 @@ $roleLabel = match ($actorRole) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <title><?= View::text($title) ?><?= $displayName !== '' ? ' · ' . View::text($displayName) : '' ?></title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <?php if ($robots === 'noindex'): ?>
         <meta name="robots" content="noindex">
     <?php endif; ?>

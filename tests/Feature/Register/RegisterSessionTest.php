@@ -8,6 +8,7 @@ use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Register\RegisterActivity;
 use PerfectConsign\Feature\Register\RegisterSession;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\LedgerStore;
@@ -65,6 +66,7 @@ final class RegisterSessionTest extends TestCase
         }
         $opened = $this->createStub(Statements::class);
         $opened->method('bound')->willReturn([['id' => 'sess']]);
+        $opened->method('affected')->willReturn(1);
         self::assertSame('sess', $this->session($opened, $this->createStub(LedgerStore::class))->open('reg', str_repeat('A', 80), [], 0));
     }
 
@@ -234,8 +236,11 @@ final class RegisterSessionTest extends TestCase
         (new ReflectionProperty(MallSettings::class, 'day'))->setValue($mall, new \PerfectConsign\Feature\Mall\MallDay($rows));
         $clock = new MallClock($mall);
         $activity = new RegisterActivity($statements, $clock);
+        $statements->method('transaction')->willReturnCallback(static function (callable $work): void {
+            $work();
+        });
 
-        return new RegisterSession($statements, $ledger, $clock, $activity);
+        return new RegisterSession($statements, $ledger, $clock, $activity, QuietAudit::owner($statements));
     }
 
     private function mallRows(): Statements

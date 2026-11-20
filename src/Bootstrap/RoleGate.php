@@ -137,7 +137,7 @@ final class RoleGate
 
     private static function bookPage(string $rest): bool
     {
-        if (in_array($rest, ['/sales', '/month', '/rent', '/payouts', '/journals', '/password', '/dashboard'], true)) {
+        if (in_array($rest, ['/sales', '/month', '/rent', '/payouts', '/journals', '/password', '/dashboard', '/activity', '/activity.csv'], true)) {
             return true;
         }
         if (preg_match('#^/journals/[0-9a-fA-F-]{36}$#', $rest) === 1) {

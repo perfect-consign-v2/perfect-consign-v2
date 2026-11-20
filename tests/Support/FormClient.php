@@ -206,6 +206,27 @@ final class FormClient
         bool $multipart,
         array $headers = [],
     ): PageResponse {
+        ProbeBanFixture::releaseLoopback();
+        try {
+            return $this->perform($method, $path, $fields, $follow, $timeoutSeconds, $multipart, $headers);
+        } finally {
+            ProbeBanFixture::releaseLoopback();
+        }
+    }
+
+    /**
+     * @param array<string, string|\CURLFile>|null $fields
+     * @param list<string> $headers
+     */
+    private function perform(
+        string $method,
+        string $path,
+        ?array $fields,
+        bool $follow,
+        int $timeoutSeconds,
+        bool $multipart,
+        array $headers,
+    ): PageResponse {
         curl_reset($this->curl);
         $options = [
             CURLOPT_URL => $this->baseUrl . $path,

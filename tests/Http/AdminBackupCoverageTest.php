@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Tests\Support\AdminDoor;
 use PDO;
 use PerfectConsign\Feature\Password\PasswordChoice;
 use PerfectConsign\Tests\Support\FormClient;
@@ -85,13 +86,9 @@ final class AdminBackupCoverageTest extends WebTestCase
         $slug = 'zcov' . bin2hex(random_bytes(3));
         $client = new FormClient($this->goodUrl());
         try {
-            $client->get('/admin/login');
-            $signedIn = $client->post('/admin/login', [
-                'email' => self::ADMIN_EMAIL,
-                'password' => self::ADMIN_PASSWORD,
-            ]);
+            $signedIn = AdminDoor::signIn($client, self::ADMIN_EMAIL, self::ADMIN_PASSWORD);
             self::assertStringContainsString('Tenants', $signedIn->body);
-            $created = $client->post('/admin/tenants/create', [
+            $created = $client->post(AdminDoor::path('/tenants/create'), [
                 'store_name' => $slug,
                 'email' => $slug . '@example.test',
                 'password' => 'store-pass-1',
@@ -124,6 +121,7 @@ final class AdminBackupCoverageTest extends WebTestCase
                     credentials_version = platform.admins.credentials_version + 1'
         );
         $statement->execute([self::ADMIN_EMAIL, $hash]);
+        AdminDoor::plant($pdo, self::ADMIN_EMAIL);
     }
 
     private function removeCreatedStore(PDO $pdo, string $slug): void

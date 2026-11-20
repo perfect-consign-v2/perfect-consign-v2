@@ -116,7 +116,7 @@ final class ExpireDesk
                      VALUES (?::uuid, ?::uuid, ?::uuid, ?)',
                     [$journalId, $itemId, $vendorId, $amount]
                 );
-                $this->audit->record('item_buy.expire', $journalId);
+                $this->audit->record('item_buy.expire', 'journal', $journalId);
             },
         ));
     }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Party;
 
+use PerfectConsign\Feature\Party\AssignmentBook;
 use PerfectConsign\Feature\Party\VendorMove;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
 
@@ -12,7 +14,11 @@ final class VendorMoveTest extends TestCase
 {
     public function testAMoveNeedsADateAndTheNextBooth(): void
     {
-        $move = new VendorMove($this->createStub(Statements::class));
+        $move = new VendorMove(
+            $this->createStub(Statements::class),
+            new AssignmentBook($this->createStub(Statements::class)),
+            QuietAudit::make($this->createStub(Statements::class)),
+        );
         $vendor = '01900000-0000-7000-8000-0000000000a1';
         $stay = '01900000-0000-7000-8000-0000000000b1';
         $booth = '01900000-0000-7000-8000-0000000000c1';

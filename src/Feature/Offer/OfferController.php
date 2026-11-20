@@ -6,6 +6,7 @@ namespace PerfectConsign\Feature\Offer;
 
 use InvalidArgumentException;
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Feature\Mall\MallSettings;
@@ -19,6 +20,7 @@ class OfferController
         protected readonly OfferStore $offers,
         protected readonly MallSettings $mall,
         protected readonly VendorPreview $preview,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -60,18 +62,7 @@ class OfferController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        try {
-            $this->offers->end($id, $this->mall->today(), null);
-        } catch (DatabaseRefusal $refusal) {
-            $this->list($slug, $this->app->catchRefusal($refusal), null);
-
-            return;
-        } catch (InvalidArgumentException $error) {
-            $this->list($slug, $error->getMessage(), null);
-
-            return;
-        }
-        $this->app->redirect('/' . $slug . '/offers', 'Deal ended.');
+        $this->endOffer($slug, $id, null, '/' . $slug . '/offers');
     }
 
     protected function list(string $slug, ?string $error, ?string $vendorId): void
@@ -133,7 +124,14 @@ class OfferController
         $this->app->open($slug, true);
         $draft = $this->posted($this->app->request());
         try {
-            $this->offers->save($id, $draft, $vendorId);
+            if ($id === null) {
+                $this->audit->within(function () use ($draft, $vendorId): void {
+                    $offerId = $this->offers->save(null, $draft, $vendorId);
+                    $this->audit->record('offer.create', 'offer', $offerId);
+                });
+            } else {
+                $this->offers->save($id, $draft, $vendorId);
+            }
         } catch (DatabaseRefusal $refusal) {
             $this->form($slug, $id, $vendorId, $draft, $this->app->catchRefusal($refusal));
 
@@ -182,6 +180,25 @@ class OfferController
             'item_code' => '',
             'vendor_id' => '',
         ];
+    }
+
+    protected function endOffer(string $slug, string $id, ?string $vendorId, string $back): void
+    {
+        try {
+            $this->audit->within(function () use ($id, $vendorId): void {
+                $this->offers->end($id, $this->mall->today(), $vendorId);
+                $this->audit->record('offer.end', 'offer', $id);
+            });
+        } catch (DatabaseRefusal $refusal) {
+            $this->list($slug, $this->app->catchRefusal($refusal), $vendorId);
+
+            return;
+        } catch (InvalidArgumentException $error) {
+            $this->list($slug, $error->getMessage(), $vendorId);
+
+            return;
+        }
+        $this->app->redirect($back, 'Deal ended.');
     }
 
     protected function vendor(string $slug): string

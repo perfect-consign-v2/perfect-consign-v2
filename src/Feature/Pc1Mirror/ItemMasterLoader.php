@@ -57,7 +57,7 @@ final class ItemMasterLoader
             if ($barcode !== '') {
                 $barcode = $this->unique($barcode, $this->usedBarcodes, 100);
             }
-            $inventory->add(new ItemEntry(
+            $inventory->import(new ItemEntry(
                 $code,
                 $barcode,
                 $vendorId,

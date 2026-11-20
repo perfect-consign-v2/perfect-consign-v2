@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Codeception\Support;
 
 use PerfectConsign\Bootstrap\RegisterFeatures;
 use PerfectConsign\Bootstrap\RouteInventory;
+use PerfectConsign\Feature\Admin\AdminPath;
 
 /**
  * Mall routes an owner can open. A route stays missed until a recorded request matches it.
@@ -57,12 +58,13 @@ final class OwnerRouteAudit
         $root = dirname(__DIR__, 3);
         $feature = $root . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Feature';
         RegisterFeatures::clearCache();
+        $adminPrefix = AdminPath::fromEnv()->prefix();
         $mall = [];
         foreach (RouteInventory::routes($feature) as $route) {
             if (!str_contains($route['path'], '([a-z][a-z0-9-]{0,62})')) {
                 continue;
             }
-            if (str_starts_with($route['path'], '/admin')) {
+            if (str_starts_with($route['path'], '/admin') || str_starts_with($route['path'], $adminPrefix)) {
                 continue;
             }
             $mall[] = [

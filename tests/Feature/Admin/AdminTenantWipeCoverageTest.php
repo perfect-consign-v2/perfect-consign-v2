@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Admin;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Admin\AdminTenantWipe;
 use PerfectConsign\Feature\Backup\BackupStore;
@@ -103,7 +104,7 @@ final class AdminTenantWipeCoverageTest extends TestCase
         $outcomes = [];
         $details = [];
         $wipe = $this->wipe($this->pdo(false, false, false, null, $outcomes, $details));
-        $wipe->wipe($this->admin(), $this->tenant(), 'zcov-wipe', '', '', false);
+        $wipe->removeWithoutSecond($this->admin(), $this->tenant(), 'zcov-wipe');
         self::assertSame(['ok'], $outcomes);
         self::assertNotSame([], $details);
         $encoded = $details[0];
@@ -278,7 +279,7 @@ final class AdminTenantWipeCoverageTest extends TestCase
 
         return new AdminTenantWipe(
             $pdo,
-            new AdminAudit($pdo, $request),
+            QuietAudit::admin($pdo, $request),
             new BackupStore($pdo),
             $request,
         );

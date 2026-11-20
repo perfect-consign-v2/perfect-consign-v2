@@ -111,19 +111,19 @@ final class StaffStore
         return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
-    public function addCashier(string $username, string $displayName, string $password, string $email): void
+    public function addCashier(string $username, string $displayName, string $password, string $email): string
     {
-        $this->add($username, $displayName, $password, $this->addresses->parse($email), 'cashier', null);
+        return $this->add($username, $displayName, $password, $this->addresses->parse($email), 'cashier', null);
     }
 
-    public function addManager(string $username, string $displayName, string $password, string $email): void
+    public function addManager(string $username, string $displayName, string $password, string $email): string
     {
-        $this->add($username, $displayName, $password, $this->addresses->parse($email), 'manager', null);
+        return $this->add($username, $displayName, $password, $this->addresses->parse($email), 'manager', null);
     }
 
-    public function addBooks(string $username, string $displayName, string $password, string $email): void
+    public function addBooks(string $username, string $displayName, string $password, string $email): string
     {
-        $this->add($username, $displayName, $password, $this->addresses->parse($email), 'books', null);
+        return $this->add($username, $displayName, $password, $this->addresses->parse($email), 'books', null);
     }
 
     public function replaceCashier(string $id, string $password, string $email): void
@@ -241,14 +241,21 @@ final class StaffStore
         ];
     }
 
-    private function add(string $username, string $displayName, string $password, string $email, string $role, ?string $vendorId): void
+    private function add(string $username, string $displayName, string $password, string $email, string $role, ?string $vendorId): string
     {
         $prepared = $this->prepared($username, $displayName, $password);
-        $this->statements->change(
+        $rows = $this->statements->bound(
             'INSERT INTO staff (username, display_name, password_hash, role, vendor_id, email)
-             VALUES (?, ?, ?, ?, ?::uuid, ?)',
+             VALUES (?, ?, ?, ?, ?::uuid, ?)
+             RETURNING id::text AS id',
             [$prepared['username'], $prepared['displayName'], $prepared['hash'], $role, $vendorId, $email]
         );
+        $id = $rows[0]['id'] ?? null;
+        if (!is_string($id) || $id === '') {
+            throw new \RuntimeException('the staff row was not stored');
+        }
+
+        return $id;
     }
 
     /**

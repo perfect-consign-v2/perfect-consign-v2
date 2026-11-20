@@ -24,6 +24,7 @@ final class MirrorInventoryFactory
                 new CompanyStore($mall->statements, new DatabaseRole($mall->pdo), $mall->pdo, new CompanyLines()),
                 new MallDay($mall->statements),
             ),
+            UnsignedAudit::journal($mall->statements),
         );
     }
 }

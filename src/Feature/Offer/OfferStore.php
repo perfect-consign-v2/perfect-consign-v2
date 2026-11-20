@@ -192,7 +192,7 @@ final class OfferStore
     /**
      * @param array{name: string, scope: string, kind: string, threshold: string, price: string, funded_by: string, starts_on: string, ends_on: string, item_code: string, vendor_id: string} $fields
      */
-    public function save(?string $id, array $fields, ?string $vendorId): void
+    public function save(?string $id, array $fields, ?string $vendorId): string
     {
         $offer = $this->fields->checked($fields, $vendorId);
         if ($id !== null && $this->find($id, $vendorId) === null) {
@@ -201,13 +201,18 @@ final class OfferStore
         $ends = $offer['ends_on'] ?? '';
         $scopeId = $offer['scope_id'] ?? '';
         if ($id === null) {
-            $this->statements->change(
+            $rows = $this->statements->bound(
                 'INSERT INTO offers (name, scope, scope_id, kind, threshold_qty, deal_minor, funded_by, starts_on, ends_on)
-                 VALUES (?, ?, NULLIF(?, \'\')::uuid, ?, ?, ?, ?, ?::date, NULLIF(?, \'\')::date)',
+                 VALUES (?, ?, NULLIF(?, \'\')::uuid, ?, ?, ?, ?, ?::date, NULLIF(?, \'\')::date)
+                 RETURNING id',
                 [$offer['name'], $offer['scope'], $scopeId, $offer['kind'], $offer['threshold'], $offer['deal_minor'], $offer['funded_by'], $offer['starts_on'], $ends]
             );
+            $created = $rows[0]['id'] ?? null;
+            if (!is_string($created) || $created === '') {
+                throw new InvalidArgumentException('That deal was not saved.');
+            }
 
-            return;
+            return $created;
         }
         $updated = $this->statements->affected(
             'UPDATE offers
@@ -219,6 +224,8 @@ final class OfferStore
         if ($updated !== 1) {
             throw new InvalidArgumentException('That deal is not yours.');
         }
+
+        return $id;
     }
 
     public function end(string $id, string $today, ?string $vendorId): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Register;
 
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
@@ -20,6 +21,7 @@ final class RegisterSession
         private readonly LedgerStore $ledger,
         private readonly MallClock $clock,
         private readonly RegisterActivity $activity,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -35,17 +37,23 @@ final class RegisterSession
         } elseif ($total !== $typedFloat) {
             throw new DatabaseRefusal('the bills and coins must add up to the opening float');
         }
-        $rows = $this->statements->bound(
-            'INSERT INTO register_sessions (register_id, cashier, opening_counts, opening_cash_minor)
-             VALUES (?::uuid, ?, ?::jsonb, ?)
-             RETURNING id',
-            [$registerId, $this->cashier($cashier), DenominationCount::json($counts), $total]
-        );
-        if ($rows === []) {
-            throw new DatabaseRefusal('the register did not open');
-        }
+        $cashierName = $this->cashier($cashier);
+        $sessionId = '';
+        $this->audit->within(function () use (&$sessionId, $registerId, $cashierName, $counts, $total): void {
+            $rows = $this->statements->bound(
+                'INSERT INTO register_sessions (register_id, cashier, opening_counts, opening_cash_minor)
+                 VALUES (?::uuid, ?, ?::jsonb, ?)
+                 RETURNING id',
+                [$registerId, $cashierName, DenominationCount::json($counts), $total]
+            );
+            if ($rows === []) {
+                throw new DatabaseRefusal('the register did not open');
+            }
+            $sessionId = RowValue::string($rows[0]['id'] ?? null);
+            $this->audit->record('register.open', 'register', $sessionId);
+        });
 
-        return RowValue::string($rows[0]['id'] ?? null);
+        return $sessionId;
     }
 
     /**
@@ -68,7 +76,10 @@ final class RegisterSession
         }
         $json = DenominationCount::json($counts);
         if ($difference === 0) {
-            $this->writeClose($sessionId, $json, $counted, $card, $checks);
+            $this->audit->within(function () use ($sessionId, $json, $counted, $card, $checks): void {
+                $this->writeClose($sessionId, $json, $counted, $card, $checks);
+                $this->audit->record('register.close', 'register', $sessionId);
+            });
 
             return $sessionId;
         }
@@ -94,6 +105,12 @@ final class RegisterSession
                 PostedLines::entry($this->ledger->roleAccount('cash'), 0, $amount, null, null),
             ],
             sessionId: $sessionId,
+            beforeCommit: function (string $journalId) use ($sessionId): void {
+                if ($journalId === '') {
+                    throw new DatabaseRefusal('the register did not drop');
+                }
+                $this->audit->record('register.drop', 'register', $sessionId);
+            },
         ));
     }
 
@@ -130,6 +147,7 @@ final class RegisterSession
                     throw new DatabaseRefusal('the register did not close');
                 }
                 $this->writeClose($sessionId, $json, $counted, $card, $checks);
+                $this->audit->record('register.close', 'register', $sessionId);
             },
         ));
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Tests\Support\AdminDoor;
 use PDO;
 use PerfectConsign\Feature\Password\PasswordChoice;
 use PerfectConsign\Feature\Password\ResetNotice;
@@ -29,46 +30,44 @@ final class AdminPortalTest extends TestCase
         $server = ProbeServer::startIsolated($root);
         try {
             $client = new FormClient($server->baseUrl());
-            $login = $client->get('/admin/login');
+            $login = $client->get(AdminDoor::path('/login'));
             self::assertSame(200, $login->status);
             self::assertStringContainsString('Platform admin', $login->body);
 
-            $refused = $client->post('/admin/login', [
+            $refused = $client->post(AdminDoor::path('/login'), [
                 'email' => self::ADMIN_EMAIL,
                 'password' => 'wrong-password',
             ]);
             self::assertStringContainsString('That email or password is wrong.', $refused->body);
 
-            $signedIn = $client->post('/admin/login', [
-                'email' => self::ADMIN_EMAIL,
-                'password' => self::ADMIN_PASSWORD,
-            ]);
+            $step = \PerfectConsign\Feature\Admin\Mfa\Totp::stepForTime(time());
+            $signedIn = AdminDoor::signIn($client, self::ADMIN_EMAIL, self::ADMIN_PASSWORD, $step);
             self::assertSame(200, $signedIn->status);
             self::assertStringContainsString('Tenants', $signedIn->body);
             self::assertStringContainsString(ProbeMall::SLUG, $signedIn->body);
             self::assertStringContainsString($slug, $signedIn->body);
             self::assertMatchesRegularExpression(
-                '/action="\/admin\/tenants\/' . preg_quote($slug, '/') . '\/enter"[^>]*target="_blank"/',
+                '/action="' . preg_quote(AdminDoor::path('/tenants/' . $slug . '/enter'), '/') . '"[^>]*target="_blank"/',
                 $signedIn->body,
             );
 
-            $audit = $client->get('/admin/audit');
+            $audit = $client->get(AdminDoor::path('/audit'));
             self::assertStringContainsString('admin.sign_in', $audit->body);
 
             $ownerId = $this->match(
                 $signedIn->body,
                 '#name="owner_id" value="([0-9a-fA-F-]{36})"#'
             );
-            $enterOwner = $client->post('/admin/tenants/' . $slug . '/enter', [
+            $enterOwner = $client->post(AdminDoor::path('/tenants/') . $slug . '/enter', [
                 'role' => 'owner',
                 'owner_id' => $ownerId,
             ]);
             self::assertSame(200, $enterOwner->status);
             self::assertStringContainsString('Sell', $enterOwner->body);
 
-            $back = $client->get('/admin/tenants');
+            $back = $client->get(AdminDoor::path('/tenants'));
             self::assertStringContainsString('Tenants', $back->body);
-            $enterCashier = $client->post('/admin/tenants/' . $slug . '/enter', [
+            $enterCashier = $client->post(AdminDoor::path('/tenants/') . $slug . '/enter', [
                 'role' => 'cashier',
             ]);
             self::assertSame(200, $enterCashier->status);
@@ -79,9 +78,9 @@ final class AdminPortalTest extends TestCase
                 || str_contains($enterCashier->body, 'ticket')
             );
 
-            $backAfterCashier = $client->get('/admin/tenants');
+            $backAfterCashier = $client->get(AdminDoor::path('/tenants'));
             self::assertStringContainsString('Enter as manager', $backAfterCashier->body);
-            $enterManager = $client->post('/admin/tenants/' . $slug . '/enter', [
+            $enterManager = $client->post(AdminDoor::path('/tenants/') . $slug . '/enter', [
                 'role' => 'manager',
             ]);
             self::assertSame(200, $enterManager->status);
@@ -92,15 +91,15 @@ final class AdminPortalTest extends TestCase
             self::assertStringNotContainsString('nav-label">Staff</span>', $enterManager->body);
             self::assertStringNotContainsString('>Settings<', $enterManager->body);
 
-            $client->get('/admin/tenants');
-            $refusedRole = $client->post('/admin/tenants/' . $slug . '/enter', [
+            $client->get(AdminDoor::path('/tenants'));
+            $refusedRole = $client->post(AdminDoor::path('/tenants/') . $slug . '/enter', [
                 'role' => 'books',
             ]);
             self::assertStringContainsString('Choose owner, cashier, or manager.', $refusedRole->body);
 
             $loggedOutMall = $client->post('/' . $slug . '/logout', []);
             self::assertStringContainsString('Signed out.', $loggedOutMall->body);
-            $adminAfterTenantLogout = $client->getWithoutRedirect('/admin/tenants');
+            $adminAfterTenantLogout = $client->getWithoutRedirect(AdminDoor::path('/tenants'));
             self::assertTrue(
                 in_array($adminAfterTenantLogout->status, [301, 302, 303], true)
                 || str_contains($adminAfterTenantLogout->body, 'Platform admin')
@@ -108,21 +107,17 @@ final class AdminPortalTest extends TestCase
                 'admin should not stay signed in after tenant logout'
             );
 
-            $client->get('/admin/login');
-            $client->post('/admin/login', [
-                'email' => self::ADMIN_EMAIL,
-                'password' => self::ADMIN_PASSWORD,
-            ]);
-            $tenantsAgain = $client->get('/admin/tenants');
+            AdminDoor::signIn($client, self::ADMIN_EMAIL, self::ADMIN_PASSWORD, $step + 1);
+            $tenantsAgain = $client->get(AdminDoor::path('/tenants'));
             $ownerIdAgain = $this->match(
                 $tenantsAgain->body,
                 '#name="owner_id" value="([0-9a-fA-F-]{36})"#'
             );
-            $client->post('/admin/tenants/' . $slug . '/enter', [
+            $client->post(AdminDoor::path('/tenants/') . $slug . '/enter', [
                 'role' => 'owner',
                 'owner_id' => $ownerIdAgain,
             ]);
-            $client->post('/admin/logout', []);
+            $client->post(AdminDoor::path('/logout'), []);
             $mallAfterAdminLogout = $client->getWithoutRedirect('/' . $slug . '/dashboard');
             self::assertTrue(
                 in_array($mallAfterAdminLogout->status, [301, 302, 303], true)
@@ -131,22 +126,19 @@ final class AdminPortalTest extends TestCase
                 'tenant session must end when admin logs out'
             );
 
-            $client->get('/admin/login');
-            $again = $client->post('/admin/login', [
-                'email' => self::ADMIN_EMAIL,
-                'password' => self::ADMIN_PASSWORD,
-            ]);
+            AdminDoor::waitUntilStep($step + 1);
+            $again = AdminDoor::signIn($client, self::ADMIN_EMAIL, self::ADMIN_PASSWORD, $step + 2);
             self::assertStringContainsString('Tenants', $again->body);
-            $deleteForm = $client->get('/admin/tenants/' . $slug . '/delete');
+            $deleteForm = $client->get(AdminDoor::path('/tenants/') . $slug . '/delete');
             self::assertStringContainsString('permanently deletes', $deleteForm->body);
             self::assertStringContainsString('Type the slug', $deleteForm->body);
             self::assertStringNotContainsString('Second admin email', $deleteForm->body);
-            $wrong = $client->post('/admin/tenants/' . $slug . '/delete', [
+            $wrong = $client->post(AdminDoor::path('/tenants/') . $slug . '/delete', [
                 'confirm_slug' => 'not-' . $slug,
             ]);
             self::assertStringContainsString('Type the store slug exactly', $wrong->body);
 
-            $deleted = $client->post('/admin/tenants/' . $slug . '/delete', [
+            $deleted = $client->post(AdminDoor::path('/tenants/') . $slug . '/delete', [
                 'confirm_slug' => $slug,
             ]);
             self::assertStringContainsString('Deleted ' . $slug, $deleted->body);
@@ -155,21 +147,22 @@ final class AdminPortalTest extends TestCase
             self::assertFalse($still->fetchColumn() !== false);
 
             $pdo->exec('DELETE FROM platform.admin_password_reset_requests');
-            $client->get('/admin/forgot');
-            $unknown = $client->post('/admin/forgot', ['email' => 'missing@example.test']);
-            $known = $client->post('/admin/forgot', ['email' => self::ADMIN_EMAIL]);
+            $client->get(AdminDoor::path('/forgot'));
+            $unknown = $client->post(AdminDoor::path('/forgot'), ['email' => 'missing@example.test']);
+            $known = $client->post(AdminDoor::path('/forgot'), ['email' => self::ADMIN_EMAIL]);
             self::assertStringContainsString(ResetNotice::SENT, $unknown->body);
             self::assertStringContainsString(ResetNotice::SENT, $known->body);
 
             file_put_contents(ProbeServer::mailFile(), '');
             $pdo->exec('DELETE FROM platform.admin_password_reset_requests');
-            $client->postWithHeaders('/admin/forgot', ['email' => self::ADMIN_EMAIL], ['Host: evil.example']);
+            $client->postWithHeaders(AdminDoor::path('/forgot'), ['email' => self::ADMIN_EMAIL], ['Host: evil.example']);
             $mail = file_get_contents(ProbeServer::mailFile());
             self::assertIsString($mail);
             self::assertStringNotContainsString('evil.example', $mail);
-            self::assertStringContainsString($server->baseUrl() . '/admin/reset/', $mail);
-            self::assertSame(1, preg_match_all('#/admin/reset/([A-Za-z0-9_-]{43})#', $mail, $tokens));
-            $resetPage = $client->get('/admin/reset/' . $tokens[1][0]);
+            self::assertStringContainsString($server->baseUrl() . AdminDoor::path('/reset/'), $mail);
+            self::assertStringNotContainsString('/' . 'admin/reset/', $mail);
+            self::assertSame(1, preg_match_all('#' . preg_quote(AdminDoor::path('/reset/'), '#') . '([A-Za-z0-9_-]{43})#', $mail, $tokens));
+            $resetPage = $client->get(AdminDoor::path('/reset/') . $tokens[1][0]);
             self::assertStringContainsString('Reset password', $resetPage->body);
             self::assertStringContainsString('New password', $resetPage->body);
         } finally {
@@ -196,24 +189,20 @@ final class AdminPortalTest extends TestCase
         $server = ProbeServer::startIsolated($root);
         try {
             $client = new FormClient($server->baseUrl());
-            $client->get('/admin/login');
-            $client->post('/admin/login', [
-                'email' => self::ADMIN_EMAIL,
-                'password' => self::ADMIN_PASSWORD,
-            ]);
-            $page = $client->get('/admin/log');
+            AdminDoor::signIn($client, self::ADMIN_EMAIL, self::ADMIN_PASSWORD);
+            $page = $client->get(AdminDoor::path('/log'));
             self::assertSame(200, $page->status);
             self::assertStringContainsString('App log', $page->body);
             self::assertStringContainsString('var/log/app.log', $page->body);
             self::assertStringContainsString($marker, $page->body);
-            $cleared = $client->post('/admin/log/clear', []);
+            $cleared = $client->post(AdminDoor::path('/log/clear'), []);
             self::assertStringContainsString('Cleared application log', $cleared->body);
             self::assertStringNotContainsString($marker, $cleared->body);
             $after = file_get_contents($logPath);
             self::assertIsString($after);
             self::assertStringNotContainsString($marker, $after);
             self::assertStringContainsString('application log cleared', $after);
-            $audit = $client->get('/admin/audit');
+            $audit = $client->get(AdminDoor::path('/audit'));
             self::assertStringContainsString('app.log_clear', $audit->body);
         } finally {
             $server->stop();
@@ -238,6 +227,7 @@ final class AdminPortalTest extends TestCase
                     credentials_version = platform.admins.credentials_version + 1'
         );
         $statement->execute([self::ADMIN_EMAIL, $hash]);
+        AdminDoor::plant($pdo, self::ADMIN_EMAIL);
     }
 
     private function ensureDisposableTenant(string $root, PDO $pdo, string $slug): void

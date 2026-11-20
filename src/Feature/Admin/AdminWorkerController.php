@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectApp\Routing\Route;
 use PerfectConsign\Shared\Jobs\JobAttention;
 use PerfectConsign\Shared\Jobs\WorkerRuns;
 
@@ -17,7 +16,7 @@ final class AdminWorkerController
     ) {
     }
 
-    #[Route('/admin/worker', ['GET'])]
+    #[AdminRoute('/worker', ['GET'])]
     public function index(): void
     {
         $this->app->requireAdmin();
@@ -33,16 +32,16 @@ final class AdminWorkerController
         ]);
     }
 
-    #[Route('/admin/worker/clear', ['POST'])]
+    #[AdminRoute('/worker/clear', ['POST'])]
     public function clear(): void
     {
         $this->app->checkCsrf();
         $this->app->requireAdmin();
         $deleted = $this->runs->clear();
-        $this->app->redirect('/admin/worker', 'Cleared ' . (string) $deleted . ' worker run row(s).');
+        $this->app->redirect($this->app->url('/worker'), 'Cleared ' . (string) $deleted . ' worker run row(s).');
     }
 
-    #[Route('/admin/worker/prune', ['POST'])]
+    #[AdminRoute('/worker/prune', ['POST'])]
     public function prune(): void
     {
         $this->app->checkCsrf();
@@ -56,7 +55,7 @@ final class AdminWorkerController
         }
         $deleted = $this->runs->pruneOlderThanDays($days);
         $this->app->redirect(
-            '/admin/worker',
+            $this->app->url('/worker'),
             'Pruned ' . (string) $deleted . ' worker run row(s) older than ' . (string) $days . ' day(s).',
         );
     }

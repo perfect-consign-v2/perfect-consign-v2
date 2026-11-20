@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Payout;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\SaleCeiling;
@@ -144,11 +145,11 @@ final class PayoutRunGapTest extends TestCase
         $window = new PayoutWindow();
         $payouts = new PayoutStore($door->pdo, $door->statements, $runs, $window);
         $lines = new PayoutRunLines($door->statements);
-        $audit = new JournalAudit($door->actor, new AuditLog($door->statements));
+        $audit = QuietAudit::journal($door->statements, $door->actor);
         $clawback = new VendorClawback($door->ledger, $door->statements);
         $settler = new PayoutSettler($door->ledger, $payouts, $runs, $lines, $audit, $clawback);
         $disburser = new PayoutDisburser($door->ledger, $payouts, $runs, $lines, new PayoutRunChecks($door->statements), $audit);
-        $ceiling = new SaleCeiling($door->statements, $door->actor, new AuditLog($door->statements), $door->app->request());
+        $ceiling = new SaleCeiling($door->statements, $door->actor, QuietAudit::journal($door->statements, $door->actor), $door->app->request());
         $once = new PayoutOnce(
             $runs,
             $sheets,
@@ -166,7 +167,7 @@ final class PayoutRunGapTest extends TestCase
             $runs,
             $window,
             $once,
-            new PayoutReverser($door->ledger, $door->statements),
+            new PayoutReverser($door->ledger, $door->statements, $door->actor, QuietAudit::journal($door->statements, $door->actor)),
             $door->register,
             new \PerfectConsign\Feature\Mall\MallClock($door->mall),
             new PrintedChecks($door->app, $runs, $once),

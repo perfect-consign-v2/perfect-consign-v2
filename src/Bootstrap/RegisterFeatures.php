@@ -139,7 +139,7 @@ final class RegisterFeatures
     }
 
     /**
-     * Exact platform paths (/forgot, /signup, /admin/…) must register before the
+     * Exact platform paths (/forgot, /signup) must register before the
      * mall catch-all /{slug}, or HomeController steals those names as tenant slugs.
      */
     private static function platformRoutesFirst(string $left, string $right): int

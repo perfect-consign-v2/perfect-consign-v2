@@ -27,6 +27,7 @@ use PerfectConsign\Feature\Pos\TicketTenders;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PDO;
 use PDOStatement;
 use PerfectConsign\Shared\Http\Request;
@@ -203,6 +204,7 @@ final class PosPagePayCartTest extends TestCase
             new ReceiptChange(),
             (new ReflectionClass(SaleTicketAttach::class))->newInstanceWithoutConstructor(),
             (new ReflectionClass(SaleReversal::class))->newInstanceWithoutConstructor(),
+            QuietAudit::make($statements),
         );
         $view = $this->view($this->register($statements), true, [], [
             'sales' => new SaleHold(new Session(['sale_tendered:demo' => '20.00'], false)),

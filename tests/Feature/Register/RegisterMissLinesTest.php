@@ -10,6 +10,7 @@ use PerfectConsign\Feature\Register\RegisterActivity;
 use PerfectConsign\Feature\Register\RegisterController;
 use PerfectConsign\Feature\Register\RegisterHub;
 use PerfectConsign\Feature\Register\RegisterSession;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Feature\Register\RegisterShiftController;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -178,7 +179,7 @@ final class RegisterMissLinesTest extends TestCase
             $door->app,
             $door->mall,
             $store,
-            new RegisterSession($statements, $door->ledger, $clock, $activity),
+            new RegisterSession($statements, $door->ledger, $clock, $activity, QuietAudit::make($statements)),
             $door->register,
             new RegisterHub($door->app, $store, $door->register),
         );

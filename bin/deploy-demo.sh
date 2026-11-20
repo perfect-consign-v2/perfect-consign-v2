@@ -62,6 +62,13 @@ if [[ ! -f .env ]]; then
     exit 1
 fi
 
+admin_path=$(grep -E '^STALL_ADMIN_PATH=' "${root}/.env" | head -n1 | cut -d= -f2- | tr -d '\r' | sed 's/^"//;s/"$//')
+admin_segment="${admin_path#/}"
+if [[ ! "$admin_path" =~ ^/[a-z0-9][a-z0-9-]{15,62}$ ]] || [[ "$admin_segment" == "admin" ]]; then
+    echo "deploy-demo: STALL_ADMIN_PATH is missing or not a private admin path" >&2
+    exit 1
+fi
+
 php_bin=/opt/plesk/php/8.5/bin/php
 composer="${root}/composer.phar"
 if [[ ! -x "$php_bin" ]]; then
@@ -125,6 +132,7 @@ export PATH="$(dirname -- "$php_bin"):${PATH:-}"
 "$php_bin" "$composer" --working-dir="$root" build:routes
 
 "$php_bin" "${root}/bin/ensure-mail-key.php"
+"$php_bin" "${root}/bin/ensure-admin-mfa-key.php"
 
 # seed-demo owns wipe + provision + seed-mall; it sets this so deploy can land
 # tip + composer + routes without racing MigrationFileChanged on old stamps.

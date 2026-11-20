@@ -14,19 +14,14 @@ class SaleCeiling
     public function __construct(
         private readonly Statements $statements,
         private readonly Actor $actor,
-        private readonly AuditLog $audit,
+        private readonly JournalAudit $audit,
         private readonly Request $request,
     ) {
     }
 
     public function required(): bool
     {
-        $rows = $this->statements->rows(
-            'SELECT require_second_signature FROM mall'
-        );
-        $value = $rows[0]['require_second_signature'] ?? null;
-
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
+        return (new SaleCeilingFlag($this->statements))->required();
     }
 
     public function priced(?string $kind, ?int $value, string $overrideUser, string $overridePassword, string $entityId): void
@@ -54,52 +49,57 @@ class SaleCeiling
 
     public function discount(int $bps, string $overrideUser, string $overridePassword, string $entityId): void
     {
-        $actor = $this->cover($bps, 'discount_ceiling_bps', $overrideUser, $overridePassword);
-        $this->audit->record($actor, $this->actor->role(), 'sale.discount', 'ticket', $entityId);
+        $authority = $this->cover($bps, 'discount_ceiling_bps', $overrideUser, $overridePassword);
+        $this->audit->record('sale.discount', 'ticket', $entityId, $authority);
     }
 
     public function taxFree(string $overrideUser, string $overridePassword, string $entityId): void
     {
-        $actor = $this->cover(1, 'tax_free_ceiling_minor', $overrideUser, $overridePassword);
-        $this->audit->record($actor, $this->actor->role(), 'sale.tax_free', 'ticket', $entityId);
+        $authority = $this->cover(1, 'tax_free_ceiling_minor', $overrideUser, $overridePassword);
+        $this->audit->record('sale.tax_free', 'ticket', $entityId, $authority);
+    }
+
+    public function note(string $action, string $entityType, string $entityId): void
+    {
+        $this->requireSubject();
+        $this->audit->record($action, $entityType, $entityId);
     }
 
     public function second(string $action, string $entityId, string $overrideUser, string $overridePassword): void
     {
-        $role = $this->actor->role() !== '' ? $this->actor->role() : 'owner';
+        $this->requireSubject();
+        $authority = null;
+        $role = $this->actor->role();
         if (($role === 'cashier' || $role === 'manager') && $this->required()) {
-            $this->audit->record(
-                $this->override($overrideUser, $overridePassword, $this->actor->account()),
-                $role,
-                $action,
-                'journal',
-                $entityId
-            );
-
-            return;
+            $authority = $this->authority($overrideUser, $overridePassword, $this->actor->account());
         }
-        $account = $this->actor->account();
-        $this->audit->record($account !== '' ? $account : 'owner', $role, $action, 'journal', $entityId);
+        $this->audit->record($action, 'journal', $entityId, $authority);
     }
 
-    private function cover(int $amount, string $column, string $overrideUser, string $overridePassword): string
+    private function requireSubject(): void
     {
-        if ($this->actor->role() === 'owner' || !$this->required()) {
-            $account = $this->actor->account();
+        if ($this->actor->role() === '' || $this->actor->account() === '' || $this->actor->username() === '') {
+            throw new DatabaseRefusal('the signed-in account is missing');
+        }
+    }
 
-            return $account !== '' ? $account : 'owner';
+    private function cover(int $amount, string $column, string $overrideUser, string $overridePassword): ?AuditAuthority
+    {
+        $this->requireSubject();
+        if ($this->actor->role() === 'owner' || !$this->required()) {
+            return null;
         }
         $account = $this->actor->account();
         $ceiling = $this->ceiling($account, $column);
         if ($amount <= $ceiling) {
-            return $account;
+            return null;
         }
-        $other = $this->override($overrideUser, $overridePassword, $account);
-        if ($amount > $this->ceiling($other, $column)) {
+        $authority = $this->authority($overrideUser, $overridePassword, $account);
+        if ($amount > $this->ceiling($authority->accountId, $column)) {
             throw new DatabaseRefusal('that amount is above the ceiling');
         }
 
-        return $other;
+        return $authority;
     }
 
     private function ceiling(string $account, string $column): int
@@ -119,12 +119,12 @@ class SaleCeiling
         return RowValue::integer($row['ceiling'] ?? null);
     }
 
-    private function override(string $username, string $password, string $account): string
+    private function authority(string $username, string $password, string $account): AuditAuthority
     {
         $username = strtolower(trim($username));
         $this->refuseLocked($username);
         $rows = $this->statements->bound(
-            "SELECT id::text AS id, password_hash
+            "SELECT id::text AS id, username, password_hash
              FROM staff
              WHERE lower(username) = lower(?)
                AND role IN ('manager', 'cashier')",
@@ -132,14 +132,20 @@ class SaleCeiling
         );
         $row = $rows[0] ?? null;
         $id = is_array($row) ? RowValue::string($row['id'] ?? null) : '';
+        $signed = is_array($row) ? RowValue::string($row['username'] ?? null) : '';
         $hash = is_array($row) ? RowValue::string($row['password_hash'] ?? null) : '';
-        if ($id === '' || $id === $account || !password_verify($password, $hash)) {
+        if (
+            $id === ''
+            || $id === $account
+            || preg_match('/^[a-z][a-z0-9-]{0,62}$/', $signed) !== 1
+            || !password_verify($password, $hash)
+        ) {
             $this->recordFailure($username);
             throw new DatabaseRefusal('a second person has to sign this');
         }
         $this->clearFailures($username);
 
-        return $id;
+        return new AuditAuthority($id, $signed);
     }
 
     private function refuseLocked(string $username): void

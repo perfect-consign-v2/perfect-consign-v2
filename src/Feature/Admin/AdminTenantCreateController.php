@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectApp\Routing\Route;
 use PerfectConsign\Feature\Signup\StoreSignup;
 use RuntimeException;
 
@@ -16,7 +15,7 @@ final class AdminTenantCreateController
     ) {
     }
 
-    #[Route('/admin/tenants/create', ['GET'])]
+    #[AdminRoute('/tenants/create', ['GET'])]
     public function form(): void
     {
         $this->app->requireAdmin();
@@ -28,7 +27,7 @@ final class AdminTenantCreateController
         ]);
     }
 
-    #[Route('/admin/tenants/create', ['POST'])]
+    #[AdminRoute('/tenants/create', ['POST'])]
     public function create(): void
     {
         $this->app->checkCsrf();
@@ -56,7 +55,7 @@ final class AdminTenantCreateController
             return;
         }
         $this->app->redirect(
-            '/admin/tenants',
+            $this->app->url('/tenants'),
             'Created ' . $created['slug'] . '. Owner can sign in with ' . $created['email'] . '.'
         );
     }

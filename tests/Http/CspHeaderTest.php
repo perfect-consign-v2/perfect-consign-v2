@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Tests\Support\AdminDoor;
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
@@ -26,7 +27,7 @@ final class CspHeaderTest extends WebTestCase
 
     public function testAdminLoginSendsEnforcingCsp(): void
     {
-        $page = self::client()->get('/admin/login');
+        $page = self::client()->get(AdminDoor::path('/login'));
         $csp = $page->header('Content-Security-Policy');
         self::assertStringContainsString("script-src 'self'", $csp);
         self::assertStringNotContainsString('unsafe-inline', $csp);

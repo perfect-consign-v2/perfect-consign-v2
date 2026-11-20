@@ -10,6 +10,7 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 
 final class VendorMemoTest extends TestCase
@@ -154,6 +155,7 @@ final class VendorMemoTest extends TestCase
     {
         $statements = $this->createMock(Statements::class);
         $statements->method('bound')->willReturn([]);
+        $statements->method('affected')->willReturn(1);
         $statements->expects(self::once())->method('change')->with(
             self::callback(static fn (string $sql): bool => str_contains($sql, 'INSERT INTO vendor_memos')),
             [self::JOURNAL, self::VENDOR, $direction, 250, 'rent fix'],
@@ -187,6 +189,6 @@ final class VendorMemoTest extends TestCase
 
     private function memo(Statements $statements, ?LedgerStore $ledger = null): VendorMemo
     {
-        return new VendorMemo($ledger ?? $this->createStub(LedgerStore::class), $statements);
+        return new VendorMemo($ledger ?? $this->createStub(LedgerStore::class), $statements, QuietAudit::owner($statements));
     }
 }

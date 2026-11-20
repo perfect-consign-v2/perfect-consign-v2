@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Feature\Admin\AdminPath;
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $title */
@@ -14,6 +15,11 @@ use PerfectConsign\Shared\Http\View;
 /** @var bool $nav */
 /** @var string $adminEmail */
 /** @var string $path */
+/** @var AdminPath $adminPath */
+
+if (!isset($adminPath) || !$adminPath instanceof AdminPath) {
+    throw new RuntimeException('admin path was not passed to the layout');
+}
 
 $nav = ($nav ?? false) === true;
 $adminEmail = is_string($adminEmail ?? null) ? $adminEmail : '';
@@ -22,13 +28,14 @@ $notice = $notice ?? null;
 $warning = $warning ?? null;
 $path = $path ?? '';
 $mark = 'P';
+$tenantHome = $adminPath->url('/tenants');
 $links = [
-    ['/admin/tenants', 'Tenants', 'i-dashboard'],
-    ['/admin/signup', 'Signup', 'i-lock'],
-    ['/admin/worker', 'Mail worker', 'i-report'],
-    ['/admin/log', 'App log', 'i-report'],
-    ['/admin/audit', 'Audit', 'i-report'],
-    ['/admin/password', 'Change password', 'i-lock'],
+    [$tenantHome, 'Tenants', 'i-dashboard'],
+    [$adminPath->url('/signup'), 'Signup', 'i-lock'],
+    [$adminPath->url('/worker'), 'Mail worker', 'i-report'],
+    [$adminPath->url('/log'), 'App log', 'i-report'],
+    [$adminPath->url('/audit'), 'Audit', 'i-report'],
+    [$adminPath->url('/password'), 'Change password', 'i-lock'],
 ];
 ?>
 <!DOCTYPE html>
@@ -39,6 +46,8 @@ $links = [
     <meta name="color-scheme" content="light dark">
     <meta name="robots" content="noindex">
     <title><?= View::text($title) ?> · Platform</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="<?= View::asset('/assets/boot.css') ?>">
     <link rel="stylesheet" href="<?= View::asset('/assets/inter.css') ?>">
     <link rel="stylesheet" href="<?= View::asset('/assets/theme.css') ?>">
@@ -67,8 +76,8 @@ $links = [
                 $label = $link[1];
                 $icon = $link[2];
                 $active = $path === $href
-                    || ($href === '/admin/tenants' && ($path === '/admin' || str_starts_with($path, '/admin/tenants')))
-                    || ($href !== '/admin/tenants' && str_starts_with($path, $href));
+                    || ($href === $tenantHome && ($path === $adminPath->prefix() || str_starts_with($path, $tenantHome)))
+                    || ($href !== $tenantHome && str_starts_with($path, $href));
                 ?>
                 <a class="nav-item" href="<?= View::text($href) ?>"<?= $active ? ' aria-current="page"' : '' ?> title="<?= View::text($label) ?>">
                     <svg width="18" height="18" aria-hidden="true"><use href="#<?= View::text($icon) ?>"></use></svg>
@@ -100,12 +109,12 @@ $links = [
                         <svg width="14" height="14" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
                     </button>
                     <div class="menu" data-menu-panel hidden>
-                        <a class="menu-item" href="/admin/password">
+                        <a class="menu-item" href="<?= View::text($adminPath->url('/password')) ?>">
                             <svg width="16" height="16" aria-hidden="true"><use href="#i-lock"></use></svg>
                             Change password
                         </a>
                         <div class="menu-sep" role="separator"></div>
-                        <form method="post" action="/admin/logout">
+                        <form method="post" action="<?= View::text($adminPath->url('/logout')) ?>">
                             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                             <button class="menu-item" type="submit">
                                 <svg width="16" height="16" aria-hidden="true"><use href="#i-logout"></use></svg>

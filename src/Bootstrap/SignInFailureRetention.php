@@ -62,4 +62,19 @@ final class SignInFailureRetention
         );
         $stale->execute();
     }
+
+    public function pruneAdminMfa(string $email): void
+    {
+        $forEmail = $this->pdo->prepare(
+            "DELETE FROM platform.admin_mfa_failures
+             WHERE email = ?
+               AND failed_at <= clock_timestamp() - interval '15 minutes'"
+        );
+        $forEmail->execute([$email]);
+        $stale = $this->pdo->prepare(
+            "DELETE FROM platform.admin_mfa_failures
+             WHERE failed_at <= clock_timestamp() - interval '15 minutes'"
+        );
+        $stale->execute();
+    }
 }

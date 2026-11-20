@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Http;
 
+use PerfectConsign\Tests\Support\AdminDoor;
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
@@ -106,12 +107,8 @@ final class StaffLifecycleCoverageTest extends WebTestCase
     {
         $this->seedPlatformAdmin();
         $admin = self::client();
-        $admin->get('/admin/login');
-        $admin->post('/admin/login', [
-            'email' => 'platform-admin@example.test',
-            'password' => 'admin-pass-1',
-        ]);
-        $blocked = $admin->post('/admin/tenants/' . self::SLUG . '/enter', [
+        AdminDoor::signIn($admin, 'platform-admin@example.test', 'admin-pass-1');
+        $blocked = $admin->post(AdminDoor::path('/tenants/') . self::SLUG . '/enter', [
             'role' => 'owner',
             'owner_id' => $ownerId,
         ]);
@@ -140,6 +137,7 @@ final class StaffLifecycleCoverageTest extends WebTestCase
                  credentials_version = platform.admins.credentials_version + 1'
         );
         $statement->execute(['platform-admin@example.test', $hash]);
+        AdminDoor::plant($pdo, 'platform-admin@example.test');
     }
 
     private function suspendOtherActiveOwners(string $html, string $selfId, string $keepId): void

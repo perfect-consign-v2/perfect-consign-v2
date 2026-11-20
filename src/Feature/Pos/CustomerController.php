@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Pos;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Party\SellerPaths;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -16,6 +17,7 @@ final class CustomerController
         private readonly CustomerDirectory $directory,
         private readonly CustomerStore $customers,
         private readonly SellerPaths $sellerPaths,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -54,7 +56,11 @@ final class CustomerController
         $phone = $this->app->request()->field('customer_phone');
         $email = $this->app->request()->field('customer_email');
         try {
-            $partyId = $this->customers->findOrCreate($name, $phone, $email);
+            $partyId = '';
+            $this->audit->within(function () use (&$partyId, $name, $phone, $email): void {
+                $partyId = $this->customers->findOrCreate($name, $phone, $email);
+                $this->audit->record('customer.create', 'customer', $partyId);
+            });
             $this->app->redirect('/' . $slug . '/customers/' . $partyId, 'Customer created.');
         } catch (DatabaseRefusal $refusal) {
             $this->form($tenant->displayName, $slug, [
@@ -86,7 +92,10 @@ final class CustomerController
         $phone = $this->app->request()->field('customer_phone');
         $email = $this->app->request()->field('customer_email');
         try {
-            $this->customers->save($id, $name, $phone, $email);
+            $this->audit->within(function () use ($id, $name, $phone, $email): void {
+                $this->customers->save($id, $name, $phone, $email);
+                $this->audit->record('customer.edit', 'customer', $id);
+            });
             $this->app->redirect('/' . $slug . '/customers/' . $id, 'Customer saved.');
         } catch (DatabaseRefusal $refusal) {
             $customer = $this->customers->find($id);

@@ -256,7 +256,7 @@ class PartyStore
             if ($count === 0) {
                 throw new \InvalidArgumentException('that vendor is not in this mall');
             }
-            $this->audit->record('vendor.edit', $id, 'vendor');
+            $this->audit->record('vendor.edit', 'vendor', $id);
         });
     }
 
@@ -342,8 +342,8 @@ class PartyStore
         ?int $depth,
         ?string $location,
         ?int $amount = null,
-    ): void {
-        $insert = function () use ($code, $name, $width, $depth, $location, $amount): void {
+    ): string {
+        $insert = function () use ($code, $name, $width, $depth, $location, $amount): string {
             $rows = $this->statements->bound(
                 'INSERT INTO booths (code, name, width_ft, depth_ft, location) VALUES (?, ?, ?, ?, ?) RETURNING id',
                 [$code, $name, $width, $depth, $location]
@@ -355,13 +355,18 @@ class PartyStore
             if ($amount !== null) {
                 $this->assignments->setAskingRent($id, $amount);
             }
+
+            return $id;
         };
         if ($amount === null) {
-            $insert();
-
-            return;
+            return $insert();
         }
-        $this->statements->transaction($insert);
+        $created = '';
+        $this->statements->transaction(function () use ($insert, &$created): void {
+            $created = $insert();
+        });
+
+        return $created;
     }
 
     public function saveBooth(
@@ -387,5 +392,17 @@ class PartyStore
         if ($count === 0) {
             throw new \InvalidArgumentException('that booth is not in this mall');
         }
+    }
+
+    public function addPricedVendor(VendorDraft $vendor, string $mode): string
+    {
+        $id = '';
+        $this->audit->within(function () use ($vendor, $mode, &$id): void {
+            $id = $this->addVendor($vendor);
+            $this->setPayoutMode($id, $mode);
+            $this->audit->record('vendor.create', 'vendor', $id);
+        });
+
+        return $id;
     }
 }

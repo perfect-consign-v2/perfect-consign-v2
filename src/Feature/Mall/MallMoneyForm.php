@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Mall;
 
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
@@ -14,6 +15,7 @@ final class MallMoneyForm
         private readonly MallSettings $mall,
         private readonly MallPayoutSettings $payouts,
         private readonly MallRentDraft $rentDraft,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -23,7 +25,7 @@ final class MallMoneyForm
         $taxRate = $this->app->request()->field('tax_rate');
         $basis = MallMeasure::basisPoints($storeTake);
         $taxBasis = MallMeasure::taxMillis($taxRate);
-        $error = $this->problem($basis, $taxBasis);
+        $error = $this->problem($basis, $taxBasis, $slug);
         if ($error === null) {
             $this->app->redirect('/' . $slug . '/settings/money', 'Money saved.');
         }
@@ -36,7 +38,7 @@ final class MallMoneyForm
         );
     }
 
-    private function problem(?int $basis, ?int $taxBasis): ?string
+    private function problem(?int $basis, ?int $taxBasis, string $slug): ?string
     {
         $error = $this->rentDraft->read();
         if ($error === null && $basis === null) {
@@ -46,45 +48,49 @@ final class MallMoneyForm
             return 'tax rate is a percent from 0 to 100';
         }
         if ($error === null && is_int($basis) && is_int($taxBasis)) {
-            return $this->write($basis, $taxBasis);
+            return $this->write($basis, $taxBasis, $slug);
         }
 
         return $error;
     }
 
-    private function write(int $basis, int $taxBasis): ?string
+    private function write(int $basis, int $taxBasis, string $slug): ?string
     {
         $booth = $this->mall->boothSize();
         $floor = $this->mall->floorSize();
+        $tenantId = $this->app->open($slug, true)->id;
         try {
-            $stored = $this->mall->getVendorFlags();
-            $this->mall->save(
-                $this->mall->timeZone(),
-                MallWrite::posted($booth['width'], $booth['depth'], $floor['width'], $floor['depth'], $this->storedFlags($stored)),
-                $basis,
-                $this->mall->floorDays(),
-                $this->postedRound(),
-                $taxBasis,
-                $stored['weekly'],
-            );
-            $shop = $this->payouts->getPostedShop(
-                $this->app->request()->field('shop_flags'),
-                MallPayoutSettings::getPostedConsignment(
+            $this->audit->within(function () use ($basis, $taxBasis, $booth, $floor, $tenantId): void {
+                $stored = $this->mall->getVendorFlags();
+                $this->mall->save(
+                    $this->mall->timeZone(),
+                    MallWrite::posted($booth['width'], $booth['depth'], $floor['width'], $floor['depth'], $this->storedFlags($stored)),
+                    $basis,
+                    $this->mall->floorDays(),
+                    $this->postedRound(),
+                    $taxBasis,
+                    $stored['weekly'],
+                );
+                $shop = $this->payouts->getPostedShop(
+                    $this->app->request()->field('shop_flags'),
+                    MallPayoutSettings::getPostedConsignment(
+                        $this->app->request()->field('operating_mode'),
+                        $this->app->request()->field('consignment_enabled'),
+                    ),
+                    $this->app->request()->field('store_stock_enabled'),
+                );
+                $this->payouts->save(new MallPayoutWrite(
                     $this->app->request()->field('operating_mode'),
-                    $this->app->request()->field('consignment_enabled'),
-                ),
-                $this->app->request()->field('store_stock_enabled'),
-            );
-            $this->payouts->save(new MallPayoutWrite(
-                $this->app->request()->field('operating_mode'),
-                $this->rentDraft->prepaid ?? false,
-                $this->rentDraft->rentals ?? false,
-                $this->rentDraft->cycleDay ?? 1,
-                $shop['consignment'],
-                $shop['store'],
-                $this->app->request()->field('require_second_signature') === '1',
-            ));
-            $this->rentDraft->save();
+                    $this->rentDraft->prepaid ?? false,
+                    $this->rentDraft->rentals ?? false,
+                    $this->rentDraft->cycleDay ?? 1,
+                    $shop['consignment'],
+                    $shop['store'],
+                    $this->app->request()->field('require_second_signature') === '1',
+                ));
+                $this->rentDraft->save();
+                $this->audit->record('settings.mall', 'mall', $tenantId);
+            });
         } catch (DatabaseRefusal $refusal) {
             return $this->app->catchRefusal($refusal);
         } catch (\InvalidArgumentException $errorValue) {

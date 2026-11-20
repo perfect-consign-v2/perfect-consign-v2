@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Export;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Ledger\DatabaseRefusal;
 
@@ -13,6 +14,7 @@ final class ExportController
     public function __construct(
         private readonly MallApp $app,
         private readonly ExportStore $exports,
+        private readonly JournalAudit $audit,
     ) {
     }
 
@@ -67,7 +69,11 @@ final class ExportController
             return;
         }
         try {
-            $statement = $this->exports->exportCsv($system, $from, $to, $taxRate);
+            $statement = '';
+            $this->audit->within(function () use (&$statement, $system, $from, $to, $taxRate): void {
+                $statement = $this->exports->exportCsv($system, $from, $to, $taxRate);
+                $this->audit->record('export.records', 'export', $system);
+            });
         } catch (DatabaseRefusal $refusal) {
             $this->app->show('Feature/Export/export', [
                 'title' => 'Download records',

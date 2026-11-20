@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Inventory;
 
-use PerfectConsign\Feature\Catalog\NameList;
+use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\CatalogLinks;
-use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -21,6 +20,7 @@ final class InventoryStore
         private readonly Statements $statements,
         private readonly CatalogLinks $links,
         private readonly MallSettings $mall,
+        private readonly JournalAudit $audit,
     ) {
         $this->guard = new ItemGuard($statements, $mall);
         $this->marks = new ItemMarkAllocator($statements);
@@ -82,12 +82,17 @@ final class InventoryStore
 
     public function add(ItemEntry $item, string $today): string
     {
+        return $this->kept(null, $item, $today, 'item.create');
+    }
+
+    public function import(ItemEntry $item, string $today): string
+    {
         return $this->place(null, $item, $today);
     }
 
     public function save(string $id, ItemEntry $item, string $today): void
     {
-        $this->place($id, $item, $today);
+        $this->kept($id, $item, $today, 'item.edit');
     }
 
     public function remove(string $id): void
@@ -95,10 +100,24 @@ final class InventoryStore
         if (isset($this->referenced()[$id])) {
             throw new \InvalidArgumentException('That item is in use.');
         }
-        $count = $this->statements->affected('DELETE FROM items WHERE id = ?::uuid', [$id]);
-        if ($count === 0) {
-            throw new \InvalidArgumentException('That item is not in this mall.');
-        }
+        $this->statements->transaction(function () use ($id): void {
+            $count = $this->statements->affected('DELETE FROM items WHERE id = ?::uuid', [$id]);
+            if ($count === 0) {
+                throw new \InvalidArgumentException('That item is not in this mall.');
+            }
+            $this->audit->record('item.delete', 'item', $id);
+        });
+    }
+
+    private function kept(?string $id, ItemEntry $item, string $today, string $action): string
+    {
+        $stored = '';
+        $this->statements->transaction(function () use ($id, $item, $today, $action, &$stored): void {
+            $stored = $this->place($id, $item, $today);
+            $this->audit->record($action, 'item', $stored);
+        });
+
+        return $stored;
     }
 
     /**
@@ -189,38 +208,7 @@ final class InventoryStore
 
     private function store(?string $id, ItemEntry $item, string $code, string $barcode): string
     {
-        $columns = ['code', 'barcode', 'vendor_id', 'placement'];
-        $casts = ['?', '?', '?::uuid', '?'];
-        $params = [
-            $code,
-            $barcode,
-            $item->vendorId === '' ? null : $item->vendorId,
-            $item->placement,
-        ];
-        if ($this->mall->enabled('use_brand')) {
-            $columns[] = 'brand_id';
-            $casts[] = '?::uuid';
-            $params[] = $item->brandId;
-        }
-        $columns = array_merge($columns, ['description', 'price_minor', 'quantity', 'commission_bps', 'tax_exempt', 'intake_on', 'expires_on']);
-        $casts = array_merge($casts, ['?', '?', '?', '?', '?::boolean', '?::date', '?::date']);
-        $params = array_merge($params, [
-            $item->description,
-            $item->sale->priceMinor,
-            $item->sale->quantity,
-            $item->sale->commissionBps,
-            PgBool::literal($item->sale->taxExempt),
-            $item->dates->intakeOn,
-            $item->dates->expiresOn,
-        ]);
-        foreach (NameList::all() as $list) {
-            if (!$this->mall->enabled($list->flag)) {
-                continue;
-            }
-            $columns[] = $list->itemColumn;
-            $casts[] = '?::uuid';
-            $params[] = $item->attributes[$list->key] ?? null;
-        }
+        [$columns, $casts, $params] = ItemWriteColumns::fields($this->mall, $item, $code, $barcode);
         if ($id === null) {
             return $this->inserted($columns, $casts, $params);
         }

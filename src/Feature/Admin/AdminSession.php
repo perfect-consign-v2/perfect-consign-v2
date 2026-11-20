@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Admin;
 
 use PerfectApp\Session\Session;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
 
 final class AdminSession
 {
@@ -21,6 +22,7 @@ final class AdminSession
     public function open(string $id, string $email, string $version): void
     {
         $this->session->regenerateId(true);
+        $this->forgetAuthenticator();
         $this->session->set(self::ID, $id);
         $this->session->set(self::EMAIL, $email);
         $this->session->set(self::VERSION, $version);
@@ -44,6 +46,12 @@ final class AdminSession
         $this->session->delete(self::VERSION);
         $this->session->delete('platform_signed_in_at');
         $this->session->delete('platform_last_seen_at');
+        $this->forgetAuthenticator();
+    }
+
+    public function pendingTarget(int $now): ?string
+    {
+        return (new AdminMfaPending($this->session, $this))->target($now);
     }
 
     /**
@@ -70,6 +78,16 @@ final class AdminSession
     {
         return $this->older('platform_signed_in_at', $now, 28800)
             || $this->older('platform_last_seen_at', $now, 3600);
+    }
+
+    private function forgetAuthenticator(): void
+    {
+        $this->session->delete(AdminMfaPending::ID);
+        $this->session->delete(AdminMfaPending::EMAIL);
+        $this->session->delete(AdminMfaPending::AT);
+        $this->session->delete(AdminMfaPending::KIND);
+        $this->session->delete(AdminMfaPending::SECRET);
+        $this->session->delete(AdminMfaPending::CODES);
     }
 
     private function older(string $key, int $now, int $limit): bool

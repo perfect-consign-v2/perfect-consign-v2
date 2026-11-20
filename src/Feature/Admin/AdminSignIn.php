@@ -6,6 +6,8 @@ namespace PerfectConsign\Feature\Admin;
 
 use PerfectConsign\Bootstrap\SignInFailureRetention;
 use PerfectConsign\Bootstrap\SignInLocked;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
 use PerfectConsign\Shared\Http\Request;
 use PDO;
 use Psr\Log\LoggerInterface;
@@ -16,19 +18,20 @@ final class AdminSignIn
         private readonly PDO $pdo,
         private readonly Request $request,
         private readonly LoggerInterface $logger,
-        private readonly AdminSession $session,
         private readonly AdminAudit $audit,
         private readonly SignInFailureRetention $failures,
+        private readonly AdminMfaStore $authenticators,
+        private readonly AdminMfaPending $pending,
     ) {
     }
 
-    public function attempt(string $email, string $password): bool
+    public function attempt(string $email, string $password): AdminSignInResult
     {
         $email = strtolower(trim($email));
         if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1 || strlen($email) > 200) {
             $this->logger->info('platform admin sign-in refused');
 
-            return false;
+            return AdminSignInResult::refused();
         }
         $this->refuseLocked($email);
         $row = $this->lookup($email);
@@ -36,16 +39,20 @@ final class AdminSignIn
             $this->failed($email, $row);
             $this->logger->info('platform admin sign-in refused');
 
-            return false;
+            return AdminSignInResult::refused();
         }
         $clear = $this->pdo->prepare(
             'DELETE FROM platform.admin_sign_in_failures WHERE email = ?'
         );
         $clear->execute([$email]);
-        $this->session->open($row['id'], $email, $row['version']);
-        $this->audit->record($row['id'], $email, 'admin.sign_in', 'ok');
+        if ($this->authenticators->hasSecret($row['id'])) {
+            $this->pending->beginChallenge($row['id'], $email);
 
-        return true;
+            return AdminSignInResult::challenge();
+        }
+        $this->pending->beginEnrollment($row['id'], $email);
+
+        return AdminSignInResult::enroll();
     }
 
     /**

@@ -39,7 +39,9 @@ use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallController;
 use PerfectConsign\Feature\Mall\MallDay;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
+use PerfectConsign\Feature\Mall\MallRentDraft;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Http\Request;
@@ -117,6 +119,11 @@ final class BackupDownloadBranchesTest extends TestCase
                 new BackupStore($built['pdo']),
                 new NightlyCopy(),
                 new LabelCatalog(),
+                new MallRentDraft(
+                    $built['app'],
+                    new MallPayoutSettings($built['statements']),
+                    QuietAudit::make($built['statements']),
+                ),
             ),
             $this->logger($messages),
         );

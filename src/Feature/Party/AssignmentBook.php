@@ -132,8 +132,9 @@ final class AssignmentBook
         string $startsOn,
         string $endsOn,
         ?int $rentMinor = null,
-    ): void {
-        $this->statements->transaction(function () use ($boothId, $vendorId, $startsOn, $endsOn, $rentMinor): void {
+    ): string {
+        $id = '';
+        $this->statements->transaction(function () use ($boothId, $vendorId, $startsOn, $endsOn, $rentMinor, &$id): void {
             $id = $this->insertStay($boothId, $vendorId, $startsOn, $endsOn);
             if ($rentMinor === null) {
                 throw new \InvalidArgumentException('that booth has no asking rent');
@@ -143,6 +144,8 @@ final class AssignmentBook
                 [$id, $rentMinor]
             );
         });
+
+        return $id;
     }
 
     /**

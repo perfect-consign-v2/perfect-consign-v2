@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Integration\Payout;
 
 use PDO;
+use PerfectApp\Session\Session;
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Feature\Dev\DemoSubject;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Payout\OccupiedPack;
@@ -39,20 +42,25 @@ final class PayoutRunTest extends TestCase
         $root = dirname(__DIR__, 3);
         ProbeMall::ensure($root);
         $pdo = $this->connection();
-        $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
+        $schema = $this->schema($pdo);
+        $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
+        $session = new Session(null, false);
+        DemoSubject::stamp($pdo, $schema, $session);
+        $actor = new Actor($session);
         $statements = new Statements($pdo);
+        $audit = QuietAudit::journal($statements, $actor, $session);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $lines = new PayoutRunLines($statements);
-        $settler = new PayoutSettler($ledger, $payouts, $runs, $lines, QuietAudit::make($statements), new VendorClawback($ledger, $statements));
-        $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines, new PayoutRunChecks($statements), QuietAudit::make($statements));
-        $reverser = new PayoutReverser($ledger, $statements);
+        $settler = new PayoutSettler($ledger, $payouts, $runs, $lines, $audit, new VendorClawback($ledger, $statements));
+        $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines, new PayoutRunChecks($statements), $audit);
+        $reverser = new PayoutReverser($ledger, $statements, $actor, $audit);
         $purchases = new StorePurchase($ledger);
         $mall = new MallPayoutSettings($statements);
         $parties = new PartyStore(
             $statements,
-            QuietAudit::make($statements),
+            $audit,
             new \PerfectConsign\Feature\Party\AssignmentBook($statements),
             new \PerfectConsign\Feature\Party\PartyIdentity($statements),
         );
@@ -239,7 +247,7 @@ final class PayoutRunTest extends TestCase
             self::assertSame('', $singlePayout->openSingle($vendorId));
             try {
                 $statements->isolated(function () use ($singlePayout, $single, $date): void {
-                    $singlePayout->undo($single, $date, 'owner', 'mistake');
+                    $singlePayout->undo($single, $date, 'mistake');
                 });
                 self::fail('a draft payout was undone');
             } catch (\PerfectConsign\Ledger\DatabaseRefusal) {

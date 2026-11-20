@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
+/** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 /** @var bool $enabled */
 /** @var bool $requireVerification */
 ?>
@@ -14,7 +15,7 @@ use PerfectConsign\Shared\Http\View;
         <p class="muted">When on, anyone can open Create your store at /signup. Default is off. Email confirmation defaults on.</p>
     </div>
 </div>
-<form class="card mt-6" method="post" action="/admin/signup">
+<form class="card mt-6" method="post" action="<?= View::text($adminPath->url('/signup')) ?>">
     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
     <div class="card-body stack">
         <label class="row gap-2">

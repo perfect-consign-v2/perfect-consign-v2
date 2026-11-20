@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Integration\Admin;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Admin\AdminTenantWipe;
 use PerfectConsign\Feature\Backup\BackupStore;
@@ -42,7 +43,7 @@ final class AdminTenantWipeTest extends TestCase
         $acting = $this->plantAdmin($pdo, 'wipe-s-' . bin2hex(random_bytes(3)) . '@example.test', 'WipeActingPass1!');
         $wipe = $this->wipe($pdo);
         try {
-            $wipe->wipe($acting, $tenant, $tenant->slug, '', '', false);
+            $wipe->removeWithoutSecond($acting, $tenant, $tenant->slug);
             self::assertSame(1, $this->okDeletes($pdo, $tenant->id, $acting['email']));
             $still = $pdo->prepare('SELECT 1 FROM platform.tenants WHERE slug = ?');
             $still->execute([$slug]);
@@ -107,7 +108,7 @@ final class AdminTenantWipeTest extends TestCase
 
         return new AdminTenantWipe(
             $pdo,
-            new AdminAudit($pdo, $request),
+            QuietAudit::admin($pdo, $request),
             new BackupStore($pdo),
             $request,
         );

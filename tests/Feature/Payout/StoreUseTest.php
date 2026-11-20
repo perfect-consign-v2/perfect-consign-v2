@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Payout;
 
+use PerfectConsign\Tests\Support\QuietAudit;
 use InvalidArgumentException;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\Actor;
@@ -124,14 +125,18 @@ final class StoreUseTest extends TestCase
             [self::JOURNAL, self::VENDOR, self::ITEM, 1250, 'Lamp', 'for the office'],
         );
         $audit = $this->createMock(Statements::class);
-        $audit->expects(self::once())->method('change')->with(
+        $audit->expects(self::once())->method('affected')->willReturn(1)->with(
             self::callback(static fn (string $sql): bool => str_contains($sql, 'audit_events')),
             self::callback(static function (array $params): bool {
-                return $params[0] === 'Ada'
+                return $params[0] === 'ada'
                     && $params[1] === 'owner'
                     && $params[2] === 'store_use.record'
                     && $params[3] === 'journal'
-                    && $params[4] === self::JOURNAL;
+                    && $params[4] === self::JOURNAL
+                    && $params[5] === 'test-request'
+                    && $params[6] === '01900000-0000-7000-8000-0000000000a1'
+                    && $params[7] === 'owner'
+                    && $params[8] === 'ada';
             }),
         );
         $posted = null;
@@ -224,15 +229,17 @@ final class StoreUseTest extends TestCase
     {
         $session = $this->createStub(Session::class);
         $session->method('get')->willReturnCallback(static fn (string $key): string => match ($key) {
-            'owner_name' => 'Ada',
+            'owner_name' => 'ada',
+            'actor_username' => 'ada',
             'actor_role' => 'owner',
+            'actor_account' => '01900000-0000-7000-8000-0000000000a1',
             default => '',
         });
 
         return new StoreUse(
             $ledger,
             $statements,
-            new JournalAudit(new Actor($session), new AuditLog($audit ?? $this->createStub(Statements::class))),
+            QuietAudit::journal($audit ?? $this->createStub(Statements::class), new Actor($session)),
         );
     }
 }
