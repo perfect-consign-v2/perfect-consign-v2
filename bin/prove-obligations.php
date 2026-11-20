@@ -117,12 +117,12 @@ function stampedFileRestoredByProvisioner(string $file, string $root): bool
     }
     $schema = $root . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Schema' . DIRECTORY_SEPARATOR;
     $provisioner = readSql($schema . 'TenantProvisioner.php');
-    $migrator = readSql($schema . 'TenantMigrator.php');
-    $ledger = methodBody($provisioner, 'function applyLedger', 'function rewrite');
-    $transaction = methodBody($migrator, 'function transaction', 'function roleName');
+    $ledger = methodBody($provisioner, 'function applyLedger', 'function restoreEventTriggers');
+    $restore = methodBody($provisioner, 'function restoreEventTriggers', 'function rewrite');
 
-    return str_contains($ledger, "SET LOCAL event_triggers = true")
-        && str_contains($transaction, "SET LOCAL event_triggers = true");
+    return str_contains($ledger, '$this->restoreEventTriggers()')
+        && str_contains($restore, "current_setting('is_superuser')")
+        && str_contains($restore, "SET LOCAL event_triggers = true");
 }
 
 function methodBody(string $source, string $startMarker, string $endMarker): string
