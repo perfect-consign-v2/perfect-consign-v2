@@ -38,5 +38,9 @@ final class ReconcileJob
         foreach (['gift_card', 'gift_certificate', 'store_credit', 'booth_rent_receivable', 'sales_tax_payable'] as $name) {
             $role->execute([$name]);
         }
+        $rent = $this->pdo->prepare('SELECT stall_refuse_rent_roll()');
+        $rent->execute();
+        $stored = $this->pdo->prepare('SELECT stall_refuse_stored_value()');
+        $stored->execute();
     }
 }

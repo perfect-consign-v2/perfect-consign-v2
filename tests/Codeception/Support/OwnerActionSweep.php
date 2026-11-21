@@ -927,13 +927,14 @@ final class OwnerActionSweep
         $reportName = 'Sweep ' . $this->tag();
         $this->http->post('/reports/build', [
             'name' => $reportName,
-            'source' => 'sales',
+            'sheet' => 'sales',
             'grouped' => 'day',
+            'range_key' => 'this_month',
         ], ['Report saved.']);
         $saved = $this->http->get('/reports/build', [$reportName]);
         $reportId = $this->linkedId($saved->body, 'reports/saved', $reportName);
         if ($reportId !== '') {
-            $this->http->get('/reports/saved/' . $reportId, [$reportName]);
+            $this->http->get('/reports/saved/' . $reportId, ['Sales']);
         }
         $deal = 'Deal ' . $this->tag();
         $this->http->post('/offers', [

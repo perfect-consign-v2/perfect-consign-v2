@@ -37,7 +37,7 @@ final class ReportAndPartyCoverageTest extends WebTestCase
     {
         $home = $this->client->get('/' . self::SLUG . '/reports');
         self::assertSees('Reports', $home);
-        self::assertSees('Report builder', $home);
+        self::assertSees('Bookmarks', $home);
 
         $tax = $this->client->get('/' . self::SLUG . '/reports/sales-tax?month=2020-01');
         self::assertSees('Monthly sales tax', $tax);
@@ -47,48 +47,57 @@ final class ReportAndPartyCoverageTest extends WebTestCase
         self::assertSees('Monthly sales tax', $printed);
         self::assertStringNotContainsString('Download CSV', $printed->body);
         $fallback = $this->client->get('/' . self::SLUG . '/reports/sales-tax?month=June');
-        self::assertSees(date('Y-m'), $fallback);
+        self::assertSees('Enter a real month.', $fallback);
+        self::assertStringNotContainsString('Gross', $fallback->body);
+        self::assertStringNotContainsString('Still owe', $fallback->body);
+        self::assertStringNotContainsString('Tax collected', $fallback->body);
 
         $from = '2026-06-10';
         $sales = $this->client->get('/' . self::SLUG . '/reports/sales?from=' . $from . '&to=2026-06-01&group=vendor');
         self::assertSees('Sales', $sales);
-        foreach (['day', 'tender', 'cashier', 'category', 'nope'] as $group) {
+        self::assertSees('To is before From.', $sales);
+        foreach (['day', 'tender', 'cashier', 'category'] as $group) {
             $grouped = $this->client->get('/' . self::SLUG . '/reports/sales?from=' . $from . '&to=' . $from . '&group=' . $group);
             self::assertSame(200, $grouped->status);
             self::assertSees('Sales', $grouped);
         }
+        $unknown = $this->client->get('/' . self::SLUG . '/reports/sales?from=' . $from . '&to=' . $from . '&group=nope');
+        self::assertSees('That grouping is not on this page.', $unknown);
         $open = $this->client->get('/' . self::SLUG . '/reports/sales?from=June&to=July');
-        self::assertSees('Sales', $open);
+        self::assertSees('Enter a real date.', $open);
         $payouts = $this->client->get('/' . self::SLUG . '/reports/payouts?from=' . $from . '&to=' . $from);
-        self::assertSees('Payout register', $payouts);
+        self::assertSees('Payments', $payouts);
 
         $builder = $this->client->get('/' . self::SLUG . '/reports/build');
-        self::assertSees('Report builder', $builder);
+        self::assertSees('Bookmarks', $builder);
         $reserved = $this->client->post('/' . self::SLUG . '/reports/build', [
             'name' => 'Sales Tax',
-            'source' => 'sales',
+            'sheet' => 'sales',
             'grouped' => 'day',
+            'range_key' => 'this_month',
         ]);
-        self::assertSees('that report name is reserved or empty', $reserved);
+        self::assertSees('Choose a name. Sales tax stays on its own page.', $reserved);
         $catalog = $this->client->post('/' . self::SLUG . '/reports/build', [
             'name' => 'Rent by day',
-            'source' => 'rent',
+            'sheet' => 'rent',
             'grouped' => 'day',
+            'range_key' => 'this_month',
         ]);
-        self::assertSees('that report is not in the catalog', $catalog);
+        self::assertSees('That report does not use that grouping.', $catalog);
 
         $tag = bin2hex(random_bytes(3));
         $savedId = '';
         foreach ([
-            ['Sales ' . $tag, 'sales', 'none'],
-            ['Rent ' . $tag, 'rent', 'none'],
-            ['Paid ' . $tag, 'payouts', 'none'],
-            ['Stored ' . $tag, 'stored_value', 'none'],
+            ['Sales ' . $tag, 'sales', 'day', 'this_month'],
+            ['Rent ' . $tag, 'rent', 'none', 'now'],
+            ['Paid ' . $tag, 'payouts', 'none', 'this_month'],
+            ['Stored ' . $tag, 'stored_value', 'none', 'now'],
         ] as $spec) {
             $stored = $this->client->post('/' . self::SLUG . '/reports/build', [
                 'name' => $spec[0],
-                'source' => $spec[1],
+                'sheet' => $spec[1],
                 'grouped' => $spec[2],
+                'range_key' => $spec[3],
             ]);
             self::assertSees('Report saved.', $stored);
             self::assertSees($spec[0], $stored);
@@ -97,14 +106,19 @@ final class ReportAndPartyCoverageTest extends WebTestCase
             }
         }
         $sheet = $this->client->get('/' . self::SLUG . '/reports/saved/' . $savedId);
-        self::assertSees('Sales ' . $tag, $sheet);
-        foreach (['Rent ' . $tag, 'Paid ' . $tag, 'Stored ' . $tag] as $name) {
+        self::assertSees('Sales', $sheet);
+        self::assertStringNotContainsString('Sales ' . $tag, $sheet->body);
+        foreach ([
+            'Rent ' . $tag => 'Rent',
+            'Paid ' . $tag => 'Payments',
+            'Stored ' . $tag => 'Gift cards and store credit',
+        ] as $name => $title) {
             $id = $this->match(
                 $this->client->get('/' . self::SLUG . '/reports/build')->body,
                 '#/reports/saved/([0-9a-fA-F-]{36})">' . preg_quote($name, '#') . '#'
             );
             $opened = $this->client->get('/' . self::SLUG . '/reports/saved/' . $id);
-            self::assertSees($name, $opened);
+            self::assertSees($title, $opened);
         }
         self::assertSame(404, $this->client->get('/' . self::SLUG . '/reports/saved/' . self::MISSING)->status);
     }
@@ -112,16 +126,16 @@ final class ReportAndPartyCoverageTest extends WebTestCase
     public function testReportSpreadsheetsDownload(): void
     {
         $pages = [
-            '/reports/sales-tax.csv?month=2020-01' => 'section',
-            '/reports/sales-tax.csv?month=June' => 'section',
-            '/reports/sales.csv?from=2026-06-02&to=2026-06-01&group=nope' => 'label',
-            '/reports/sales.csv?from=June&to=July&group=hour' => 'label',
-            '/reports/rent.csv' => 'booth',
-            '/reports/payouts.csv?from=2026-06-01&to=2026-06-02' => 'paid_on',
-            '/reports/stored-value.csv' => 'kind',
-            '/reports/expiring.csv' => 'code',
-            '/reports/donated.csv?from=2026-06-01&to=2026-06-01' => 'posted_on',
-            '/reports/sell-through.csv?from=2026-06-02&to=2026-06-01' => 'category',
+            '/reports/sales-tax.csv?month=2020-01' => 'Section',
+            '/reports/sales-tax.csv?month=June' => 'Enter a real month.',
+            '/reports/sales.csv?from=2026-06-02&to=2026-06-01&group=nope' => 'That grouping is not on this page.',
+            '/reports/sales.csv?from=June&to=July&group=hour' => 'An hourly report is one day.',
+            '/reports/rent.csv' => 'Booth',
+            '/reports/payouts.csv?from=2026-06-01&to=2026-06-02' => 'How paid',
+            '/reports/stored-value.csv' => 'Gift card',
+            '/reports/expiring.csv' => 'Tag',
+            '/reports/donated.csv?from=2026-06-01&to=2026-06-01' => 'Description',
+            '/reports/sell-through.csv?from=2026-06-02&to=2026-06-01' => 'To is before From.',
         ];
         foreach ($pages as $path => $column) {
             $page = $this->client->get('/' . self::SLUG . $path);

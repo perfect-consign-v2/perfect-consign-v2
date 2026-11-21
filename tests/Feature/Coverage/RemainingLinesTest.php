@@ -43,10 +43,12 @@ use PerfectConsign\Feature\Payout\VendorClawback;
 use PerfectConsign\Feature\Report\LedgerReport;
 use PerfectConsign\Feature\Report\ReportCatalog;
 use PerfectConsign\Feature\Report\ReportCsvController;
-use PerfectConsign\Feature\Report\ReportMonth;
+use PerfectConsign\Feature\Report\ReportFetch;
 use PerfectConsign\Feature\Report\ReportSheetsController;
+use PerfectConsign\Feature\Report\ReportTie;
 use PerfectConsign\Feature\Report\ReportsController;
 use PerfectConsign\Feature\Report\SalesTaxFiling;
+use PerfectConsign\Feature\Report\SalesTaxReport;
 use PerfectConsign\Feature\Report\SavedReport;
 use PerfectConsign\Feature\Report\SalesTaxSheet;
 use PerfectConsign\Feature\Vendor\VendorPreview;
@@ -201,22 +203,27 @@ final class RemainingLinesTest extends TestCase
     {
         $cashier = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/pos', [], []));
         $cashier->session->set('actor_role', 'cashier');
-        $sheets = new ReportSheetsController($cashier->app, $cashier->actor, new LedgerReport($cashier->statements), new ReportMonth());
+        $fetch = new ReportFetch(new LedgerReport($cashier->statements), new ReportTie($cashier->statements));
+        $tax = new SalesTaxReport(
+            new SalesTaxSheet($cashier->statements),
+            new SalesTaxFiling(),
+            new ReportTie($cashier->statements),
+        );
+        $sheets = new ReportSheetsController($cashier->app, $cashier->actor, $cashier->mall, $fetch);
         $reports = new ReportsController(
             $cashier->app,
             $cashier->actor,
-            new SalesTaxSheet($cashier->statements),
-            new SalesTaxFiling(),
-            new LedgerReport($cashier->statements),
-            new ReportMonth(),
+            $cashier->mall,
+            $fetch,
+            $tax,
             new SavedReport($cashier->statements, new ReportCatalog()),
         );
         $csv = new ReportCsvController(
             $cashier->app,
             $cashier->actor,
-            new SalesTaxSheet($cashier->statements),
-            new LedgerReport($cashier->statements),
-            new ReportMonth(),
+            $cashier->mall,
+            $fetch,
+            $tax,
         );
         $this->refused(static function () use ($sheets): void {
             $sheets->rent(MallDoor::SLUG);

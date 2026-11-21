@@ -5,32 +5,39 @@ declare(strict_types=1);
 use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
-/** @var list<array{id: string, name: string, source: string, grouped: string}> $saved */
-$month = date('Y-m');
+/** @var list<array{id: string, name: string, sheet: string, grouped: string, range_key: string}> $saved */
+
+$base = '/' . $slug . '/reports';
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Reports</h1>
-        <p class="muted">The same numbers as the books.</p>
+        <p class="muted">One question at a time. The dollars match the books.</p>
     </div>
 </div>
+<h2>Money</h2>
 <ul>
-    <li><a href="/<?= View::text($slug) ?>/reports/sales-tax?month=<?= View::text($month) ?>">Monthly sales tax</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/sales">Sales</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/sales?group=hour">Hourly sales</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/sell-through">Category sell-through</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/expiring">Expiring items</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/donated">Donated items</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/rent">Rent roll</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/payouts">Payout register</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/stored-value">Stored value</a></li>
-    <li><a href="/<?= View::text($slug) ?>/reports/build">Report builder</a></li>
+    <li><a href="<?= View::text($base) ?>/sales-tax">Monthly sales tax</a> — What you file, and what you still owe.</li>
+    <li><a href="<?= View::text($base) ?>/sales">Sales</a> — By day, tender, vendor, cashier, category, or hour.</li>
+    <li><a href="<?= View::text($base) ?>/sales?group=hour">Hourly sales</a> — One day, hour by hour.</li>
+    <li><a href="<?= View::text($base) ?>/rent">Rent still owed</a> — Open booth rent.</li>
+    <li><a href="<?= View::text($base) ?>/payouts">Payments to vendors</a> — Checks, cash, the safe, and rent settlements.</li>
+    <li><a href="<?= View::text($base) ?>/stored-value">Gift cards and store credit</a> — What the mall still owes.</li>
 </ul>
-<?php if ($saved !== []): ?>
-    <h2>Saved</h2>
+<h2>Floor</h2>
+<ul>
+    <li><a href="<?= View::text($base) ?>/expiring">Expiring items</a> — Consigned pieces that expire in the next 14 days.</li>
+    <li><a href="<?= View::text($base) ?>/donated">Donated items</a> — Pieces given to the store.</li>
+    <li><a href="<?= View::text($base) ?>/sell-through">Category sell-through</a> — Sold in the range, and what is still here today.</li>
+</ul>
+<h2>Bookmarks</h2>
+<p><a href="<?= View::text($base) ?>/build">Bookmarks</a> — A named shortcut to one of these pages.</p>
+<?php if ($saved === []): ?>
+    <p class="muted">No bookmarks yet.</p>
+<?php else: ?>
     <ul>
         <?php foreach ($saved as $report): ?>
-            <li><a href="/<?= View::text($slug) ?>/reports/saved/<?= View::text($report['id']) ?>"><?= View::text($report['name']) ?></a></li>
+            <li><a href="<?= View::text($base) ?>/saved/<?= View::text($report['id']) ?>"><?= View::text($report['name']) ?></a></li>
         <?php endforeach; ?>
     </ul>
 <?php endif; ?>

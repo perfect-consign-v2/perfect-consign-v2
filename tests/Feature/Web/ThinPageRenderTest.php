@@ -115,32 +115,34 @@ final class ThinPageRenderTest extends TestCase
     public function testTheSalesTaxPagePrintsAndLists(): void
     {
         $view = new View(dirname(__DIR__, 3) . '/src');
-        $row = [
-            'section' => 'sales',
-            'label' => 'Taxable',
-            'sale_count' => 2,
-            'items_sold' => 3,
-            'subtotal_minor' => 1000,
-            'discount_minor' => 0,
-            'tax_minor' => 80,
-            'total_minor' => 1080,
-        ];
         $filing = ['gross' => 1000, 'exempt' => 0, 'returns' => 0, 'taxable' => 1000, 'collected' => 80];
         $screen = $this->capture($view, 'Feature/Report/sales-tax', [
             'slug' => 'shop',
+            'label' => 'November 2026',
             'month' => '2026-11',
             'print' => false,
-            'rows' => [$row],
+            'error' => null,
             'filing' => $filing,
+            'rates' => [],
+            'liability' => ['opening' => 0, 'collected' => 80, 'paid' => 0, 'closing' => 80],
+            'headers' => ['Section'],
+            'lines' => [['Taxable']],
+            'download' => 'sales-tax.csv?month=2026-11',
         ]);
         self::assertStringContainsString('Download CSV', $screen);
         self::assertStringContainsString('Taxable', $screen);
         $print = $this->capture($view, 'Feature/Report/sales-tax', [
             'slug' => 'shop',
+            'label' => '',
             'month' => '2026-11',
             'print' => true,
-            'rows' => [],
+            'error' => null,
             'filing' => $filing,
+            'rates' => [],
+            'liability' => null,
+            'headers' => [],
+            'lines' => [],
+            'download' => 'sales-tax.csv?month=2026-11',
         ]);
         self::assertStringNotContainsString('Download CSV', $print);
     }

@@ -37,4 +37,13 @@ final class RowValue
 
         throw new InvalidArgumentException('expected an integer');
     }
+
+    public static function optionalInteger(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return self::integer($value);
+    }
 }

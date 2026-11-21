@@ -45,6 +45,7 @@ final class SchemaCatalog
         '101_booth_location.sql',
         '103_audit_subject.sql',
         '108_audit_events_listed.sql',
+        '109_report_sheets.sql',
     ];
 
     public function __construct(private readonly string $directory)

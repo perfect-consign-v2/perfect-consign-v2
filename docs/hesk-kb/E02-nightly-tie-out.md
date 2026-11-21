@@ -1,42 +1,47 @@
 ---
-title: Nightly tie-out idea (reports vs account balances)
+title: Nightly tie-out
 category: Tax reports and export
-hesk: published 2026-11-20
-as_of: 2026-10-25
+hesk: published 2026-11-21
+as_of: 2026-11-20
 ---
 
-# Nightly tie-out idea (reports vs account balances)
+# Nightly tie-out
 
 ## As of
 
-2026-10-25
+2026-11-20
 
 ## In one sentence
 
-Named money reports and a nightly job must match account balances within one cent — or the job fails.
+The nightly job refuses when sales tax, the rent roll, or stored value disagrees with the books.
 
 ## When it happens
 
-Overnight check after the day’s posts; anytime you export those named queries.
+Overnight, after the day's posts. The same checks run when those pages open.
 
 ## What the books / screens do
 
-- Named queries: sales by day/tender/vendor/cashier, rent roll, payout register, stored-value liability. Each CSV is that same query.
-- Nightly job compares those money totals with account balances; fails on a one-cent difference.
-- Saved reports are catalog-driven (columns/filters/range/group). They cannot replace the sales-tax worksheet or the nightly tie-out. Name “sales tax” is reserved.
+- Sales tax collected on the taxable, exempt, return, and void rows must match sales-tax payable.
+- The rent roll must equal booth rent receivable. A receivable line that is not a booth refuses.
+- Gift card, gift certificate, and store credit must each match that account.
+- Role balances must match their journal lines. The books view must match the lines.
+- Sales merchandise is not one account, so the sales report is not part of the tie-out. Payments to vendors are not part of it either.
+- Each report page and its CSV are the same query. A bookmark is a name, a sheet, a grouping, and a range preset. The name sales tax is reserved.
 
 ## What is refused
 
-- Silent drift: job fails rather than “best effort.”
-- Saved report that pretends to be the worksheet or tie-out.
+- "Sales tax does not match the books."
+- "The rent roll does not match the books."
+- "Stored value does not match the books."
+- A one-cent gap. The job fails. It does not paper over the difference.
 
 ## How to check
 
-After a clean day, nightly job exits success. Force a one-cent disagreement in a test mall: job fails.
+After a clean day the nightly job exits success. A one-cent stored-value gap, or a receivable line that is not a booth, makes the job fail.
 
 ## Source
 
-`docs/business-rules.md` — Sales tax and reports.
+`docs/business-rules.md` — Sales tax and reports. `src/Shared/Jobs/ReconcileJob.php`. `sql/109_report_sheets.sql`.
 
 ## Related
 

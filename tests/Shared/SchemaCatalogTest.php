@@ -33,6 +33,7 @@ final class SchemaCatalogTest extends TestCase
             '101_booth_location.sql',
             '103_audit_subject.sql',
             '108_audit_events_listed.sql',
+            '109_report_sheets.sql',
         ], $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
         self::assertSame([

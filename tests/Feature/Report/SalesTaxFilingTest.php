@@ -20,14 +20,45 @@ final class SalesTaxFilingTest extends TestCase
             ['section' => 'exempt', 'label' => 'Exempt', 'subtotal_minor' => 500, 'discount_minor' => 0, 'tax_minor' => 0],
             ['section' => 'return', 'label' => 'Return', 'subtotal_minor' => -200, 'discount_minor' => 0, 'tax_minor' => -16],
             ['section' => 'void', 'label' => 'Void', 'subtotal_minor' => -50, 'discount_minor' => 0, 'tax_minor' => -4],
+            ['section' => 'void_exempt', 'label' => 'Exempt voids', 'subtotal_minor' => -40, 'discount_minor' => 0, 'tax_minor' => 0],
+            ['section' => 'liability', 'label' => 'Collected', 'subtotal_minor' => 0, 'discount_minor' => 0, 'tax_minor' => 99],
             ['section' => 'other', 'label' => 'Skip', 'subtotal_minor' => 9, 'discount_minor' => 0, 'tax_minor' => 1],
         ]);
 
         self::assertSame(1500, $filing['gross']);
-        self::assertSame(500, $filing['exempt']);
-        self::assertSame(250, $filing['returns']);
+        self::assertSame(460, $filing['exempt']);
+        self::assertSame(290, $filing['returns']);
         self::assertSame(650, $filing['taxable']);
         self::assertSame(52, $filing['collected']);
+    }
+
+    public function testARateIsAPercentAndLiabilityIgnoresTheTaxColumn(): void
+    {
+        $filing = new SalesTaxFiling();
+        $rates = $filing->rates([
+            ['section' => 'rate', 'label' => '8000', 'subtotal_minor' => 10000],
+            ['section' => 'taxable', 'label' => 'Taxed', 'subtotal_minor' => 1],
+        ]);
+        self::assertSame([['label' => '8.00%', 'base_minor' => 10000]], $rates);
+
+        $owed = $filing->liability([
+            ['section' => 'liability', 'label' => 'Opening', 'total_minor' => 100],
+            ['section' => 'liability', 'label' => 'Collected', 'total_minor' => 80],
+            ['section' => 'liability', 'label' => 'Paid', 'total_minor' => 30],
+            ['section' => 'liability', 'label' => 'Closing', 'total_minor' => 150],
+            ['section' => 'taxable', 'label' => 'Taxed', 'total_minor' => 9],
+        ]);
+        self::assertSame(150, $owed['closing']);
+        self::assertSame(100, $owed['opening']);
+    }
+
+    public function testAMissingLiabilityLineIsRefused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('That liability line is not on this page.');
+        (new SalesTaxFiling())->liability([
+            ['section' => 'liability', 'label' => 'Opening', 'total_minor' => 0],
+        ]);
     }
 
     public function testTheSheetMapsEachColumn(): void

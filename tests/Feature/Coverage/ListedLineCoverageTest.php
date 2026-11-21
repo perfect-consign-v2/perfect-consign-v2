@@ -55,10 +55,12 @@ use PerfectConsign\Feature\Rent\RentStore;
 use PerfectConsign\Feature\Report\LedgerReport;
 use PerfectConsign\Feature\Report\ReportCatalog;
 use PerfectConsign\Feature\Report\ReportCsvController;
-use PerfectConsign\Feature\Report\ReportMonth;
+use PerfectConsign\Feature\Report\ReportFetch;
 use PerfectConsign\Feature\Report\ReportSheetsController;
+use PerfectConsign\Feature\Report\ReportTie;
 use PerfectConsign\Feature\Report\ReportsController;
 use PerfectConsign\Feature\Report\SalesTaxFiling;
+use PerfectConsign\Feature\Report\SalesTaxReport;
 use PerfectConsign\Feature\Report\SalesTaxSheet;
 use PerfectConsign\Feature\Report\SavedReport;
 use PerfectConsign\Feature\Root\RootController;
@@ -249,7 +251,7 @@ final class ListedLineCoverageTest extends TestCase
     public function testReportCatalogAndMonthGuards(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        (new ReportCatalog())->accept('Weekly', 'payroll', 'none');
+        (new ReportCatalog())->accept('Weekly', 'payroll', 'none', 'this_month');
     }
 
     public function testARentReceiptExplainsTenderFailures(): void
@@ -1547,7 +1549,7 @@ final class ListedLineCoverageTest extends TestCase
 
     private function sheets(MallDoor $door): ReportSheetsController
     {
-        return new ReportSheetsController($door->app, $door->actor, new LedgerReport($door->statements), new ReportMonth());
+        return new ReportSheetsController($door->app, $door->actor, $door->mall, $this->reportFetch($door));
     }
 
     private function reports(MallDoor $door): ReportsController
@@ -1555,10 +1557,9 @@ final class ListedLineCoverageTest extends TestCase
         return new ReportsController(
             $door->app,
             $door->actor,
-            new SalesTaxSheet($door->statements),
-            new SalesTaxFiling(),
-            new LedgerReport($door->statements),
-            new ReportMonth(),
+            $door->mall,
+            $this->reportFetch($door),
+            $this->salesTaxReport($door),
             new SavedReport($door->statements, new ReportCatalog()),
         );
     }
@@ -1568,9 +1569,23 @@ final class ListedLineCoverageTest extends TestCase
         return new ReportCsvController(
             $door->app,
             $door->actor,
+            $door->mall,
+            $this->reportFetch($door),
+            $this->salesTaxReport($door),
+        );
+    }
+
+    private function reportFetch(MallDoor $door): ReportFetch
+    {
+        return new ReportFetch(new LedgerReport($door->statements), new ReportTie($door->statements));
+    }
+
+    private function salesTaxReport(MallDoor $door): SalesTaxReport
+    {
+        return new SalesTaxReport(
             new SalesTaxSheet($door->statements),
-            new LedgerReport($door->statements),
-            new ReportMonth(),
+            new SalesTaxFiling(),
+            new ReportTie($door->statements),
         );
     }
 

@@ -16,15 +16,18 @@ final class SavedReportTest extends TestCase
         $row = [
             'id' => '00000000-0000-7000-8000-000000000001',
             'name' => 'Saturday',
-            'source' => 'sales',
+            'sheet' => 'sales',
             'grouped' => 'day',
+            'range_key' => 'this_month',
         ];
+        $seen = [];
         $statements = $this->createMock(Statements::class);
         $statements->method('rows')->willReturn([$row]);
         $statements->method('bound')->willReturnOnConsecutiveCalls([$row], []);
-        $statements->expects(self::once())->method('change')->with(
-            self::callback(static fn (string $sql): bool => str_contains($sql, 'INSERT INTO saved_reports')),
-            ['Saturday', 'sales', 'day'],
+        $statements->expects(self::exactly(2))->method('change')->willReturnCallback(
+            static function (string $sql, array $params) use (&$seen): void {
+                $seen[] = [$sql, $params];
+            }
         );
         $saved = new SavedReport($statements, new ReportCatalog());
 
@@ -32,7 +35,19 @@ final class SavedReportTest extends TestCase
         $found = $saved->find('00000000-0000-7000-8000-000000000001');
         self::assertNotNull($found);
         self::assertSame('day', $found['grouped']);
+        self::assertSame('/reports/sales?group=day&range=this_month', $saved->path($found));
+        self::assertSame('/reports/rent', $saved->path([
+            'sheet' => 'rent',
+            'grouped' => 'none',
+            'range_key' => 'now',
+        ]));
         self::assertNull($saved->find('00000000-0000-7000-8000-000000000002'));
-        $saved->save(' Saturday ', 'sales', 'day');
+        $saved->save(' Saturday ', 'sales', 'day', 'this_month');
+        $saved->remove('00000000-0000-7000-8000-000000000001');
+
+        self::assertStringContainsString('INSERT INTO saved_reports', $seen[0][0]);
+        self::assertSame(['Saturday', 'sales', 'day', 'this_month'], $seen[0][1]);
+        self::assertStringContainsString('DELETE FROM saved_reports', $seen[1][0]);
     }
 }
+
