@@ -43,14 +43,16 @@ final class ActivityPeople
     private function current(TenantRecord $tenant): array
     {
         $people = [];
-        foreach ($this->statements->bound(
-            "SELECT id::text AS id, username, display_name
-             FROM staff
-             WHERE role IN ('cashier', 'manager', 'books')
-               AND can_sign_in
-             ORDER BY lower(display_name), username",
-            [],
-        ) as $row) {
+        foreach (
+            $this->statements->bound(
+                "SELECT id::text AS id, username, display_name
+                 FROM staff
+                 WHERE role IN ('cashier', 'manager', 'books')
+                   AND can_sign_in
+                 ORDER BY lower(display_name), username",
+                [],
+            ) as $row
+        ) {
             $person = $this->person(
                 self::text($row['id'] ?? null),
                 self::text($row['display_name'] ?? null),
@@ -80,14 +82,16 @@ final class ActivityPeople
     private function former(array $known): array
     {
         $people = [];
-        foreach ($this->statements->bound(
-            'SELECT DISTINCT ON (event.account_id)
-                    event.account_id::text AS id, event.username, event.actor
-             FROM audit_events AS event
-             WHERE event.account_id IS NOT NULL
-             ORDER BY event.account_id, event.at DESC, event.id DESC',
-            [],
-        ) as $row) {
+        foreach (
+            $this->statements->bound(
+                'SELECT DISTINCT ON (event.account_id)
+                        event.account_id::text AS id, event.username, event.actor
+                 FROM audit_events AS event
+                 WHERE event.account_id IS NOT NULL
+                 ORDER BY event.account_id, event.at DESC, event.id DESC',
+                [],
+            ) as $row
+        ) {
             $id = self::text($row['id'] ?? null);
             if ($id === '' || isset($known[$id])) {
                 continue;

@@ -93,8 +93,8 @@ final class ActivityLog
 
         return [
             'rows' => $fetched,
-            'older' => $this->older($direction, $fetched, $extra, $bound),
-            'newer' => $this->newer($direction, $fetched, $extra, $bound),
+            'older' => ActivityCursor::older($direction, $fetched, $extra, $bound),
+            'newer' => ActivityCursor::newer($direction, $fetched, $extra, $bound),
         ];
     }
 
@@ -184,67 +184,6 @@ final class ActivityLog
         }
 
         return '';
-    }
-
-    /**
-     * @param list<array{id: string}> $rows
-     * @param array{id: string}|null $bound
-     */
-    private function older(string $direction, array $rows, bool $extra, ?array $bound): ?string
-    {
-        if ($direction === 'after') {
-            return $this->edge($rows, false) ?? $this->boundId($bound);
-        }
-        if (!$extra) {
-            return null;
-        }
-
-        return $this->edge($rows, false);
-    }
-
-    /**
-     * @param list<array{id: string}> $rows
-     * @param array{id: string}|null $bound
-     */
-    private function newer(string $direction, array $rows, bool $extra, ?array $bound): ?string
-    {
-        if ($direction === 'after') {
-            if (!$extra) {
-                return null;
-            }
-
-            return $this->edge($rows, true);
-        }
-        if ($direction !== 'before') {
-            return null;
-        }
-
-        return $this->edge($rows, true) ?? $this->boundId($bound);
-    }
-
-    /**
-     * @param array{id: string}|null $bound
-     */
-    private function boundId(?array $bound): ?string
-    {
-        if ($bound === null) {
-            return null;
-        }
-
-        return $bound['id'];
-    }
-
-    /**
-     * @param list<array{id: string}> $rows
-     */
-    private function edge(array $rows, bool $newest): ?string
-    {
-        if ($rows === []) {
-            return null;
-        }
-        $row = $newest ? $rows[0] : $rows[array_key_last($rows)];
-
-        return $row['id'];
     }
 
     /**

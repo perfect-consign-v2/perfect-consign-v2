@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Activity;
 
-use DateTimeImmutable;
 use PerfectConsign\Shared\Http\Request;
 
 final class ActivityFilter
@@ -30,11 +29,11 @@ final class ActivityFilter
         if ($span === null) {
             return self::invalid('Enter a real date.');
         }
-        $account = self::token($request->query('account'));
+        $account = ActivityToken::token($request->query('account'));
         if ($account === false) {
             return self::invalid('Choose a person.');
         }
-        $action = self::verb($request->query('action'));
+        $action = ActivityToken::verb($request->query('action'));
         if ($action === false) {
             return self::invalid('That action is not a filter.');
         }
@@ -51,8 +50,8 @@ final class ActivityFilter
      */
     private static function span(Request $request): ?array
     {
-        $from = self::day($request->query('from'));
-        $to = self::day($request->query('to'));
+        $from = ActivityToken::day($request->query('from'));
+        $to = ActivityToken::day($request->query('to'));
         if ($from === false || $to === false) {
             return null;
         }
@@ -95,8 +94,8 @@ final class ActivityFilter
      */
     private static function cursors(Request $request): array|string
     {
-        $before = self::token($request->query('before'));
-        $after = self::token($request->query('after'));
+        $before = ActivityToken::token($request->query('before'));
+        $after = ActivityToken::token($request->query('after'));
         if ($before === false || $after === false) {
             return 'That page is not in this list.';
         }
@@ -117,24 +116,6 @@ final class ActivityFilter
         }
 
         return $to;
-    }
-
-    private static function token(string $value): string|false
-    {
-        if ($value !== '' && preg_match('/^[0-9a-fA-F-]{36}$/', $value) !== 1) {
-            return false;
-        }
-
-        return $value;
-    }
-
-    private static function verb(string $action): string|false
-    {
-        if ($action !== '' && !ActivityPhrase::has($action)) {
-            return false;
-        }
-
-        return $action;
     }
 
     public function query(): string
@@ -158,12 +139,14 @@ final class ActivityFilter
     private function pairs(): array
     {
         $pairs = [];
-        foreach ([
-            'from' => $this->from,
-            'to' => $this->to,
-            'account' => $this->accountId,
-            'action' => $this->action,
-        ] as $key => $value) {
+        foreach (
+            [
+                'from' => $this->from,
+                'to' => $this->to,
+                'account' => $this->accountId,
+                'action' => $this->action,
+            ] as $key => $value
+        ) {
             if ($value !== null) {
                 $pairs[$key] = $value;
             }
@@ -175,18 +158,5 @@ final class ActivityFilter
     private static function invalid(string $error): self
     {
         return new self(null, null, null, null, null, null, $error);
-    }
-
-    private static function day(string $value): string|false
-    {
-        if ($value === '') {
-            return '';
-        }
-        $day = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
-        if ($day === false || $day->format('Y-m-d') !== $value) {
-            return false;
-        }
-
-        return $value;
     }
 }
