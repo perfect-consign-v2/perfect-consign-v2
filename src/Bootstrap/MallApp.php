@@ -56,7 +56,12 @@ final class MallApp
         $notice = $this->chrome()->takeFlash('notice');
         $warning = $this->chrome()->takeFlash('warning');
         $data['path'] = $this->request->path;
-        $data['today'] = $this->roled ? $this->mall->today() : '';
+        $data['today'] = '';
+        $data['navZone'] = '';
+        if ($this->roled) {
+            $data['today'] = $this->mall->today();
+            $data['navZone'] = $this->mall->timeZone();
+        }
         if (is_string($slug)) {
             $this->registerBar($data, $slug, $notice, $warning);
         }

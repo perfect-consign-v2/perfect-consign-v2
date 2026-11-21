@@ -163,6 +163,26 @@ html.pc-ui .sidebar {
   padding: 1px 6px; pointer-events: none;
 }
 .topbar-spacer { flex: 1; }
+.topbar-clock {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 1px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.topbar-clock-date {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.topbar-clock-time {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--text);
+}
 .topbar-actions { display: flex; align-items: center; gap: var(--space-2); }
 
 .icon-btn {

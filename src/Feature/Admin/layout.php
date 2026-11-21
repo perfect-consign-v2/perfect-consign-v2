@@ -22,6 +22,7 @@ if (!isset($adminPath) || !$adminPath instanceof AdminPath) {
 }
 
 $nav = ($nav ?? false) === true;
+$navZone = $nav ? date_default_timezone_get() : '';
 $adminEmail = is_string($adminEmail ?? null) ? $adminEmail : '';
 $error = $error ?? null;
 $notice = $notice ?? null;
@@ -98,6 +99,7 @@ $links = [
             <button class="icon-btn mobile-only" type="button" data-mobile-toggle aria-label="Open navigation">
                 <svg aria-hidden="true"><use href="#i-menu"></use></svg>
             </button>
+            <?php require $templateDirectory . '/Shared/Web/nav-clock.php'; ?>
             <div class="topbar-spacer"></div>
             <div class="topbar-actions">
                 <div class="account" data-menu>
@@ -141,6 +143,9 @@ $links = [
     <div class="sidebar-scrim" data-mobile-toggle></div>
 </div>
 <script src="<?= View::asset('/assets/js/app.js') ?>" defer></script>
+<?php endif; ?>
+<?php if ($nav && $navZone !== ''): ?>
+<script src="<?= View::asset('/assets/js/nav-clock.js') ?>" defer></script>
 <?php endif; ?>
 <?php require $templateDirectory . '/Shared/Web/flash.php'; ?>
 <script src="<?= View::asset('/assets/js/data-style.js') ?>" defer></script>

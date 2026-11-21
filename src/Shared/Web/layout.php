@@ -27,6 +27,7 @@ $priorCloseStarted = ($priorCloseStarted ?? false) === true;
 $priorPrompt = ($priorPrompt ?? false) === true;
 $notice = $notice ?? null;
 $warning = $warning ?? null;
+$navZone = is_string($navZone ?? null) ? $navZone : '';
 $mark = $displayName !== '' ? strtoupper(substr($displayName, 0, 1)) : 'P';
 $showBrand = ($showBrand ?? true) === true;
 $boothRentals = ($boothRentals ?? true) === true;
@@ -242,6 +243,11 @@ $roleLabel = match ($actorRole) {
 <?php require $templateDirectory . '/Shared/Web/icons.php'; ?>
 <?php if ($posShell && $nav): ?>
 <div class="pos-app">
+    <?php if ($navZone !== ''): ?>
+        <header class="topbar">
+            <?php require $templateDirectory . '/Shared/Web/nav-clock.php'; ?>
+        </header>
+    <?php endif; ?>
     <main class="pos-main" id="main">
 <?php elseif ($nav): ?>
 <div class="app" id="app" data-collapsed="false" data-mobile-open="false">
@@ -305,6 +311,7 @@ $roleLabel = match ($actorRole) {
             <button class="icon-btn mobile-only" type="button" data-mobile-toggle aria-label="Open navigation">
                 <svg aria-hidden="true"><use href="#i-menu"></use></svg>
             </button>
+            <?php require $templateDirectory . '/Shared/Web/nav-clock.php'; ?>
             <div class="topbar-spacer"></div>
             <?php if ($previewAs === '' && $resetTestData): ?>
                 <form method="post" action="/<?= View::text($slug) ?>/reset-test-data">
@@ -394,6 +401,9 @@ $roleLabel = match ($actorRole) {
     <div class="sidebar-scrim" data-mobile-toggle></div>
 </div>
 <script src="<?= View::asset('/assets/js/app.js') ?>" defer></script>
+<?php endif; ?>
+<?php if ($nav && $navZone !== ''): ?>
+<script src="<?= View::asset('/assets/js/nav-clock.js') ?>" defer></script>
 <?php endif; ?>
 <?php if ($nav && $priorPrompt): ?>
 <dialog class="prior-register" id="prior-register" aria-labelledby="prior-register-title">

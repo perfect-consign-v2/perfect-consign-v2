@@ -1,15 +1,15 @@
 ---
 title: What Stall / perfect-consign is today vs full mall screens
 category: Platform notes
-hesk: published 2026-11-20
-as_of: 2026-11-11
+hesk: published 2026-11-21
+as_of: 2026-11-20
 ---
 
 # What Stall / perfect-consign is today vs full mall screens
 
 ## As of
 
-2026-11-11 — Required fields show a red asterisk after the label on every form.
+2026-11-20 — The signed-in mall header shows the date and time on the left, in the mall time zone from Building, and the seconds keep moving while the page stays open.
 
 ## In one sentence
 
@@ -28,6 +28,7 @@ Reading `docs/PLAN.md`, working in `C:\laragon\www\perfect-consign`, or comparin
 - Isolation: do not share ports/volumes/DBs with emp, double-entry, or other malls accidentally.
 - **Live platform screens:** email-only sign-in at `/`, public `/signup` (admin-gated), Admin → Mail worker / App log / Signup / Create store.
 - Required fields show a red asterisk after the label.
+- The signed-in mall header shows the date and time on the left, in the mall time zone from Building. The seconds keep moving while the page stays open.
 - **Not shipping yet** (do not operate from those Hesk seeds as live): military tax customer path, promo codes.
 
 ## What is refused
