@@ -12,7 +12,9 @@ use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Bootstrap\SaleCeiling;
 use PerfectConsign\Bootstrap\SaleCeilingFlag;
 use PerfectConsign\Feature\Activity\ActivityController;
+use PerfectConsign\Feature\Activity\ActivityHref;
 use PerfectConsign\Feature\Activity\ActivityLog;
+use PerfectConsign\Feature\Activity\ActivityPeople;
 use PerfectConsign\Feature\Admin\AdminApp;
 use PerfectConsign\Feature\Admin\AdminEnterAs;
 use PerfectConsign\Feature\Admin\AdminMfaController;
@@ -283,7 +285,7 @@ final class SignedAccountObligationTest extends TestCase
     public function testActivityCsvNamesTheSignedInRow(): void
     {
         $door = MallDoor::open($this, new Request('GET', '/gapmall/activity.csv', [], []));
-        $log = new ActivityLog(new class ($door->pdo) extends Statements {
+        $rows = new class ($door->pdo) extends Statements {
             public function bound(string $sql, array $params): array
             {
                 if (str_contains($sql, 'AS total')) {
@@ -291,6 +293,7 @@ final class SignedAccountObligationTest extends TestCase
                 }
                 if (str_contains($sql, 'audit_events')) {
                     return [[
+                        'id' => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
                         'at' => '2026-11-20 09:00',
                         'username' => 'ada',
                         'actor' => 'ada',
@@ -307,10 +310,22 @@ final class SignedAccountObligationTest extends TestCase
 
                 return [];
             }
-        });
+        };
         $this->expectOutputRegex('/settings\\.edit/');
         try {
-            (new ActivityController($door->app, $log))->csv(MallDoor::SLUG);
+            (new ActivityController(
+                $door->app,
+                new ActivityLog($rows),
+                new ActivityPeople($rows, new MallOwners(
+                    $door->pdo,
+                    $door->roles,
+                    new RecoveryAddress(),
+                    new PasswordChoice(),
+                )),
+                new ActivityHref($rows),
+                $door->actor,
+                $door->mall,
+            ))->csv(MallDoor::SLUG);
             self::fail('the activity file did not finish');
         } catch (ResponseSent $sent) {
             self::assertSame('activity', $sent->getMessage());
@@ -375,7 +390,12 @@ final class SignedAccountObligationTest extends TestCase
     public function testAuthenticatorResultsNameTheSignedInAdmin(): void
     {
         self::assertTrue(AdminSignInResult::enroll()->needsEnrollment());
+        self::assertFalse(AdminSignInResult::enroll()->isSignedIn());
         self::assertTrue(AdminSignInResult::challenge()->accepted());
+        self::assertFalse(AdminSignInResult::challenge()->isSignedIn());
+        self::assertTrue(AdminSignInResult::signedIn()->isSignedIn());
+        self::assertTrue(AdminSignInResult::signedIn()->accepted());
+        self::assertFalse(AdminSignInResult::signedIn()->needsEnrollment());
         self::assertFalse(AdminSignInResult::refused()->accepted());
         self::assertTrue(AdminMfaAttempt::success()->opened());
         self::assertFalse(AdminMfaAttempt::invalid('That code is wrong.')->opened());

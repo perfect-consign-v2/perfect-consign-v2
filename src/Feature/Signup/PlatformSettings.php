@@ -37,6 +37,16 @@ final class PlatformSettings
         $this->put('store_signup_require_email_verification', $required);
     }
 
+    public function adminMfaEnabled(): bool
+    {
+        return $this->boolSetting('admin_mfa_enabled', true);
+    }
+
+    public function setAdminMfaEnabled(bool $enabled): void
+    {
+        $this->put('admin_mfa_enabled', $enabled);
+    }
+
     private function boolSetting(string $key, bool $whenMissing): bool
     {
         $value = $this->rawSetting($key);
@@ -99,7 +109,7 @@ final class PlatformSettings
         );
         $statement->execute([$key, PgBool::literal($enabled)]);
         if ($statement->rowCount() < 1) {
-            throw new RuntimeException('store signup setting was not saved');
+            throw new RuntimeException('platform setting was not saved');
         }
     }
 }

@@ -40,12 +40,8 @@ final class AdminMfaChallenge
      */
     private function totp(array $pending, string $code, int $now): AdminMfaAttempt
     {
-        $stored = $this->store->secret($pending['id']);
-        if ($stored === null) {
-            return AdminMfaAttempt::invalid('That sign-in expired. Sign in again.');
-        }
         try {
-            $raw = AdminMfaSeal::open($stored['secret']);
+            $step = $this->store->acceptedStep($pending['id'], $code, $now);
         } catch (RuntimeException $error) {
             $this->logger->error('platform admin authenticator secret could not be opened', [
                 'email' => $pending['email'],
@@ -54,8 +50,10 @@ final class AdminMfaChallenge
 
             return AdminMfaAttempt::invalid('The authenticator could not be read.');
         }
-        $step = Totp::verify($raw, $code, $now, $stored['step']);
         if ($step === null) {
+            if (!$this->store->hasSecret($pending['id'])) {
+                return AdminMfaAttempt::invalid('That sign-in expired. Sign in again.');
+            }
             $this->failures->record($pending['id'], $pending['email']);
 
             return AdminMfaAttempt::invalid('That code is wrong.');

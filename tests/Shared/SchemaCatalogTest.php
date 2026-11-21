@@ -32,6 +32,7 @@ final class SchemaCatalogTest extends TestCase
             '100_booth_deposit_session.sql',
             '101_booth_location.sql',
             '103_audit_subject.sql',
+            '108_audit_events_listed.sql',
         ], $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
         self::assertSame([
@@ -42,6 +43,7 @@ final class SchemaCatalogTest extends TestCase
             '105_probe_ban.sql',
             '106_probe_ban_audit.sql',
             '107_admin_mfa.sql',
+            '108_admin_mfa_switch.sql',
         ], $platform);
         self::assertSame([], $catalog->platformAfterFiles());
         $checksum = $catalog->checksum('001_tenant.sql');

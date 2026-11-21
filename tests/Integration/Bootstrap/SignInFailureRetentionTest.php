@@ -9,8 +9,11 @@ use PerfectConsign\Bootstrap\SignInFailureRetention;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Feature\Admin\AdminSignIn;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaFailures;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaLogin;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
+use PerfectConsign\Feature\Signup\PlatformSettings;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectApp\Session\Session;
@@ -192,14 +195,24 @@ final class SignInFailureRetentionTest extends TestCase
         $request = new Request('POST', '/admin/login', [], [], '', '', $address);
         $audit = QuietAudit::admin($pdo, $request);
 
+        $store = new AdminMfaStore($pdo, $audit);
+
         return new AdminSignIn(
             $pdo,
             $request,
             new NullLogger(),
             $audit,
             new SignInFailureRetention($pdo),
-            new AdminMfaStore($pdo, $audit),
+            $store,
             new AdminMfaPending($session, $adminSession),
+            new PlatformSettings($pdo, new NullLogger()),
+            new AdminMfaLogin($store, $adminSession, $audit, new AdminMfaFailures(
+                $pdo,
+                $request,
+                new NullLogger(),
+                $audit,
+                new SignInFailureRetention($pdo),
+            )),
         );
     }
 

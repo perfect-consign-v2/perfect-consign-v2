@@ -25,6 +25,11 @@ final class AdminSignInResult
         return new self('challenge');
     }
 
+    public static function signedIn(): self
+    {
+        return new self('signed-in');
+    }
+
     public function accepted(): bool
     {
         return $this->kind !== 'refused';
@@ -33,5 +38,10 @@ final class AdminSignInResult
     public function needsEnrollment(): bool
     {
         return $this->kind === 'enroll';
+    }
+
+    public function isSignedIn(): bool
+    {
+        return $this->kind === 'signed-in';
     }
 }

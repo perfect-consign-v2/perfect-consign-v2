@@ -6,8 +6,10 @@ namespace PerfectConsign\Feature\Admin;
 
 use PerfectConsign\Bootstrap\SignInFailureRetention;
 use PerfectConsign\Bootstrap\SignInLocked;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaLogin;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
+use PerfectConsign\Feature\Signup\PlatformSettings;
 use PerfectConsign\Shared\Http\Request;
 use PDO;
 use Psr\Log\LoggerInterface;
@@ -22,6 +24,8 @@ final class AdminSignIn
         private readonly SignInFailureRetention $failures,
         private readonly AdminMfaStore $authenticators,
         private readonly AdminMfaPending $pending,
+        private readonly PlatformSettings $settings,
+        private readonly AdminMfaLogin $login,
     ) {
     }
 
@@ -45,6 +49,11 @@ final class AdminSignIn
             'DELETE FROM platform.admin_sign_in_failures WHERE email = ?'
         );
         $clear->execute([$email]);
+        if (!$this->settings->adminMfaEnabled()) {
+            $this->login->open($row['id'], $email);
+
+            return AdminSignInResult::signedIn();
+        }
         if ($this->authenticators->hasSecret($row['id'])) {
             $this->pending->beginChallenge($row['id'], $email);
 

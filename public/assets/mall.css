@@ -1355,3 +1355,76 @@ a.stat {
     color: inherit;
     text-decoration: none;
 }
+
+.activity-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+    margin: 0 0 var(--space-4);
+}
+.activity-filters .field {
+    margin: 0;
+}
+.content form.activity-filters input:not([type="hidden"]):not([type="checkbox"]),
+.content form.activity-filters select {
+    width: auto;
+    min-width: 9.5rem;
+    max-width: 18rem;
+}
+.content form.activity-filters input[type="date"] {
+    width: 9.5rem;
+    min-width: 0;
+    max-width: 11rem;
+}
+.activity-log {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.activity-log > li {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border);
+}
+.activity-log > li:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+.activity-log__main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-3);
+}
+.activity-log time {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+.activity-log details {
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+}
+.activity-log summary {
+    cursor: pointer;
+}
+.activity-log dl {
+    display: grid;
+    grid-template-columns: 8rem 1fr;
+    gap: var(--space-1) var(--space-3);
+    margin: var(--space-2) 0 0;
+}
+.activity-log dt {
+    color: var(--text-subtle);
+}
+.activity-log dd {
+    margin: 0;
+}
+.activity-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}

@@ -36,8 +36,11 @@ use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Feature\Admin\AdminSessionController;
 use PerfectConsign\Feature\Admin\AdminEnterAs;
 use PerfectConsign\Feature\Admin\AdminSignIn;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaFailures;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaLogin;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
+use PerfectConsign\Feature\Signup\PlatformSettings;
 use PerfectConsign\Feature\Admin\AdminTenantController;
 use PerfectConsign\Feature\Admin\AdminTenantList;
 use PerfectConsign\Feature\Admin\AdminTenantWipe;
@@ -489,14 +492,25 @@ final class ListedLineCoverageTest extends TestCase
         $request = new Request('GET', '/admin', [], []);
         $app = $this->adminApp($session, $request, $this->adminRowPdo());
         $audit = QuietAudit::admin($this->auditPdo(1), $request);
+        $signInPdo = $this->countPdo(0);
+        $signInAdmins = new AdminSession($session);
+        $signInStore = new AdminMfaStore($signInPdo, $audit);
         $signIn = new AdminSignIn(
-            $this->countPdo(0),
+            $signInPdo,
             $request,
             new NullLogger(),
             $audit,
-            new SignInFailureRetention($this->countPdo(0)),
-            new AdminMfaStore($this->countPdo(0), $audit),
-            new AdminMfaPending($session, new AdminSession($session)),
+            new SignInFailureRetention($signInPdo),
+            $signInStore,
+            new AdminMfaPending($session, $signInAdmins),
+            new PlatformSettings($signInPdo, new NullLogger()),
+            new AdminMfaLogin($signInStore, $signInAdmins, $audit, new AdminMfaFailures(
+                $signInPdo,
+                $request,
+                new NullLogger(),
+                $audit,
+                new SignInFailureRetention($signInPdo),
+            )),
         );
         self::assertFalse($signIn->attempt('not-an-email', 'secret')->accepted());
         $controller = new AdminSessionController($app, $signIn, new LoginSession($session));
@@ -519,14 +533,25 @@ final class ListedLineCoverageTest extends TestCase
         $empty = $this->session($emptyBag);
         $lockedApp = $this->adminApp($empty, $lockedRequest);
         $lockedAudit = QuietAudit::admin($this->auditPdo(1), $lockedRequest);
+        $lockedPdo = $this->countPdo(40);
+        $lockedAdmins = new AdminSession($empty);
+        $lockedStore = new AdminMfaStore($lockedPdo, $lockedAudit);
         $lockedSignIn = new AdminSignIn(
-            $this->countPdo(40),
+            $lockedPdo,
             $lockedRequest,
             new NullLogger(),
             $lockedAudit,
-            new SignInFailureRetention($this->countPdo(0)),
-            new AdminMfaStore($this->countPdo(0), $lockedAudit),
-            new AdminMfaPending($empty, new AdminSession($empty)),
+            new SignInFailureRetention($lockedPdo),
+            $lockedStore,
+            new AdminMfaPending($empty, $lockedAdmins),
+            new PlatformSettings($lockedPdo, new NullLogger()),
+            new AdminMfaLogin($lockedStore, $lockedAdmins, $lockedAudit, new AdminMfaFailures(
+                $lockedPdo,
+                $lockedRequest,
+                new NullLogger(),
+                $lockedAudit,
+                new SignInFailureRetention($lockedPdo),
+            )),
         );
         $locked = new AdminSessionController($lockedApp, $lockedSignIn, new LoginSession($empty));
         ob_start();

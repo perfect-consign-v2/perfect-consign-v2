@@ -74,8 +74,11 @@ final class ActivityLogTest extends WebTestCase
 
             $activity = $this->client->get('/' . self::SLUG . '/activity');
             self::assertSees('Activity', $activity);
+            self::assertSees('Saved company settings', $activity);
             self::assertSees(ProbeMall::USERNAME, $activity);
-            self::assertSees('settings.edit', $activity);
+            self::assertStringContainsString('<code>settings.edit</code>', $activity->body);
+            self::assertSees($username, $activity);
+            self::assertStringNotContainsString('<th>Authority</th>', $activity->body);
             $unknown = $this->client->get('/' . self::SLUG . '/activity?extra=1');
             self::assertSees('That filter is not on this page.', $unknown);
             $csv = $this->client->get('/' . self::SLUG . '/activity.csv?extra=1');
@@ -263,5 +266,129 @@ final class ActivityLogTest extends WebTestCase
         }
 
         return $found[1];
+    }
+
+    public function testTheListWalksOlderAndNewer(): void
+    {
+        $username = 'c' . bin2hex(random_bytes(4));
+        $added = $this->client->post('/' . self::SLUG . '/staff', [
+            'role' => 'cashier',
+            'display_name' => 'Cursor Cashier',
+            'username' => $username,
+            'password' => 'cashier-pass',
+            'email' => $username . '@example.com',
+        ]);
+        self::assertSees('Cashier added.', $added);
+        $account = $this->staff($username);
+        $this->stamp($account, $username, 51);
+        $query = 'account=' . rawurlencode($account) . '&from=1999-03-03&to=1999-03-03';
+        $first = $this->client->get('/' . self::SLUG . '/activity?' . $query);
+        self::assertSees('Showing 50 of 51', $first);
+        self::assertSees('edge-new', $first);
+        self::assertStringNotContainsString('edge-old', $first->body);
+        $older = $this->client->get($this->link($first->body, 'Older'));
+        self::assertSees('edge-old', $older);
+        self::assertStringNotContainsString('edge-new', $older->body);
+        $newer = $this->client->get($this->link($older->body, 'Newer'));
+        self::assertSees('edge-new', $newer);
+        self::assertStringNotContainsString('edge-old', $newer->body);
+        $missing = $this->client->get(
+            '/' . self::SLUG . '/activity?' . $query . '&before=00000000-0000-4000-8000-000000000099',
+        );
+        self::assertSees('That page is not in this list.', $missing);
+        $both = $this->client->get(
+            '/' . self::SLUG . '/activity?' . $query
+            . '&before=00000000-0000-4000-8000-000000000099'
+            . '&after=00000000-0000-4000-8000-000000000098',
+        );
+        self::assertSees('That filter is not on this page.', $both);
+        $csv = $this->client->get('/' . self::SLUG . '/activity.csv?' . $query . '&before=' . $account);
+        self::assertSees('Download uses the date, person, and action.', $csv);
+        self::assertStringNotContainsString('username,name', $csv->body);
+    }
+
+    public function testALocalMidnightStaysOnThatDay(): void
+    {
+        $owner = $this->owner();
+        $inside = 'midnight-in-' . bin2hex(random_bytes(4));
+        $outside = 'midnight-out-' . bin2hex(random_bytes(4));
+        $pdo = $this->tenant();
+        $insert = $pdo->prepare(
+            'INSERT INTO audit_events (
+                actor, role, action, entity_type, entity_id, request_id,
+                account_id, account_kind, username, client_address, at
+             ) VALUES (
+                ?, \'owner\', \'settings.edit\', \'company\', ?, ?,
+                ?::uuid, \'owner\', ?, \'127.0.0.1\',
+                (SELECT (?::date)::timestamp AT TIME ZONE time_zone FROM mall)
+                - (?::integer * interval \'1 second\')
+             )'
+        );
+        $insert->execute([
+            ProbeMall::USERNAME,
+            $inside,
+            bin2hex(random_bytes(8)),
+            $owner['id'],
+            ProbeMall::USERNAME,
+            '2020-06-15',
+            0,
+        ]);
+        $insert->execute([
+            ProbeMall::USERNAME,
+            $outside,
+            bin2hex(random_bytes(8)),
+            $owner['id'],
+            ProbeMall::USERNAME,
+            '2020-06-15',
+            1,
+        ]);
+        $day = $this->client->get('/' . self::SLUG . '/activity?from=2020-06-15&to=2020-06-15');
+        self::assertSees($inside, $day);
+        self::assertStringNotContainsString($outside, $day->body);
+        $previous = $this->client->get('/' . self::SLUG . '/activity?from=2020-06-14&to=2020-06-14');
+        self::assertSees($outside, $previous);
+        self::assertStringNotContainsString($inside, $previous->body);
+    }
+
+    private function stamp(string $account, string $username, int $count): void
+    {
+        $pdo = $this->tenant();
+        $insert = $pdo->prepare(
+            'INSERT INTO audit_events (
+                actor, role, action, entity_type, entity_id, request_id,
+                account_id, account_kind, username, client_address, at
+             ) VALUES (
+                \'Cursor Cashier\', \'cashier\', \'password.change\', \'account\', ?, ?,
+                ?::uuid, \'staff\', ?, \'127.0.0.1\',
+                (SELECT (timestamp \'1999-03-03 00:00:00\' + (?::integer * interval \'1 minute\'))
+                    AT TIME ZONE time_zone FROM mall)
+             )'
+        );
+        for ($minute = 0; $minute < $count; $minute++) {
+            $entity = 'edge-mid-' . $minute;
+            if ($minute === 0) {
+                $entity = 'edge-old';
+            }
+            if ($minute === $count - 1) {
+                $entity = 'edge-new';
+            }
+            $insert->execute([
+                $entity,
+                bin2hex(random_bytes(8)),
+                $account,
+                $username,
+                $minute,
+            ]);
+        }
+    }
+
+    private function link(string $body, string $label): string
+    {
+        $pattern = '/href="([^"]+)"[^>]*>' . preg_quote($label, '/') . '</';
+        if (preg_match($pattern, $body, $found) !== 1) {
+            self::fail($label . ' was not on the activity page');
+        }
+
+        return html_entity_decode($found[1], ENT_QUOTES);
     }
 }

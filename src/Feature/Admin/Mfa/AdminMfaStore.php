@@ -76,6 +76,17 @@ final class AdminMfaStore
         return ['secret' => $secret, 'step' => $step];
     }
 
+    public function acceptedStep(string $adminId, string $code, int $now): ?int
+    {
+        $stored = $this->secret($adminId);
+        if ($stored === null) {
+            return null;
+        }
+        $raw = AdminMfaSeal::open($stored['secret']);
+
+        return Totp::verify($raw, $code, $now, $stored['step']);
+    }
+
     /**
      * @param list<string> $hashes
      */

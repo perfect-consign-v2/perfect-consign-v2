@@ -35,6 +35,7 @@ $links = [
     [$adminPath->url('/worker'), 'Mail worker', 'i-report'],
     [$adminPath->url('/log'), 'App log', 'i-report'],
     [$adminPath->url('/audit'), 'Audit', 'i-report'],
+    [$adminPath->url('/authenticator'), 'Authenticator', 'i-shield'],
     [$adminPath->url('/password'), 'Change password', 'i-lock'],
 ];
 ?>
@@ -109,6 +110,10 @@ $links = [
                         <svg width="14" height="14" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
                     </button>
                     <div class="menu" data-menu-panel hidden>
+                        <a class="menu-item" href="<?= View::text($adminPath->url('/authenticator')) ?>">
+                            <svg width="16" height="16" aria-hidden="true"><use href="#i-shield"></use></svg>
+                            Authenticator
+                        </a>
                         <a class="menu-item" href="<?= View::text($adminPath->url('/password')) ?>">
                             <svg width="16" height="16" aria-hidden="true"><use href="#i-lock"></use></svg>
                             Change password

@@ -63,6 +63,9 @@ final class AdminSessionController
 
             return;
         }
+        if ($signedIn->isSignedIn()) {
+            $this->app->redirect($this->app->url('/tenants'));
+        }
         $next = $signedIn->needsEnrollment() ? '/mfa/enroll' : '/mfa';
         $this->app->redirect($this->app->url($next));
     }

@@ -9,7 +9,7 @@ as_of: 2026-11-20
 
 ## As of
 
-2026-11-20 — `/{slug}/activity` is the store people log. Operator audit stays a separate page.
+2026-11-20 — `/{slug}/activity` shows 50 rows at a time, with a person, an action, and Older and Newer. `sql/108_audit_events_listed.sql` indexes that list. Operator audit stays a separate page.
 
 ## In one sentence
 
@@ -25,9 +25,11 @@ Someone changes the store while signed in: a sale is paid, voided, or returned, 
 - A second signature keeps the cashier on the row and adds the other staff id and username.
 - An enter-as session keeps the mall account and adds the operator id and email.
 - The client address is stored, at most 64 characters.
-- The page lists the newest 200 rows: when, username, name, role, action, entity, second signer, enter-as email, and address.
-- Filters are from, to, account, and action. A to day before from is pulled up to from. Any other filter is an error.
-- `/{slug}/activity.csv` downloads the same filter. More than 5,000 matches is refused with "Narrow the dates." No partial file is sent.
+- The page shows the newest 50 matching rows. Older and Newer walk the same filter. A cursor that is not in the filter says that page is not in this list, and the list stays empty.
+- Each row leads with the mall-local time, the person, the role, and a sentence for the action. Details keep the username, the action code, the record, a second signer, an enter-as email, and the address when those values are present. A missing account still says not recorded.
+- Open is shown only when the signed-in role can open that record: a journal, an item that was not deleted, a booth, a vendor or consignor, a customer, an offer, or a paid ticket's receipt. A ticket with no single posted journal has no Open link.
+- Filters are from, to, one person, and one action. The person list is cashiers, managers, books, and owners who can sign in, plus former accounts that still have a row. The action list is the store's own actions. A to day before from is pulled up to from. A before cursor and an after cursor together is an error. Any other filter is an error.
+- `/{slug}/activity.csv` downloads the date, person, and action. It does not download one page. A cursor on the file is refused and no file is sent. More than 5,000 matches is refused with "Narrow the dates." No partial file is sent.
 - Older rows with no account show as not recorded. There is no backfill and no system user.
 - Nightly jobs (late fees, markdown proposals, mail) are not people. Their money stays on the journal.
 - Operator audit (`STALL_ADMIN_PATH` audit page) is operator actions: enter-as, wipe, signup, a store load, and the rest of `platform.admin_audit`. Its heading is Operator audit.
@@ -51,7 +53,7 @@ Sign in as the owner, save a setting, and open Activity. The row shows that owne
 
 ## Source
 
-`docs/business-rules.md` — store activity and platform admin. `sql/103_audit_subject.sql`, `sql/104_store_load_audit.sql`, `sql/prove_audit_events.sql`.
+`docs/business-rules.md` — store activity and platform admin. `sql/103_audit_subject.sql`, `sql/108_audit_events_listed.sql`, `sql/104_store_load_audit.sql`, `sql/prove_audit_events.sql`.
 
 ## Related
 

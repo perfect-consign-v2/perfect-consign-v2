@@ -18,6 +18,7 @@ final class SchemaCatalog
         '105_probe_ban.sql',
         '106_probe_ban_audit.sql',
         '107_admin_mfa.sql',
+        '108_admin_mfa_switch.sql',
     ];
 
     /** @var list<string> */
@@ -43,6 +44,7 @@ final class SchemaCatalog
         '100_booth_deposit_session.sql',
         '101_booth_location.sql',
         '103_audit_subject.sql',
+        '108_audit_events_listed.sql',
     ];
 
     public function __construct(private readonly string $directory)

@@ -15,8 +15,10 @@ use PerfectConsign\Feature\Admin\AdminResetTokens;
 use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Feature\Admin\AdminSignIn;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaFailures;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaLogin;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
+use PerfectConsign\Feature\Signup\PlatformSettings;
 use PerfectConsign\Feature\Admin\Mfa\RecoveryCode;
 use PerfectConsign\Feature\Password\PasswordChoice;
 use PerfectConsign\Shared\Http\Request;
@@ -92,14 +94,24 @@ final class AdminMfaLockoutTest extends TestCase
             $session = $this->memorySession();
             $request = new Request('POST', '/login', [], [], '', '', $address);
             $audit = QuietAudit::admin($pdo, $request);
+            $admins = new AdminSession($session);
+            $store = new AdminMfaStore($pdo, $audit);
             $signIn = new AdminSignIn(
                 $pdo,
                 $request,
                 new NullLogger(),
                 $audit,
                 new SignInFailureRetention($pdo),
-                new AdminMfaStore($pdo, $audit),
-                new AdminMfaPending($session, new AdminSession($session)),
+                $store,
+                new AdminMfaPending($session, $admins),
+                new PlatformSettings($pdo, new NullLogger()),
+                new AdminMfaLogin($store, $admins, $audit, new AdminMfaFailures(
+                    $pdo,
+                    $request,
+                    new NullLogger(),
+                    $audit,
+                    new SignInFailureRetention($pdo),
+                )),
             );
             $result = $signIn->attempt($email, $password);
             self::assertTrue($result->accepted());

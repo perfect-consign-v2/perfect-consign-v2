@@ -11,8 +11,11 @@ use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Admin\AdminSession;
 use PerfectConsign\Feature\Admin\AdminSignIn;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaFailures;
+use PerfectConsign\Feature\Admin\Mfa\AdminMfaLogin;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
+use PerfectConsign\Feature\Signup\PlatformSettings;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PDO;
@@ -136,14 +139,25 @@ final class AdminSignInLockoutTest extends TestCase
         $session = $this->session();
         $audit = QuietAudit::admin($pdo, $request);
 
+        $admins = new AdminSession($session);
+        $store = new AdminMfaStore($pdo, $audit);
+
         return new AdminSignIn(
             $pdo,
             $request,
             new NullLogger(),
             $audit,
             new SignInFailureRetention($pdo),
-            new AdminMfaStore($pdo, $audit),
-            new AdminMfaPending($session, new AdminSession($session)),
+            $store,
+            new AdminMfaPending($session, $admins),
+            new PlatformSettings($pdo, new NullLogger()),
+            new AdminMfaLogin($store, $admins, $audit, new AdminMfaFailures(
+                $pdo,
+                $request,
+                new NullLogger(),
+                $audit,
+                new SignInFailureRetention($pdo),
+            )),
         );
     }
 
