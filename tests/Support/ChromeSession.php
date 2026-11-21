@@ -46,6 +46,8 @@ JS;
      */
     public function submit(string $action, array $fields): string
     {
+        // Server-side lists draw the row after load, so the form is not in the first HTML.
+        $this->until($action);
         $evaluation = $this->page->callFunction(self::SUBMIT, [
             $action,
             json_encode($fields, JSON_THROW_ON_ERROR),
@@ -124,6 +126,8 @@ function (action, itemId) {
     form.submit();
 }
 JS;
+        // The sticker form is in the first HTML. The item checkbox arrives with the list rows.
+        $this->until('value="' . $itemId . '"');
         $evaluation = $this->page->callFunction($js, [$action, $itemId]);
         $evaluation->waitForResponse(15000);
         $evaluation->waitForPageReload(Page::LOAD, 60000);
