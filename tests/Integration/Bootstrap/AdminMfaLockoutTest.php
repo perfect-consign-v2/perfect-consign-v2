@@ -90,6 +90,9 @@ final class AdminMfaLockoutTest extends TestCase
         $this->admin($pdo, $email, $password);
         AdminDoor::plant($pdo, $email);
         $this->insertFailure($pdo, $email, $address);
+        $settings = new PlatformSettings($pdo, new NullLogger());
+        $mfaWasOn = $settings->adminMfaEnabled();
+        $settings->setAdminMfaEnabled(true);
         try {
             $session = $this->memorySession();
             $request = new Request('POST', '/login', [], [], '', '', $address);
@@ -120,6 +123,7 @@ final class AdminMfaLockoutTest extends TestCase
             $count->execute([$email]);
             self::assertSame(1, (int) $count->fetchColumn());
         } finally {
+            $settings->setAdminMfaEnabled($mfaWasOn);
             $this->deleteFailures($pdo, $email);
         }
     }

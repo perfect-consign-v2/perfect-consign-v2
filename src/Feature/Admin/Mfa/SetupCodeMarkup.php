@@ -20,8 +20,6 @@ final class SetupCodeMarkup
 
     private const SVG_NS = 'http://www.w3.org/2000/svg';
 
-    private const MAX_MARKUP = 262144;
-
     public function image(string $markup, string $secret): string
     {
         $svg = $this->root($markup, $secret);
@@ -35,7 +33,7 @@ final class SetupCodeMarkup
 
     private function root(string $markup, string $secret): DOMElement
     {
-        if ($this->blocked($markup, $secret)) {
+        if (SetupCodeGuard::blocked($markup, $secret)) {
             throw new RuntimeException(self::FAILURE);
         }
         $dom = $this->load($markup);
@@ -45,20 +43,6 @@ final class SetupCodeMarkup
         }
 
         return $root;
-    }
-
-    private function blocked(string $markup, string $secret): bool
-    {
-        if ($markup === '' || strlen($markup) > self::MAX_MARKUP || $this->leaks($markup, $secret)) {
-            return true;
-        }
-
-        return preg_match('/<script|<style|foreignobject|<iframe|<!--|<!doctype|<\?| href| xlink| style| on/i', $markup) === 1;
-    }
-
-    private function leaks(string $markup, string $secret): bool
-    {
-        return $secret !== '' && str_contains(strtolower($markup), strtolower($secret));
     }
 
     private function load(string $markup): ?DOMDocument
