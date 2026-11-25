@@ -29,6 +29,25 @@ final class JobSchedule
         while (($row = $listed->fetch(PDO::FETCH_ASSOC)) !== false) {
             $this->enqueueTenant($row);
         }
+        $this->enqueuePlatform();
+    }
+
+    /**
+     * The daily probe-ban summary is filed once its hour has come in the
+     * summary time zone. platform.probe_ban_summary_day() reads the rules.
+     */
+    private function enqueuePlatform(): void
+    {
+        $due = $this->pdo->query('SELECT platform.probe_ban_summary_day()::text');
+        if ($due === false) {
+            $this->logger->error('job schedule ban summary day failed');
+            throw new RuntimeException('job schedule ban summary day failed');
+        }
+        $day = $due->fetchColumn();
+        if (!is_string($day) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) !== 1) {
+            return;
+        }
+        $this->queue->enqueue($this->pdo, 'platform', 'probe-ban-digest', $day);
     }
 
     private function enqueueTenant(mixed $row): void

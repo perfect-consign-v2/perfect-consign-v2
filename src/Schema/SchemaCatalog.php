@@ -19,6 +19,8 @@ final class SchemaCatalog
         '106_probe_ban_audit.sql',
         '107_admin_mfa.sql',
         '108_admin_mfa_switch.sql',
+        '110_probe_ban_rules.sql',
+        '111_probe_ban_summary.sql',
     ];
 
     /** @var list<string> */

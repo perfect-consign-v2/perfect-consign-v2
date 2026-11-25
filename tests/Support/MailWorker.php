@@ -16,6 +16,7 @@ use PerfectConsign\Shared\Jobs\JobSchedule;
 use PerfectConsign\Shared\Jobs\LateFeeJob;
 use PerfectConsign\Shared\Jobs\MarkdownJob;
 use PerfectConsign\Shared\Jobs\OutboundMailJob;
+use PerfectConsign\Shared\Jobs\ProbeBanDigestJob;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Jobs\VendorLetterJob;
@@ -81,6 +82,7 @@ final class MailWorker
                         $mailbox,
                         new PlatformMailbox($mail, $gmail, $notices),
                     ),
+                    new ProbeBanDigestJob($pdo, new MailOutbox($pdo)),
                 ),
                 new WorkerRuns($pdo),
                 new JobAttention($pdo, $mail, new PlatformMailbox($mail, $gmail, $notices), $notices),

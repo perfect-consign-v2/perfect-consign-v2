@@ -108,6 +108,7 @@ use PerfectConsign\Shared\Jobs\JobSchedule;
 use PerfectConsign\Shared\Jobs\LateFeeJob;
 use PerfectConsign\Shared\Jobs\MarkdownJob;
 use PerfectConsign\Shared\Jobs\OutboundMailJob;
+use PerfectConsign\Shared\Jobs\ProbeBanDigestJob;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Jobs\VendorLetterJob;
@@ -1017,6 +1018,7 @@ final class ListedLineCoverageTest extends TestCase
             new VendorLetterJob(new Statements($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), new MailBounce(new Statements($this->createStub(PDO::class))), $this->createStub(LoggerInterface::class)),
             new MarkdownJob($this->createStub(PDO::class)),
             new OutboundMailJob(new MailOutbox($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), $this->platformMailbox()),
+            new ProbeBanDigestJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class))),
         );
         try {
             $dispatch->dispatch($this->job('assess-late-fees', 'null'));
@@ -1126,7 +1128,13 @@ final class ListedLineCoverageTest extends TestCase
             $runner->handle($this->claimed('platform', 'assess-late-fees', 1));
             self::fail('a platform fee job ran');
         } catch (RuntimeException $error) {
-            self::assertSame('platform jobs are mail only', $error->getMessage());
+            self::assertSame('platform jobs are mail or the ban summary', $error->getMessage());
+        }
+        try {
+            $runner->handle($this->claimed('gapmall', 'probe-ban-digest', 1));
+            self::fail('a store ran the ban summary');
+        } catch (RuntimeException $error) {
+            self::assertSame('the ban summary is a platform job', $error->getMessage());
         }
         try {
             $runner->handle($this->claimed('gapmall', 'outbound-mail', 1));
@@ -1922,6 +1930,7 @@ final class ListedLineCoverageTest extends TestCase
                 new VendorLetterJob(new Statements($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), new MailBounce(new Statements($this->createStub(PDO::class))), $this->createStub(LoggerInterface::class)),
                 new MarkdownJob($this->createStub(PDO::class)),
                 new OutboundMailJob(new MailOutbox($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), $this->platformMailbox()),
+                new ProbeBanDigestJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class))),
             ),
             new WorkerRuns($pdo),
             new JobAttention(

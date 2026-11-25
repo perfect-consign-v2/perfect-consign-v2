@@ -6,7 +6,7 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $csrf */
 /** @var int $tailKb */
-/** @var list<array{address: string, banned_at: string, reason: string, path: string}> $bans */
+/** @var list<array{address: string, banned_at: string, banned_until: string, active: bool, strikes: int, reason: string, path: string}> $bans */
 /** @var \PerfectConsign\Feature\Admin\AdminPath $adminPath */
 /** @var array{
  *     path: string,
@@ -52,6 +52,7 @@ use PerfectConsign\Shared\Http\View;
 <div class="card mt-6">
     <div class="card-head"><div class="h3">Banned addresses</div></div>
     <div class="card-body">
+        <p class="muted text-sm">Every ban ends on its own. A ban for probe requests lasts fifteen minutes. A scanning tool's ban that comes back within a week lasts longer. Lift ban ends it now and forgets the earlier ones.</p>
         <?php if ($bans === []): ?>
             <p class="muted">No addresses are banned.</p>
         <?php else: ?>
@@ -60,6 +61,8 @@ use PerfectConsign\Shared\Http\View;
                     <tr>
                         <th>Address</th>
                         <th>When</th>
+                        <th>Ends</th>
+                        <th>Times</th>
                         <th>Reason</th>
                         <th>Path</th>
                         <th></th>
@@ -70,13 +73,15 @@ use PerfectConsign\Shared\Http\View;
                         <tr>
                             <td><?= View::text($ban['address']) ?></td>
                             <td><?= View::text($ban['banned_at']) ?></td>
+                            <td><?= $ban['active'] ? View::text($ban['banned_until']) : 'Ended' ?></td>
+                            <td class="num"><?= View::text((string) $ban['strikes']) ?></td>
                             <td><?= View::text($ban['reason']) ?></td>
                             <td><?= View::text($ban['path']) ?></td>
                             <td>
                                 <form method="post" action="<?= View::text($adminPath->url('/log/lift')) ?>">
                                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                     <input type="hidden" name="address" value="<?= View::text($ban['address']) ?>">
-                                    <button class="btn btn-sm" type="submit">Lift ban</button>
+                                    <button class="btn btn-sm" type="submit"><?= $ban['active'] ? 'Lift ban' : 'Forget' ?></button>
                                 </form>
                             </td>
                         </tr>

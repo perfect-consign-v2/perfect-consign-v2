@@ -8,7 +8,7 @@ use PDO;
 use RuntimeException;
 
 /**
- * HTTP tests share 127.0.0.1. Two document 404s would ban that address for the rest of the suite.
+ * HTTP tests share 127.0.0.1. A probe ban on that address would refuse the rest of the suite until it ends.
  */
 final class ProbeBanFixture
 {

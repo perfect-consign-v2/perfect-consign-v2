@@ -8,6 +8,7 @@ use PerfectApp\Routing\Router;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\RegisterFeatures;
+use PerfectConsign\Bootstrap\SignedInVisitor;
 use PerfectConsign\Feature\Admin\AdminPath;
 use PerfectConsign\Feature\Admin\AdminRouter;
 use PerfectConsign\Feature\Inventory\PhotoFacts;
@@ -20,6 +21,7 @@ use PerfectConsign\Shared\Http\EmptyNotFound;
 use PerfectConsign\Shared\Http\ErrorHandling;
 use PerfectConsign\Shared\Http\ProbeBanStore;
 use PerfectConsign\Shared\Http\ProbeShield;
+use PerfectConsign\Shared\Http\QuietMiss;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\RequestCoverage;
 use PerfectConsign\Shared\Http\RequestId;
@@ -86,6 +88,9 @@ $request = null;
 $shield = null;
 $pdo = null;
 $countOutcome = false;
+$signedIn = false;
+$routeMissed = false;
+$session = null;
 try {
     ob_start();
     $request = RequestFactory::fromGlobals();
@@ -97,11 +102,20 @@ try {
     if (EdgeFile::send($request->path)) {
         return;
     }
+    if (QuietMiss::matches($request->path)) {
+        EmptyNotFound::send();
+
+        return;
+    }
     $adminPath = AdminPath::fromEnv();
     $pdo = (new AppDatabase())->connect(DatabaseConfig::fromEnv());
     $probeLog = new FileLogger($logDirectory . DIRECTORY_SEPARATOR . 'probe.log');
     $shield = new ProbeShield(new ProbeBanStore($pdo), $probeLog);
-    if ($shield->blocked($request)) {
+    if (SignedInVisitor::hasCookie($_COOKIE)) {
+        $session = new Session();
+        $signedIn = SignedInVisitor::present($session, $request);
+    }
+    if ($shield->blocked($request, $signedIn)) {
         EmptyNotFound::send();
 
         return;
@@ -112,7 +126,6 @@ try {
     $container->set(LoggerInterface::class, $logger);
     $container->set(PhotoFacts::class, ServerPhotoFacts::class);
     $container->set(AdminPath::class, $adminPath);
-    $session = null;
     $container->set(Session::class, static function () use (&$session): Session {
         return $session ??= new Session();
     });
@@ -125,7 +138,8 @@ try {
     $adminRouter->register($featureDirectory);
     if (!$adminRouter->dispatch($request->path, $request->method, $container)) {
         $router = new Router($container);
-        $router->setNotFoundHandler(static function () use ($container): void {
+        $router->setNotFoundHandler(static function () use ($container, &$routeMissed): void {
+            $routeMissed = true;
             $container->get(MallApp::class)->notFound(MallApp::MISS_ROUTE);
         });
         RegisterFeatures::register($router, $featureDirectory);
@@ -159,7 +173,7 @@ try {
     }
     $status = http_response_code();
     if ($countOutcome && $shield instanceof ProbeShield && $request instanceof Request && is_int($status)) {
-        $shield->finished($request, $status);
+        $shield->finished($request, $status, $routeMissed, $signedIn);
     }
     RequestCoverage::flush($coverageStarted, $coverageDirectory);
 }

@@ -11,6 +11,7 @@ use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\RequestTrace;
 use PerfectConsign\Tests\Support\AdminDoor;
 use PerfectConsign\Tests\Support\ProbeBanFixture;
+use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 use PDO;
 use PerfectApp\Logger\FileLogger;
@@ -50,21 +51,21 @@ final class ProbeBanHttpTest extends WebTestCase
         self::assertSame($before + 1, substr_count($this->probeLog(), 'probe banned'));
     }
 
-    public function testTwoProbePathsBanAndAMissingAssetDoesNot(): void
+    public function testTheTwentiethProbeBansAndAMissingAssetDoesNotCount(): void
     {
-        $this->setStreak(1);
+        $this->setStreak(18);
         $asset = $this->exchange('/assets/not-a-real-probe-file.css');
         self::assertSame(404, $asset['status']);
-        self::assertSame(1, $this->streak());
+        self::assertSame(18, $this->streak());
 
         $page = $this->exchange('/');
         self::assertSame(200, $page['status']);
-        self::assertNull($this->streak());
+        self::assertSame(18, $this->streak());
 
         $once = $this->exchange('/wp-login.php');
         self::assertSame(404, $once['status']);
         self::assertSame('', $once['body']);
-        self::assertSame(1, $this->streak());
+        self::assertSame(19, $this->streak());
         self::assertFalse($this->loopbackBanned());
 
         $twice = $this->exchange('/xmlrpc.php');
@@ -73,6 +74,49 @@ final class ProbeBanHttpTest extends WebTestCase
         $after = $this->exchange('/');
         self::assertSame(404, $after['status']);
         self::assertSame('', $after['body']);
+    }
+
+    public function testPhonesAndBrowsersAskingForTheirOwnFilesNeverCount(): void
+    {
+        foreach (
+            [
+                '/apple-touch-icon-120x120.png',
+                '/apple-touch-icon-152x152-precomposed.png',
+                '/favicon-32x32.png',
+                '/.well-known/change-password',
+                '/.well-known/appspecific/com.chrome.devtools.json',
+                '/site.webmanifest',
+                '/manifest.json',
+                '/browserconfig.xml',
+            ] as $path
+        ) {
+            for ($asked = 1; $asked <= 25; $asked++) {
+                $miss = $this->exchange($path);
+                self::assertSame(404, $miss['status'], $path);
+                self::assertSame('', $miss['body'], $path);
+            }
+        }
+        self::assertNull($this->streak());
+        self::assertFalse($this->loopbackBanned());
+        self::assertSame(200, $this->exchange('/')['status']);
+    }
+
+    public function testASignedInOwnerOpeningMissingPagesIsNeverCounted(): void
+    {
+        $client = self::client();
+        $signedIn = $client->signIn(ProbeMall::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        self::assertSame(200, $signedIn->status);
+        for ($opened = 1; $opened <= 25; $opened++) {
+            $missing = $client->get('/' . ProbeMall::SLUG . '/inventory/01900000-0000-7000-8000-0000000000' . sprintf('%02d', $opened) . '/edit');
+            self::assertSame(404, $missing->status);
+            $unknown = $client->get('/' . ProbeMall::SLUG . '/no-such-page-' . (string) $opened);
+            self::assertSame(404, $unknown->status);
+        }
+        self::assertSame(404, $client->get('/admin')->status);
+        self::assertSame(404, $client->get('/wp-login.php')->status);
+        self::assertNull($this->streak());
+        self::assertFalse($this->loopbackBanned());
+        self::assertSame(200, $client->get('/' . ProbeMall::SLUG . '/dashboard')->status);
     }
 
     public function testPublicAdminIsAnEmpty404AndThePrefixStillSignsIn(): void
@@ -140,7 +184,7 @@ final class ProbeBanHttpTest extends WebTestCase
                 $address,
                 [],
                 new RequestTrace('', '/', 'mall.test', 'browser', ''),
-            )));
+            ), false));
         } finally {
             ProbeBanFixture::release($address);
         }
@@ -181,9 +225,12 @@ final class ProbeBanHttpTest extends WebTestCase
     private function setStreak(int $streak): void
     {
         $statement = ProbeBanFixture::connection()->prepare(
-            'INSERT INTO platform.probe_streaks (client_address, streak)
-             VALUES (?, ?)
-             ON CONFLICT (client_address) DO UPDATE SET streak = EXCLUDED.streak'
+            'INSERT INTO platform.probe_streaks (client_address, streak, window_started_at, updated_at)
+             VALUES (?, ?, clock_timestamp(), clock_timestamp())
+             ON CONFLICT (client_address) DO UPDATE
+             SET streak = EXCLUDED.streak,
+                 window_started_at = EXCLUDED.window_started_at,
+                 updated_at = EXCLUDED.updated_at'
         );
         $statement->execute(['127.0.0.1', $streak]);
     }

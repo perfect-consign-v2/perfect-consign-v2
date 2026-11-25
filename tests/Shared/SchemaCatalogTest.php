@@ -45,6 +45,8 @@ final class SchemaCatalogTest extends TestCase
             '106_probe_ban_audit.sql',
             '107_admin_mfa.sql',
             '108_admin_mfa_switch.sql',
+            '110_probe_ban_rules.sql',
+            '111_probe_ban_summary.sql',
         ], $platform);
         self::assertSame([], $catalog->platformAfterFiles());
         $checksum = $catalog->checksum('001_tenant.sql');

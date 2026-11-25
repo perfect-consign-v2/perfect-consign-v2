@@ -207,6 +207,14 @@ final class PlatformOperatorNotice
 
     private function adminEmail(): ?string
     {
+        return self::adminAddress();
+    }
+
+    /**
+     * STALL_PLATFORM_ADMIN_EMAIL, lowercased, or null when it is missing or not an address.
+     */
+    public static function adminAddress(): ?string
+    {
         $email = getenv('STALL_PLATFORM_ADMIN_EMAIL');
         if (!is_string($email)) {
             return null;

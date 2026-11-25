@@ -16,6 +16,7 @@ final class JobDispatch
         private readonly VendorLetterJob $letters,
         private readonly MarkdownJob $markdowns,
         private readonly OutboundMailJob $outbound,
+        private readonly ProbeBanDigestJob $bans,
     ) {
     }
 
@@ -44,6 +45,7 @@ final class JobDispatch
             'vendor-letter' => $this->letters->send($this->letterId($payload)),
             'markdown-propose' => $this->markdowns->propose($this->date($payload)),
             'outbound-mail' => $this->outbound->send($this->mailId($payload)),
+            'probe-ban-digest' => $this->bans->send($this->date($payload)),
             default => throw new RuntimeException('unknown job'),
         };
     }

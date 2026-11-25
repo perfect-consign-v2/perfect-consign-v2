@@ -433,6 +433,9 @@ final class SignedAccountObligationTest extends TestCase
         $statement->method('fetchAll')->willReturn([[
             'address' => '127.0.0.1',
             'banned_at' => '2026-11-20 09:00:00+00',
+            'banned_until' => '2026-11-20 09:15:00+00',
+            'active' => 'no',
+            'strikes' => '1',
             'reason' => 'probe',
             'path' => '/.env',
         ]]);
@@ -463,7 +466,7 @@ final class SignedAccountObligationTest extends TestCase
         $failures->replay(self::ADMIN, 'platform-admin@example.test', ['reason' => 'replay']);
         $failures->clearEmail('platform-admin@example.test');
         $bans = new ProbeBanStore($pdo);
-        $bans->clearStreak('127.0.0.1');
+        self::assertTrue($bans->lift('127.0.0.1'));
         self::assertSame('127.0.0.1', $bans->listBans()[0]['address']);
     }
 

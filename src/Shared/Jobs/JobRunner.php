@@ -12,6 +12,9 @@ use RuntimeException;
 
 final class JobRunner
 {
+    /** Kinds the worker runs without a store role. */
+    public const PLATFORM_KINDS = ['outbound-mail', 'probe-ban-digest'];
+
     public function __construct(
         private readonly PDO $pdo,
         private readonly JobQueue $queue,
@@ -83,12 +86,15 @@ final class JobRunner
     public function handle(array $job): void
     {
         if ($job['tenant'] === 'platform') {
-            if ($job['kind'] !== 'outbound-mail') {
-                throw new RuntimeException('platform jobs are mail only');
+            if (!in_array($job['kind'], self::PLATFORM_KINDS, true)) {
+                throw new RuntimeException('platform jobs are mail or the ban summary');
             }
             $this->jobs->dispatch($job);
 
             return;
+        }
+        if ($job['kind'] === 'probe-ban-digest') {
+            throw new RuntimeException('the ban summary is a platform job');
         }
         $schema = $this->schema($job['tenant']);
         $role = TenantRecord::roleFor($job['tenant'], $schema);

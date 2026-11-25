@@ -31,13 +31,13 @@ final class ProbeBanTest extends TestCase
         try {
             $shield = $this->shield($log);
             $first = $this->request($address, '/', 'Mozilla/5.0 ZAP');
-            self::assertTrue($shield->blocked($first));
+            self::assertTrue($shield->blocked($first, false));
             self::assertTrue($this->store()->banned($address));
             $written = $this->logText($log);
             self::assertSame(1, substr_count($written, 'probe banned'));
             self::assertStringContainsString('scanner', $written);
 
-            self::assertTrue($shield->blocked($this->request($address, '/', 'Mozilla/5.0')));
+            self::assertTrue($shield->blocked($this->request($address, '/', 'Mozilla/5.0'), false));
             self::assertSame(1, substr_count($this->logText($log), 'probe banned'));
         } finally {
             ProbeBanFixture::release($address);
@@ -45,40 +45,114 @@ final class ProbeBanTest extends TestCase
         }
     }
 
-    public function testOneProbeDoesNotBanAndTheSecondDoes(): void
+    public function testNineteenProbesDoNotBanAndTheTwentiethDoes(): void
     {
         $address = '203.0.113.11';
         ProbeBanFixture::release($address);
         $log = $this->logFile();
         try {
             $shield = $this->shield($log);
-            self::assertTrue($shield->blocked($this->request($address, '/wp-login.php')));
+            for ($hit = 1; $hit < 20; $hit++) {
+                self::assertTrue($shield->blocked($this->request($address, '/wp-login.php'), false));
+            }
             self::assertFalse($this->store()->banned($address));
-            self::assertSame(1, $this->streak($address));
+            self::assertSame(19, $this->streak($address));
 
-            self::assertTrue($shield->blocked($this->request($address, '/xmlrpc.php')));
+            self::assertTrue($shield->blocked($this->request($address, '/xmlrpc.php'), false));
             self::assertTrue($this->store()->banned($address));
             self::assertStringContainsString('streak', $this->logText($log));
+            self::assertSame(15, $this->banMinutes($address));
         } finally {
             ProbeBanFixture::release($address);
             $this->dropLog($log);
         }
     }
 
-    public function testASuccessfulResponseClearsTheStreak(): void
+    public function testASuccessfulResponseDoesNotForgetEarlierProbes(): void
     {
         $address = '203.0.113.12';
         ProbeBanFixture::release($address);
         try {
             $store = $this->store();
-            self::assertSame(1, $store->increment($address));
+            self::assertFalse($store->hit($address, 'browser', '/x.php'));
             $shield = new ProbeShield($store, new FileLogger($this->logFile()));
-            $shield->finished($this->request($address, '/'), 200);
-            self::assertNull($this->streakOrNull($address));
+            $shield->finished($this->request($address, '/'), 200, false, false);
+            $shield->finished($this->request($address, '/'), 303, false, false);
+            self::assertSame(1, $this->streak($address));
+        } finally {
+            ProbeBanFixture::release($address);
+        }
+    }
 
-            self::assertSame(1, $store->increment($address));
-            $shield->finished($this->request($address, '/'), 303);
+    public function testOnlyARouteMissCountsAfterTheResponse(): void
+    {
+        $address = '203.0.113.16';
+        ProbeBanFixture::release($address);
+        try {
+            $shield = new ProbeShield($this->store(), new FileLogger($this->logFile()));
+            $shield->finished($this->request($address, '/mall/inventory/missing'), 404, false, false);
             self::assertNull($this->streakOrNull($address));
+            $shield->finished($this->request($address, '/mall/nowhere'), 404, true, true);
+            self::assertNull($this->streakOrNull($address));
+            $shield->finished($this->request($address, '/mall/nowhere'), 400, true, false);
+            self::assertNull($this->streakOrNull($address));
+            $shield->finished($this->request($address, '/mall/nowhere'), 404, true, false);
+            self::assertSame(1, $this->streak($address));
+        } finally {
+            ProbeBanFixture::release($address);
+        }
+    }
+
+    public function testSomeoneSignedInIsNeverCountedOrRefused(): void
+    {
+        $address = '203.0.113.17';
+        ProbeBanFixture::release($address);
+        $log = $this->logFile();
+        try {
+            $store = $this->store();
+            $shield = $this->shield($log);
+            for ($hit = 1; $hit <= 25; $hit++) {
+                self::assertTrue($shield->blocked($this->request($address, '/admin'), true));
+            }
+            self::assertNull($this->streakOrNull($address));
+            self::assertFalse($shield->blocked($this->request($address, '/', 'Mozilla/5.0 ZAP'), true));
+            self::assertFalse($store->banned($address));
+
+            self::assertTrue($store->insertBan($address, 'streak', 'browser', '/x.php'));
+            self::assertFalse($shield->blocked($this->request($address, '/mall/pos'), true));
+            self::assertTrue($shield->blocked($this->request($address, '/mall/pos'), false));
+        } finally {
+            ProbeBanFixture::release($address);
+            $this->dropLog($log);
+        }
+    }
+
+    public function testAnEndedBanLetsTheNextRequestThroughAndOnlyAScannerBanClimbs(): void
+    {
+        $address = '203.0.113.18';
+        ProbeBanFixture::release($address);
+        try {
+            $store = $this->store();
+            $shield = $this->shield($this->logFile());
+            self::assertTrue($store->insertBan($address, 'streak', 'browser', '/x.php'));
+            self::assertFalse($store->insertBan($address, 'streak', 'browser', '/x.php'));
+            $this->endBan($address);
+            self::assertFalse($store->banned($address));
+            self::assertFalse($shield->blocked($this->request($address, '/'), false));
+            $listed = $this->listed($address);
+            self::assertFalse($listed['active']);
+            self::assertSame(1, $listed['strikes']);
+
+            self::assertTrue($store->insertBan($address, 'streak', 'browser', '/x.php'));
+            self::assertSame(15, $this->banMinutes($address));
+            $listed = $this->listed($address);
+            self::assertTrue($listed['active']);
+            self::assertSame(2, $listed['strikes']);
+
+            $this->endBan($address);
+            self::assertTrue($store->insertBan($address, 'scanner', 'sqlmap', '/'));
+            self::assertSame(1440, $this->banMinutes($address));
+            self::assertSame(3, $this->listed($address)['strikes']);
         } finally {
             ProbeBanFixture::release($address);
         }
@@ -88,7 +162,7 @@ final class ProbeBanTest extends TestCase
     {
         $before = $this->banCount();
         $shield = $this->shield($this->logFile());
-        self::assertTrue($shield->blocked($this->request('', '/wp-login.php', 'Mozilla/5.0 ZAP')));
+        self::assertTrue($shield->blocked($this->request('', '/wp-login.php', 'Mozilla/5.0 ZAP'), false));
         self::assertSame($before, $this->banCount());
         $empty = $this->connection()->query("SELECT COUNT(*) FROM platform.probe_bans WHERE client_address = ''");
         self::assertNotFalse($empty);
@@ -111,7 +185,7 @@ final class ProbeBanTest extends TestCase
                 'HTTP_X_FORWARDED_FOR' => $forged,
             ], [], [], [], '');
             self::assertSame($peer, $request->address);
-            self::assertTrue($this->shield($log)->blocked($request));
+            self::assertTrue($this->shield($log)->blocked($request, false));
             self::assertTrue($this->store()->banned($peer));
             self::assertFalse($this->store()->banned($forged));
         } finally {
@@ -137,7 +211,7 @@ final class ProbeBanTest extends TestCase
             self::assertIsString($encoded);
             self::assertStringNotContainsString('super-secret-value', $encoded);
             self::assertSame('/secret.php?token', $request->trace->target);
-            self::assertTrue($this->shield($log)->blocked($request));
+            self::assertTrue($this->shield($log)->blocked($request, false));
             self::assertStringNotContainsString('super-secret-value', $this->logText($log));
             self::assertStringContainsString('token', $this->logText($log));
         } finally {
@@ -155,10 +229,11 @@ final class ProbeBanTest extends TestCase
             $store = $this->store();
             self::assertTrue($store->insertBan($address, 'streak', 'browser', '/missing'));
             $shield = new ProbeShield($store, new FileLogger($log));
-            self::assertTrue($shield->blocked($this->request($address, '/')));
+            self::assertTrue($shield->blocked($this->request($address, '/'), false));
             self::assertTrue($store->lift($address));
+            self::assertFalse($store->lift($address));
             self::assertFalse($store->banned($address));
-            self::assertFalse($shield->blocked($this->request($address, '/')));
+            self::assertFalse($shield->blocked($this->request($address, '/'), false));
         } finally {
             ProbeBanFixture::release($address);
             $this->dropLog($log);
@@ -171,8 +246,8 @@ final class ProbeBanTest extends TestCase
         ProbeBanFixture::release($address);
         try {
             $shield = $this->shield($this->logFile());
-            self::assertFalse($shield->blocked($this->request($address, '/', 'curl/8.0')));
-            self::assertFalse($shield->blocked($this->request($address, '/', 'python-requests/2.31')));
+            self::assertFalse($shield->blocked($this->request($address, '/', 'curl/8.0'), false));
+            self::assertFalse($shield->blocked($this->request($address, '/', 'python-requests/2.31'), false));
             self::assertFalse($this->store()->banned($address));
         } finally {
             ProbeBanFixture::release($address);
@@ -235,6 +310,42 @@ final class ProbeBanTest extends TestCase
         }
 
         return null;
+    }
+
+    private function banMinutes(string $address): int
+    {
+        $statement = $this->connection()->prepare(
+            'SELECT (extract(epoch FROM banned_until - banned_at) / 60)::int
+             FROM platform.probe_bans WHERE client_address = ?'
+        );
+        $statement->execute([$address]);
+        $minutes = $statement->fetchColumn();
+
+        return is_numeric($minutes) ? (int) $minutes : -1;
+    }
+
+    private function endBan(string $address): void
+    {
+        $statement = $this->connection()->prepare(
+            "UPDATE platform.probe_bans
+             SET banned_at = clock_timestamp() - interval '2 hours',
+                 banned_until = clock_timestamp() - interval '1 hour'
+             WHERE client_address = ?"
+        );
+        $statement->execute([$address]);
+    }
+
+    /**
+     * @return array{address: string, banned_at: string, banned_until: string, active: bool, strikes: int, reason: string, path: string}
+     */
+    private function listed(string $address): array
+    {
+        foreach ($this->store()->listBans() as $ban) {
+            if ($ban['address'] === $address) {
+                return $ban;
+            }
+        }
+        self::fail('the ban is not listed');
     }
 
     private function banCount(): int

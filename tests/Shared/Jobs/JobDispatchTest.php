@@ -20,6 +20,7 @@ use PerfectConsign\Shared\Mail\PlatformOperatorNotice;
 use PerfectConsign\Shared\Jobs\LateFeeJob;
 use PerfectConsign\Shared\Jobs\MarkdownJob;
 use PerfectConsign\Shared\Jobs\OutboundMailJob;
+use PerfectConsign\Shared\Jobs\ProbeBanDigestJob;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Jobs\VendorLetterJob;
@@ -265,6 +266,7 @@ final class JobDispatchTest extends TestCase
                 $mailbox,
                 new \PerfectConsign\Shared\Mail\PlatformMailbox($mail, $gmail, $notices),
             ),
+            new ProbeBanDigestJob($pdo, new \PerfectConsign\Shared\Mail\MailOutbox($pdo)),
         );
     }
 
