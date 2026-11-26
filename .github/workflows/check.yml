@@ -15,6 +15,7 @@ jobs:
       STALL_DB_PASSWORD: stall
       STALL_APP_PASSWORD: ci-app-password
       STALL_OWNER_PASSWORD: ci-owner-password
+      STALL_OWNER_EMAIL: owner@ci.example.test
       STALL_BACKUP_PASSWORD: ci-backup-password
       STALL_WORKER_PASSWORD: ci-worker-password
     steps:
