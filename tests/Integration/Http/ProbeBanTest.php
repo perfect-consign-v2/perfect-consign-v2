@@ -18,9 +18,22 @@ use PHPUnit\Framework\TestCase;
 
 final class ProbeBanTest extends TestCase
 {
+    private string|false $origin = false;
+
     protected function setUp(): void
     {
         ProbeMall::ensure(dirname(__DIR__, 3));
+        $this->origin = getenv('STALL_PUBLIC_ORIGIN');
+        putenv('STALL_PUBLIC_ORIGIN=http://127.0.0.1');
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->origin === false) {
+            putenv('STALL_PUBLIC_ORIGIN');
+        } else {
+            putenv('STALL_PUBLIC_ORIGIN=' . $this->origin);
+        }
     }
 
     public function testAScannerUserAgentBansOnceAndTheRepeatIsSilent(): void
