@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 /**
  * Drop and recreate STALL_DB_NAME so the two-installer baseline can provision.
- * Refused unless STALL_ALLOW_PLATFORM_REINSTALL=true. That flag is the only gate:
+ * Refused unless STALL_ALLOW_PLATFORM_REINSTALL=true. That flag is the gate:
  * disposable demos often use APP_ENV=production for the route manifest cache.
+ * Refused always once sql/PRODUCTION_BASELINE exists: real stores' books are never
+ * wiped to reinstall.
  *
  *   php bin/reinstall-empty-database.php
  *   php bin/provision-platform.php
@@ -15,6 +17,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/load-env.php';
 
 loadStallEnv(dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
+
+if (is_file(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql' . DIRECTORY_SEPARATOR . 'PRODUCTION_BASELINE')) {
+    fwrite(STDERR, "sql/PRODUCTION_BASELINE exists: this schema holds real stores and is never reinstalled\n");
+    exit(1);
+}
 
 $allow = getenv('STALL_ALLOW_PLATFORM_REINSTALL');
 if (!is_string($allow) || !in_array(strtolower($allow), ['1', 'true', 'yes'], true)) {

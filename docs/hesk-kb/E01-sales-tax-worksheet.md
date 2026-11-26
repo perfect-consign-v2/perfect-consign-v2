@@ -40,7 +40,7 @@ Run a closed month. A same-month void nets taxable sales and tax collected to ze
 
 ## Source
 
-`docs/business-rules.md` — Sales tax and reports. `sql/109_report_sheets.sql`.
+`docs/business-rules.md` — Sales tax and reports. `sql/001_tenant.sql`, `sql/prove_report_sheets.sql`.
 
 ## Related
 

@@ -27,10 +27,15 @@ function migrationFreezeFailures(int $highest, array $changed, bool $baselineRes
 
 /**
  * A baseline reset collapses history into 000/001 only (dev DBs; no upgrade path).
+ * Once sql/PRODUCTION_BASELINE exists a real store's books live on the schema, so
+ * there is no reset: every change is a forward file.
  */
 function migrationBaselineReset(string $root): bool
 {
-    $paths = glob($root . DIRECTORY_SEPARATOR . 'sql' . DIRECTORY_SEPARATOR . '0*.sql');
+    if (migrationGoneLive($root)) {
+        return false;
+    }
+    $paths = glob($root . DIRECTORY_SEPARATOR . 'sql' . DIRECTORY_SEPARATOR . '[0-9][0-9][0-9]_*.sql');
     if ($paths === false || $paths === []) {
         return false;
     }
@@ -44,6 +49,11 @@ function migrationBaselineReset(string $root): bool
     }
 
     return $highest <= 1;
+}
+
+function migrationGoneLive(string $root): bool
+{
+    return is_file($root . DIRECTORY_SEPARATOR . 'sql' . DIRECTORY_SEPARATOR . 'PRODUCTION_BASELINE');
 }
 
 function migrationFreezeHighest(string $root): int

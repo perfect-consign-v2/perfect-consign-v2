@@ -245,6 +245,9 @@ BEGIN
                         = ' on platform.admin_password_resets'
                     OR right(dropped.object_identity, length(' on platform.admin_audit'))
                         = ' on platform.admin_audit'
+                    OR right(dropped.object_identity, length(' on platform.admin_mfa_recovery_codes'))
+                        = ' on platform.admin_mfa_recovery_codes'
+                    OR dropped.object_identity = 'admin_mfa_transition on platform.admins'
                 ) THEN
                 RAISE EXCEPTION 'append-only triggers cannot be dropped'
                     USING ERRCODE = '25006';
@@ -255,7 +258,10 @@ BEGIN
                     'platform.reject_admin_password_reset_truncate()',
                     'platform.reject_admin_audit_mutation()',
                     'platform.reject_admin_audit_truncate()',
-                    'platform.reject_admin_append_only_guard()'
+                    'platform.reject_admin_append_only_guard()',
+                    'platform.reject_admin_mfa_transition()',
+                    'platform.reject_admin_mfa_recovery_mutation()',
+                    'platform.reject_admin_mfa_recovery_truncate()'
                 ) THEN
                 RAISE EXCEPTION 'a guard function cannot be replaced'
                     USING ERRCODE = '25006';
@@ -271,7 +277,9 @@ BEGIN
         IF command.command_tag = 'ALTER TABLE'
             AND command.objid IN (
                 to_regclass('platform.admin_password_resets'),
-                to_regclass('platform.admin_audit')
+                to_regclass('platform.admin_audit'),
+                to_regclass('platform.admin_mfa_recovery_codes'),
+                to_regclass('platform.admins')
             )
             AND EXISTS (
                 SELECT 1
@@ -282,7 +290,7 @@ BEGIN
                       tgenabled NOT IN ('O', 'A')
                       OR (
                           tgenabled <> 'A'
-                          AND tgname ~ '(_append_only|_no_truncate|_no_delete)$'
+                          AND tgname ~ '(_append_only|_no_truncate|_no_delete|_transition)$'
                       )
                   )
             ) THEN
@@ -295,7 +303,10 @@ BEGIN
                 'platform.reject_admin_password_reset_truncate()'::regprocedure,
                 'platform.reject_admin_audit_mutation()'::regprocedure,
                 'platform.reject_admin_audit_truncate()'::regprocedure,
-                'platform.reject_admin_append_only_guard()'::regprocedure
+                'platform.reject_admin_append_only_guard()'::regprocedure,
+                'platform.reject_admin_mfa_transition()'::regprocedure,
+                'platform.reject_admin_mfa_recovery_mutation()'::regprocedure,
+                'platform.reject_admin_mfa_recovery_truncate()'::regprocedure
             ) THEN
             RAISE EXCEPTION 'a guard function cannot be replaced'
                 USING ERRCODE = '25006';
@@ -1127,6 +1138,201 @@ GRANT EXECUTE ON FUNCTION platform.clear_sign_in_directory(text, uuid) TO stall_
 GRANT SELECT ON TABLE platform.sign_in_directory TO stall_app;
 
 GRANT SELECT, INSERT, DELETE ON TABLE platform.email_sign_in_failures TO stall_app;
+
+-- >>> folded from 107_admin_mfa.sql (authenticator tables, before the admin guard triggers)
+-- Platform admin authenticator (TOTP) and one-time recovery codes.
+
+ALTER TABLE platform.admins
+    ADD COLUMN mfa_secret text,
+    ADD COLUMN mfa_confirmed_at timestamp with time zone,
+    ADD COLUMN mfa_last_used_step bigint;
+
+ALTER TABLE platform.admins
+    ADD CONSTRAINT admins_mfa_chk CHECK (
+        (
+            mfa_secret IS NULL
+            AND mfa_confirmed_at IS NULL
+            AND mfa_last_used_step IS NULL
+        )
+        OR (
+            mfa_secret ~ '^v1:[A-Za-z0-9+/]+=*$'
+            AND char_length(mfa_secret) BETWEEN 8 AND 200
+            AND mfa_confirmed_at IS NOT NULL
+            AND mfa_last_used_step IS NOT NULL
+            AND mfa_last_used_step >= 0
+        )
+    );
+
+CREATE TABLE platform.admin_mfa_recovery_codes (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    admin_id uuid NOT NULL,
+    code_hash character(64) NOT NULL,
+    batch_issued_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    used_at timestamp with time zone,
+    CONSTRAINT admin_mfa_recovery_codes_hash_chk CHECK ((code_hash ~ '^[0-9a-f]{64}$'::text))
+);
+
+CREATE TABLE platform.admin_mfa_failures (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    email text NOT NULL,
+    failed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    client_address text DEFAULT ''::text NOT NULL,
+    CONSTRAINT admin_mfa_failures_address_chk CHECK ((char_length(client_address) <= 64)),
+    CONSTRAINT admin_mfa_failures_email_chk CHECK (((email = btrim(email)) AND (char_length(email) <= 200) AND (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text)))
+);
+
+ALTER TABLE ONLY platform.admin_mfa_recovery_codes
+    ADD CONSTRAINT admin_mfa_recovery_codes_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.admin_mfa_failures
+    ADD CONSTRAINT admin_mfa_failures_pkey PRIMARY KEY (id);
+
+CREATE UNIQUE INDEX admin_mfa_recovery_codes_hash
+    ON platform.admin_mfa_recovery_codes USING btree (admin_id, code_hash);
+
+CREATE INDEX admin_mfa_recovery_codes_admin
+    ON platform.admin_mfa_recovery_codes USING btree (admin_id);
+
+CREATE INDEX admin_mfa_failures_window
+    ON platform.admin_mfa_failures USING btree (email, client_address, failed_at);
+
+CREATE INDEX admin_mfa_failures_address
+    ON platform.admin_mfa_failures USING btree (client_address, failed_at);
+
+CREATE INDEX admin_mfa_failures_email
+    ON platform.admin_mfa_failures USING btree (email, failed_at);
+
+CREATE INDEX admin_mfa_failures_stale
+    ON platform.admin_mfa_failures USING btree (failed_at);
+
+ALTER TABLE ONLY platform.admin_mfa_recovery_codes
+    ADD CONSTRAINT admin_mfa_recovery_codes_admin_id_fkey
+    FOREIGN KEY (admin_id) REFERENCES platform.admins (id);
+
+CREATE FUNCTION platform.reject_admin_mfa_transition() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    owner name;
+BEGIN
+    IF NEW.mfa_secret IS NOT DISTINCT FROM OLD.mfa_secret
+        AND NEW.mfa_confirmed_at IS NOT DISTINCT FROM OLD.mfa_confirmed_at
+        AND NEW.mfa_last_used_step IS NOT DISTINCT FROM OLD.mfa_last_used_step THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT tableowner INTO owner
+    FROM pg_tables
+    WHERE schemaname = 'platform'
+      AND tablename = 'admins';
+
+    IF current_user = owner
+        AND NEW.mfa_secret IS NULL
+        AND NEW.mfa_confirmed_at IS NULL
+        AND NEW.mfa_last_used_step IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    IF OLD.mfa_secret IS NULL
+        AND OLD.mfa_confirmed_at IS NULL
+        AND OLD.mfa_last_used_step IS NULL
+        AND NEW.mfa_secret IS NOT NULL
+        AND NEW.mfa_confirmed_at IS NOT NULL
+        AND NEW.mfa_last_used_step IS NOT NULL
+        AND NEW.mfa_last_used_step >= 0 THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.mfa_secret IS NOT DISTINCT FROM OLD.mfa_secret
+        AND NEW.mfa_confirmed_at IS NOT DISTINCT FROM OLD.mfa_confirmed_at
+        AND OLD.mfa_last_used_step IS NOT NULL
+        AND NEW.mfa_last_used_step IS NOT NULL
+        AND NEW.mfa_last_used_step > OLD.mfa_last_used_step THEN
+        RETURN NEW;
+    END IF;
+
+    RAISE EXCEPTION 'an admin authenticator cannot be rewritten'
+        USING ERRCODE = '25006';
+END;
+$$;
+
+CREATE FUNCTION platform.reject_admin_mfa_recovery_mutation() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'a recovery code cannot be removed'
+            USING ERRCODE = '25006';
+    END IF;
+    IF OLD.used_at IS NOT NULL THEN
+        RAISE EXCEPTION 'a recovery code was already used'
+            USING ERRCODE = '25006';
+    END IF;
+    IF NEW.used_at IS NULL
+        OR NEW.id IS DISTINCT FROM OLD.id
+        OR NEW.admin_id IS DISTINCT FROM OLD.admin_id
+        OR NEW.code_hash IS DISTINCT FROM OLD.code_hash
+        OR NEW.batch_issued_at IS DISTINCT FROM OLD.batch_issued_at THEN
+        RAISE EXCEPTION 'a recovery code cannot be rewritten'
+            USING ERRCODE = '25006';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION platform.reject_admin_mfa_recovery_truncate() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'recovery codes cannot be truncated'
+        USING ERRCODE = '25006';
+END;
+$$;
+
+CREATE TRIGGER admin_mfa_transition
+    BEFORE UPDATE ON platform.admins
+    FOR EACH ROW
+    EXECUTE FUNCTION platform.reject_admin_mfa_transition();
+
+ALTER TABLE platform.admins ENABLE ALWAYS TRIGGER admin_mfa_transition;
+
+CREATE TRIGGER admin_mfa_recovery_append_only
+    BEFORE DELETE OR UPDATE ON platform.admin_mfa_recovery_codes
+    FOR EACH ROW
+    EXECUTE FUNCTION platform.reject_admin_mfa_recovery_mutation();
+
+ALTER TABLE platform.admin_mfa_recovery_codes ENABLE ALWAYS TRIGGER admin_mfa_recovery_append_only;
+
+CREATE TRIGGER admin_mfa_recovery_no_truncate
+    BEFORE TRUNCATE ON platform.admin_mfa_recovery_codes
+    FOR EACH STATEMENT
+    EXECUTE FUNCTION platform.reject_admin_mfa_recovery_truncate();
+
+ALTER TABLE platform.admin_mfa_recovery_codes ENABLE ALWAYS TRIGGER admin_mfa_recovery_no_truncate;
+
+GRANT UPDATE (mfa_secret, mfa_confirmed_at, mfa_last_used_step) ON TABLE platform.admins TO stall_app;
+
+GRANT SELECT, INSERT ON TABLE platform.admin_mfa_recovery_codes TO stall_app;
+
+GRANT UPDATE (used_at) ON TABLE platform.admin_mfa_recovery_codes TO stall_app;
+
+GRANT SELECT, INSERT, DELETE ON TABLE platform.admin_mfa_failures TO stall_app;
+
+REVOKE ALL ON FUNCTION platform.reject_admin_mfa_transition() FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION platform.reject_admin_mfa_transition() TO stall_app;
+
+REVOKE ALL ON FUNCTION platform.reject_admin_mfa_recovery_mutation() FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION platform.reject_admin_mfa_recovery_mutation() TO stall_app;
+
+REVOKE ALL ON FUNCTION platform.reject_admin_mfa_recovery_truncate() FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION platform.reject_admin_mfa_recovery_truncate() TO stall_app;
 
 CREATE EVENT TRIGGER platform_reject_admin_append_only_change ON ddl_command_end WHEN TAG IN ('ALTER FUNCTION', 'ALTER ROUTINE', 'ALTER TABLE', 'CREATE FUNCTION')
     EXECUTE FUNCTION platform.reject_admin_append_only_guard();
@@ -2243,3 +2449,783 @@ BEGIN
     RETURN new_id;
 END;
 $_$;
+
+
+-- >>> folded from 094_wipe_keeps_reset_history.sql
+-- Password-reset and email-verification rows stay when a mall is deleted.
+-- The append-only guards cannot be replaced, and stall_app cannot turn
+-- event triggers off, so wipe leaves those rows in place.
+
+ALTER TABLE platform.password_resets
+    DROP CONSTRAINT IF EXISTS password_resets_tenant_id_fkey;
+
+ALTER TABLE platform.owner_email_verifications
+    DROP CONSTRAINT IF EXISTS owner_email_verifications_owner_id_fkey;
+
+CREATE OR REPLACE FUNCTION platform.wipe_tenant(target_slug text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'platform', 'pg_catalog'
+    AS $_$
+DECLARE
+    schema_name text;
+    poster text;
+    mall_id uuid;
+BEGIN
+    IF target_slug IS NULL OR target_slug !~ '^[a-z][a-z0-9-]{0,62}$' THEN
+        RAISE EXCEPTION 'refusing to remove %', target_slug;
+    END IF;
+    SELECT tenants.id, tenants.schema_name INTO mall_id, schema_name
+    FROM platform.tenants AS tenants
+    WHERE tenants.slug = target_slug;
+    IF schema_name IS NULL THEN
+        RETURN;
+    END IF;
+    IF schema_name !~ '^tenant_[0-9a-f]{32}$' THEN
+        RAISE EXCEPTION 'refusing to remove %', schema_name;
+    END IF;
+    poster := CASE
+        WHEN target_slug = 'mall' THEN 'stall_poster'
+        ELSE 'poster_' || substr(schema_name, length('tenant_') + 1)
+    END;
+    DELETE FROM platform.jobs WHERE tenant = target_slug;
+    DELETE FROM platform.mail_outbox WHERE tenant = target_slug;
+    DELETE FROM platform.sign_in_directory WHERE tenant_id = mall_id;
+    DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = mall_id;
+    DELETE FROM platform.password_reset_requests WHERE tenant_id = mall_id;
+    DELETE FROM platform.owners WHERE tenant_id = mall_id;
+    DELETE FROM platform.tenants WHERE slug = target_slug;
+    EXECUTE format('DROP SCHEMA %I CASCADE', schema_name);
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = poster) THEN
+        RETURN;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM pg_auth_members AS membership
+        JOIN pg_roles AS granted ON granted.oid = membership.roleid
+        JOIN pg_roles AS login ON login.oid = membership.member
+        WHERE granted.rolname = poster AND login.rolname = 'stall_app'
+    ) THEN
+        EXECUTE format('REVOKE %I FROM stall_app', poster);
+    END IF;
+    EXECUTE format('GRANT %I TO CURRENT_USER', poster);
+    EXECUTE format('DROP OWNED BY %I', poster);
+    EXECUTE format('DROP ROLE %I', poster);
+END;
+$_$;
+
+REVOKE ALL ON FUNCTION platform.wipe_tenant(text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION platform.wipe_tenant(text) TO stall_app;
+
+CREATE TABLE platform.admin_wipe_failures (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    email text NOT NULL,
+    failed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    client_address text DEFAULT ''::text NOT NULL,
+    CONSTRAINT admin_wipe_failures_pkey PRIMARY KEY (id),
+    CONSTRAINT admin_wipe_failures_address_chk CHECK ((char_length(client_address) <= 64)),
+    CONSTRAINT admin_wipe_failures_email_chk CHECK (((email = btrim(email)) AND (char_length(email) <= 200) AND (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text)))
+);
+
+CREATE INDEX admin_wipe_failures_pair
+    ON platform.admin_wipe_failures USING btree (email, client_address, failed_at);
+
+CREATE INDEX admin_wipe_failures_address
+    ON platform.admin_wipe_failures USING btree (client_address, failed_at);
+
+CREATE INDEX admin_wipe_failures_stale
+    ON platform.admin_wipe_failures USING btree (failed_at);
+
+REVOKE ALL ON TABLE platform.admin_wipe_failures FROM PUBLIC;
+
+GRANT SELECT, INSERT, DELETE ON TABLE platform.admin_wipe_failures TO stall_app;
+
+
+-- >>> folded from 102_job_attention.sql
+-- Mail worker queue for platform admin, and one-time notice stamps.
+-- stall_app can read platform.jobs but not a store's letters or mail setting.
+
+ALTER TABLE platform.jobs
+    ADD COLUMN IF NOT EXISTS overdue_noticed_at timestamp with time zone,
+    ADD COLUMN IF NOT EXISTS abandoned_noticed_at timestamp with time zone;
+
+CREATE OR REPLACE FUNCTION platform.job_attention(p_bucket text)
+RETURNS TABLE (
+    id text,
+    tenant text,
+    kind text,
+    run_at text,
+    finished_at text,
+    attempts integer,
+    error text,
+    subject text,
+    recipients text,
+    mail_via text,
+    mailbox text,
+    payload_date text,
+    due boolean
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO pg_catalog, platform
+AS $_$
+DECLARE
+    job record;
+    list_sql text;
+    schema_name text;
+    letter_id uuid;
+    found_subject text;
+    found_recipients text;
+    found_via text;
+    found_mailbox text;
+    found_date text;
+BEGIN
+    IF p_bucket IS NULL OR p_bucket NOT IN ('open', 'overdue', 'given_up', 'abandoned') THEN
+        RAISE EXCEPTION 'the job list is not a list'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_bucket = 'open' THEN
+        list_sql := $open$
+            SELECT j.id, j.tenant, j.kind, j.payload, j.run_at, j.finished_at, j.attempts, j.error
+            FROM platform.jobs AS j
+            WHERE j.finished_at IS NULL
+              AND j.locked_at IS NULL
+              AND NOT (
+                  j.kind = 'outbound-mail'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM platform.mail_outbox AS mail
+                      WHERE mail.id::text = j.payload ->> 'mail'
+                        AND mail.sent_at IS NOT NULL
+                  )
+              )
+            ORDER BY j.run_at, j.id
+        $open$;
+    ELSIF p_bucket = 'overdue' THEN
+        list_sql := $overdue$
+            SELECT j.id, j.tenant, j.kind, j.payload, j.run_at, j.finished_at, j.attempts, j.error
+            FROM platform.jobs AS j
+            WHERE j.finished_at IS NULL
+              AND j.locked_at IS NULL
+              AND j.overdue_noticed_at IS NULL
+              AND j.run_at < clock_timestamp() - interval '15 minutes'
+              AND NOT (
+                  j.kind = 'outbound-mail'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM platform.mail_outbox AS mail
+                      WHERE mail.id::text = j.payload ->> 'mail'
+                        AND mail.sent_at IS NOT NULL
+                  )
+              )
+            ORDER BY j.run_at, j.id
+        $overdue$;
+    ELSIF p_bucket = 'given_up' THEN
+        list_sql := $given$
+            SELECT j.id, j.tenant, j.kind, j.payload, j.run_at, j.finished_at, j.attempts, j.error
+            FROM platform.jobs AS j
+            WHERE j.finished_at IS NOT NULL
+              AND j.error IS NOT NULL
+              AND btrim(j.error) <> ''
+              AND j.attempts >= 5
+            ORDER BY j.finished_at DESC, j.id
+            LIMIT 50
+        $given$;
+    ELSE
+        list_sql := $abandoned$
+            SELECT j.id, j.tenant, j.kind, j.payload, j.run_at, j.finished_at, j.attempts, j.error
+            FROM platform.jobs AS j
+            WHERE j.finished_at IS NOT NULL
+              AND j.error IS NOT NULL
+              AND btrim(j.error) <> ''
+              AND j.attempts >= 5
+              AND j.abandoned_noticed_at IS NULL
+            ORDER BY j.finished_at, j.id
+        $abandoned$;
+    END IF;
+
+    FOR job IN EXECUTE list_sql
+    LOOP
+        found_subject := '';
+        found_recipients := '';
+        found_via := '';
+        found_mailbox := '';
+        found_date := COALESCE(job.payload ->> 'date', '');
+        schema_name := NULL;
+        IF job.tenant ~ '^[a-z][a-z0-9-]{0,62}$' THEN
+            SELECT tenants.schema_name INTO schema_name
+            FROM platform.tenants AS tenants
+            WHERE tenants.slug = job.tenant;
+        END IF;
+        IF schema_name IS NOT NULL AND schema_name !~ '^tenant_[0-9a-f]{32}$' THEN
+            schema_name := NULL;
+        END IF;
+        IF job.kind = 'vendor-letter'
+           AND COALESCE(job.payload ->> 'letter', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+           AND schema_name IS NOT NULL
+        THEN
+            letter_id := (job.payload ->> 'letter')::uuid;
+            EXECUTE format('SELECT subject FROM %I.vendor_letters WHERE id = $1', schema_name)
+                INTO found_subject USING letter_id;
+            EXECUTE format(
+                'SELECT string_agg(copy.email, '', '' ORDER BY copy.email) FROM %I.vendor_letter_copies AS copy WHERE copy.letter_id = $1',
+                schema_name
+            ) INTO found_recipients USING letter_id;
+            EXECUTE format('SELECT receipt_mail_via FROM %I.mall LIMIT 1', schema_name)
+                INTO found_via;
+        ELSIF job.kind = 'outbound-mail'
+              AND COALESCE(job.payload ->> 'mail', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        THEN
+            SELECT mail.subject, mail.address, mail.mailbox
+            INTO found_subject, found_recipients, found_mailbox
+            FROM platform.mail_outbox AS mail
+            WHERE mail.id = (job.payload ->> 'mail')::uuid;
+            IF found_mailbox = 'mall' AND schema_name IS NOT NULL THEN
+                EXECUTE format('SELECT receipt_mail_via FROM %I.mall LIMIT 1', schema_name)
+                    INTO found_via;
+            END IF;
+        END IF;
+        id := job.id::text;
+        tenant := job.tenant;
+        kind := job.kind;
+        run_at := job.run_at::text;
+        finished_at := COALESCE(job.finished_at::text, '');
+        attempts := job.attempts;
+        error := COALESCE(job.error, '');
+        subject := COALESCE(found_subject, '');
+        recipients := COALESCE(found_recipients, '');
+        mail_via := COALESCE(found_via, '');
+        mailbox := COALESCE(found_mailbox, '');
+        payload_date := found_date;
+        due := job.run_at <= clock_timestamp();
+        RETURN NEXT;
+    END LOOP;
+END;
+$_$;
+
+REVOKE ALL ON FUNCTION platform.job_attention(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION platform.job_attention(text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.job_attention(text) TO stall_worker;
+
+
+-- >>> folded from 104_store_load_audit.sql
+-- A PC1 mirror load is an operator action, not a mall user.
+
+ALTER TABLE platform.admin_audit
+    DROP CONSTRAINT IF EXISTS admin_audit_action_chk;
+
+ALTER TABLE platform.admin_audit
+    ADD CONSTRAINT admin_audit_action_chk CHECK (action = ANY (ARRAY[
+        'admin.sign_in'::text,
+        'admin.sign_in_refused'::text,
+        'admin.password_change'::text,
+        'admin.password_reset_request'::text,
+        'admin.password_reset'::text,
+        'tenant.enter_as'::text,
+        'tenant.enter_as_refused'::text,
+        'tenant.delete'::text,
+        'tenant.delete_refused'::text,
+        'store.signup_toggle'::text,
+        'store.signup'::text,
+        'store.admin_create'::text,
+        'store.email_verified'::text,
+        'app.log_clear'::text,
+        'store.load'::text
+    ]));
+
+
+-- >>> folded from 105_probe_ban.sql
+-- Permanent bans for scanner clients, and the short streak that leads there.
+-- stall_app checks and writes these rows before a session starts.
+
+CREATE TABLE platform.probe_bans (
+    client_address text NOT NULL,
+    banned_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    reason text NOT NULL,
+    user_agent text DEFAULT ''::text NOT NULL,
+    path text DEFAULT ''::text NOT NULL,
+    CONSTRAINT probe_bans_address_chk CHECK (((char_length(client_address) >= 1) AND (char_length(client_address) <= 64))),
+    CONSTRAINT probe_bans_agent_chk CHECK ((char_length(user_agent) <= 200)),
+    CONSTRAINT probe_bans_path_chk CHECK ((char_length(path) <= 200)),
+    CONSTRAINT probe_bans_reason_chk CHECK ((reason = ANY (ARRAY['scanner'::text, 'streak'::text])))
+);
+
+CREATE TABLE platform.probe_streaks (
+    client_address text NOT NULL,
+    streak integer NOT NULL,
+    updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT probe_streaks_address_chk CHECK (((char_length(client_address) >= 1) AND (char_length(client_address) <= 64))),
+    CONSTRAINT probe_streaks_streak_chk CHECK ((streak >= 1))
+);
+
+ALTER TABLE ONLY platform.probe_bans
+    ADD CONSTRAINT probe_bans_pkey PRIMARY KEY (client_address);
+
+ALTER TABLE ONLY platform.probe_streaks
+    ADD CONSTRAINT probe_streaks_pkey PRIMARY KEY (client_address);
+
+GRANT SELECT, INSERT, DELETE ON TABLE platform.probe_bans TO stall_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE platform.probe_streaks TO stall_app;
+
+
+-- >>> folded from 106_probe_ban_audit.sql
+-- Lifting a probe ban is an operator action.
+
+ALTER TABLE platform.admin_audit
+    DROP CONSTRAINT IF EXISTS admin_audit_action_chk;
+
+ALTER TABLE platform.admin_audit
+    ADD CONSTRAINT admin_audit_action_chk CHECK (action = ANY (ARRAY[
+        'admin.sign_in'::text,
+        'admin.sign_in_refused'::text,
+        'admin.password_change'::text,
+        'admin.password_reset_request'::text,
+        'admin.password_reset'::text,
+        'tenant.enter_as'::text,
+        'tenant.enter_as_refused'::text,
+        'tenant.delete'::text,
+        'tenant.delete_refused'::text,
+        'store.signup_toggle'::text,
+        'store.signup'::text,
+        'store.admin_create'::text,
+        'store.email_verified'::text,
+        'app.log_clear'::text,
+        'store.load'::text,
+        'probe_ban_lift'::text
+    ]));
+
+
+-- >>> folded from 107_admin_mfa.sql
+ALTER TABLE platform.admin_audit
+    DROP CONSTRAINT IF EXISTS admin_audit_action_chk;
+
+ALTER TABLE platform.admin_audit
+    ADD CONSTRAINT admin_audit_action_chk CHECK (action = ANY (ARRAY[
+        'admin.sign_in'::text,
+        'admin.sign_in_refused'::text,
+        'admin.mfa_enrolled'::text,
+        'admin.mfa_refused'::text,
+        'admin.mfa_cleared'::text,
+        'admin.password_change'::text,
+        'admin.password_reset_request'::text,
+        'admin.password_reset'::text,
+        'tenant.enter_as'::text,
+        'tenant.enter_as_refused'::text,
+        'tenant.delete'::text,
+        'tenant.delete_refused'::text,
+        'store.signup_toggle'::text,
+        'store.signup'::text,
+        'store.admin_create'::text,
+        'store.email_verified'::text,
+        'app.log_clear'::text,
+        'store.load'::text,
+        'probe_ban_lift'::text
+    ]));
+
+
+-- >>> folded from 108_admin_mfa_switch.sql
+-- A signed-in admin can turn the authenticator requirement on or off.
+-- The phone secret stays. Clearing it is still owner-only.
+
+ALTER TABLE platform.admin_audit
+    DROP CONSTRAINT IF EXISTS admin_audit_action_chk;
+
+ALTER TABLE platform.admin_audit
+    ADD CONSTRAINT admin_audit_action_chk CHECK (action = ANY (ARRAY[
+        'admin.sign_in'::text,
+        'admin.sign_in_refused'::text,
+        'admin.mfa_enrolled'::text,
+        'admin.mfa_refused'::text,
+        'admin.mfa_cleared'::text,
+        'admin.mfa_enabled'::text,
+        'admin.mfa_disabled'::text,
+        'admin.password_change'::text,
+        'admin.password_reset_request'::text,
+        'admin.password_reset'::text,
+        'tenant.enter_as'::text,
+        'tenant.enter_as_refused'::text,
+        'tenant.delete'::text,
+        'tenant.delete_refused'::text,
+        'store.signup_toggle'::text,
+        'store.signup'::text,
+        'store.admin_create'::text,
+        'store.email_verified'::text,
+        'app.log_clear'::text,
+        'store.load'::text,
+        'probe_ban_lift'::text
+    ]));
+
+
+-- >>> folded from 110_probe_ban_rules.sql
+-- Probe bans follow rules kept in the database, and every ban ends.
+--
+-- One row of platform.probe_rules says how many probe hits from one address,
+-- inside how many minutes, start a ban, and how long each ban in a row lasts.
+-- A ban that starts again within strike_reset_days of the last one moves one
+-- step up the ladder. The last step repeats.
+--
+-- stall_app no longer writes probe_bans or probe_streaks directly. It calls
+-- platform.probe_hit and platform.probe_ban, which apply these rules. It can
+-- still read the bans for the admin list and delete one to lift it.
+--
+-- A ban already in place when this file runs ends fifteen minutes later.
+
+CREATE TABLE platform.probe_rules (
+    id boolean DEFAULT true NOT NULL,
+    hit_limit integer NOT NULL,
+    window_minutes integer NOT NULL,
+    ban_minutes integer[] NOT NULL,
+    strike_reset_days integer NOT NULL,
+    CONSTRAINT probe_rules_pkey PRIMARY KEY (id),
+    CONSTRAINT probe_rules_one_row_chk CHECK (id),
+    CONSTRAINT probe_rules_hit_limit_chk CHECK (((hit_limit >= 2) AND (hit_limit <= 1000))),
+    CONSTRAINT probe_rules_window_chk CHECK (((window_minutes >= 1) AND (window_minutes <= 1440))),
+    CONSTRAINT probe_rules_ban_minutes_chk CHECK (((cardinality(ban_minutes) >= 1)
+        AND (cardinality(ban_minutes) <= 10)
+        AND (array_position(ban_minutes, NULL) IS NULL)
+        AND (1 <= ALL (ban_minutes))
+        AND (525600 >= ALL (ban_minutes)))),
+    CONSTRAINT probe_rules_strike_reset_chk CHECK (((strike_reset_days >= 1) AND (strike_reset_days <= 365)))
+);
+
+INSERT INTO platform.probe_rules (id, hit_limit, window_minutes, ban_minutes, strike_reset_days)
+VALUES (true, 20, 10, ARRAY[15, 60, 1440], 7);
+
+ALTER TABLE platform.probe_bans
+    ADD COLUMN strikes integer DEFAULT 1 NOT NULL,
+    ADD COLUMN banned_until timestamp with time zone;
+
+UPDATE platform.probe_bans
+SET banned_until = clock_timestamp() + interval '15 minutes';
+
+ALTER TABLE platform.probe_bans
+    ALTER COLUMN banned_until SET NOT NULL,
+    ADD CONSTRAINT probe_bans_strikes_chk CHECK ((strikes >= 1)),
+    ADD CONSTRAINT probe_bans_until_chk CHECK ((banned_until > banned_at));
+
+ALTER TABLE platform.probe_streaks
+    ADD COLUMN window_started_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL;
+
+CREATE FUNCTION platform.probe_ban(p_address text, p_reason text, p_agent text, p_path text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.probe_rules%ROWTYPE;
+    prior platform.probe_bans%ROWTYPE;
+    now_at timestamp with time zone := clock_timestamp();
+    next_strike integer;
+    minutes integer;
+BEGIN
+    IF p_address IS NULL OR p_address !~ '^[A-Za-z0-9:.]{1,64}$' THEN
+        RAISE EXCEPTION 'a probe ban needs a client address'
+            USING ERRCODE = '23514';
+    END IF;
+    IF p_reason IS NULL OR p_reason NOT IN ('scanner', 'streak') THEN
+        RAISE EXCEPTION 'a probe ban needs a known reason'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(87301, hashtext(p_address));
+    SELECT * INTO rules FROM platform.probe_rules WHERE id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'the probe rules are missing'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT * INTO prior FROM platform.probe_bans WHERE client_address = p_address;
+    IF FOUND AND prior.banned_until > now_at THEN
+        RETURN false;
+    END IF;
+    IF FOUND AND prior.banned_until > now_at - make_interval(days => rules.strike_reset_days) THEN
+        next_strike := prior.strikes + 1;
+    ELSE
+        next_strike := 1;
+    END IF;
+    minutes := rules.ban_minutes[least(next_strike, cardinality(rules.ban_minutes))];
+    INSERT INTO platform.probe_bans (client_address, banned_at, reason, user_agent, path, strikes, banned_until)
+    VALUES (
+        p_address,
+        now_at,
+        p_reason,
+        left(COALESCE(p_agent, ''), 200),
+        left(COALESCE(p_path, ''), 200),
+        next_strike,
+        now_at + make_interval(mins => minutes)
+    )
+    ON CONFLICT (client_address) DO UPDATE
+    SET banned_at = EXCLUDED.banned_at,
+        reason = EXCLUDED.reason,
+        user_agent = EXCLUDED.user_agent,
+        path = EXCLUDED.path,
+        strikes = EXCLUDED.strikes,
+        banned_until = EXCLUDED.banned_until;
+    DELETE FROM platform.probe_streaks WHERE client_address = p_address;
+    RETURN true;
+END;
+$$;
+
+CREATE FUNCTION platform.probe_hit(p_address text, p_agent text, p_path text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.probe_rules%ROWTYPE;
+    now_at timestamp with time zone := clock_timestamp();
+    window_start timestamp with time zone;
+    hits integer;
+BEGIN
+    IF p_address IS NULL OR p_address !~ '^[A-Za-z0-9:.]{1,64}$' THEN
+        RAISE EXCEPTION 'a probe hit needs a client address'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(87301, hashtext(p_address));
+    SELECT * INTO rules FROM platform.probe_rules WHERE id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'the probe rules are missing'
+            USING ERRCODE = '23514';
+    END IF;
+    window_start := now_at - make_interval(mins => rules.window_minutes);
+    DELETE FROM platform.probe_streaks WHERE window_started_at <= window_start;
+    INSERT INTO platform.probe_streaks (client_address, streak, window_started_at, updated_at)
+    VALUES (p_address, 1, now_at, now_at)
+    ON CONFLICT (client_address) DO UPDATE
+    SET streak = platform.probe_streaks.streak + 1,
+        updated_at = now_at
+    RETURNING streak INTO hits;
+    IF hits < rules.hit_limit THEN
+        RETURN false;
+    END IF;
+
+    RETURN platform.probe_ban(p_address, 'streak', p_agent, p_path);
+END;
+$$;
+
+REVOKE ALL ON TABLE platform.probe_rules FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.probe_ban(text, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.probe_hit(text, text, text) FROM PUBLIC;
+
+GRANT SELECT ON TABLE platform.probe_rules TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.probe_ban(text, text, text, text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.probe_hit(text, text, text) TO stall_app;
+
+REVOKE INSERT ON TABLE platform.probe_bans FROM stall_app;
+REVOKE INSERT, UPDATE ON TABLE platform.probe_streaks FROM stall_app;
+
+
+-- >>> folded from 111_probe_ban_summary.sql
+-- Probe-shaped bans stay short, scanner bans climb, and the platform admin
+-- gets one summary of new bans a day.
+--
+-- A streak ban (twenty probe hits from one address) always lasts
+-- streak_ban_minutes. A hostile web page can make a store's browser send those
+-- hits, so a streak ban must never grow into a day-long block of that store.
+-- A scanner ban (a known scanning tool's user agent) still climbs
+-- scanner_ban_minutes for repeats within strike_reset_days. Strikes count
+-- every ban, so a scanner that comes back after streak bans starts higher.
+--
+-- The worker files one probe-ban-digest job a day once the local hour reaches
+-- summary_hour in summary_time_zone, while summary_enabled is on. The job lists
+-- the bans that started in the day before that hour and sends nothing when
+-- there were none.
+
+ALTER TABLE platform.probe_rules RENAME COLUMN ban_minutes TO scanner_ban_minutes;
+ALTER TABLE platform.probe_rules RENAME CONSTRAINT probe_rules_ban_minutes_chk TO probe_rules_scanner_ban_chk;
+
+ALTER TABLE platform.probe_rules
+    ADD COLUMN streak_ban_minutes integer DEFAULT 15 NOT NULL,
+    ADD COLUMN summary_enabled boolean DEFAULT true NOT NULL,
+    ADD COLUMN summary_hour integer DEFAULT 7 NOT NULL,
+    ADD COLUMN summary_time_zone text DEFAULT 'America/Los_Angeles' NOT NULL,
+    ADD CONSTRAINT probe_rules_streak_ban_chk CHECK (((streak_ban_minutes >= 1) AND (streak_ban_minutes <= 1440))),
+    ADD CONSTRAINT probe_rules_summary_hour_chk CHECK (((summary_hour >= 0) AND (summary_hour <= 23))),
+    ADD CONSTRAINT probe_rules_summary_zone_chk CHECK (((summary_time_zone = btrim(summary_time_zone)) AND (summary_time_zone <> ''::text)));
+
+ALTER TABLE platform.probe_rules
+    ALTER COLUMN streak_ban_minutes DROP DEFAULT,
+    ALTER COLUMN summary_enabled DROP DEFAULT,
+    ALTER COLUMN summary_hour DROP DEFAULT,
+    ALTER COLUMN summary_time_zone DROP DEFAULT;
+
+CREATE FUNCTION platform.probe_rules_reject_zone() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    BEGIN
+        PERFORM (CURRENT_TIMESTAMP AT TIME ZONE NEW.summary_time_zone);
+    EXCEPTION
+        WHEN invalid_parameter_value THEN
+            RAISE EXCEPTION 'the ban summary time zone is not an IANA name'
+                USING ERRCODE = '23514';
+    END;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER probe_rules_zone
+    BEFORE INSERT OR UPDATE OF summary_time_zone ON platform.probe_rules
+    FOR EACH ROW EXECUTE FUNCTION platform.probe_rules_reject_zone();
+
+REVOKE ALL ON FUNCTION platform.probe_rules_reject_zone() FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION platform.probe_ban(p_address text, p_reason text, p_agent text, p_path text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.probe_rules%ROWTYPE;
+    prior platform.probe_bans%ROWTYPE;
+    now_at timestamp with time zone := clock_timestamp();
+    next_strike integer;
+    minutes integer;
+BEGIN
+    IF p_address IS NULL OR p_address !~ '^[A-Za-z0-9:.]{1,64}$' THEN
+        RAISE EXCEPTION 'a probe ban needs a client address'
+            USING ERRCODE = '23514';
+    END IF;
+    IF p_reason IS NULL OR p_reason NOT IN ('scanner', 'streak') THEN
+        RAISE EXCEPTION 'a probe ban needs a known reason'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(87301, hashtext(p_address));
+    SELECT * INTO rules FROM platform.probe_rules WHERE id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'the probe rules are missing'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT * INTO prior FROM platform.probe_bans WHERE client_address = p_address;
+    IF FOUND AND prior.banned_until > now_at THEN
+        RETURN false;
+    END IF;
+    IF FOUND AND prior.banned_until > now_at - make_interval(days => rules.strike_reset_days) THEN
+        next_strike := prior.strikes + 1;
+    ELSE
+        next_strike := 1;
+    END IF;
+    IF p_reason = 'streak' THEN
+        minutes := rules.streak_ban_minutes;
+    ELSE
+        minutes := rules.scanner_ban_minutes[least(next_strike, cardinality(rules.scanner_ban_minutes))];
+    END IF;
+    INSERT INTO platform.probe_bans (client_address, banned_at, reason, user_agent, path, strikes, banned_until)
+    VALUES (
+        p_address,
+        now_at,
+        p_reason,
+        left(COALESCE(p_agent, ''), 200),
+        left(COALESCE(p_path, ''), 200),
+        next_strike,
+        now_at + make_interval(mins => minutes)
+    )
+    ON CONFLICT (client_address) DO UPDATE
+    SET banned_at = EXCLUDED.banned_at,
+        reason = EXCLUDED.reason,
+        user_agent = EXCLUDED.user_agent,
+        path = EXCLUDED.path,
+        strikes = EXCLUDED.strikes,
+        banned_until = EXCLUDED.banned_until;
+    DELETE FROM platform.probe_streaks WHERE client_address = p_address;
+    RETURN true;
+END;
+$$;
+
+-- A streak ban already running past the streak length ends at the streak length.
+UPDATE platform.probe_bans AS ban
+SET banned_until = ban.banned_at + make_interval(mins => rules.streak_ban_minutes)
+FROM platform.probe_rules AS rules
+WHERE rules.id
+  AND ban.reason = 'streak'
+  AND ban.banned_until > ban.banned_at + make_interval(mins => rules.streak_ban_minutes);
+
+-- The local day whose summary is due now, or NULL while the summary is off or
+-- the summary hour has not come yet today.
+CREATE FUNCTION platform.probe_ban_summary_day() RETURNS date
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.probe_rules%ROWTYPE;
+    local_now timestamp without time zone;
+BEGIN
+    SELECT * INTO rules FROM platform.probe_rules WHERE id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'the probe rules are missing'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT rules.summary_enabled THEN
+        RETURN NULL;
+    END IF;
+    local_now := clock_timestamp() AT TIME ZONE rules.summary_time_zone;
+    IF extract(hour FROM local_now) < rules.summary_hour THEN
+        RETURN NULL;
+    END IF;
+
+    RETURN local_now::date;
+END;
+$$;
+
+-- The bans that started in the day before the summary hour on p_day, in the
+-- summary time zone. A lifted ban is gone and is not listed.
+CREATE FUNCTION platform.probe_ban_summary(p_day date)
+RETURNS TABLE (
+    address text,
+    reason text,
+    strikes integer,
+    path text,
+    banned_at text,
+    banned_until text,
+    time_zone text
+)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.probe_rules%ROWTYPE;
+    period_end timestamp with time zone;
+BEGIN
+    IF p_day IS NULL THEN
+        RAISE EXCEPTION 'the ban summary needs a day'
+            USING ERRCODE = '22023';
+    END IF;
+    SELECT * INTO rules FROM platform.probe_rules WHERE id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'the probe rules are missing'
+            USING ERRCODE = '23514';
+    END IF;
+    period_end := (p_day + make_interval(hours => rules.summary_hour)) AT TIME ZONE rules.summary_time_zone;
+
+    RETURN QUERY
+    SELECT ban.client_address,
+           ban.reason,
+           ban.strikes,
+           ban.path,
+           to_char(ban.banned_at AT TIME ZONE rules.summary_time_zone, 'YYYY-MM-DD HH24:MI'),
+           to_char(ban.banned_until AT TIME ZONE rules.summary_time_zone, 'YYYY-MM-DD HH24:MI'),
+           rules.summary_time_zone
+    FROM platform.probe_bans AS ban
+    WHERE ban.banned_at >= period_end - interval '1 day'
+      AND ban.banned_at < period_end
+    ORDER BY ban.banned_at, ban.client_address;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION platform.probe_ban_summary_day() FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.probe_ban_summary(date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION platform.probe_ban_summary_day() TO stall_worker;
+GRANT EXECUTE ON FUNCTION platform.probe_ban_summary(date) TO stall_worker;
+
+-- The digest files its mail through the platform mailbox like every other
+-- platform letter, so a failed send retries as an outbound-mail job.
+GRANT EXECUTE ON FUNCTION platform.file_outbound_mail(text, text, text, text, text, text) TO stall_worker;
+
+ALTER TABLE platform.jobs DROP CONSTRAINT jobs_kind_chk;
+ALTER TABLE platform.jobs ADD CONSTRAINT jobs_kind_chk CHECK (kind = ANY (ARRAY[
+    'assess-late-fees'::text,
+    'vendor-digest'::text,
+    'rent-reminder'::text,
+    'reconcile-reports'::text,
+    'sale-notice'::text,
+    'vendor-letter'::text,
+    'markdown-propose'::text,
+    'outbound-mail'::text,
+    'probe-ban-digest'::text
+]));

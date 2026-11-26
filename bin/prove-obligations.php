@@ -19,7 +19,7 @@ $itemProof = readSql($sqlDirectory . DIRECTORY_SEPARATOR . 'prove_append_only_gu
 $vendorProof = readSql($sqlDirectory . DIRECTORY_SEPARATOR . 'prove_vendors_booths.sql');
 $expectedRoles = proofRoles($chartProof);
 
-$ledgerFiles = glob($sqlDirectory . DIRECTORY_SEPARATOR . '0*.sql');
+$ledgerFiles = glob($sqlDirectory . DIRECTORY_SEPARATOR . '[0-9][0-9][0-9]_*.sql');
 if ($ledgerFiles === false) {
     fwrite(STDERR, "could not list ledger files\n");
     exit(1);
@@ -51,14 +51,13 @@ foreach ($ledgerFiles as $path) {
             $failures[] = $file . ' references vendors by ' . $constraint . ' and prove_vendors_booths.sql does not drop it before TRUNCATE vendors';
         }
     }
-    if (str_contains($sql, 'SET event_triggers')) {
+    // A migration never turns the guards off. A change a guard refuses is made
+    // before the guard exists in a baseline, or through a sealed change path.
+    if (setsEventTriggers($sql)) {
         $failures[] = $file . ' sets event_triggers';
     }
     if (str_contains($sql, "set_config('event_triggers'") && !eventTriggerWipeAllowlist($file)) {
         $failures[] = $file . ' uses set_config event_triggers outside an allowlisted wipe migration';
-    }
-    if (eventTriggersLeftOff($sql) && !stampedFileRestoredByProvisioner($file, $root)) {
-        $failures[] = $file . ' leaves event triggers off';
     }
     if (!isset($tenantFiles[$file])) {
         continue;
@@ -110,51 +109,9 @@ function eventTriggerWipeAllowlist(string $file): bool
     return $file === '000_platform.sql';
 }
 
-function stampedFileRestoredByProvisioner(string $file, string $root): bool
+function setsEventTriggers(string $sql): bool
 {
-    if ($file !== '100_booth_deposit_session.sql') {
-        return false;
-    }
-    $schema = $root . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'Schema' . DIRECTORY_SEPARATOR;
-    $provisioner = readSql($schema . 'TenantProvisioner.php');
-    $ledger = methodBody($provisioner, 'function applyLedger', 'function restoreEventTriggers');
-    $restore = methodBody($provisioner, 'function restoreEventTriggers', 'function rewrite');
-
-    return str_contains($ledger, '$this->restoreEventTriggers()')
-        && str_contains($restore, "current_setting('is_superuser')")
-        && str_contains($restore, "SET LOCAL event_triggers = true");
-}
-
-function methodBody(string $source, string $startMarker, string $endMarker): string
-{
-    $start = strpos($source, $startMarker);
-    $end = $start === false ? false : strpos($source, $endMarker, $start + strlen($startMarker));
-    if ($start === false || $end === false || $end <= $start) {
-        return '';
-    }
-
-    return substr($source, $start, $end - $start);
-}
-
-function eventTriggersLeftOff(string $sql): bool
-{
-    $matched = preg_match_all('/SET LOCAL event_triggers = (true|false);/', $sql, $matches);
-    if ($matched === false || $matched === 0) {
-        return false;
-    }
-    $settings = $matches[1];
-    $off = 0;
-    $on = 0;
-    foreach ($settings as $setting) {
-        if ($setting === 'false') {
-            $off++;
-        } else {
-            $on++;
-        }
-    }
-    $last = $settings[count($settings) - 1];
-
-    return $off !== $on || $last !== 'true';
+    return preg_match('/\bSET\s+(?:LOCAL\s+|SESSION\s+)?event_triggers\b/i', $sql) === 1;
 }
 
 function privateHelperIsCovered(string $source, string $method, string $covered): bool

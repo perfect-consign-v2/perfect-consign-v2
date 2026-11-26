@@ -18,36 +18,9 @@ final class SchemaCatalogTest extends TestCase
         $platform = $catalog->platformFiles();
         self::assertSame(SchemaCatalog::TENANT, $tenant);
         self::assertNotContains('034_piece_return.sql', $tenant);
-        self::assertSame([
-            '001_tenant.sql',
-            '090_item_tax_exempt.sql',
-            '091_item_duplicate_sqlstate.sql',
-            '092_item_buy_expired.sql',
-            '093_backup_readonly.sql',
-            '095_vendor_portal.sql',
-            '096_vendor_weekly_mail.sql',
-            '097_catalog_active.sql',
-            '098_booth_active.sql',
-            '099_vendor_delete.sql',
-            '100_booth_deposit_session.sql',
-            '101_booth_location.sql',
-            '103_audit_subject.sql',
-            '108_audit_events_listed.sql',
-            '109_report_sheets.sql',
-        ], $tenant);
+        self::assertSame(['001_tenant.sql'], $tenant);
         self::assertNotContains('000_platform.sql', $tenant);
-        self::assertSame([
-            '000_platform.sql',
-            '094_wipe_keeps_reset_history.sql',
-            '102_job_attention.sql',
-            '104_store_load_audit.sql',
-            '105_probe_ban.sql',
-            '106_probe_ban_audit.sql',
-            '107_admin_mfa.sql',
-            '108_admin_mfa_switch.sql',
-            '110_probe_ban_rules.sql',
-            '111_probe_ban_summary.sql',
-        ], $platform);
+        self::assertSame(['000_platform.sql'], $platform);
         self::assertSame([], $catalog->platformAfterFiles());
         $checksum = $catalog->checksum('001_tenant.sql');
         self::assertSame(64, strlen($checksum));

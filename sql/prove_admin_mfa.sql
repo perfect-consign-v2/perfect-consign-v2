@@ -2,9 +2,10 @@
 --
 -- DROP EVENT TRIGGER is not in platform.reject_admin_append_only_guard's tag
 -- list (DROP FUNCTION, DROP TRIGGER only). Postgres does not deliver that
--- command to the guard. sql/107_admin_mfa.sql drops the event triggers itself,
--- replaces the guard, and creates them again. This proof leaves the event
--- triggers installed and attacks the authenticator triggers underneath them.
+-- command to the guard. sql/000_platform.sql creates the authenticator tables
+-- and the guard before it creates the event triggers. This proof leaves the
+-- event triggers installed and attacks the authenticator triggers underneath
+-- them.
 
 BEGIN;
 

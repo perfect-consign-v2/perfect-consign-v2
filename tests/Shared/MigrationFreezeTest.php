@@ -32,6 +32,13 @@ final class MigrationFreezeTest extends TestCase
             self::assertNotFalse(file_put_contents($sql . DIRECTORY_SEPARATOR . '000_platform.sql', "--\n"));
             self::assertNotFalse(file_put_contents($sql . DIRECTORY_SEPARATOR . '001_tenant.sql', "--\n"));
             self::assertTrue(migrationBaselineReset($root));
+            self::assertFalse(migrationGoneLive($root));
+            self::assertNotFalse(file_put_contents($sql . DIRECTORY_SEPARATOR . '101_later.sql', "--\n"));
+            self::assertFalse(migrationBaselineReset($root));
+            unlink($sql . DIRECTORY_SEPARATOR . '101_later.sql');
+            self::assertNotFalse(file_put_contents($sql . DIRECTORY_SEPARATOR . 'PRODUCTION_BASELINE', "2026-12-01\n"));
+            self::assertTrue(migrationGoneLive($root));
+            self::assertFalse(migrationBaselineReset($root));
         } finally {
             foreach (glob($sql . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
                 unlink($file);
@@ -39,6 +46,5 @@ final class MigrationFreezeTest extends TestCase
             rmdir($sql);
             rmdir($root);
         }
-        self::assertFalse(migrationBaselineReset(dirname(__DIR__, 2)));
     }
 }

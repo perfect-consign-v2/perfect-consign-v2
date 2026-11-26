@@ -1928,7 +1928,8 @@ BEGIN
         'cash_drop',
         'register_variance',
         'layaway_deposit',
-        'layaway_refund'
+        'layaway_refund',
+        'booth_deposit'
     ) AND NOT EXISTS (
         SELECT 1
         FROM public.register_session_posts
@@ -6310,7 +6311,8 @@ BEGIN
         'cash_drop',
         'register_variance',
         'layaway_deposit',
-        'layaway_refund'
+        'layaway_refund',
+        'booth_deposit'
     ) THEN
         RAISE EXCEPTION 'a drawer journal needs an open register'
             USING ERRCODE = '23514';
@@ -13329,3 +13331,1860 @@ BEGIN
     END IF;
 END;
 $$;
+
+
+-- >>> folded from 090_item_tax_exempt.sql
+-- Item tax exempt: a piece marked exempt posts with no sales tax.
+-- Vendor resale and ticket waiver still zero tax. Existing items stay taxable.
+-- stall_assert_sale_shape is a sale_lines_append_only guard and cannot be replaced.
+-- A BEFORE ROW trigger named earlier than sale_lines_append_only sets
+-- stall.line_tax_exempt so stall_tax_minor returns 0 for that line.
+
+ALTER TABLE public.items
+    ADD COLUMN tax_exempt boolean DEFAULT false NOT NULL;
+
+CREATE FUNCTION public.stall_item_tax_exempt(p_item_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $fn$
+    SELECT COALESCE(item.tax_exempt, false) OR COALESCE(vendor.tax_exempt, false)
+    FROM public.items AS item
+    LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+    WHERE item.id = p_item_id
+$fn$;
+
+GRANT ALL ON FUNCTION public.stall_item_tax_exempt(uuid) TO stall_poster;
+
+CREATE OR REPLACE FUNCTION public.stall_tax_minor(net bigint, tax_bps bigint) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $fn$
+    SELECT CASE
+        WHEN current_setting('stall.line_tax_exempt', true) = '1' THEN 0
+        ELSE (net * tax_bps + 50000) / 100000
+    END;
+$fn$;
+
+CREATE FUNCTION public.stall_apply_item_tax_exempt() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $fn$
+DECLARE
+    waiver boolean := false;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    IF TG_OP <> 'INSERT' THEN
+        RETURN NEW;
+    END IF;
+    SELECT ticket.tax_waiver_reason IS NOT NULL
+    INTO waiver
+    FROM public.tickets AS ticket
+    JOIN public.ticket_lines AS line ON line.ticket_id = ticket.id
+    WHERE line.item_id = NEW.item_id
+      AND ticket.status = 'open';
+    IF NOT FOUND THEN
+        waiver := false;
+    END IF;
+    IF waiver OR COALESCE(public.stall_item_tax_exempt(NEW.item_id), false) THEN
+        PERFORM set_config('stall.line_tax_exempt', '1', true);
+    ELSE
+        PERFORM set_config('stall.line_tax_exempt', '0', true);
+    END IF;
+    RETURN NEW;
+END;
+$fn$;
+
+CREATE TRIGGER sale_lines_aa_item_tax
+    BEFORE INSERT OR DELETE OR UPDATE ON public.sale_lines
+    FOR EACH ROW EXECUTE FUNCTION public.stall_apply_item_tax_exempt();
+
+GRANT ALL ON FUNCTION public.stall_apply_item_tax_exempt() TO stall_poster;
+
+CREATE OR REPLACE FUNCTION public.stall_mint_register_snaps(
+    p_session_id uuid,
+    p_ticket_id uuid
+) RETURNS SETOF text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    business date;
+    mall_tax integer;
+    waiver text;
+    ticket_line RECORD;
+    snap_key text;
+    line_tax bigint;
+    line_discount bigint;
+    line_store bigint;
+    vendor_exempt boolean;
+    line_count integer;
+    waiting_count integer;
+    mismatch boolean;
+    ticket_kind text;
+    ticket_value bigint;
+BEGIN
+    IF p_session_id IS NULL OR p_ticket_id IS NULL THEN
+        RAISE EXCEPTION 'a register session is required'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.register_sessions AS session
+        WHERE session.id = p_session_id
+          AND session.closed_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'a register session is required'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT ticket.tax_waiver_reason, ticket.discount_kind, ticket.discount_value
+    INTO waiver, ticket_kind, ticket_value
+    FROM public.tickets AS ticket
+    WHERE ticket.id = p_ticket_id
+      AND ticket.session_id = p_session_id
+      AND ticket.status = 'open';
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'there is no open ticket'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT count(*)::integer INTO line_count
+    FROM public.ticket_lines AS tl
+    WHERE tl.ticket_id = p_ticket_id;
+
+    IF line_count < 1 THEN
+        RAISE EXCEPTION 'there is no open ticket'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT mall.tax_bps,
+           (clock_timestamp() AT TIME ZONE mall.time_zone)::date
+    INTO mall_tax, business
+    FROM public.mall AS mall;
+
+    SELECT count(*)::integer INTO waiting_count
+    FROM public.register_snaps AS snap
+    WHERE snap.ticket_id = p_ticket_id
+      AND snap.status = 'waiting';
+
+    mismatch := waiting_count IS DISTINCT FROM line_count
+        OR EXISTS (
+            SELECT 1
+            FROM public.ticket_lines AS tl
+            JOIN public.items AS item ON item.id = tl.item_id
+            LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+            WHERE tl.ticket_id = p_ticket_id
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM public.register_snaps AS snap
+                  WHERE snap.ticket_id = p_ticket_id
+                    AND snap.status = 'waiting'
+                    AND snap.line_no = tl.line_no
+                    AND snap.item_id = tl.item_id
+                    AND snap.price_minor = tl.price_minor
+                    AND snap.quantity = tl.quantity
+                    AND snap.tax_waiver_reason IS NOT DISTINCT FROM waiver
+                    AND snap.discount_minor = public.stall_line_discount(
+                            p_ticket_id, tl.item_id, ticket_kind, ticket_value
+                        ) + tl.line_discount_minor + tl.offer_discount_minor
+                    AND snap.store_discount_minor = tl.store_discount_minor
+                    AND snap.tax_minor = CASE
+                        WHEN waiver IS NOT NULL OR public.stall_item_tax_exempt(item.id) THEN 0
+                        ELSE public.stall_tax_minor(
+                            tl.price_minor * tl.quantity
+                                - (
+                                    public.stall_line_discount(
+                                        p_ticket_id, tl.item_id, ticket_kind, ticket_value
+                                    ) + tl.line_discount_minor + tl.offer_discount_minor
+                                    + tl.store_discount_minor
+                                ),
+                            mall_tax
+                        )
+                    END
+              )
+        );
+
+    IF NOT mismatch THEN
+        RETURN QUERY
+        SELECT snap.posting_key
+        FROM public.register_snaps AS snap
+        WHERE snap.ticket_id = p_ticket_id
+          AND snap.status = 'waiting'
+        ORDER BY snap.line_no;
+        RETURN;
+    END IF;
+
+    DELETE FROM public.register_snaps AS snap
+    WHERE snap.ticket_id = p_ticket_id
+      AND snap.status = 'waiting';
+
+    FOR ticket_line IN
+        SELECT tl.line_no,
+               tl.item_id,
+               tl.price_minor,
+               tl.quantity,
+               tl.line_discount_minor,
+               tl.offer_discount_minor,
+               tl.store_discount_minor,
+               public.stall_item_tax_exempt(item.id) AS tax_exempt
+        FROM public.ticket_lines AS tl
+        JOIN public.items AS item ON item.id = tl.item_id
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        WHERE tl.ticket_id = p_ticket_id
+        ORDER BY tl.line_no
+    LOOP
+        vendor_exempt := ticket_line.tax_exempt;
+        line_discount := public.stall_line_discount(
+            p_ticket_id, ticket_line.item_id, ticket_kind, ticket_value
+        ) + ticket_line.line_discount_minor + ticket_line.offer_discount_minor;
+        line_store := ticket_line.store_discount_minor;
+        IF line_discount + line_store > ticket_line.price_minor * ticket_line.quantity THEN
+            RAISE EXCEPTION 'a sale discount does not match the ticket'
+                USING ERRCODE = '23514';
+        END IF;
+        IF waiver IS NOT NULL OR vendor_exempt THEN
+            line_tax := 0;
+        ELSE
+            line_tax := public.stall_tax_minor(
+                ticket_line.price_minor * ticket_line.quantity - line_discount - line_store,
+                mall_tax
+            );
+        END IF;
+
+        snap_key := uuidv7()::text;
+        INSERT INTO public.register_snaps (
+            posting_key,
+            session_id,
+            business_date,
+            item_id,
+            price_minor,
+            tax_minor,
+            commission_minor,
+            commission_bps,
+            tax_bps,
+            quantity,
+            ticket_id,
+            line_no,
+            tax_waiver_reason,
+            discount_minor,
+            store_discount_minor
+        ) VALUES (
+            snap_key,
+            p_session_id,
+            business,
+            ticket_line.item_id,
+            ticket_line.price_minor,
+            line_tax,
+            0,
+            0,
+            0,
+            ticket_line.quantity,
+            p_ticket_id,
+            ticket_line.line_no,
+            waiver,
+            line_discount,
+            line_store
+        );
+        RETURN NEXT snap_key;
+    END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.stall_sync_snap(snap_key text) RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    snap public.register_snaps%ROWTYPE;
+    on_hand integer;
+    vendor uuid;
+    vendor_exempt boolean;
+    cash_id uuid;
+    commission_id uuid;
+    payable_id uuid;
+    tax_id uuid;
+    promo_id uuid;
+    posted_id uuid;
+    payable bigint;
+    posted_no bigint;
+    book uuid;
+    period uuid;
+    commission_bps integer;
+    commission_minor bigint;
+    tax_expected bigint;
+    mall_tax integer;
+    net bigint;
+    line_no integer := 1;
+BEGIN
+    SELECT * INTO snap
+    FROM public.register_snaps AS row
+    WHERE row.posting_key = snap_key
+    FOR UPDATE;
+
+    IF snap.id IS NULL THEN
+        RAISE EXCEPTION 'that snap is not on this register'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF snap.status = 'posted' AND snap.journal_no IS NOT NULL THEN
+        RETURN snap.journal_no;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.register_sessions AS session
+        WHERE session.id = snap.session_id
+          AND session.closed_at IS NULL
+    ) THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = 'a register session is required'
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM public.journals AS journal WHERE journal.posting_key = snap.posting_key
+    ) THEN
+        SELECT journal.id, journal.journal_no
+        INTO posted_id, posted_no
+        FROM public.journals AS journal
+        WHERE journal.posting_key = snap.posting_key;
+        UPDATE public.register_snaps
+        SET status = 'posted', journal_id = posted_id, journal_no = posted_no, refusal = NULL
+        WHERE id = snap.id;
+        RETURN posted_no;
+    END IF;
+
+    SELECT role.account_id INTO cash_id FROM public.chart_roles AS role WHERE role.role = 'cash';
+    SELECT role.account_id INTO commission_id FROM public.chart_roles AS role WHERE role.role = 'commission_revenue';
+    SELECT role.account_id INTO payable_id FROM public.chart_roles AS role WHERE role.role = 'vendor_payable';
+    SELECT role.account_id INTO tax_id FROM public.chart_roles AS role WHERE role.role = 'sales_tax_payable';
+    SELECT role.account_id INTO promo_id FROM public.chart_roles AS role WHERE role.role = 'promotion_expense';
+    SELECT id INTO book FROM public.ledger_books WHERE is_default;
+    SELECT open_period.id INTO period
+    FROM public.accounting_periods AS open_period
+    WHERE open_period.book_id = book
+      AND open_period.starts_on <= snap.business_date
+      AND open_period.ends_on >= snap.business_date
+      AND open_period.status = 'open';
+
+    IF period IS NULL THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = 'a closed period refuses a new journal'
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    SELECT item.quantity, item.vendor_id, public.stall_item_tax_exempt(item.id)
+    INTO on_hand, vendor, vendor_exempt
+    FROM public.items AS item
+    LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+    WHERE item.id = snap.item_id
+      AND item.placement = 'consigned'
+    FOR UPDATE OF item;
+
+    IF vendor IS NULL THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = 'a sale line needs an item'
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    IF on_hand < snap.quantity THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = 'there are not enough on hand'
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    net := snap.price_minor * snap.quantity - snap.discount_minor - snap.store_discount_minor;
+    commission_bps := public.stall_commission_for(snap.item_id, snap.price_minor, snap.business_date);
+    commission_minor := public.stall_half_up(
+        snap.price_minor * snap.quantity - snap.discount_minor,
+        commission_bps
+    );
+    SELECT mall.tax_bps INTO mall_tax FROM public.mall AS mall;
+    IF snap.tax_waiver_reason IS NOT NULL OR vendor_exempt THEN
+        tax_expected := 0;
+    ELSE
+        tax_expected := public.stall_tax_minor(net, mall_tax);
+    END IF;
+
+    IF snap.tax_minor IS DISTINCT FROM tax_expected THEN
+        UPDATE public.register_snaps
+        SET status = 'refused',
+            refusal = 'a sale tax does not match the mall rate',
+            tax_expected_minor = tax_expected,
+            tax_variance_minor = snap.tax_minor - tax_expected
+        WHERE id = snap.id;
+        RETURN NULL;
+    END IF;
+
+    UPDATE public.register_snaps
+    SET tax_expected_minor = tax_expected,
+        tax_variance_minor = 0
+    WHERE id = snap.id;
+
+    payable := snap.price_minor * snap.quantity - snap.discount_minor - commission_minor;
+    posted_id := uuidv7();
+
+    BEGIN
+        INSERT INTO public.journals (
+            id, book_id, posting_key, posting_date, occurred_at, period_id,
+            currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+        ) VALUES (
+            posted_id, book, snap.posting_key, snap.business_date, clock_timestamp(), period,
+            'USD', 'sale', snap.posting_key, 'Snapped sale',
+            net + snap.tax_minor + snap.store_discount_minor,
+            net + snap.tax_minor + snap.store_discount_minor
+        );
+        INSERT INTO public.journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+        VALUES (posted_id, book, line_no, cash_id, net + snap.tax_minor, 0);
+        line_no := line_no + 1;
+        IF snap.store_discount_minor > 0 THEN
+            INSERT INTO public.journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+            VALUES (posted_id, book, line_no, promo_id, snap.store_discount_minor, 0);
+            line_no := line_no + 1;
+        END IF;
+        IF commission_minor > 0 THEN
+            INSERT INTO public.journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+            VALUES (posted_id, book, line_no, commission_id, 0, commission_minor);
+            line_no := line_no + 1;
+        END IF;
+        IF payable > 0 THEN
+            INSERT INTO public.journal_lines (
+                journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+            ) VALUES (
+                posted_id, book, line_no, payable_id, 0, payable, 'vendor', vendor::text
+            );
+            line_no := line_no + 1;
+        END IF;
+        IF snap.tax_minor > 0 THEN
+            INSERT INTO public.journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+            VALUES (posted_id, book, line_no, tax_id, 0, snap.tax_minor);
+        END IF;
+        INSERT INTO public.sale_lines (
+            journal_id, line_no, item_id, price_minor, quantity, commission_minor, tax_minor,
+            discount_minor, store_discount_minor
+        ) VALUES (
+            posted_id, 1, snap.item_id, snap.price_minor, snap.quantity, commission_minor, snap.tax_minor,
+            snap.discount_minor, snap.store_discount_minor
+        );
+        INSERT INTO public.register_session_posts (session_id, journal_id)
+        VALUES (snap.session_id, posted_id);
+        IF snap.ticket_id IS NOT NULL THEN
+            DELETE FROM public.ticket_lines AS tl
+            WHERE tl.ticket_id = snap.ticket_id
+              AND tl.item_id = snap.item_id
+              AND (snap.line_no IS NULL OR tl.line_no = snap.line_no);
+            DELETE FROM public.tickets AS ticket
+            WHERE ticket.id = snap.ticket_id
+              AND ticket.status = 'open'
+              AND NOT EXISTS (
+                  SELECT 1 FROM public.ticket_lines AS left_line WHERE left_line.ticket_id = ticket.id
+              );
+        END IF;
+        SET CONSTRAINTS ALL IMMEDIATE;
+        SELECT journal.journal_no INTO posted_no FROM public.journals AS journal WHERE journal.id = posted_id;
+    EXCEPTION WHEN OTHERS THEN
+        UPDATE public.register_snaps
+        SET status = 'refused', refusal = SQLERRM
+        WHERE id = snap.id;
+        RETURN NULL;
+    END;
+
+    SET CONSTRAINTS ALL DEFERRED;
+
+    UPDATE public.register_snaps
+    SET status = 'posted', journal_id = posted_id, journal_no = posted_no, refusal = NULL
+    WHERE id = snap.id;
+
+    RETURN posted_no;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.stall_sales_tax_sheet(starts_on date, ends_on date) RETURNS TABLE(section text, label text, sale_count bigint, items_sold bigint, subtotal_minor bigint, discount_minor bigint, tax_minor bigint, total_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH sale AS (
+        SELECT
+            journal.id,
+            sale_line.quantity,
+            sale_line.price_minor * sale_line.quantity AS gross_minor,
+            sale_line.discount_minor + sale_line.store_discount_minor AS discount_minor,
+            sale_line.tax_minor,
+            CASE
+                WHEN ticket.tax_waiver_reason IS NOT NULL THEN ticket.tax_waiver_reason
+                WHEN vendor.tax_exempt THEN 'vendor resale'
+                WHEN item.tax_exempt THEN 'item exempt'
+                ELSE ''
+            END AS exempt_reason,
+            CASE
+                WHEN (sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor) > 0
+                    THEN (
+                        (sale_line.tax_minor * 100000)
+                        + ((sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor) / 2)
+                    ) / (sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor)
+                ELSE 0
+            END AS rate_bps
+        FROM public.journals AS journal
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        LEFT JOIN public.tickets AS ticket ON ticket.posted_journal_id = journal.id
+        WHERE journal.source_type = 'sale'
+          AND NOT journal.is_reversal
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+    ),
+    returned AS (
+        SELECT
+            item_return.quantity,
+            item_return.price_minor * item_return.quantity AS gross_minor,
+            item_return.discount_minor + item_return.store_discount_minor AS discount_minor,
+            item_return.tax_minor
+        FROM public.item_returns AS item_return
+        JOIN public.journals AS journal ON journal.id = item_return.journal_id
+        WHERE journal.source_type = 'item_return'
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+    )
+    SELECT 'taxable', 'Taxable sales', count(DISTINCT sale.id)::bigint, COALESCE(sum(sale.quantity), 0)::bigint,
+           COALESCE(sum(sale.gross_minor), 0)::bigint, COALESCE(sum(sale.discount_minor), 0)::bigint,
+           COALESCE(sum(sale.tax_minor), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor + sale.tax_minor), 0)::bigint
+    FROM sale
+    WHERE sale.exempt_reason = ''
+    UNION ALL
+    SELECT 'exempt', sale.exempt_reason, count(DISTINCT sale.id)::bigint, COALESCE(sum(sale.quantity), 0)::bigint,
+           COALESCE(sum(sale.gross_minor), 0)::bigint, COALESCE(sum(sale.discount_minor), 0)::bigint,
+           COALESCE(sum(sale.tax_minor), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor + sale.tax_minor), 0)::bigint
+    FROM sale
+    WHERE sale.exempt_reason <> ''
+    GROUP BY sale.exempt_reason
+    UNION ALL
+    SELECT 'return', 'Returns', count(*)::bigint, COALESCE(sum(returned.quantity), 0)::bigint,
+           (-COALESCE(sum(returned.gross_minor), 0))::bigint, (-COALESCE(sum(returned.discount_minor), 0))::bigint,
+           (-COALESCE(sum(returned.tax_minor), 0))::bigint,
+           (-COALESCE(sum(returned.gross_minor - returned.discount_minor + returned.tax_minor), 0))::bigint
+    FROM returned
+    UNION ALL
+    SELECT 'void', 'Voids', count(DISTINCT journal.id)::bigint, 0,
+           0, 0,
+           (-COALESCE(sum(line.debit_minor - line.credit_minor), 0))::bigint,
+           (-COALESCE(sum(line.debit_minor - line.credit_minor), 0))::bigint
+    FROM public.journals AS journal
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+    WHERE journal.source_type = 'sale'
+      AND journal.is_reversal
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    UNION ALL
+    SELECT 'rate', sale.rate_bps::text, count(DISTINCT sale.id)::bigint, COALESCE(sum(sale.quantity), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor), 0)::bigint, 0,
+           COALESCE(sum(sale.tax_minor), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor + sale.tax_minor), 0)::bigint
+    FROM sale
+    WHERE sale.exempt_reason = ''
+    GROUP BY sale.rate_bps
+    UNION ALL
+    SELECT 'nontaxable', 'Booth rent collected', count(DISTINCT journal.id)::bigint, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journals AS journal
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    WHERE journal.source_type = 'rent_payment'
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    UNION ALL
+    SELECT 'nontaxable', kind.label, count(DISTINCT journal.id)::bigint, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM (VALUES
+        ('gift_certificate_issue', 'gift_certificate', 'Gift certificates issued'),
+        ('gift_card_issue', 'gift_card', 'Gift cards issued'),
+        ('store_credit_issue', 'store_credit', 'Store credit issued')
+    ) AS kind(source_type, role_name, label)
+    JOIN public.journals AS journal ON journal.source_type = kind.source_type
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = kind.role_name
+    WHERE journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+      AND NOT journal.is_reversal
+    GROUP BY kind.label
+    UNION ALL
+    SELECT 'liability', 'Opening', 0, 0, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint, 0
+    FROM public.journal_lines AS line
+    JOIN public.journals AS journal ON journal.id = line.journal_id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+    WHERE journal.posting_date < starts_on
+    UNION ALL
+    SELECT 'liability', 'Collected', 0, 0, 0, 0, public.stall_sales_tax_collected(starts_on, ends_on), 0
+    UNION ALL
+    SELECT 'liability', 'Paid', 0, 0, 0, 0,
+           COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint, 0
+    FROM public.journal_lines AS line
+    JOIN public.journals AS journal ON journal.id = line.journal_id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+    WHERE journal.source_type = 'tax_payment'
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    UNION ALL
+    SELECT 'liability', 'Closing', 0, 0, 0, 0,
+           (
+               COALESCE((
+                   SELECT sum(line.credit_minor - line.debit_minor)
+                   FROM public.journal_lines AS line
+                   JOIN public.journals AS journal ON journal.id = line.journal_id
+                   JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+                   WHERE journal.posting_date <= ends_on
+               ), 0)
+           )::bigint,
+           0;
+$$;
+
+
+-- >>> folded from 091_item_duplicate_sqlstate.sql
+-- Duplicate tag, barcode, and certificate refusals keep the cashier sentence
+-- and use a dedicated SQLSTATE so the app retries on the code, not the text.
+-- P1001 tag, P1002 barcode, P1003 stored-value number.
+
+CREATE OR REPLACE FUNCTION public.stall_refuse_duplicate_item_code() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM public.items AS other
+        WHERE lower(other.code) = lower(NEW.code) AND other.id IS DISTINCT FROM NEW.id
+    ) THEN
+        RAISE EXCEPTION 'That tag is already used.'
+            USING ERRCODE = 'P1001';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.stall_refuse_duplicate_item_barcode() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+BEGIN
+    IF NEW.barcode IS NULL OR btrim(NEW.barcode) = '' THEN
+        RETURN NEW;
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM public.items AS other
+        WHERE lower(other.barcode) = lower(NEW.barcode) AND other.id IS DISTINCT FROM NEW.id
+    ) THEN
+        RAISE EXCEPTION 'That barcode is already used.'
+            USING ERRCODE = 'P1002';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.stall_refuse_duplicate_stored_value_number() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM public.stored_values AS other
+        WHERE other.kind = NEW.kind
+          AND lower(other.number) = lower(NEW.number)
+          AND other.id IS DISTINCT FROM NEW.id
+    ) THEN
+        RAISE EXCEPTION 'That certificate number is already used.'
+            USING ERRCODE = 'P1003';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+
+-- >>> folded from 092_item_buy_expired.sql
+-- A store purchase buys only a consigned piece whose expire date is already past
+-- in the mall time zone. The typed amount stays the cost. A piece that expires
+-- today is still on the floor. Return and donate already use the same day test.
+
+CREATE OR REPLACE FUNCTION public.stall_apply_item_buy() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    expense bigint;
+    payable bigint;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.journals
+        WHERE id = NEW.journal_id AND source_type = 'store_purchase' AND is_reversal = false
+    ) THEN
+        RAISE EXCEPTION 'a buy belongs on a store purchase'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT COALESCE(sum(line.debit_minor), 0)
+    INTO expense
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id AND role.role = 'store_purchases' AND line.debit_minor > 0;
+    SELECT COALESCE(sum(line.credit_minor), 0)
+    INTO payable
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.journal_id
+      AND role.role = 'vendor_payable'
+      AND line.credit_minor > 0
+      AND line.subledger_type = 'vendor'
+      AND line.subledger_ref = NEW.vendor_id::text;
+    IF expense <> NEW.amount_minor OR payable <> NEW.amount_minor THEN
+        RAISE EXCEPTION 'a buy pays the consignor'
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.sale_lines WHERE item_id = NEW.item_id) THEN
+        RAISE EXCEPTION 'a sold piece cannot be bought'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.items
+        WHERE id = NEW.item_id
+          AND placement = 'consigned'
+          AND quantity > 0
+          AND expires_on IS NOT NULL
+          AND expires_on < (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall)
+    ) THEN
+        RAISE EXCEPTION 'only an expired consigned piece can be bought'
+            USING ERRCODE = '23514';
+    END IF;
+    UPDATE public.items
+    SET placement = 'store',
+        vendor_id = NULL,
+        expires_on = NULL,
+        commission_bps = NULL,
+        cost_minor = NEW.amount_minor
+    WHERE id = NEW.item_id
+      AND placement = 'consigned'
+      AND vendor_id = NEW.vendor_id
+      AND quantity > 0;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'a buy takes a consigned piece'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+
+-- >>> folded from 093_backup_readonly.sql
+-- stall_backup reads tenant tables. It does not execute tenant functions.
+-- PUBLIC execute is revoked in this schema. Later functions in this schema
+-- must GRANT EXECUTE to stall_poster (and to stall_vendor / stall_vendor_entry
+-- only when that role calls them). The migrator role's default privileges
+-- no longer hand EXECUTE to PUBLIC.
+
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
+
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM stall_backup;
+
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_prefer(text) TO stall_vendor;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open(text) TO stall_vendor_entry;
+
+GRANT EXECUTE ON FUNCTION public.stall_party_primary_email(uuid) TO stall_vendor_entry;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+
+
+-- >>> folded from 095_vendor_portal.sql
+-- Vendor portal and vendor inventory are store switches.
+-- Portal on keeps the check, sales, and deals a vendor already sees.
+-- Inventory starts off. The owner turns it on before a vendor can add,
+-- edit, delete, or print labels.
+
+ALTER TABLE public.mall
+    ADD COLUMN vendor_portal_enabled boolean DEFAULT true NOT NULL,
+    ADD COLUMN vendor_inventory_enabled boolean DEFAULT false NOT NULL;
+
+
+-- >>> folded from 096_vendor_weekly_mail.sql
+-- The Sunday vendor letter is a store switch. It starts off.
+-- Sale-day notices and the rent reminder are separate and stay on.
+
+ALTER TABLE public.mall
+    ADD COLUMN vendor_weekly_mail_enabled boolean DEFAULT false NOT NULL;
+
+
+-- >>> folded from 097_catalog_active.sql
+-- A brand, color, category, size, condition, or department can be hidden
+-- from the next item without taking the name off items that already use it.
+
+ALTER TABLE public.brands
+    ADD COLUMN active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.categories
+    ADD COLUMN active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.colors
+    ADD COLUMN active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.sizes
+    ADD COLUMN active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.conditions
+    ADD COLUMN active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.departments
+    ADD COLUMN active boolean DEFAULT true NOT NULL;
+
+
+-- >>> folded from 098_booth_active.sql
+-- A booth can be hidden from the default list, the assignment choices,
+-- and the map without deleting it. A current or scheduled assignment
+-- still refuses Inactive.
+
+ALTER TABLE public.booths
+    ADD COLUMN active boolean DEFAULT true NOT NULL;
+
+
+-- >>> folded from 099_vendor_delete.sql
+-- An owner can delete a vendor that no journal line names.
+-- vendors_referenced_no_delete still refuses a vendor on a posted line.
+
+GRANT DELETE ON TABLE public.vendors TO stall_poster;
+
+
+-- >>> folded from 101_booth_location.sql
+-- Where a booth sits in the mall. Empty stays null. A value is one
+-- trimmed line of at most 200 characters.
+
+ALTER TABLE public.booths
+    ADD COLUMN location text;
+
+ALTER TABLE public.booths
+    ADD CONSTRAINT booths_location_chk CHECK ((
+        (location IS NULL)
+        OR (
+            (location = btrim(location))
+            AND (location <> ''::text)
+            AND (char_length(location) <= 200)
+            AND (location !~ '[\n\r]'::text)
+        )
+    ));
+
+
+-- >>> folded from 103_audit_subject.sql
+-- Store activity names the signed-in account. Old rows stay unlabeled.
+-- A new row without that account is refused. Append-only guards stay.
+
+ALTER TABLE public.audit_events
+    ADD COLUMN account_id uuid,
+    ADD COLUMN account_kind text,
+    ADD COLUMN username text,
+    ADD COLUMN authority_account_id uuid,
+    ADD COLUMN authority_username text,
+    ADD COLUMN entered_by_admin_id uuid,
+    ADD COLUMN entered_by_email text,
+    ADD COLUMN client_address text;
+
+ALTER TABLE public.audit_events
+    ADD CONSTRAINT audit_events_subject_chk CHECK ((
+        (account_id IS NULL AND account_kind IS NULL AND username IS NULL)
+        OR (
+            account_id IS NOT NULL
+            AND account_kind = ANY (ARRAY['owner'::text, 'staff'::text])
+            AND username = btrim(username)
+            AND username ~ '^[a-z][a-z0-9-]{0,62}$'
+        )
+    ));
+
+ALTER TABLE public.audit_events
+    ADD CONSTRAINT audit_events_authority_chk CHECK ((
+        (authority_account_id IS NULL AND authority_username IS NULL)
+        OR (
+            authority_account_id IS NOT NULL
+            AND authority_username = btrim(authority_username)
+            AND authority_username ~ '^[a-z][a-z0-9-]{0,62}$'
+        )
+    ));
+
+ALTER TABLE public.audit_events
+    ADD CONSTRAINT audit_events_entered_by_chk CHECK ((
+        (entered_by_admin_id IS NULL AND entered_by_email IS NULL)
+        OR (
+            entered_by_admin_id IS NOT NULL
+            AND entered_by_email = btrim(entered_by_email)
+            AND char_length(entered_by_email) <= 200
+            AND entered_by_email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+        )
+    ));
+
+ALTER TABLE public.audit_events
+    ADD CONSTRAINT audit_events_address_chk CHECK ((
+        client_address IS NULL OR char_length(client_address) <= 64
+    ));
+
+CREATE FUNCTION public.stall_require_audit_subject() RETURNS trigger
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path TO pg_catalog
+    AS $$
+DECLARE
+    mall_id uuid;
+    staff_name text;
+    owner_name text;
+    authority_name text;
+    admin_email text;
+BEGIN
+    IF NEW.account_id IS NULL
+        OR NEW.account_kind IS NULL
+        OR NEW.username IS NULL
+        OR NEW.actor IS NULL
+        OR btrim(NEW.actor) = ''
+        OR NEW.role IS NULL
+        OR btrim(NEW.role) = ''
+        OR NEW.client_address IS NULL
+    THEN
+        RAISE EXCEPTION 'an audit row needs the signed-in account'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.account_kind = 'staff' THEN
+        EXECUTE format(
+            'SELECT display_name FROM %I.staff WHERE id = $1 AND username = $2 AND role = $3',
+            TG_TABLE_SCHEMA
+        ) INTO staff_name USING NEW.account_id, NEW.username, NEW.role;
+        IF staff_name IS NULL OR staff_name IS DISTINCT FROM NEW.actor THEN
+            RAISE EXCEPTION 'an audit row needs the signed-in account'
+                USING ERRCODE = '23514';
+        END IF;
+    ELSIF NEW.account_kind = 'owner' THEN
+        IF NEW.role IS DISTINCT FROM 'owner' OR NEW.actor IS DISTINCT FROM NEW.username THEN
+            RAISE EXCEPTION 'an audit row needs the signed-in account'
+                USING ERRCODE = '23514';
+        END IF;
+        SELECT tenants.id INTO mall_id
+        FROM platform.tenants AS tenants
+        WHERE tenants.schema_name = TG_TABLE_SCHEMA;
+        IF mall_id IS NULL THEN
+            RAISE EXCEPTION 'an audit row needs the signed-in account'
+                USING ERRCODE = '23514';
+        END IF;
+        SELECT owners.username INTO owner_name
+        FROM platform.owners AS owners
+        WHERE owners.id = NEW.account_id
+          AND owners.tenant_id = mall_id
+          AND owners.username = NEW.username;
+        IF owner_name IS NULL THEN
+            RAISE EXCEPTION 'an audit row needs the signed-in account'
+                USING ERRCODE = '23514';
+        END IF;
+    ELSE
+        RAISE EXCEPTION 'an audit row needs the signed-in account'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF (NEW.authority_account_id IS NULL) IS DISTINCT FROM (NEW.authority_username IS NULL) THEN
+        RAISE EXCEPTION 'an audit row needs the signed-in account'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NEW.authority_account_id IS NOT NULL THEN
+        IF NEW.authority_account_id IS NOT DISTINCT FROM NEW.account_id THEN
+            RAISE EXCEPTION 'a second signer is a different person'
+                USING ERRCODE = '23514';
+        END IF;
+        EXECUTE format(
+            'SELECT username FROM %I.staff WHERE id = $1 AND username = $2',
+            TG_TABLE_SCHEMA
+        ) INTO authority_name USING NEW.authority_account_id, NEW.authority_username;
+        IF authority_name IS NULL THEN
+            RAISE EXCEPTION 'a second signer is a different person'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+
+    IF (NEW.entered_by_admin_id IS NULL) IS DISTINCT FROM (NEW.entered_by_email IS NULL) THEN
+        RAISE EXCEPTION 'an audit row needs the operator'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NEW.entered_by_admin_id IS NOT NULL THEN
+        SELECT admins.email INTO admin_email
+        FROM platform.admins AS admins
+        WHERE admins.id = NEW.entered_by_admin_id;
+        IF admin_email IS NULL OR lower(admin_email) IS DISTINCT FROM lower(NEW.entered_by_email) THEN
+            RAISE EXCEPTION 'an audit row needs the operator'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+
+    IF char_length(NEW.client_address) > 64 THEN
+        RAISE EXCEPTION 'an audit row needs the signed-in account'
+            USING ERRCODE = '23514';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER audit_events_subject_append_only
+    BEFORE INSERT ON public.audit_events
+    FOR EACH ROW
+    EXECUTE FUNCTION public.stall_require_audit_subject();
+
+ALTER TABLE public.audit_events ENABLE ALWAYS TRIGGER audit_events_subject_append_only;
+
+REVOKE ALL ON FUNCTION public.stall_require_audit_subject() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.stall_require_audit_subject() TO stall_poster;
+
+DROP FUNCTION IF EXISTS public.stall_confirm_markdown(uuid, text, boolean);
+
+CREATE FUNCTION public.stall_confirm_markdown(
+    proposal uuid,
+    account_id uuid,
+    account_kind text,
+    account_username text,
+    actor_name text,
+    override_floor boolean
+) RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+DECLARE
+    piece uuid;
+    step uuid;
+    proposed bigint;
+    current_price bigint;
+    floor_minor bigint;
+    stored_role text;
+    stored_name text;
+    mall_schema text;
+BEGIN
+    SELECT row.item_id, row.step_id, row.proposed_minor
+    INTO piece, step, proposed
+    FROM public.markdown_proposals AS row
+    WHERE row.id = proposal
+      AND row.status = 'proposed'
+    FOR UPDATE;
+
+    IF piece IS NULL THEN
+        RAISE EXCEPTION 'that markdown is not waiting'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT item.price_minor INTO current_price
+    FROM public.items AS item
+    WHERE item.id = piece
+    FOR UPDATE;
+
+    SELECT floor.floor_minor INTO floor_minor
+    FROM public.item_floors AS floor
+    WHERE floor.item_id = piece;
+
+    IF floor_minor IS NOT NULL AND proposed < floor_minor AND override_floor IS DISTINCT FROM true THEN
+        RAISE EXCEPTION 'a markdown stays at or above the floor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF floor_minor IS NOT NULL AND proposed < floor_minor THEN
+        IF account_kind = 'staff' THEN
+            SELECT staff.display_name, staff.role
+            INTO stored_name, stored_role
+            FROM public.staff AS staff
+            WHERE staff.id = account_id
+              AND staff.username = account_username;
+        ELSIF account_kind = 'owner' THEN
+            SELECT namespace.nspname INTO mall_schema
+            FROM pg_catalog.pg_class AS relation
+            JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+            WHERE relation.oid = 'public.mall'::regclass;
+            SELECT owners.username INTO stored_name
+            FROM platform.owners AS owners
+            JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
+            WHERE owners.id = account_id
+              AND owners.username = account_username
+              AND tenants.schema_name = mall_schema;
+            stored_role := 'owner';
+        END IF;
+        IF stored_name IS NULL
+            OR stored_role IS NULL
+            OR stored_name IS DISTINCT FROM actor_name
+            OR (account_kind = 'owner' AND actor_name IS DISTINCT FROM account_username)
+        THEN
+            RAISE EXCEPTION 'a floor override names its actor'
+                USING ERRCODE = '23514';
+        END IF;
+        INSERT INTO public.audit_events (
+            actor, role, action, entity_type, entity_id, request_id,
+            account_id, account_kind, username, client_address
+        ) VALUES (
+            actor_name, stored_role, 'markdown-floor', 'item', piece::text, proposal::text,
+            account_id, account_kind, account_username, ''
+        );
+    END IF;
+
+    INSERT INTO public.item_price_events (item_id, step_id, prior_minor, price_minor, applied_on)
+    VALUES (
+        piece,
+        step,
+        current_price,
+        proposed,
+        (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall AS mall)
+    );
+
+    UPDATE public.markdown_proposals
+    SET status = 'confirmed'
+    WHERE id = proposal;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.stall_confirm_markdown(uuid, uuid, text, text, text, boolean) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_confirm_markdown(uuid, uuid, text, text, text, boolean) TO stall_poster;
+
+
+-- >>> folded from 108_audit_events_listed.sql
+-- The activity list reads newest-first, and by one account.
+
+CREATE INDEX audit_events_listed_idx
+    ON public.audit_events (at DESC, id DESC);
+
+CREATE INDEX audit_events_account_listed_idx
+    ON public.audit_events (account_id, at DESC, id DESC)
+    WHERE account_id IS NOT NULL;
+
+
+-- >>> folded from 109_report_sheets.sql
+-- Report sheets read one honest query each.
+-- A void leaves the sale month and comes out of the month the reversal posts.
+-- A donation keeps the vendor and the quantity after the item becomes store stock.
+
+ALTER TABLE public.item_dispositions
+    ADD COLUMN code text,
+    ADD COLUMN description text,
+    ADD COLUMN vendor_id uuid,
+    ADD COLUMN vendor_name text,
+    ADD COLUMN quantity integer;
+
+UPDATE public.item_dispositions AS disposition
+SET code = item.code,
+    description = item.description
+FROM public.items AS item
+WHERE item.id = disposition.item_id
+  AND disposition.code IS NULL;
+
+ALTER TABLE public.item_dispositions
+    ALTER COLUMN code SET NOT NULL,
+    ALTER COLUMN description SET NOT NULL;
+
+ALTER TABLE public.item_dispositions
+    ADD CONSTRAINT item_dispositions_code_chk CHECK ((code = btrim(code)) AND (code <> '') AND (char_length(code) <= 40)),
+    ADD CONSTRAINT item_dispositions_description_chk CHECK ((description = btrim(description)) AND (description <> '') AND (char_length(description) <= 200)),
+    ADD CONSTRAINT item_dispositions_quantity_chk CHECK ((quantity IS NULL) OR (quantity > 0)),
+    ADD CONSTRAINT item_dispositions_vendor_name_chk CHECK ((vendor_name IS NULL) OR ((vendor_name = btrim(vendor_name)) AND (vendor_name <> '') AND (char_length(vendor_name) <= 240)));
+
+CREATE OR REPLACE FUNCTION public.stall_apply_disposition() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    today date;
+    piece_placement text;
+    piece_vendor uuid;
+    piece_quantity integer;
+    piece_code text;
+    piece_description text;
+    piece_expires date;
+    piece_vendor_name text;
+BEGIN
+    SELECT item.placement, item.vendor_id, item.quantity, item.code, item.description, item.expires_on, vendor.name
+    INTO piece_placement, piece_vendor, piece_quantity, piece_code, piece_description, piece_expires, piece_vendor_name
+    FROM public.items AS item
+    LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+    WHERE item.id = NEW.item_id;
+
+    IF NOT FOUND OR piece_vendor IS NULL OR piece_vendor_name IS NULL OR btrim(piece_vendor_name) = '' THEN
+        RAISE EXCEPTION 'a disposition must name the vendor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF piece_quantity IS NULL OR piece_quantity < 1 THEN
+        RAISE EXCEPTION 'a disposition must name the quantity'
+            USING ERRCODE = '23514';
+    END IF;
+
+    today := (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall);
+    IF piece_placement IS DISTINCT FROM 'consigned'
+       OR piece_expires IS NULL
+       OR piece_expires >= today THEN
+        RAISE EXCEPTION 'only an expired consigned piece can leave the floor'
+            USING ERRCODE = '23514';
+    END IF;
+
+    NEW.code := piece_code;
+    NEW.description := piece_description;
+    NEW.vendor_id := piece_vendor;
+    NEW.vendor_name := piece_vendor_name;
+    NEW.quantity := piece_quantity;
+
+    IF NEW.kind = 'return' THEN
+        UPDATE public.items SET quantity = 0 WHERE id = NEW.item_id;
+    ELSIF NEW.kind = 'donate' THEN
+        UPDATE public.items
+        SET placement = 'store', vendor_id = NULL, expires_on = NULL, commission_bps = NULL, cost_minor = NULL
+        WHERE id = NEW.item_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.stall_report_sales(date, date, text);
+DROP FUNCTION IF EXISTS public.stall_report_payouts(date, date);
+DROP FUNCTION IF EXISTS public.stall_report_rent();
+DROP FUNCTION IF EXISTS public.stall_report_stored_value();
+DROP FUNCTION IF EXISTS public.stall_report_expiring();
+DROP FUNCTION IF EXISTS public.stall_report_donated(date, date);
+DROP FUNCTION IF EXISTS public.stall_report_sell_through(date, date);
+
+CREATE FUNCTION public.stall_report_sales(starts_on date, ends_on date, grouped text)
+RETURNS TABLE(label text, merchandise_minor bigint, tax_minor bigint, receipt_count bigint, taken_minor bigint)
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF starts_on IS NULL OR ends_on IS NULL OR ends_on < starts_on THEN
+        RAISE EXCEPTION 'To is before From.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF grouped = 'hour' AND starts_on <> ends_on THEN
+        RAISE EXCEPTION 'An hourly report is one day.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF grouped = 'tender' THEN
+        RETURN QUERY
+        SELECT role.role,
+               0::bigint,
+               0::bigint,
+               0::bigint,
+               COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint
+        FROM public.journals AS journal
+        JOIN public.journal_lines AS line ON line.journal_id = journal.id
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        WHERE journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+          AND journal.source_type IN ('sale', 'item_return')
+          AND role.role IN ('cash', 'card', 'checks', 'gift_card', 'gift_certificate', 'store_credit')
+        GROUP BY role.role
+        ORDER BY CASE role.role
+            WHEN 'cash' THEN 1
+            WHEN 'card' THEN 2
+            WHEN 'checks' THEN 3
+            WHEN 'gift_card' THEN 4
+            WHEN 'gift_certificate' THEN 5
+            WHEN 'store_credit' THEN 6
+            ELSE 7
+        END;
+        RETURN;
+    END IF;
+    IF grouped NOT IN ('day', 'vendor', 'cashier', 'hour', 'category') THEN
+        RAISE EXCEPTION 'That grouping is not on this page.'
+            USING ERRCODE = '23514';
+    END IF;
+
+    RETURN QUERY
+    WITH event AS (
+        SELECT journal.posting_date AS posted_on,
+               journal.occurred_at,
+               journal.id AS receipt_id,
+               1 AS receipt_sign,
+               COALESCE(vendor.name, 'Store') AS vendor_name,
+               COALESCE(NULLIF(btrim(session.cashier), ''), 'Not recorded') AS cashier_name,
+               COALESCE(category.name, 'Uncategorized') AS category_name,
+               (sale_line.price_minor * sale_line.quantity
+                   - sale_line.discount_minor
+                   - sale_line.store_discount_minor)::bigint AS merchandise_minor,
+               sale_line.tax_minor::bigint AS tax_minor
+        FROM public.journals AS journal
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        LEFT JOIN public.register_session_posts AS posted ON posted.journal_id = journal.id
+        LEFT JOIN public.register_sessions AS session ON session.id = posted.session_id
+        WHERE journal.source_type = 'sale'
+          AND NOT journal.is_reversal
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+        UNION ALL
+        SELECT reversal.posting_date,
+               reversal.occurred_at,
+               original.id,
+               -1,
+               COALESCE(vendor.name, 'Store'),
+               COALESCE(NULLIF(btrim(session.cashier), ''), 'Not recorded'),
+               COALESCE(category.name, 'Uncategorized'),
+               (-(sale_line.price_minor * sale_line.quantity
+                   - sale_line.discount_minor
+                   - sale_line.store_discount_minor))::bigint,
+               (-sale_line.tax_minor)::bigint
+        FROM public.journals AS reversal
+        JOIN public.journals AS original ON original.id = reversal.reverses_journal_id
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = original.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        LEFT JOIN public.register_session_posts AS posted ON posted.journal_id = original.id
+        LEFT JOIN public.register_sessions AS session ON session.id = posted.session_id
+        WHERE reversal.source_type = 'sale'
+          AND reversal.is_reversal
+          AND reversal.posting_date >= starts_on
+          AND reversal.posting_date <= ends_on
+        UNION ALL
+        SELECT journal.posting_date,
+               journal.occurred_at,
+               NULL::uuid,
+               0,
+               COALESCE(vendor.name, 'Store'),
+               COALESCE(NULLIF(btrim(session.cashier), ''), 'Not recorded'),
+               COALESCE(category.name, 'Uncategorized'),
+               (-(item_return.price_minor - item_return.discount_minor - item_return.store_discount_minor))::bigint,
+               (-item_return.tax_minor)::bigint
+        FROM public.item_returns AS item_return
+        JOIN public.journals AS journal ON journal.id = item_return.journal_id
+        JOIN public.journals AS sale ON sale.id = item_return.sale_journal_id
+        JOIN public.items AS item ON item.id = item_return.item_id
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        LEFT JOIN public.register_session_posts AS posted ON posted.journal_id = sale.id
+        LEFT JOIN public.register_sessions AS session ON session.id = posted.session_id
+        WHERE journal.source_type = 'item_return'
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+    ),
+    bucketed AS (
+        SELECT CASE grouped
+                   WHEN 'day' THEN event.posted_on::text
+                   WHEN 'vendor' THEN event.vendor_name
+                   WHEN 'cashier' THEN event.cashier_name
+                   WHEN 'category' THEN event.category_name
+                   ELSE to_char(event.occurred_at AT TIME ZONE (SELECT mall.time_zone FROM public.mall), 'HH24') || ':00'
+               END AS bucket,
+               event.receipt_id,
+               event.receipt_sign,
+               event.merchandise_minor,
+               event.tax_minor
+        FROM event
+    )
+    SELECT bucketed.bucket,
+           COALESCE(sum(bucketed.merchandise_minor), 0)::bigint,
+           COALESCE(sum(bucketed.tax_minor), 0)::bigint,
+           (
+               count(DISTINCT bucketed.receipt_id) FILTER (WHERE bucketed.receipt_sign = 1)
+               - count(DISTINCT bucketed.receipt_id) FILTER (WHERE bucketed.receipt_sign = -1)
+           )::bigint,
+           0::bigint
+    FROM bucketed
+    GROUP BY bucketed.bucket
+    ORDER BY CASE WHEN grouped IN ('day', 'hour') THEN bucketed.bucket END,
+             lower(bucketed.bucket),
+             bucketed.bucket;
+END;
+$$;
+
+CREATE FUNCTION public.stall_report_payouts(starts_on date, ends_on date)
+RETURNS TABLE(paid_on date, vendor text, amount_minor bigint, source_type text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT journal.posting_date,
+           COALESCE(vendor.name, ''),
+           COALESCE(sum(line.debit_minor), 0)::bigint,
+           journal.source_type
+    FROM public.journals AS journal
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'vendor_payable'
+    LEFT JOIN public.vendors AS vendor ON vendor.id = line.subledger_ref::uuid
+    WHERE journal.source_type IN ('check_disbursement', 'cash_disbursement', 'safe_disbursement', 'settlement')
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+      AND line.debit_minor > 0
+    GROUP BY journal.id, journal.posting_date, vendor.name, journal.source_type
+    ORDER BY journal.posting_date, lower(COALESCE(vendor.name, '')), journal.id;
+$$;
+
+CREATE FUNCTION public.stall_report_rent()
+RETURNS TABLE(booth text, vendor text, open_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT booth.code,
+           COALESCE(vendor.name, ''),
+           COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    JOIN public.booths AS booth ON booth.id::text = line.subledger_ref
+    LEFT JOIN public.booth_assignments AS assignment
+      ON assignment.booth_id = booth.id AND assignment.ends_on IS NULL
+    LEFT JOIN public.vendors AS vendor ON vendor.id = assignment.vendor_id
+    WHERE line.subledger_type = 'booth'
+    GROUP BY booth.code, vendor.name
+    HAVING COALESCE(sum(line.debit_minor - line.credit_minor), 0) <> 0
+    ORDER BY booth.code;
+$$;
+
+CREATE FUNCTION public.stall_refuse_rent_roll() RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    stray integer;
+    roll_minor bigint;
+    books_minor bigint;
+BEGIN
+    SELECT count(*) INTO stray
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    WHERE line.subledger_type IS DISTINCT FROM 'booth'
+       OR line.subledger_ref IS NULL
+       OR NOT EXISTS (
+           SELECT 1 FROM public.booths AS booth WHERE booth.id::text = line.subledger_ref
+       );
+    IF stray > 0 THEN
+        RAISE EXCEPTION 'The rent roll does not match the books.'
+            USING ERRCODE = '23514';
+    END IF;
+
+    SELECT COALESCE(sum(open_minor), 0) INTO roll_minor FROM public.stall_report_rent();
+    SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0) INTO books_minor
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable';
+    IF roll_minor IS DISTINCT FROM books_minor THEN
+        RAISE EXCEPTION 'The rent roll does not match the books.'
+            USING ERRCODE = '23514';
+    END IF;
+END;
+$$;
+
+CREATE FUNCTION public.stall_report_stored_value()
+RETURNS TABLE(kind text, balance_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT role.role, COALESCE(balance.balance_minor, 0)::bigint
+    FROM public.chart_roles AS role
+    LEFT JOIN public.account_balances AS balance ON balance.account_id = role.account_id
+    WHERE role.role IN ('gift_card', 'gift_certificate', 'store_credit')
+    ORDER BY CASE role.role
+        WHEN 'gift_card' THEN 1
+        WHEN 'gift_certificate' THEN 2
+        WHEN 'store_credit' THEN 3
+        ELSE 4
+    END;
+$$;
+
+CREATE FUNCTION public.stall_refuse_stored_value() RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    listed record;
+    from_lines bigint;
+    normal text;
+BEGIN
+    FOR listed IN
+        SELECT kind, balance_minor FROM public.stall_report_stored_value()
+    LOOP
+        SELECT account.normal_balance INTO normal
+        FROM public.chart_roles AS role
+        JOIN public.accounts AS account ON account.id = role.account_id
+        WHERE role.role = listed.kind;
+        SELECT COALESCE(sum(
+            CASE normal
+                WHEN 'debit' THEN line.debit_minor - line.credit_minor
+                ELSE line.credit_minor - line.debit_minor
+            END
+        ), 0) INTO from_lines
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        WHERE role.role = listed.kind;
+        IF listed.balance_minor IS DISTINCT FROM from_lines THEN
+            RAISE EXCEPTION 'Stored value does not match the books.'
+                USING ERRCODE = '23514';
+        END IF;
+    END LOOP;
+END;
+$$;
+
+CREATE FUNCTION public.stall_report_expiring()
+RETURNS TABLE(code text, description text, vendor text, expires_on date, days_left integer, quantity bigint, price_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT item.code,
+           item.description,
+           COALESCE(vendor.name, vendor.code, ''),
+           item.expires_on,
+           (item.expires_on - (clock_timestamp() AT TIME ZONE mall.time_zone)::date)::integer,
+           item.quantity::bigint,
+           item.price_minor
+    FROM public.items AS item
+    LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+    CROSS JOIN public.mall
+    WHERE item.placement = 'consigned'
+      AND item.quantity > 0
+      AND item.expires_on IS NOT NULL
+      AND item.expires_on <= ((clock_timestamp() AT TIME ZONE mall.time_zone)::date + 14)
+      AND NOT EXISTS (SELECT 1 FROM public.item_dispositions AS disposition WHERE disposition.item_id = item.id)
+      AND NOT EXISTS (SELECT 1 FROM public.item_buys AS buy WHERE buy.item_id = item.id)
+    ORDER BY item.expires_on, lower(item.code), item.code;
+$$;
+
+CREATE FUNCTION public.stall_report_donated(starts_on date, ends_on date)
+RETURNS TABLE(posted_on date, code text, description text, vendor_name text, quantity integer)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT disposition.posted_on,
+           disposition.code,
+           disposition.description,
+           disposition.vendor_name,
+           disposition.quantity
+    FROM public.item_dispositions AS disposition
+    WHERE disposition.kind = 'donate'
+      AND disposition.posted_on >= starts_on
+      AND disposition.posted_on <= ends_on
+    ORDER BY disposition.posted_on, lower(disposition.code), disposition.code;
+$$;
+
+CREATE FUNCTION public.stall_report_sell_through(starts_on date, ends_on date)
+RETURNS TABLE(category text, sold_qty bigint, on_hand_qty bigint, sales_minor bigint, sold_percent integer)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH moved AS (
+        SELECT COALESCE(category.name, 'Uncategorized') AS category,
+               sale_line.quantity::bigint AS sold_qty,
+               (sale_line.price_minor * sale_line.quantity
+                   - sale_line.discount_minor
+                   - sale_line.store_discount_minor)::bigint AS sales_minor
+        FROM public.journals AS journal
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        WHERE journal.source_type = 'sale'
+          AND NOT journal.is_reversal
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+        UNION ALL
+        SELECT COALESCE(category.name, 'Uncategorized'),
+               (-sale_line.quantity)::bigint,
+               (-(sale_line.price_minor * sale_line.quantity
+                   - sale_line.discount_minor
+                   - sale_line.store_discount_minor))::bigint
+        FROM public.journals AS reversal
+        JOIN public.journals AS original ON original.id = reversal.reverses_journal_id
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = original.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        WHERE reversal.source_type = 'sale'
+          AND reversal.is_reversal
+          AND reversal.posting_date >= starts_on
+          AND reversal.posting_date <= ends_on
+        UNION ALL
+        SELECT COALESCE(category.name, 'Uncategorized'),
+               (-item_return.quantity)::bigint,
+               (-(item_return.price_minor - item_return.discount_minor - item_return.store_discount_minor))::bigint
+        FROM public.item_returns AS item_return
+        JOIN public.journals AS journal ON journal.id = item_return.journal_id
+        JOIN public.items AS item ON item.id = item_return.item_id
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        WHERE journal.source_type = 'item_return'
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+    ),
+    sold AS (
+        SELECT moved.category,
+               COALESCE(sum(moved.sold_qty), 0)::bigint AS sold_qty,
+               COALESCE(sum(moved.sales_minor), 0)::bigint AS sales_minor
+        FROM moved
+        GROUP BY moved.category
+    ),
+    on_hand AS (
+        SELECT COALESCE(category.name, 'Uncategorized') AS category,
+               COALESCE(sum(item.quantity), 0)::bigint AS on_hand_qty
+        FROM public.items AS item
+        LEFT JOIN public.categories AS category ON category.id = item.category_id
+        WHERE item.quantity > 0
+        GROUP BY category.name
+    ),
+    joined AS (
+        SELECT COALESCE(sold.category, on_hand.category) AS category,
+               COALESCE(sold.sold_qty, 0)::bigint AS sold_qty,
+               COALESCE(on_hand.on_hand_qty, 0)::bigint AS on_hand_qty,
+               COALESCE(sold.sales_minor, 0)::bigint AS sales_minor
+        FROM sold
+        FULL OUTER JOIN on_hand ON on_hand.category = sold.category
+    )
+    SELECT joined.category,
+           joined.sold_qty,
+           joined.on_hand_qty,
+           joined.sales_minor,
+           CASE
+               WHEN joined.sold_qty + joined.on_hand_qty = 0 THEN NULL
+               ELSE round((joined.sold_qty::numeric * 100) / (joined.sold_qty + joined.on_hand_qty))::integer
+           END
+    FROM joined
+    WHERE joined.sold_qty <> 0 OR joined.on_hand_qty <> 0
+    ORDER BY lower(joined.category), joined.category;
+$$;
+
+CREATE OR REPLACE FUNCTION public.stall_sales_tax_sheet(starts_on date, ends_on date)
+RETURNS TABLE(section text, label text, sale_count bigint, items_sold bigint, subtotal_minor bigint, discount_minor bigint, tax_minor bigint, total_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH sale AS (
+        SELECT
+            journal.id,
+            sale_line.quantity,
+            sale_line.price_minor * sale_line.quantity AS gross_minor,
+            sale_line.discount_minor + sale_line.store_discount_minor AS discount_minor,
+            sale_line.tax_minor,
+            CASE
+                WHEN ticket.tax_waiver_reason IS NOT NULL THEN ticket.tax_waiver_reason
+                WHEN vendor.tax_exempt THEN 'vendor resale'
+                WHEN item.tax_exempt THEN 'item exempt'
+                ELSE ''
+            END AS exempt_reason,
+            CASE
+                WHEN (sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor) > 0
+                    THEN (
+                        (sale_line.tax_minor * 100000)
+                        + ((sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor) / 2)
+                    ) / (sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor)
+                ELSE 0
+            END AS rate_bps
+        FROM public.journals AS journal
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = journal.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        LEFT JOIN public.tickets AS ticket ON ticket.posted_journal_id = journal.id
+        WHERE journal.source_type = 'sale'
+          AND NOT journal.is_reversal
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+    ),
+    returned AS (
+        SELECT
+            item_return.quantity,
+            item_return.price_minor AS gross_minor,
+            item_return.discount_minor + item_return.store_discount_minor AS discount_minor,
+            item_return.tax_minor
+        FROM public.item_returns AS item_return
+        JOIN public.journals AS journal ON journal.id = item_return.journal_id
+        WHERE journal.source_type = 'item_return'
+          AND journal.posting_date >= starts_on
+          AND journal.posting_date <= ends_on
+    ),
+    voided AS (
+        SELECT
+            reversal.id,
+            sale_line.quantity,
+            sale_line.price_minor * sale_line.quantity AS gross_minor,
+            sale_line.discount_minor + sale_line.store_discount_minor AS discount_minor,
+            sale_line.tax_minor,
+            CASE
+                WHEN ticket.tax_waiver_reason IS NOT NULL THEN ticket.tax_waiver_reason
+                WHEN vendor.tax_exempt THEN 'vendor resale'
+                WHEN item.tax_exempt THEN 'item exempt'
+                ELSE ''
+            END AS exempt_reason,
+            CASE
+                WHEN (sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor) > 0
+                    THEN (
+                        (sale_line.tax_minor * 100000)
+                        + ((sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor) / 2)
+                    ) / (sale_line.price_minor * sale_line.quantity - sale_line.discount_minor - sale_line.store_discount_minor)
+                ELSE 0
+            END AS rate_bps
+        FROM public.journals AS reversal
+        JOIN public.journals AS original ON original.id = reversal.reverses_journal_id
+        JOIN public.sale_lines AS sale_line ON sale_line.journal_id = original.id
+        JOIN public.items AS item ON item.id = sale_line.item_id
+        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        LEFT JOIN public.tickets AS ticket ON ticket.posted_journal_id = original.id
+        WHERE reversal.source_type = 'sale'
+          AND reversal.is_reversal
+          AND reversal.posting_date >= starts_on
+          AND reversal.posting_date <= ends_on
+    )
+    SELECT 'taxable', 'Taxable sales', count(DISTINCT sale.id)::bigint, COALESCE(sum(sale.quantity), 0)::bigint,
+           COALESCE(sum(sale.gross_minor), 0)::bigint, COALESCE(sum(sale.discount_minor), 0)::bigint,
+           COALESCE(sum(sale.tax_minor), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor + sale.tax_minor), 0)::bigint
+    FROM sale
+    WHERE sale.exempt_reason = ''
+    UNION ALL
+    SELECT 'exempt', sale.exempt_reason, count(DISTINCT sale.id)::bigint, COALESCE(sum(sale.quantity), 0)::bigint,
+           COALESCE(sum(sale.gross_minor), 0)::bigint, COALESCE(sum(sale.discount_minor), 0)::bigint,
+           COALESCE(sum(sale.tax_minor), 0)::bigint,
+           COALESCE(sum(sale.gross_minor - sale.discount_minor + sale.tax_minor), 0)::bigint
+    FROM sale
+    WHERE sale.exempt_reason <> ''
+    GROUP BY sale.exempt_reason
+    UNION ALL
+    SELECT 'return', 'Returns', count(*)::bigint, COALESCE(sum(returned.quantity), 0)::bigint,
+           (-COALESCE(sum(returned.gross_minor), 0))::bigint, (-COALESCE(sum(returned.discount_minor), 0))::bigint,
+           (-COALESCE(sum(returned.tax_minor), 0))::bigint,
+           (-COALESCE(sum(returned.gross_minor - returned.discount_minor + returned.tax_minor), 0))::bigint
+    FROM returned
+    UNION ALL
+    SELECT 'void', 'Voids', count(DISTINCT voided.id)::bigint,
+           (-COALESCE(sum(voided.quantity), 0))::bigint,
+           (-COALESCE(sum(voided.gross_minor), 0))::bigint,
+           (-COALESCE(sum(voided.discount_minor), 0))::bigint,
+           (-COALESCE(sum(voided.tax_minor), 0))::bigint,
+           (-COALESCE(sum(voided.gross_minor - voided.discount_minor + voided.tax_minor), 0))::bigint
+    FROM voided
+    WHERE voided.exempt_reason = ''
+    UNION ALL
+    SELECT 'void_exempt', 'Exempt voids', count(DISTINCT voided.id)::bigint,
+           (-COALESCE(sum(voided.quantity), 0))::bigint,
+           (-COALESCE(sum(voided.gross_minor), 0))::bigint,
+           (-COALESCE(sum(voided.discount_minor), 0))::bigint,
+           (-COALESCE(sum(voided.tax_minor), 0))::bigint,
+           (-COALESCE(sum(voided.gross_minor - voided.discount_minor + voided.tax_minor), 0))::bigint
+    FROM voided
+    WHERE voided.exempt_reason <> ''
+    UNION ALL
+    SELECT 'rate', rated.rate_bps::text, count(DISTINCT rated.id)::bigint, COALESCE(sum(rated.quantity), 0)::bigint,
+           COALESCE(sum(rated.gross_minor - rated.discount_minor), 0)::bigint, 0,
+           COALESCE(sum(rated.tax_minor), 0)::bigint,
+           COALESCE(sum(rated.gross_minor - rated.discount_minor + rated.tax_minor), 0)::bigint
+    FROM (
+        SELECT sale.id, sale.quantity::bigint AS quantity, sale.gross_minor, sale.discount_minor, sale.tax_minor, sale.rate_bps
+        FROM sale
+        WHERE sale.exempt_reason = ''
+        UNION ALL
+        SELECT voided.id, (-voided.quantity)::bigint, -voided.gross_minor, -voided.discount_minor, -voided.tax_minor, voided.rate_bps
+        FROM voided
+        WHERE voided.exempt_reason = ''
+    ) AS rated
+    GROUP BY rated.rate_bps
+    HAVING COALESCE(sum(rated.gross_minor - rated.discount_minor), 0) <> 0
+    UNION ALL
+    SELECT 'nontaxable', 'Booth rent collected', count(DISTINCT journal.id)::bigint, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journals AS journal
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    WHERE journal.source_type = 'rent_payment'
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    UNION ALL
+    SELECT 'nontaxable', kind.label, count(DISTINCT journal.id)::bigint, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM (VALUES
+        ('gift_certificate_issue', 'gift_certificate', 'Gift certificates issued'),
+        ('gift_card_issue', 'gift_card', 'Gift cards issued'),
+        ('store_credit_issue', 'store_credit', 'Store credit issued')
+    ) AS kind(source_type, role_name, label)
+    JOIN public.journals AS journal ON journal.source_type = kind.source_type
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = kind.role_name
+    WHERE journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+      AND NOT journal.is_reversal
+    GROUP BY kind.label
+    UNION ALL
+    SELECT 'liability', 'Opening', 0, 0, 0, 0, 0,
+           COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.journals AS journal ON journal.id = line.journal_id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+    WHERE journal.posting_date < starts_on
+    UNION ALL
+    SELECT 'liability', 'Collected', 0, 0, 0, 0, 0, public.stall_sales_tax_collected(starts_on, ends_on)
+    UNION ALL
+    SELECT 'liability', 'Paid', 0, 0, 0, 0, 0,
+           COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.journals AS journal ON journal.id = line.journal_id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+    WHERE journal.source_type = 'tax_payment'
+      AND journal.posting_date >= starts_on
+      AND journal.posting_date <= ends_on
+    UNION ALL
+    SELECT 'liability', 'Closing', 0, 0, 0, 0, 0,
+           (
+               COALESCE((
+                   SELECT sum(line.credit_minor - line.debit_minor)
+                   FROM public.journal_lines AS line
+                   JOIN public.journals AS journal ON journal.id = line.journal_id
+                   JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'sales_tax_payable'
+                   WHERE journal.posting_date <= ends_on
+               ), 0)
+           )::bigint;
+$$;
+
+CREATE OR REPLACE FUNCTION public.stall_refuse_tax_drift(starts_on date, ends_on date) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    sheet_minor bigint;
+    books_minor bigint;
+BEGIN
+    SELECT COALESCE(sum(row.tax_minor), 0) INTO sheet_minor
+    FROM public.stall_sales_tax_sheet(starts_on, ends_on) AS row
+    WHERE row.section IN ('taxable', 'exempt', 'return', 'void', 'void_exempt');
+    books_minor := public.stall_sales_tax_collected(starts_on, ends_on);
+    PERFORM public.stall_refuse_tax_pair(sheet_minor, books_minor);
+END;
+$$;
+
+ALTER TABLE public.saved_reports ADD COLUMN sheet text;
+ALTER TABLE public.saved_reports ADD COLUMN range_key text;
+
+UPDATE public.saved_reports
+SET sheet = source,
+    range_key = CASE
+        WHEN source = 'sales' AND grouped = 'hour' THEN 'today'
+        WHEN source IN ('rent', 'stored_value') THEN 'now'
+        ELSE 'this_month'
+    END,
+    grouped = CASE
+        WHEN source = 'sales' AND grouped = 'none' THEN 'day'
+        WHEN source = 'sales' THEN grouped
+        ELSE 'none'
+    END;
+
+ALTER TABLE public.saved_reports DROP CONSTRAINT saved_reports_grouped_chk;
+ALTER TABLE public.saved_reports DROP CONSTRAINT saved_reports_source_chk;
+ALTER TABLE public.saved_reports DROP COLUMN source;
+ALTER TABLE public.saved_reports DROP COLUMN filter_text;
+ALTER TABLE public.saved_reports ALTER COLUMN sheet SET NOT NULL;
+ALTER TABLE public.saved_reports ALTER COLUMN range_key SET NOT NULL;
+
+ALTER TABLE public.saved_reports
+    ADD CONSTRAINT saved_reports_pair_chk CHECK (
+        (sheet = 'sales'
+            AND grouped = ANY (ARRAY['day', 'tender', 'vendor', 'cashier', 'category'])
+            AND range_key = ANY (ARRAY['today', 'yesterday', 'this_week', 'this_month', 'last_month']))
+        OR (sheet = 'sales' AND grouped = 'hour' AND range_key = 'today')
+        OR (sheet = ANY (ARRAY['rent', 'stored_value', 'expiring']) AND grouped = 'none' AND range_key = 'now')
+        OR (sheet = ANY (ARRAY['payouts', 'donated', 'sell_through'])
+            AND grouped = 'none'
+            AND range_key = ANY (ARRAY['today', 'yesterday', 'this_week', 'this_month', 'last_month']))
+    );

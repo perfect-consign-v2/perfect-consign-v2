@@ -48,7 +48,7 @@ Set vendor A; list shows only A. Clear setting or set B; A’s rows disappear. T
 
 ## Source
 
-`docs/business-rules.md` — Vendor portal and offline sync. `sql/095_vendor_portal.sql`. `sql/096_vendor_weekly_mail.sql`. `sql/prove_vendor_portal.sql`.
+`docs/business-rules.md` — Vendor portal and offline sync. `sql/001_tenant.sql`. `sql/prove_vendor_portal.sql`.
 
 ## Related
 

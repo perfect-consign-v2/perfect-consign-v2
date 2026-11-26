@@ -60,7 +60,7 @@ final class ActivityPhraseTest extends TestCase
                 $found[$action] = true;
             }
         }
-        $sql = file_get_contents($root . '/sql/103_audit_subject.sql');
+        $sql = file_get_contents($root . '/sql/001_tenant.sql');
         if (is_string($sql) && str_contains($sql, "'markdown-floor'")) {
             $found['markdown-floor'] = true;
         }

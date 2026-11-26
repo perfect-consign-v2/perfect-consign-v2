@@ -9,7 +9,7 @@ as_of: 2026-11-20
 
 ## As of
 
-2026-11-20 — `/{slug}/activity` shows 50 rows at a time, with a person, an action, and Older and Newer. `sql/108_audit_events_listed.sql` indexes that list. Operator audit stays a separate page.
+2026-11-20 — `/{slug}/activity` shows 50 rows at a time, with a person, an action, and Older and Newer. An index in `sql/001_tenant.sql` serves that list. Operator audit stays a separate page.
 
 ## In one sentence
 
@@ -53,7 +53,7 @@ Sign in as the owner, save a setting, and open Activity. The row shows that owne
 
 ## Source
 
-`docs/business-rules.md` — store activity and platform admin. `sql/103_audit_subject.sql`, `sql/108_audit_events_listed.sql`, `sql/104_store_load_audit.sql`, `sql/prove_audit_events.sql`.
+`docs/business-rules.md` — store activity and platform admin. `sql/001_tenant.sql`, `sql/000_platform.sql`, `sql/prove_audit_events.sql`.
 
 ## Related
 

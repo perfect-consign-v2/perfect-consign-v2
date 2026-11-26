@@ -141,6 +141,10 @@ if [[ "${DEPLOY_SKIP_MIGRATE:-}" == "1" ]]; then
 else
     allow_reinstall=0
     if grep -Eq '^STALL_ALLOW_PLATFORM_REINSTALL=(1|true|yes)$' "${root}/.env"; then
+        if [[ -f "${root}/sql/PRODUCTION_BASELINE" ]]; then
+            echo "deploy-demo: sql/PRODUCTION_BASELINE exists; remove STALL_ALLOW_PLATFORM_REINSTALL from .env (real stores are never wiped)" >&2
+            exit 1
+        fi
         allow_reinstall=1
     fi
 

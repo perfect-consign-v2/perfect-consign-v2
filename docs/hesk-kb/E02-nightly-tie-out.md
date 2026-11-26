@@ -41,7 +41,7 @@ After a clean day the nightly job exits success. A one-cent stored-value gap, or
 
 ## Source
 
-`docs/business-rules.md` — Sales tax and reports. `src/Shared/Jobs/ReconcileJob.php`. `sql/109_report_sheets.sql`.
+`docs/business-rules.md` — Sales tax and reports. `src/Shared/Jobs/ReconcileJob.php`. `sql/001_tenant.sql`.
 
 ## Related
 

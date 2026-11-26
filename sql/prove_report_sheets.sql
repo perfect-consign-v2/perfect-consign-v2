@@ -630,4 +630,39 @@ EXCEPTION
         END IF;
 END $$;
 
+-- A saved report keeps only a sheet, grouping and range that belong together.
+-- Rent, stored value and expiring pieces are as of now; hourly sales are today.
+INSERT INTO saved_reports (name, sheet, grouped, range_key)
+VALUES
+    ('Gift balances', 'stored_value', 'none', 'now'),
+    ('Rent owed', 'rent', 'none', 'now'),
+    ('Rush hour', 'sales', 'hour', 'today'),
+    ('Vendors this month', 'sales', 'vendor', 'this_month');
+
+DO $$
+DECLARE
+    bad text[];
+    tried text[][] := ARRAY[
+        ARRAY['stored_value', 'none', 'this_month'],
+        ARRAY['stored_value', 'day', 'now'],
+        ARRAY['rent', 'none', 'today'],
+        ARRAY['sales', 'hour', 'yesterday'],
+        ARRAY['sales', 'none', 'this_month'],
+        ARRAY['payouts', 'none', 'now']
+    ];
+BEGIN
+    FOREACH bad SLICE 1 IN ARRAY tried LOOP
+        BEGIN
+            INSERT INTO saved_reports (name, sheet, grouped, range_key)
+            VALUES ('Mismatched', bad[1], bad[2], bad[3]);
+            RAISE EXCEPTION 'saved report % / % / % was accepted', bad[1], bad[2], bad[3];
+        EXCEPTION
+            WHEN check_violation THEN
+                IF SQLERRM NOT LIKE '%saved_reports_pair_chk%' THEN
+                    RAISE;
+                END IF;
+        END;
+    END LOOP;
+END $$;
+
 ROLLBACK;

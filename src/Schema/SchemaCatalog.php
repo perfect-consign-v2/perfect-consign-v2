@@ -12,15 +12,6 @@ final class SchemaCatalog
     /** @var list<string> */
     public const PLATFORM = [
         '000_platform.sql',
-        '094_wipe_keeps_reset_history.sql',
-        '102_job_attention.sql',
-        '104_store_load_audit.sql',
-        '105_probe_ban.sql',
-        '106_probe_ban_audit.sql',
-        '107_admin_mfa.sql',
-        '108_admin_mfa_switch.sql',
-        '110_probe_ban_rules.sql',
-        '111_probe_ban_summary.sql',
     ];
 
     /** @var list<string> */
@@ -34,20 +25,6 @@ final class SchemaCatalog
      */
     public const TENANT = [
         '001_tenant.sql',
-        '090_item_tax_exempt.sql',
-        '091_item_duplicate_sqlstate.sql',
-        '092_item_buy_expired.sql',
-        '093_backup_readonly.sql',
-        '095_vendor_portal.sql',
-        '096_vendor_weekly_mail.sql',
-        '097_catalog_active.sql',
-        '098_booth_active.sql',
-        '099_vendor_delete.sql',
-        '100_booth_deposit_session.sql',
-        '101_booth_location.sql',
-        '103_audit_subject.sql',
-        '108_audit_events_listed.sql',
-        '109_report_sheets.sql',
     ];
 
     public function __construct(private readonly string $directory)

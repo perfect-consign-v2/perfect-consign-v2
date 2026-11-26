@@ -112,27 +112,11 @@ final class TenantProvisioner
                 throw new RuntimeException('could not read ' . $file);
             }
             $this->pdo->exec($this->rewrite($sql, $schema, $role));
-            $this->restoreEventTriggers();
         }
         (new SchemaMigrator(
             $this->pdo,
             new SchemaCatalog($this->sqlDirectory)
         ))->recordTenant($schema);
-    }
-
-    private function restoreEventTriggers(): void
-    {
-        // 100_booth_deposit_session.sql is already stamped, so it cannot turn
-        // event triggers back on. Only a superuser can set that parameter, and
-        // an existing mall is migrated one file at a time by a role that cannot.
-        $query = $this->pdo->query("SELECT current_setting('is_superuser')");
-        if ($query === false) {
-            throw new RuntimeException('could not read is_superuser');
-        }
-        if ($query->fetchColumn() !== 'on') {
-            return;
-        }
-        $this->pdo->exec('SET LOCAL event_triggers = true');
     }
 
     public function rewrite(string $sql, string $schema, string $role): string
