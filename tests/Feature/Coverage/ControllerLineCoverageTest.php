@@ -7,7 +7,6 @@ namespace PerfectConsign\Tests\Feature\Coverage;
 use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\JournalAudit;
-use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Brand\BrandController;
 use PerfectConsign\Feature\Brand\BrandStore;
 use PerfectConsign\Feature\Catalog\NameListController;
@@ -47,11 +46,6 @@ use PerfectConsign\Feature\Payout\PayoutRunStore;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Payout\VendorClawback;
-use PerfectConsign\Feature\Signup\OwnerEmailVerification;
-use PerfectConsign\Bootstrap\OwnerGate;
-use PerfectConsign\Feature\Signup\PlatformSettings;
-use PerfectConsign\Feature\Signup\SignupController;
-use PerfectConsign\Feature\Signup\StoreSignup;
 use PerfectConsign\Feature\Staff\StaffStore;
 use PerfectConsign\Feature\Vendor\VendorAccount;
 use PerfectConsign\Feature\Vendor\VendorEntry;
@@ -69,7 +63,6 @@ use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
 use PerfectConsign\Shared\Mail\LetterMailbox;
 use PerfectConsign\Shared\Mail\MailOutbox;
-use PerfectConsign\Shared\Mail\PlatformMailbox;
 use PDO;
 use PDOStatement;
 use PHPUnit\Framework\TestCase;
@@ -224,33 +217,6 @@ final class ControllerLineCoverageTest extends TestCase
             (new ExpireDeskController($stale->app, $desk, $stale->mall))->buy(MallDoor::SLUG, 'not-an-item');
         });
         self::assertStringContainsString('Choose an item.', $page);
-    }
-
-    public function testAConfirmationLinkThatCannotBeUsedSendsTheOwnerHome(): void
-    {
-        $token = str_repeat('a', 43);
-        $mismatch = MallDoor::open($this, $this->post('/signup/verify/' . $token, [
-            'password' => 'long-enough',
-            'password_confirm' => 'different-1',
-        ]));
-        try {
-            $this->signup($mismatch)->choosePassword($token);
-            self::fail('a mismatched password confirmed the email');
-        } catch (ResponseSent $sent) {
-            self::assertSame('redirect', $sent->getMessage());
-            self::assertSame('That confirmation link is invalid or expired.', $mismatch->bag['warning'] ?? null);
-        }
-
-        $missing = MallDoor::open($this, $this->post('/signup/verify/' . $token, [
-            'password' => 'long-enough',
-            'password_confirm' => 'long-enough',
-        ]));
-        try {
-            $this->signup($missing)->choosePassword($token);
-            self::fail('a missing confirmation was accepted');
-        } catch (ResponseSent $sent) {
-            self::assertSame('redirect', $sent->getMessage());
-        }
     }
 
     public function testVendorRowsAndLabelsRefuseAClosedInventorySwitch(): void
@@ -449,28 +415,6 @@ final class ControllerLineCoverageTest extends TestCase
             'kind' => 'person',
             'roles' => $roles,
         ];
-    }
-
-    private function signup(MallDoor $door): SignupController
-    {
-        $pdo = $this->createStub(PDO::class);
-        $pdo->method('beginTransaction')->willReturn(true);
-        $pdo->method('rollBack')->willReturn(true);
-        $pdo->method('prepare')->willReturn($this->createStub(PDOStatement::class));
-        $verification = new OwnerEmailVerification(
-            $pdo,
-            (new ReflectionClass(PlatformMailbox::class))->newInstanceWithoutConstructor(),
-            (new ReflectionClass(AdminAudit::class))->newInstanceWithoutConstructor(),
-            $this->createStub(LoggerInterface::class),
-        );
-
-        return new SignupController(
-            $door->app,
-            (new ReflectionClass(PlatformSettings::class))->newInstanceWithoutConstructor(),
-            (new ReflectionClass(StoreSignup::class))->newInstanceWithoutConstructor(),
-            $verification,
-            (new ReflectionClass(OwnerGate::class))->newInstanceWithoutConstructor(),
-        );
     }
 
     private function entry(MallDoor $door, Statements $statements): VendorEntryController

@@ -6,18 +6,17 @@ namespace PerfectConsign\Feature\Signup;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
-use PerfectConsign\Bootstrap\OwnerGate;
 use PerfectConsign\Shared\Http\Request;
 use RuntimeException;
 
 final class SignupController
 {
+    private const LINK_REFUSED = 'That link is invalid or expired. Start again at Create your store.';
+
     public function __construct(
         private readonly MallApp $app,
         private readonly PlatformSettings $settings,
         private readonly StoreSignup $signup,
-        private readonly OwnerEmailVerification $verification,
-        private readonly OwnerGate $owners,
     ) {
     }
 
@@ -29,117 +28,101 @@ final class SignupController
 
             return;
         }
-        $this->form(null, false);
+        $this->form(null);
     }
 
     #[Route('/signup', ['POST'])]
     public function create(): void
     {
         $this->app->checkCsrf();
-        if (!$this->settings->storeSignupEnabled()) {
-            $this->disabled();
-
-            return;
-        }
         $request = $this->app->request();
         try {
-            $created = $this->signup->registerPublic(
+            $open = $this->signup->request(
                 $request->field('store_name'),
                 $request->field('email'),
                 $request->field('password'),
                 $request->field('password_confirm'),
                 $request->address,
+                $request->field('proof_seed'),
+                $request->field('proof_nonce'),
+                $request->origin,
             );
         } catch (RuntimeException $error) {
-            $this->form($error->getMessage(), false, $request);
+            $this->form($error->getMessage(), $request);
 
             return;
         }
-        if (!$created['verified']) {
-            $ownerId = $this->signup->ownerIdForSlug($created['slug']);
-            if ($ownerId === null) {
-                $this->form('That store could not be created.', false, $request);
-
-                return;
-            }
-            try {
-                $this->verification->send($ownerId, $created['email'], $request->origin);
-            } catch (RuntimeException $error) {
-                $this->signup->abandon($created['slug']);
-                $this->form($error->getMessage(), false, $request);
-
-                return;
-            }
-            $this->form(null, true);
+        if (!$open) {
+            $this->disabled();
 
             return;
         }
-        $this->owners->signIn($created['slug'], $created['username'], $request->field('password'));
-        $this->app->redirect('/' . $created['slug'] . '/', 'Your store is ready.');
+        $this->app->show('Feature/Signup/sent', [
+            'title' => 'Check your email',
+            'displayName' => '',
+            'slug' => '',
+            'sentence' => StoreSignup::SENT,
+        ]);
     }
 
     #[Route('/signup/verify/([A-Za-z0-9_-]{43})', ['GET'])]
     public function verify(string $token): void
     {
-        $pending = $this->verification->pending($token);
-        if ($pending === null) {
-            $this->app->redirect('/', null, 'That confirmation link is invalid or expired.');
+        $state = $this->signup->state($token);
+        if ($state === null || in_array($state['status'], ['expired', 'discarded'], true)) {
+            $this->app->redirect('/signup', null, self::LINK_REFUSED);
         }
-        $this->confirmForm($token, $pending['email'], null);
-    }
-
-    #[Route('/signup/verify/([A-Za-z0-9_-]{43})', ['POST'])]
-    public function choosePassword(string $token): void
-    {
-        $this->app->checkCsrf();
-        try {
-            $confirmed = $this->verification->confirm($token);
-        } catch (RuntimeException $error) {
-            $pending = $this->verification->pending($token);
-            if ($pending === null) {
-                $this->app->redirect('/', null, 'That confirmation link is invalid or expired.');
-            }
-            $this->confirmForm($token, $pending['email'], $error->getMessage());
+        if ($state['status'] === 'ready') {
+            $this->app->redirect(
+                '/?email=' . rawurlencode($state['email']),
+                'Your store is ready. Sign in with your email and the password you chose.'
+            );
+        }
+        if ($state['status'] === 'pending') {
+            $this->app->show('Feature/Signup/verify', [
+                'title' => 'Finish setting up your store',
+                'displayName' => '',
+                'slug' => '',
+                'token' => $token,
+                'email' => $state['email'],
+            ]);
 
             return;
         }
-        if ($confirmed === null) {
-            $this->app->redirect('/', null, 'That confirmation link is invalid or expired.');
-        }
-        if (!$this->owners->openVerifiedOwner($confirmed['slug'], $confirmed['username'])) {
-            $this->app->redirect(
-                '/?email=' . rawurlencode($confirmed['email']),
-                'Email confirmed. Sign in to open your store.'
-            );
-        }
-        $this->app->redirect('/' . $confirmed['slug'] . '/', 'Your store is ready.');
+        $this->app->show('Feature/Signup/wait', [
+            'title' => 'Setting up your store',
+            'displayName' => '',
+            'slug' => '',
+            'refreshSeconds' => 5,
+            'slow' => $state['status'] === 'failed',
+        ]);
     }
 
-    private function form(?string $error, bool $checkEmail, ?Request $posted = null): void
+    #[Route('/signup/verify/([A-Za-z0-9_-]{43})', ['POST'])]
+    public function confirm(string $token): void
     {
+        $this->app->checkCsrf();
+        $status = $this->signup->verify($token);
+        if ($status === null || in_array($status, ['expired', 'discarded'], true)) {
+            $this->app->redirect('/signup', null, self::LINK_REFUSED);
+        }
+        $this->app->redirect('/signup/verify/' . $token);
+    }
+
+    private function form(?string $error, ?Request $posted = null): void
+    {
+        $request = $this->app->request();
         $this->app->show('Feature/Signup/signup', [
             'title' => 'Create your store',
             'displayName' => '',
             'slug' => '',
             'error' => $error,
             'enabled' => true,
-            'checkEmail' => $checkEmail,
+            'proof' => $this->signup->challenge($request->address),
             'storeName' => $posted?->field('store_name') ?? '',
             'email' => $posted?->field('email') ?? '',
             'password' => $posted?->field('password') ?? '',
             'passwordConfirm' => $posted?->field('password_confirm') ?? '',
-        ]);
-    }
-
-    private function confirmForm(string $token, string $email, ?string $error): void
-    {
-        $this->app->show('Feature/Signup/verify', [
-            'title' => 'Confirm your store',
-            'displayName' => '',
-            'slug' => '',
-            'token' => $token,
-            'email' => $email,
-            'error' => $error,
         ]);
     }
 
@@ -151,7 +134,6 @@ final class SignupController
             'slug' => '',
             'error' => null,
             'enabled' => false,
-            'checkEmail' => false,
         ]);
     }
 }

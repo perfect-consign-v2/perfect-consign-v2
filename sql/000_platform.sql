@@ -1380,8 +1380,7 @@ ALTER EVENT TRIGGER platform_reject_password_reset_drop ENABLE ALWAYS;
 
 INSERT INTO platform.settings (key, value)
 VALUES
-    ('store_signup_enabled', 'false'::jsonb),
-    ('store_signup_require_email_verification', 'true'::jsonb)
+    ('store_signup_enabled', 'false'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
 ALTER TABLE platform.owners
@@ -1569,7 +1568,7 @@ ALTER TABLE platform.admin_audit
     ADD CONSTRAINT admin_audit_ok_admin_chk CHECK (
         (outcome <> 'ok'::text)
         OR (admin_id IS NOT NULL)
-        OR (action = ANY (ARRAY['store.signup'::text, 'store.email_verified'::text]))
+        OR (action = ANY (ARRAY['store.signup'::text, 'store.email_verified'::text, 'store.ready'::text]))
     );
 
 REVOKE ALL ON TABLE platform.settings FROM PUBLIC;
@@ -1580,7 +1579,6 @@ REVOKE ALL ON FUNCTION platform.reject_owner_email_verification_truncate() FROM 
 REVOKE ALL ON FUNCTION platform.reject_owner_email_verification_guard() FROM PUBLIC;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE platform.settings TO stall_app;
-GRANT SELECT, INSERT, DELETE ON TABLE platform.signup_attempts TO stall_app;
 GRANT SELECT, INSERT ON TABLE platform.owner_email_verifications TO stall_app;
 GRANT UPDATE (used_at) ON TABLE platform.owner_email_verifications TO stall_app;
 GRANT UPDATE (email_verified_at) ON TABLE platform.owners TO stall_app;
@@ -2852,7 +2850,10 @@ ALTER TABLE platform.admin_audit
         'store.email_verified'::text,
         'app.log_clear'::text,
         'store.load'::text,
-        'probe_ban_lift'::text
+        'probe_ban_lift'::text,
+        'store.ready'::text,
+        'store.signup_resend'::text,
+        'store.signup_discard'::text
     ]));
 
 
@@ -3227,5 +3228,688 @@ ALTER TABLE platform.jobs ADD CONSTRAINT jobs_kind_chk CHECK (kind = ANY (ARRAY[
     'vendor-letter'::text,
     'markdown-propose'::text,
     'outbound-mail'::text,
-    'probe-ban-digest'::text
+    'probe-ban-digest'::text,
+    'store-provision'::text,
+    'signup-reap'::text
 ]));
+
+
+-- Store signups
+--
+-- A public signup writes one pending row and nothing else: no store, no owner,
+-- no sign-in directory entry, no reserved address. The store is built only
+-- after the owner opens the emailed link, and it is built by the worker as
+-- stall_provisioner, which is not a superuser. The web request never holds
+-- the superuser password.
+--
+-- platform.signup_rules holds the limits. A one-time proof-of-work challenge
+-- makes each request cost the sender about a second of work.
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'stall_provisioner') THEN
+        CREATE ROLE stall_provisioner NOINHERIT NOLOGIN NOSUPERUSER NOCREATEDB CREATEROLE;
+    END IF;
+    EXECUTE format('GRANT CREATE ON DATABASE %I TO stall_provisioner', current_database());
+END;
+$$;
+
+-- The worker builds a store under SET ROLE stall_provisioner. It does not
+-- inherit the role's rights for anything else it runs.
+GRANT stall_provisioner TO stall_worker WITH INHERIT FALSE, SET TRUE;
+
+CREATE TABLE platform.signup_rules (
+    id boolean DEFAULT true NOT NULL,
+    pending_hours integer NOT NULL,
+    per_address_per_hour integer NOT NULL,
+    per_email_per_hour integer NOT NULL,
+    pending_cap_per_hour integer NOT NULL,
+    proof_bits integer NOT NULL,
+    proof_minutes integer NOT NULL,
+    kept_days integer NOT NULL,
+    CONSTRAINT signup_rules_pkey PRIMARY KEY (id),
+    CONSTRAINT signup_rules_one_row_chk CHECK (id),
+    CONSTRAINT signup_rules_pending_chk CHECK (pending_hours BETWEEN 1 AND 168),
+    CONSTRAINT signup_rules_address_chk CHECK (per_address_per_hour BETWEEN 1 AND 1000),
+    CONSTRAINT signup_rules_email_chk CHECK (per_email_per_hour BETWEEN 1 AND 100),
+    CONSTRAINT signup_rules_cap_chk CHECK (pending_cap_per_hour BETWEEN 1 AND 100000),
+    CONSTRAINT signup_rules_bits_chk CHECK (proof_bits BETWEEN 8 AND 28),
+    CONSTRAINT signup_rules_proof_minutes_chk CHECK (proof_minutes BETWEEN 1 AND 120),
+    CONSTRAINT signup_rules_kept_chk CHECK (kept_days BETWEEN 1 AND 365)
+);
+
+INSERT INTO platform.signup_rules (
+    pending_hours, per_address_per_hour, per_email_per_hour, pending_cap_per_hour,
+    proof_bits, proof_minutes, kept_days
+) VALUES (24, 5, 3, 200, 18, 30, 30);
+
+CREATE TABLE platform.store_signups (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    email text NOT NULL,
+    store_name text NOT NULL,
+    password_hash text,
+    token_hash text NOT NULL,
+    client_address text,
+    admin_id uuid,
+    status text NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    verified_at timestamp with time zone,
+    provisioned_at timestamp with time zone,
+    tenant_id uuid,
+    slug text,
+    last_error text,
+    ready_mail_id uuid,
+    CONSTRAINT store_signups_pkey PRIMARY KEY (id),
+    CONSTRAINT store_signups_token_key UNIQUE (token_hash),
+    CONSTRAINT store_signups_token_chk CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT store_signups_email_chk CHECK (
+        email = lower(btrim(email))
+        AND char_length(email) <= 200
+        AND email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+    ),
+    CONSTRAINT store_signups_name_chk CHECK (
+        store_name = btrim(store_name) AND store_name <> '' AND char_length(store_name) <= 120
+    ),
+    CONSTRAINT store_signups_hash_chk CHECK (password_hash IS NULL OR password_hash <> ''),
+    CONSTRAINT store_signups_who_chk CHECK (
+        (admin_id IS NULL AND client_address IS NOT NULL AND char_length(client_address) <= 64)
+        OR (admin_id IS NOT NULL AND client_address IS NULL)
+    ),
+    CONSTRAINT store_signups_error_chk CHECK (last_error IS NULL OR char_length(last_error) <= 500),
+    CONSTRAINT store_signups_status_chk CHECK (status = ANY (ARRAY[
+        'pending', 'verified', 'provisioning', 'ready', 'failed', 'expired', 'discarded'
+    ])),
+    -- A password hash lives only while the store is still to be built.
+    CONSTRAINT store_signups_shape_chk CHECK (
+        (status = 'pending'
+            AND verified_at IS NULL AND password_hash IS NOT NULL
+            AND tenant_id IS NULL AND slug IS NULL AND provisioned_at IS NULL)
+        OR (status = ANY (ARRAY['verified', 'provisioning', 'failed'])
+            AND verified_at IS NOT NULL AND password_hash IS NOT NULL
+            AND tenant_id IS NULL AND slug IS NULL AND provisioned_at IS NULL)
+        OR (status = 'ready'
+            AND verified_at IS NOT NULL AND password_hash IS NULL
+            AND tenant_id IS NOT NULL AND slug IS NOT NULL AND provisioned_at IS NOT NULL)
+        OR (status = ANY (ARRAY['expired', 'discarded'])
+            AND password_hash IS NULL
+            AND tenant_id IS NULL AND slug IS NULL AND provisioned_at IS NULL)
+    )
+);
+
+-- One open signup per email at a time.
+CREATE UNIQUE INDEX store_signups_open_email
+    ON platform.store_signups USING btree (email)
+    WHERE status = ANY (ARRAY['pending', 'verified', 'provisioning', 'failed']);
+
+CREATE INDEX store_signups_created ON platform.store_signups USING btree (created_at);
+
+CREATE FUNCTION platform.store_signups_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.id IS DISTINCT FROM OLD.id
+        OR NEW.email IS DISTINCT FROM OLD.email
+        OR NEW.store_name IS DISTINCT FROM OLD.store_name
+        OR NEW.client_address IS DISTINCT FROM OLD.client_address
+        OR NEW.admin_id IS DISTINCT FROM OLD.admin_id
+        OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'a signup keeps who asked and for what'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NEW.status = OLD.status THEN
+        -- A resent link changes only the token and the deadline.
+        IF NEW.status = 'pending'
+            AND NEW.password_hash IS NOT DISTINCT FROM OLD.password_hash THEN
+            RETURN NEW;
+        END IF;
+        -- The ready letter is filed once.
+        IF NEW.status = 'ready'
+            AND OLD.ready_mail_id IS NULL
+            AND NEW.ready_mail_id IS NOT NULL
+            AND NEW.token_hash = OLD.token_hash
+            AND NEW.tenant_id = OLD.tenant_id
+            AND NEW.slug = OLD.slug THEN
+            RETURN NEW;
+        END IF;
+        RAISE EXCEPTION 'a % signup does not change in place', OLD.status
+            USING ERRCODE = '23514';
+    END IF;
+    IF NEW.token_hash IS DISTINCT FROM OLD.token_hash THEN
+        RAISE EXCEPTION 'a signup keeps its link'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT (
+        (OLD.status = 'pending' AND NEW.status = ANY (ARRAY['verified', 'expired', 'discarded']))
+        OR (OLD.status = 'verified' AND NEW.status = ANY (ARRAY['provisioning', 'discarded']))
+        OR (OLD.status = 'provisioning' AND NEW.status = ANY (ARRAY['ready', 'failed']))
+        OR (OLD.status = 'failed' AND NEW.status = ANY (ARRAY['provisioning', 'discarded']))
+    ) THEN
+        RAISE EXCEPTION 'a signup cannot go from % to %', OLD.status, NEW.status
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER store_signups_guard
+    BEFORE UPDATE ON platform.store_signups
+    FOR EACH ROW EXECUTE FUNCTION platform.store_signups_guard();
+
+ALTER TABLE platform.store_signups ENABLE ALWAYS TRIGGER store_signups_guard;
+
+-- How many unconfirmed signups the reaper removed each day.
+CREATE TABLE platform.signup_reaped (
+    day date NOT NULL,
+    expired integer NOT NULL,
+    CONSTRAINT signup_reaped_pkey PRIMARY KEY (day),
+    CONSTRAINT signup_reaped_count_chk CHECK (expired >= 0)
+);
+
+CREATE TABLE platform.signup_challenges (
+    seed text NOT NULL,
+    bits integer NOT NULL,
+    client_address text NOT NULL,
+    issued_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    spent_at timestamp with time zone,
+    CONSTRAINT signup_challenges_pkey PRIMARY KEY (seed),
+    CONSTRAINT signup_challenges_seed_chk CHECK (seed ~ '^[0-9a-f]{32}$'),
+    CONSTRAINT signup_challenges_bits_chk CHECK (bits BETWEEN 8 AND 28),
+    CONSTRAINT signup_challenges_address_chk CHECK (char_length(client_address) <= 64)
+);
+
+CREATE INDEX signup_challenges_open
+    ON platform.signup_challenges USING btree (client_address, issued_at)
+    WHERE spent_at IS NULL;
+
+ALTER TABLE platform.signup_attempts ADD COLUMN email text;
+ALTER TABLE platform.signup_attempts
+    ADD CONSTRAINT signup_attempts_email_chk CHECK (email IS NULL OR char_length(email) <= 200);
+CREATE INDEX signup_attempts_email_window
+    ON platform.signup_attempts USING btree (email, attempted_at);
+
+-- True when sha256(seed ':' nonce) starts with the asked-for number of zero bits.
+CREATE FUNCTION platform.signup_proof_ok(p_seed text, p_nonce text, p_bits integer) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT p_seed ~ '^[0-9a-f]{32}$'
+        AND p_nonce ~ '^[0-9]{1,20}$'
+        AND p_bits BETWEEN 8 AND 28
+        AND (('x' || lpad(encode(substr(sha256(convert_to(p_seed || ':' || p_nonce, 'UTF8')), 1, 4), 'hex'), 16, '0'))::bit(64)::bigint
+            >> (32 - p_bits)) = 0;
+$$;
+
+-- A challenge for the signup form. An address with as many open challenges as
+-- it may send signups in an hour gets its newest one again instead of a new row.
+CREATE FUNCTION platform.signup_challenge(p_address text) RETURNS TABLE(seed text, bits integer)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.signup_rules%ROWTYPE;
+    open_count integer;
+BEGIN
+    IF p_address IS NULL OR p_address = '' OR char_length(p_address) > 64 THEN
+        RAISE EXCEPTION 'a signup challenge needs the client address'
+            USING ERRCODE = '22023';
+    END IF;
+    SELECT * INTO STRICT rules FROM platform.signup_rules;
+    PERFORM pg_advisory_xact_lock(87232, hashtext(p_address));
+    SELECT count(*)::integer INTO open_count
+    FROM platform.signup_challenges AS challenge
+    WHERE challenge.client_address = p_address
+      AND challenge.spent_at IS NULL
+      AND challenge.expires_at > clock_timestamp();
+    IF open_count >= rules.per_address_per_hour THEN
+        RETURN QUERY
+            SELECT challenge.seed, challenge.bits
+            FROM platform.signup_challenges AS challenge
+            WHERE challenge.client_address = p_address
+              AND challenge.spent_at IS NULL
+              AND challenge.expires_at > clock_timestamp()
+            ORDER BY challenge.issued_at DESC
+            LIMIT 1;
+        RETURN;
+    END IF;
+    RETURN QUERY
+        INSERT INTO platform.signup_challenges (seed, bits, client_address, expires_at)
+        VALUES (
+            replace(gen_random_uuid()::text, '-', ''),
+            rules.proof_bits,
+            p_address,
+            clock_timestamp() + make_interval(mins => rules.proof_minutes)
+        )
+        RETURNING signup_challenges.seed, signup_challenges.bits;
+END;
+$$;
+
+-- A public signup request. The answer tells the web page what to send:
+--   closed    signup is off
+--   challenge the proof-of-work is missing, wrong, spent, or expired
+--   limited   too many requests from this address this hour
+--   busy      too many new signups across the platform this hour
+--   known     the email already signs in somewhere: send "you already have a store"
+--   quiet     send nothing (too many for this email, or its store is being built)
+--   pending   a pending row was written: send the confirmation link
+-- known, quiet, and pending look the same to the visitor.
+CREATE FUNCTION platform.signup_request(
+    p_email text,
+    p_store_name text,
+    p_password_hash text,
+    p_token_hash text,
+    p_address text,
+    p_seed text,
+    p_nonce text
+) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.signup_rules%ROWTYPE;
+    v_email text := lower(btrim(coalesce(p_email, '')));
+    attempts integer;
+BEGIN
+    IF p_address IS NULL OR p_address = '' OR char_length(p_address) > 64 THEN
+        RAISE EXCEPTION 'a signup needs the client address'
+            USING ERRCODE = '22023';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM platform.settings
+        WHERE key = 'store_signup_enabled' AND value = 'true'::jsonb
+    ) THEN
+        RETURN 'closed';
+    END IF;
+    SELECT * INTO STRICT rules FROM platform.signup_rules;
+    PERFORM pg_advisory_xact_lock(87231, hashtext(p_address));
+
+    UPDATE platform.signup_challenges AS challenge
+    SET spent_at = clock_timestamp()
+    WHERE challenge.seed = p_seed
+      AND challenge.spent_at IS NULL
+      AND challenge.expires_at > clock_timestamp()
+      AND platform.signup_proof_ok(challenge.seed, p_nonce, challenge.bits);
+    IF NOT FOUND THEN
+        RETURN 'challenge';
+    END IF;
+
+    SELECT count(*)::integer INTO attempts
+    FROM platform.signup_attempts AS attempt
+    WHERE attempt.client_address = p_address
+      AND attempt.attempted_at > clock_timestamp() - interval '1 hour';
+    IF attempts >= rules.per_address_per_hour THEN
+        RETURN 'limited';
+    END IF;
+    INSERT INTO platform.signup_attempts (client_address, email)
+    VALUES (p_address, left(v_email, 200));
+
+    PERFORM pg_advisory_xact_lock(87233, hashtext(v_email));
+    SELECT count(*)::integer INTO attempts
+    FROM platform.signup_attempts AS attempt
+    WHERE attempt.email = left(v_email, 200)
+      AND attempt.attempted_at > clock_timestamp() - interval '1 hour';
+    IF attempts > rules.per_email_per_hour THEN
+        RETURN 'quiet';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM platform.sign_in_directory WHERE email = v_email) THEN
+        RETURN 'known';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM platform.store_signups
+        WHERE email = v_email
+          AND status = ANY (ARRAY['verified', 'provisioning', 'failed'])
+    ) THEN
+        RETURN 'quiet';
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(87234, 0);
+    IF (
+        SELECT count(*) FROM platform.store_signups
+        WHERE created_at > clock_timestamp() - interval '1 hour'
+    ) >= rules.pending_cap_per_hour THEN
+        RETURN 'busy';
+    END IF;
+
+    -- A second request replaces the first: only the newest link works.
+    UPDATE platform.store_signups
+    SET status = 'expired', password_hash = NULL
+    WHERE email = v_email AND status = 'pending';
+
+    INSERT INTO platform.store_signups (
+        email, store_name, password_hash, token_hash, client_address, status, expires_at
+    ) VALUES (
+        v_email,
+        btrim(p_store_name),
+        p_password_hash,
+        p_token_hash,
+        p_address,
+        'pending',
+        clock_timestamp() + make_interval(hours => rules.pending_hours)
+    );
+    RETURN 'pending';
+END;
+$$;
+
+-- An operator creates a store through the same queue. The email counts as
+-- confirmed, so the row starts verified and the build job is filed now.
+CREATE FUNCTION platform.signup_admin_create(
+    p_email text,
+    p_store_name text,
+    p_password_hash text,
+    p_token_hash text,
+    p_admin_id uuid
+) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.signup_rules%ROWTYPE;
+    v_email text := lower(btrim(coalesce(p_email, '')));
+    signup_id uuid;
+BEGIN
+    IF p_admin_id IS NULL OR NOT EXISTS (SELECT 1 FROM platform.admins WHERE id = p_admin_id) THEN
+        RAISE EXCEPTION 'only an operator creates a store here'
+            USING ERRCODE = '42501';
+    END IF;
+    SELECT * INTO STRICT rules FROM platform.signup_rules;
+    PERFORM pg_advisory_xact_lock(87233, hashtext(v_email));
+    IF EXISTS (SELECT 1 FROM platform.sign_in_directory WHERE email = v_email) THEN
+        RAISE EXCEPTION 'That email already signs in to a store.'
+            USING ERRCODE = '23505';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM platform.store_signups
+        WHERE email = v_email
+          AND status = ANY (ARRAY['verified', 'provisioning', 'failed'])
+    ) THEN
+        RAISE EXCEPTION 'A store for that email is already being set up.'
+            USING ERRCODE = '23505';
+    END IF;
+    UPDATE platform.store_signups
+    SET status = 'discarded', password_hash = NULL
+    WHERE email = v_email AND status = 'pending';
+    INSERT INTO platform.store_signups (
+        email, store_name, password_hash, token_hash, admin_id, status, expires_at, verified_at
+    ) VALUES (
+        v_email,
+        btrim(p_store_name),
+        p_password_hash,
+        p_token_hash,
+        p_admin_id,
+        'verified',
+        clock_timestamp() + make_interval(hours => rules.pending_hours),
+        clock_timestamp()
+    )
+    RETURNING id INTO signup_id;
+    INSERT INTO platform.jobs (tenant, kind, payload, run_at)
+    VALUES ('platform', 'store-provision', jsonb_build_object('signup', signup_id::text), clock_timestamp());
+    RETURN signup_id;
+END;
+$$;
+
+-- Where a signup link stands. A pending link past its deadline reads as expired.
+CREATE FUNCTION platform.signup_state(p_token_hash text)
+    RETURNS TABLE(status text, email text, slug text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+    SELECT CASE
+               WHEN signup.status = 'pending' AND signup.expires_at <= clock_timestamp() THEN 'expired'
+               ELSE signup.status
+           END,
+           signup.email,
+           signup.slug
+    FROM platform.store_signups AS signup
+    WHERE signup.token_hash = p_token_hash;
+$$;
+
+-- The owner opened the link and pressed the button. The build job is filed in
+-- the same transaction. Returns the signup's status afterwards, or NULL when
+-- the link is unknown.
+CREATE FUNCTION platform.signup_verify(p_token_hash text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    signup platform.store_signups%ROWTYPE;
+BEGIN
+    SELECT * INTO signup
+    FROM platform.store_signups
+    WHERE token_hash = p_token_hash
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+    IF signup.status <> 'pending' THEN
+        RETURN signup.status;
+    END IF;
+    IF signup.expires_at <= clock_timestamp() THEN
+        UPDATE platform.store_signups
+        SET status = 'expired', password_hash = NULL
+        WHERE id = signup.id;
+        RETURN 'expired';
+    END IF;
+    UPDATE platform.store_signups
+    SET status = 'verified', verified_at = clock_timestamp()
+    WHERE id = signup.id;
+    INSERT INTO platform.jobs (tenant, kind, payload, run_at)
+    VALUES ('platform', 'store-provision', jsonb_build_object('signup', signup.id::text), clock_timestamp());
+    RETURN 'verified';
+END;
+$$;
+
+-- Admin: send a pending signup a fresh link. Returns the email to send it to.
+CREATE FUNCTION platform.signup_resend(p_id uuid, p_token_hash text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.signup_rules%ROWTYPE;
+    v_email text;
+BEGIN
+    SELECT * INTO STRICT rules FROM platform.signup_rules;
+    UPDATE platform.store_signups
+    SET token_hash = p_token_hash,
+        expires_at = clock_timestamp() + make_interval(hours => rules.pending_hours)
+    WHERE id = p_id AND status = 'pending'
+    RETURNING email INTO v_email;
+    IF v_email IS NULL THEN
+        RAISE EXCEPTION 'Only a signup waiting for its link can get a new one.'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN v_email;
+END;
+$$;
+
+-- Admin: drop a signup that is waiting or failed. Its password hash goes too.
+CREATE FUNCTION platform.signup_discard(p_id uuid) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    v_email text;
+BEGIN
+    UPDATE platform.store_signups
+    SET status = 'discarded', password_hash = NULL
+    WHERE id = p_id AND status = ANY (ARRAY['pending', 'verified', 'failed'])
+    RETURNING email INTO v_email;
+    IF v_email IS NULL THEN
+        RAISE EXCEPTION 'Only a signup that is waiting or failed can be discarded.'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN v_email;
+END;
+$$;
+
+-- Daily clean-up. Unconfirmed signups past their deadline are deleted and only
+-- counted. Finished and discarded rows go after kept_days. Failed rows stay
+-- until an operator discards them. Returns how many unconfirmed rows went.
+CREATE FUNCTION platform.signup_reap() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.signup_rules%ROWTYPE;
+    gone integer;
+BEGIN
+    SELECT * INTO STRICT rules FROM platform.signup_rules;
+    DELETE FROM platform.store_signups
+    WHERE (status = 'pending' AND expires_at <= clock_timestamp())
+       OR status = 'expired';
+    GET DIAGNOSTICS gone = ROW_COUNT;
+    IF gone > 0 THEN
+        INSERT INTO platform.signup_reaped (day, expired)
+        VALUES ((clock_timestamp() AT TIME ZONE 'UTC')::date, gone)
+        ON CONFLICT (day) DO UPDATE SET expired = signup_reaped.expired + EXCLUDED.expired;
+    END IF;
+    DELETE FROM platform.store_signups
+    WHERE status = ANY (ARRAY['ready', 'discarded'])
+      AND created_at <= clock_timestamp() - make_interval(days => rules.kept_days);
+    DELETE FROM platform.signup_challenges
+    WHERE expires_at <= clock_timestamp() - interval '1 day';
+    DELETE FROM platform.signup_attempts
+    WHERE attempted_at <= clock_timestamp() - interval '1 day';
+    DELETE FROM platform.signup_reaped
+    WHERE day <= (clock_timestamp() AT TIME ZONE 'UTC')::date - rules.kept_days;
+    RETURN gone;
+END;
+$$;
+
+-- Gives a store's poster role its platform rights. It runs as the installer,
+-- which owns the platform objects, so the owner is always the grantor and a
+-- store wipe's DROP OWNED takes every one of these back. The builder calls
+-- it instead of holding grant options of its own.
+CREATE FUNCTION platform.grant_poster_platform(poster text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+    IF poster IS NULL OR poster !~ '^(stall_poster|poster_[0-9a-f]{32})$' THEN
+        RAISE EXCEPTION 'a poster role name is required'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_roles
+        WHERE rolname = poster AND NOT rolsuper AND NOT rolcanlogin AND NOT rolcreaterole AND NOT rolcreatedb
+    ) THEN
+        RAISE EXCEPTION 'poster role % is missing', poster
+            USING ERRCODE = '42704';
+    END IF;
+    EXECUTE format('GRANT USAGE ON SCHEMA platform TO %I', poster);
+    EXECUTE format('REVOKE INSERT ON TABLE platform.jobs FROM %I', poster);
+    EXECUTE format('GRANT SELECT ON TABLE platform.jobs TO %I', poster);
+    EXECUTE format('GRANT SELECT, UPDATE ON TABLE platform.mail_outbox TO %I', poster);
+    EXECUTE format(
+        'GRANT EXECUTE ON FUNCTION platform.enqueue_vendor_letter(date, uuid), '
+        'platform.file_outbound_mail(text, text, text, text, text, text), '
+        'platform.latest_owner_backup(uuid), '
+        'platform.record_owner_backup(uuid, uuid, bigint, text), '
+        'platform.put_sign_in_directory(text, uuid, text, uuid, text), '
+        'platform.clear_sign_in_directory(text, uuid) TO %I',
+        poster
+    );
+END;
+$_$;
+
+REVOKE ALL ON FUNCTION platform.grant_poster_platform(text) FROM PUBLIC;
+
+-- Every platform right a store's poster role must hold. The builder checks it
+-- after the store is built, because a GRANT that cannot be made only warns.
+CREATE FUNCTION platform.assert_poster_grants(poster text) RETURNS void
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    missing text[] := ARRAY[]::text[];
+BEGIN
+    IF poster IS NULL OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = poster) THEN
+        RAISE EXCEPTION 'poster role % is missing', poster
+            USING ERRCODE = '42704';
+    END IF;
+    IF NOT has_schema_privilege(poster, 'platform', 'USAGE') THEN
+        missing := array_append(missing, 'USAGE ON SCHEMA platform'::text);
+    END IF;
+    IF NOT has_table_privilege(poster, 'platform.jobs', 'SELECT') THEN
+        missing := array_append(missing, 'SELECT ON platform.jobs'::text);
+    END IF;
+    IF NOT has_table_privilege(poster, 'platform.mail_outbox', 'SELECT') THEN
+        missing := array_append(missing, 'SELECT ON platform.mail_outbox'::text);
+    END IF;
+    IF NOT has_table_privilege(poster, 'platform.mail_outbox', 'UPDATE') THEN
+        missing := array_append(missing, 'UPDATE ON platform.mail_outbox'::text);
+    END IF;
+    IF NOT has_function_privilege(poster, 'platform.enqueue_vendor_letter(date, uuid)', 'EXECUTE') THEN
+        missing := array_append(missing, 'EXECUTE ON platform.enqueue_vendor_letter'::text);
+    END IF;
+    IF NOT has_function_privilege(poster, 'platform.file_outbound_mail(text, text, text, text, text, text)', 'EXECUTE') THEN
+        missing := array_append(missing, 'EXECUTE ON platform.file_outbound_mail'::text);
+    END IF;
+    IF NOT has_function_privilege(poster, 'platform.latest_owner_backup(uuid)', 'EXECUTE') THEN
+        missing := array_append(missing, 'EXECUTE ON platform.latest_owner_backup'::text);
+    END IF;
+    IF NOT has_function_privilege(poster, 'platform.record_owner_backup(uuid, uuid, bigint, text)', 'EXECUTE') THEN
+        missing := array_append(missing, 'EXECUTE ON platform.record_owner_backup'::text);
+    END IF;
+    IF NOT has_function_privilege(poster, 'platform.put_sign_in_directory(text, uuid, text, uuid, text)', 'EXECUTE') THEN
+        missing := array_append(missing, 'EXECUTE ON platform.put_sign_in_directory'::text);
+    END IF;
+    IF NOT has_function_privilege(poster, 'platform.clear_sign_in_directory(text, uuid)', 'EXECUTE') THEN
+        missing := array_append(missing, 'EXECUTE ON platform.clear_sign_in_directory'::text);
+    END IF;
+    IF cardinality(missing) > 0 THEN
+        RAISE EXCEPTION 'poster role % is missing %', poster, array_to_string(missing, ', ')
+            USING ERRCODE = '42501';
+    END IF;
+END;
+$$;
+
+REVOKE ALL ON TABLE platform.signup_rules FROM PUBLIC;
+REVOKE ALL ON TABLE platform.store_signups FROM PUBLIC;
+REVOKE ALL ON TABLE platform.signup_reaped FROM PUBLIC;
+REVOKE ALL ON TABLE platform.signup_challenges FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.signup_challenge(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.signup_request(text, text, text, text, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.signup_admin_create(text, text, text, text, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.signup_state(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.signup_verify(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.signup_resend(uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.signup_discard(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.signup_reap() FROM PUBLIC;
+
+-- The web role asks through the functions and reads the admin list. It never
+-- writes a signup row and never sees a password hash or a link hash.
+GRANT SELECT ON TABLE platform.signup_rules TO stall_app;
+GRANT SELECT ON TABLE platform.signup_reaped TO stall_app;
+GRANT SELECT (id, email, store_name, client_address, admin_id, status, created_at, expires_at,
+              verified_at, provisioned_at, tenant_id, slug, last_error)
+    ON TABLE platform.store_signups TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.signup_challenge(text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.signup_request(text, text, text, text, text, text, text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.signup_admin_create(text, text, text, text, uuid) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.signup_state(text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.signup_verify(text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.signup_resend(uuid, text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.signup_discard(uuid) TO stall_app;
+
+-- The worker moves a signup into and out of building, files the ready letter,
+-- and runs the daily clean-up.
+GRANT SELECT (id, email, store_name, admin_id, status, verified_at, tenant_id, slug, last_error, ready_mail_id)
+    ON TABLE platform.store_signups TO stall_worker;
+GRANT UPDATE (status, last_error, ready_mail_id) ON TABLE platform.store_signups TO stall_worker;
+GRANT EXECUTE ON FUNCTION platform.signup_reap() TO stall_worker;
+
+-- stall_provisioner builds the store: the tenant row, the schema, the poster
+-- role and its grants, and the owner, then marks the signup ready. It holds no
+-- grant options; grant_poster_platform gives a poster its platform rights.
+GRANT USAGE ON SCHEMA platform TO stall_provisioner;
+GRANT SELECT, INSERT ON TABLE platform.tenants TO stall_provisioner;
+GRANT SELECT, INSERT ON TABLE platform.owners TO stall_provisioner;
+GRANT INSERT ON TABLE platform.admin_audit TO stall_provisioner;
+GRANT SELECT ON TABLE platform.store_signups TO stall_provisioner;
+GRANT UPDATE (status, tenant_id, slug, provisioned_at, password_hash)
+    ON TABLE platform.store_signups TO stall_provisioner;
+GRANT EXECUTE ON FUNCTION platform.create_poster(text), platform.grant_poster_platform(text)
+    TO stall_provisioner;

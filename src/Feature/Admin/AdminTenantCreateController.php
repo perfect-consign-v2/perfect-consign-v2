@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectConsign\Feature\Signup\StoreSignup;
+use PerfectConsign\Feature\Signup\SignupAdmin;
 use RuntimeException;
 
 final class AdminTenantCreateController
 {
     public function __construct(
         private readonly AdminApp $app,
-        private readonly StoreSignup $signup,
+        private readonly SignupAdmin $signups,
     ) {
     }
 
@@ -36,13 +36,12 @@ final class AdminTenantCreateController
         $storeName = $request->field('store_name');
         $email = $request->field('email');
         try {
-            $created = $this->signup->registerAdmin(
+            $owner = $this->signups->create(
                 $storeName,
                 $email,
                 $request->field('password'),
                 $request->field('password_confirm'),
-                $admin['id'],
-                $admin['email'],
+                $admin,
             );
         } catch (RuntimeException $error) {
             $this->app->show('Feature/Admin/tenant-create', [
@@ -55,8 +54,8 @@ final class AdminTenantCreateController
             return;
         }
         $this->app->redirect(
-            $this->app->url('/tenants'),
-            'Created ' . $created['slug'] . '. Owner can sign in with ' . $created['email'] . '.'
+            $this->app->url('/signup'),
+            'The store is being built. ' . $owner . ' gets an email when it is ready.'
         );
     }
 }

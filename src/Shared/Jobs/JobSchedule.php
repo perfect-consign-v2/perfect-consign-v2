@@ -38,6 +38,7 @@ final class JobSchedule
      */
     private function enqueuePlatform(): void
     {
+        $this->queue->enqueue($this->pdo, 'platform', 'signup-reap', gmdate('Y-m-d'));
         $due = $this->pdo->query('SELECT platform.probe_ban_summary_day()::text');
         if ($due === false) {
             $this->logger->error('job schedule ban summary day failed');

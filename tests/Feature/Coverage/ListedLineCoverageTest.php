@@ -1019,6 +1019,7 @@ final class ListedLineCoverageTest extends TestCase
             new MarkdownJob($this->createStub(PDO::class)),
             new OutboundMailJob(new MailOutbox($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), $this->platformMailbox()),
             new ProbeBanDigestJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class))),
+            new \PerfectConsign\Shared\Jobs\SignupJobs($this->createStub(PDO::class), new \PerfectConsign\Shared\Jobs\StoreProvisionJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class)), '', '')),
         );
         try {
             $dispatch->dispatch($this->job('assess-late-fees', 'null'));
@@ -1128,13 +1129,13 @@ final class ListedLineCoverageTest extends TestCase
             $runner->handle($this->claimed('platform', 'assess-late-fees', 1));
             self::fail('a platform fee job ran');
         } catch (RuntimeException $error) {
-            self::assertSame('platform jobs are mail or the ban summary', $error->getMessage());
+            self::assertSame('platform jobs are mail, the ban summary, or signups', $error->getMessage());
         }
         try {
             $runner->handle($this->claimed('gapmall', 'probe-ban-digest', 1));
             self::fail('a store ran the ban summary');
         } catch (RuntimeException $error) {
-            self::assertSame('the ban summary is a platform job', $error->getMessage());
+            self::assertSame('a platform job does not run under a store', $error->getMessage());
         }
         try {
             $runner->handle($this->claimed('gapmall', 'outbound-mail', 1));
@@ -1931,6 +1932,7 @@ final class ListedLineCoverageTest extends TestCase
                 new MarkdownJob($this->createStub(PDO::class)),
                 new OutboundMailJob(new MailOutbox($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), $this->platformMailbox()),
                 new ProbeBanDigestJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class))),
+                new \PerfectConsign\Shared\Jobs\SignupJobs($this->createStub(PDO::class), new \PerfectConsign\Shared\Jobs\StoreProvisionJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class)), '', '')),
             ),
             new WorkerRuns($pdo),
             new JobAttention(

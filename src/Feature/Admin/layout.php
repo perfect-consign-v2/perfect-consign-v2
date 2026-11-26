@@ -32,7 +32,7 @@ $mark = 'P';
 $tenantHome = $adminPath->url('/tenants');
 $links = [
     [$tenantHome, 'Tenants', 'i-dashboard'],
-    [$adminPath->url('/signup'), 'Signup', 'i-lock'],
+    [$adminPath->url('/signup'), 'Signups', 'i-lock'],
     [$adminPath->url('/worker'), 'Mail worker', 'i-report'],
     [$adminPath->url('/log'), 'App log', 'i-report'],
     [$adminPath->url('/audit'), 'Audit', 'i-report'],

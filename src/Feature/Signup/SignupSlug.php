@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Signup;
 
+use PerfectConsign\Schema\TenantProvisioner;
 use RuntimeException;
 
 final class SignupSlug
@@ -22,6 +23,11 @@ final class SignupSlug
         }
 
         return $slug;
+    }
+
+    public static function reserved(string $slug): bool
+    {
+        return in_array($slug, TenantProvisioner::RESERVED, true);
     }
 
     public static function username(string $email): string

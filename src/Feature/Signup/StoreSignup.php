@@ -4,333 +4,142 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Signup;
 
-use PerfectConsign\Feature\Admin\AdminAudit;
-use PerfectConsign\Feature\Backup\BackupConnection;
-use PerfectConsign\Schema\TenantProvisioner;
 use PDO;
-use PDOException;
+use PerfectConsign\Feature\Admin\AdminAudit;
+use PerfectConsign\Shared\Scalar\RowValue;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
-use Throwable;
 
+/**
+ * Public store signup. A request writes one pending row through
+ * platform.signup_request, which holds every rule. Nothing is built until the
+ * owner opens the emailed link; the worker builds the store after that.
+ */
 final class StoreSignup
 {
-    /** @var null|\Closure(): PDO */
-    private ?\Closure $admin = null;
-
-    /** @var null|\Closure(PDO, string, string, string, string, string, bool): void */
-    private ?\Closure $installer = null;
+    public const SENT = 'Check your email for a link to finish setting up your store.';
 
     public function __construct(
         private readonly PDO $pdo,
-        private readonly PlatformSettings $settings,
-        private readonly SignupRateLimit $limits,
+        private readonly SignupMail $mail,
         private readonly AdminAudit $audit,
         private readonly LoggerInterface $logger,
     ) {
     }
 
     /**
-     * @param \Closure(): PDO $admin
+     * @return array{seed: string, bits: int}
      */
-    public function useAdmin(\Closure $admin): void
+    public function challenge(string $clientAddress): array
     {
-        $this->admin = $admin;
+        $statement = $this->pdo->prepare('SELECT seed, bits FROM platform.signup_challenge(?)');
+        $statement->execute([$clientAddress]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row) || !is_string($row['seed'] ?? null)) {
+            throw new RuntimeException('the signup challenge was not issued');
+        }
+
+        return ['seed' => $row['seed'], 'bits' => RowValue::integer($row['bits'] ?? null)];
     }
 
     /**
-     * @param \Closure(PDO, string, string, string, string, string, bool): void $installer
+     * Returns false when public signup is off. Throws with the sentence to show
+     * when the request is refused. Otherwise the visitor sees StoreSignup::SENT,
+     * whether the email is new, already has a store, or was asked too often.
      */
-    public function useInstaller(\Closure $installer): void
-    {
-        $this->installer = $installer;
-    }
-
-    /**
-     * @return array{slug: string, username: string, email: string, verified: bool}
-     */
-    public function registerPublic(
+    public function request(
         string $storeName,
         string $email,
         string $password,
         string $confirm,
         string $clientAddress,
-    ): array {
-        if (!$this->settings->storeSignupEnabled()) {
-            throw new RuntimeException('Store signup is not available.');
+        string $seed,
+        string $nonce,
+        string $origin,
+    ): bool {
+        [$storeName, $email] = SignupInput::checked($storeName, $email, $password, $confirm);
+        if (!$this->mail->ready()) {
+            $this->logger->error('signup mailbox is not set up');
+            throw new RuntimeException('Store signup cannot send email right now. Try again later.');
         }
-        if ($this->limits->refuse($clientAddress)) {
-            throw new RuntimeException('Too many signup attempts. Try again later.');
-        }
-        $this->limits->remember($clientAddress);
-
-        return $this->register(
+        $link = SignupToken::issue();
+        $statement = $this->pdo->prepare('SELECT platform.signup_request(?, ?, ?, ?, ?, ?, ?)');
+        $statement->execute([
+            $email,
             $storeName,
-            $email,
-            $password,
-            $confirm,
-            !$this->settings->requireEmailVerification(),
-            'store.signup',
-            null,
-            $email,
-        );
+            password_hash($password, PASSWORD_DEFAULT),
+            $link['hash'],
+            $clientAddress,
+            $seed,
+            $nonce,
+        ]);
+        $outcome = $statement->fetchColumn();
+        match ($outcome) {
+            'closed' => null,
+            'challenge' => throw new RuntimeException('Your browser did not finish its check. Try again.'),
+            'limited' => throw new RuntimeException('Too many signup attempts. Try again later.'),
+            'busy' => throw new RuntimeException('Signups are busy right now. Try again in an hour.'),
+            'pending' => $this->mail->link($email, $origin, $link['token'], $this->pendingHours()),
+            'known' => $this->mail->known($email, $origin),
+            'quiet' => null,
+            default => throw new RuntimeException('That store could not be created.'),
+        };
+
+        return $outcome !== 'closed';
     }
 
     /**
-     * @return array{slug: string, username: string, email: string, verified: bool}
+     * @return array{status: string, email: string, slug: string}|null
      */
-    public function registerAdmin(
-        string $storeName,
-        string $email,
-        string $password,
-        string $confirm,
-        string $adminId,
-        string $adminEmail,
-    ): array {
-        return $this->register(
-            $storeName,
-            $email,
-            $password,
-            $confirm,
-            true,
-            'store.admin_create',
-            $adminId,
-            $adminEmail,
-        );
-    }
-
-    /**
-     * @return array{slug: string, username: string, email: string, verified: bool}
-     */
-    private function register(
-        string $storeName,
-        string $email,
-        string $password,
-        string $confirm,
-        bool $emailVerified,
-        string $auditAction,
-        ?string $adminId,
-        string $auditEmail,
-    ): array {
-        [$storeName, $email] = $this->normalizedSignupInput($storeName, $email, $password, $confirm);
-        $slug = $this->slugFromName($storeName);
-        if ($this->slugTaken($slug)) {
-            throw new RuntimeException('That store address is already taken.');
+    public function state(string $token): ?array
+    {
+        if (!SignupToken::shaped($token)) {
+            return null;
         }
-        $username = SignupSlug::username($email);
-        $this->provisionOwner($slug, $storeName, $username, $password, $email, $emailVerified);
-        $this->audit->record(
-            $adminId,
-            $auditEmail,
-            $auditAction,
-            'ok',
-            $this->tenantId($slug),
-            $slug,
-            ['display_name' => $storeName, 'email_verified' => $emailVerified],
-        );
+        $statement = $this->pdo->prepare('SELECT status, email, slug FROM platform.signup_state(?)');
+        $statement->execute([SignupToken::hash($token)]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row) || !is_string($row['status'] ?? null) || !is_string($row['email'] ?? null)) {
+            return null;
+        }
 
         return [
-            'slug' => $slug,
-            'username' => $username,
-            'email' => $email,
-            'verified' => $emailVerified,
+            'status' => $row['status'],
+            'email' => $row['email'],
+            'slug' => is_string($row['slug'] ?? null) ? $row['slug'] : '',
         ];
     }
 
     /**
-     * @return array{0: string, 1: string}
+     * The owner pressed the button on the emailed link. Returns the signup's
+     * status afterwards, or null when the link is unknown.
      */
-    private function normalizedSignupInput(
-        string $storeName,
-        string $email,
-        string $password,
-        string $confirm,
-    ): array {
-        [$storeName, $email] = $this->normalizedIdentity($storeName, $email);
-        if (strlen($password) < 8) {
-            throw new RuntimeException('Password must be at least 8 characters.');
-        }
-        if ($password !== $confirm) {
-            throw new RuntimeException('Password confirmation does not match.');
-        }
-
-        return [$storeName, $email];
-    }
-
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function normalizedIdentity(string $storeName, string $email): array
+    public function verify(string $token): ?string
     {
-        $storeName = trim($storeName);
-        $email = strtolower(trim($email));
-        if ($storeName === '' || strlen($storeName) > 120) {
-            throw new RuntimeException('Enter a store name.');
+        if (!SignupToken::shaped($token)) {
+            return null;
         }
-        if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1 || strlen($email) > 200) {
-            throw new RuntimeException('Enter a valid email address.');
+        $before = $this->state($token);
+        $statement = $this->pdo->prepare('SELECT platform.signup_verify(?)');
+        $statement->execute([SignupToken::hash($token)]);
+        $status = $statement->fetchColumn();
+        if (!is_string($status)) {
+            return null;
+        }
+        if ($before !== null && $before['status'] === 'pending' && $status === 'verified') {
+            $this->audit->record(null, $before['email'], 'store.email_verified', 'ok');
         }
 
-        return [$storeName, $email];
+        return $status;
     }
 
-    private function provisionOwner(
-        string $slug,
-        string $storeName,
-        string $username,
-        string $password,
-        string $email,
-        bool $emailVerified,
-    ): void {
-        $admin = $this->adminPdo();
-        $sqlDirectory = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'sql';
-        try {
-            if ($this->installer !== null) {
-                ($this->installer)($admin, $slug, $storeName, $username, $password, $email, $emailVerified);
-
-                return;
-            }
-            $provisioner = new TenantProvisioner($admin, $sqlDirectory);
-            $provisioner->provision($slug, $storeName);
-            $this->createOwner($admin, $slug, $username, $password, $email, $emailVerified);
-        } catch (Throwable $error) {
-            $context = [
-                'slug' => $slug,
-                'email' => $email,
-                'message' => $error->getMessage(),
-            ];
-            $cause = $this->failureCause($error);
-            if ($cause !== '') {
-                $context['cause'] = $cause;
-            }
-            $this->logger->error('store signup failed', $context);
-            $this->compensate($admin, $slug);
-            if ($error instanceof RuntimeException) {
-                throw $error;
-            }
-            throw new RuntimeException('That store could not be created.', 0, $error);
-        }
-    }
-
-    public function slugFromName(string $name): string
+    public function pendingHours(): int
     {
-        return SignupSlug::fromName($name);
-    }
-
-    private function slugTaken(string $slug): bool
-    {
-        $statement = $this->pdo->prepare('SELECT 1 FROM platform.tenants WHERE slug = ?');
-        $statement->execute([$slug]);
-
-        return $statement->fetchColumn() !== false;
-    }
-
-    private function createOwner(
-        PDO $admin,
-        string $slug,
-        string $username,
-        string $password,
-        string $email,
-        bool $emailVerified,
-    ): void {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $statement = $admin->prepare(
-            'INSERT INTO platform.owners (id, tenant_id, username, password_hash, email, email_verified_at)
-             SELECT uuidv7(), id, ?, ?, ?, CASE WHEN ?::text = \'true\' THEN clock_timestamp() ELSE NULL END
-             FROM platform.tenants
-             WHERE slug = ?'
-        );
-        try {
-            $statement->execute([$username, $hash, $email, $emailVerified ? 'true' : 'false', $slug]);
-        } catch (PDOException $error) {
-            throw new RuntimeException('That store could not be created.', 0, $error);
-        }
-        if ($statement->rowCount() < 1) {
-            throw new RuntimeException('That store was not found after provisioning.');
-        }
-    }
-
-    private function failureCause(Throwable $error): string
-    {
-        $parts = [];
-        $current = $error;
-        for ($depth = 0; $depth < 8; $depth++) {
-            $previous = $current->getPrevious();
-            if (!$previous instanceof Throwable) {
-                break;
-            }
-            $code = (string) $previous->getCode();
-            $line = $previous::class . ': ' . $previous->getMessage();
-            if ($code !== '' && $code !== '0') {
-                $line .= ' [' . $code . ']';
-            }
-            $parts[] = $line;
-            $current = $previous;
+        $statement = $this->pdo->query('SELECT pending_hours FROM platform.signup_rules');
+        if ($statement === false) {
+            throw new RuntimeException('signup rules are missing');
         }
 
-        return implode(' | ', $parts);
-    }
-
-    private function compensate(PDO $admin, string $slug): void
-    {
-        try {
-            $wipe = $admin->prepare('SELECT platform.wipe_tenant(?)');
-            $wipe->execute([$slug]);
-        } catch (Throwable $error) {
-            $this->logger->error('store signup compensate failed', [
-                'slug' => $slug,
-                'message' => $error->getMessage(),
-            ]);
-        }
-    }
-
-    private function tenantId(string $slug): string
-    {
-        $statement = $this->pdo->prepare('SELECT id::text FROM platform.tenants WHERE slug = ?');
-        $statement->execute([$slug]);
-        $id = $statement->fetchColumn();
-        if (!is_string($id) || $id === '') {
-            throw new RuntimeException('That store was not found after provisioning.');
-        }
-
-        return $id;
-    }
-
-    private function adminPdo(): PDO
-    {
-        if ($this->admin !== null) {
-            return ($this->admin)();
-        }
-
-        return BackupConnection::admin()->pdo();
-    }
-
-    public function ownerIdForSlug(string $slug): ?string
-    {
-        $statement = $this->pdo->prepare(
-            'SELECT o.id::text
-             FROM platform.owners o
-             INNER JOIN platform.tenants t ON t.id = o.tenant_id
-             WHERE t.slug = ?
-             ORDER BY o.created_at ASC, o.username ASC
-             LIMIT 1'
-        );
-        $statement->execute([$slug]);
-        $id = $statement->fetchColumn();
-
-        return is_string($id) && $id !== '' ? $id : null;
-    }
-
-    public function abandon(string $slug): void
-    {
-        try {
-            $admin = $this->adminPdo();
-            $this->compensate($admin, $slug);
-        } catch (Throwable $error) {
-            $this->logger->error('store signup abandon failed', [
-                'slug' => $slug,
-                'message' => $error->getMessage(),
-            ]);
-        }
+        return RowValue::integer($statement->fetchColumn());
     }
 }

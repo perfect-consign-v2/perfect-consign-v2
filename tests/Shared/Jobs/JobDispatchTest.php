@@ -79,6 +79,21 @@ final class JobDispatchTest extends TestCase
         $this->jobs($this->pdo())->dispatch($this->job('vendor-letter', '{}'));
     }
 
+    public function testAStoreBuildNeedsASignupIdAndTheCleanUpRuns(): void
+    {
+        foreach (['{}', '{"signup": 7}', '{"signup": "01900000-0000-7000-8000-00000000000Z"}'] as $payload) {
+            try {
+                $this->jobs($this->pdo())->dispatch($this->job('store-provision', $payload));
+                self::fail('a store build ran without a signup');
+            } catch (RuntimeException $error) {
+                self::assertSame('job signup is missing', $error->getMessage());
+            }
+        }
+        $pdo = $this->createMock(PDO::class);
+        $pdo->expects($this->once())->method('query')->with('SELECT platform.signup_reap()');
+        $this->jobs($pdo)->dispatch($this->job('signup-reap', '{"date": "2026-11-25"}'));
+    }
+
     public function testTheMallClockResetsTheRole(): void
     {
         $fetches = 0;
@@ -93,6 +108,7 @@ final class JobDispatchTest extends TestCase
         });
         $pdo = $this->createMock(PDO::class);
         $pdo->method('query')->willReturn($listed);
+        $pdo->method('prepare')->willReturn($this->createStub(PDOStatement::class));
         $pdo->expects($this->exactly(2))->method('exec')->willReturn(1);
 
         (new JobSchedule($pdo, new JobQueue(), $this->createStub(LoggerInterface::class)))->schedule();
@@ -267,6 +283,7 @@ final class JobDispatchTest extends TestCase
                 new \PerfectConsign\Shared\Mail\PlatformMailbox($mail, $gmail, $notices),
             ),
             new ProbeBanDigestJob($pdo, new \PerfectConsign\Shared\Mail\MailOutbox($pdo)),
+            new \PerfectConsign\Shared\Jobs\SignupJobs($pdo, new \PerfectConsign\Shared\Jobs\StoreProvisionJob($pdo, new \PerfectConsign\Shared\Mail\MailOutbox($pdo), '', '')),
         );
     }
 

@@ -83,6 +83,7 @@ final class MailWorker
                         new PlatformMailbox($mail, $gmail, $notices),
                     ),
                     new ProbeBanDigestJob($pdo, new MailOutbox($pdo)),
+                    new \PerfectConsign\Shared\Jobs\SignupJobs($pdo, new \PerfectConsign\Shared\Jobs\StoreProvisionJob($pdo, new MailOutbox($pdo), dirname(__DIR__, 2) . '/sql', (string) getenv('STALL_PUBLIC_ORIGIN'))),
                 ),
                 new WorkerRuns($pdo),
                 new JobAttention($pdo, $mail, new PlatformMailbox($mail, $gmail, $notices), $notices),

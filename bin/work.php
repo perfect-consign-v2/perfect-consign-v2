@@ -20,6 +20,8 @@ use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Jobs\OutboundMailJob;
 use PerfectConsign\Shared\Jobs\ProbeBanDigestJob;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
+use PerfectConsign\Shared\Jobs\SignupJobs;
+use PerfectConsign\Shared\Jobs\StoreProvisionJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Jobs\WorkerRuns;
 use PerfectConsign\Feature\Mall\ReceiptMailSettings;
@@ -79,6 +81,15 @@ $runner = new JobRunner(
             new PlatformMailbox($mail, $gmail, $notices),
         ),
         new ProbeBanDigestJob($pdo, new MailOutbox($pdo)),
+        new SignupJobs(
+            $pdo,
+            new StoreProvisionJob(
+                $pdo,
+                new MailOutbox($pdo),
+                dirname(__DIR__) . DIRECTORY_SEPARATOR . 'sql',
+                (string) getenv('STALL_PUBLIC_ORIGIN'),
+            ),
+        ),
     ),
     new WorkerRuns($pdo),
     new JobAttention($pdo, $mail, new PlatformMailbox($mail, $gmail, $notices), $notices),

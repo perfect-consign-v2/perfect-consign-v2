@@ -10077,9 +10077,6 @@ GRANT EXECUTE ON FUNCTION public.stall_payout_run_quote(uuid, uuid) TO stall_pos
 
 GRANT EXECUTE ON FUNCTION public.stall_payout_run_quote(uuid, uuid) TO stall_backup;
 
-GRANT EXECUTE ON FUNCTION platform.put_sign_in_directory(text, uuid, text, uuid, text) TO stall_poster;
-
-GRANT EXECUTE ON FUNCTION platform.clear_sign_in_directory(text, uuid) TO stall_poster;
 
 
 -- >>> folded from 064_staff_manager_role.sql

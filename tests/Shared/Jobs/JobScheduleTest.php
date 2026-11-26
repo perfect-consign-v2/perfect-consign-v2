@@ -22,11 +22,19 @@ final class JobScheduleTest extends TestCase
             ['slug' => 'demo', 'schema_name' => 4],
             false
         );
-        $pdo = $this->createMock(PDO::class);
-        $pdo->expects($this->never())->method('prepare');
+        $enqueued = [];
+        $insert = $this->createStub(PDOStatement::class);
+        $insert->method('execute')->willReturnCallback(static function (array $params) use (&$enqueued): bool {
+            $enqueued[] = $params;
+
+            return true;
+        });
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturn($insert);
         $pdo->method('query')->willReturn($listed);
 
         (new JobSchedule($pdo, new JobQueue(), new NullLogger()))->schedule();
+        self::assertSame([['platform', 'signup-reap', gmdate('Y-m-d')]], $enqueued);
     }
 
     public function testTenantListQueryFailureThrows(): void

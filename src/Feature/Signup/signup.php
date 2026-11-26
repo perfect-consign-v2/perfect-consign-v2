@@ -7,12 +7,11 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $csrf */
 /** @var string|null $error */
 /** @var bool $enabled */
-/** @var bool $checkEmail */
+/** @var array{seed: string, bits: int} $proof */
 /** @var string $storeName */
 /** @var string $email */
 /** @var string $password */
 /** @var string $passwordConfirm */
-$checkEmail = ($checkEmail ?? false) === true;
 $storeName = is_string($storeName ?? null) ? $storeName : '';
 $email = is_string($email ?? null) ? $email : '';
 $password = is_string($password ?? null) ? $password : '';
@@ -34,18 +33,20 @@ $passwordConfirm = is_string($passwordConfirm ?? null) ? $passwordConfirm : '';
                     <p>Self-serve signup is turned off. Ask an operator to enable it, or use an invite.</p>
                     <p class="mt-4"><a class="btn" href="/">Back to sign in</a></p>
                 </div>
-            <?php elseif ($checkEmail): ?>
-                <div class="card-body">
-                    <p>Check your email for a confirmation link. Open it to confirm your email and enter your store.</p>
-                    <p class="mt-4"><a class="btn" href="/">Back to sign in</a></p>
-                </div>
             <?php else: ?>
-                <form method="post" action="/signup" data-submit-once>
+                <form method="post" action="/signup" data-submit-once
+                      data-proof-seed="<?= View::text($proof['seed']) ?>"
+                      data-proof-bits="<?= View::text((string) $proof['bits']) ?>">
                     <div class="card-body grid" data-style-prop="gap:var(--space-4)">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                        <input type="hidden" name="proof_seed" value="<?= View::text($proof['seed']) ?>">
+                        <input type="hidden" name="proof_nonce" value="">
                         <?php if ($error !== null && $error !== ''): ?>
                             <p class="field-error" role="alert"><?= View::text($error) ?></p>
                         <?php endif; ?>
+                        <noscript>
+                            <p class="field-error" role="alert">Turn on JavaScript in your browser to create a store.</p>
+                        </noscript>
                         <div class="field">
                             <label for="store_name">Store name</label>
                             <input class="input" id="store_name" name="store_name" required maxlength="120" autocomplete="organization" value="<?= View::text($storeName) ?>">
@@ -62,12 +63,14 @@ $passwordConfirm = is_string($passwordConfirm ?? null) ? $passwordConfirm : '';
                             <label for="password_confirm">Confirm password</label>
                             <?php View::requiredPasswordField(id: 'password_confirm', name: 'password_confirm', minlength: 8, autocomplete: 'new-password', value: $passwordConfirm); ?>
                         </div>
+                        <p class="muted text-sm" data-proof-status aria-live="polite">Your browser is checking that you are a person. This takes a moment.</p>
                     </div>
                     <div class="card-foot row between">
                         <a href="/">Sign in</a>
-                        <button class="btn btn-primary" type="submit">Create store</button>
+                        <button class="btn btn-primary" type="submit" disabled data-proof-button>Create store</button>
                     </div>
                 </form>
+                <script src="<?= View::asset('/assets/js/signup-proof.js') ?>" defer></script>
             <?php endif; ?>
         </div>
     </div>

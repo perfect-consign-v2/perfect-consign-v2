@@ -11,6 +11,9 @@ use Throwable;
 
 final class TenantProvisioner
 {
+    /** Store addresses the platform keeps for its own pages. */
+    public const RESERVED = ['admin', 'forgot', 'signup', 'assets'];
+
     /**
      * @return list<string>
      */
@@ -27,7 +30,15 @@ final class TenantProvisioner
     ) {
     }
 
-    public function provision(string $slug, string $displayName): string
+    /**
+     * Builds the whole store in one transaction: the poster role, the tenant row,
+     * the schema and its installer, and every grant. Nothing is left behind when
+     * any step fails. $before runs inside that transaction, just before commit,
+     * with the tenant id, schema, and poster role.
+     *
+     * @param null|\Closure(string, string, string): void $before
+     */
+    public function provision(string $slug, string $displayName, ?\Closure $before = null): string
     {
         $this->assertSlug($slug);
         if ($displayName !== trim($displayName) || $displayName === '') {
@@ -38,16 +49,28 @@ final class TenantProvisioner
         $schema = 'tenant_' . str_replace('-', '', $id);
         $this->assertSchema($schema);
         $role = $this->roleName($slug, $schema);
-        $createdRole = $this->ensurePosterRole($role);
-        $this->pdo->exec(sprintf('GRANT %s TO CURRENT_USER', $role));
+        $this->pdo->beginTransaction();
         try {
-            $this->commitTenantSchema($id, $slug, $schema, $displayName, $role);
+            $this->ensurePosterRole($role);
+            $this->pdo->exec(sprintf('GRANT %s TO CURRENT_USER', $role));
+            $insert = $this->pdo->prepare(
+                'INSERT INTO platform.tenants (id, slug, schema_name, display_name) VALUES (?, ?, ?, ?)'
+            );
+            $insert->execute([$id, $slug, $schema, $displayName]);
+            $this->pdo->exec(sprintf('CREATE SCHEMA %s', $schema));
+            $this->pdo->exec(sprintf('REVOKE ALL ON SCHEMA %s FROM PUBLIC', $schema));
+            $this->applyLedger($schema, $role);
+            $this->grantApp($role);
+            $this->grantBackup($schema, $role);
+            $check = $this->pdo->prepare('SELECT platform.assert_poster_grants(?)');
+            $check->execute([$role]);
+            if ($before !== null) {
+                $before($id, $schema, $role);
+            }
+            $this->pdo->commit();
         } catch (Throwable $error) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
-            }
-            if ($createdRole) {
-                $this->pdo->exec(sprintf('DROP ROLE IF EXISTS %s', $role));
             }
             throw $error;
         }
@@ -69,35 +92,13 @@ final class TenantProvisioner
         return $idRow['id'];
     }
 
-    private function ensurePosterRole(string $role): bool
+    private function ensurePosterRole(string $role): void
     {
         if ($this->roleExists($role)) {
-            return false;
+            return;
         }
         $create = $this->pdo->prepare('SELECT platform.create_poster(?)');
         $create->execute([$role]);
-
-        return true;
-    }
-
-    private function commitTenantSchema(
-        string $id,
-        string $slug,
-        string $schema,
-        string $displayName,
-        string $role,
-    ): void {
-        $this->pdo->beginTransaction();
-        $insert = $this->pdo->prepare(
-            'INSERT INTO platform.tenants (id, slug, schema_name, display_name) VALUES (?, ?, ?, ?)'
-        );
-        $insert->execute([$id, $slug, $schema, $displayName]);
-        $this->pdo->exec(sprintf('CREATE SCHEMA %s', $schema));
-        $this->pdo->exec(sprintf('REVOKE ALL ON SCHEMA %s FROM PUBLIC', $schema));
-        $this->applyLedger($schema, $role);
-        $this->pdo->commit();
-        $this->grantApp($role);
-        $this->grantBackup($schema, $role);
     }
 
     public function applyLedger(string $schema, string $role): void
@@ -136,8 +137,8 @@ final class TenantProvisioner
         if ($worker !== false && $worker->fetchColumn() !== false) {
             $this->pdo->exec(sprintf('GRANT %s TO stall_worker', $role));
         }
-        $jobs = $this->pdo->prepare('SELECT platform.grant_poster_jobs(?)');
-        $jobs->execute([$role]);
+        $platform = $this->pdo->prepare('SELECT platform.grant_poster_platform(?)');
+        $platform->execute([$role]);
     }
 
     public function grantBackup(string $schema, string $role): void
@@ -145,15 +146,6 @@ final class TenantProvisioner
         $this->assertSchema($schema);
         $this->assertRole($role);
         $this->assertBackupRole();
-        $this->pdo->exec(sprintf('GRANT USAGE ON SCHEMA platform TO %s', $role));
-        $this->pdo->exec(sprintf(
-            'GRANT EXECUTE ON FUNCTION platform.latest_owner_backup(uuid) TO %s',
-            $role
-        ));
-        $this->pdo->exec(sprintf(
-            'GRANT EXECUTE ON FUNCTION platform.record_owner_backup(uuid, uuid, bigint, text) TO %s',
-            $role
-        ));
         $this->pdo->exec(sprintf('GRANT USAGE ON SCHEMA %s TO stall_backup', $schema));
         $this->pdo->exec(sprintf('GRANT SELECT ON ALL TABLES IN SCHEMA %s TO stall_backup', $schema));
         $this->pdo->exec(sprintf('GRANT SELECT ON ALL SEQUENCES IN SCHEMA %s TO stall_backup', $schema));
@@ -175,7 +167,7 @@ final class TenantProvisioner
         if (preg_match('/^[a-z][a-z0-9-]{0,62}$/', $slug) !== 1) {
             throw new InvalidArgumentException('a tenant slug must be a short lowercase name');
         }
-        if (in_array($slug, ['admin', 'forgot', 'signup', 'assets'], true)) {
+        if (in_array($slug, self::RESERVED, true)) {
             throw new InvalidArgumentException($slug . ' is reserved for the platform');
         }
     }

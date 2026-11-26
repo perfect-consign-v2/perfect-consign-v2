@@ -22,19 +22,9 @@ final class PlatformSettings
         return $this->boolSetting('store_signup_enabled', false);
     }
 
-    public function requireEmailVerification(): bool
-    {
-        return $this->boolSetting('store_signup_require_email_verification', true);
-    }
-
     public function setStoreSignupEnabled(bool $enabled): void
     {
         $this->put('store_signup_enabled', $enabled);
-    }
-
-    public function setRequireEmailVerification(bool $required): void
-    {
-        $this->put('store_signup_require_email_verification', $required);
     }
 
     public function adminMfaEnabled(): bool

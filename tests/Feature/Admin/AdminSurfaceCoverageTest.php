@@ -21,7 +21,8 @@ use PerfectConsign\Feature\Admin\AdminWorkerController;
 use PerfectConsign\Feature\Password\PasswordChoice;
 use PerfectConsign\Feature\Password\ResetNotice;
 use PerfectConsign\Feature\Signup\PlatformSettings;
-use PerfectConsign\Feature\Signup\SignupRateLimit;
+use PerfectConsign\Feature\Signup\SignupAdmin;
+use PerfectConsign\Feature\Signup\SignupMail;
 use PerfectConsign\Feature\Signup\StoreSignup;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\ResponseSent;
@@ -44,6 +45,8 @@ final class AdminSurfaceCoverageTest extends TestCase
     private const ADMIN_ID = '01900000-0000-7000-8000-0000000000aa';
 
     private const EMAIL = 'admin@example.test';
+
+    private const SIGNUP = '01900000-0000-7000-8000-0000000000cc';
 
     private const TOKEN = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
@@ -158,39 +161,72 @@ final class AdminSurfaceCoverageTest extends TestCase
         self::assertSame('Password saved. Sign in with your new password.', $this->session->get('admin_notice'));
     }
 
-    public function testSignupRendersBothSwitchesAndEverySavedSentence(): void
+    public function testSignupShowsTheSwitchTheListsAndEverySavedSentence(): void
     {
         $on = $this->shown(function (): void {
-            $this->signup($this->request('GET', '/admin/signup', []), ['store_signup_enabled' => 'true', 'store_signup_require_email_verification' => 'true'])
-                ->show();
+            $this->signup($this->request('GET', '/admin/signup', []), ['store_signup_enabled' => 'true'])->show();
         });
-        self::assertStringContainsString('checked', $on);
+        self::assertStringContainsString('value="1" checked', $on);
+        self::assertStringContainsString('A link works for 24 hours.', $on);
+        self::assertStringContainsString('Harbor', $on);
+        self::assertStringContainsString('Resend link', $on);
+        self::assertStringContainsString('by an operator', $on);
+        self::assertStringContainsString('Build failed, trying again', $on);
+        self::assertStringContainsString('the installer stopped', $on);
+        self::assertStringContainsString('/tenants/old-mall/delete', $on);
 
         $off = $this->shown(function (): void {
-            $this->signup($this->request('GET', '/admin/signup', []), ['store_signup_enabled' => 'false', 'store_signup_require_email_verification' => 'false'])
-                ->show();
+            $this->signup($this->request('GET', '/admin/signup', []), ['store_signup_enabled' => 'false'], [], [])->show();
         });
-        self::assertStringNotContainsString('checked', $off);
+        self::assertStringNotContainsString('value="1" checked', $off);
+        self::assertStringContainsString('No signups.', $off);
+        self::assertStringContainsString('None.', $off);
 
         $this->redirected(function (): void {
-            $this->signup($this->request('POST', '/admin/signup', [
-                'store_signup_enabled' => '1',
-                'store_signup_require_email_verification' => '1',
-            ]))->save();
+            $this->signup($this->request('POST', '/admin/signup', ['store_signup_enabled' => '1']))->save();
         });
-        self::assertSame('Public store signup is on. Email confirmation is required.', $this->session->get('admin_notice'));
-
-        $this->redirected(function (): void {
-            $this->signup($this->request('POST', '/admin/signup', [
-                'store_signup_enabled' => '1',
-            ]))->save();
-        });
-        self::assertSame('Public store signup is on. Email confirmation is off.', $this->session->get('admin_notice'));
+        self::assertSame('Public store signup is on.', $this->session->get('admin_notice'));
 
         $this->redirected(function (): void {
             $this->signup($this->request('POST', '/admin/signup', []))->save();
         });
         self::assertSame('Public store signup is off.', $this->session->get('admin_notice'));
+    }
+
+    public function testSignupResendAndDiscardSayWhatHappened(): void
+    {
+        $previous = getenv('STALL_MAIL_FILE');
+        $file = dirname(__DIR__, 3) . '/var/test-admin-signup-mail.txt';
+        putenv('STALL_MAIL_FILE=' . $file);
+        try {
+            $this->redirected(function (): void {
+                $this->signup($this->request('POST', '/admin/signup/resend', ['signup_id' => self::SIGNUP]))->resend();
+            });
+            self::assertSame('A new link was emailed to waiting@example.test.', $this->session->get('admin_notice'));
+            self::assertStringContainsString('/signup/verify/', (string) file_get_contents($file));
+        } finally {
+            if (is_file($file)) {
+                unlink($file);
+            }
+            if (is_string($previous) && $previous !== '') {
+                putenv('STALL_MAIL_FILE=' . $previous);
+            } else {
+                putenv('STALL_MAIL_FILE');
+            }
+        }
+        $this->redirected(function (): void {
+            $this->signup($this->request('POST', '/admin/signup/resend', ['signup_id' => 'gone']))->resend();
+        });
+        self::assertSame('Only a signup waiting for its link can get a new one.', $this->session->get('admin_warning'));
+
+        $this->redirected(function (): void {
+            $this->signup($this->request('POST', '/admin/signup/discard', ['signup_id' => self::SIGNUP]))->discard();
+        });
+        self::assertSame('The signup for waiting@example.test was discarded.', $this->session->get('admin_notice'));
+        $this->redirected(function (): void {
+            $this->signup($this->request('POST', '/admin/signup/discard', ['signup_id' => 'gone']))->discard();
+        });
+        self::assertSame('Only a signup that is waiting or failed can be discarded.', $this->session->get('admin_warning'));
     }
 
     public function testTheWorkerScreenPrunesAndClears(): void
@@ -328,32 +364,96 @@ final class AdminSurfaceCoverageTest extends TestCase
 
     /**
      * @param array<string, string> $settings
+     * @param list<array<string, mixed>>|null $signups
+     * @param list<array<string, mixed>>|null $unconfirmed
      */
-    private function signup(Request $request, array $settings = []): AdminSignupController
+    private function signup(Request $request, array $settings = [], ?array $signups = null, ?array $unconfirmed = null): AdminSignupController
     {
+        $signups ??= [
+            $this->signupRow('waiting@example.test', 'Harbor', 'pending', '', '', false),
+            $this->signupRow('made@example.test', 'Made', 'failed', '', 'the installer stopped', true),
+            $this->signupRow('done@example.test', 'Done', 'ready', 'done', '', false),
+        ];
+        $unconfirmed ??= [['slug' => 'old-mall', 'display_name' => 'Old Mall', 'email' => 'old@example.test', 'created_at' => '2026-01-02']];
         $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturnCallback(function () use ($settings): PDOStatement {
+        $pdo->method('prepare')->willReturnCallback(function (string $sql) use ($settings, $signups): PDOStatement {
             $key = '';
             $statement = $this->createStub(PDOStatement::class);
-            $statement->method('execute')->willReturnCallback(static function (array $params) use (&$key): bool {
+            $statement->method('execute')->willReturnCallback(static function (array $params) use (&$key, $sql): bool {
                 $key = (string) ($params[0] ?? '');
+                if ($key === 'gone' && str_contains($sql, 'signup_resend')) {
+                    throw self::refusedBy('Only a signup waiting for its link can get a new one.');
+                }
+                if ($key === 'gone' && str_contains($sql, 'signup_discard')) {
+                    throw self::refusedBy('Only a signup that is waiting or failed can be discarded.');
+                }
 
                 return true;
             });
-            $statement->method('fetchColumn')->willReturnCallback(static function () use (&$key, $settings): mixed {
+            $statement->method('fetchColumn')->willReturnCallback(static function () use (&$key, $settings, $sql): mixed {
+                if (str_contains($sql, 'signup_resend') || str_contains($sql, 'signup_discard')) {
+                    return 'waiting@example.test';
+                }
+
                 return $settings[$key] ?? false;
             });
+            $statement->method('fetchAll')->willReturn(str_contains($sql, 'store_signups') ? $signups : []);
             $statement->method('rowCount')->willReturn(1);
 
             return $statement;
         });
+        $pdo->method('query')->willReturnCallback(function (string $sql) use ($unconfirmed): PDOStatement {
+            $statement = $this->createStub(PDOStatement::class);
+            $statement->method('fetchColumn')->willReturn(str_contains($sql, 'pending_hours') ? 24 : 3);
+            $statement->method('fetchAll')->willReturn(str_contains($sql, 'owners') ? $unconfirmed : []);
+
+            return $statement;
+        });
         $logger = new NullLogger();
+        $audit = QuietAudit::admin($pdo, new Request('GET', '/', [], []));
 
         return new AdminSignupController(
             $this->app($request, $this->adminPdo()),
             new PlatformSettings($pdo, $logger),
-            QuietAudit::admin($pdo, new Request('GET', '/', [], [])),
+            new SignupAdmin($pdo, $this->signupMail(), $audit),
+            new StoreSignup($pdo, $this->signupMail(), $audit, $logger),
+            $audit,
         );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signupRow(string $email, string $name, string $status, string $slug, string $error, bool $operator): array
+    {
+        return [
+            'id' => self::SIGNUP,
+            'email' => $email,
+            'store_name' => $name,
+            'status' => $status,
+            'created_at' => '2026-11-25 09:00',
+            'expires_at' => '2026-11-26 09:00',
+            'slug' => $slug,
+            'last_error' => $error,
+            'by_operator' => $operator,
+        ];
+    }
+
+    private function signupMail(): SignupMail
+    {
+        $logger = new NullLogger();
+        $notices = new PlatformOperatorNotice($logger);
+
+        return new SignupMail(new PlatformMailbox(new OutboundMail($logger), new GmailSender($notices), $notices), $logger);
+    }
+
+    private static function refusedBy(string $sentence): \PDOException
+    {
+        $error = new \PDOException('SQLSTATE[23514]: Check violation: 7 ERROR:  ' . $sentence);
+        $error->errorInfo = ['23514', 7, 'ERROR:  ' . $sentence];
+        (new \ReflectionProperty(\Exception::class, 'code'))->setValue($error, '23514');
+
+        return $error;
     }
 
     /**
@@ -419,16 +519,13 @@ final class AdminSurfaceCoverageTest extends TestCase
 
     private function stores(Request $request): AdminTenantCreateController
     {
-        $logger = new NullLogger();
-        $signup = new StoreSignup(
+        $signups = new SignupAdmin(
             $this->createStub(PDO::class),
-            new PlatformSettings($this->createStub(PDO::class), $logger),
-            new SignupRateLimit($this->createStub(PDO::class)),
+            $this->signupMail(),
             QuietAudit::admin($this->createStub(PDO::class), new Request('GET', '/', [], [])),
-            $logger,
         );
 
-        return new AdminTenantCreateController($this->app($request, $this->adminPdo()), $signup);
+        return new AdminTenantCreateController($this->app($request, $this->adminPdo()), $signups);
     }
 
     private function app(Request $request, PDO $pdo): AdminApp

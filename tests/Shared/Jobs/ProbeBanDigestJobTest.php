@@ -132,9 +132,10 @@ final class ProbeBanDigestJobTest extends TestCase
 
     public function testTheScheduleFilesTheSummaryOnceItIsDue(): void
     {
-        self::assertSame([['platform', 'probe-ban-digest', '2026-11-25']], $this->scheduled('2026-11-25'));
-        self::assertSame([], $this->scheduled(null));
-        self::assertSame([], $this->scheduled('soon'));
+        $reap = ['platform', 'signup-reap', gmdate('Y-m-d')];
+        self::assertSame([$reap, ['platform', 'probe-ban-digest', '2026-11-25']], $this->scheduled('2026-11-25'));
+        self::assertSame([$reap], $this->scheduled(null));
+        self::assertSame([$reap], $this->scheduled('soon'));
     }
 
     public function testTheScheduleRefusesAFailedSummaryQuery(): void
@@ -145,6 +146,7 @@ final class ProbeBanDigestJobTest extends TestCase
         $pdo->method('query')->willReturnCallback(static function (string $sql) use ($tenants): PDOStatement|false {
             return str_contains($sql, 'platform.tenants') ? $tenants : false;
         });
+        $pdo->method('prepare')->willReturn($this->createStub(PDOStatement::class));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('job schedule ban summary day failed');

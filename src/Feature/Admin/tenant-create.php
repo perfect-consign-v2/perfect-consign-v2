@@ -13,7 +13,7 @@ use PerfectConsign\Shared\Http\View;
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Create store</h1>
-        <p class="muted">Creates a mall and owner immediately. Email is marked verified — no confirmation link.</p>
+        <p class="muted">The worker builds the store in about a minute. The owner's email counts as confirmed, and the owner gets an email when the store is ready.</p>
     </div>
 </div>
 <form class="card mt-6" method="post" action="<?= View::text($adminPath->url('/tenants/create')) ?>">

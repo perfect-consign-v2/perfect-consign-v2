@@ -17,6 +17,7 @@ final class JobDispatch
         private readonly MarkdownJob $markdowns,
         private readonly OutboundMailJob $outbound,
         private readonly ProbeBanDigestJob $bans,
+        private readonly SignupJobs $signups,
     ) {
     }
 
@@ -46,6 +47,8 @@ final class JobDispatch
             'markdown-propose' => $this->markdowns->propose($this->date($payload)),
             'outbound-mail' => $this->outbound->send($this->mailId($payload)),
             'probe-ban-digest' => $this->bans->send($this->date($payload)),
+            'store-provision' => $this->signups->build($this->signupId($payload)),
+            'signup-reap' => $this->signups->reap(),
             default => throw new RuntimeException('unknown job'),
         };
     }
@@ -84,6 +87,19 @@ final class JobDispatch
         }
 
         return $letter;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function signupId(array $payload): string
+    {
+        $signup = $payload['signup'] ?? null;
+        if (!is_string($signup) || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $signup) !== 1) {
+            throw new RuntimeException('job signup is missing');
+        }
+
+        return $signup;
     }
 
     /**

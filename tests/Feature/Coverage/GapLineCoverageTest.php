@@ -30,7 +30,6 @@ use PerfectConsign\Feature\Inventory\StoreTake;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Mall\MallWrite;
 use PerfectConsign\Feature\Party\BoothListStore;
-use PerfectConsign\Feature\Signup\OwnerEmailVerification;
 use PerfectConsign\Feature\Vendor\VendorAccount;
 use PerfectConsign\Feature\Vendor\VendorItemDraft;
 use PerfectConsign\Feature\Vendor\VendorPlacement;
@@ -481,11 +480,9 @@ final class GapLineCoverageTest extends TestCase
 
     public function testAPasswordConfirmationMustMatch(): void
     {
-        $check = new ReflectionMethod(\PerfectConsign\Feature\Signup\StoreSignup::class, 'normalizedSignupInput');
-        $owner = (new ReflectionClass(\PerfectConsign\Feature\Signup\StoreSignup::class))->newInstanceWithoutConstructor();
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Password confirmation does not match.');
-        $check->invoke($owner, 'Harbor', 'owner@harbor.test', 'long-enough', 'different');
+        \PerfectConsign\Feature\Signup\SignupInput::checked('Harbor', 'owner@harbor.test', 'long-enough', 'different');
     }
 
     public function testAnOverdueCountRefusesAFailedPrepare(): void

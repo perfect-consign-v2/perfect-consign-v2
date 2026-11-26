@@ -94,8 +94,17 @@ final class AdminBackupCoverageTest extends WebTestCase
                 'password' => 'store-pass-1',
                 'password_confirm' => 'store-pass-1',
             ], 180);
-            self::assertStringContainsString('Created ' . $slug . '.', $created->body);
-            self::assertStringContainsString($slug . '@example.test', $created->body);
+            self::assertStringContainsString(
+                'The store is being built. ' . $slug . '@example.test gets an email when it is ready.',
+                $created->body
+            );
+            $queued = $pdo->prepare(
+                "SELECT count(*) FROM platform.jobs j
+                   JOIN platform.store_signups s ON s.id::text = j.payload ->> 'signup'
+                  WHERE j.kind = 'store-provision' AND s.email = ? AND s.status = 'verified'"
+            );
+            $queued->execute([$slug . '@example.test']);
+            self::assertSame(1, (int) $queued->fetchColumn());
         } finally {
             $this->removeCreatedStore($pdo, $slug);
         }
@@ -129,6 +138,13 @@ final class AdminBackupCoverageTest extends WebTestCase
         if (preg_match('/^zcov[a-f0-9]+$/', $slug) !== 1) {
             return;
         }
+        $jobs = $pdo->prepare(
+            "DELETE FROM platform.jobs WHERE kind = 'store-provision'
+             AND payload ->> 'signup' IN (SELECT id::text FROM platform.store_signups WHERE email = ?)"
+        );
+        $jobs->execute([$slug . '@example.test']);
+        $signups = $pdo->prepare('DELETE FROM platform.store_signups WHERE email = ?');
+        $signups->execute([$slug . '@example.test']);
         $found = $pdo->prepare('SELECT 1 FROM platform.tenants WHERE slug = ?');
         $found->execute([$slug]);
         if ($found->fetchColumn() === false) {

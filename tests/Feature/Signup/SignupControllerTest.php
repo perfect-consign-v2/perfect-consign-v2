@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Signup;
 
-use PerfectConsign\Tests\Support\QuietAudit;
 use ArrayObject;
+use PDO;
+use PDOStatement;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\ActiveRegister;
 use PerfectConsign\Bootstrap\Actor;
@@ -21,16 +22,14 @@ use PerfectConsign\Bootstrap\PriorClose;
 use PerfectConsign\Bootstrap\SignInFailureRetention;
 use PerfectConsign\Bootstrap\StaffSignIn;
 use PerfectConsign\Bootstrap\TenantLookup;
-use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Company\CompanyLines;
 use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallDay;
 use PerfectConsign\Feature\Mall\MallSettings;
-use PerfectConsign\Feature\Signup\OwnerEmailVerification;
 use PerfectConsign\Feature\Signup\PlatformSettings;
 use PerfectConsign\Feature\Signup\SignupController;
-use PerfectConsign\Feature\Signup\SignupRateLimit;
+use PerfectConsign\Feature\Signup\SignupMail;
 use PerfectConsign\Feature\Signup\StoreSignup;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Database\Statements;
@@ -41,101 +40,117 @@ use PerfectConsign\Shared\Mail\GmailSender;
 use PerfectConsign\Shared\Mail\OutboundMail;
 use PerfectConsign\Shared\Mail\PlatformMailbox;
 use PerfectConsign\Shared\Mail\PlatformOperatorNotice;
-use PDO;
-use PDOStatement;
+use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 final class SignupControllerTest extends TestCase
 {
-    public function testTheSignupFormFollowsThePlatformSwitch(): void
+    private const TOKEN = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    private const REFUSED = 'That link is invalid or expired. Start again at Create your store.';
+
+    private string $mailFile;
+
+    private mixed $previousMail;
+
+    protected function setUp(): void
     {
-        $off = $this->capture(function (): void {
-            [$controller] = $this->controller($this->request('GET', []), $this->settings(false));
-            $controller->show();
-        });
-        self::assertStringContainsString('Self-serve signup is turned off', $off);
-
-        $on = $this->capture(function (): void {
-            [$controller] = $this->controller($this->request('GET', []), $this->settings(true));
-            $controller->show();
-        });
-        self::assertStringContainsString('name="store_name"', $on);
-        self::assertStringContainsString('name="password"', $on);
-        self::assertStringNotContainsString('Self-serve signup is turned off', $on);
-
-        $open = $this->capture(function (): void {
-            [$controller] = $this->controller($this->request('GET', []), $this->verificationSettings(false));
-            $controller->show();
-        });
-        self::assertStringContainsString('name="password"', $open);
+        $this->mailFile = dirname(__DIR__, 3) . '/var/test-signup-controller-mail.txt';
+        $this->previousMail = getenv('STALL_MAIL_FILE');
+        putenv('STALL_MAIL_FILE=' . $this->mailFile);
     }
 
-    public function testAPostWhileSignupIsOffShowsTheClosedPage(): void
+    protected function tearDown(): void
     {
-        $html = $this->capture(function (): void {
-            [$controller] = $this->controller($this->request('POST', [
-                'csrf' => 'csrf-token',
-                'store_name' => 'Harbor',
-                'email' => 'owner@harbor.test',
-                'password' => 'password1',
-                'password_confirm' => 'password1',
-            ]), $this->settings(false));
-            $controller->create();
-        });
-
-        self::assertStringContainsString('Self-serve signup is turned off', $html);
+        if (is_file($this->mailFile)) {
+            unlink($this->mailFile);
+        }
+        if (is_string($this->previousMail) && $this->previousMail !== '') {
+            putenv('STALL_MAIL_FILE=' . $this->previousMail);
+        } else {
+            putenv('STALL_MAIL_FILE');
+        }
     }
 
-    public function testABadSignupShowsTheFormError(): void
+    public function testTheFormFollowsTheSwitchAndCarriesTheBrowserCheck(): void
     {
-        $html = $this->capture(function (): void {
-            [$controller] = $this->controller($this->request('POST', [
-                'csrf' => 'csrf-token',
-                'store_name' => 'Harbor',
-                'email' => 'not-an-email',
-                'password' => 'password1',
-                'password_confirm' => 'password1',
-            ]), $this->settings(true));
-            $controller->create();
-        });
+        [$off] = $this->controller($this->request('GET', '/signup', []), ['enabled' => false]);
+        $closed = $this->capture(static fn () => $off->show());
+        self::assertStringContainsString('Self-serve signup is turned off', $closed);
+        self::assertStringNotContainsString('name="store_name"', $closed);
 
-        self::assertStringContainsString('Enter a valid email address.', $html);
-        self::assertStringContainsString('class="field-error" role="alert"', $html);
-        self::assertStringContainsString('value="Harbor"', $html);
-        self::assertStringContainsString('value="not-an-email"', $html);
-        self::assertStringContainsString('value="password1"', $html);
+        [$on] = $this->controller($this->request('GET', '/signup', []), []);
+        $form = $this->capture(static fn () => $on->show());
+        self::assertStringContainsString('name="store_name"', $form);
+        self::assertStringContainsString('data-proof-seed="' . str_repeat('c', 32) . '"', $form);
+        self::assertStringContainsString('data-proof-bits="18"', $form);
     }
 
-    public function testAPasswordMismatchKeepsEveryField(): void
+    public function testASentSignupShowsTheSameSentenceAndMailsTheLink(): void
     {
-        $html = $this->capture(function (): void {
-            [$controller] = $this->controller($this->request('POST', [
-                'csrf' => 'csrf-token',
-                'store_name' => 'Harbor Mall',
-                'email' => 'owner@harbor.test',
-                'password' => 'password1',
-                'password_confirm' => 'password2',
-            ]), $this->settings(true));
-            $controller->create();
-        });
+        [$controller] = $this->controller($this->signupPost(), ['outcome' => 'pending']);
+        $page = $this->capture(static fn () => $controller->create());
+        self::assertStringContainsString(StoreSignup::SENT, $page);
+        $mail = (string) file_get_contents($this->mailFile);
+        self::assertStringContainsString('To: owner@harbor.test', $mail);
+        self::assertMatchesRegularExpression('#https://example\.test/signup/verify/[A-Za-z0-9_-]{43}\n#', $mail);
+        self::assertStringContainsString('The link works for 24 hours.', $mail);
 
-        self::assertStringContainsString('Password confirmation does not match.', $html);
-        self::assertStringContainsString('class="field-error" role="alert"', $html);
-        self::assertStringContainsString('value="Harbor Mall"', $html);
-        self::assertStringContainsString('value="owner@harbor.test"', $html);
-        self::assertStringContainsString('id="password" name="password" class="input" required minlength="8" autocomplete="new-password" value="password1"', $html);
-        self::assertStringContainsString('id="password_confirm" name="password_confirm" class="input" required minlength="8" autocomplete="new-password" value="password2"', $html);
+        [$known] = $this->controller($this->signupPost(), ['outcome' => 'known']);
+        self::assertStringContainsString(StoreSignup::SENT, $this->capture(static fn () => $known->create()));
+        self::assertStringContainsString('You already have a store', (string) file_get_contents($this->mailFile));
+
+        [$quiet] = $this->controller($this->signupPost(), ['outcome' => 'quiet']);
+        self::assertStringContainsString(StoreSignup::SENT, $this->capture(static fn () => $quiet->create()));
+    }
+
+    public function testARefusedSignupKeepsTheFieldsAndSaysWhy(): void
+    {
+        $cases = [
+            'challenge' => 'Your browser did not finish its check. Try again.',
+            'limited' => 'Too many signup attempts. Try again later.',
+            'busy' => 'Signups are busy right now. Try again in an hour.',
+            'odd' => 'That store could not be created.',
+        ];
+        foreach ($cases as $outcome => $sentence) {
+            [$controller] = $this->controller($this->signupPost(), ['outcome' => $outcome]);
+            $page = $this->capture(static fn () => $controller->create());
+            self::assertStringContainsString($sentence, $page);
+            self::assertStringContainsString('value="Harbor"', $page);
+            self::assertStringContainsString('value="owner@harbor.test"', $page);
+        }
+        [$short] = $this->controller($this->signupPost(['password' => 'short', 'password_confirm' => 'short']), []);
+        self::assertStringContainsString('Password must be at least 8 characters.', $this->capture(static fn () => $short->create()));
+
+        [$closed] = $this->controller($this->signupPost(), ['outcome' => 'closed']);
+        self::assertStringContainsString('Self-serve signup is turned off', $this->capture(static fn () => $closed->create()));
+
+        $saved = [];
+        foreach (['STALL_MAIL_FILE', 'STALL_SMTP_USERNAME', 'STALL_GMAIL_ADDRESS'] as $name) {
+            $saved[$name] = getenv($name);
+            putenv($name);
+        }
+        try {
+            [$mute] = $this->controller($this->signupPost(), ['outcome' => 'pending']);
+            self::assertStringContainsString(
+                'Store signup cannot send email right now. Try again later.',
+                $this->capture(static fn () => $mute->create())
+            );
+        } finally {
+            foreach ($saved as $name => $value) {
+                if (is_string($value) && $value !== '') {
+                    putenv($name . '=' . $value);
+                }
+            }
+        }
     }
 
     public function testAPostWithoutTheSessionTokenExpiresTheForm(): void
     {
-        [$controller] = $this->controller($this->request('POST', [
-            'store_name' => 'Harbor',
-            'email' => 'owner@harbor.test',
-            'password' => 'password1',
-            'password_confirm' => 'password1',
-        ]), $this->settings(true));
+        [$controller, $bag] = $this->controller($this->signupPost(), []);
+        $bag->offsetUnset('csrf');
+        $html = '';
         ob_start();
         try {
             $controller->create();
@@ -143,343 +158,86 @@ final class SignupControllerTest extends TestCase
         } catch (ResponseSent $sent) {
             self::assertSame('csrf', $sent->getMessage());
         } finally {
-            $html = ob_get_clean();
+            $html = (string) ob_get_clean();
         }
-
-        self::assertIsString($html);
         self::assertStringContainsString('The form expired', $html);
     }
 
-    public function testAnUnusableConfirmationLinkReturnsToSignIn(): void
+    public function testTheLinkPageFollowsWhereTheSignupStands(): void
     {
-        [$controller, $bag] = $this->controller($this->request('GET', []), $this->settings(false));
-        try {
-            $controller->verify('short-token');
-            self::fail('a short token was accepted');
-        } catch (ResponseSent $sent) {
-            self::assertSame('redirect', $sent->getMessage());
+        [$pending] = $this->controller($this->request('GET', '/signup/verify/' . self::TOKEN, []), ['state' => 'pending']);
+        $page = $this->capture(static fn () => $pending->verify(self::TOKEN));
+        self::assertStringContainsString('Set up my store', $page);
+        self::assertStringContainsString('owner@harbor.test', $page);
+        self::assertStringNotContainsString('http-equiv="refresh"', $page);
+
+        [$building] = $this->controller($this->request('GET', '/signup/verify/' . self::TOKEN, []), ['state' => 'provisioning']);
+        $wait = $this->capture(static fn () => $building->verify(self::TOKEN));
+        self::assertStringContainsString('<meta http-equiv="refresh" content="5">', $wait);
+        self::assertStringContainsString('checks again on its own', $wait);
+
+        [$failed] = $this->controller($this->request('GET', '/signup/verify/' . self::TOKEN, []), ['state' => 'failed']);
+        self::assertStringContainsString('taking longer than it should', $this->capture(static fn () => $failed->verify(self::TOKEN)));
+
+        [$ready, $readyBag] = $this->controller($this->request('GET', '/signup/verify/' . self::TOKEN, []), ['state' => 'ready']);
+        $this->redirected(static fn () => $ready->verify(self::TOKEN));
+        self::assertSame('Your store is ready. Sign in with your email and the password you chose.', $readyBag['notice'] ?? null);
+
+        foreach (['expired', 'discarded', null] as $state) {
+            [$gone, $goneBag] = $this->controller($this->request('GET', '/signup/verify/' . self::TOKEN, []), ['state' => $state]);
+            $this->redirected(static fn () => $gone->verify(self::TOKEN));
+            self::assertSame(self::REFUSED, $goneBag['warning'] ?? null);
         }
-
-        self::assertSame('That confirmation link is invalid or expired.', $bag['warning'] ?? null);
     }
 
-    public function testAConfirmationLinkShowsThePasswordForm(): void
+    public function testPressingTheButtonConfirmsOnceAndComesBackToTheLink(): void
     {
-        $html = $this->capture(function (): void {
-            [$controller] = $this->controller(
-                $this->request('GET', []),
-                $this->settings(false),
-                $this->confirmingVerification(),
-            );
-            $controller->verify(str_repeat('a', 43));
-        });
+        [$confirmed, $bag] = $this->controller($this->linkPost(), ['state' => 'pending', 'verify' => 'verified']);
+        $this->redirected(static fn () => $confirmed->confirm(self::TOKEN));
+        self::assertArrayNotHasKey('warning', $bag->getArrayCopy());
 
-        self::assertStringContainsString('Confirm and open your store', $html);
-        self::assertStringNotContainsString('name="password"', $html);
-        self::assertStringNotContainsString('Email confirmed', $html);
-    }
-
-    public function testAConfirmedMailboxWithoutAnOwnerSessionReturnsToSignIn(): void
-    {
-        [$controller, $bag] = $this->controller(
-            $this->request('POST', [
-                'csrf' => 'csrf-token',
-            ]),
-            $this->settings(false),
-            $this->confirmingVerification(),
-            null,
-            $this->quietPdo(),
-        );
-        try {
-            $controller->choosePassword(str_repeat('a', 43));
-            self::fail('a confirmed mailbox stayed on the verify page');
-        } catch (ResponseSent $sent) {
-            self::assertSame('redirect', $sent->getMessage());
+        foreach (['expired', 'discarded', false] as $status) {
+            [$refused, $refusedBag] = $this->controller($this->linkPost(), ['state' => 'pending', 'verify' => $status]);
+            $this->redirected(static fn () => $refused->confirm(self::TOKEN));
+            self::assertSame(self::REFUSED, $refusedBag['warning'] ?? null);
         }
-
-        self::assertSame('Email confirmed. Sign in to open your store.', $bag['notice'] ?? null);
-    }
-
-    public function testAConfirmedMailboxOpensTheStore(): void
-    {
-        [$controller, $bag] = $this->controller(
-            $this->request('POST', [
-                'csrf' => 'csrf-token',
-            ]),
-            $this->settings(false),
-            $this->confirmingVerification(),
-            null,
-            $this->signingPdo(password_hash('password1', PASSWORD_DEFAULT)),
-        );
-        try {
-            $controller->choosePassword(str_repeat('a', 43));
-            self::fail('a confirmed mailbox stayed on the verify page');
-        } catch (ResponseSent $sent) {
-            self::assertSame('redirect', $sent->getMessage());
-        }
-
-        self::assertSame('Your store is ready.', $bag['notice'] ?? null);
-        self::assertSame('cov-harbor', $bag['owner_slug'] ?? null);
-    }
-
-    public function testACreatedStoreAsksTheOwnerToConfirmEmail(): void
-    {
-        $previous = getenv('STALL_MAIL_FILE');
-        $file = dirname(__DIR__, 3) . '/var/signup-coverage-mail.txt';
-        putenv('STALL_MAIL_FILE=' . $file);
-        try {
-            $html = $this->capture(function (): void {
-                $this->createdController(true, '01900000-0000-7000-8000-0000000000bb')->create();
-            });
-        } finally {
-            $this->restoreMailFile($previous);
-            if (is_file($file)) {
-                unlink($file);
-            }
-        }
-
-        self::assertStringContainsString('Check your email', $html);
-    }
-
-    public function testACreatedStoreWithoutAnOwnerIsRefused(): void
-    {
-        $html = $this->capture(function (): void {
-            $this->createdController(true, false)->create();
-        });
-
-        self::assertStringContainsString('That store could not be created.', $html);
-    }
-
-    public function testAVerificationFailureAbandonsTheStore(): void
-    {
-        $previous = getenv('STALL_MAIL_FILE');
-        putenv('STALL_MAIL_FILE=' . sys_get_temp_dir());
-        try {
-            $html = $this->capture(function (): void {
-                $this->createdController(true, '01900000-0000-7000-8000-0000000000bb')->create();
-            });
-        } finally {
-            $this->restoreMailFile($previous);
-        }
-
-        self::assertStringContainsString('could not be sent', $html);
-    }
-
-    public function testAVerifiedStoreSignsTheOwnerIn(): void
-    {
-        $sent = null;
-        ob_start();
-        try {
-            $this->createdController(
-                false,
-                '01900000-0000-7000-8000-0000000000bb',
-                password_hash('password1', PASSWORD_DEFAULT),
-            )->create();
-            self::fail('a ready store stayed on the form');
-        } catch (ResponseSent $error) {
-            $sent = $error->getMessage();
-        } finally {
-            ob_end_clean();
-        }
-
-        self::assertSame('redirect', $sent);
-    }
-
-    private function createdController(bool $verify, mixed $ownerId, ?string $passwordHash = null): SignupController
-    {
-        $request = $this->request('POST', [
-            'csrf' => 'csrf-token',
-            'store_name' => 'Harbor',
-            'email' => 'owner@harbor.test',
-            'password' => 'password1',
-            'password_confirm' => 'password1',
-        ]);
-        $answer = $this->createStub(PDOStatement::class);
-        $answer->method('execute')->willReturn(true);
-        $answer->method('rowCount')->willReturn(1);
-        $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturnCallback(function (string $sql) use ($ownerId, $answer): PDOStatement {
-            if (str_contains($sql, 'SELECT 1 FROM platform.tenants')) {
-                return $this->valueStatement(false);
-            }
-            if (str_contains($sql, 'id::text FROM platform.tenants')) {
-                return $this->valueStatement('01900000-0000-7000-8000-0000000000aa');
-            }
-            if (str_contains($sql, 'platform.owners')) {
-                return $this->valueStatement($ownerId);
-            }
-
-            return $answer;
-        });
-        $admin = $this->createStub(PDO::class);
-        $admin->method('prepare')->willReturn($answer);
-        $signup = new StoreSignup(
-            $pdo,
-            $this->verificationSettings($verify),
-            $this->limits(),
-            QuietAudit::admin($pdo, $request),
-            $this->createStub(LoggerInterface::class),
-        );
-        $signup->useAdmin(static fn (): PDO => $admin);
-        $signup->useInstaller(static function (): void {
-        });
-        [$controller] = $this->controller(
-            $request,
-            $this->verificationSettings($verify),
-            $this->confirmingVerification(),
-            $signup,
-            is_string($passwordHash) ? $this->signingPdo($passwordHash) : null,
-        );
-
-        return $controller;
-    }
-
-    private function verificationSettings(bool $verify): PlatformSettings
-    {
-        $key = '';
-        $statement = $this->createStub(PDOStatement::class);
-        $statement->method('execute')->willReturnCallback(static function (array $params) use (&$key): bool {
-            $key = is_string($params[0] ?? null) ? $params[0] : '';
-
-            return true;
-        });
-        $statement->method('fetchColumn')->willReturnCallback(static function () use (&$key, $verify): string {
-            if ($key === 'store_signup_require_email_verification') {
-                return $verify ? 'true' : 'false';
-            }
-
-            return 'true';
-        });
-        $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturn($statement);
-
-        return new PlatformSettings($pdo, $this->createStub(LoggerInterface::class));
-    }
-
-    private function valueStatement(mixed $value): PDOStatement
-    {
-        $statement = $this->createStub(PDOStatement::class);
-        $statement->method('execute')->willReturn(true);
-        $statement->method('fetchColumn')->willReturn($value);
-        $statement->method('rowCount')->willReturn(1);
-
-        return $statement;
-    }
-
-    private function quietPdo(): PDO
-    {
-        $pdo = $this->createStub(PDO::class);
-        $pdo->method('exec')->willReturn(0);
-        $pdo->method('prepare')->willReturn($this->valueStatement(false));
-
-        return $pdo;
-    }
-
-    private function signingPdo(string $hash): PDO
-    {
-        $pdo = $this->createStub(PDO::class);
-        $pdo->method('exec')->willReturn(0);
-        $pdo->method('prepare')->willReturnCallback(function (string $sql) use ($hash): PDOStatement {
-            if (str_contains($sql, 'schema_name')) {
-                return $this->rowStatement([
-                    'id' => '01900000-0000-7000-8000-0000000000aa',
-                    'slug' => 'harbor',
-                    'schema_name' => 'tenant_' . str_repeat('ab', 16),
-                    'display_name' => 'Harbor',
-                ]);
-            }
-            if (str_contains($sql, 'password_hash')) {
-                return $this->rowStatement([
-                    'id' => '01900000-0000-7000-8000-0000000000bb',
-                    'password_hash' => $hash,
-                    'credentials_version' => '1',
-                    'email_verified_at' => '2026-11-12 00:00:00',
-                    'can_sign_in' => true,
-                ]);
-            }
-
-            return $this->valueStatement(0);
-        });
-
-        return $pdo;
     }
 
     /**
-     * @param array<string, mixed> $row
-     */
-    private function rowStatement(array $row): PDOStatement
-    {
-        $statement = $this->createStub(PDOStatement::class);
-        $statement->method('execute')->willReturn(true);
-        $statement->method('fetch')->willReturn($row);
-        $statement->method('fetchColumn')->willReturn(0);
-        $statement->method('rowCount')->willReturn(1);
-
-        return $statement;
-    }
-
-    private function restoreMailFile(mixed $previous): void
-    {
-        if (is_string($previous) && $previous !== '') {
-            putenv('STALL_MAIL_FILE=' . $previous);
-
-            return;
-        }
-        putenv('STALL_MAIL_FILE');
-    }
-
-    /**
-     * @param array<string, mixed> $post
-     */
-    private function request(string $method, array $post): Request
-    {
-        return new Request($method, '/signup', [], $post, '', 'https://example.test', '203.0.113.10');
-    }
-
-    /**
+     * @param array{enabled?: bool, outcome?: string, state?: string|null, verify?: string|false} $db
      * @return array{0: SignupController, 1: ArrayObject<string, string>}
      */
-    private function controller(
-        Request $request,
-        PlatformSettings $settings,
-        ?OwnerEmailVerification $verification = null,
-        ?StoreSignup $signup = null,
-        ?PDO $appPdo = null,
-    ): array {
+    private function controller(Request $request, array $db): array
+    {
         $bag = new ArrayObject(['csrf' => 'csrf-token']);
         $session = $this->createStub(Session::class);
-        $session->method('get')->willReturnCallback(static function (string $key) use ($bag): mixed {
-            return $bag->offsetExists($key) ? $bag->offsetGet($key) : null;
-        });
+        $session->method('get')->willReturnCallback(static fn (string $key): mixed => $bag->offsetExists($key) ? $bag->offsetGet($key) : null);
         $session->method('set')->willReturnCallback(static function (string $key, mixed $value) use ($bag): void {
             $bag->offsetSet($key, is_string($value) ? $value : '');
         });
-        $session->method('has')->willReturnCallback(static function (string $key) use ($bag): bool {
-            return $bag->offsetExists($key);
-        });
+        $session->method('has')->willReturnCallback(static fn (string $key): bool => $bag->offsetExists($key));
         $session->method('delete')->willReturnCallback(static function (string $key) use ($bag): void {
             $bag->offsetUnset($key);
         });
-        $pdo = $appPdo ?? $this->createStub(PDO::class);
+        $pdo = $this->signupDatabase($db);
         $logger = $this->createStub(LoggerInterface::class);
         $view = new View(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src');
         $tenants = new TenantLookup($pdo);
         $missing = new MissingPage($session, $logger, $view, $request, $tenants);
         $sessions = new LoginSession($session);
-        $owner = new OwnerGate(
-            $pdo,
-            $session,
-            $logger,
-            $request,
-            $tenants,
-            $missing,
-            new StaffSignIn($pdo, $logger, $sessions, new SignInFailureRetention($pdo)),
-            $sessions,
-        );
         $door = new FrontDoor(
             $missing,
             new PriorClose($session, $request),
-            $owner,
+            new OwnerGate(
+                $pdo,
+                $session,
+                $logger,
+                $request,
+                $tenants,
+                $missing,
+                new StaffSignIn($pdo, $logger, $sessions, new SignInFailureRetention($pdo)),
+                $sessions,
+            ),
             new PostedRefusal($logger),
             new Actor($session),
             new CredentialStamp($pdo, $session, new DatabaseRole($pdo)),
@@ -501,90 +259,98 @@ final class SignupControllerTest extends TestCase
             $tenants,
             $door,
         );
-        $controller = new SignupController(
-            $app,
-            $settings,
-            $signup ?? new StoreSignup(
-                $pdo,
-                $settings,
-                $this->limits(),
-                QuietAudit::admin($pdo, $request),
-                $logger,
+        $notices = new PlatformOperatorNotice($logger);
+        $mail = new SignupMail(new PlatformMailbox(new OutboundMail($logger), new GmailSender($notices), $notices), $logger);
+
+        return [
+            new SignupController(
+                $app,
+                new PlatformSettings($pdo, $logger),
+                new StoreSignup($pdo, $mail, QuietAudit::admin($pdo, $request), $logger),
             ),
-            $verification ?? new OwnerEmailVerification($pdo, $this->mailbox(), $this->audit(), $logger),
-            $owner,
-        );
-
-        return [$controller, $bag];
-    }
-
-    private function settings(bool $enabled): PlatformSettings
-    {
-        $statement = $this->createStub(PDOStatement::class);
-        $statement->method('execute')->willReturn(true);
-        $statement->method('fetchColumn')->willReturn($enabled ? 'true' : 'false');
-        $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturn($statement);
-
-        return new PlatformSettings($pdo, $this->createStub(LoggerInterface::class));
-    }
-
-    private function limits(): SignupRateLimit
-    {
-        $statement = $this->createStub(PDOStatement::class);
-        $statement->method('execute')->willReturn(true);
-        $statement->method('fetchColumn')->willReturn(0);
-        $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturn($statement);
-
-        return new SignupRateLimit($pdo);
-    }
-
-    private function mailbox(): PlatformMailbox
-    {
-        $logger = $this->createStub(LoggerInterface::class);
-        $notice = new PlatformOperatorNotice($logger);
-
-        return new PlatformMailbox(new OutboundMail($logger), new GmailSender($notice), $notice);
-    }
-
-    private function audit(): AdminAudit
-    {
-        $statement = $this->createStub(PDOStatement::class);
-        $statement->method('execute')->willReturn(true);
-        $statement->method('rowCount')->willReturn(1);
-        $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturn($statement);
-
-        return QuietAudit::admin($pdo, new Request('GET', '/signup', [], []));
-    }
-
-    private function confirmingVerification(): OwnerEmailVerification
-    {
-        $row = [
-            'id' => '01900000-0000-7000-8000-000000000010',
-            'owner_id' => '01900000-0000-7000-8000-000000000011',
-            'email' => 'owner@harbor.test',
-            'username' => 'owner',
-            'slug' => 'cov-harbor',
-            'tenant_id' => '01900000-0000-7000-8000-000000000012',
+            $bag,
         ];
+    }
+
+    /**
+     * A stand-in for the platform signup functions, answering by statement.
+     *
+     * @param array{enabled?: bool, outcome?: string, state?: string|null, verify?: string|false} $db
+     */
+    private function signupDatabase(array $db): PDO
+    {
         $pdo = $this->createStub(PDO::class);
-        $pdo->method('prepare')->willReturnCallback(function () use ($row): PDOStatement {
+        $pdo->method('prepare')->willReturnCallback(function (string $sql) use ($db): PDOStatement {
             $statement = $this->createStub(PDOStatement::class);
             $statement->method('execute')->willReturn(true);
-            $statement->method('fetch')->willReturn($row);
             $statement->method('rowCount')->willReturn(1);
+            $state = $db['state'] ?? null;
+            $statement->method('fetch')->willReturn(match (true) {
+                str_contains($sql, 'signup_challenge') => ['seed' => str_repeat('c', 32), 'bits' => 18],
+                str_contains($sql, 'signup_state') && is_string($state) => ['status' => $state, 'email' => 'owner@harbor.test', 'slug' => 'harbor'],
+                default => false,
+            });
+            $statement->method('fetchColumn')->willReturn(match (true) {
+                str_contains($sql, 'signup_request') => $db['outcome'] ?? 'pending',
+                str_contains($sql, 'signup_verify') => $db['verify'] ?? 'verified',
+                str_contains($sql, 'platform.settings') => ($db['enabled'] ?? true) ? 'true' : 'false',
+                default => false,
+            });
+
+            return $statement;
+        });
+        $pdo->method('query')->willReturnCallback(function (): PDOStatement {
+            $statement = $this->createStub(PDOStatement::class);
+            $statement->method('fetchColumn')->willReturn(24);
 
             return $statement;
         });
 
-        return new OwnerEmailVerification($pdo, $this->mailbox(), $this->audit(), $this->createStub(LoggerInterface::class));
+        return $pdo;
     }
 
     /**
-     * @param callable(): void $work
+     * @param array<string, string> $changes
      */
+    private function signupPost(array $changes = []): Request
+    {
+        return $this->request('POST', '/signup', $changes + [
+            'csrf' => 'csrf-token',
+            'store_name' => 'Harbor',
+            'email' => 'owner@harbor.test',
+            'password' => 'password1',
+            'password_confirm' => 'password1',
+            'proof_seed' => str_repeat('c', 32),
+            'proof_nonce' => '7',
+        ]);
+    }
+
+    private function linkPost(): Request
+    {
+        return $this->request('POST', '/signup/verify/' . self::TOKEN, ['csrf' => 'csrf-token']);
+    }
+
+    /**
+     * @param array<string, mixed> $post
+     */
+    private function request(string $method, string $path, array $post): Request
+    {
+        return new Request($method, $path, [], $post, '', 'https://example.test', '203.0.113.10');
+    }
+
+    private function redirected(callable $work): void
+    {
+        ob_start();
+        try {
+            $work();
+            self::fail('expected a redirect');
+        } catch (ResponseSent $sent) {
+            self::assertSame('redirect', $sent->getMessage());
+        } finally {
+            ob_end_clean();
+        }
+    }
+
     private function capture(callable $work): string
     {
         ob_start();

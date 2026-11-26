@@ -168,7 +168,7 @@ final class ThinPageRenderTest extends TestCase
         self::assertStringContainsString('Enter a store name.', $failed);
     }
 
-    public function testTheSignupPageShowsOffPendingAndTheForm(): void
+    public function testTheSignupPagesShowOffTheFormSentConfirmAndWait(): void
     {
         $view = new View(dirname(__DIR__, 3) . '/src');
         $off = $this->capture($view, 'Feature/Signup/signup', [
@@ -177,22 +177,36 @@ final class ThinPageRenderTest extends TestCase
             'enabled' => false,
         ]);
         self::assertStringContainsString('turned off', $off);
-        $pending = $this->capture($view, 'Feature/Signup/signup', [
-            'csrf' => 'tok',
-            'error' => null,
-            'enabled' => true,
-            'checkEmail' => true,
-        ]);
-        self::assertStringContainsString('Check your email', $pending);
+        self::assertStringNotContainsString('signup-proof.js', $off);
         $form = $this->capture($view, 'Feature/Signup/signup', [
             'csrf' => 'tok',
             'error' => 'Enter a store name.',
             'enabled' => true,
-            'checkEmail' => false,
+            'proof' => ['seed' => str_repeat('a', 32), 'bits' => 18],
+            'storeName' => 'Harbor <Antiques>',
+            'email' => 'owner@harbor.test',
         ]);
         self::assertStringContainsString('Enter a store name.', $form);
-        self::assertStringContainsString('name="store_name"', $form);
-        self::assertStringContainsString('name="password"', $form);
+        self::assertStringContainsString('value="Harbor &lt;Antiques&gt;"', $form);
+        self::assertStringContainsString('data-proof-seed="' . str_repeat('a', 32) . '"', $form);
+        self::assertStringContainsString('data-proof-bits="18"', $form);
+        self::assertStringContainsString('name="proof_nonce" value=""', $form);
+        self::assertStringContainsString('disabled data-proof-button', $form);
+        self::assertStringContainsString('signup-proof.js', $form);
+        self::assertStringContainsString('<noscript>', $form);
+        $sent = $this->capture($view, 'Feature/Signup/sent', ['sentence' => 'Check your email for a link.']);
+        self::assertStringContainsString('Check your email for a link.', $sent);
+        $confirm = $this->capture($view, 'Feature/Signup/verify', [
+            'csrf' => 'tok',
+            'token' => str_repeat('b', 43),
+            'email' => 'owner@harbor.test',
+        ]);
+        self::assertStringContainsString('action="/signup/verify/' . str_repeat('b', 43) . '"', $confirm);
+        self::assertStringContainsString('Set up my store', $confirm);
+        $wait = $this->capture($view, 'Feature/Signup/wait', ['slow' => false]);
+        self::assertStringContainsString('checks again on its own', $wait);
+        $slow = $this->capture($view, 'Feature/Signup/wait', ['slow' => true]);
+        self::assertStringContainsString('taking longer than it should', $slow);
     }
 
     /**

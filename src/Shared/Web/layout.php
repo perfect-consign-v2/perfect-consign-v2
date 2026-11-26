@@ -17,9 +17,11 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $templateDirectory */
 /** @var string $path */
 /** @var string $robots */
+/** @var int $refreshSeconds */
 
 $path = $path ?? '';
 $robots = $robots ?? '';
+$refreshSeconds = is_int($refreshSeconds ?? null) ? $refreshSeconds : 0;
 $posShell = ($posShell ?? false) === true;
 $chooseRegister = $chooseRegister ?? false;
 $leftOpen = is_array($leftOpen ?? null) ? $leftOpen : [];
@@ -230,6 +232,9 @@ $roleLabel = match ($actorRole) {
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <?php if ($robots === 'noindex'): ?>
         <meta name="robots" content="noindex">
+    <?php endif; ?>
+    <?php if ($refreshSeconds > 0): ?>
+        <meta http-equiv="refresh" content="<?= View::text((string) $refreshSeconds) ?>">
     <?php endif; ?>
     <link rel="stylesheet" href="<?= View::asset('/assets/boot.css') ?>">
     <link rel="stylesheet" href="<?= View::asset('/assets/inter.css') ?>">
