@@ -357,12 +357,17 @@ final class SignedAccountObligationTest extends TestCase
                 static fn (AdminMfaController $page): mixed => $page->challengeSubmit(),
             ] as $call
         ) {
+            ob_start();
             try {
                 $call($posted);
                 self::fail('an authenticator post stayed open');
             } catch (ResponseSent $sent) {
                 self::assertSame('csrf', $sent->getMessage());
+            } finally {
+                $page = ob_get_clean();
             }
+            self::assertIsString($page);
+            self::assertStringContainsString('The form expired.', $page);
         }
     }
 

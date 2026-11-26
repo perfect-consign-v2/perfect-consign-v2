@@ -190,13 +190,10 @@ final class RemainingLinesTest extends TestCase
 
         $hidden = new MallRows(false);
         $hiddenDoor = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/colors', [], []));
-        try {
+        $this->refused(function () use ($hiddenDoor, $hidden): void {
             (new NameListController($hiddenDoor->app, new NameListStore($hidden, new CatalogLinks($hidden)), $this->mall($hidden, $hiddenDoor->pdo)))
                 ->show(MallDoor::SLUG, 'colors');
-            self::fail('a disabled color list was shown');
-        } catch (ResponseSent $sent) {
-            self::assertSame('not found', $sent->getMessage());
-        }
+        });
     }
 
     public function testACashierCannotOpenReportsAndAVendorWithoutABoothIsRefused(): void
@@ -459,12 +456,17 @@ final class RemainingLinesTest extends TestCase
 
     private function refused(callable $run): void
     {
+        ob_start();
         try {
             $run();
             self::fail('a refused page was shown');
         } catch (ResponseSent $sent) {
             self::assertSame('not found', $sent->getMessage());
+        } finally {
+            $page = ob_get_clean();
         }
+        self::assertIsString($page);
+        self::assertStringContainsString('<h1>Not found</h1>', $page);
     }
 
     private function mall(Statements $statements, PDO $pdo): MallSettings

@@ -96,15 +96,22 @@ final class ActivityPhrase
         foreach (array_keys(self::PHRASES) as $code) {
             $choices[] = ['code' => $code, 'phrase' => self::text($code, $seller)];
         }
-        usort($choices, static function (array $left, array $right): int {
-            $byPhrase = strcasecmp($left['phrase'], $right['phrase']);
-            if ($byPhrase !== 0) {
-                return $byPhrase;
-            }
-
-            return strcasecmp($left['code'], $right['code']);
-        });
+        usort($choices, self::order(...));
 
         return $choices;
+    }
+
+    /**
+     * @param array{code: string, phrase: string} $left
+     * @param array{code: string, phrase: string} $right
+     */
+    public static function order(array $left, array $right): int
+    {
+        $byPhrase = strcasecmp($left['phrase'], $right['phrase']);
+        if ($byPhrase !== 0) {
+            return $byPhrase;
+        }
+
+        return strcasecmp($left['code'], $right['code']);
     }
 }

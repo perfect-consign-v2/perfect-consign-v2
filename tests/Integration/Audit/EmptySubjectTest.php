@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Integration\Audit;
 
+use PerfectApp\Session\Session;
 use PerfectConsign\Feature\Dev\LocalAdmin;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Database\Statements;
@@ -32,16 +33,22 @@ final class EmptySubjectTest extends TestCase
         $before = $statements->rows('SELECT receipt_footer FROM mall');
         $prior = is_string($before[0]['receipt_footer'] ?? null) ? $before[0]['receipt_footer'] : '';
         $marker = 'empty-subject-' . bin2hex(random_bytes(4));
+        $savedSession = $_SESSION ?? null;
         $pdo->beginTransaction();
         try {
             $statements->change('UPDATE mall SET receipt_footer = ?', [$marker]);
-            QuietAudit::make($statements)->record('settings.edit', 'company', $tenant['id']);
+            QuietAudit::make($statements, new Session([], false))->record('settings.edit', 'company', $tenant['id']);
             self::fail('an empty session stored an activity row');
         } catch (DatabaseRefusal $refusal) {
             self::assertSame('the signed-in account is missing', $refusal->getMessage());
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
+            }
+            if ($savedSession === null) {
+                $_SESSION = [];
+            } else {
+                $_SESSION = $savedSession;
             }
         }
         $after = $statements->rows('SELECT receipt_footer FROM mall');

@@ -73,6 +73,33 @@ final class MallMissCoverageTest extends TestCase
         self::assertSame('The signed-in person is missing.', $door->bag['notice'] ?? null);
     }
 
+    public function testAReceiptMailboxIsSavedWithTheFooter(): void
+    {
+        $statements = $this->routed();
+        $this->routeMall($statements);
+        $door = MallDoor::open($this, new Request('POST', '/' . MallDoor::SLUG . '/settings/receipt', [], [
+            'csrf' => 'csrf-token',
+            'receipt_footer' => 'Thanks',
+            'receipt_mail_via' => 'server',
+            'gmail_address' => '',
+            'gmail_app_password' => '',
+        ]));
+        $pdo = $this->createStub(PDO::class);
+        $controller = new MallController(
+            $door->app,
+            $this->mall($statements),
+            new MallPayoutSettings($statements),
+            new BackupStore($pdo),
+            new NightlyCopy(),
+            new LabelCatalog(),
+            new MallRentDraft($door->app, new MallPayoutSettings($statements), QuietAudit::journal($statements, $door->actor)),
+        );
+        $this->capture(function () use ($controller): void {
+            $controller->savePart(MallDoor::SLUG, 'receipt');
+        });
+        self::assertSame('Receipt saved.', $door->bag['notice'] ?? null);
+    }
+
     public function testReceiptAndBuildingRefusalsStayOnSettings(): void
     {
         $receipt = $this->settings('receipt', [
