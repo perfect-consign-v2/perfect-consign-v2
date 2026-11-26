@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\LineGap;
 
+use PerfectConsign\Tests\Support\FileFault;
 use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\ActiveRegister;
@@ -268,7 +269,10 @@ final class ListedLineCoverageTest extends TestCase
         $this->mkdir($cache);
         $manifest = $cache . DIRECTORY_SEPARATOR . 'feature-controllers.php';
         self::assertNotFalse(file_put_contents($manifest, "<?php\n\nreturn [];\n"));
-        chmod($manifest, 0444);
+        $unlock = FileFault::lockReplace($manifest);
+        if ($unlock === null) {
+            self::markTestSkipped('this system cannot refuse replacing the manifest');
+        }
         RegisterFeatures::clearCache();
         $previous = set_error_handler(static fn (int $severity): bool => $severity === E_WARNING);
         try {
@@ -278,8 +282,8 @@ final class ListedLineCoverageTest extends TestCase
             self::assertSame('feature controller manifest could not be written', $error->getMessage());
         } finally {
             restore_error_handler();
+            $unlock();
         }
-        chmod($manifest, 0666);
         self::assertTrue(unlink($manifest));
         $this->mkdir($manifest);
         RegisterFeatures::clearCache();
@@ -588,7 +592,6 @@ final class ListedLineCoverageTest extends TestCase
 
     public function testAppLogFailuresUseAStandInPath(): void
     {
-        $previous = set_error_handler(static fn (int $severity): bool => $severity === E_WARNING);
         if (!in_array('flipstat', stream_get_wrappers(), true)) {
             stream_wrapper_register('flipstat', FlipStatStream::class);
         }
@@ -643,12 +646,21 @@ final class ListedLineCoverageTest extends TestCase
         }
 
         $read = new ReflectionMethod(AppLogFile::class, 'readTail');
+        $unopenable = FileFault::unopenable($dir);
+        if ($unopenable === null) {
+            self::markTestSkipped('this system cannot refuse opening a log');
+        }
+        $previous = set_error_handler(static fn (int $severity): bool => $severity === E_WARNING);
         try {
-            $read->invoke($stuck, $asDir, 10, 4);
-            self::fail('a directory was read as a log');
+            $read->invoke($stuck, $unopenable, 10, 4);
+            self::fail('an unopenable log was read');
         } catch (RuntimeException $error) {
             self::assertSame('The application log could not be opened.', $error->getMessage());
+        } finally {
+            restore_error_handler();
+            FileFault::release($unopenable);
         }
+        unset($previous);
 
         if (!in_array('flipread', stream_get_wrappers(), true)) {
             stream_wrapper_register('flipread', FlipReadStream::class);
@@ -1303,12 +1315,18 @@ final class ListedLineCoverageTest extends TestCase
         } catch (\PerfectConsign\Feature\Backup\BackupException $error) {
             self::assertSame('The backup could not be taken.', $error->getMessage());
         }
-        $file = new \PerfectConsign\Feature\Backup\BackupFile('id', $dir, $dir, 1, str_repeat('a', 64), 'gap.zip', '2026-01-01T00:00:00Z');
+        $unopenable = FileFault::unopenable($dir);
+        if ($unopenable === null) {
+            self::markTestSkipped('this system cannot refuse opening a backup');
+        }
+        $file = new \PerfectConsign\Feature\Backup\BackupFile('id', $unopenable, $dir, 1, str_repeat('a', 64), 'gap.zip', '2026-01-01T00:00:00Z');
         try {
             $backup->send($file);
-            self::fail('a directory was sent as a zip');
+            self::fail('an unopenable backup was sent');
         } catch (\PerfectConsign\Feature\Backup\BackupException $error) {
             self::assertSame('The backup could not be opened.', $error->getMessage());
+        } finally {
+            FileFault::release($unopenable);
         }
         $package = new ReflectionMethod($backup, 'package');
         try {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Feature\Coverage;
 
 use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Tests\Support\FileFault;
 use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Bootstrap\EmailSignIn;
@@ -946,10 +947,11 @@ final class ListedLineCoverageTest extends TestCase
         $file = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . '_listed_unread.txt';
         $written = file_put_contents($file, 'hi');
         self::assertNotFalse($written);
-        $denied = false;
+        $undo = FileFault::denyRead($file);
         try {
-            $ran = shell_exec('icacls ' . escapeshellarg($file) . ' /deny Everyone:(R)');
-            $denied = is_string($ran);
+            if ($undo === null) {
+                self::markTestSkipped('this system cannot deny reading an asset');
+            }
             $body = $this->swallow(static function (): string {
                 ob_start();
                 AssetServer::send('/assets/_listed_unread.txt');
@@ -959,8 +961,8 @@ final class ListedLineCoverageTest extends TestCase
             });
             self::assertStringContainsString('could not be shown', $body);
         } finally {
-            if ($denied) {
-                shell_exec('icacls ' . escapeshellarg($file) . ' /remove:d Everyone');
+            if ($undo !== null) {
+                $undo();
             }
             if (is_file($file)) {
                 unlink($file);

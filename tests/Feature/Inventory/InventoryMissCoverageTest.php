@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Inventory;
 
+use PerfectConsign\Tests\Support\FileFault;
 use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\JournalAudit;
@@ -467,21 +468,25 @@ final class InventoryMissCoverageTest extends TestCase
 
     public function testPhotoBytesLabelsAndThePictureResponses(): void
     {
-        $directory = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src';
+        $unreadable = FileFault::unopenable(sys_get_temp_dir());
+        if ($unreadable === null) {
+            self::markTestSkipped('this system cannot refuse reading an uploaded photo');
+        }
         $intake = new ItemPhotoIntake(new NullLogger(), new MissPhotoFacts(static fn (string $path): bool => true));
         set_error_handler(static fn (int $severity): bool => $severity === E_WARNING);
         try {
             $intake->hex([
-                'tmp_name' => $directory,
+                'tmp_name' => $unreadable,
                 'error' => UPLOAD_ERR_OK,
                 'size' => 1,
                 'name' => 'dir',
             ], false);
-            self::fail('a directory was read as a photo');
+            self::fail('an unreadable upload was read as a photo');
         } catch (\InvalidArgumentException $error) {
             self::assertSame('That photo could not be read.', $error->getMessage());
         } finally {
             restore_error_handler();
+            FileFault::release($unreadable);
         }
         self::assertSame('1 MB', (new ItemPhotoIntake(new NullLogger(), new MissPhotoFacts(null, '1M')))->label());
         self::assertSame('1.4 MB', (new ItemPhotoIntake(new NullLogger(), new MissPhotoFacts(null, '1500000')))->label());

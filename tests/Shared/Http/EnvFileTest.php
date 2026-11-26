@@ -78,7 +78,12 @@ final class EnvFileTest extends TestCase
             }
             $this->expectException(\RuntimeException::class);
             $this->expectExceptionMessage('the env file could not be read');
-            EnvFile::apply($path);
+            set_error_handler(static fn (int $severity): bool => $severity === E_WARNING);
+            try {
+                EnvFile::apply($path);
+            } finally {
+                restore_error_handler();
+            }
         } finally {
             chmod($path, 0600);
             if (is_file($path)) {
