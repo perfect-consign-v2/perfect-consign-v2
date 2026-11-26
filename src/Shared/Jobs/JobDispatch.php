@@ -17,7 +17,7 @@ final class JobDispatch
         private readonly MarkdownJob $markdowns,
         private readonly OutboundMailJob $outbound,
         private readonly ProbeBanDigestJob $bans,
-        private readonly SignupJobs $signups,
+        private readonly PlatformJobs $platform,
     ) {
     }
 
@@ -47,8 +47,9 @@ final class JobDispatch
             'markdown-propose' => $this->markdowns->propose($this->date($payload)),
             'outbound-mail' => $this->outbound->send($this->mailId($payload)),
             'probe-ban-digest' => $this->bans->send($this->date($payload)),
-            'store-provision' => $this->signups->build($this->signupId($payload)),
-            'signup-reap' => $this->signups->reap(),
+            'store-provision' => $this->platform->build($this->signupId($payload)),
+            'signup-reap' => $this->platform->reapSignups(),
+            'sign-in-reap' => $this->platform->reapSignIns(),
             default => throw new RuntimeException('unknown job'),
         };
     }

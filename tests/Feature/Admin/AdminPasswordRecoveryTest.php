@@ -468,6 +468,7 @@ final class AdminPasswordRecoveryTest extends TestCase
             QuietAudit::admin($pdo, new Request('GET', '/', [], [])),
             new AdminSession($session),
             new LoginSession($session),
+            new \PerfectConsign\Feature\Admin\AdminPasswordSave($pdo, \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo, $request)),
         );
     }
 

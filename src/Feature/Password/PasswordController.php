@@ -18,6 +18,7 @@ final class PasswordController
         private readonly LoginAccounts $accounts,
         private readonly Actor $actor,
         private readonly JournalAudit $audit,
+        private readonly SignInDevices $devices,
     ) {
     }
 
@@ -68,6 +69,24 @@ final class PasswordController
         $this->app->redirect($this->signInPath($email), 'Sign-in email saved. Sign in with your new email.');
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/password/devices/remove', ['POST'])]
+    public function removeDevice(string $slug): void
+    {
+        $this->app->checkCsrf();
+        $tenant = $this->app->open($slug, true);
+        try {
+            $this->devices->forget($tenant, $this->actor->username(), $this->app->request()->field('device_id'));
+        } catch (\InvalidArgumentException $error) {
+            $this->render($tenant, $error->getMessage());
+
+            return;
+        }
+        $this->app->redirect(
+            '/' . $tenant->slug . '/password',
+            'That browser was removed. It needs the password the next time.',
+        );
+    }
+
     private function changed(TenantRecord $tenant, string $current, string $next, string $confirm): void
     {
         $account = $this->actor->account();
@@ -114,6 +133,7 @@ final class PasswordController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'email' => $this->accounts->shown($tenant, $this->actor->role(), $this->actor->account()),
+            'devices' => $this->devices->listed($tenant, $this->actor->username()),
             'error' => $error,
         ]);
     }

@@ -1019,7 +1019,7 @@ final class ListedLineCoverageTest extends TestCase
             new MarkdownJob($this->createStub(PDO::class)),
             new OutboundMailJob(new MailOutbox($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), $this->platformMailbox()),
             new ProbeBanDigestJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class))),
-            new \PerfectConsign\Shared\Jobs\SignupJobs($this->createStub(PDO::class), new \PerfectConsign\Shared\Jobs\StoreProvisionJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class)), '', '')),
+            new \PerfectConsign\Shared\Jobs\PlatformJobs($this->createStub(PDO::class), new \PerfectConsign\Shared\Jobs\StoreProvisionJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class)), '', '')),
         );
         try {
             $dispatch->dispatch($this->job('assess-late-fees', 'null'));
@@ -1129,7 +1129,7 @@ final class ListedLineCoverageTest extends TestCase
             $runner->handle($this->claimed('platform', 'assess-late-fees', 1));
             self::fail('a platform fee job ran');
         } catch (RuntimeException $error) {
-            self::assertSame('platform jobs are mail, the ban summary, or signups', $error->getMessage());
+            self::assertSame('platform jobs are mail, the ban summary, signups, or sign-ins', $error->getMessage());
         }
         try {
             $runner->handle($this->claimed('gapmall', 'probe-ban-digest', 1));
@@ -1752,6 +1752,9 @@ final class ListedLineCoverageTest extends TestCase
             if (str_contains($sql, 'sign_in_directory')) {
                 return new ScriptedResult(rows: [['slug' => MallDoor::SLUG, 'username' => 'ada']]);
             }
+            if (str_contains($sql, 'sign_in_begin')) {
+                return new ScriptedResult(rows: [['verdict' => 'open', 'trusted' => 'f', 'alerted' => 'f']]);
+            }
             if (str_contains($sql, 'platform.tenants')) {
                 return new ScriptedResult(rows: [[
                     'id' => MallDoor::TENANT,
@@ -1779,14 +1782,13 @@ final class ListedLineCoverageTest extends TestCase
         $sessions = new LoginSession($door->session);
         $tenants = new TenantLookup($pdo);
         $owner = new OwnerGate(
-            $pdo,
             $door->session,
             $logger,
             $door->app->request(),
             $tenants,
             new \PerfectConsign\Bootstrap\MissingPage($door->session, $logger, new View(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src'), $door->app->request(), $tenants),
-            new StaffSignIn($pdo, $logger, $sessions, new SignInFailureRetention($pdo)),
-            $sessions,
+            new \PerfectConsign\Bootstrap\StoreAccounts($pdo, new StaffSignIn($pdo, $logger, $sessions), $sessions, $logger),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo),
         );
         $roles = new DatabaseRole($pdo);
         $mailbox = $this->createStub(LetterMailbox::class);
@@ -1795,14 +1797,14 @@ final class ListedLineCoverageTest extends TestCase
             $door->app,
             $door->session,
             $tenants,
-            new EmailSignIn($pdo, $door->app->request(), $logger, new SignInDirectory($pdo), new FrontDoor(
+            new EmailSignIn($logger, new SignInDirectory($pdo), new FrontDoor(
                 new \PerfectConsign\Bootstrap\MissingPage($door->session, $logger, new View(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src'), $door->app->request(), $tenants),
                 new \PerfectConsign\Bootstrap\PriorClose($door->session, $door->app->request()),
                 $owner,
                 new \PerfectConsign\Bootstrap\PostedRefusal($logger),
                 new Actor($door->session),
                 new \PerfectConsign\Bootstrap\CredentialStamp($pdo, $door->session, $roles),
-            ), new SignInFailureRetention($pdo)),
+            ), \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo)),
             new SignInDirectory($pdo),
             new PasswordRecovery(
                 $pdo,
@@ -1812,6 +1814,7 @@ final class ListedLineCoverageTest extends TestCase
                 new ResetRequests($pdo, $door->app->request()),
                 new PasswordChoice(),
                 new ResetLetter($pdo, $roles, new ResetTokens($pdo), $mailbox, $logger, new PlatformOperatorNotice($logger)),
+                \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo),
             ),
             new Actor($actorSession),
             new PlatformSettings($pdo, $logger),
@@ -1932,7 +1935,7 @@ final class ListedLineCoverageTest extends TestCase
                 new MarkdownJob($this->createStub(PDO::class)),
                 new OutboundMailJob(new MailOutbox($this->createStub(PDO::class)), $this->createStub(LetterMailbox::class), $this->platformMailbox()),
                 new ProbeBanDigestJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class))),
-                new \PerfectConsign\Shared\Jobs\SignupJobs($this->createStub(PDO::class), new \PerfectConsign\Shared\Jobs\StoreProvisionJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class)), '', '')),
+                new \PerfectConsign\Shared\Jobs\PlatformJobs($this->createStub(PDO::class), new \PerfectConsign\Shared\Jobs\StoreProvisionJob($this->createStub(PDO::class), new MailOutbox($this->createStub(PDO::class)), '', '')),
             ),
             new WorkerRuns($pdo),
             new JobAttention(

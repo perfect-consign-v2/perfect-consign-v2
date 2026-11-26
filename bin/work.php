@@ -20,7 +20,7 @@ use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Jobs\OutboundMailJob;
 use PerfectConsign\Shared\Jobs\ProbeBanDigestJob;
 use PerfectConsign\Shared\Jobs\ReconcileJob;
-use PerfectConsign\Shared\Jobs\SignupJobs;
+use PerfectConsign\Shared\Jobs\PlatformJobs;
 use PerfectConsign\Shared\Jobs\StoreProvisionJob;
 use PerfectConsign\Shared\Jobs\SaleNoticeJob;
 use PerfectConsign\Shared\Jobs\WorkerRuns;
@@ -81,7 +81,7 @@ $runner = new JobRunner(
             new PlatformMailbox($mail, $gmail, $notices),
         ),
         new ProbeBanDigestJob($pdo, new MailOutbox($pdo)),
-        new SignupJobs(
+        new PlatformJobs(
             $pdo,
             new StoreProvisionJob(
                 $pdo,

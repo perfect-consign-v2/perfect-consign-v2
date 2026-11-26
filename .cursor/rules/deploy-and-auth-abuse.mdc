@@ -23,7 +23,7 @@ For every throttle or refuse list on sign-in (email, owner, staff, admin):
 - **Spray:** one client address across many identities — must refuse (email sign-in: forty failures / fifteen minutes across emails).
 - **Distributed hit** on one identity from many addresses — email-wide lock is intentional; do not remove it to “fix DoS” without a product decision.
 - **Stale prune:** every failure table deletes rows older than the lock window on each new failure insert (`SignInFailureRetention`); email, owner/staff, and admin tables must not grow unbounded from rotated identities.
-- Add the new vector to the permanent integration test (`EmailSignInLockoutTest` or sibling) before calling the fact done.
+- Add the new vector to the permanent integration test (`SignInLimitsTest` or sibling) before calling the fact done.
 
 ## Credential plant / deploy side effects
 

@@ -33,6 +33,7 @@ $tenantHome = $adminPath->url('/tenants');
 $links = [
     [$tenantHome, 'Tenants', 'i-dashboard'],
     [$adminPath->url('/signup'), 'Signups', 'i-lock'],
+    [$adminPath->url('/sign-ins'), 'Sign-ins', 'i-shield'],
     [$adminPath->url('/worker'), 'Mail worker', 'i-report'],
     [$adminPath->url('/log'), 'App log', 'i-report'],
     [$adminPath->url('/audit'), 'Audit', 'i-report'],

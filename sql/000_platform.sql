@@ -677,7 +677,7 @@ BEGIN
     END;
     DELETE FROM platform.jobs WHERE tenant = target_slug;
     DELETE FROM platform.sign_in_directory WHERE tenant_id = mall_id;
-    DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = mall_id;
+    DELETE FROM platform.sign_in_devices WHERE tenant_id = mall_id;
     DELETE FROM platform.password_reset_requests WHERE tenant_id = mall_id;
     DELETE FROM platform.owners WHERE tenant_id = mall_id;
     DELETE FROM platform.tenants WHERE slug = target_slug;
@@ -738,15 +738,6 @@ CREATE TABLE platform.admin_password_resets (
     CONSTRAINT admin_password_resets_hash_chk CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))
 );
 
-CREATE TABLE platform.admin_sign_in_failures (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    email text NOT NULL,
-    failed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    client_address text DEFAULT ''::text NOT NULL,
-    CONSTRAINT admin_sign_in_failures_address_chk CHECK ((char_length(client_address) <= 64)),
-    CONSTRAINT admin_sign_in_failures_email_chk CHECK (((email = btrim(email)) AND (char_length(email) <= 200) AND (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text)))
-);
-
 CREATE TABLE platform.admins (
     id uuid DEFAULT uuidv7() NOT NULL,
     email text NOT NULL,
@@ -756,15 +747,6 @@ CREATE TABLE platform.admins (
     CONSTRAINT admins_credentials_version_chk CHECK ((credentials_version >= 1)),
     CONSTRAINT admins_email_chk CHECK (((email = btrim(email)) AND (char_length(email) <= 200) AND (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text))),
     CONSTRAINT admins_hash_chk CHECK ((password_hash <> ''::text))
-);
-
-CREATE TABLE platform.email_sign_in_failures (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    email text NOT NULL,
-    failed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    client_address text DEFAULT ''::text NOT NULL,
-    CONSTRAINT email_sign_in_failures_address_chk CHECK ((char_length(client_address) <= 64)),
-    CONSTRAINT email_sign_in_failures_email_chk CHECK (((email = btrim(email)) AND (char_length(email) <= 200) AND (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text)))
 );
 
 CREATE TABLE platform.jobs (
@@ -791,16 +773,6 @@ CREATE TABLE platform.owner_backups (
     sha256 text NOT NULL,
     CONSTRAINT owner_backups_sha_chk CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT owner_backups_size_chk CHECK ((byte_size >= 0))
-);
-
-CREATE TABLE platform.owner_sign_in_failures (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    tenant_id uuid NOT NULL,
-    username text NOT NULL,
-    failed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
-    client_address text DEFAULT ''::text NOT NULL,
-    CONSTRAINT owner_sign_in_failures_address_chk CHECK ((char_length(client_address) <= 64)),
-    CONSTRAINT owner_sign_in_failures_username_chk CHECK (((username = btrim(username)) AND (username ~ '^[a-z][a-z0-9-]{0,62}$'::text)))
 );
 
 CREATE TABLE platform.owners (
@@ -894,26 +866,17 @@ ALTER TABLE ONLY platform.admin_password_resets
 ALTER TABLE ONLY platform.admin_password_resets
     ADD CONSTRAINT admin_password_resets_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY platform.admin_sign_in_failures
-    ADD CONSTRAINT admin_sign_in_failures_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY platform.admins
     ADD CONSTRAINT admins_email_key UNIQUE (email);
 
 ALTER TABLE ONLY platform.admins
     ADD CONSTRAINT admins_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY platform.email_sign_in_failures
-    ADD CONSTRAINT email_sign_in_failures_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY platform.jobs
     ADD CONSTRAINT jobs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY platform.owner_backups
     ADD CONSTRAINT owner_backups_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY platform.owner_sign_in_failures
-    ADD CONSTRAINT owner_sign_in_failures_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY platform.owners
     ADD CONSTRAINT owners_pkey PRIMARY KEY (id);
@@ -955,19 +918,9 @@ CREATE INDEX admin_audit_at ON platform.admin_audit USING btree (at DESC);
 
 CREATE INDEX admin_password_reset_requests_window ON platform.admin_password_reset_requests USING btree (email, requested_at);
 
-CREATE INDEX admin_sign_in_failures_window ON platform.admin_sign_in_failures USING btree (email, client_address, failed_at);
-
-CREATE INDEX email_sign_in_failures_address ON platform.email_sign_in_failures USING btree (client_address, failed_at);
-
-CREATE INDEX email_sign_in_failures_stale ON platform.email_sign_in_failures USING btree (failed_at);
-
-CREATE INDEX email_sign_in_failures_window ON platform.email_sign_in_failures USING btree (email, client_address, failed_at);
-
 CREATE UNIQUE INDEX jobs_tenant_kind_day_key ON platform.jobs USING btree (tenant, kind, ((payload ->> 'date'::text))) WHERE ((payload ->> 'letter'::text) IS NULL);
 
 CREATE UNIQUE INDEX jobs_tenant_kind_letter_key ON platform.jobs USING btree (tenant, kind, ((payload ->> 'letter'::text))) WHERE ((payload ->> 'letter'::text) IS NOT NULL);
-
-CREATE INDEX owner_sign_in_failures_window ON platform.owner_sign_in_failures USING btree (tenant_id, username, client_address, failed_at);
 
 CREATE UNIQUE INDEX owners_email_key ON platform.owners USING btree (lower(email)) WHERE (email IS NOT NULL);
 
@@ -1059,8 +1012,6 @@ REVOKE ALL ON FUNCTION platform.reject_password_reset_truncate() FROM PUBLIC;
 
 GRANT ALL ON FUNCTION platform.reject_password_reset_truncate() TO stall_app;
 
-GRANT SELECT,INSERT,DELETE ON TABLE platform.owner_sign_in_failures TO stall_app;
-
 GRANT SELECT ON TABLE platform.owners TO stall_app;
 
 GRANT SELECT ON TABLE platform.owners TO stall_backup;
@@ -1091,15 +1042,11 @@ GRANT INSERT ON TABLE platform.jobs TO stall_app;
 
 GRANT INSERT ON TABLE platform.jobs TO stall_poster;
 
-GRANT SELECT, INSERT, DELETE ON TABLE platform.owner_sign_in_failures TO stall_poster;
-
 GRANT USAGE ON SCHEMA platform TO stall_worker;
 
 GRANT SELECT, INSERT, UPDATE ON TABLE platform.jobs TO stall_worker;
 
 GRANT SELECT ON TABLE platform.tenants TO stall_worker;
-
-REVOKE SELECT, INSERT, DELETE ON TABLE platform.owner_sign_in_failures FROM stall_poster;
 
 REVOKE ALL ON FUNCTION platform.enqueue_vendor_letter(date, uuid) FROM PUBLIC;
 
@@ -1116,8 +1063,6 @@ GRANT SELECT ON TABLE platform.admins TO stall_app;
 GRANT UPDATE (password_hash) ON TABLE platform.admins TO stall_app;
 
 GRANT UPDATE (credentials_version) ON TABLE platform.admins TO stall_app;
-
-GRANT SELECT, INSERT, DELETE ON TABLE platform.admin_sign_in_failures TO stall_app;
 
 GRANT SELECT, INSERT ON TABLE platform.admin_password_reset_requests TO stall_app;
 
@@ -1136,8 +1081,6 @@ GRANT EXECUTE ON FUNCTION platform.put_sign_in_directory(text, uuid, text, uuid,
 GRANT EXECUTE ON FUNCTION platform.clear_sign_in_directory(text, uuid) TO stall_app;
 
 GRANT SELECT ON TABLE platform.sign_in_directory TO stall_app;
-
-GRANT SELECT, INSERT, DELETE ON TABLE platform.email_sign_in_failures TO stall_app;
 
 -- >>> folded from 107_admin_mfa.sql (authenticator tables, before the admin guard triggers)
 -- Platform admin authenticator (TOTP) and one-time recovery codes.
@@ -1626,7 +1569,7 @@ BEGIN
     END;
     DELETE FROM platform.jobs WHERE tenant = target_slug;
     DELETE FROM platform.sign_in_directory WHERE tenant_id = mall_id;
-    DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = mall_id;
+    DELETE FROM platform.sign_in_devices WHERE tenant_id = mall_id;
     DELETE FROM platform.password_reset_requests WHERE tenant_id = mall_id;
     IF to_regclass('platform.owner_email_verifications') IS NOT NULL THEN
         PERFORM set_config('event_triggers', 'off', true);
@@ -1867,7 +1810,7 @@ BEGIN
     DELETE FROM platform.jobs WHERE tenant = target_slug;
     DELETE FROM platform.mail_outbox WHERE tenant = target_slug;
     DELETE FROM platform.sign_in_directory WHERE tenant_id = mall_id;
-    DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = mall_id;
+    DELETE FROM platform.sign_in_devices WHERE tenant_id = mall_id;
     DELETE FROM platform.password_reset_requests WHERE tenant_id = mall_id;
     IF to_regclass('platform.owner_email_verifications') IS NOT NULL THEN
         PERFORM set_config('event_triggers', 'off', true);
@@ -2011,7 +1954,7 @@ BEGIN
     DELETE FROM platform.jobs WHERE tenant = target_slug;
     DELETE FROM platform.mail_outbox WHERE tenant = target_slug;
     DELETE FROM platform.sign_in_directory WHERE tenant_id = mall_id;
-    DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = mall_id;
+    DELETE FROM platform.sign_in_devices WHERE tenant_id = mall_id;
     DELETE FROM platform.password_reset_requests WHERE tenant_id = mall_id;
     PERFORM set_config('event_triggers', 'off', true);
     ALTER TABLE platform.password_resets DISABLE TRIGGER password_resets_append_only;
@@ -2051,16 +1994,6 @@ $_$;
 
 REVOKE ALL ON FUNCTION platform.wipe_tenant(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION platform.wipe_tenant(text) TO stall_app;
-
-
--- >>> folded from 063_sign_in_failure_stale.sql
--- Stale indexes for owner/admin sign-in failure prune (15-minute lock window).
-
-CREATE INDEX IF NOT EXISTS owner_sign_in_failures_stale
-    ON platform.owner_sign_in_failures USING btree (failed_at);
-
-CREATE INDEX IF NOT EXISTS admin_sign_in_failures_stale
-    ON platform.admin_sign_in_failures USING btree (failed_at);
 
 
 -- >>> folded from 065_stall_app_vendor_grant.sql
@@ -2214,7 +2147,7 @@ BEGIN
     DELETE FROM platform.jobs WHERE tenant = target_slug;
     DELETE FROM platform.mail_outbox WHERE tenant = target_slug;
     DELETE FROM platform.sign_in_directory WHERE tenant_id = mall_id;
-    DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = mall_id;
+    DELETE FROM platform.sign_in_devices WHERE tenant_id = mall_id;
     DELETE FROM platform.password_reset_requests WHERE tenant_id = mall_id;
 
     SELECT count(*) INTO reset_count
@@ -2277,16 +2210,6 @@ $_$;
 
 REVOKE ALL ON FUNCTION platform.wipe_tenant(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION platform.wipe_tenant(text) TO stall_app;
-
-
--- >>> folded from 071_admin_sign_in_lockout.sql
--- Admin sign-in spray and email-wide lockout indexes (mirror email_sign_in_failures).
-
-CREATE INDEX IF NOT EXISTS admin_sign_in_failures_address
-    ON platform.admin_sign_in_failures USING btree (client_address, failed_at);
-
-CREATE INDEX IF NOT EXISTS admin_sign_in_failures_email
-    ON platform.admin_sign_in_failures USING btree (email, failed_at);
 
 
 -- >>> folded from 073_vendor_entry_role.sql
@@ -2488,7 +2411,7 @@ BEGIN
     DELETE FROM platform.jobs WHERE tenant = target_slug;
     DELETE FROM platform.mail_outbox WHERE tenant = target_slug;
     DELETE FROM platform.sign_in_directory WHERE tenant_id = mall_id;
-    DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = mall_id;
+    DELETE FROM platform.sign_in_devices WHERE tenant_id = mall_id;
     DELETE FROM platform.password_reset_requests WHERE tenant_id = mall_id;
     DELETE FROM platform.owners WHERE tenant_id = mall_id;
     DELETE FROM platform.tenants WHERE slug = target_slug;
@@ -3230,7 +3153,8 @@ ALTER TABLE platform.jobs ADD CONSTRAINT jobs_kind_chk CHECK (kind = ANY (ARRAY[
     'outbound-mail'::text,
     'probe-ban-digest'::text,
     'store-provision'::text,
-    'signup-reap'::text
+    'signup-reap'::text,
+    'sign-in-reap'::text
 ]));
 
 
@@ -3913,3 +3837,358 @@ GRANT UPDATE (status, tenant_id, slug, provisioned_at, password_hash)
     ON TABLE platform.store_signups TO stall_provisioner;
 GRANT EXECUTE ON FUNCTION platform.create_poster(text), platform.grant_poster_platform(text)
     TO stall_provisioner;
+
+-- Sign-in limits. platform.sign_in_rules holds them. Every sign-in attempt at
+-- a store door or the admin door is one row in platform.sign_in_attempts,
+-- written only by these functions; nobody updates or deletes a row except the
+-- daily clean-up. An account is admin:<email>, store:<tenant>:<sign-in name>,
+-- or email:<email> for an email that signs in nowhere. A try counts against
+-- the limits when it is wrong_password or unknown_email, inside the window,
+-- and after the account's last ok or password_reset. A browser that signed in
+-- to the account before keeps a device cookie, and the account-wide limit
+-- does not refuse it; the pair and address limits still do.
+CREATE TABLE platform.sign_in_rules (
+    id boolean DEFAULT true NOT NULL,
+    pair_limit integer NOT NULL,
+    address_limit integer NOT NULL,
+    email_soft_limit integer NOT NULL,
+    window_minutes integer NOT NULL,
+    attempts_kept_days integer NOT NULL,
+    device_days integer NOT NULL,
+    CONSTRAINT sign_in_rules_pkey PRIMARY KEY (id),
+    CONSTRAINT sign_in_rules_one_row_chk CHECK (id),
+    CONSTRAINT sign_in_rules_pair_chk CHECK (pair_limit BETWEEN 1 AND 100),
+    CONSTRAINT sign_in_rules_address_chk CHECK (address_limit BETWEEN 1 AND 10000),
+    CONSTRAINT sign_in_rules_email_chk CHECK (email_soft_limit BETWEEN 1 AND 10000),
+    CONSTRAINT sign_in_rules_window_chk CHECK (window_minutes BETWEEN 1 AND 1440),
+    CONSTRAINT sign_in_rules_kept_chk CHECK (attempts_kept_days BETWEEN 1 AND 3650),
+    CONSTRAINT sign_in_rules_device_chk CHECK (device_days BETWEEN 1 AND 3650)
+);
+
+INSERT INTO platform.sign_in_rules (
+    pair_limit, address_limit, email_soft_limit, window_minutes, attempts_kept_days, device_days
+) VALUES (5, 40, 20, 15, 90, 180);
+
+CREATE TABLE platform.sign_in_attempts (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    attempted_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    door text NOT NULL,
+    account_key text NOT NULL,
+    email_tried text,
+    tenant_id uuid,
+    username text,
+    client_address text NOT NULL,
+    user_agent text NOT NULL,
+    outcome text NOT NULL,
+    trusted_device boolean NOT NULL,
+    alerted boolean DEFAULT false NOT NULL,
+    CONSTRAINT sign_in_attempts_pkey PRIMARY KEY (id),
+    CONSTRAINT sign_in_attempts_door_chk CHECK (door = ANY (ARRAY['store'::text, 'admin'::text])),
+    CONSTRAINT sign_in_attempts_key_chk CHECK (char_length(account_key) BETWEEN 7 AND 260),
+    CONSTRAINT sign_in_attempts_email_chk CHECK (email_tried IS NULL OR char_length(email_tried) <= 200),
+    CONSTRAINT sign_in_attempts_username_chk CHECK (username IS NULL OR username ~ '^[a-z][a-z0-9-]{0,62}$'),
+    CONSTRAINT sign_in_attempts_address_chk CHECK (char_length(client_address) <= 64),
+    CONSTRAINT sign_in_attempts_agent_chk CHECK (char_length(user_agent) <= 300),
+    CONSTRAINT sign_in_attempts_outcome_chk CHECK (outcome = ANY (ARRAY[
+        'ok'::text, 'wrong_password'::text, 'unknown_email'::text, 'locked_pair'::text,
+        'locked_address'::text, 'locked_email'::text, 'password_reset'::text
+    ])),
+    CONSTRAINT sign_in_attempts_alert_chk CHECK (NOT alerted OR outcome = 'locked_email')
+);
+
+CREATE INDEX sign_in_attempts_account ON platform.sign_in_attempts USING btree (account_key, attempted_at);
+CREATE INDEX sign_in_attempts_address ON platform.sign_in_attempts USING btree (client_address, attempted_at);
+CREATE INDEX sign_in_attempts_time ON platform.sign_in_attempts USING btree (attempted_at);
+CREATE INDEX sign_in_attempts_email ON platform.sign_in_attempts USING btree (email_tried, attempted_at);
+
+CREATE TABLE platform.sign_in_devices (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    account_key text NOT NULL,
+    tenant_id uuid,
+    username text,
+    token_hash text NOT NULL,
+    label text NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT sign_in_devices_pkey PRIMARY KEY (id),
+    CONSTRAINT sign_in_devices_account_token_key UNIQUE (account_key, token_hash),
+    CONSTRAINT sign_in_devices_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES platform.tenants(id),
+    CONSTRAINT sign_in_devices_key_chk CHECK (account_key ~ '^(admin|store):'),
+    CONSTRAINT sign_in_devices_hash_chk CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT sign_in_devices_label_chk CHECK (char_length(label) <= 300)
+);
+
+CREATE INDEX sign_in_devices_tenant ON platform.sign_in_devices USING btree (tenant_id, username);
+CREATE INDEX sign_in_devices_seen ON platform.sign_in_devices USING btree (last_seen_at);
+
+-- The account an attempt is about. A known store account is its store and
+-- sign-in name, whichever door it came through.
+CREATE FUNCTION platform.sign_in_account(
+    p_door text,
+    p_email text,
+    p_tenant uuid,
+    p_username text
+) RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    v_email text := lower(btrim(coalesce(p_email, '')));
+BEGIN
+    IF p_door = 'admin' AND v_email <> '' AND p_tenant IS NULL AND p_username IS NULL THEN
+        RETURN 'admin:' || v_email;
+    END IF;
+    IF p_door = 'store' AND p_tenant IS NOT NULL AND p_username ~ '^[a-z][a-z0-9-]{0,62}$' THEN
+        RETURN 'store:' || p_tenant::text || ':' || p_username;
+    END IF;
+    IF p_door = 'store' AND p_tenant IS NULL AND p_username IS NULL AND v_email <> '' THEN
+        RETURN 'email:' || v_email;
+    END IF;
+    RAISE EXCEPTION 'the sign-in account is not an account'
+        USING ERRCODE = '22023';
+END;
+$$;
+
+-- Starts one attempt: takes the account and address locks for the rest of
+-- the transaction and applies the limits. A refused attempt is recorded here
+-- and the verdict names the limit. An open attempt must be finished with
+-- sign_in_finish in the same transaction. alerted is true once per window,
+-- on the first attempt the account-wide limit refuses.
+CREATE FUNCTION platform.sign_in_begin(
+    p_door text,
+    p_email text,
+    p_tenant uuid,
+    p_username text,
+    p_address text,
+    p_user_agent text,
+    p_device_hash text
+) RETURNS TABLE (verdict text, trusted boolean, alerted boolean)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.sign_in_rules%ROWTYPE;
+    v_key text := platform.sign_in_account(p_door, p_email, p_tenant, p_username);
+    v_address text := left(coalesce(p_address, ''), 64);
+    window_start timestamptz;
+    counted_from timestamptz;
+    last_ok timestamptz;
+    pair_failures integer;
+    address_failures integer;
+    account_failures integer;
+BEGIN
+    SELECT * INTO STRICT rules FROM platform.sign_in_rules;
+    PERFORM pg_advisory_xact_lock(87241, hashtext(v_key));
+    PERFORM pg_advisory_xact_lock(87242, hashtext(v_address));
+    window_start := clock_timestamp() - make_interval(mins => rules.window_minutes);
+    SELECT max(a.attempted_at) INTO last_ok
+    FROM platform.sign_in_attempts AS a
+    WHERE a.account_key = v_key
+      AND a.outcome = ANY (ARRAY['ok', 'password_reset'])
+      AND a.attempted_at > window_start;
+    counted_from := greatest(window_start, coalesce(last_ok, window_start));
+    trusted := p_device_hash ~ '^[0-9a-f]{64}$' AND EXISTS (
+        SELECT 1 FROM platform.sign_in_devices AS d
+        WHERE d.account_key = v_key
+          AND d.token_hash = p_device_hash
+          AND d.last_seen_at > clock_timestamp() - make_interval(days => rules.device_days)
+    );
+    trusted := coalesce(trusted, false);
+    SELECT count(*) INTO pair_failures
+    FROM platform.sign_in_attempts AS a
+    WHERE a.account_key = v_key
+      AND a.client_address = v_address
+      AND a.outcome = ANY (ARRAY['wrong_password', 'unknown_email'])
+      AND a.attempted_at > counted_from;
+    SELECT count(*) INTO address_failures
+    FROM platform.sign_in_attempts AS a
+    WHERE a.client_address = v_address
+      AND a.outcome = ANY (ARRAY['wrong_password', 'unknown_email'])
+      AND a.attempted_at > window_start;
+    SELECT count(*) INTO account_failures
+    FROM platform.sign_in_attempts AS a
+    WHERE a.account_key = v_key
+      AND a.outcome = ANY (ARRAY['wrong_password', 'unknown_email'])
+      AND a.attempted_at > counted_from;
+    verdict := CASE
+        WHEN pair_failures >= rules.pair_limit THEN 'locked_pair'
+        WHEN address_failures >= rules.address_limit THEN 'locked_address'
+        WHEN account_failures >= rules.email_soft_limit AND NOT trusted THEN 'locked_email'
+        ELSE 'open'
+    END;
+    alerted := false;
+    IF verdict = 'locked_email' AND v_key !~ '^email:' THEN
+        alerted := NOT EXISTS (
+            SELECT 1 FROM platform.sign_in_attempts AS a
+            WHERE a.account_key = v_key
+              AND a.alerted
+              AND a.attempted_at > window_start
+        );
+    END IF;
+    IF verdict = 'open' THEN
+        PERFORM set_config('platform.sign_in_open', v_key || '|' || v_address, true);
+    ELSE
+        PERFORM set_config('platform.sign_in_open', '', true);
+        INSERT INTO platform.sign_in_attempts (
+            door, account_key, email_tried, tenant_id, username, client_address, user_agent,
+            outcome, trusted_device, alerted
+        ) VALUES (
+            p_door, v_key, left(lower(btrim(p_email)), 200), p_tenant, p_username, v_address,
+            left(coalesce(p_user_agent, ''), 300), verdict, trusted, alerted
+        );
+    END IF;
+    RETURN NEXT;
+END;
+$$;
+
+-- Records how an open attempt ended. On ok the browser's device is
+-- remembered for the account (or seen again).
+CREATE FUNCTION platform.sign_in_finish(
+    p_door text,
+    p_email text,
+    p_tenant uuid,
+    p_username text,
+    p_address text,
+    p_user_agent text,
+    p_device_hash text,
+    p_trusted boolean,
+    p_outcome text
+) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    v_key text := platform.sign_in_account(p_door, p_email, p_tenant, p_username);
+    v_address text := left(coalesce(p_address, ''), 64);
+BEGIN
+    IF coalesce(current_setting('platform.sign_in_open', true), '') <> v_key || '|' || v_address THEN
+        RAISE EXCEPTION 'that sign-in attempt was not started'
+            USING ERRCODE = '55000';
+    END IF;
+    IF p_outcome IS NULL OR p_outcome <> ALL (ARRAY['ok', 'wrong_password', 'unknown_email']) THEN
+        RAISE EXCEPTION 'that is not how a sign-in attempt ends'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_outcome = 'ok' AND v_key ~ '^email:' THEN
+        RAISE EXCEPTION 'an email that signs in nowhere cannot sign in'
+            USING ERRCODE = '22023';
+    END IF;
+    PERFORM set_config('platform.sign_in_open', '', true);
+    INSERT INTO platform.sign_in_attempts (
+        door, account_key, email_tried, tenant_id, username, client_address, user_agent,
+        outcome, trusted_device
+    ) VALUES (
+        p_door, v_key, left(lower(btrim(p_email)), 200), p_tenant, p_username, v_address,
+        left(coalesce(p_user_agent, ''), 300), p_outcome, coalesce(p_trusted, false)
+    );
+    IF p_outcome = 'ok' THEN
+        IF p_device_hash IS NULL OR p_device_hash !~ '^[0-9a-f]{64}$' THEN
+            RAISE EXCEPTION 'a signed-in browser needs a device'
+                USING ERRCODE = '22023';
+        END IF;
+        INSERT INTO platform.sign_in_devices (account_key, tenant_id, username, token_hash, label)
+        VALUES (v_key, p_tenant, p_username, p_device_hash, left(coalesce(p_user_agent, ''), 300))
+        ON CONFLICT (account_key, token_hash)
+            DO UPDATE SET last_seen_at = clock_timestamp(), label = EXCLUDED.label;
+    END IF;
+END;
+$$;
+
+-- A password reset ends the count for the account, like a sign-in would.
+CREATE FUNCTION platform.sign_in_reset(
+    p_door text,
+    p_email text,
+    p_tenant uuid,
+    p_username text,
+    p_address text,
+    p_user_agent text
+) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    v_key text := platform.sign_in_account(p_door, p_email, p_tenant, p_username);
+BEGIN
+    IF v_key ~ '^email:' THEN
+        RAISE EXCEPTION 'a reset is for an account'
+            USING ERRCODE = '22023';
+    END IF;
+    INSERT INTO platform.sign_in_attempts (
+        door, account_key, email_tried, tenant_id, username, client_address, user_agent,
+        outcome, trusted_device
+    ) VALUES (
+        p_door, v_key, left(lower(btrim(p_email)), 200), p_tenant, p_username,
+        left(coalesce(p_address, ''), 64), left(coalesce(p_user_agent, ''), 300), 'password_reset', false
+    );
+END;
+$$;
+
+-- The devices an account signed in from, without their hashes. is_current
+-- marks the browser asking, when it sends its device hash.
+CREATE FUNCTION platform.sign_in_device_list(p_tenant uuid, p_username text, p_current text)
+RETURNS TABLE (id uuid, label text, created_at timestamptz, last_seen_at timestamptz, is_current boolean)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+    SELECT d.id, d.label, d.created_at, d.last_seen_at, d.token_hash = coalesce(p_current, '')
+    FROM platform.sign_in_devices AS d
+    WHERE d.account_key = platform.sign_in_account('store', NULL, p_tenant, p_username)
+    ORDER BY d.last_seen_at DESC, d.id;
+$$;
+
+-- Forgets one device of an account. Returns false when it is not that
+-- account's device.
+CREATE FUNCTION platform.sign_in_device_forget(p_tenant uuid, p_username text, p_device uuid)
+RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+BEGIN
+    DELETE FROM platform.sign_in_devices AS d
+    WHERE d.id = p_device
+      AND d.account_key = platform.sign_in_account('store', NULL, p_tenant, p_username);
+
+    RETURN FOUND;
+END;
+$$;
+
+-- The daily clean-up: attempts after attempts_kept_days, devices not seen
+-- for device_days.
+CREATE FUNCTION platform.sign_in_reap() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'platform'
+    AS $$
+DECLARE
+    rules platform.sign_in_rules%ROWTYPE;
+BEGIN
+    SELECT * INTO STRICT rules FROM platform.sign_in_rules;
+    DELETE FROM platform.sign_in_attempts
+    WHERE attempted_at < clock_timestamp() - make_interval(days => rules.attempts_kept_days);
+    DELETE FROM platform.sign_in_devices
+    WHERE last_seen_at < clock_timestamp() - make_interval(days => rules.device_days);
+END;
+$$;
+
+REVOKE ALL ON TABLE platform.sign_in_rules FROM PUBLIC;
+REVOKE ALL ON TABLE platform.sign_in_attempts FROM PUBLIC;
+REVOKE ALL ON TABLE platform.sign_in_devices FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.sign_in_account(text, text, uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.sign_in_begin(text, text, uuid, text, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.sign_in_finish(text, text, uuid, text, text, text, text, boolean, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.sign_in_reset(text, text, uuid, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.sign_in_device_list(uuid, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.sign_in_device_forget(uuid, text, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION platform.sign_in_reap() FROM PUBLIC;
+
+-- The web role signs people in through the functions and reads the attempt
+-- log for the admin page. It never writes or deletes an attempt and never
+-- reads a device hash.
+GRANT SELECT ON TABLE platform.sign_in_rules TO stall_app;
+GRANT SELECT ON TABLE platform.sign_in_attempts TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.sign_in_account(text, text, uuid, text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.sign_in_begin(text, text, uuid, text, text, text, text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.sign_in_finish(text, text, uuid, text, text, text, text, boolean, text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.sign_in_reset(text, text, uuid, text, text, text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.sign_in_device_list(uuid, text, text) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.sign_in_device_forget(uuid, text, uuid) TO stall_app;
+GRANT EXECUTE ON FUNCTION platform.sign_in_reap() TO stall_worker;

@@ -101,10 +101,9 @@ final class AdminMfaLockoutTest extends TestCase
             $store = new AdminMfaStore($pdo, $audit);
             $signIn = new AdminSignIn(
                 $pdo,
-                $request,
                 new NullLogger(),
                 $audit,
-                new SignInFailureRetention($pdo),
+                \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo, $request),
                 $store,
                 new AdminMfaPending($session, $admins),
                 new PlatformSettings($pdo, new NullLogger()),
@@ -137,18 +136,21 @@ final class AdminMfaLockoutTest extends TestCase
         $before = $this->secret($pdo, $email);
         $this->insertFailure($pdo, $email, 'mfa-reset-addr');
         $signInFailure = $pdo->prepare(
-            'INSERT INTO platform.admin_sign_in_failures (email, client_address) VALUES (?, ?)'
+            "INSERT INTO platform.sign_in_attempts (door, account_key, email_tried, client_address, user_agent, outcome, trusted_device)
+             VALUES ('admin', 'admin:' || ?, ?, 'mfa-reset-addr', '', 'wrong_password', false)"
         );
-        $signInFailure->execute([$email, 'mfa-reset-addr']);
+        $signInFailure->execute([$email, $email]);
         $token = (new AdminResetTokens($pdo))->issue($id);
         $this->recovery($pdo)->redeem($token, 'mfa-reset-pass-2', 'mfa-reset-pass-2');
         self::assertSame($before, $this->secret($pdo, $email));
         $mfa = $pdo->prepare('SELECT count(*) FROM platform.admin_mfa_failures WHERE email = ?');
         $mfa->execute([$email]);
         self::assertSame(1, (int) $mfa->fetchColumn());
-        $passwordFailures = $pdo->prepare('SELECT count(*) FROM platform.admin_sign_in_failures WHERE email = ?');
-        $passwordFailures->execute([$email]);
-        self::assertSame(0, (int) $passwordFailures->fetchColumn());
+        $latest = $pdo->prepare(
+            "SELECT outcome FROM platform.sign_in_attempts WHERE account_key = 'admin:' || ? ORDER BY attempted_at DESC, id DESC LIMIT 1"
+        );
+        $latest->execute([$email]);
+        self::assertSame('password_reset', $latest->fetchColumn());
         $this->deleteFailures($pdo, $email);
     }
 
@@ -291,6 +293,7 @@ final class AdminMfaLockoutTest extends TestCase
             QuietAudit::admin($pdo, $request),
             new AdminSession($session),
             new LoginSession($session),
+            new \PerfectConsign\Feature\Admin\AdminPasswordSave($pdo, \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo, $request)),
         );
     }
 

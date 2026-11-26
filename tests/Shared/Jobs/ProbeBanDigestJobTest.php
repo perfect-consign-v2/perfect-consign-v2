@@ -132,10 +132,11 @@ final class ProbeBanDigestJobTest extends TestCase
 
     public function testTheScheduleFilesTheSummaryOnceItIsDue(): void
     {
-        $reap = ['platform', 'signup-reap', gmdate('Y-m-d')];
-        self::assertSame([$reap, ['platform', 'probe-ban-digest', '2026-11-25']], $this->scheduled('2026-11-25'));
-        self::assertSame([$reap], $this->scheduled(null));
-        self::assertSame([$reap], $this->scheduled('soon'));
+        $signups = ['platform', 'signup-reap', gmdate('Y-m-d')];
+        $signIns = ['platform', 'sign-in-reap', gmdate('Y-m-d')];
+        self::assertSame([$signups, $signIns, ['platform', 'probe-ban-digest', '2026-11-25']], $this->scheduled('2026-11-25'));
+        self::assertSame([$signups, $signIns], $this->scheduled(null));
+        self::assertSame([$signups, $signIns], $this->scheduled('soon'));
     }
 
     public function testTheScheduleRefusesAFailedSummaryQuery(): void

@@ -4,19 +4,20 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Bootstrap;
 
-use PerfectConsign\Shared\Http\Request;
-use PDO;
 use Psr\Log\LoggerInterface;
 
+/**
+ * The root sign-in: the email finds the store and the sign-in name, and the
+ * store's door does the rest. An email that signs in nowhere goes through the
+ * sign-in limits too, so it is counted and takes as long as a wrong password.
+ */
 final class EmailSignIn
 {
     public function __construct(
-        private readonly PDO $pdo,
-        private readonly Request $request,
         private readonly LoggerInterface $logger,
         private readonly SignInDirectory $directory,
         private readonly FrontDoor $door,
-        private readonly SignInFailureRetention $failures,
+        private readonly SignInGate $gate,
     ) {
     }
 
@@ -28,123 +29,18 @@ final class EmailSignIn
 
             return false;
         }
-        $this->refuseLocked($normalized);
         $match = $this->directory->find($normalized);
         if ($match === null) {
-            $this->failed($normalized);
+            $this->gate->attempt(
+                SignInAccount::unknownEmail($normalized),
+                $password,
+                static fn (): SignInCheck => SignInCheck::NoAccount,
+            );
             $this->logger->info('email sign-in refused');
 
             return false;
         }
-        try {
-            $signedIn = $this->door->signIn($match['slug'], $match['username'], $password);
-        } catch (SignInLocked | SignInUnverified | PortalClosed $stopped) {
-            throw $stopped;
-        }
-        if (!$signedIn) {
-            $this->failed($normalized);
-            $this->logger->info('email sign-in refused', ['slug' => $match['slug']]);
 
-            return false;
-        }
-        $clear = $this->pdo->prepare('DELETE FROM platform.email_sign_in_failures WHERE email = ?');
-        $clear->execute([$normalized]);
-
-        return true;
-    }
-
-    private function failed(string $email): void
-    {
-        $this->withLock($email, function () use ($email): void {
-            $this->failures->pruneEmail($email);
-            $failed = $this->pdo->prepare(
-                'INSERT INTO platform.email_sign_in_failures (email, client_address) VALUES (?, ?)'
-            );
-            $failed->execute([$email, $this->request->address]);
-        });
-    }
-
-    private function refuseLocked(string $email): void
-    {
-        $this->withLock($email, function () use ($email): void {
-            if ($this->recentForPair($email) >= 5) {
-                $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'pair']);
-                throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-            }
-            if ($this->recentForClient() >= 40) {
-                $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'client']);
-                throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-            }
-            if ($this->recentForEmail($email) >= 20) {
-                $this->logger->info('email sign-in locked', ['email' => $email, 'scope' => 'email']);
-                throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-            }
-        });
-    }
-
-    /**
-     * @param callable(): void $work
-     */
-    private function withLock(string $email, callable $work): void
-    {
-        $own = !$this->pdo->inTransaction();
-        if ($own) {
-            $this->pdo->beginTransaction();
-        }
-        try {
-            $lock = $this->pdo->prepare(
-                'SELECT pg_advisory_xact_lock(87241, hashtext(?)), pg_advisory_xact_lock(87242, hashtext(?))'
-            );
-            $lock->execute([$email, $this->request->address]);
-            $work();
-            if ($own) {
-                $this->pdo->commit();
-            }
-        } catch (\Throwable $error) {
-            if ($own && $this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-            throw $error;
-        }
-    }
-
-    private function recentForPair(string $email): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.email_sign_in_failures
-             WHERE email = ?
-               AND client_address = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$email, $this->request->address]);
-
-        return (int) $recent->fetchColumn();
-    }
-
-    private function recentForClient(): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.email_sign_in_failures
-             WHERE client_address = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$this->request->address]);
-
-        return (int) $recent->fetchColumn();
-    }
-
-    private function recentForEmail(string $email): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.email_sign_in_failures
-             WHERE email = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$email]);
-
-        return (int) $recent->fetchColumn();
+        return $this->door->signIn($match['slug'], $match['username'], $password, $normalized);
     }
 }

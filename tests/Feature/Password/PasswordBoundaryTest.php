@@ -450,6 +450,7 @@ final class PasswordBoundaryTest extends TestCase
             (new \ReflectionClass(ResetRequests::class))->newInstanceWithoutConstructor(),
             new PasswordChoice(),
             (new \ReflectionClass(ResetLetter::class))->newInstanceWithoutConstructor(),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo),
         );
     }
 

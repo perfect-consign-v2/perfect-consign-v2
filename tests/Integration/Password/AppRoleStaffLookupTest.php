@@ -126,6 +126,7 @@ final class AppRoleStaffLookupTest extends TestCase
             )),
             new PasswordChoice(),
             \PerfectConsign\Tests\Support\MailTestKit::resetLetter($pdo, $logger),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo),
         );
     }
 

@@ -117,7 +117,7 @@ final class AdminMfaTest extends WebTestCase
         AdminDoor::plant($pdo, $email);
         $reset = $pdo->prepare("DELETE FROM platform.settings WHERE key = 'admin_mfa_enabled'");
         $reset->execute();
-        $resetFailures = $pdo->prepare('DELETE FROM platform.admin_sign_in_failures WHERE email = ?');
+        $resetFailures = $pdo->prepare("DELETE FROM platform.sign_in_attempts WHERE door = 'admin' AND email_tried = ?");
         $resetFailures->execute([strtolower($email)]);
         $resetCodes = $pdo->prepare('DELETE FROM platform.admin_mfa_failures WHERE email = ?');
         $resetCodes->execute([$email]);
@@ -156,7 +156,7 @@ final class AdminMfaTest extends WebTestCase
                 'code' => Totp::codeForStep(AdminDoor::SECRET, $step),
             ]);
             self::assertStringContainsString('Too many sign-in attempts. Try again in a few minutes.', $locked->body);
-            $clearSignIn = $pdo->prepare('DELETE FROM platform.admin_sign_in_failures WHERE email = ?');
+            $clearSignIn = $pdo->prepare("DELETE FROM platform.sign_in_attempts WHERE door = 'admin' AND email_tried = ?");
             $clearSignIn->execute([strtolower($email)]);
 
             $wrongCode = $client->post(AdminDoor::path('/authenticator'), [
@@ -217,7 +217,7 @@ final class AdminMfaTest extends WebTestCase
             $clearSetting->execute();
             $clearFailures = $pdo->prepare('DELETE FROM platform.admin_mfa_failures WHERE email = ?');
             $clearFailures->execute([$email]);
-            $clearSignInFailures = $pdo->prepare('DELETE FROM platform.admin_sign_in_failures WHERE email = ?');
+            $clearSignInFailures = $pdo->prepare("DELETE FROM platform.sign_in_attempts WHERE door = 'admin' AND email_tried = ?");
             $clearSignInFailures->execute([strtolower($email)]);
             AdminDoor::clear($pdo, $email);
         }

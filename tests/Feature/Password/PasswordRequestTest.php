@@ -192,6 +192,7 @@ final class PasswordRequestTest extends TestCase
             new ResetRequests($pdo, $this->httpRequest()),
             new PasswordChoice(),
             \PerfectConsign\Tests\Support\MailTestKit::resetLetter($pdo, $log),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo),
         );
     }
 

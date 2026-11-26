@@ -127,12 +127,10 @@ final class ListedLineCoverageTest extends TestCase
         $logger = new NullLogger();
         $request = new Request('POST', '/', [], [], '', '', '203.0.113.9');
         $signIn = new EmailSignIn(
-            $this->countPdo(0),
-            $request,
             $logger,
             new SignInDirectory($this->directoryPdo()),
             $this->frontDoor($this->lockPdo(), $request, $logger),
-            new SignInFailureRetention($this->countPdo(0)),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($this->countPdo(0), $request),
         );
         self::assertFalse($signIn->attempt('not-an-email', 'secret'));
         try {
@@ -367,7 +365,7 @@ final class ListedLineCoverageTest extends TestCase
         $logger = new NullLogger();
         $unused = [];
         $sessions = new LoginSession($this->session($unused));
-        $staff = new StaffSignIn($this->execPdo(false), $logger, $sessions, new SignInFailureRetention($this->execPdo(true)));
+        $staff = new StaffSignIn($this->execPdo(false), $logger, $sessions);
         $flag = new ReflectionMethod(StaffSignIn::class, 'flag');
         self::assertTrue($flag->invoke($staff, 't'));
         self::assertTrue($flag->invoke($staff, 'true'));
@@ -497,10 +495,9 @@ final class ListedLineCoverageTest extends TestCase
         $signInStore = new AdminMfaStore($signInPdo, $audit);
         $signIn = new AdminSignIn(
             $signInPdo,
-            $request,
             new NullLogger(),
             $audit,
-            new SignInFailureRetention($signInPdo),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($signInPdo, $request),
             $signInStore,
             new AdminMfaPending($session, $signInAdmins),
             new PlatformSettings($signInPdo, new NullLogger()),
@@ -538,10 +535,9 @@ final class ListedLineCoverageTest extends TestCase
         $lockedStore = new AdminMfaStore($lockedPdo, $lockedAudit);
         $lockedSignIn = new AdminSignIn(
             $lockedPdo,
-            $lockedRequest,
             new NullLogger(),
             $lockedAudit,
-            new SignInFailureRetention($lockedPdo),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($lockedPdo, $lockedRequest),
             $lockedStore,
             new AdminMfaPending($empty, $lockedAdmins),
             new PlatformSettings($lockedPdo, new NullLogger()),
@@ -1432,7 +1428,7 @@ final class ListedLineCoverageTest extends TestCase
         return new FrontDoor(
             $missing,
             new PriorClose($session, $request),
-            new OwnerGate($pdo, $session, $logger, $request, $tenants, $missing, new StaffSignIn($pdo, $logger, $sessions, new SignInFailureRetention($pdo)), $sessions),
+            new OwnerGate($session, $logger, $request, $tenants, $missing, new \PerfectConsign\Bootstrap\StoreAccounts($pdo, new StaffSignIn($pdo, $logger, $sessions), $sessions, $logger), \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo, $request)),
             new PostedRefusal($logger),
             new Actor($session),
             new CredentialStamp($pdo, $session, new DatabaseRole($pdo)),
@@ -1449,14 +1445,13 @@ final class ListedLineCoverageTest extends TestCase
         $sessions = new LoginSession($session);
 
         return new OwnerGate(
-            $pdo,
             $session,
             $logger,
             $request,
             $tenants,
             $missing,
-            new StaffSignIn($pdo, $logger, $sessions, new SignInFailureRetention($pdo)),
-            $sessions,
+            new \PerfectConsign\Bootstrap\StoreAccounts($pdo, new StaffSignIn($pdo, $logger, $sessions), $sessions, $logger),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo, $request),
         );
     }
 
@@ -1686,7 +1681,7 @@ final class ListedLineCoverageTest extends TestCase
         $tenants = new TenantLookup($pdo);
         $missing = new MissingPage($session, $logger, $view, $request, $tenants);
         $sessions = new LoginSession($session);
-        $owner = new OwnerGate($pdo, $session, $logger, $request, $tenants, $missing, new StaffSignIn($pdo, $logger, $sessions, new SignInFailureRetention($pdo)), $sessions);
+        $owner = new OwnerGate($session, $logger, $request, $tenants, $missing, new \PerfectConsign\Bootstrap\StoreAccounts($pdo, new StaffSignIn($pdo, $logger, $sessions), $sessions, $logger), \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo, $request));
         $rows = new Statements($pdo);
         $settings = new MallSettings($rows, new CompanyStore($rows, new DatabaseRole($pdo), $pdo, new CompanyLines()), new MallDay($rows));
 
@@ -1804,6 +1799,7 @@ final class ListedLineCoverageTest extends TestCase
             'opened_at' => '2000-01-01 00:00:00',
         ]]);
         $pdo->onPrepare('count(*)', [['count' => '0']]);
+        $pdo->onPrepare('sign_in_begin', [self::verdict(0)]);
 
         return $pdo;
     }
@@ -1819,10 +1815,21 @@ final class ListedLineCoverageTest extends TestCase
         return $pdo;
     }
 
+    /**
+     * What platform.sign_in_begin answers after that many failures.
+     *
+     * @return array{verdict: string, trusted: string, alerted: string}
+     */
+    private static function verdict(int $failures): array
+    {
+        return ['verdict' => $failures >= 5 ? 'locked_pair' : 'open', 'trusted' => 'f', 'alerted' => 'f'];
+    }
+
     private function countPdo(int $count): ScriptPdo
     {
         $pdo = new ScriptPdo();
         $pdo->onPrepare('count(*)', [['count' => (string) $count]]);
+        $pdo->onPrepare('sign_in_begin', [self::verdict($count)]);
 
         return $pdo;
     }
@@ -1847,6 +1854,7 @@ final class ListedLineCoverageTest extends TestCase
     {
         $pdo = new ScriptPdo();
         $pdo->onPrepare('count(*)', [['count' => (string) $failures]]);
+        $pdo->onPrepare('sign_in_begin', [self::verdict($failures)]);
         $pdo->onPrepare('FROM platform.owners', [[
             'id' => self::ACCOUNT,
             'password_hash' => $hash,

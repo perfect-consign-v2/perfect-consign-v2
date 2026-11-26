@@ -182,19 +182,18 @@ final class ProbeMall
     public static function forgetSignIns(string $username): void
     {
         $statement = self::admin()->prepare(
-            'DELETE FROM platform.owner_sign_in_failures
-             WHERE username = ?
-               AND tenant_id = (SELECT id FROM platform.tenants WHERE slug = ?)'
+            "DELETE FROM platform.sign_in_attempts
+             WHERE account_key = 'store:' || (SELECT id::text FROM platform.tenants WHERE slug = ?) || ':' || ?"
         );
-        $statement->execute([$username, self::SLUG]);
+        $statement->execute([self::SLUG, $username]);
     }
 
     public static function forgetEmailSignIns(string $email): void
     {
         $statement = self::admin()->prepare(
-            'DELETE FROM platform.email_sign_in_failures WHERE email = ?'
+            "DELETE FROM platform.sign_in_attempts WHERE account_key = 'email:' || ? OR email_tried = ?"
         );
-        $statement->execute([strtolower(trim($email))]);
+        $statement->execute([strtolower(trim($email)), strtolower(trim($email))]);
     }
 
     private static function current(string $root, SchemaMigrator $migrator): void

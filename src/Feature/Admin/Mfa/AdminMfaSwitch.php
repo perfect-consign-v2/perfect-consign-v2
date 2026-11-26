@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin\Mfa;
 
-use PerfectConsign\Bootstrap\SignInFailureRetention;
+use PerfectConsign\Bootstrap\SignInGate;
 use PerfectConsign\Bootstrap\SignInLocked;
 use PerfectConsign\Feature\Admin\AdminAudit;
 use PerfectConsign\Feature\Signup\PlatformSettings;
-use PerfectConsign\Shared\Http\Request;
 use PDO;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -25,8 +24,7 @@ final class AdminMfaSwitch
         private readonly AdminMfaStore $store,
         private readonly AdminMfaFailures $failures,
         private readonly AdminAudit $audit,
-        private readonly SignInFailureRetention $passwords,
-        private readonly Request $request,
+        private readonly SignInGate $gate,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -96,76 +94,22 @@ final class AdminMfaSwitch
     private function assertPassword(string $adminId, string $email, string $password): void
     {
         $mailbox = strtolower(trim($email));
-        $this->refuseLocked($mailbox);
-        $statement = $this->pdo->prepare(
-            'SELECT password_hash FROM platform.admins WHERE id = ?::uuid'
-        );
-        $statement->execute([$adminId]);
-        $hash = $statement->fetchColumn();
-        if (!is_string($hash) || $hash === '' || !password_verify($password, $hash)) {
-            $this->recordPasswordFailure($mailbox);
+        try {
+            $right = $this->gate->attemptAdmin($mailbox, $password, function () use ($adminId): ?string {
+                $statement = $this->pdo->prepare('SELECT password_hash FROM platform.admins WHERE id = ?::uuid');
+                $statement->execute([$adminId]);
+                $hash = $statement->fetchColumn();
+
+                return is_string($hash) ? $hash : null;
+            });
+        } catch (SignInLocked $locked) {
+            $this->logger->info('platform admin authenticator switch locked', ['email' => $email]);
+            throw $locked;
+        }
+        if (!$right) {
             $this->logger->info('platform admin authenticator switch refused', ['email' => $email]);
             throw new \InvalidArgumentException('That password is wrong.');
         }
-        $clear = $this->pdo->prepare('DELETE FROM platform.admin_sign_in_failures WHERE email = ?');
-        $clear->execute([$mailbox]);
-    }
-
-    private function recordPasswordFailure(string $email): void
-    {
-        $this->passwords->pruneAdmin($email);
-        $failed = $this->pdo->prepare(
-            'INSERT INTO platform.admin_sign_in_failures (email, client_address) VALUES (?, ?)'
-        );
-        $failed->execute([$email, $this->request->address]);
-    }
-
-    private function refuseLocked(string $email): void
-    {
-        if ($this->recentForPair($email) >= 5 || $this->recentForClient() >= 40 || $this->recentForEmail($email) >= 20) {
-            $this->logger->info('platform admin authenticator switch locked', ['email' => $email]);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-        }
-    }
-
-    private function recentForPair(string $email): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.admin_sign_in_failures
-             WHERE email = ?
-               AND client_address = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$email, $this->request->address]);
-
-        return (int) $recent->fetchColumn();
-    }
-
-    private function recentForClient(): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.admin_sign_in_failures
-             WHERE client_address = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$this->request->address]);
-
-        return (int) $recent->fetchColumn();
-    }
-
-    private function recentForEmail(string $email): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.admin_sign_in_failures
-             WHERE email = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$email]);
-
-        return (int) $recent->fetchColumn();
     }
 
     private function step(string $adminId, string $email, string $code, int $now): ?int

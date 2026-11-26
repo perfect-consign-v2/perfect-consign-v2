@@ -92,6 +92,9 @@ final class JobDispatchTest extends TestCase
         $pdo = $this->createMock(PDO::class);
         $pdo->expects($this->once())->method('query')->with('SELECT platform.signup_reap()');
         $this->jobs($pdo)->dispatch($this->job('signup-reap', '{"date": "2026-11-25"}'));
+        $signIns = $this->createMock(PDO::class);
+        $signIns->expects($this->once())->method('query')->with('SELECT platform.sign_in_reap()');
+        $this->jobs($signIns)->dispatch($this->job('sign-in-reap', '{"date": "2026-11-25"}'));
     }
 
     public function testTheMallClockResetsTheRole(): void
@@ -283,7 +286,7 @@ final class JobDispatchTest extends TestCase
                 new \PerfectConsign\Shared\Mail\PlatformMailbox($mail, $gmail, $notices),
             ),
             new ProbeBanDigestJob($pdo, new \PerfectConsign\Shared\Mail\MailOutbox($pdo)),
-            new \PerfectConsign\Shared\Jobs\SignupJobs($pdo, new \PerfectConsign\Shared\Jobs\StoreProvisionJob($pdo, new \PerfectConsign\Shared\Mail\MailOutbox($pdo), '', '')),
+            new \PerfectConsign\Shared\Jobs\PlatformJobs($pdo, new \PerfectConsign\Shared\Jobs\StoreProvisionJob($pdo, new \PerfectConsign\Shared\Mail\MailOutbox($pdo), '', '')),
         );
     }
 

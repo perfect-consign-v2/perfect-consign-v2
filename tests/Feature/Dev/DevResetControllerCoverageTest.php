@@ -153,14 +153,13 @@ final class DevResetControllerCoverageTest extends TestCase
         $missing = new MissingPage($session, $logger, $view, $request, $tenants);
         $sessions = new LoginSession($session);
         $owner = new OwnerGate(
-            $pdo,
             $session,
             $logger,
             $request,
             $tenants,
             $missing,
-            new StaffSignIn($pdo, $logger, $sessions, new SignInFailureRetention($pdo)),
-            $sessions,
+            new \PerfectConsign\Bootstrap\StoreAccounts($pdo, new StaffSignIn($pdo, $logger, $sessions), $sessions, $logger),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo),
         );
         $door = new FrontDoor(
             $missing,

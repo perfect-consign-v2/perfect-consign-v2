@@ -65,7 +65,7 @@ final class RoleGate
 
     private static function counter(string $rest): bool
     {
-        if (in_array($rest, ['/dashboard', '/sales', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
+        if (in_array($rest, ['/dashboard', '/sales', '/logout', '/logout/confirm', '/password', '/password/email', '/password/devices/remove'], true)) {
             return true;
         }
 
@@ -113,7 +113,7 @@ final class RoleGate
         if (RolePaths::vendorReads($rest, $method)) {
             return true;
         }
-        if (in_array($rest, ['/vendor', '/vendor/labels', '/vendor/sales', '/vendor/inventory', '/vendor/offers', '/logout', '/logout/confirm', '/password', '/password/email'], true)) {
+        if (in_array($rest, ['/vendor', '/vendor/labels', '/vendor/sales', '/vendor/inventory', '/vendor/offers', '/logout', '/logout/confirm', '/password', '/password/email', '/password/devices/remove'], true)) {
             return true;
         }
 
@@ -126,7 +126,7 @@ final class RoleGate
     private static function books(string $rest, string $method): bool
     {
         if ($method === 'POST') {
-            return in_array($rest, ['/logout', '/logout/confirm', '/password', '/password/email'], true);
+            return in_array($rest, ['/logout', '/logout/confirm', '/password', '/password/email', '/password/devices/remove'], true);
         }
         if ($method !== 'GET') {
             return false;

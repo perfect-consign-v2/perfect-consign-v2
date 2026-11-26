@@ -11,7 +11,7 @@ use PerfectConsign\Feature\Signup\SignupMail;
 use PerfectConsign\Feature\Signup\SignupToken;
 use PerfectConsign\Feature\Signup\StoreSignup;
 use PerfectConsign\Shared\Http\Request;
-use PerfectConsign\Shared\Jobs\SignupJobs;
+use PerfectConsign\Shared\Jobs\PlatformJobs;
 use PerfectConsign\Shared\Jobs\StoreProvisionJob;
 use PerfectConsign\Shared\Mail\GmailSender;
 use PerfectConsign\Shared\Mail\MailOutbox;
@@ -211,7 +211,7 @@ final class StoreSignupFlowTest extends TestCase
         $expire->execute([$email]);
         $this->pdo->exec('ALTER TABLE platform.store_signups ENABLE ALWAYS TRIGGER store_signups_guard');
         $this->asWorker();
-        (new SignupJobs($this->pdo, new StoreProvisionJob($this->pdo, new MailOutbox($this->pdo), dirname(__DIR__, 3) . '/sql', self::ORIGIN)))->reap();
+        (new PlatformJobs($this->pdo, new StoreProvisionJob($this->pdo, new MailOutbox($this->pdo), dirname(__DIR__, 3) . '/sql', self::ORIGIN)))->reapSignups();
         $this->pdo->exec('RESET SESSION AUTHORIZATION');
         self::assertSame(0, $this->rowsIn("SELECT count(*) FROM platform.store_signups WHERE email = '" . $email . "'"));
 

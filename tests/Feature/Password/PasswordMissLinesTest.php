@@ -192,6 +192,7 @@ final class PasswordMissLinesTest extends TestCase
             new ResetRequests($door->pdo, $door->app->request()),
             new PasswordChoice(),
             $letters,
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($door->pdo),
         ));
     }
 

@@ -7,6 +7,7 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $slug */
 /** @var string $csrf */
 /** @var string $email */
+/** @var list<array{id: string, label: string, created_at: string, last_seen_at: string, current: bool}> $devices */
 ?>
 <div class="page-head">
     <div class="titles">
@@ -49,5 +50,48 @@ use PerfectConsign\Shared\Http\View;
             </div>
             <p><button class="btn" type="submit">Save email</button></p>
         </form>
+    </div>
+</div>
+<div class="card mt-6">
+    <div class="card-head"><div class="h3">Browsers you signed in from</div></div>
+    <div class="card-body stack">
+        <p class="muted">If someone keeps guessing your password, sign-in is stopped for a while, but not on these browsers. Remove one you do not use any more. It will need the password the next time.</p>
+        <?php if ($devices === []): ?>
+            <p class="muted">No browsers yet.</p>
+        <?php else: ?>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Browser</th>
+                        <th>First signed in</th>
+                        <th>Last signed in</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($devices as $device): ?>
+                        <tr>
+                            <td>
+                                <?= View::text($device['label']) ?>
+                                <?php if ($device['current']): ?>
+                                    <br><span class="muted text-sm">This browser</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= View::text($device['created_at']) ?></td>
+                            <td><?= View::text($device['last_seen_at']) ?></td>
+                            <td>
+                                <form method="post" action="/<?= View::text($slug) ?>/password/devices/remove">
+                                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
+                                    <input type="hidden" name="device_id" value="<?= View::text($device['id']) ?>">
+                                    <button class="btn" type="submit">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
     </div>
 </div>

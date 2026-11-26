@@ -357,6 +357,7 @@ final class AdminSurfaceCoverageTest extends TestCase
             QuietAudit::admin($pdo, new Request('GET', '/', [], [])),
             new AdminSession($this->session),
             new LoginSession($this->session),
+            new \PerfectConsign\Feature\Admin\AdminPasswordSave($pdo, \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo, $request)),
         );
 
         return new AdminPasswordController($app, $recovery);

@@ -10,7 +10,6 @@ DECLARE
     audit_id uuid := '01900000-0000-7000-8000-00000000a020';
     kept text;
 BEGIN
-    DELETE FROM platform.admin_sign_in_failures WHERE email = 'prove-admin@example.com';
     DELETE FROM platform.admin_password_reset_requests WHERE email = 'prove-admin@example.com';
     IF EXISTS (SELECT 1 FROM platform.admins WHERE email = 'prove-admin@example.com') THEN
         SELECT id INTO admin_id FROM platform.admins WHERE email = 'prove-admin@example.com';

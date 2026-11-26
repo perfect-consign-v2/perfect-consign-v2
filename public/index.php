@@ -6,6 +6,7 @@ use PerfectApp\Container\Container;
 use PerfectApp\Logger\FileLogger;
 use PerfectApp\Routing\Router;
 use PerfectApp\Session\Session;
+use PerfectConsign\Bootstrap\SignInDevice;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\RegisterFeatures;
 use PerfectConsign\Bootstrap\SignedInVisitor;
@@ -130,6 +131,7 @@ try {
         return $session ??= new Session();
     });
     $container->set(Request::class, $request);
+    $container->set(SignInDevice::class, new SignInDevice($_COOKIE, $https));
     $container->set(RequestId::class, new RequestId($requestId));
     $container->set(View::class, new View(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'src'));
     $container->set(MallApp::class, $container->get(MallApp::class));

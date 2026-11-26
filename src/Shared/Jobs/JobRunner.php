@@ -13,10 +13,10 @@ use RuntimeException;
 final class JobRunner
 {
     /** Kinds the worker runs without a store role. */
-    public const PLATFORM_KINDS = ['outbound-mail', 'probe-ban-digest', 'store-provision', 'signup-reap'];
+    public const PLATFORM_KINDS = ['outbound-mail', 'probe-ban-digest', 'store-provision', 'signup-reap', 'sign-in-reap'];
 
     /** Platform kinds a store never runs. A store files its own outbound mail. */
-    private const PLATFORM_ONLY = ['probe-ban-digest', 'store-provision', 'signup-reap'];
+    private const PLATFORM_ONLY = ['probe-ban-digest', 'store-provision', 'signup-reap', 'sign-in-reap'];
 
     public function __construct(
         private readonly PDO $pdo,
@@ -90,7 +90,7 @@ final class JobRunner
     {
         if ($job['tenant'] === 'platform') {
             if (!in_array($job['kind'], self::PLATFORM_KINDS, true)) {
-                throw new RuntimeException('platform jobs are mail, the ban summary, or signups');
+                throw new RuntimeException('platform jobs are mail, the ban summary, signups, or sign-ins');
             }
             $this->jobs->dispatch($job);
 

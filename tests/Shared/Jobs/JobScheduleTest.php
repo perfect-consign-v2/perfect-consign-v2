@@ -34,7 +34,7 @@ final class JobScheduleTest extends TestCase
         $pdo->method('query')->willReturn($listed);
 
         (new JobSchedule($pdo, new JobQueue(), new NullLogger()))->schedule();
-        self::assertSame([['platform', 'signup-reap', gmdate('Y-m-d')]], $enqueued);
+        self::assertSame([['platform', 'signup-reap', gmdate('Y-m-d')], ['platform', 'sign-in-reap', gmdate('Y-m-d')]], $enqueued);
     }
 
     public function testTenantListQueryFailureThrows(): void

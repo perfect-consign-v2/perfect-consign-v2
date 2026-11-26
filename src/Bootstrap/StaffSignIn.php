@@ -15,31 +15,46 @@ final class StaffSignIn
         private readonly PDO $pdo,
         private readonly LoggerInterface $logger,
         private readonly LoginSession $sessions,
-        private readonly SignInFailureRetention $failures,
     ) {
     }
 
-    public function attempt(TenantRecord $tenant, string $username, string $password, string $address): bool
+    /**
+     * Checks a staff password. The row comes back only when it is right.
+     *
+     * @return array{0: SignInCheck, 1: array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string, can_sign_in: bool}|null}
+     */
+    public function check(TenantRecord $tenant, string $username, string $password): array
     {
         $row = $this->lookup($tenant, $username);
+        if ($row === null) {
+            return [SignInCheck::NoAccount, null];
+        }
         if (
-            $row === null
-            || !$row['can_sign_in']
+            !$row['can_sign_in']
             || !$this->passwordMatches($row, $password)
             || !$this->knownRole($row)
             || !$this->vendorActive($tenant, $row)
         ) {
-            $this->refuse($tenant, $username, $address);
+            $this->logger->info('staff sign-in refused', ['slug' => $tenant->slug, 'username' => $username]);
 
-            return false;
+            return [SignInCheck::Wrong, null];
         }
+
+        return [SignInCheck::Right, $row];
+    }
+
+    /**
+     * Opens the session for a staff member whose password was right.
+     *
+     * @param array{id: string, display_name: string, password_hash: string, role: string, vendor_id: string|null, version: string, can_sign_in: bool} $row
+     */
+    public function open(TenantRecord $tenant, string $username, array $row): void
+    {
         if ($row['role'] === 'vendor' && !$this->portalOpen($tenant)) {
             $this->logger->info('vendor portal closed', ['slug' => $tenant->slug]);
             throw new PortalClosed('The vendor portal is off.');
         }
         $this->openSession($tenant, $username, $row);
-
-        return true;
     }
 
     /**
@@ -200,10 +215,6 @@ final class StaffSignIn
      */
     private function openSession(TenantRecord $tenant, string $username, array $row): void
     {
-        $clear = $this->pdo->prepare(
-            'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = ?::uuid AND username = ?'
-        );
-        $clear->execute([$tenant->id, $username]);
         $role = $row['role'];
         $vendor = $row['vendor_id'];
         $this->sessions->open(
@@ -217,21 +228,6 @@ final class StaffSignIn
             $role === 'vendor' && is_string($vendor) ? $vendor : '',
             $username,
         );
-    }
-
-    public function recordOwnerFailure(TenantRecord $tenant, string $username, string $address): void
-    {
-        $this->failures->pruneOwner($tenant->id, $username);
-        $failed = $this->pdo->prepare(
-            'INSERT INTO platform.owner_sign_in_failures (tenant_id, username, client_address) VALUES (?::uuid, ?, ?)'
-        );
-        $failed->execute([$tenant->id, $username, $address]);
-    }
-
-    private function refuse(TenantRecord $tenant, string $username, string $address): void
-    {
-        $this->recordOwnerFailure($tenant, $username, $address);
-        $this->logger->info('staff sign-in refused', ['slug' => $tenant->slug, 'username' => $username]);
     }
 
     private function schema(string $schema): string

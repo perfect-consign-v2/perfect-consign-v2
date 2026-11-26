@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Admin;
 
-use PerfectConsign\Bootstrap\SignInFailureRetention;
-use PerfectConsign\Bootstrap\SignInLocked;
+use PerfectConsign\Bootstrap\SignInGate;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaLogin;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaPending;
 use PerfectConsign\Feature\Admin\Mfa\AdminMfaStore;
 use PerfectConsign\Feature\Signup\PlatformSettings;
-use PerfectConsign\Shared\Http\Request;
 use PDO;
 use Psr\Log\LoggerInterface;
 
@@ -18,10 +16,9 @@ final class AdminSignIn
 {
     public function __construct(
         private readonly PDO $pdo,
-        private readonly Request $request,
         private readonly LoggerInterface $logger,
         private readonly AdminAudit $audit,
-        private readonly SignInFailureRetention $failures,
+        private readonly SignInGate $gate,
         private readonly AdminMfaStore $authenticators,
         private readonly AdminMfaPending $pending,
         private readonly PlatformSettings $settings,
@@ -32,34 +29,55 @@ final class AdminSignIn
     public function attempt(string $email, string $password): AdminSignInResult
     {
         $email = strtolower(trim($email));
-        if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) !== 1 || strlen($email) > 200) {
+        $row = null;
+        if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email) === 1 && strlen($email) <= 200) {
+            $row = $this->checked($email, $password);
+        }
+        if ($row === null) {
             $this->logger->info('platform admin sign-in refused');
 
             return AdminSignInResult::refused();
         }
-        $this->refuseLocked($email);
-        $row = $this->lookup($email);
-        if ($row === null || !password_verify($password, $row['hash'])) {
-            $this->failed($email, $row);
-            $this->logger->info('platform admin sign-in refused');
 
-            return AdminSignInResult::refused();
+        return $this->open($row['id'], $email);
+    }
+
+    /**
+     * The admin row when the gate lets the password in. A wrong password for a
+     * known admin is audited.
+     *
+     * @return array{id: string, hash: string, version: string}|null
+     */
+    private function checked(string $email, string $password): ?array
+    {
+        $row = null;
+        $right = $this->gate->attemptAdmin($email, $password, function () use ($email, &$row): ?string {
+            $row = $this->lookup($email);
+
+            return $row['hash'] ?? null;
+        });
+        if ($row !== null && !$right) {
+            $this->audit->record($row['id'], $email, 'admin.sign_in_refused', 'refused');
+
+            return null;
         }
-        $clear = $this->pdo->prepare(
-            'DELETE FROM platform.admin_sign_in_failures WHERE email = ?'
-        );
-        $clear->execute([$email]);
+
+        return $right ? $row : null;
+    }
+
+    private function open(string $adminId, string $email): AdminSignInResult
+    {
         if (!$this->settings->adminMfaEnabled()) {
-            $this->login->open($row['id'], $email);
+            $this->login->open($adminId, $email);
 
             return AdminSignInResult::signedIn();
         }
-        if ($this->authenticators->hasSecret($row['id'])) {
-            $this->pending->beginChallenge($row['id'], $email);
+        if ($this->authenticators->hasSecret($adminId)) {
+            $this->pending->beginChallenge($adminId, $email);
 
             return AdminSignInResult::challenge();
         }
-        $this->pending->beginEnrollment($row['id'], $email);
+        $this->pending->beginEnrollment($adminId, $email);
 
         return AdminSignInResult::enroll();
     }
@@ -90,82 +108,5 @@ final class AdminSignIn
         }
 
         return ['id' => $id, 'hash' => $hash, 'version' => $version];
-    }
-
-    /**
-     * @param array{id: string, hash: string, version: string}|null $row
-     */
-    private function failed(string $email, ?array $row): void
-    {
-        $this->failures->pruneAdmin($email);
-        $failed = $this->pdo->prepare(
-            'INSERT INTO platform.admin_sign_in_failures (email, client_address) VALUES (?, ?)'
-        );
-        $failed->execute([$email, $this->request->address]);
-        if ($row === null) {
-            return;
-        }
-        $this->audit->record(
-            $row['id'],
-            $email,
-            'admin.sign_in_refused',
-            'refused',
-        );
-    }
-
-    private function refuseLocked(string $email): void
-    {
-        if ($this->recentForPair($email) >= 5) {
-            $this->logger->info('platform admin sign-in locked', ['email' => $email, 'scope' => 'pair']);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-        }
-        if ($this->recentForClient() >= 40) {
-            $this->logger->info('platform admin sign-in locked', ['email' => $email, 'scope' => 'client']);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-        }
-        if ($this->recentForEmail($email) >= 20) {
-            $this->logger->info('platform admin sign-in locked', ['email' => $email, 'scope' => 'email']);
-            throw new SignInLocked('Too many sign-in attempts. Try again in a few minutes.');
-        }
-    }
-
-    private function recentForPair(string $email): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.admin_sign_in_failures
-             WHERE email = ?
-               AND client_address = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$email, $this->request->address]);
-
-        return (int) $recent->fetchColumn();
-    }
-
-    private function recentForClient(): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.admin_sign_in_failures
-             WHERE client_address = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$this->request->address]);
-
-        return (int) $recent->fetchColumn();
-    }
-
-    private function recentForEmail(string $email): int
-    {
-        $recent = $this->pdo->prepare(
-            "SELECT count(*)
-             FROM platform.admin_sign_in_failures
-             WHERE email = ?
-               AND failed_at > clock_timestamp() - interval '15 minutes'"
-        );
-        $recent->execute([$email]);
-
-        return (int) $recent->fetchColumn();
     }
 }

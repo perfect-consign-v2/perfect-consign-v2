@@ -162,6 +162,7 @@ final class PasswordOperatorTest extends TestCase
             (new ReflectionClass(\PerfectConsign\Feature\Password\ResetRequests::class))->newInstanceWithoutConstructor(),
             new PasswordChoice(),
             (new ReflectionClass(\PerfectConsign\Feature\Password\ResetLetter::class))->newInstanceWithoutConstructor(),
+            \PerfectConsign\Tests\Support\SignInTestKit::gate($pdo),
         );
     }
 

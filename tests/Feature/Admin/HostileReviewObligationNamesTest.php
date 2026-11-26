@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Tests\Feature\Admin;
 
+use PerfectConsign\Bootstrap\SignInGate;
 use PerfectConsign\Feature\Admin\AdminSignIn;
 use PerfectConsign\Feature\Admin\AdminTenantWipe;
 use PerfectConsign\Shared\Http\RequestFactory;
@@ -16,9 +17,9 @@ final class HostileReviewObligationNamesTest extends TestCase
 {
     public function testHostileReviewHelpersStayPrivateOrPublicAsShipped(): void
     {
-        self::assertTrue($this->method(AdminSignIn::class, 'recentForPair')->isPrivate());
-        self::assertTrue($this->method(AdminSignIn::class, 'recentForClient')->isPrivate());
-        self::assertTrue($this->method(AdminSignIn::class, 'recentForEmail')->isPrivate());
+        self::assertTrue($this->method(AdminSignIn::class, 'lookup')->isPrivate());
+        self::assertTrue($this->method(SignInGate::class, 'begin')->isPrivate());
+        self::assertTrue($this->method(SignInGate::class, 'finish')->isPrivate());
         self::assertTrue($this->method(AdminTenantWipe::class, 'secondAdmin')->isPrivate());
         self::assertTrue($this->method(AdminTenantWipe::class, 'usableSecondCredentials')->isPrivate());
         self::assertTrue($this->method(AdminTenantWipe::class, 'adminRow')->isPrivate());

@@ -99,10 +99,10 @@ final class VendorInventoryHttpTest extends WebTestCase
         $ended = $login['client']->get('/' . self::SLUG . '/vendor');
         self::assertSees('The vendor portal is off.', $ended);
         self::assertStringNotContainsString('Your check', $ended->body);
-        $before = $this->countSql('SELECT count(*) FROM platform.email_sign_in_failures WHERE email = ?', [$login['email']]);
+        $before = $this->countSql("SELECT count(*) FROM platform.sign_in_attempts WHERE email_tried = lower(?) AND outcome <> 'ok'", [$login['email']]);
         $again = $login['client']->signInByEmail($login['email'], 'vendor-pass');
         self::assertSees('The vendor portal is off.', $again);
-        self::assertSame($before, $this->countSql('SELECT count(*) FROM platform.email_sign_in_failures WHERE email = ?', [$login['email']]));
+        self::assertSame($before, $this->countSql("SELECT count(*) FROM platform.sign_in_attempts WHERE email_tried = lower(?) AND outcome <> 'ok'", [$login['email']]));
 
         $preview = $this->owner->get('/' . self::SLUG . '/vendor?as=' . $vendor['id']);
         self::assertSame(404, $preview->status);

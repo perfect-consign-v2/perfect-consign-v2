@@ -6,7 +6,7 @@ namespace PerfectConsign\Tests\Shared\Jobs;
 
 use PDO;
 use PDOStatement;
-use PerfectConsign\Shared\Jobs\SignupJobs;
+use PerfectConsign\Shared\Jobs\PlatformJobs;
 use PerfectConsign\Shared\Jobs\StoreProvisionJob;
 use PerfectConsign\Shared\Mail\MailOutbox;
 use PHPUnit\Framework\TestCase;
@@ -79,7 +79,14 @@ final class StoreProvisionJobTest extends TestCase
     {
         $pdo = $this->createMock(PDO::class);
         $pdo->expects($this->once())->method('query')->with('SELECT platform.signup_reap()');
-        (new SignupJobs($pdo, $this->job($pdo)))->reap();
+        (new PlatformJobs($pdo, $this->job($pdo)))->reapSignups();
+    }
+
+    public function testTheSignInCleanUpAsksTheDatabase(): void
+    {
+        $pdo = $this->createMock(PDO::class);
+        $pdo->expects($this->once())->method('query')->with('SELECT platform.sign_in_reap()');
+        (new PlatformJobs($pdo, $this->job($pdo)))->reapSignIns();
     }
 
     /**

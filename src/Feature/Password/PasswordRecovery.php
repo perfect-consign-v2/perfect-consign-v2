@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Password;
 
 use PerfectConsign\Bootstrap\DatabaseRole;
+use PerfectConsign\Bootstrap\SignInGate;
 use PerfectConsign\Shared\Tenant\TenantRecord;
 use PDO;
 
@@ -18,6 +19,7 @@ final class PasswordRecovery
         private readonly ResetRequests $requests,
         private readonly PasswordChoice $passwords,
         private readonly ResetLetter $letters,
+        private readonly SignInGate $gate,
     ) {
     }
 
@@ -139,10 +141,7 @@ final class PasswordRecovery
 
     private function clear(string $tenantId, string $username): void
     {
-        $statement = $this->pdo->prepare(
-            'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = ?::uuid AND username = ?'
-        );
-        $statement->execute([$tenantId, $username]);
+        $this->gate->resetStore($tenantId, $username);
     }
 
     private function username(string $username): string

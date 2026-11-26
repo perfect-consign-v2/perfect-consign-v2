@@ -44,7 +44,7 @@ function wipeTenantLegacy(PDO $pdo, string $slug): void
             $pdo->exec('DELETE FROM platform.jobs WHERE tenant = ' . $quotedSlug);
         }
         $pdo->exec(
-            'DELETE FROM platform.owner_sign_in_failures WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
+            'DELETE FROM platform.sign_in_devices WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'
         );
         $pdo->exec(
             'DELETE FROM platform.password_reset_requests WHERE tenant_id = (SELECT id FROM platform.tenants WHERE slug = ' . $quotedSlug . ')'

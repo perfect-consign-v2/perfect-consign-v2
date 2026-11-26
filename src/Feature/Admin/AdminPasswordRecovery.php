@@ -22,6 +22,7 @@ final class AdminPasswordRecovery
         private readonly AdminAudit $audit,
         private readonly AdminSession $session,
         private readonly LoginSession $tenants,
+        private readonly AdminPasswordSave $saved,
     ) {
     }
 
@@ -60,24 +61,8 @@ final class AdminPasswordRecovery
             if ($row === null) {
                 throw new \InvalidArgumentException('That reset link expired. Request a new one.');
             }
-            $hash = $this->passwords->replacement($row['hash'], $password, $confirm);
-            $update = $this->pdo->prepare(
-                'UPDATE platform.admins
-                 SET password_hash = ?, credentials_version = credentials_version + 1
-                 WHERE id = ?::uuid
-                 RETURNING credentials_version'
-            );
-            $update->execute([$hash, $row['id']]);
-            $version = $update->fetchColumn();
-            if (is_int($version)) {
-                $version = (string) $version;
-            }
-            if (!is_string($version) || $version === '') {
-                throw new \RuntimeException('the platform admin password could not be saved');
-            }
+            $this->saved->save($row['id'], $row['email'], $this->passwords->replacement($row['hash'], $password, $confirm));
             $this->tokens->consume($locked['id']);
-            $clear = $this->pdo->prepare('DELETE FROM platform.admin_sign_in_failures WHERE email = ?');
-            $clear->execute([$row['email']]);
             $this->audit->record($row['id'], $row['email'], 'admin.password_reset', 'ok');
             $this->pdo->commit();
             $this->tenants->clear();
@@ -96,21 +81,7 @@ final class AdminPasswordRecovery
         if ($row === null) {
             throw new \InvalidArgumentException('That password is wrong.');
         }
-        $hash = $this->passwords->changed($current, $row['hash'], $password, $confirm);
-        $update = $this->pdo->prepare(
-            'UPDATE platform.admins
-             SET password_hash = ?, credentials_version = credentials_version + 1
-             WHERE id = ?::uuid
-             RETURNING credentials_version'
-        );
-        $update->execute([$hash, $adminId]);
-        $version = $update->fetchColumn();
-        if (is_int($version)) {
-            $version = (string) $version;
-        }
-        if (!is_string($version) || $version === '') {
-            throw new \RuntimeException('the platform admin password could not be saved');
-        }
+        $version = $this->saved->save($adminId, $row['email'], $this->passwords->changed($current, $row['hash'], $password, $confirm));
         $this->audit->record($adminId, $row['email'], 'admin.password_change', 'ok');
         $this->session->stamp($version);
 

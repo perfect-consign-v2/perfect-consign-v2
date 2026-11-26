@@ -37,9 +37,9 @@ final class FrontDoor
         return $this->prior->redirect($slug, $leftOpen);
     }
 
-    public function signIn(string $slug, string $username, string $password): bool
+    public function signIn(string $slug, string $username, string $password, ?string $emailTried = null): bool
     {
-        return $this->owner->signIn($slug, $username, $password);
+        return $this->owner->signIn($slug, $username, $password, $emailTried);
     }
 
     public function signOut(): void

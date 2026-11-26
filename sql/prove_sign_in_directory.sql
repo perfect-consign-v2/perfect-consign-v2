@@ -111,57 +111,6 @@ BEGIN
 
     UPDATE platform.owners SET email = 'dirowner@example.com' WHERE id = owner_id;
 
-    INSERT INTO platform.email_sign_in_failures (email, client_address)
-    VALUES ('dirowner@example.com', '127.0.0.1');
-    INSERT INTO platform.email_sign_in_failures (email, client_address)
-    VALUES ('dirowner@example.com', '10.0.0.2');
-    IF (
-        SELECT count(*)
-        FROM platform.email_sign_in_failures
-        WHERE email = 'dirowner@example.com'
-          AND failed_at > clock_timestamp() - interval '15 minutes'
-    ) < 2 THEN
-        RAISE EXCEPTION 'email sign-in failures were not stored across addresses';
-    END IF;
-
-    INSERT INTO platform.email_sign_in_failures (email, client_address, failed_at)
-    VALUES (
-        'stale-fail@example.com',
-        '127.0.0.1',
-        clock_timestamp() - interval '20 minutes'
-    );
-    DELETE FROM platform.email_sign_in_failures
-    WHERE failed_at <= clock_timestamp() - interval '15 minutes';
-    IF EXISTS (
-        SELECT 1 FROM platform.email_sign_in_failures WHERE email = 'stale-fail@example.com'
-    ) THEN
-        RAISE EXCEPTION 'stale email sign-in failures were not pruned';
-    END IF;
-    IF (
-        SELECT count(*)
-        FROM platform.email_sign_in_failures
-        WHERE email = 'dirowner@example.com'
-          AND failed_at > clock_timestamp() - interval '15 minutes'
-    ) < 2 THEN
-        RAISE EXCEPTION 'retention prune removed fresh email sign-in failures';
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_indexes
-        WHERE schemaname = 'platform'
-          AND indexname = 'email_sign_in_failures_stale'
-    ) THEN
-        RAISE EXCEPTION 'email_sign_in_failures_stale index is missing';
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_indexes
-        WHERE schemaname = 'platform'
-          AND indexname = 'email_sign_in_failures_address'
-    ) THEN
-        RAISE EXCEPTION 'email_sign_in_failures_address index is missing';
-    END IF;
-
     SET LOCAL ROLE stall_app;
     IF (
         SELECT email FROM platform.sign_in_directory WHERE account_id = owner_id AND account_kind = 'owner'
@@ -182,9 +131,6 @@ BEGIN
         WHEN insufficient_privilege THEN
             NULL;
     END;
-    INSERT INTO platform.email_sign_in_failures (email, client_address)
-    VALUES ('locked@example.com', '10.0.0.1');
-    DELETE FROM platform.email_sign_in_failures WHERE email = 'locked@example.com';
     RESET ROLE;
 END;
 $$;
