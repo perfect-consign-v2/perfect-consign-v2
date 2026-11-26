@@ -344,7 +344,8 @@ EXCEPTION
 END $$;
 
 -- The worker reads the summary and files its letter. It cannot change the rules or a ban.
-SET LOCAL ROLE stall_worker;
+-- It signs in as stall_worker; platform mail refuses a session that only SET ROLE to it.
+SET LOCAL SESSION AUTHORIZATION stall_worker;
 
 DO $$
 DECLARE
@@ -383,7 +384,7 @@ EXCEPTION
         NULL;
 END $$;
 
-RESET ROLE;
+RESET SESSION AUTHORIZATION;
 
 -- The web role bans only through the rules. It can still read and lift.
 SET LOCAL ROLE stall_app;

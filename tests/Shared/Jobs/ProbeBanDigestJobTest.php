@@ -10,6 +10,7 @@ use PerfectConsign\Shared\Jobs\JobQueue;
 use PerfectConsign\Shared\Jobs\JobSchedule;
 use PerfectConsign\Shared\Jobs\ProbeBanDigestJob;
 use PerfectConsign\Shared\Mail\MailOutbox;
+use PerfectConsign\Shared\Mail\PlatformOperatorNotice;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use RuntimeException;
@@ -31,6 +32,18 @@ final class ProbeBanDigestJobTest extends TestCase
             return;
         }
         putenv('STALL_PLATFORM_ADMIN_EMAIL');
+    }
+
+    public function testTheAdminAddressIsTrimmedLowercaseOrMissing(): void
+    {
+        putenv('STALL_PLATFORM_ADMIN_EMAIL');
+        self::assertNull(PlatformOperatorNotice::adminAddress());
+        putenv('STALL_PLATFORM_ADMIN_EMAIL=  ');
+        self::assertNull(PlatformOperatorNotice::adminAddress());
+        putenv('STALL_PLATFORM_ADMIN_EMAIL=not an address');
+        self::assertNull(PlatformOperatorNotice::adminAddress());
+        putenv('STALL_PLATFORM_ADMIN_EMAIL= Ada@Mall.TEST ');
+        self::assertSame('ada@mall.test', PlatformOperatorNotice::adminAddress());
     }
 
     public function testTheBodyNamesEachBanInPlainWords(): void

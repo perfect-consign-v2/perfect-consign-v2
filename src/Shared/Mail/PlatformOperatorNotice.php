@@ -118,7 +118,7 @@ final class PlatformOperatorNotice
         if (self::$sending) {
             return false;
         }
-        $to = $this->adminEmail();
+        $to = self::adminAddress();
         if ($to === null) {
             return true;
         }
@@ -139,7 +139,7 @@ final class PlatformOperatorNotice
 
             return;
         }
-        $to = $this->adminEmail();
+        $to = self::adminAddress();
         if ($to === null) {
             return;
         }
@@ -203,11 +203,6 @@ final class PlatformOperatorNotice
             'password' => $password,
             'from' => $address,
         ];
-    }
-
-    private function adminEmail(): ?string
-    {
-        return self::adminAddress();
     }
 
     /**
