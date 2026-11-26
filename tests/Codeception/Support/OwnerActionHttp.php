@@ -174,7 +174,9 @@ final class OwnerActionHttp
         }
         $miss = str_contains($page->body, 'This address is not a page in');
         if ($miss && !$allowMiss && !$this->named($page->body, $needles)) {
-            $this->failures[] = $label . ' is not a page.';
+            $landed = (string) parse_url($page->effectiveUrl, PHP_URL_PATH);
+            $this->failures[] = $label . ' is not a page.'
+                . ($landed !== '' && !str_ends_with($label, ' ' . $landed) ? ' It ended at ' . $landed . '.' : '');
 
             return $page;
         }
