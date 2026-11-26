@@ -46,11 +46,14 @@ $sheet = str_contains($download, 'sales.csv') ? 'sales' : '';
         <button type="submit">Show</button>
     </form>
 <?php elseif ($mode === 'range'): ?>
-    <?php $path = explode('?', $download, 2)[0]; ?>
+    <?php
+    $csv = explode('?', $download, 2)[0];
+    $page = str_ends_with($csv, '.csv') ? substr($csv, 0, -4) : $csv;
+    ?>
     <p>
         <?php foreach (['today' => 'Today', 'yesterday' => 'Yesterday', 'this_week' => 'This week', 'this_month' => 'This month', 'last_month' => 'Last month'] as $key => $name): ?>
             <?php
-            $href = $base . '/' . $path . '?range=' . $key;
+            $href = $base . '/' . $page . '?range=' . $key;
             if ($sheet === 'sales') {
                 $href .= '&group=' . rawurlencode($group === '' ? 'day' : $group);
             }
@@ -59,14 +62,20 @@ $sheet = str_contains($download, 'sales.csv') ? 'sales' : '';
             <?= $key === 'last_month' ? '' : ' · ' ?>
         <?php endforeach; ?>
     </p>
-    <form method="get" action="<?= View::text($base) ?>/<?= View::text((string) $path) ?>">
+    <form method="get" action="<?= View::text($base . '/' . $page) ?>">
         <?php if ($sheet === 'sales'): ?>
             <input type="hidden" name="group" value="<?= View::text($group === '' ? 'day' : $group) ?>">
         <?php endif; ?>
-        <label for="report-from">From</label>
-        <input id="report-from" type="date" name="from" value="<?= View::text($from) ?>">
-        <label for="report-to">To</label>
-        <input id="report-to" type="date" name="to" value="<?= View::text($to) ?>">
+        <div class="report-span">
+            <div>
+                <label for="report-from">From</label>
+                <input id="report-from" type="date" name="from" value="<?= View::text($from) ?>">
+            </div>
+            <div>
+                <label for="report-to">To</label>
+                <input id="report-to" type="date" name="to" value="<?= View::text($to) ?>">
+            </div>
+        </div>
         <button type="submit">Show</button>
     </form>
 <?php endif; ?>

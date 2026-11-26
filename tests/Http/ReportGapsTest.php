@@ -60,6 +60,7 @@ final class ReportGapsTest extends WebTestCase
             'code' => 'r' . $tag,
             'first_name' => 'Rae',
             'last_name' => $tag,
+            'store_take' => '0',
         ]);
         self::assertSees('Vendor created.', $vendor);
         $vendorId = HtmlPage::pathId($vendor->body, $slug . '/vendors');
@@ -67,16 +68,26 @@ final class ReportGapsTest extends WebTestCase
         $this->sell($slug, $vendorId, 'k' . $tag, '12.00');
 
         $sales = $this->client->get('/' . $slug . '/reports/sales?range=today');
-        self::assertSees('$12.00', $sales);
         self::assertSees('Receipts', $sales);
         self::assertStringContainsString('sales.csv?group=day&amp;range=today', $sales->body);
-        $file = $this->client->get('/' . $slug . '/reports/sales.csv?group=day&range=today');
-        self::assertStringContainsString('12.00', $file->body);
+        self::assertStringContainsString('action="/' . $slug . '/reports/sales"', $sales->body);
+        $named = 'Rae ' . $tag;
+        $byVendor = $this->client->get('/' . $slug . '/reports/sales?group=vendor&range=today');
+        self::assertSame(
+            1,
+            preg_match(
+                '/<tr>\s*<td>' . preg_quote($named, '/') . '<\/td>\s*<td>\$12\.00<\/td>/',
+                $byVendor->body,
+            ),
+        );
+        $file = $this->client->get('/' . $slug . '/reports/sales.csv?group=vendor&range=today');
+        self::assertStringContainsString('"' . $named . '",12.00', $file->body);
         self::assertStringContainsString('Receipts', $file->body);
 
         $empty = $this->client->get('/' . $slug . '/reports/payouts?from=2099-01-01&to=2099-01-31');
         self::assertSees('No payments in this range.', $empty);
         self::assertStringContainsString('payouts.csv?from=2099-01-01&amp;to=2099-01-31', $empty->body);
+        self::assertStringContainsString('action="/' . $slug . '/reports/payouts"', $empty->body);
 
         $month = $this->client->get('/' . $slug . '/reports/sales-tax?month=June');
         self::assertSees('Enter a real month.', $month);

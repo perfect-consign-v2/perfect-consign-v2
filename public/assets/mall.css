@@ -626,6 +626,21 @@ a.stat-link[aria-current="page"] {
 .sales-range {
     align-items: flex-end;
 }
+.report-span {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--space-3);
+    align-items: end;
+    width: 50%;
+    min-width: min(100%, 24rem);
+}
+.content form .report-span label {
+    margin-top: 0;
+}
+.content form .report-span input[type="date"] {
+    width: 100%;
+    min-width: 0;
+}
 .content .row-form input[type="date"] {
     width: 9.5rem;
     min-width: 0;

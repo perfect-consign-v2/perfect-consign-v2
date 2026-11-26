@@ -273,14 +273,14 @@ $roleLabel = match ($actorRole) {
                 </a>
             <?php endif; ?>
             <?php if ($leftOpen === [] || !$priorCloseStarted): ?>
-            <?php foreach ($groups as $group => $links): ?>
+            <?php foreach ($groups as $navGroup => $links): ?>
                 <?php if ($links === []) { continue; } ?>
-                <?php $foldBooks = $group === 'Books' && $actorRole === 'owner'; ?>
+                <?php $foldBooks = $navGroup === 'Books' && $actorRole === 'owner'; ?>
                 <?php if ($foldBooks): ?><details class="nav-books"><?php endif; ?>
                 <?php if ($foldBooks): ?>
                     <summary class="nav-group-label">Books</summary>
                 <?php else: ?>
-                    <div class="nav-group-label"><?= View::text($group) ?></div>
+                    <div class="nav-group-label"><?= View::text($navGroup) ?></div>
                 <?php endif; ?>
                 <?php foreach ($links as $link): ?>
                     <?php
