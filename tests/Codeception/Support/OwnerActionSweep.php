@@ -278,8 +278,9 @@ final class OwnerActionSweep
                 'code' => 'c' . $this->tag(),
             ], ['Vendor role added.']);
         }
-        $parties = $this->http->get('/parties');
-        $partyId = $this->http->id($parties->body, '#/parties/([0-9a-fA-F-]{36})#', 'party');
+        $this->http->get('/parties');
+        $parties = $this->http->get('/parties/rows', ['{', '[']);
+        $partyId = $this->http->id($parties->body, '/"DT_RowId":"party-([0-9a-fA-F-]{36})"/', 'party');
         if ($partyId !== '') {
             $this->http->get('/parties/' . $partyId);
         }

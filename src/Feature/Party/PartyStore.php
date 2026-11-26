@@ -45,37 +45,12 @@ class PartyStore
         );
     }
 
-    /**
-     * Parties with any role (identity hub).
-     *
-     * @return list<array{id: string, name: string, kind: string, roles: list<string>}>
-     */
-    public function parties(): array
+    /** How many parties the store has. The list itself is read a page at a time by PartyPageRead. */
+    public function partyCount(): int
     {
-        $rows = $this->statements->rows(
-            "SELECT party.id::text AS id,
-                    COALESCE(stall_party_display_name(party.id), '') AS name,
-                    CASE WHEN person.party_id IS NOT NULL THEN 'person' ELSE 'organization' END AS kind,
-                    COALESCE(string_agg(roles.role_type, ', ' ORDER BY roles.role_type), '') AS roles
-             FROM parties AS party
-             LEFT JOIN persons AS person ON person.party_id = party.id
-             LEFT JOIN organizations AS org ON org.party_id = party.id
-             LEFT JOIN party_roles AS roles ON roles.party_id = party.id AND roles.status = 'active'
-             GROUP BY party.id, person.party_id, org.party_id
-             ORDER BY lower(COALESCE(stall_party_display_name(party.id), '')), party.id
-             LIMIT 500"
-        );
-        $list = [];
-        foreach ($rows as $row) {
-            $list[] = [
-                'id' => RowValue::string($row['id'] ?? null),
-                'name' => RowValue::string($row['name'] ?? null),
-                'kind' => RowValue::string($row['kind'] ?? null),
-                'roles' => PartyRoleType::fromAgg(RowValue::string($row['roles'] ?? null)),
-            ];
-        }
+        $rows = $this->statements->rows('SELECT count(*)::int AS total FROM parties');
 
-        return $list;
+        return RowValue::integer($rows[0]['total'] ?? 0);
     }
 
     /**

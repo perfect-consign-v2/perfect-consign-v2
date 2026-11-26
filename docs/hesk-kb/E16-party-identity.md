@@ -2,12 +2,14 @@
 title: Party identity, customers, and the wait list
 category: Floor and ops
 hesk: published 2026-11-20
-as_of: 2026-11-10
+as_of: 2026-11-24
 ---
 
 # Party identity, customers, and the wait list
 
 ## As of
+
+2026-11-24 — The parties list shows every party a page at a time, sorted by name. Search finds a name, a kind (person or organization), or a role as staff see it. A store with many hundreds of parties no longer loses the ones at the end of the alphabet.
 
 2026-11-10 — Contact (phones, emails, physical and mailing addresses) lives on the party, not on the person or organization name row.
 
@@ -26,6 +28,7 @@ Adding a seller, adding a customer from the list or naming one on a ticket, capt
 - Phones and emails are party children. A party may hold many of each; one phone and one email are primary. Labels are primary, mobile, home, work, or other. Ten-digit phones display as (xxx) xxx-xxxx.
 - Addresses are party children: one physical and one mailing (street, city, state, ZIP). Mailing may be empty or the same as physical.
 - `/{slug}/parties` is identity (person or organization, and which roles they hold). It is not the seller roster.
+- The parties list shows every party, one page at a time (10 by default; 25, 50, or 100 on request), sorted by name. The search box and the column boxes look across every party, not only the page on screen. Exports (CSV, Excel, PDF, Print) take every party that matches the search.
 - The seller roster is `/{slug}/vendors` in a mall and `/{slug}/consignors` in a consignment-only store.
 - A customer is a party with the customer role. There is no customers table. A ticket stores that party's id. Staff open `/{slug}/customers`, add at `/{slug}/customers/new`, and open one customer at `/{slug}/customers/{party id}`.
 - New customer from the list, or naming someone on a sale, saves the person and the customer role when that name, primary phone, and primary email are new. The same contact opens the existing party.

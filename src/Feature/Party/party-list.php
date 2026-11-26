@@ -8,7 +8,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $slug */
 /** @var string $sellerList */
 /** @var string $sellerLabel */
-/** @var list<array{id: string, name: string, kind: string, roles: string}> $parties */
+/** @var int $partyCount */
 ?>
 <div class="page-head">
     <div class="titles">
@@ -17,7 +17,7 @@ use PerfectConsign\Shared\Web\ListTable;
     </div>
     <a class="btn btn-primary" href="<?= View::text($sellerList) ?>"><?= View::text($sellerLabel) ?></a>
 </div>
-<?php if ($parties === []): ?>
+<?php if ($partyCount === 0): ?>
     <div class="card mt-6">
         <div class="empty">
             <p>No parties yet. Add a <?= View::text(strtolower($sellerLabel === 'Consignors' ? 'consignor' : 'vendor')) ?> or a customer.</p>
@@ -26,22 +26,19 @@ use PerfectConsign\Shared\Web\ListTable;
 <?php else: ?>
     <div class="card table-wrap list-dt-wrap mt-6">
         <?php
-        ListTable::open(['id' => 'parties', 'export' => 'parties']);
+        ListTable::open([
+            'id' => 'parties',
+            'export' => 'parties',
+            'server' => true,
+            'rows' => '/' . $slug . '/parties/rows',
+        ]);
         ListTable::head([
-            ['label' => 'Name'],
-            ['label' => 'Kind'],
-            ['label' => 'Roles'],
+            ['label' => 'Name', 'key' => 'name'],
+            ['label' => 'Kind', 'key' => 'kind'],
+            ['label' => 'Roles', 'key' => 'roles'],
         ]);
         ?>
-            <tbody>
-            <?php foreach ($parties as $party): ?>
-                <tr>
-                    <td><a href="/<?= View::text($slug) ?>/parties/<?= View::text($party['id']) ?>"><?= View::text($party['name']) ?></a></td>
-                    <td><?= View::text($party['kind']) ?></td>
-                    <td><?= View::text($party['roles']) ?></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
+            <tbody></tbody>
         </table>
     </div>
 <?php endif; ?>

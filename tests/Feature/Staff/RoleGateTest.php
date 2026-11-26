@@ -140,6 +140,9 @@ final class RoleGateTest extends TestCase
         self::assertTrue(RoleGate::allows('manager', '/pos/pay', 'POST'));
         self::assertTrue(RoleGate::allows('manager', '/rent/payment', 'POST'));
         self::assertTrue(RoleGate::allows('manager', '/parties', 'GET'));
+        self::assertTrue(RoleGate::allows('manager', '/parties/rows', 'GET'));
+        self::assertFalse(RoleGate::allows('cashier', '/parties/rows', 'GET'));
+        self::assertFalse(RoleGate::allows('books', '/parties/rows', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/vendors/01900000-0000-7000-8000-000000000d10', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/consignors', 'GET'));
         self::assertTrue(RoleGate::allows('manager', '/consignors/01900000-0000-7000-8000-000000000d10', 'GET'));

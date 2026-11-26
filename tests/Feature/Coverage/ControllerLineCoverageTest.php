@@ -149,13 +149,11 @@ final class ControllerLineCoverageTest extends TestCase
     public function testAPartyRedirectsForAMissingCustomerOrWaitListRecord(): void
     {
         $missing = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/parties/' . MallDoor::PARTY, [], []));
-        try {
+        $gone = $this->capture(function () use ($missing): void {
             $this->parties($missing, new FixedParties($missing->statements, $this->audit($missing), new AssignmentBook($missing->statements)))
                 ->party(MallDoor::SLUG, MallDoor::PARTY);
-            self::fail('a missing party was shown');
-        } catch (ResponseSent $sent) {
-            self::assertSame('not found', $sent->getMessage());
-        }
+        });
+        self::assertStringContainsString('<h1>Not found</h1>', $gone);
 
         $customer = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/parties/' . MallDoor::PARTY, [], []));
         $customers = new FixedParties($customer->statements, $this->audit($customer), new AssignmentBook($customer->statements));
@@ -191,12 +189,10 @@ final class ControllerLineCoverageTest extends TestCase
         $role = MallDoor::open($this, $this->post('/' . MallDoor::SLUG . '/vendors/' . MallDoor::VENDOR . '/customer-role'));
         $adding = new FixedParties($role->statements, $this->audit($role), new AssignmentBook($role->statements));
         $adding->roleError = new \InvalidArgumentException('that vendor is not in this mall');
-        try {
+        $refused = $this->capture(function () use ($role, $adding): void {
             $this->parties($role, $adding)->addCustomerRole(MallDoor::SLUG, MallDoor::VENDOR);
-            self::fail('a missing vendor gained a customer role');
-        } catch (ResponseSent $sent) {
-            self::assertSame('not found', $sent->getMessage());
-        }
+        });
+        self::assertStringContainsString('<h1>Not found</h1>', $refused);
     }
 
     public function testBuyingAnExpiredItemShowsARefusalAndABadToken(): void
@@ -226,24 +222,20 @@ final class ControllerLineCoverageTest extends TestCase
         $controller = (new ReflectionClass(ItemRowsController::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(ItemRowsController::class, 'app'))->setValue($controller, $rows->app);
         (new ReflectionProperty(ItemRowsController::class, 'mall'))->setValue($controller, $rows->mall);
-        try {
+        $closedRows = $this->capture(function () use ($controller): void {
             $controller->vendor(MallDoor::SLUG);
-            self::fail('vendor rows opened while inventory was off');
-        } catch (ResponseSent $sent) {
-            self::assertSame('not found', $sent->getMessage());
-        }
+        });
+        self::assertStringContainsString('<h1>Not found</h1>', $closedRows);
 
         $labels = MallDoor::open($this, $this->post('/' . MallDoor::SLUG . '/vendor/labels'));
         $labels->statements->portal = false;
         $home = (new ReflectionClass(VendorHomeController::class))->newInstanceWithoutConstructor();
         (new ReflectionProperty(VendorHomeController::class, 'app'))->setValue($home, $labels->app);
         (new ReflectionProperty(VendorHomeController::class, 'mall'))->setValue($home, $labels->mall);
-        try {
+        $closedLabels = $this->capture(function () use ($home): void {
             $home->printLabels(MallDoor::SLUG);
-            self::fail('labels printed while inventory was off');
-        } catch (ResponseSent $sent) {
-            self::assertSame('not found', $sent->getMessage());
-        }
+        });
+        self::assertStringContainsString('<h1>Not found</h1>', $closedLabels);
     }
 
     public function testAConsignorLinkPreferenceAndClosedPortal(): void

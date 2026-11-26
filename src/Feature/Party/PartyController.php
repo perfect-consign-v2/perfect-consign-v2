@@ -31,21 +31,11 @@ final class PartyController
     public function show(string $slug): void
     {
         $tenant = $this->app->open($slug, true);
-        $consignmentOnly = $this->mall->isConsignmentOnly();
-        $parties = [];
-        foreach ($this->parties->parties() as $party) {
-            $parties[] = [
-                'id' => $party['id'],
-                'name' => $party['name'],
-                'kind' => $party['kind'],
-                'roles' => PartyRoleType::displayNames($party['roles'], $consignmentOnly),
-            ];
-        }
         $this->app->show('Feature/Party/party-list', [
             'title' => 'Parties',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
-            'parties' => $parties,
+            'partyCount' => $this->parties->partyCount(),
             'sellerList' => $this->paths->list($slug),
             'sellerLabel' => $this->mall->getPartyLabel('Vendors', 'Consignors'),
         ]);

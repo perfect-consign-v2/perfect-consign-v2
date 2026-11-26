@@ -546,7 +546,7 @@ final class PartyMissCoverageTest extends TestCase
             'slug' => MallDoor::SLUG,
             'sellerList' => '/' . MallDoor::SLUG . '/vendors',
             'sellerLabel' => 'Vendors',
-            'parties' => [],
+            'partyCount' => 0,
         ]);
         $this->render($view, 'Feature/Party/parties', [
             'slug' => MallDoor::SLUG,

@@ -6,6 +6,7 @@ namespace PerfectConsign\Tests\Http;
 
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\HtmlPage;
+use PerfectConsign\Tests\Support\ItemListBody;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PerfectConsign\Tests\Support\WebTestCase;
 
@@ -231,10 +232,13 @@ final class ReportAndPartyCoverageTest extends WebTestCase
 
     private function partyId(string $name): string
     {
-        $page = $this->client->get('/' . self::SLUG . '/parties');
+        $rows = ItemListBody::html(
+            $this->client,
+            '/' . self::SLUG . '/parties/rows?' . http_build_query(['search' => ['value' => $name]])
+        );
 
         return $this->match(
-            $page->body,
+            $rows,
             '#/parties/([0-9a-fA-F-]{36})">' . preg_quote($name, '#') . '#'
         );
     }
