@@ -103,6 +103,9 @@ final class TenantMigrator
             $this->pdo->beginTransaction();
         }
         try {
+            // A guarded function changes only through platform.replace_guarded_function,
+            // which records the migration that asked for it.
+            $this->pdo->prepare("SELECT set_config('stall.migration', ?, true)")->execute([$file]);
             $work();
             if ($own) {
                 $this->pdo->commit();

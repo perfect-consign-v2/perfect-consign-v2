@@ -12,7 +12,7 @@ PHP `8.5`. Postgres `18.6`. Host port **5436**. Database `consign`. User `stall`
 
 ## Threat model
 
-The boundary is `stall_poster` and `stall_app`. A superuser can `DROP EVENT TRIGGER` or set `event_triggers=false`. Postgres does not deliver those statements to an event trigger. That is outside the product role.
+The boundary is `stall_poster` and `stall_app`. A superuser can `DROP EVENT TRIGGER` or set `event_triggers=false`. Postgres does not deliver those statements to an event trigger. That is outside the product role. A forward migration never does either; CI refuses it. A guard function changes only through `platform.replace_guarded_function`, with the guards left on.
 
 ## Load
 

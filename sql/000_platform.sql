@@ -307,7 +307,8 @@ BEGIN
                 'platform.reject_admin_mfa_transition()'::regprocedure,
                 'platform.reject_admin_mfa_recovery_mutation()'::regprocedure,
                 'platform.reject_admin_mfa_recovery_truncate()'::regprocedure
-            ) THEN
+            )
+            AND NOT (command.command_tag = 'CREATE FUNCTION' AND platform.sealed_change_open(command.objid)) THEN
             RAISE EXCEPTION 'a guard function cannot be replaced'
                 USING ERRCODE = '25006';
         END IF;
@@ -388,8 +389,12 @@ BEGIN
             IF dropped.schema_name ~ '^tenant_[0-9a-f]{32}$'
                 OR (
                     dropped.schema_name = 'platform'
-                    AND right(dropped.object_identity, length(' on platform.owner_backups'))
-                        = ' on platform.owner_backups'
+                    AND (
+                        right(dropped.object_identity, length(' on platform.owner_backups'))
+                            = ' on platform.owner_backups'
+                        OR right(dropped.object_identity, length(' on platform.guarded_function_changes'))
+                            = ' on platform.guarded_function_changes'
+                    )
                 )
             THEN
                 RAISE EXCEPTION 'append-only triggers cannot be dropped'
@@ -409,7 +414,10 @@ BEGIN
         IF command.schema_name ~ '^tenant_[0-9a-f]{32}$' THEN
             NULL;
         ELSIF command.schema_name = 'platform'
-            AND command.objid IS NOT DISTINCT FROM to_regclass('platform.owner_backups') THEN
+            AND command.objid IN (
+                to_regclass('platform.owner_backups'),
+                to_regclass('platform.guarded_function_changes')
+            ) THEN
             NULL;
         ELSE
             CONTINUE;
@@ -442,31 +450,14 @@ DECLARE
     command record;
 BEGIN
     FOR command IN
-        SELECT schema_name, objid, command_tag
+        SELECT objid, command_tag
         FROM pg_event_trigger_ddl_commands()
     LOOP
         IF command.command_tag <> 'CREATE FUNCTION' OR command.objid IS NULL THEN
             CONTINUE;
         END IF;
-        IF command.schema_name = 'platform'
-            AND command.objid IN (
-                'platform.reject_guard_function_replace()'::regprocedure,
-                'platform.reject_guard_function_again()'::regprocedure,
-                'platform.reject_append_only_trigger_change()'::regprocedure
-            ) THEN
-            RAISE EXCEPTION 'a guard function cannot be replaced'
-                USING ERRCODE = '25006';
-        END IF;
-        IF command.schema_name IS NULL OR command.schema_name !~ '^tenant_[0-9a-f]{32}$' THEN
-            CONTINUE;
-        END IF;
-        IF EXISTS (
-            SELECT 1
-            FROM pg_trigger
-            WHERE tgfoid = command.objid
-              AND NOT tgisinternal
-              AND tgname ~ '(_append_only|_no_truncate|_no_delete)$'
-        ) THEN
+        IF platform.guarded_function(command.objid)
+            AND NOT platform.sealed_change_open(command.objid) THEN
             RAISE EXCEPTION 'a guard function cannot be replaced'
                 USING ERRCODE = '25006';
         END IF;
@@ -482,31 +473,14 @@ DECLARE
     command record;
 BEGIN
     FOR command IN
-        SELECT schema_name, objid, command_tag
+        SELECT objid, command_tag
         FROM pg_event_trigger_ddl_commands()
     LOOP
         IF command.command_tag <> 'CREATE FUNCTION' OR command.objid IS NULL THEN
             CONTINUE;
         END IF;
-        IF command.schema_name = 'platform'
-            AND command.objid IN (
-                'platform.reject_guard_function_replace()'::regprocedure,
-                'platform.reject_guard_function_again()'::regprocedure,
-                'platform.reject_append_only_trigger_change()'::regprocedure
-            ) THEN
-            RAISE EXCEPTION 'a guard function cannot be replaced'
-                USING ERRCODE = '25006';
-        END IF;
-        IF command.schema_name IS NULL OR command.schema_name !~ '^tenant_[0-9a-f]{32}$' THEN
-            CONTINUE;
-        END IF;
-        IF EXISTS (
-            SELECT 1
-            FROM pg_trigger
-            WHERE tgfoid = command.objid
-              AND NOT tgisinternal
-              AND tgname ~ '(_append_only|_no_truncate|_no_delete)$'
-        ) THEN
+        IF platform.guarded_function(command.objid)
+            AND NOT platform.sealed_change_open(command.objid) THEN
             RAISE EXCEPTION 'a guard function cannot be replaced'
                 USING ERRCODE = '25006';
         END IF;
@@ -593,7 +567,8 @@ CREATE FUNCTION platform.reject_password_reset_guard() RETURNS event_trigger
                     'platform.reject_password_reset_mutation()'::regprocedure,
                     'platform.reject_password_reset_truncate()'::regprocedure,
                     'platform.reject_password_reset_guard()'::regprocedure
-                ) THEN
+                )
+                AND NOT (command.command_tag = 'CREATE FUNCTION' AND platform.sealed_change_open(command.objid)) THEN
                 RAISE EXCEPTION 'a guard function cannot be replaced'
                     USING ERRCODE = '25006';
             END IF;
@@ -1277,6 +1252,205 @@ REVOKE ALL ON FUNCTION platform.reject_admin_mfa_recovery_truncate() FROM PUBLIC
 
 GRANT EXECUTE ON FUNCTION platform.reject_admin_mfa_recovery_truncate() TO stall_app;
 
+-- Sealed change path for guarded functions. The event triggers stay on. A
+-- migration that must change a guard calls platform.replace_guarded_function
+-- with the new body and a reason. That writes one append-only row for this
+-- transaction and opens a flag naming that one function; every guard lets a
+-- CREATE of that function through only while both are there.
+
+CREATE TABLE platform.guarded_function_changes (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    changed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    function_oid oid NOT NULL,
+    function_name text NOT NULL,
+    old_sha256 text NOT NULL,
+    new_sha256 text NOT NULL,
+    reason text NOT NULL,
+    migration text NOT NULL,
+    xact xid8 DEFAULT pg_current_xact_id() NOT NULL,
+    CONSTRAINT guarded_function_changes_pkey PRIMARY KEY (id),
+    CONSTRAINT guarded_function_changes_sha_chk CHECK (old_sha256 ~ '^[0-9a-f]{64}$' AND new_sha256 ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT guarded_function_changes_reason_chk CHECK (reason = btrim(reason) AND char_length(reason) BETWEEN 10 AND 500),
+    CONSTRAINT guarded_function_changes_migration_chk CHECK (migration ~ '^[0-9]{3}_[a-z0-9_]+\.sql$')
+);
+
+REVOKE ALL ON TABLE platform.guarded_function_changes FROM PUBLIC;
+
+CREATE FUNCTION platform.reject_guarded_function_change_mutation() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'a guarded function change cannot be updated or deleted'
+        USING ERRCODE = '25006';
+END;
+$$;
+
+CREATE FUNCTION platform.reject_guarded_function_change_truncate() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'guarded function changes cannot be truncated'
+        USING ERRCODE = '25006';
+END;
+$$;
+
+CREATE TRIGGER guarded_function_changes_append_only
+    BEFORE DELETE OR UPDATE ON platform.guarded_function_changes
+    FOR EACH ROW EXECUTE FUNCTION platform.reject_guarded_function_change_mutation();
+
+ALTER TABLE platform.guarded_function_changes ENABLE ALWAYS TRIGGER guarded_function_changes_append_only;
+
+CREATE TRIGGER guarded_function_changes_no_truncate
+    BEFORE TRUNCATE ON platform.guarded_function_changes
+    FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_guarded_function_change_truncate();
+
+ALTER TABLE platform.guarded_function_changes ENABLE ALWAYS TRIGGER guarded_function_changes_no_truncate;
+
+-- A guarded function is one an event trigger runs, one an append-only,
+-- no-truncate, no-delete or transition trigger runs, or a piece of this path.
+CREATE FUNCTION platform.guarded_function(p_function oid) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $_$
+    SELECT EXISTS (SELECT 1 FROM pg_event_trigger WHERE evtfoid = p_function)
+        OR EXISTS (
+            SELECT 1
+            FROM pg_trigger
+            WHERE tgfoid = p_function
+              AND NOT tgisinternal
+              AND tgname ~ '(_append_only|_no_truncate|_no_delete|_transition)$'
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM pg_proc
+            JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace
+            WHERE pg_proc.oid = p_function
+              AND pg_namespace.nspname = 'platform'
+              AND pg_proc.proname IN ('guarded_function', 'sealed_change_open', 'replace_guarded_function')
+        );
+$_$;
+
+CREATE FUNCTION platform.sealed_change_open(p_function oid) RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+BEGIN
+    IF p_function IS NULL
+        OR COALESCE(current_setting('platform.sealed_change', true), '') <> p_function::text THEN
+        RETURN false;
+    END IF;
+
+    RETURN EXISTS (
+        SELECT 1
+        FROM platform.guarded_function_changes
+        WHERE function_oid = p_function
+          AND xact = pg_current_xact_id()
+    );
+END;
+$_$;
+
+CREATE FUNCTION platform.replace_guarded_function(p_name text, p_definition text, p_reason text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $_$
+DECLARE
+    target regprocedure;
+    old_body text;
+    header text;
+    kept text[];
+    migration text := COALESCE(current_setting('stall.migration', true), '');
+BEGIN
+    IF migration !~ '^[0-9]{3}_[a-z0-9_]+\.sql$' THEN
+        RAISE EXCEPTION 'a guarded function changes only inside a migration'
+            USING ERRCODE = '42501';
+    END IF;
+    IF p_reason IS NULL OR char_length(btrim(p_reason)) NOT BETWEEN 10 AND 500 THEN
+        RAISE EXCEPTION 'a guarded function change needs a reason of 10 to 500 characters'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_definition IS NULL OR btrim(p_definition) = '' THEN
+        RAISE EXCEPTION 'a guarded function change needs the new body'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_name IS NULL OR p_name !~ '^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\(' THEN
+        RAISE EXCEPTION 'name the guarded function with its schema and arguments'
+            USING ERRCODE = '22023';
+    END IF;
+    target := to_regprocedure(p_name);
+    IF target IS NULL THEN
+        RAISE EXCEPTION 'that function does not exist'
+            USING ERRCODE = '42883';
+    END IF;
+    IF target::oid IN (
+        'platform.guarded_function(oid)'::regprocedure::oid,
+        'platform.sealed_change_open(oid)'::regprocedure::oid,
+        'platform.replace_guarded_function(text, text, text)'::regprocedure::oid
+    ) THEN
+        RAISE EXCEPTION 'the sealed change path cannot change itself'
+            USING ERRCODE = '25006';
+    END IF;
+    IF NOT platform.guarded_function(target) THEN
+        RAISE EXCEPTION 'that function is not guarded'
+            USING ERRCODE = '22023';
+    END IF;
+
+    -- The new body keeps every exception the old one raises.
+    SELECT prosrc INTO old_body FROM pg_proc WHERE oid = target;
+    IF strpos(old_body, '''25006''') = 0 THEN
+        RAISE EXCEPTION 'that function raises no append-only exception to keep'
+            USING ERRCODE = '22023';
+    END IF;
+    IF strpos(p_definition, '''25006''') = 0 THEN
+        RAISE EXCEPTION 'the new body drops the append-only exception'
+            USING ERRCODE = '25006';
+    END IF;
+    FOR kept IN
+        SELECT regexp_matches(old_body, 'RAISE\s+EXCEPTION\s+(''(?:[^'']|'''')*'')', 'gi')
+    LOOP
+        IF strpos(p_definition, kept[1]) = 0 THEN
+            RAISE EXCEPTION 'the new body drops the exception %', kept[1]
+                USING ERRCODE = '25006';
+        END IF;
+    END LOOP;
+
+    -- The signature, language and settings come from the catalog, so exactly
+    -- this one function is replaced.
+    header := substring(pg_get_functiondef(target) FROM '^(CREATE OR REPLACE FUNCTION .*?)\nAS \$');
+    IF header IS NULL THEN
+        RAISE EXCEPTION 'that function cannot be rebuilt from the catalog'
+            USING ERRCODE = '22023';
+    END IF;
+
+    INSERT INTO platform.guarded_function_changes (
+        function_oid, function_name, old_sha256, new_sha256, reason, migration
+    )
+    VALUES (
+        target,
+        target::text,
+        encode(sha256(convert_to(old_body, 'UTF8')), 'hex'),
+        encode(sha256(convert_to(p_definition, 'UTF8')), 'hex'),
+        btrim(p_reason),
+        migration
+    );
+    PERFORM set_config('platform.sealed_change', target::oid::text, true);
+    EXECUTE header || E'\nAS ' || quote_literal(p_definition);
+    PERFORM set_config('platform.sealed_change', '', true);
+
+    IF (SELECT prosrc FROM pg_proc WHERE oid = target) IS DISTINCT FROM p_definition THEN
+        RAISE EXCEPTION 'the guarded function was not replaced'
+            USING ERRCODE = '25006';
+    END IF;
+END;
+$_$;
+
+REVOKE ALL ON FUNCTION platform.replace_guarded_function(text, text, text) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.reject_guarded_function_change_mutation() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.reject_guarded_function_change_truncate() FROM PUBLIC;
+
 CREATE EVENT TRIGGER platform_reject_admin_append_only_change ON ddl_command_end WHEN TAG IN ('ALTER FUNCTION', 'ALTER ROUTINE', 'ALTER TABLE', 'CREATE FUNCTION')
     EXECUTE FUNCTION platform.reject_admin_append_only_guard();
 
@@ -1446,7 +1620,8 @@ BEGIN
                 'platform.reject_owner_email_verification_mutation()'::regprocedure,
                 'platform.reject_owner_email_verification_truncate()'::regprocedure,
                 'platform.reject_owner_email_verification_guard()'::regprocedure
-            ) THEN
+            )
+            AND NOT (command.command_tag = 'CREATE FUNCTION' AND platform.sealed_change_open(command.objid)) THEN
             RAISE EXCEPTION 'a guard function cannot be replaced'
                 USING ERRCODE = '25006';
         END IF;

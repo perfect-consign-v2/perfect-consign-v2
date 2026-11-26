@@ -56,8 +56,11 @@ foreach ($ledgerFiles as $path) {
     if (setsEventTriggers($sql)) {
         $failures[] = $file . ' sets event_triggers';
     }
-    if (str_contains($sql, "set_config('event_triggers'") && !eventTriggerWipeAllowlist($file)) {
+    if (setsEventTriggersByFunction($sql) && !eventTriggerWipeAllowlist($file)) {
         $failures[] = $file . ' uses set_config event_triggers outside an allowlisted wipe migration';
+    }
+    if ($file > '001_tenant.sql' && switchesOffEventTrigger($sql)) {
+        $failures[] = $file . ' disables or drops an event trigger; change a guard with platform.replace_guarded_function';
     }
     if (!isset($tenantFiles[$file])) {
         continue;
@@ -112,6 +115,17 @@ function eventTriggerWipeAllowlist(string $file): bool
 function setsEventTriggers(string $sql): bool
 {
     return preg_match('/\bSET\s+(?:LOCAL\s+|SESSION\s+)?event_triggers\b/i', $sql) === 1;
+}
+
+function setsEventTriggersByFunction(string $sql): bool
+{
+    return preg_match('/\bset_config\s*\(\s*[\'"]?event_triggers\b/i', $sql) === 1;
+}
+
+/** Postgres does not deliver ALTER or DROP EVENT TRIGGER to a guard, so a forward file is refused here. */
+function switchesOffEventTrigger(string $sql): bool
+{
+    return preg_match('/\bALTER\s+EVENT\s+TRIGGER\s+\S+\s+DISABLE\b|\bDROP\s+EVENT\s+TRIGGER\b/i', $sql) === 1;
 }
 
 function privateHelperIsCovered(string $source, string $method, string $covered): bool

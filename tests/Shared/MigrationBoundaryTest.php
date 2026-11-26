@@ -414,7 +414,8 @@ final class MigrationBoundaryTest extends TestCase
             $statement = $this->createStub(PDOStatement::class);
             $statement->method('execute')->willReturnCallback(static function (array $params) use (&$applied): bool {
                 $file = $params[0];
-                $checksum = $params[1];
+                // set_config('stall.migration', ?) names the file and carries no checksum.
+                $checksum = $params[1] ?? null;
                 if (is_string($file) && is_string($checksum)) {
                     $applied[$file] = $checksum;
                 }

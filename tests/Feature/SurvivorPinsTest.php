@@ -787,6 +787,7 @@ final class SurvivorPinsTest extends TestCase
         $began = 0;
         $pdo = $this->createStub(\PDO::class);
         $pdo->method('inTransaction')->willReturn(true);
+        $pdo->method('prepare')->willReturn($this->createStub(\PDOStatement::class));
         $pdo->method('beginTransaction')->willReturnCallback(static function () use (&$began): bool {
             $began++;
 
