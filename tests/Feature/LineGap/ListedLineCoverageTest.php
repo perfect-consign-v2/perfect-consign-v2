@@ -592,6 +592,7 @@ final class ListedLineCoverageTest extends TestCase
 
     public function testAppLogFailuresUseAStandInPath(): void
     {
+        $previous = set_error_handler(static fn (int $severity): bool => $severity === E_WARNING);
         if (!in_array('flipstat', stream_get_wrappers(), true)) {
             stream_wrapper_register('flipstat', FlipStatStream::class);
         }
@@ -650,17 +651,14 @@ final class ListedLineCoverageTest extends TestCase
         if ($unopenable === null) {
             self::markTestSkipped('this system cannot refuse opening a log');
         }
-        $previous = set_error_handler(static fn (int $severity): bool => $severity === E_WARNING);
         try {
             $read->invoke($stuck, $unopenable, 10, 4);
             self::fail('an unopenable log was read');
         } catch (RuntimeException $error) {
             self::assertSame('The application log could not be opened.', $error->getMessage());
         } finally {
-            restore_error_handler();
             FileFault::release($unopenable);
         }
-        unset($previous);
 
         if (!in_array('flipread', stream_get_wrappers(), true)) {
             stream_wrapper_register('flipread', FlipReadStream::class);
