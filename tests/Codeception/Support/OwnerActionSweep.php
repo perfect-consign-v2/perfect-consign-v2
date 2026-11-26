@@ -92,6 +92,7 @@ final class OwnerActionSweep
         }
         $this->client->ensurePeriod($this->slug);
         $this->building();
+        $this->money();
         $this->openDrawer();
         $this->pages();
         $this->people();
@@ -122,7 +123,6 @@ final class OwnerActionSweep
             'floor_depth_ft' => '90',
             'floor_days' => '30',
             'consignment_enabled' => '1',
-            'store_stock_enabled' => '1',
             'label_stock' => 'avery_8160',
             'use_color' => '1',
             'use_category' => '1',
@@ -936,6 +936,7 @@ final class OwnerActionSweep
         $reportId = $this->linkedId($saved->body, 'reports/saved', $reportName);
         if ($reportId !== '') {
             $this->http->get('/reports/saved/' . $reportId, ['Sales']);
+            $this->http->post('/reports/saved/' . $reportId . '/delete', [], ['Report removed.']);
         }
         $deal = 'Deal ' . $this->tag();
         $this->http->post('/offers', [
@@ -1258,7 +1259,11 @@ final class OwnerActionSweep
 
     private function password(): void
     {
-        $this->http->get('/password', ['Current password', 'password']);
+        $page = $this->http->get('/password', ['Current password', 'password']);
+        $device = $this->http->id($page->body, '#name="device_id" value="([0-9a-f-]{36})"#', 'trusted browser');
+        if ($device !== '') {
+            $this->http->post('/password/devices/remove', ['device_id' => $device], ['That browser was removed.']);
+        }
         $this->http->post('/password', [
             'current_password' => 'not-the-password',
             'password' => 'another-password',
@@ -1481,6 +1486,8 @@ final class OwnerActionSweep
             'tax_rate' => '8.5',
             'cash_round_minor' => '0',
             'operating_mode' => 'both',
+            'shop_flags' => '1',
+            'store_stock_enabled' => '1',
             'booth_rentals_enabled' => '1',
             'rent_cycle_day' => '1',
             'late_fee_grace_days' => '0',

@@ -83,6 +83,11 @@ final class UserActionCest
     {
         $client = $this->owner($I);
         $this->openRegister($client);
+        $cleared = $client->post($this->path('/pos/discard'), []);
+        $I->assertTrue(
+            str_contains($cleared->body, 'Ticket discarded.') || str_contains($cleared->body, 'Start a sale, then try again.'),
+            'the register did not start from an empty ticket'
+        );
         $blank = $client->post($this->path('/pos/scan'), ['scan' => '']);
         $I->assertStringContainsString('scan a barcode or a tag', $blank->body);
         $missing = $client->post($this->path('/pos/scan'), ['scan' => 'no-such-tag-' . bin2hex(random_bytes(3))]);
