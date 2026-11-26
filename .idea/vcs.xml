@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/tmp/bootstrap-worktree-832" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/var/mutation-worktrees/s0" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/var/mutation-worktrees/s1" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/var/mutation-worktrees/s2" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/var/mutation-worktrees/s3" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/var/mutation-worktrees/s4" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/var/mutation-worktrees/s5" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/var/mutation-worktrees/s6" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/var/mutation-worktrees/s7" vcs="Git" />
+  </component>
+</project>
