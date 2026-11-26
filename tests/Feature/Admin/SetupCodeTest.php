@@ -61,6 +61,67 @@ final class SetupCodeTest extends TestCase
         self::assertLessThanOrEqual(200, strlen($email));
     }
 
+    public function testADrawingFailureAndAnEmptyImageAreRefused(): void
+    {
+        $secret = Base32::encode('12345678901234567890');
+        $uri = 'otpauth://totp/' . rawurlencode(str_repeat('a', 4000)) . '?secret=' . $secret;
+        $log = new SetupCodeLog();
+        try {
+            (new SetupCode($log))->svg($uri);
+            self::fail('an oversized image was drawn');
+        } catch (RuntimeException $error) {
+            self::assertSame('the authenticator image could not be drawn', $error->getMessage());
+        }
+
+        $blank = new SetupCode($log);
+        $blank->useDraw(static fn (string $value): string => '');
+        try {
+            $blank->svg($blank->uri('ops+admin@example.test', $secret));
+            self::fail('an empty image was shown');
+        } catch (RuntimeException $error) {
+            self::assertSame('the authenticator image could not be drawn', $error->getMessage());
+        }
+
+        $broken = new SetupCode($log);
+        $broken->useDraw(static fn (string $value): string => 'not-svg');
+        try {
+            $broken->svg($broken->uri('ops+admin@example.test', $secret));
+            self::fail('a broken image was shown');
+        } catch (RuntimeException $error) {
+            self::assertSame('the authenticator image could not be drawn', $error->getMessage());
+        }
+    }
+
+    public function testAnIncompleteOtpauthUriIsRefused(): void
+    {
+        $code = $this->code();
+        foreach (['http://example.test', 'otpauth://totp/x', 'otpauth://totp/x?secret=!!!!'] as $uri) {
+            try {
+                $code->svg($uri);
+                self::fail($uri);
+            } catch (\InvalidArgumentException $error) {
+                self::assertSame('the authenticator setup is incomplete', $error->getMessage());
+            }
+        }
+    }
+
+    public function testABlankSvgAndANonSvgAreRefused(): void
+    {
+        $secret = Base32::encode('12345678901234567890');
+        $code = $this->code();
+        foreach ([
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>',
+            'not-svg',
+        ] as $markup) {
+            try {
+                $code->accept($markup, $secret);
+                self::fail($markup);
+            } catch (RuntimeException $error) {
+                self::assertSame('the authenticator image could not be drawn', $error->getMessage());
+            }
+        }
+    }
+
     public function testAStyleOrScriptPayloadIsRefused(): void
     {
         $secret = Base32::encode('12345678901234567890');

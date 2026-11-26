@@ -21,8 +21,21 @@ final class SetupCode
 
     private const INCOMPLETE = 'the authenticator setup is incomplete';
 
+    /** @var null|\Closure(string): mixed */
+    private ?\Closure $draw = null;
+
     public function __construct(private readonly LoggerInterface $logger)
     {
+    }
+
+    /**
+     * Test seam. Production leaves this unset and draws with the QR library.
+     *
+     * @param \Closure(string): mixed $draw
+     */
+    public function useDraw(\Closure $draw): void
+    {
+        $this->draw = $draw;
     }
 
     public function uri(string $email, string $secret): string
@@ -45,7 +58,7 @@ final class SetupCode
     {
         $secret = $this->secretFrom($uri);
         try {
-            $drawn = (new QRCode(self::options()))->render($uri);
+            $drawn = $this->drawn($uri);
         } catch (Throwable $error) {
             $this->failed($error);
         }
@@ -63,6 +76,16 @@ final class SetupCode
     public function accept(string $markup, string $secret): string
     {
         return (new SetupCodeMarkup())->image($markup, $secret);
+    }
+
+    private function drawn(string $uri): mixed
+    {
+        $draw = $this->draw;
+        if ($draw !== null) {
+            return $draw($uri);
+        }
+
+        return (new QRCode(self::options()))->render($uri);
     }
 
     /**

@@ -8,10 +8,12 @@ use PerfectConsign\Feature\Admin\Mfa\Base32;
 use PerfectConsign\Feature\Admin\Mfa\Totp;
 use PerfectConsign\Feature\Dev\LocalAdmin;
 use PerfectConsign\Feature\Password\PasswordChoice;
+use PerfectConsign\Feature\Signup\PlatformSettings;
 use PerfectConsign\Tests\Support\AdminDoor;
 use PerfectConsign\Tests\Support\FormClient;
 use PerfectConsign\Tests\Support\WebTestCase;
 use PDO;
+use Psr\Log\NullLogger;
 
 final class AdminMfaTest extends WebTestCase
 {
@@ -21,32 +23,39 @@ final class AdminMfaTest extends WebTestCase
         $password = 'enroll-pass-1';
         $pdo = $this->ensureAdmin($email, $password);
         AdminDoor::clear($pdo, $email);
-        $client = self::client();
-        $client->get(AdminDoor::path('/login'));
-        $enroll = $client->post(AdminDoor::path('/login'), [
-            'email' => $email,
-            'password' => $password,
-        ]);
-        self::assertStringContainsString('Set up authenticator', $enroll->body);
-        self::assertStringContainsString('PC2', $enroll->body);
-        self::assertStringContainsString($email, $enroll->body);
-        self::assertStringContainsString('<svg', $enroll->body);
-        self::assertStringNotContainsString('otpauth://', $enroll->body);
-        $secret = $this->secret($enroll->body);
-        $confirmed = $client->post(AdminDoor::path('/mfa/enroll'), [
-            'code' => Totp::codeForStep($secret, Totp::stepForTime(time())),
-        ]);
-        self::assertStringContainsString('Save recovery codes', $confirmed->body);
-        self::assertStringContainsString('I saved these codes', $confirmed->body);
-        preg_match_all('/[A-Z2-7]{5}-[A-Z2-7]{5}-[A-Z2-7]{5}-[A-Z2-7]{5}/', $confirmed->body, $codes);
-        self::assertCount(10, $codes[0]);
+        $settings = new PlatformSettings($pdo, new NullLogger());
+        $mfaWasOn = $settings->adminMfaEnabled();
+        $settings->setAdminMfaEnabled(true);
+        try {
+            $client = self::client();
+            $client->get(AdminDoor::path('/login'));
+            $enroll = $client->post(AdminDoor::path('/login'), [
+                'email' => $email,
+                'password' => $password,
+            ]);
+            self::assertStringContainsString('Set up authenticator', $enroll->body);
+            self::assertStringContainsString('PC2', $enroll->body);
+            self::assertStringContainsString($email, $enroll->body);
+            self::assertStringContainsString('<svg', $enroll->body);
+            self::assertStringNotContainsString('otpauth://', $enroll->body);
+            $secret = $this->secret($enroll->body);
+            $confirmed = $client->post(AdminDoor::path('/mfa/enroll'), [
+                'code' => Totp::codeForStep($secret, Totp::stepForTime(time())),
+            ]);
+            self::assertStringContainsString('Save recovery codes', $confirmed->body);
+            self::assertStringContainsString('I saved these codes', $confirmed->body);
+            preg_match_all('/[A-Z2-7]{5}-[A-Z2-7]{5}-[A-Z2-7]{5}-[A-Z2-7]{5}/', $confirmed->body, $codes);
+            self::assertCount(10, $codes[0]);
 
-        $closed = $client->getWithoutRedirect(AdminDoor::path('/tenants'));
-        self::assertSame(303, $closed->status);
-        self::assertStringContainsString(AdminDoor::path('/login'), $closed->location);
+            $closed = $client->getWithoutRedirect(AdminDoor::path('/tenants'));
+            self::assertSame(303, $closed->status);
+            self::assertStringContainsString(AdminDoor::path('/login'), $closed->location);
 
-        $open = $client->post(AdminDoor::path('/mfa/codes'), []);
-        self::assertStringContainsString('Tenants', $open->body);
+            $open = $client->post(AdminDoor::path('/mfa/codes'), []);
+            self::assertStringContainsString('Tenants', $open->body);
+        } finally {
+            $settings->setAdminMfaEnabled($mfaWasOn);
+        }
     }
 
     public function testAPendingSignInCannotOpenTenantsAndAWrongCodeStaysOnTheForm(): void
@@ -55,31 +64,38 @@ final class AdminMfaTest extends WebTestCase
         $password = 'challenge-pass-1';
         $pdo = $this->ensureAdmin($email, $password);
         AdminDoor::plant($pdo, $email);
-        $client = self::client();
-        $client->get(AdminDoor::path('/login'));
-        $form = $client->post(AdminDoor::path('/login'), [
-            'email' => $email,
-            'password' => $password,
-        ]);
-        self::assertStringContainsString('Authenticator code', $form->body);
+        $settings = new PlatformSettings($pdo, new NullLogger());
+        $mfaWasOn = $settings->adminMfaEnabled();
+        $settings->setAdminMfaEnabled(true);
+        try {
+            $client = self::client();
+            $client->get(AdminDoor::path('/login'));
+            $form = $client->post(AdminDoor::path('/login'), [
+                'email' => $email,
+                'password' => $password,
+            ]);
+            self::assertStringContainsString('Authenticator code', $form->body);
 
-        $closed = $client->getWithoutRedirect(AdminDoor::path('/tenants'));
-        self::assertSame(303, $closed->status);
-        self::assertStringContainsString(AdminDoor::path('/login'), $closed->location);
+            $closed = $client->getWithoutRedirect(AdminDoor::path('/tenants'));
+            self::assertSame(303, $closed->status);
+            self::assertStringContainsString(AdminDoor::path('/login'), $closed->location);
 
-        $empty = $client->post(AdminDoor::path('/mfa'), []);
-        self::assertStringContainsString('Enter a code or a recovery code.', $empty->body);
-        $both = $client->post(AdminDoor::path('/mfa'), [
-            'code' => '123456',
-            'recovery_code' => 'AAAAA-BBBBB-CCCCC-DDDDD',
-        ]);
-        self::assertStringContainsString('Enter a code or a recovery code.', $both->body);
-        $real = Totp::codeForStep(AdminDoor::SECRET, Totp::stepForTime(time()));
-        $wrong = $client->post(AdminDoor::path('/mfa'), [
-            'code' => $real === '000000' ? '111111' : '000000',
-        ]);
-        self::assertStringContainsString('That code is wrong.', $wrong->body);
-        self::assertStringNotContainsString('Tenants', $wrong->body);
+            $empty = $client->post(AdminDoor::path('/mfa'), []);
+            self::assertStringContainsString('Enter a code or a recovery code.', $empty->body);
+            $both = $client->post(AdminDoor::path('/mfa'), [
+                'code' => '123456',
+                'recovery_code' => 'AAAAA-BBBBB-CCCCC-DDDDD',
+            ]);
+            self::assertStringContainsString('Enter a code or a recovery code.', $both->body);
+            $real = Totp::codeForStep(AdminDoor::SECRET, Totp::stepForTime(time()));
+            $wrong = $client->post(AdminDoor::path('/mfa'), [
+                'code' => $real === '000000' ? '111111' : '000000',
+            ]);
+            self::assertStringContainsString('That code is wrong.', $wrong->body);
+            self::assertStringNotContainsString('Tenants', $wrong->body);
+        } finally {
+            $settings->setAdminMfaEnabled($mfaWasOn);
+        }
     }
 
     public function testARecoveryCodeOpensTheDoorOnce(): void
@@ -89,24 +105,31 @@ final class AdminMfaTest extends WebTestCase
         $pdo = $this->ensureAdmin($email, $password);
         AdminDoor::plant($pdo, $email);
         $code = AdminDoor::recoveryCode($pdo, $email);
-        $client = self::client();
-        $client->get(AdminDoor::path('/login'));
-        $client->post(AdminDoor::path('/login'), [
-            'email' => $email,
-            'password' => $password,
-        ]);
-        $opened = $client->post(AdminDoor::path('/mfa'), ['recovery_code' => $code]);
-        self::assertStringContainsString('Tenants', $opened->body);
+        $settings = new PlatformSettings($pdo, new NullLogger());
+        $mfaWasOn = $settings->adminMfaEnabled();
+        $settings->setAdminMfaEnabled(true);
+        try {
+            $client = self::client();
+            $client->get(AdminDoor::path('/login'));
+            $client->post(AdminDoor::path('/login'), [
+                'email' => $email,
+                'password' => $password,
+            ]);
+            $opened = $client->post(AdminDoor::path('/mfa'), ['recovery_code' => $code]);
+            self::assertStringContainsString('Tenants', $opened->body);
 
-        $again = self::client();
-        $again->get(AdminDoor::path('/login'));
-        $again->post(AdminDoor::path('/login'), [
-            'email' => $email,
-            'password' => $password,
-        ]);
-        $used = $again->post(AdminDoor::path('/mfa'), ['recovery_code' => $code]);
-        self::assertStringContainsString('That recovery code is wrong.', $used->body);
-        self::assertStringNotContainsString('>Tenants<', $used->body);
+            $again = self::client();
+            $again->get(AdminDoor::path('/login'));
+            $again->post(AdminDoor::path('/login'), [
+                'email' => $email,
+                'password' => $password,
+            ]);
+            $used = $again->post(AdminDoor::path('/mfa'), ['recovery_code' => $code]);
+            self::assertStringContainsString('That recovery code is wrong.', $used->body);
+            self::assertStringNotContainsString('>Tenants<', $used->body);
+        } finally {
+            $settings->setAdminMfaEnabled($mfaWasOn);
+        }
     }
 
     public function testASignedInAdminCanTurnTheAuthenticatorOffAndOn(): void
