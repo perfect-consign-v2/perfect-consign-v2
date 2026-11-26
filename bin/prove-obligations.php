@@ -236,22 +236,24 @@ function symbolIsCovered(string $name, string $covered): bool
     return preg_match('/\\b' . preg_quote($name, '/') . '\\s*\\(/', $withoutDefs) === 1;
 }
 
-/** Drop comments and quoted strings so token-farm literals cannot green obligations. */
+/**
+ * Drop comments and quoted strings so token-farm literals cannot green obligations. PHP's own
+ * tokenizer decides what is code, so a "//" inside a string ('otpauth://...') or a quote inside a
+ * comment can neither hide a call nor invent one.
+ */
 function stripPhpNoise(string $source): string
 {
-    $noBlock = preg_replace('#/\*.*?\*/#s', ' ', $source);
-    $source = is_string($noBlock) ? $noBlock : $source;
-    $noLine = preg_replace('#//.*$#m', ' ', $source);
-    $source = is_string($noLine) ? $noLine : $source;
-    $noDoc = preg_replace('#/\*\*.*?\*/#s', ' ', $source);
-    $source = is_string($noDoc) ? $noDoc : $source;
-    // Double-quoted strings first so an apostrophe inside them cannot open a single-quoted span.
-    // Treat \\ as an escaped pair so a trailing backslash before the closer cannot steal the quote.
-    $noDouble = preg_replace('/"(?:\\\\.|[^"\\\\])*"/', ' ', $source);
-    $source = is_string($noDouble) ? $noDouble : $source;
-    $noSingle = preg_replace("/'(?:\\\\.|[^'\\\\])*'/", ' ', $source);
+    $noise = [T_COMMENT, T_DOC_COMMENT, T_CONSTANT_ENCAPSED_STRING, T_ENCAPSED_AND_WHITESPACE];
+    $code = '';
+    foreach (token_get_all($source) as $token) {
+        if (!is_array($token)) {
+            $code .= $token;
+            continue;
+        }
+        $code .= in_array($token[0], $noise, true) ? ' ' : $token[1];
+    }
 
-    return is_string($noSingle) ? $noSingle : $source;
+    return $code;
 }
 
 function identifierIsCovered(string $name, string $covered): bool

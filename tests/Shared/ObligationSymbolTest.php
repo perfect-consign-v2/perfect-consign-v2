@@ -18,6 +18,40 @@ final class ObligationSymbolTest extends TestCase
         self::assertTrue(\symbolIsCovered('share', "\$this->share(\n"));
     }
 
+    public function testASlashPairInsideAStringDoesNotHideTheCallsAfterIt(): void
+    {
+        $test = <<<'PHP'
+<?php
+$uri = 'otpauth://totp/' . rawurlencode('a') . '?secret=' . $secret;
+$blank->useDraw(static fn (string $value): string => '');
+$svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+$broken->useDraw(static fn (string $value): string => 'not-svg');
+PHP;
+
+        self::assertTrue(\symbolIsCovered('useDraw', \stripPhpNoise($test)));
+    }
+
+    public function testCommentsAndStringsCannotCoverASymbol(): void
+    {
+        $test = <<<'PHP'
+<?php
+// drawn(
+/* drawn( */
+/** drawn( */
+$a = 'drawn(';
+$b = "drawn( {$c}";
+$d = <<<TEXT
+drawn(
+TEXT;
+# it's drawn(
+PHP;
+
+        self::assertFalse(\symbolIsCovered('drawn', \stripPhpNoise($test)));
+        self::assertTrue(\symbolIsCovered('drawn', \stripPhpNoise("<?php
+\$code->drawn('x');
+")));
+    }
+
     public function testAPrivateHelperIsCoveredOnlyThroughTheTestedCaller(): void
     {
         $source = <<<'PHP'
