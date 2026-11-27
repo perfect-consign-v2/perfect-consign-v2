@@ -85,11 +85,6 @@ final class InventoryStore
         return $this->kept(null, $item, $today, 'item.create');
     }
 
-    public function import(ItemEntry $item, string $today): string
-    {
-        return $this->place(null, $item, $today);
-    }
-
     public function save(string $id, ItemEntry $item, string $today): void
     {
         $this->kept($id, $item, $today, 'item.edit');

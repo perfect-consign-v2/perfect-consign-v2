@@ -2804,32 +2804,6 @@ GRANT EXECUTE ON FUNCTION platform.job_attention(text) TO stall_app;
 GRANT EXECUTE ON FUNCTION platform.job_attention(text) TO stall_worker;
 
 
--- >>> folded from 104_store_load_audit.sql
--- A PC1 mirror load is an operator action, not a mall user.
-
-ALTER TABLE platform.admin_audit
-    DROP CONSTRAINT IF EXISTS admin_audit_action_chk;
-
-ALTER TABLE platform.admin_audit
-    ADD CONSTRAINT admin_audit_action_chk CHECK (action = ANY (ARRAY[
-        'admin.sign_in'::text,
-        'admin.sign_in_refused'::text,
-        'admin.password_change'::text,
-        'admin.password_reset_request'::text,
-        'admin.password_reset'::text,
-        'tenant.enter_as'::text,
-        'tenant.enter_as_refused'::text,
-        'tenant.delete'::text,
-        'tenant.delete_refused'::text,
-        'store.signup_toggle'::text,
-        'store.signup'::text,
-        'store.admin_create'::text,
-        'store.email_verified'::text,
-        'app.log_clear'::text,
-        'store.load'::text
-    ]));
-
-
 -- >>> folded from 105_probe_ban.sql
 -- Permanent bans for scanner clients, and the short streak that leads there.
 -- stall_app checks and writes these rows before a session starts.
@@ -2886,7 +2860,6 @@ ALTER TABLE platform.admin_audit
         'store.admin_create'::text,
         'store.email_verified'::text,
         'app.log_clear'::text,
-        'store.load'::text,
         'probe_ban_lift'::text
     ]));
 
@@ -2914,7 +2887,6 @@ ALTER TABLE platform.admin_audit
         'store.admin_create'::text,
         'store.email_verified'::text,
         'app.log_clear'::text,
-        'store.load'::text,
         'probe_ban_lift'::text
     ]));
 
@@ -2947,7 +2919,6 @@ ALTER TABLE platform.admin_audit
         'store.admin_create'::text,
         'store.email_verified'::text,
         'app.log_clear'::text,
-        'store.load'::text,
         'probe_ban_lift'::text,
         'store.ready'::text,
         'store.signup_resend'::text,

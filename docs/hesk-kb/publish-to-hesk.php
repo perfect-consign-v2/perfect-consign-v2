@@ -9,6 +9,10 @@ declare(strict_types=1);
  * left alone. Only new or changed seeds are written and marked published, so
  * a seed edited after publishing is caught whatever its hesk: line says.
  *
+ * An article this script published from a seed file that no longer exists
+ * is retired: it is deleted from Hesk, so a removed seed leaves no stale
+ * article behind. Articles written by hand in Hesk are never touched.
+ *
  * Usage: php docs/hesk-kb/publish-to-hesk.php
  */
 
@@ -53,6 +57,7 @@ sort($files);
 
 $published = 0;
 $unchanged = 0;
+$seedTitles = [];
 foreach ($files as $path) {
     $base = basename($path);
     if ($base === 'README.md') {
@@ -81,6 +86,7 @@ foreach ($files as $path) {
     }
 
     $catId = $categories[$category];
+    $seedTitles[$title] = true;
     $html = markdownToHtml($bodyMd);
 
     $find = $pdo->prepare(
@@ -155,6 +161,11 @@ foreach ($files as $path) {
     $published++;
 }
 
+$retired = retireRemovedSeeds($pdo, $prefix, $dir, $seedTitles);
+foreach ($retired as $subject) {
+    echo "Retired: {$subject}\n";
+}
+
 recountPrivateArticles($pdo, $prefix);
 
 $cache = 'C:/laragon/www/hesk/cache/kb.cache.php';
@@ -163,7 +174,8 @@ if (is_file($cache) && !unlink($cache)) {
     exit(1);
 }
 
-echo "Published {$published} articles, {$unchanged} already current. KB cache cleared.\n";
+echo 'Published ' . $published . ' articles, ' . $unchanged . ' already current, '
+    . count($retired) . " retired. KB cache cleared.\n";
 
 /**
  * @return array{title: string, category: string, body: string}
@@ -273,6 +285,56 @@ function inlineMd(string $text): string
     $escaped = preg_replace('/`([^`]+)`/', '<code>$1</code>', $escaped) ?? $escaped;
 
     return $escaped;
+}
+
+/**
+ * Delete the articles this script published from seed files that are gone.
+ *
+ * An article qualifies only when its history names at least one seed file
+ * under docs/hesk-kb/, none of those files exists any more, and its subject
+ * is not the title of a current seed (a renamed seed keeps its article).
+ *
+ * @param array<string, true> $seedTitles
+ * @return list<string> subjects of the retired articles
+ */
+function retireRemovedSeeds(PDO $pdo, string $prefix, string $dir, array $seedTitles): array
+{
+    $articles = $pdo->query(
+        "SELECT `id`, `subject`, `history` FROM `{$prefix}kb_articles` WHERE `history` LIKE '%published from docs/hesk-kb/%'"
+    );
+    if ($articles === false) {
+        throw new RuntimeException('Could not read Hesk articles to retire.');
+    }
+    $delete = $pdo->prepare("DELETE FROM `{$prefix}kb_articles` WHERE `id` = ?");
+    $retired = [];
+    foreach ($articles as $row) {
+        $subject = (string) $row['subject'];
+        if (isset($seedTitles[$subject])) {
+            continue;
+        }
+        $matched = preg_match_all(
+            '#published from docs/hesk-kb/([A-Za-z0-9._-]+\.md)<#',
+            (string) $row['history'],
+            $seeds
+        );
+        if ($matched === false || $matched === 0) {
+            continue;
+        }
+        $stillSeeded = false;
+        foreach ($seeds[1] as $seed) {
+            if (is_file($dir . '/' . html_entity_decode($seed, ENT_QUOTES | ENT_HTML5, 'UTF-8'))) {
+                $stillSeeded = true;
+                break;
+            }
+        }
+        if ($stillSeeded) {
+            continue;
+        }
+        $delete->execute([(int) $row['id']]);
+        $retired[] = $subject;
+    }
+
+    return $retired;
 }
 
 function recountPrivateArticles(PDO $pdo, string $prefix): void

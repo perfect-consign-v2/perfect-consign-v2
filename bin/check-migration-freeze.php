@@ -103,11 +103,15 @@ function migrationFreezeGit(string $root, array $arguments): string
     }
     fclose($pipes[0]);
     $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
     fclose($pipes[1]);
     fclose($pipes[2]);
     $code = proc_close($process);
     if ($code !== 0 || !is_string($stdout)) {
-        throw new RuntimeException('git failed');
+        $detail = is_string($stderr) ? trim($stderr) : '';
+        throw new RuntimeException(
+            'git ' . implode(' ', $arguments) . ' failed' . ($detail === '' ? '' : ': ' . $detail)
+        );
     }
 
     return $stdout;

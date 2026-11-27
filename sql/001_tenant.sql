@@ -4544,7 +4544,7 @@ CREATE TABLE public.items (
     CONSTRAINT items_commission_chk CHECK (((commission_bps IS NULL) OR ((commission_bps >= 0) AND (commission_bps <= 10000)))),
     CONSTRAINT items_cost_chk CHECK (((cost_minor IS NULL) OR (cost_minor >= 0))),
     CONSTRAINT items_dates_chk CHECK (((expires_on IS NULL) OR (intake_on <= expires_on))),
-    CONSTRAINT items_description_chk CHECK (((description = btrim(description)) AND (description <> ''::text) AND (char_length(description) <= 200))),
+    CONSTRAINT items_description_chk CHECK (((description = btrim(description, E' \t\n\r\x0B'::text)) AND (description <> ''::text) AND (char_length(description) <= 200))),
     CONSTRAINT items_placement_chk CHECK ((placement = ANY (ARRAY['booth'::text, 'consigned'::text, 'store'::text]))),
     CONSTRAINT items_price_chk CHECK ((price_minor > 0)),
     CONSTRAINT items_quantity_chk CHECK ((quantity >= 0)),
@@ -8073,22 +8073,6 @@ CREATE TABLE public.stored_values (
     CONSTRAINT stored_values_number_chk CHECK (((number = btrim(number)) AND (number <> ''::text) AND (char_length(number) <= 40)))
 );
 
-CREATE TABLE public.ticket_draft_lines (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    session_id uuid NOT NULL,
-    draft_no integer NOT NULL,
-    vendor_id uuid,
-    vendor_label text DEFAULT ''::text NOT NULL,
-    description text DEFAULT ''::text NOT NULL,
-    price_text text DEFAULT ''::text NOT NULL,
-    brand_id uuid,
-    brand_label text DEFAULT ''::text NOT NULL,
-    discount_kind text DEFAULT 'consignor_default'::text NOT NULL,
-    discount_value text DEFAULT ''::text NOT NULL,
-    attributes_json text DEFAULT '{}'::text NOT NULL,
-    CONSTRAINT ticket_draft_lines_no_chk CHECK ((draft_no > 0))
-);
-
 CREATE TABLE public.ticket_lines (
     ticket_id uuid NOT NULL,
     line_no integer NOT NULL,
@@ -8724,12 +8708,6 @@ ALTER TABLE ONLY public.store_uses
 ALTER TABLE ONLY public.stored_values
     ADD CONSTRAINT stored_values_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY public.ticket_draft_lines
-    ADD CONSTRAINT ticket_draft_lines_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY public.ticket_draft_lines
-    ADD CONSTRAINT ticket_draft_lines_session_draft_key UNIQUE (session_id, draft_no);
-
 ALTER TABLE ONLY public.ticket_lines
     ADD CONSTRAINT ticket_lines_item_key UNIQUE (ticket_id, item_id);
 
@@ -8820,8 +8798,6 @@ CREATE UNIQUE INDEX sizes_name_key ON public.sizes USING btree (lower(name));
 CREATE UNIQUE INDEX staff_username_key ON public.staff USING btree (lower(username));
 
 CREATE UNIQUE INDEX stored_values_number_key ON public.stored_values USING btree (kind, lower(number));
-
-CREATE INDEX ticket_draft_lines_session_idx ON public.ticket_draft_lines USING btree (session_id);
 
 CREATE UNIQUE INDEX tickets_one_open ON public.tickets USING btree (session_id) WHERE (status = 'open'::text);
 
@@ -9578,15 +9554,6 @@ ALTER TABLE ONLY public.store_uses
 ALTER TABLE ONLY public.store_uses
     ADD CONSTRAINT store_uses_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
 
-ALTER TABLE ONLY public.ticket_draft_lines
-    ADD CONSTRAINT ticket_draft_lines_brand_fkey FOREIGN KEY (brand_id) REFERENCES public.brands(id);
-
-ALTER TABLE ONLY public.ticket_draft_lines
-    ADD CONSTRAINT ticket_draft_lines_session_fkey FOREIGN KEY (session_id) REFERENCES public.register_sessions(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY public.ticket_draft_lines
-    ADD CONSTRAINT ticket_draft_lines_vendor_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
-
 ALTER TABLE ONLY public.ticket_lines
     ADD CONSTRAINT ticket_lines_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
 
@@ -10036,16 +10003,6 @@ REVOKE SELECT ON public.stall_vendor_agreement FROM stall_poster;
 REVOKE ALL ON FUNCTION public.stall_cash_round_delta(bigint, integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.stall_cash_round_delta(bigint, integer) TO stall_poster;
-
-REVOKE ALL ON TABLE public.ticket_draft_lines FROM PUBLIC;
-
-REVOKE ALL ON TABLE public.ticket_draft_lines FROM stall_poster;
-
-REVOKE ALL ON TABLE public.ticket_draft_lines FROM stall_backup;
-
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.ticket_draft_lines TO stall_poster;
-
-GRANT SELECT ON TABLE public.ticket_draft_lines TO stall_backup;
 
 REVOKE ALL ON TABLE public.assignment_rent_rates FROM PUBLIC;
 

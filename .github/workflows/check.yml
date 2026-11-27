@@ -21,7 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
         with:
-          fetch-depth: 2
+          # Full history: the migration freeze compares against the merge base
+          # with origin/master, which a shallow branch checkout does not have.
+          fetch-depth: 0
       - name: Obligation base
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then

@@ -1,15 +1,15 @@
 ---
 title: Store activity names the signed-in account
 category: Platform notes
-hesk: published 2026-11-26
-as_of: 2026-11-20
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Store activity names the signed-in account
 
 ## As of
 
-2026-11-20 — `/{slug}/activity` shows 50 rows at a time, with a person, an action, and Older and Newer. An index in `sql/001_tenant.sql` serves that list. Operator audit stays a separate page.
+2026-11-27 — `/{slug}/activity` shows 50 rows at a time, with a person, an action, and Older and Newer. An index in `sql/001_tenant.sql` serves that list. Operator audit stays a separate page and no longer has a store load action.
 
 ## In one sentence
 
@@ -32,8 +32,7 @@ Someone changes the store while signed in: a sale is paid, voided, or returned, 
 - `/{slug}/activity.csv` downloads the date, person, and action. It does not download one page. A cursor on the file is refused and no file is sent. More than 5,000 matches is refused with "Narrow the dates." No partial file is sent.
 - Older rows with no account show as not recorded. There is no backfill and no system user.
 - Nightly jobs (late fees, markdown proposals, mail) are not people. Their money stays on the journal.
-- Operator audit (`STALL_ADMIN_PATH` audit page) is operator actions: enter-as, wipe, signup, a store load, and the rest of `platform.admin_audit`. Its heading is Operator audit.
-- A PC1 mirror load writes one `store.load` row on that operator log for the admin named with `--admin`. Replayed history is not given a PC2 username.
+- Operator audit (`STALL_ADMIN_PATH` audit page) is operator actions: enter-as, wipe, signup, and the rest of `platform.admin_audit`. Its heading is Operator audit.
 - Demo seeds act as the owner row that seed just created.
 
 ## What is refused
@@ -45,11 +44,10 @@ Someone changes the store while signed in: a sale is paid, voided, or returned, 
 - Changing or deleting an activity row, including by disabling or dropping the guard.
 - Cashiers and vendors opening the page or the CSV.
 - A CSV that would be more than 5,000 rows.
-- A mirror load that does not name a known platform admin. That refusal happens before the wipe.
 
 ## How to check
 
-Sign in as the owner, save a setting, and open Activity. The row shows that owner's username, role owner, and the request. Sign in as a cashier, pay or void within the rules, and the row shows that cashier. A second signature shows the other staff username on the same row. Enter-as shows the operator email. An empty session cannot commit the change. `beccas-mirror` activity after a load does not invent cashiers; Operator audit shows `store.load`.
+Sign in as the owner, save a setting, and open Activity. The row shows that owner's username, role owner, and the request. Sign in as a cashier, pay or void within the rules, and the row shows that cashier. A second signature shows the other staff username on the same row. Enter-as shows the operator email. An empty session cannot commit the change.
 
 ## Source
 
@@ -58,5 +56,4 @@ Sign in as the owner, save a setting, and open Activity. The row shows that owne
 ## Related
 
 - Platform admin portal
-- PC1 → PC2 dev mirror (Beccas sandbox)
 - People and mall roles

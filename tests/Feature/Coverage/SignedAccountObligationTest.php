@@ -163,7 +163,7 @@ final class SignedAccountObligationTest extends TestCase
         self::assertNull($booths->askingRent(self::ADMIN));
     }
 
-    public function testAnImportedItemWithoutAVendorIsRefused(): void
+    public function testAnItemWithoutAVendorIsRefused(): void
     {
         $door = MallDoor::open($this, new Request('POST', '/gapmall/items', [], []));
         $store = new InventoryStore(
@@ -174,7 +174,7 @@ final class SignedAccountObligationTest extends TestCase
         );
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('That vendor is not in this mall.');
-        $store->import(new ItemEntry(
+        $store->add(new ItemEntry(
             '',
             '',
             'missing',

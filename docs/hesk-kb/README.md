@@ -60,7 +60,7 @@ From the perfect-consign repo root:
 php docs/hesk-kb/publish-to-hesk.php
 ```
 
-Upserts public HTML articles for new or changed seeds (a seed whose Hesk article already has the same text is skipped), recounts categories, clears the KB cache, and marks each written seed `hesk: published`. Because it compares the text itself, a seed edited after publishing is caught even if its `hesk:` line was not reset.
+Upserts public HTML articles for new or changed seeds (a seed whose Hesk article already has the same text is skipped), recounts categories, clears the KB cache, and marks each written seed `hesk: published`. Because it compares the text itself, a seed edited after publishing is caught even if its `hesk:` line was not reset. An article it published from a seed file that has since been deleted is retired (deleted from Hesk), unless a current seed still has that title; articles written by hand in Hesk are never touched.
 
 ## Filename map
 
@@ -72,4 +72,4 @@ Upserts public HTML articles for new or changed seeds (a seed whose Hesk article
 | D## | Inventory or Floor and ops |
 | E## | Tax reports and export, Floor and ops, or Platform notes |
 
-Deploy / TLS for operators: `E12-public-origin-and-tls.md`. Mail timing (web vs worker): `E13-mail-delivery.md`. People and mall roles: `E14-people-and-roles.md`. Party identity, customers, and the wait list: `E16-party-identity.md`. Store activity: `E17-store-activity.md`. Sign-in limits and remembered browsers: `E18-sign-in-limits.md`. PC1→PC2 dev mirror: `E15-pc1-mirror.md`. Technical map: [docs/http-edge.md](../http-edge.md). Seeds that say **not in PC2 product code yet** must not be treated as live ops until rewritten and proven.
+Deploy / TLS for operators: `E12-public-origin-and-tls.md`. Mail timing (web vs worker): `E13-mail-delivery.md`. People and mall roles: `E14-people-and-roles.md`. Party identity, customers, and the wait list: `E16-party-identity.md`. Store activity: `E17-store-activity.md`. Sign-in limits and remembered browsers: `E18-sign-in-limits.md`. Technical map: [docs/http-edge.md](../http-edge.md). Seeds that say **not in PC2 product code yet** must not be treated as live ops until rewritten and proven.

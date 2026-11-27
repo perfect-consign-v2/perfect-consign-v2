@@ -148,16 +148,6 @@ final class AssignmentBook
         return $id;
     }
 
-    /**
-     * A stay whose contracted rent is zero. PC2 stores no rent row for that lease.
-     */
-    public function addUnbilledStay(string $boothId, string $vendorId, string $startsOn, string $endsOn): void
-    {
-        $this->statements->transaction(function () use ($boothId, $vendorId, $startsOn, $endsOn): void {
-            $this->insertStay($boothId, $vendorId, $startsOn, $endsOn);
-        });
-    }
-
     private function insertStay(string $boothId, string $vendorId, string $startsOn, string $endsOn): string
     {
         $sql = $endsOn === ''
