@@ -32,7 +32,7 @@ $schema = resetRaceTenant();
 execSql($schema, "INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d022', '01900000-0000-7000-8000-000000000001', '2028-01-01', '2028-12-31', 'open')");
 
 execSql($schema, "SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000d202', 'race-end', 'Race', 'end'); INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-00000000d302', 'R2', 'Race booth 2'); INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on) VALUES ('01900000-0000-7000-8000-00000000d402', '01900000-0000-7000-8000-00000000d302', '01900000-0000-7000-8000-00000000d202', '2029-01-01'); INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d402', 15000); INSERT INTO booth_rent_rates (booth_id, amount_minor) VALUES ('01900000-0000-7000-8000-00000000d302', 15000); INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d026', '01900000-0000-7000-8000-000000000001', '2029-01-01', '2029-12-31', 'open')");
-race($schema, $sql, 'prove_race_end_hold.sql', 'prove_race_end_charge.sql', true, 'assignment that covers', false);
+race($schema, $sql, 'prove_race_end_hold.sql', 'prove_race_end_charge.sql', true, 'a period the assignment covers', false);
 
 $schema = resetRaceTenant();
 execSql($schema, "INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-00000000d022', '01900000-0000-7000-8000-000000000001', '2028-01-01', '2028-12-31', 'open')");

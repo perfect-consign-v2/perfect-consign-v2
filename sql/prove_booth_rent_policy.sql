@@ -8,8 +8,9 @@ VALUES ('01900000-0000-7000-8000-00000000b901', 'B9', 'Policy booth');
 
 SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000b902', 'b9', 'Rae', 'Policy');
 
-INSERT INTO booth_assignments (booth_id, vendor_id, starts_on)
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
 VALUES (
+    '01900000-0000-7000-8000-00000000b9a1',
     '01900000-0000-7000-8000-00000000b901',
     '01900000-0000-7000-8000-00000000b902',
     '2096-03-20'
@@ -69,13 +70,13 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-00000000b911',
     '01900000-0000-7000-8000-000000000001',
-    'rent-charge:01900000-0000-7000-8000-00000000b901:2096-05',
+    'rent-charge:01900000-0000-7000-8000-00000000b9a1:2096-05',
     '2096-05-01',
     '2096-05-01 12:00:00+00',
     '01900000-0000-7000-8000-00000000b903',
     'USD',
     'rent_charge',
-    'B9:2096-05',
+    '01900000-0000-7000-8000-00000000b9a1:2096-05',
     'May rent',
     3100,
     3100
@@ -90,8 +91,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     3100,
     0,
-    'booth',
-    '01900000-0000-7000-8000-00000000b901'
+    'assignment',
+    '01900000-0000-7000-8000-00000000b9a1'
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
@@ -120,13 +121,13 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-00000000b931',
         '01900000-0000-7000-8000-000000000001',
-        'rent-charge:01900000-0000-7000-8000-00000000b901:2096-05',
+        'rent-charge:01900000-0000-7000-8000-00000000b9a1:2096-05',
         '2096-05-01',
         '2096-05-01 12:00:00+00',
         '01900000-0000-7000-8000-00000000b903',
         'USD',
         'rent_charge',
-        'B9:off',
+        '01900000-0000-7000-8000-00000000b9a1:2096-05',
         'Rent while off',
         3100,
         3100
@@ -140,8 +141,8 @@ BEGIN
         '01900000-0000-7000-8000-000000000015',
         3100,
         0,
-        'booth',
-        '01900000-0000-7000-8000-00000000b901'
+        'assignment',
+        '01900000-0000-7000-8000-00000000b9a1'
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES (
@@ -185,13 +186,13 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-00000000b932',
         '01900000-0000-7000-8000-000000000001',
-        'rent-charge:01900000-0000-7000-8000-00000000b901:2096-03-15',
+        'rent-charge:01900000-0000-7000-8000-00000000b9a1:2096-03-15',
         '2096-03-20',
         '2096-03-20 12:00:00+00',
         '01900000-0000-7000-8000-00000000b903',
         'USD',
         'rent_charge',
-        'B9:full',
+        '01900000-0000-7000-8000-00000000b9a1:2096-03-15',
         'Full rent',
         3100,
         3100
@@ -205,8 +206,8 @@ BEGIN
         '01900000-0000-7000-8000-000000000015',
         3100,
         0,
-        'booth',
-        '01900000-0000-7000-8000-00000000b901'
+        'assignment',
+        '01900000-0000-7000-8000-00000000b9a1'
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES (
@@ -221,7 +222,7 @@ BEGIN
     RAISE EXCEPTION 'a full charge was accepted for a move-in period';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a rent charge debits that booth receivable and credits rent revenue for the stored rate%' THEN
+        IF SQLERRM NOT LIKE '%a rent charge debits that assignment receivable and credits rent revenue for the stored rate%' THEN
             RAISE;
         END IF;
 END $$;
@@ -235,13 +236,13 @@ BEGIN
     ) VALUES (
         '01900000-0000-7000-8000-00000000b933',
         '01900000-0000-7000-8000-000000000001',
-        'rent-charge:01900000-0000-7000-8000-00000000b901:2096-03',
+        'rent-charge:01900000-0000-7000-8000-00000000b9a1:2096-03',
         '2096-03-20',
         '2096-03-20 12:00:00+00',
         '01900000-0000-7000-8000-00000000b903',
         'USD',
         'rent_charge',
-        'B9:month',
+        '01900000-0000-7000-8000-00000000b9a1:2096-03',
         'Calendar key',
         2600,
         2600
@@ -255,8 +256,8 @@ BEGIN
         '01900000-0000-7000-8000-000000000015',
         2600,
         0,
-        'booth',
-        '01900000-0000-7000-8000-00000000b901'
+        'assignment',
+        '01900000-0000-7000-8000-00000000b9a1'
     );
     INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
     VALUES (
@@ -271,7 +272,7 @@ BEGIN
     RAISE EXCEPTION 'a calendar-month key was accepted for day 15';
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
-        IF SQLERRM NOT LIKE '%a rent charge posting key is one booth and one month%' THEN
+        IF SQLERRM NOT LIKE '%a rent charge posting key is one booth assignment and one rent period%' THEN
             RAISE;
         END IF;
 END $$;
@@ -282,13 +283,13 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-00000000b912',
     '01900000-0000-7000-8000-000000000001',
-    'rent-charge:01900000-0000-7000-8000-00000000b901:2096-03-15',
+    'rent-charge:01900000-0000-7000-8000-00000000b9a1:2096-03-15',
     '2096-03-20',
     '2096-03-20 12:00:00+00',
     '01900000-0000-7000-8000-00000000b903',
     'USD',
     'rent_charge',
-    'B9:2096-03-15',
+    '01900000-0000-7000-8000-00000000b9a1:2096-03-15',
     'Prorated rent',
     2600,
     2600
@@ -303,8 +304,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     2600,
     0,
-    'booth',
-    '01900000-0000-7000-8000-00000000b901'
+    'assignment',
+    '01900000-0000-7000-8000-00000000b9a1'
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
