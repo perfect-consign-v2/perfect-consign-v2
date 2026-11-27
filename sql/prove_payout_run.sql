@@ -2373,4 +2373,116 @@ EXCEPTION
         END IF;
 END $$;
 
+-- D12: a vendor who has left and is owed money is still paid. Leah is made
+-- inactive with nothing open; a credit memo then leaves the store owing her
+-- $25.00. She is in the run and in a single-vendor quote. Otto, inactive with
+-- nothing open, is in neither.
+-- F17: missing rent is priced from the stay's rate history, not its first rate.
+INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status)
+VALUES (
+    '01900000-0000-7000-8000-00000000fd21',
+    '01900000-0000-7000-8000-000000000001',
+    '2036-01-01',
+    '2036-12-31',
+    'open'
+);
+
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000fd01', 'leah', 'Leah', 'Left');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000fd03', 'otto', 'Otto', 'Gone');
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000fd02', 'rae', 'Rae', 'Rate');
+
+UPDATE vendors SET active = false
+WHERE id IN ('01900000-0000-7000-8000-00000000fd01', '01900000-0000-7000-8000-00000000fd03');
+
+SET CONSTRAINTS ALL DEFERRED;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-00000000fd41',
+    '01900000-0000-7000-8000-000000000001',
+    'vendor-memo:leah-after',
+    '2036-03-10', '2036-03-10 12:00:00+00',
+    '01900000-0000-7000-8000-00000000fd21',
+    'USD', 'vendor_memo', 'leah-after', 'Owed to a vendor who has left', 2500, 2500
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    ('01900000-0000-7000-8000-00000000fd41', '01900000-0000-7000-8000-000000000001', 1,
+     '01900000-0000-7000-8000-000000000028', 2500, 0, NULL, NULL),
+    ('01900000-0000-7000-8000-00000000fd41', '01900000-0000-7000-8000-000000000001', 2,
+     '01900000-0000-7000-8000-000000000014', 0, 2500, 'vendor', '01900000-0000-7000-8000-00000000fd01');
+
+INSERT INTO vendor_memos (journal_id, vendor_id, direction, amount_minor, reason)
+VALUES ('01900000-0000-7000-8000-00000000fd41', '01900000-0000-7000-8000-00000000fd01', 'credit', 2500, 'A sale found after she left');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+INSERT INTO booths (id, code, name)
+VALUES ('01900000-0000-7000-8000-00000000fd22', 'R7', 'Rate booth');
+
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
+VALUES (
+    '01900000-0000-7000-8000-00000000fd12',
+    '01900000-0000-7000-8000-00000000fd22',
+    '01900000-0000-7000-8000-00000000fd02',
+    '2036-01-01'
+);
+
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-00000000fd12', 1000);
+
+INSERT INTO assignment_rent_rates (assignment_id, starts_on, amount_minor)
+VALUES ('01900000-0000-7000-8000-00000000fd12', '2036-03-01', 1500);
+
+INSERT INTO payout_runs (
+    id, book_id, kind, cadence, sales_from, sales_to, rent_month, tender, status, posting_date
+) VALUES (
+    '01900000-0000-7000-8000-00000000fd30',
+    '01900000-0000-7000-8000-000000000001',
+    'batch', 'monthly', '2036-03-01', '2036-03-31', '2036-03-01', 'check', 'draft', '2036-03-31'
+);
+
+DO $$
+DECLARE
+    run_check bigint;
+    quoted integer;
+    quote_check bigint;
+    priced text;
+BEGIN
+    SELECT pack."check" INTO run_check
+    FROM payout_pack AS pack
+    WHERE pack.run_id = '01900000-0000-7000-8000-00000000fd30'
+      AND pack.vendor_id = '01900000-0000-7000-8000-00000000fd01';
+    IF run_check IS DISTINCT FROM 2500 THEN
+        RAISE EXCEPTION 'a vendor who has left and is owed $25.00 was not in the run (%)', run_check;
+    END IF;
+    SELECT count(*), max(quote."check") INTO quoted, quote_check
+    FROM stall_payout_quote('01900000-0000-7000-8000-00000000fd01', '2036-03-01', '2036-03-31', '2036-03-01', '2036-03-31') AS quote;
+    IF quoted <> 1 OR quote_check <> 2500 THEN
+        RAISE EXCEPTION 'a single-vendor quote for a vendor who has left came back % rows, %', quoted, quote_check;
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM payout_pack AS pack
+        WHERE pack.run_id = '01900000-0000-7000-8000-00000000fd30'
+          AND pack.vendor_id = '01900000-0000-7000-8000-00000000fd03'
+    ) OR EXISTS (
+        SELECT 1 FROM stall_payout_quote('01900000-0000-7000-8000-00000000fd03', '2036-03-01', '2036-03-31', '2036-03-01', '2036-03-31')
+    ) THEN
+        RAISE EXCEPTION 'an inactive vendor with nothing open was put in the run';
+    END IF;
+    SELECT string_agg(to_char(missing.month_start, 'YYYY-MM') || '=' || missing.amount, ' ' ORDER BY missing.month_start)
+    INTO priced
+    FROM payout_missing_rent AS missing
+    WHERE missing.run_id = '01900000-0000-7000-8000-00000000fd30'
+      AND missing.assignment_id = '01900000-0000-7000-8000-00000000fd12';
+    IF priced IS DISTINCT FROM '2036-01=1000 2036-02=1000 2036-03=1500' THEN
+        RAISE EXCEPTION 'missing rent was not priced from the rate history: %', priced;
+    END IF;
+END $$;
+
 ROLLBACK;
