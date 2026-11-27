@@ -2017,17 +2017,12 @@ CREATE FUNCTION public.stall_assert_rent_charge() RETURNS trigger
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
-    booth_ref text;
-    rate_minor bigint;
-    assign_start date;
+    assignment_ref text;
     charge_start date;
-    charge_end date;
-    days_in_period integer;
-    days_charged integer;
+    expected bigint;
     line_count integer;
     debit_ok integer;
     credit_ok integer;
-    stay_id uuid;
 BEGIN
     IF NEW.source_type <> 'rent_charge' OR NEW.is_reversal THEN
         RETURN NULL;
@@ -2038,65 +2033,32 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT line.subledger_ref INTO booth_ref
+    SELECT line.subledger_ref INTO assignment_ref
     FROM public.journal_lines AS line
     JOIN public.chart_roles AS role ON role.account_id = line.account_id
     WHERE line.journal_id = NEW.id
       AND role.role = 'booth_rent_receivable'
       AND line.debit_minor > 0
-      AND line.subledger_type = 'booth';
+      AND line.subledger_type = 'assignment';
 
-    charge_start := public.stall_rent_period_start(NEW.posting_date);
-    IF booth_ref IS NULL
-       OR NEW.posting_key <> 'rent-charge:' || booth_ref || ':' || public.stall_rent_charge_suffix(charge_start) THEN
-        RAISE EXCEPTION 'a rent charge posting key is one booth and one month'
+    -- The key names the assignment and the rent period. The posting date may
+    -- fall after the assignment ended (a departed vendor's last month), never
+    -- before the period it charges.
+    charge_start := public.stall_rent_period_of(substring(NEW.posting_key FROM '^rent-charge:[0-9a-f-]{36}:(.+)$'));
+    IF assignment_ref IS NULL
+       OR charge_start IS NULL
+       OR NEW.posting_key <> 'rent-charge:' || assignment_ref || ':' || public.stall_rent_charge_suffix(charge_start)
+       OR NEW.source_reference <> assignment_ref || ':' || public.stall_rent_charge_suffix(charge_start) THEN
+        RAISE EXCEPTION 'a rent charge posting key is one booth assignment and one rent period'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NEW.posting_date < charge_start THEN
+        RAISE EXCEPTION 'rent is charged on or after the first day of its period'
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT assignment.id, assignment.starts_on
-    INTO stay_id, assign_start
-    FROM public.booth_assignments AS assignment
-    WHERE assignment.booth_id = booth_ref::uuid
-      AND assignment.assignment_range @> NEW.posting_date
-    ORDER BY assignment.starts_on DESC
-    LIMIT 1
-    FOR UPDATE OF assignment;
-
-    IF stay_id IS NOT NULL THEN
-        SELECT rate.amount_minor
-        INTO rate_minor
-        FROM public.assignment_rent_rates AS rate
-        WHERE rate.assignment_id = stay_id
-          AND rate.starts_on <= GREATEST(charge_start, assign_start)
-        ORDER BY rate.starts_on DESC
-        LIMIT 1;
-    END IF;
-
-    IF assign_start IS NULL THEN
-        IF EXISTS (
-            SELECT 1
-            FROM public.booth_assignments AS assignment
-            WHERE assignment.booth_id = booth_ref::uuid
-              AND assignment.assignment_range @> NEW.posting_date
-        ) THEN
-            RAISE EXCEPTION 'a rent charge requires the booth rate from the assignment'
-                USING ERRCODE = '23514';
-        END IF;
-        RAISE EXCEPTION 'a rent charge requires an assignment that covers the charge date'
-            USING ERRCODE = '23514';
-    END IF;
-
-    IF rate_minor IS NULL THEN
-        RAISE EXCEPTION 'a rent charge requires the booth rate from the assignment'
-            USING ERRCODE = '23514';
-    END IF;
-
-    charge_end := public.stall_rent_period_end(charge_start);
-    days_in_period := (charge_end - charge_start) + 1;
-    IF assign_start > charge_start AND assign_start <= charge_end THEN
-        days_charged := (charge_end - assign_start) + 1;
-        rate_minor := (days_charged * rate_minor) / days_in_period;
-    END IF;
+    PERFORM 1 FROM public.booth_assignments WHERE id = assignment_ref::uuid FOR UPDATE;
+    expected := public.stall_rent_quote(assignment_ref::uuid, charge_start);
 
     SELECT count(*) INTO line_count
     FROM public.journal_lines
@@ -2107,19 +2069,20 @@ BEGIN
     JOIN public.chart_roles AS role ON role.account_id = line.account_id
     WHERE line.journal_id = NEW.id
       AND role.role = 'booth_rent_receivable'
-      AND line.debit_minor = rate_minor
-      AND line.subledger_ref = booth_ref;
+      AND line.debit_minor = expected
+      AND line.subledger_type = 'assignment'
+      AND line.subledger_ref = assignment_ref;
 
     SELECT count(*) INTO credit_ok
     FROM public.journal_lines AS line
     JOIN public.chart_roles AS role ON role.account_id = line.account_id
     WHERE line.journal_id = NEW.id
       AND role.role = 'rent_revenue'
-      AND line.credit_minor = rate_minor
+      AND line.credit_minor = expected
       AND line.subledger_type IS NULL;
 
     IF line_count <> 2 OR debit_ok <> 1 OR credit_ok <> 1 THEN
-        RAISE EXCEPTION 'a rent charge debits that booth receivable and credits rent revenue for the stored rate'
+        RAISE EXCEPTION 'a rent charge debits that assignment receivable and credits rent revenue for the stored rate'
             USING ERRCODE = '23514';
     END IF;
 
@@ -2158,7 +2121,7 @@ BEGIN
       AND role.role = 'booth_rent_receivable'
       AND line.credit_minor > 0
       AND line.debit_minor = 0
-      AND line.subledger_type = 'booth'
+      AND line.subledger_type = 'assignment'
       AND line.subledger_ref IS NOT NULL;
 
     SELECT count(*) INTO other
@@ -2180,7 +2143,7 @@ BEGIN
             AND role.role = 'booth_rent_receivable'
             AND line.credit_minor > 0
             AND line.debit_minor = 0
-            AND line.subledger_type = 'booth'
+            AND line.subledger_type = 'assignment'
             AND line.subledger_ref IS NOT NULL
       );
 
@@ -2203,7 +2166,7 @@ BEGIN
         OR credit <> NEW.credit_total_minor
         OR other <> 0
     THEN
-        RAISE EXCEPTION 'a rent receipt debits a tender and credits that booth receivable'
+        RAISE EXCEPTION 'a rent receipt debits a tender and credits those booth assignments'
             USING ERRCODE = '23514';
     END IF;
 
@@ -2794,13 +2757,11 @@ BEGIN
         JOIN public.chart_roles AS role ON role.account_id = line.account_id
         WHERE line.journal_id <> NEW.id
           AND role.role = 'booth_rent_receivable'
-          AND line.subledger_type = 'booth'
-          AND EXISTS (
-              SELECT 1
+          AND line.subledger_type = 'assignment'
+          AND line.subledger_ref IN (
+              SELECT assignment.id::text
               FROM public.booth_assignments AS assignment
               WHERE assignment.vendor_id = NEW.source_reference::uuid
-                AND assignment.booth_id = line.subledger_ref::uuid
-                AND assignment.assignment_range @> posted.posting_date
           )
         GROUP BY line.subledger_ref
         HAVING sum(line.debit_minor - line.credit_minor) > 0
@@ -2832,19 +2793,19 @@ BEGIN
           OR line.credit_minor > COALESCE((
               SELECT sum(earlier.debit_minor - earlier.credit_minor)
               FROM public.journal_lines AS earlier
-              JOIN public.journals AS posted ON posted.id = earlier.journal_id
               JOIN public.chart_roles AS earlier_role ON earlier_role.account_id = earlier.account_id
               WHERE earlier.journal_id <> NEW.id
                 AND earlier_role.role = 'booth_rent_receivable'
+                AND earlier.subledger_type = 'assignment'
                 AND earlier.subledger_ref = line.subledger_ref
-                AND EXISTS (
-                    SELECT 1
-                    FROM public.booth_assignments AS assignment
-                    WHERE assignment.vendor_id = NEW.source_reference::uuid
-                      AND assignment.booth_id = earlier.subledger_ref::uuid
-                      AND assignment.assignment_range @> posted.posting_date
-                )
           ), 0)
+          OR line.subledger_type IS DISTINCT FROM 'assignment'
+          OR NOT EXISTS (
+              SELECT 1
+              FROM public.booth_assignments AS assignment
+              WHERE assignment.id::text = line.subledger_ref
+                AND assignment.vendor_id = NEW.source_reference::uuid
+          )
       );
     IF rent_gap = 0 AND (
         SELECT COALESCE(sum(line.credit_minor), 0)
@@ -3055,13 +3016,14 @@ BEGIN
         FROM public.journal_lines AS line
         JOIN public.chart_roles AS role ON role.account_id = line.account_id
         WHERE role.role = 'booth_rent_receivable'
-          AND line.subledger_type = 'booth'
+          AND line.subledger_type = 'assignment'
           AND line.subledger_ref IN (
               SELECT touched.subledger_ref
               FROM public.journal_lines AS touched
               JOIN public.chart_roles AS touched_role ON touched_role.account_id = touched.account_id
               WHERE touched.journal_id = NEW.id
                 AND touched_role.role = 'booth_rent_receivable'
+                AND touched.subledger_type = 'assignment'
           )
         GROUP BY line.subledger_ref
         HAVING sum(line.debit_minor - line.credit_minor) < 0
@@ -3832,7 +3794,7 @@ BEGIN
                 || ',' || public.stall_csv_field(
                     CASE
                         WHEN line.subledger_type = 'vendor' THEN vendor.name
-                        WHEN line.subledger_type = 'booth' THEN booth.name
+                        WHEN line.subledger_type = 'assignment' THEN stay_vendor.name || ' (' || booth.name || ')'
                         ELSE ''
                     END
                 )
@@ -3873,9 +3835,13 @@ BEGIN
     LEFT JOIN public.vendors AS vendor
         ON line.subledger_type = 'vendor'
        AND vendor.id = line.subledger_ref::uuid
+    LEFT JOIN public.booth_assignments AS stay
+        ON line.subledger_type = 'assignment'
+       AND stay.id = line.subledger_ref::uuid
     LEFT JOIN public.booths AS booth
-        ON line.subledger_type = 'booth'
-       AND booth.id = line.subledger_ref::uuid
+        ON booth.id = stay.booth_id
+    LEFT JOIN public.vendors AS stay_vendor
+        ON stay_vendor.id = stay.vendor_id
     WHERE line.posting_date >= from_date
       AND line.posting_date <= to_date
     ORDER BY line.posting_date, line.journal_no, line.line_no;
@@ -4635,6 +4601,7 @@ CREATE TABLE public.mall (
     gmail_app_password text,
     late_fee_effective_on date,
     cash_round_minor integer DEFAULT 0 NOT NULL,
+    booth_deposits_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT mall_booth_size_chk CHECK (((booth_width_ft > 0) AND (booth_depth_ft > 0))),
     CONSTRAINT mall_cash_round_minor_chk CHECK ((cash_round_minor = ANY (ARRAY[0, 1, 5, 10, 25]))),
     CONSTRAINT mall_city_chk CHECK (((city IS NULL) OR ((city = btrim(city)) AND (city <> ''::text) AND (char_length(city) <= 80)))),
@@ -4711,27 +4678,695 @@ END) STORED,
     CONSTRAINT vendors_tax_id_chk CHECK (((tax_id IS NULL) OR ((tax_id = btrim(tax_id)) AND (tax_id <> ''::text) AND (char_length(tax_id) <= 40))))
 );
 
+-- >>> vendor balances, phase 1
+-- Rent and booth deposits are kept by booth assignment (one vendor, one booth,
+-- one date range), so every charge, payment, fee, extra and deposit names
+-- exactly who it belongs to. The database answers what a vendor owes or is
+-- owed, decides every rent amount, and refuses Inactive while anything is
+-- open. A shared per-vendor lock (namespace 87401) is taken by every posting
+-- on a vendor or assignment line; Make inactive takes it exclusively.
+
+CREATE FUNCTION public.stall_money_text(amount_minor bigint) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT CASE WHEN amount_minor < 0 THEN '-' ELSE '' END
+        || '$' || to_char(abs(amount_minor) / 100, 'FM999,999,999,990')
+        || '.' || lpad((abs(amount_minor) % 100)::text, 2, '0')
+$$;
+
+-- The rent for one assignment in one rent period, from the stored rate.
+-- A period the assignment starts in after its first day is prorated from the
+-- start date, rounded down toward zero in the vendor's favor. A period it
+-- ends in is charged in full.
+CREATE FUNCTION public.stall_rent_quote(target_assignment uuid, period_start date) RETURNS bigint
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    stay record;
+    period_end date;
+    rate_minor bigint;
+BEGIN
+    IF target_assignment IS NULL OR period_start IS NULL THEN
+        RAISE EXCEPTION 'a rent quote names an assignment and a rent period'
+            USING ERRCODE = '22023';
+    END IF;
+    IF public.stall_rent_period_start(period_start) <> period_start THEN
+        RAISE EXCEPTION 'a rent period starts on the rent cycle day'
+            USING ERRCODE = '22023';
+    END IF;
+    SELECT assignment.id, assignment.starts_on, assignment.ends_on
+    INTO stay
+    FROM public.booth_assignments AS assignment
+    WHERE assignment.id = target_assignment;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'a rent charge requires an assignment'
+            USING ERRCODE = '23514';
+    END IF;
+    period_end := public.stall_rent_period_end(period_start);
+    IF stay.starts_on > period_end OR (stay.ends_on IS NOT NULL AND stay.ends_on < period_start) THEN
+        RAISE EXCEPTION 'a rent charge is for a period the assignment covers'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT rate.amount_minor
+    INTO rate_minor
+    FROM public.assignment_rent_rates AS rate
+    WHERE rate.assignment_id = stay.id
+      AND rate.starts_on <= GREATEST(period_start, stay.starts_on)
+    ORDER BY rate.starts_on DESC
+    LIMIT 1;
+    IF rate_minor IS NULL THEN
+        RAISE EXCEPTION 'a rent charge requires the booth rate from the assignment'
+            USING ERRCODE = '23514';
+    END IF;
+    IF stay.starts_on > period_start THEN
+        RETURN (((period_end - stay.starts_on) + 1) * rate_minor) / ((period_end - period_start) + 1);
+    END IF;
+    RETURN rate_minor;
+END;
+$$;
+
+-- The rent period a rent charge or late fee key names, from its suffix.
+CREATE FUNCTION public.stall_rent_period_of(suffix text) RETURNS date
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    named date;
+BEGIN
+    IF suffix ~ '^\d{4}-(0[1-9]|1[0-2])$' THEN
+        named := to_date(suffix || '-01', 'YYYY-MM-DD');
+    ELSIF suffix ~ '^\d{4}-(0[1-9]|1[0-2])-\d{2}$' THEN
+        named := to_date(suffix, 'YYYY-MM-DD');
+    ELSE
+        RETURN NULL;
+    END IF;
+    IF public.stall_rent_charge_suffix(named) <> suffix
+       OR public.stall_rent_period_start(named) <> named THEN
+        RETURN NULL;
+    END IF;
+    RETURN named;
+END;
+$$;
+
+-- Whether a stay has a rent rate for a period. A stay with no rate is not billed.
+CREATE FUNCTION public.stall_assignment_rated(target_assignment uuid, period_start date) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.assignment_rent_rates AS rate
+        JOIN public.booth_assignments AS assignment ON assignment.id = rate.assignment_id
+        WHERE rate.assignment_id = target_assignment
+          AND rate.starts_on <= GREATEST(period_start, assignment.starts_on)
+    )
+$$;
+
+-- One answer for each balance. Every screen, trigger, report and payout reads these.
+CREATE FUNCTION public.stall_vendor_open_rent(target uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    WHERE line.subledger_type = 'assignment'
+      AND line.subledger_ref IN (
+          SELECT assignment.id::text FROM public.booth_assignments AS assignment WHERE assignment.vendor_id = target
+      )
+$$;
+
+CREATE FUNCTION public.stall_vendor_open_clawback(target uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'vendor_receivable'
+    WHERE line.subledger_type = 'vendor'
+      AND line.subledger_ref = target::text
+$$;
+
+CREATE FUNCTION public.stall_vendor_open_payable(target uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'vendor_payable'
+    WHERE line.subledger_type = 'vendor'
+      AND line.subledger_ref = target::text
+$$;
+
+CREATE FUNCTION public.stall_vendor_deposit_held(target uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_deposit_held'
+    WHERE line.subledger_type = 'assignment'
+      AND line.subledger_ref IN (
+          SELECT assignment.id::text FROM public.booth_assignments AS assignment WHERE assignment.vendor_id = target
+      )
+$$;
+
+CREATE FUNCTION public.stall_vendor_balances(target uuid)
+RETURNS TABLE(rent_minor bigint, clawback_minor bigint, payable_minor bigint, deposit_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT public.stall_vendor_open_rent(target),
+           public.stall_vendor_open_clawback(target),
+           public.stall_vendor_open_payable(target),
+           public.stall_vendor_deposit_held(target)
+$$;
+
+-- Open rent per assignment, for the rent roll, payments and statements.
+CREATE FUNCTION public.stall_assignment_open_rent(target_assignment uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    WHERE line.subledger_type = 'assignment'
+      AND line.subledger_ref = target_assignment::text
+$$;
+
+-- A vendor is Active-eligible for removal only with nothing open: no balance
+-- in either direction and no current or scheduled booth.
+CREATE FUNCTION public.stall_vendor_open_reasons(target uuid)
+RETURNS TABLE(reason text, sentence text)
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    open record;
+    today date;
+BEGIN
+    SELECT * INTO open FROM public.stall_vendor_balances(target);
+    SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date INTO today FROM public.mall;
+    IF open.rent_minor > 0 THEN
+        reason := 'rent';
+        sentence := 'They owe ' || public.stall_money_text(open.rent_minor) || ' in rent.';
+        RETURN NEXT;
+    END IF;
+    IF open.clawback_minor > 0 THEN
+        reason := 'clawback';
+        sentence := 'They owe ' || public.stall_money_text(open.clawback_minor) || ' from returns.';
+        RETURN NEXT;
+    END IF;
+    IF open.payable_minor > 0 THEN
+        reason := 'payable';
+        sentence := 'The store owes them ' || public.stall_money_text(open.payable_minor) || '.';
+        RETURN NEXT;
+    ELSIF open.payable_minor < 0 THEN
+        reason := 'payable';
+        sentence := 'They owe ' || public.stall_money_text(-open.payable_minor) || ' on their payout balance.';
+        RETURN NEXT;
+    END IF;
+    IF open.deposit_minor > 0 THEN
+        reason := 'deposit';
+        sentence := 'The store still holds a ' || public.stall_money_text(open.deposit_minor) || ' booth deposit for them.';
+        RETURN NEXT;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM public.booth_assignments AS assignment
+        WHERE assignment.vendor_id = target
+          AND (assignment.ends_on IS NULL OR assignment.ends_on >= today)
+    ) THEN
+        reason := 'booth';
+        sentence := 'They still have a booth. End it first.';
+        RETURN NEXT;
+    END IF;
+END;
+$$;
+
+-- Every line on a vendor or a booth assignment takes the vendor's shared lock,
+-- so Make inactive (exclusive) waits for postings in flight and a posting that
+-- starts during it waits for it to finish. Shared locks never block each other.
+
+-- Posting functions. Each takes only what a person chose (an assignment, a
+-- period, a tender, an amount typed for an extra) and computes every other
+-- amount from database facts. The assert triggers stay as a second defense.
+
+-- Writes one balanced journal on the mall book. Lines are
+-- [{role, debit, credit, subledger_type, subledger_ref}].
+CREATE FUNCTION public.stall_post_lines(
+    key text, on_date date, source text, reference text, said text, lines jsonb
+) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    book uuid;
+    book_currency character(3);
+    period uuid;
+    posted uuid := uuidv7();
+    total_debit bigint;
+    total_credit bigint;
+    entry jsonb;
+    numbered integer := 0;
+    account uuid;
+BEGIN
+    SELECT ledger.id, ledger.currency INTO book, book_currency
+    FROM public.ledger_books AS ledger
+    WHERE ledger.is_default;
+    IF book IS NULL THEN
+        RAISE EXCEPTION 'the mall book is missing'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT accounting.id INTO period
+    FROM public.accounting_periods AS accounting
+    WHERE accounting.book_id = book
+      AND accounting.status = 'open'
+      AND accounting.period_range @> on_date;
+    IF period IS NULL THEN
+        RAISE EXCEPTION 'journal posting date must fall inside its period'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT COALESCE(sum((listed->>'debit')::bigint), 0), COALESCE(sum((listed->>'credit')::bigint), 0)
+    INTO total_debit, total_credit
+    FROM jsonb_array_elements(lines) AS listed;
+
+    -- The journal and its lines are checked together, at commit or at the
+    -- caller's SET CONSTRAINTS ALL IMMEDIATE, after the caller links a drawer.
+    SET CONSTRAINTS ALL DEFERRED;
+
+    INSERT INTO public.journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+    ) VALUES (
+        posted, book, key, on_date, clock_timestamp(), period,
+        book_currency, source, reference, said, total_debit, total_credit
+    );
+    FOR entry IN SELECT listed FROM jsonb_array_elements(lines) AS listed
+    LOOP
+        numbered := numbered + 1;
+        SELECT role.account_id INTO account
+        FROM public.chart_roles AS role
+        WHERE role.role = entry->>'role';
+        IF account IS NULL THEN
+            RAISE EXCEPTION 'the chart has no % account', entry->>'role'
+                USING ERRCODE = '23514';
+        END IF;
+        INSERT INTO public.journal_lines (
+            journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+        ) VALUES (
+            posted, book, numbered, account, (entry->>'debit')::bigint, (entry->>'credit')::bigint,
+            entry->>'subledger_type', entry->>'subledger_ref'
+        );
+    END LOOP;
+    RETURN posted;
+END;
+$$;
+
+CREATE FUNCTION public.stall_line(role text, debit bigint, credit bigint, kind text DEFAULT NULL, ref text DEFAULT NULL) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT jsonb_build_object('role', role, 'debit', debit, 'credit', credit, 'subledger_type', kind, 'subledger_ref', ref)
+$$;
+
+-- The live journal that holds a posting key, if any.
+CREATE FUNCTION public.stall_live_journal(key text) RETURNS uuid
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT posted.id
+    FROM public.journals AS posted
+    WHERE posted.posting_key = key
+      AND NOT posted.is_reversal
+      AND NOT EXISTS (SELECT 1 FROM public.journals AS reversal WHERE reversal.reverses_journal_id = posted.id)
+    ORDER BY posted.posted_at DESC
+    LIMIT 1
+$$;
+
+-- Charges one rent period on one assignment. Posting it twice returns the first.
+CREATE FUNCTION public.stall_post_rent_charge(target_assignment uuid, period_start date, on_date date) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    suffix text;
+    existing uuid;
+    amount bigint;
+BEGIN
+    IF on_date IS NULL THEN
+        RAISE EXCEPTION 'Enter the date of the rent charge.'
+            USING ERRCODE = '22023';
+    END IF;
+    amount := public.stall_rent_quote(target_assignment, period_start);
+    suffix := public.stall_rent_charge_suffix(period_start);
+    existing := public.stall_live_journal('rent-charge:' || target_assignment::text || ':' || suffix);
+    IF existing IS NOT NULL THEN
+        RETURN existing;
+    END IF;
+    IF amount < 1 THEN
+        RAISE EXCEPTION 'there is no rent to charge for that period'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN public.stall_post_lines(
+        'rent-charge:' || target_assignment::text || ':' || suffix,
+        on_date,
+        'rent_charge',
+        target_assignment::text || ':' || suffix,
+        'Rent charge',
+        jsonb_build_array(
+            public.stall_line('booth_rent_receivable', amount, 0, 'assignment', target_assignment::text),
+            public.stall_line('rent_revenue', 0, amount)
+        )
+    );
+END;
+$$;
+
+-- How a rent payment spreads over a vendor's stays: the stay with the oldest
+-- unpaid charge first, each up to what it still owes.
+CREATE FUNCTION public.stall_rent_payment_split(target_vendor uuid, amount bigint)
+RETURNS TABLE(assignment_id uuid, amount_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH moves AS (
+        SELECT line.subledger_ref::uuid AS stay,
+               posted.posting_date,
+               posted.journal_no,
+               line.debit_minor,
+               line.credit_minor
+        FROM public.journal_lines AS line
+        JOIN public.journals AS posted ON posted.id = line.journal_id
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+        WHERE line.subledger_type = 'assignment'
+          AND line.subledger_ref IN (
+              SELECT assignment.id::text FROM public.booth_assignments AS assignment WHERE assignment.vendor_id = target_vendor
+          )
+    ), credited AS (
+        SELECT stay, sum(credit_minor) AS paid, sum(debit_minor - credit_minor) AS open
+        FROM moves
+        GROUP BY stay
+    ), oldest AS (
+        SELECT charge.stay,
+               min(charge.posting_date) FILTER (WHERE charge.running > credited.paid) AS since,
+               min(charge.journal_no) FILTER (WHERE charge.running > credited.paid) AS since_no,
+               credited.open
+        FROM (
+            SELECT stay, posting_date, journal_no,
+                   sum(debit_minor) OVER (PARTITION BY stay ORDER BY posting_date, journal_no) AS running
+            FROM moves
+            WHERE debit_minor > 0
+        ) AS charge
+        JOIN credited ON credited.stay = charge.stay
+        WHERE credited.open > 0
+        GROUP BY charge.stay, credited.open
+    ), ordered AS (
+        SELECT stay, open,
+               COALESCE(sum(open) OVER (ORDER BY since, since_no, stay ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS before
+        FROM oldest
+    )
+    SELECT stay, LEAST(open, amount - before)::bigint
+    FROM ordered
+    WHERE before < amount
+    ORDER BY before
+$$;
+
+-- A rent receipt. The tender amounts are what was handed over; the database
+-- decides which stays they pay.
+CREATE FUNCTION public.stall_post_rent_payment(
+    target_vendor uuid, cash_minor bigint, card_minor bigint, checks_minor bigint, on_date date
+) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    total bigint;
+    owed bigint;
+    lines jsonb := '[]'::jsonb;
+    share record;
+    receipt text := uuidv7()::text;
+BEGIN
+    IF cash_minor IS NULL OR card_minor IS NULL OR checks_minor IS NULL
+       OR cash_minor < 0 OR card_minor < 0 OR checks_minor < 0 THEN
+        RAISE EXCEPTION 'a rent receipt needs a tender'
+            USING ERRCODE = '22023';
+    END IF;
+    total := cash_minor + card_minor + checks_minor;
+    IF total < 1 THEN
+        RAISE EXCEPTION 'a rent receipt needs a tender'
+            USING ERRCODE = '22023';
+    END IF;
+    PERFORM pg_advisory_xact_lock_shared(87401, hashtext(target_vendor::text));
+    owed := public.stall_vendor_open_rent(target_vendor);
+    IF total > owed THEN
+        RAISE EXCEPTION 'a rent receipt cannot exceed the open rent'
+            USING ERRCODE = '23514';
+    END IF;
+    IF cash_minor > 0 THEN
+        lines := lines || public.stall_line('cash', cash_minor, 0);
+    END IF;
+    IF card_minor > 0 THEN
+        lines := lines || public.stall_line('card', card_minor, 0);
+    END IF;
+    IF checks_minor > 0 THEN
+        lines := lines || public.stall_line('checks', checks_minor, 0);
+    END IF;
+    FOR share IN SELECT * FROM public.stall_rent_payment_split(target_vendor, total)
+    LOOP
+        lines := lines || public.stall_line('booth_rent_receivable', 0, share.amount_minor, 'assignment', share.assignment_id::text);
+    END LOOP;
+    RETURN public.stall_post_lines('rent-payment:' || receipt, on_date, 'rent_payment', receipt, 'Rent receipt', lines);
+END;
+$$;
+
+-- Late fees due on a day: each rent period still unpaid takes a fee each time
+-- grace passes, through the end of the period. The first fee in a period uses
+-- the first amount, each later one the next amount. Grace 0 is one fee a day.
+CREATE FUNCTION public.stall_late_fees_due(today date)
+RETURNS TABLE(assignment_id uuid, period_start date, ordinal integer, fee_date date, amount_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH policy AS (
+        SELECT mall.late_fee_grace_days AS grace,
+               mall.late_fee_first_minor AS first_minor,
+               mall.late_fee_next_minor AS next_minor,
+               COALESCE(mall.late_fee_effective_on, today) AS effective
+        FROM public.mall
+        WHERE mall.booth_rentals_enabled
+          AND mall.late_fees_enabled
+          AND mall.late_fee_first_minor > 0
+          AND mall.late_fee_next_minor > 0
+    ), moves AS (
+        SELECT line.subledger_ref::uuid AS stay,
+               posted.source_type,
+               posted.posting_key,
+               posted.posting_date,
+               posted.journal_no,
+               line.debit_minor,
+               line.credit_minor
+        FROM public.journal_lines AS line
+        JOIN public.journals AS posted ON posted.id = line.journal_id
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+        WHERE line.subledger_type = 'assignment'
+          AND NOT posted.is_reversal
+          AND NOT EXISTS (SELECT 1 FROM public.journals AS reversal WHERE reversal.reverses_journal_id = posted.id)
+    ), paid AS (
+        SELECT stay, sum(credit_minor) AS credit FROM moves GROUP BY stay
+    ), charges AS (
+        SELECT moves.stay,
+               public.stall_rent_period_of(substring(moves.posting_key FROM '^rent-charge:[0-9a-f-]{36}:(.+)$')) AS period,
+               sum(moves.debit_minor) OVER (PARTITION BY moves.stay ORDER BY moves.posting_date, moves.journal_no) AS running,
+               moves.debit_minor
+        FROM moves
+        WHERE moves.source_type = 'rent_charge'
+          AND moves.debit_minor > 0
+    ), unpaid AS (
+        SELECT charges.stay, charges.period
+        FROM charges
+        LEFT JOIN paid ON paid.stay = charges.stay
+        WHERE charges.period IS NOT NULL
+          AND charges.running > COALESCE(paid.credit, 0)
+    ), slots AS (
+        SELECT unpaid.stay,
+               unpaid.period,
+               slot.ordinal::integer AS ordinal,
+               slot.on_day::date AS fee_date,
+               CASE WHEN slot.ordinal = 1 THEN policy.first_minor ELSE policy.next_minor END AS amount
+        FROM unpaid
+        CROSS JOIN policy
+        CROSS JOIN LATERAL generate_series(
+            unpaid.period + policy.grace,
+            LEAST(today, public.stall_rent_period_end(unpaid.period)),
+            make_interval(days => GREATEST(policy.grace, 1))
+        ) WITH ORDINALITY AS slot(on_day, ordinal)
+        WHERE unpaid.period >= policy.effective
+    )
+    SELECT slots.stay, slots.period, slots.ordinal, slots.fee_date, slots.amount
+    FROM slots
+    WHERE public.stall_live_journal(
+        'late-fee:' || slots.stay::text || ':' || public.stall_rent_charge_suffix(slots.period) || ':' || slots.ordinal::text
+    ) IS NULL
+    ORDER BY slots.stay, slots.period, slots.ordinal
+$$;
+
+CREATE FUNCTION public.stall_post_late_fees(today date) RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    fee record;
+    posted integer := 0;
+    suffix text;
+BEGIN
+    FOR fee IN SELECT * FROM public.stall_late_fees_due(today)
+    LOOP
+        suffix := public.stall_rent_charge_suffix(fee.period_start) || ':' || fee.ordinal::text;
+        PERFORM public.stall_post_lines(
+            'late-fee:' || fee.assignment_id::text || ':' || suffix,
+            fee.fee_date,
+            'late_fee',
+            fee.assignment_id::text || ':' || suffix,
+            'Late fee',
+            jsonb_build_array(
+                public.stall_line('booth_rent_receivable', fee.amount_minor, 0, 'assignment', fee.assignment_id::text),
+                public.stall_line('late_fee_income', 0, fee.amount_minor)
+            )
+        );
+        posted := posted + 1;
+    END LOOP;
+    RETURN posted;
+END;
+$$;
+
+-- Waives one late fee by reversing it, while it is still unpaid on that stay.
+CREATE FUNCTION public.stall_waive_late_fee(fee_journal uuid, on_date date, note text) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    fee record;
+    trimmed text := btrim(COALESCE(note, ''));
+    reversal uuid := uuidv7();
+    entry_day date;
+BEGIN
+    IF char_length(trimmed) > 500 THEN
+        RAISE EXCEPTION 'Enter a shorter waive note.'
+            USING ERRCODE = '22023';
+    END IF;
+    SELECT posted.* INTO fee
+    FROM public.journals AS posted
+    WHERE posted.id = fee_journal
+    FOR UPDATE;
+    IF NOT FOUND OR fee.source_type <> 'late_fee' OR fee.is_reversal THEN
+        RAISE EXCEPTION 'Choose a late fee.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.journals AS prior WHERE prior.reverses_journal_id = fee.id) THEN
+        RAISE EXCEPTION 'That late fee is already waived.'
+            USING ERRCODE = '23514';
+    END IF;
+    entry_day := GREATEST(on_date, fee.posting_date);
+    INSERT INTO public.journals (
+        id, book_id, posting_key, posting_date, occurred_at, period_id,
+        currency, source_type, source_reference, description, is_reversal, reverses_journal_id,
+        debit_total_minor, credit_total_minor
+    )
+    SELECT reversal, fee.book_id, 'reversal:' || fee.id::text, entry_day, clock_timestamp(), accounting.id,
+           fee.currency, 'late_fee', fee.source_reference || ':waive',
+           CASE WHEN trimmed = '' THEN 'Late fee waived' ELSE 'Late fee waived. ' || trimmed END,
+           true, fee.id, fee.credit_total_minor, fee.debit_total_minor
+    FROM public.accounting_periods AS accounting
+    WHERE accounting.book_id = fee.book_id
+      AND accounting.status = 'open'
+      AND accounting.period_range @> entry_day;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'journal posting date must fall inside its period'
+            USING ERRCODE = '23514';
+    END IF;
+    INSERT INTO public.journal_lines (
+        journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+    )
+    SELECT reversal, line.book_id, line.line_no, line.account_id, line.credit_minor, line.debit_minor,
+           line.subledger_type, line.subledger_ref
+    FROM public.journal_lines AS line
+    WHERE line.journal_id = fee.id;
+    RETURN reversal;
+END;
+$$;
+
+-- A charge for an extra (electricity, a sign) on one stay. The amount is typed.
+CREATE FUNCTION public.stall_post_booth_charge(target_assignment uuid, amount bigint, reference text, on_date date) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF amount IS NULL OR amount < 1 THEN
+        RAISE EXCEPTION 'Enter the amount.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF btrim(COALESCE(reference, '')) = '' THEN
+        RAISE EXCEPTION 'a booth and a reference are required'
+            USING ERRCODE = '22023';
+    END IF;
+    RETURN public.stall_post_lines(
+        'booth-charge:' || btrim(reference), on_date, 'booth_charge', btrim(reference), 'Booth charge',
+        jsonb_build_array(
+            public.stall_line('booth_rent_receivable', amount, 0, 'assignment', target_assignment::text),
+            public.stall_line('booth_other_revenue', 0, amount)
+        )
+    );
+END;
+$$;
+
+-- A booth deposit taken in cash, or returned in cash, on one stay.
+CREATE FUNCTION public.stall_post_booth_deposit(target_assignment uuid, amount bigint, reference text, on_date date, releasing boolean) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF amount IS NULL OR amount < 1 THEN
+        RAISE EXCEPTION 'Enter the amount.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF btrim(COALESCE(reference, '')) = '' THEN
+        RAISE EXCEPTION 'a booth and a reference are required'
+            USING ERRCODE = '22023';
+    END IF;
+    IF releasing THEN
+        RETURN public.stall_post_lines(
+            'booth-deposit-release:' || btrim(reference), on_date, 'booth_deposit', btrim(reference), 'Booth deposit returned',
+            jsonb_build_array(
+                public.stall_line('booth_deposit_held', amount, 0, 'assignment', target_assignment::text),
+                public.stall_line('cash', 0, amount)
+            )
+        );
+    END IF;
+    RETURN public.stall_post_lines(
+        'booth-deposit:' || btrim(reference), on_date, 'booth_deposit', btrim(reference), 'Booth deposit',
+        jsonb_build_array(
+            public.stall_line('cash', amount, 0),
+            public.stall_line('booth_deposit_held', 0, amount, 'assignment', target_assignment::text)
+        )
+    );
+END;
+$$;
+
 CREATE VIEW public.payout_missing_rent AS
  SELECT run.id AS run_id,
-    vendor.id AS vendor_id,
+    assignment.vendor_id,
     assignment.booth_id,
+    assignment.id AS assignment_id,
     (series.period_start)::date AS month_start,
     GREATEST((series.period_start)::date, assignment.starts_on) AS posting_date,
-        CASE
-            WHEN ((assignment.starts_on > (series.period_start)::date) AND (assignment.starts_on <= public.stall_rent_period_end((series.period_start)::date))) THEN ((((public.stall_rent_period_end((series.period_start)::date) - assignment.starts_on) + 1) * rate.amount_minor) / ((public.stall_rent_period_end((series.period_start)::date) - (series.period_start)::date) + 1))
-            ELSE rate.amount_minor
-        END AS amount
-   FROM ((((public.stall_pack_runs() run(id, sales_from, sales_to, rent_month, posting_date)
-     JOIN public.vendors vendor ON ((vendor.active AND ((public.stall_pack_vendor_id() IS NULL) OR (vendor.id = public.stall_pack_vendor_id())))))
-     JOIN public.booth_assignments assignment ON ((assignment.vendor_id = vendor.id)))
+    public.stall_rent_quote(assignment.id, (series.period_start)::date) AS amount
+   FROM ((public.stall_pack_runs() run(id, sales_from, sales_to, rent_month, posting_date)
+     JOIN public.booth_assignments assignment ON (((public.stall_pack_vendor_id() IS NULL) OR (assignment.vendor_id = public.stall_pack_vendor_id()))))
      JOIN LATERAL generate_series((public.stall_rent_period_start(assignment.starts_on))::timestamp without time zone, (public.stall_rent_period_start(LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date)))::timestamp without time zone, '1 mon'::interval) series(period_start) ON ((assignment.starts_on <= LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date))))
-     JOIN public.assignment_rent rate ON ((rate.assignment_id = assignment.id)))
   WHERE (( SELECT mall.booth_rentals_enabled
-           FROM public.mall) AND (NOT (EXISTS ( SELECT 1
-           FROM public.journals journal
-          WHERE ((journal.source_type = 'rent_charge'::text) AND (journal.posting_key = ((('rent-charge:'::text || (assignment.booth_id)::text) || ':'::text) || public.stall_rent_charge_suffix((series.period_start)::date))) AND (NOT (EXISTS ( SELECT 1
-                   FROM public.journals reversal
-                  WHERE (reversal.reverses_journal_id = journal.id)))))))));
+           FROM public.mall) AND public.stall_assignment_rated(assignment.id, (series.period_start)::date) AND (public.stall_live_journal(((('rent-charge:'::text || (assignment.id)::text) || ':'::text) || public.stall_rent_charge_suffix((series.period_start)::date))) IS NULL));
 
 CREATE TABLE public.payout_run_journals (
     run_id uuid NOT NULL,
@@ -5211,25 +5846,30 @@ CREATE FUNCTION public.stall_refuse_booth_deposit_overdraw() RETURNS trigger
     AS $$
 DECLARE
     held bigint;
-    booth_account uuid;
+    deposit_account uuid;
 BEGIN
-    SELECT role.account_id INTO booth_account
+    SELECT role.account_id INTO deposit_account
     FROM public.chart_roles AS role
     WHERE role.role = 'booth_deposit_held';
-    IF NEW.account_id IS DISTINCT FROM booth_account THEN
+    IF NEW.account_id IS DISTINCT FROM deposit_account THEN
         RETURN NEW;
     END IF;
-    IF NEW.subledger_type IS DISTINCT FROM 'booth' OR NEW.subledger_ref IS NULL THEN
-        RAISE EXCEPTION 'a booth deposit line names its booth'
+    IF NOT (SELECT mall.booth_deposits_enabled FROM public.mall) THEN
+        RAISE EXCEPTION 'Booth deposits are turned off for this store.'
             USING ERRCODE = '23514';
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM public.booths WHERE id = NEW.subledger_ref::uuid) THEN
-        RAISE EXCEPTION 'that booth does not exist'
+    IF NEW.subledger_type IS DISTINCT FROM 'assignment' OR NEW.subledger_ref IS NULL THEN
+        RAISE EXCEPTION 'a booth deposit line names its booth assignment'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.booth_assignments WHERE id = NEW.subledger_ref::uuid) THEN
+        RAISE EXCEPTION 'that booth assignment does not exist'
             USING ERRCODE = '23514';
     END IF;
     SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0) INTO held
     FROM public.journal_lines AS line
-    WHERE line.account_id = booth_account
+    WHERE line.account_id = deposit_account
+      AND line.subledger_type = 'assignment'
       AND line.subledger_ref = NEW.subledger_ref;
     IF held < 0 THEN
         RAISE EXCEPTION 'a release is larger than the deposit held'
@@ -5402,12 +6042,10 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM public.journal_lines AS line
-        JOIN public.journals AS posted ON posted.id = line.journal_id
         JOIN public.chart_roles AS role ON role.account_id = line.account_id
-        JOIN public.booth_assignments AS assignment ON assignment.id = OLD.assignment_id
         WHERE role.role = 'booth_rent_receivable'
-          AND line.subledger_ref = assignment.booth_id::text
-          AND assignment.assignment_range @> posted.posting_date
+          AND line.subledger_type = 'assignment'
+          AND line.subledger_ref = OLD.assignment_id::text
     ) THEN
         RAISE EXCEPTION 'an assignment rent cannot change after rent is posted'
             USING ERRCODE = '23514';
@@ -5429,11 +6067,8 @@ BEGIN
         IF EXISTS (
             SELECT 1
             FROM public.journal_lines AS line
-            JOIN public.journals AS posted ON posted.id = line.journal_id
-            JOIN public.chart_roles AS role ON role.account_id = line.account_id
-            WHERE role.role = 'booth_rent_receivable'
-              AND line.subledger_ref = OLD.booth_id::text
-              AND OLD.assignment_range @> posted.posting_date
+            WHERE line.subledger_type = 'assignment'
+              AND line.subledger_ref = OLD.id::text
         ) THEN
             RAISE EXCEPTION 'an assignment delete cannot uncover rent already posted'
                 USING ERRCODE = '23514';
@@ -5448,15 +6083,16 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
+    -- An end date never leaves a charged rent period outside the stay.
     IF NEW.ends_on IS DISTINCT FROM OLD.ends_on AND EXISTS (
         SELECT 1
-        FROM public.journal_lines AS line
-        JOIN public.journals AS posted ON posted.id = line.journal_id
-        JOIN public.chart_roles AS role ON role.account_id = line.account_id
-        WHERE role.role = 'booth_rent_receivable'
-          AND line.subledger_ref = OLD.booth_id::text
-          AND OLD.assignment_range @> posted.posting_date
-          AND NOT daterange(NEW.starts_on, COALESCE(NEW.ends_on, 'infinity'::date), '[]') @> posted.posting_date
+        FROM public.journals AS posted
+        WHERE posted.source_type = 'rent_charge'
+          AND NOT posted.is_reversal
+          AND posted.posting_key LIKE 'rent-charge:' || OLD.id::text || ':%'
+          AND NOT EXISTS (SELECT 1 FROM public.journals AS reversal WHERE reversal.reverses_journal_id = posted.id)
+          AND public.stall_rent_period_of(substring(posted.posting_key FROM '^rent-charge:[0-9a-f-]{36}:(.+)$'))
+              > COALESCE(NEW.ends_on, 'infinity'::date)
     ) THEN
         RAISE EXCEPTION 'an assignment end cannot uncover rent already posted'
             USING ERRCODE = '23514';
@@ -5720,13 +6356,12 @@ BEGIN
         JOIN public.journals AS journal ON journal.id = existing.journal_id
         JOIN public.journal_lines AS line
           ON line.journal_id = journal.id
-         AND line.subledger_type = 'booth'
+         AND line.subledger_type = 'assignment'
         JOIN public.chart_roles AS role
           ON role.account_id = line.account_id
          AND role.role = 'booth_rent_receivable'
         JOIN public.booth_assignments AS assignment
-          ON assignment.booth_id = line.subledger_ref::uuid
-         AND assignment.assignment_range @> journal.posting_date
+          ON assignment.id::text = line.subledger_ref
         WHERE existing.check_number = NEW.check_number
           AND existing.journal_id <> NEW.journal_id
           AND journal.source_type = 'rent_payment'
@@ -5739,13 +6374,12 @@ BEGIN
               FROM public.journals AS receipt
               JOIN public.journal_lines AS credit
                 ON credit.journal_id = receipt.id
-               AND credit.subledger_type = 'booth'
+               AND credit.subledger_type = 'assignment'
               JOIN public.chart_roles AS credit_role
                 ON credit_role.account_id = credit.account_id
                AND credit_role.role = 'booth_rent_receivable'
               JOIN public.booth_assignments AS covering
-                ON covering.booth_id = credit.subledger_ref::uuid
-               AND covering.assignment_range @> receipt.posting_date
+                ON covering.id::text = credit.subledger_ref
               WHERE receipt.id = NEW.journal_id
               LIMIT 1
           )
@@ -5847,38 +6481,6 @@ BEGIN
             NEW.booth_width_ft, NEW.booth_depth_ft, NEW.floor_width_ft, NEW.floor_depth_ft
         );
     END LOOP;
-    RETURN NEW;
-END;
-$$;
-
-CREATE FUNCTION public.stall_reject_inactive_with_open_rent() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'pg_catalog'
-    AS $$
-BEGIN
-    IF NEW.active OR NOT OLD.active THEN
-        RETURN NEW;
-    END IF;
-    IF EXISTS (
-        SELECT 1
-        FROM public.journal_lines AS line
-        JOIN public.journals AS posted ON posted.id = line.journal_id
-        JOIN public.chart_roles AS role ON role.account_id = line.account_id
-        WHERE role.role = 'booth_rent_receivable'
-          AND line.subledger_type = 'booth'
-          AND EXISTS (
-              SELECT 1
-              FROM public.booth_assignments AS assignment
-              WHERE assignment.vendor_id = OLD.id
-                AND assignment.booth_id = line.subledger_ref::uuid
-                AND assignment.assignment_range @> posted.posting_date
-          )
-        GROUP BY line.subledger_ref
-        HAVING sum(line.debit_minor - line.credit_minor) > 0
-    ) THEN
-        RAISE EXCEPTION 'a vendor with open rent cannot be made inactive'
-            USING ERRCODE = '23514';
-    END IF;
     RETURN NEW;
 END;
 $$;
@@ -6118,16 +6720,6 @@ BEGIN
     END IF;
 
     IF TG_TABLE_NAME = 'booths' AND EXISTS (
-        SELECT 1
-        FROM public.journal_lines
-        WHERE subledger_type = 'booth'
-          AND subledger_ref = OLD.id::text
-    ) THEN
-        RAISE EXCEPTION 'a booth referenced by a journal line cannot be deleted'
-            USING ERRCODE = '23514';
-    END IF;
-
-    IF TG_TABLE_NAME = 'booths' AND EXISTS (
         SELECT 1 FROM public.booth_assignments WHERE booth_id = OLD.id
     ) THEN
         RAISE EXCEPTION 'a booth with an assignment cannot be deleted'
@@ -6183,7 +6775,7 @@ BEGIN
         FROM public.journal_lines AS line
         JOIN public.chart_roles AS role ON role.account_id = line.account_id
         WHERE role.role = 'booth_rent_receivable'
-          AND line.subledger_type = 'booth'
+          AND line.subledger_type = 'assignment'
         GROUP BY line.subledger_ref
         HAVING sum(line.debit_minor - line.credit_minor) > 0
     ) THEN
@@ -6448,7 +7040,20 @@ CREATE FUNCTION public.stall_reject_unknown_subledger() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
+DECLARE
+    line_role text;
 BEGIN
+    SELECT role.role INTO line_role
+    FROM public.chart_roles AS role
+    WHERE role.account_id = NEW.account_id;
+
+    -- Rent and deposits belong to one stay: one vendor, one booth, one date range.
+    IF line_role IN ('booth_rent_receivable', 'booth_deposit_held')
+       AND NEW.subledger_type IS DISTINCT FROM 'assignment' THEN
+        RAISE EXCEPTION 'a rent or deposit line names its booth assignment'
+            USING ERRCODE = '23514';
+    END IF;
+
     IF NEW.subledger_type = 'vendor' THEN
         PERFORM 1
         FROM public.vendors
@@ -6458,13 +7063,17 @@ BEGIN
             RAISE EXCEPTION 'vendor payable subledger ref must be a vendor id'
                 USING ERRCODE = '23514';
         END IF;
-    ELSIF NEW.subledger_type = 'booth' THEN
+    ELSIF NEW.subledger_type = 'assignment' THEN
+        IF line_role IS NULL OR line_role NOT IN ('booth_rent_receivable', 'booth_deposit_held') THEN
+            RAISE EXCEPTION 'only rent and deposit lines name a booth assignment'
+                USING ERRCODE = '23514';
+        END IF;
         PERFORM 1
-        FROM public.booths
+        FROM public.booth_assignments
         WHERE id = NEW.subledger_ref::uuid
-        FOR UPDATE;
+        FOR KEY SHARE;
         IF NOT FOUND THEN
-            RAISE EXCEPTION 'booth rent subledger ref must be a booth id'
+            RAISE EXCEPTION 'a rent or deposit line must name a booth assignment'
                 USING ERRCODE = '23514';
         END IF;
     ELSIF NEW.subledger_type IN ('gift_certificate', 'gift_card', 'store_credit') THEN
@@ -6477,6 +7086,12 @@ BEGIN
             RAISE EXCEPTION 'stored value subledger ref must be that kind of number'
                 USING ERRCODE = '23514';
         END IF;
+    ELSIF NEW.subledger_type = 'ticket' THEN
+        -- A layaway deposit names its ticket; stall_assert_layaway checks that ticket.
+        NULL;
+    ELSIF NEW.subledger_type IS NOT NULL THEN
+        RAISE EXCEPTION 'that subledger type is not one the books keep'
+            USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
 END;
@@ -8032,7 +8647,7 @@ CREATE VIEW public.vendor_statement AS
    FROM (((public.journal_lines line
      JOIN public.journals journal ON (((journal.id = line.journal_id) AND (journal.book_id = line.book_id))))
      JOIN public.chart_roles role ON ((role.account_id = line.account_id)))
-     LEFT JOIN public.booth_assignments assignment ON (((role.role = 'booth_rent_receivable'::text) AND (assignment.booth_id = (line.subledger_ref)::uuid) AND (assignment.assignment_range @> journal.posting_date))))
+     LEFT JOIN public.booth_assignments assignment ON (((role.role = 'booth_rent_receivable'::text) AND (line.subledger_type = 'assignment'::text) AND ((assignment.id)::text = line.subledger_ref))))
   WHERE (role.role = ANY (ARRAY['vendor_payable'::text, 'booth_rent_receivable'::text]));
 
 CREATE VIEW public.stall_vendor_payable WITH (security_barrier='true') AS
@@ -8194,7 +8809,7 @@ INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balan
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000012', '01900000-0000-7000-8000-000000000001', '4000', 'Commission revenue', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:50.443696+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000013', '01900000-0000-7000-8000-000000000001', '2100', 'Sales tax payable', 'liability', 'credit', true, false, NULL, '2026-10-21 00:42:50.443701+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000014', '01900000-0000-7000-8000-000000000001', '2000', 'Vendor payable', 'liability', 'credit', true, true, 'vendor', '2026-10-21 00:42:50.443707+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000015', '01900000-0000-7000-8000-000000000001', '1200', 'Booth rent receivable', 'asset', 'debit', true, true, 'booth', '2026-10-21 00:42:50.443713+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000015', '01900000-0000-7000-8000-000000000001', '1200', 'Booth rent receivable', 'asset', 'debit', true, true, 'assignment', '2026-10-21 00:42:50.443713+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000016', '01900000-0000-7000-8000-000000000001', '1020', 'Card', 'asset', 'debit', true, false, NULL, '2026-10-21 00:42:50.521647+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000017', '01900000-0000-7000-8000-000000000001', '4100', 'Rent revenue', 'revenue', 'credit', true, false, NULL, '2026-10-21 00:42:50.538444+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000018', '01900000-0000-7000-8000-000000000001', '6000', 'Operating expense', 'expense', 'debit', true, false, NULL, '2026-10-21 00:42:50.610894+00');
@@ -8218,7 +8833,7 @@ INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balan
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002a', '01900000-0000-7000-8000-000000000001', '1290', 'Returned checks', 'asset', 'debit', true, false, NULL, '2026-10-28 06:05:55.615756+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002b', '01900000-0000-7000-8000-000000000001', '4220', 'Booth extras', 'revenue', 'credit', true, false, NULL, '2026-10-28 06:05:55.615876+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002c', '01900000-0000-7000-8000-000000000001', '2150', 'Booth deposits', 'liability', 'credit', true, false, NULL, '2026-10-28 06:05:55.615883+00');
-INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002d', '01900000-0000-7000-8000-000000000001', '2151', 'Booth deposits held', 'liability', 'credit', true, true, 'booth', '2026-10-28 06:05:56.044917+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002d', '01900000-0000-7000-8000-000000000001', '2151', 'Booth deposits held', 'liability', 'credit', true, true, 'assignment', '2026-10-28 06:05:56.044917+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002e', '01900000-0000-7000-8000-000000000001', '1210', 'Vendor receivable', 'asset', 'debit', true, true, 'vendor', '2026-10-28 06:05:57.306203+00');
 
 INSERT INTO public.book_journal_counters (book_id, last_no) VALUES ('01900000-0000-7000-8000-000000000001', 0);
@@ -9346,10 +9961,6 @@ ALTER TABLE public.vendor_memos ENABLE ALWAYS TRIGGER vendor_memos_no_truncate;
 CREATE TRIGGER vendors_no_truncate BEFORE TRUNCATE ON public.vendors FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
 
 ALTER TABLE public.vendors ENABLE ALWAYS TRIGGER vendors_no_truncate;
-
-CREATE TRIGGER vendors_open_rent BEFORE UPDATE OF active ON public.vendors FOR EACH ROW EXECUTE FUNCTION public.stall_reject_inactive_with_open_rent();
-
-ALTER TABLE public.vendors ENABLE ALWAYS TRIGGER vendors_open_rent;
 
 CREATE TRIGGER vendors_referenced_no_delete BEFORE DELETE ON public.vendors FOR EACH ROW EXECUTE FUNCTION public.stall_reject_referenced_party_delete();
 
@@ -11554,7 +12165,9 @@ WITH params AS (
             vendor.name AS name,
             vendor.payout_mode AS mode
            FROM (public.stall_pack_runs() run(id, sales_from, sales_to, rent_month, posting_date)
-             JOIN public.vendors vendor ON ((vendor.active AND ((public.stall_pack_vendor_id() IS NULL) OR (vendor.id = public.stall_pack_vendor_id())))))
+             JOIN public.vendors vendor ON (((vendor.active OR (EXISTS ( SELECT 1
+                   FROM public.stall_vendor_balances(vendor.id) open(rent_minor, clawback_minor, payable_minor, deposit_minor)
+                  WHERE ((open.rent_minor <> 0) OR (open.clawback_minor <> 0) OR (open.payable_minor <> 0) OR (open.deposit_minor <> 0))))) AND ((public.stall_pack_vendor_id() IS NULL) OR (vendor.id = public.stall_pack_vendor_id())))))
         ), own AS (
          SELECT run.id AS run_id,
             journal.id AS journal_id
@@ -11596,18 +12209,18 @@ WITH params AS (
             params.vendor_id,
             COALESCE(sum((line.debit_minor - line.credit_minor)), (0)::numeric) AS total_minor,
             COALESCE(sum((line.debit_minor - line.credit_minor)) FILTER (WHERE (journal.posting_date < params.sales_from)), (0)::numeric) AS before_minor,
-            COALESCE(sum((line.debit_minor - line.credit_minor)) FILTER (WHERE ((journal.source_type = 'rent_charge'::text) AND (public.stall_rent_period_start(journal.posting_date) = params.rent_month))), (0)::numeric) AS month_minor,
+            COALESCE(sum((line.debit_minor - line.credit_minor)) FILTER (WHERE ((journal.source_type = 'rent_charge'::text) AND (public.stall_rent_period_of("substring"(journal.posting_key, '^rent-charge:[0-9a-f-]{36}:(.+)$'::text)) = params.rent_month))), (0)::numeric) AS month_minor,
             COALESCE(sum((line.credit_minor - line.debit_minor)) FILTER (WHERE ((journal.source_type = 'rent_payment'::text) AND ((journal.posting_date >= params.sales_from) AND (journal.posting_date <= params.sales_to)))), (0)::numeric) AS paid_minor,
             COALESCE(sum((line.credit_minor - line.debit_minor)) FILTER (WHERE ((journal.source_type = 'settlement'::text) AND ((journal.posting_date >= params.sales_from) AND (journal.posting_date <= params.sales_to)))), (0)::numeric) AS settlement_minor
            FROM (((params
-             JOIN public.journal_lines line ON ((line.subledger_type = 'booth'::text)))
+             JOIN public.journal_lines line ON (((line.subledger_type = 'assignment'::text) AND (line.subledger_ref IN ( SELECT (assignment.id)::text AS id
+                   FROM public.booth_assignments assignment
+                  WHERE (assignment.vendor_id = params.vendor_id))))))
              JOIN public.journals journal ON ((journal.id = line.journal_id)))
              JOIN public.chart_roles role ON (((role.account_id = line.account_id) AND (role.role = 'booth_rent_receivable'::text))))
-          WHERE ((EXISTS ( SELECT 1
-                   FROM public.booth_assignments assignment
-                  WHERE ((assignment.vendor_id = params.vendor_id) AND (assignment.booth_id = (line.subledger_ref)::uuid) AND (assignment.assignment_range @> journal.posting_date)))) AND (NOT (EXISTS ( SELECT 1
+          WHERE (NOT (EXISTS ( SELECT 1
                    FROM own
-                  WHERE ((own.run_id = params.run_id) AND (own.journal_id = journal.id))))))
+                  WHERE ((own.run_id = params.run_id) AND (own.journal_id = journal.id)))))
           GROUP BY params.run_id, params.vendor_id
         ), missing_month AS (
          SELECT payout_missing_rent.run_id,
@@ -11630,15 +12243,15 @@ WITH params AS (
             params.vendor_id,
             COALESCE(sum((line.debit_minor - line.credit_minor)), (0)::numeric) AS total_minor,
             COALESCE(sum((line.debit_minor - line.credit_minor)) FILTER (WHERE (journal.posting_date < params.sales_from)), (0)::numeric) AS before_minor,
-            COALESCE(sum((line.debit_minor - line.credit_minor)) FILTER (WHERE ((journal.source_type = 'rent_charge'::text) AND (public.stall_rent_period_start(journal.posting_date) = params.rent_month))), (0)::numeric) AS month_minor
+            COALESCE(sum((line.debit_minor - line.credit_minor)) FILTER (WHERE ((journal.source_type = 'rent_charge'::text) AND (public.stall_rent_period_of("substring"(journal.posting_key, '^rent-charge:[0-9a-f-]{36}:(.+)$'::text)) = params.rent_month))), (0)::numeric) AS month_minor
            FROM ((((params
              JOIN public.payout_run_journals link ON (((link.run_id = params.run_id) AND (link.role = 'rent_charge'::text))))
              JOIN public.journals journal ON ((journal.id = link.journal_id)))
-             JOIN public.journal_lines line ON (((line.journal_id = journal.id) AND (line.subledger_type = 'booth'::text))))
+             JOIN public.journal_lines line ON (((line.journal_id = journal.id) AND (line.subledger_type = 'assignment'::text))))
              JOIN public.chart_roles role ON (((role.account_id = line.account_id) AND (role.role = 'booth_rent_receivable'::text))))
-          WHERE (EXISTS ( SELECT 1
+          WHERE (line.subledger_ref IN ( SELECT (assignment.id)::text AS id
                    FROM public.booth_assignments assignment
-                  WHERE ((assignment.vendor_id = params.vendor_id) AND (assignment.booth_id = (line.subledger_ref)::uuid) AND (assignment.assignment_range @> journal.posting_date))))
+                  WHERE (assignment.vendor_id = params.vendor_id)))
           GROUP BY params.run_id, params.vendor_id
         ), figures AS (
          SELECT params.run_id,
@@ -14680,19 +15293,20 @@ RETURNS TABLE(booth text, vendor text, open_minor bigint)
     LANGUAGE sql STABLE
     SET search_path TO 'pg_catalog'
     AS $$
+    -- One row per booth assignment, named for the vendor who held that stay,
+    -- so rent a vendor left owing never moves to the next vendor in the booth.
     SELECT booth.code,
-           COALESCE(vendor.name, ''),
+           vendor.name,
            COALESCE(sum(line.debit_minor - line.credit_minor), 0)::bigint
     FROM public.journal_lines AS line
     JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
-    JOIN public.booths AS booth ON booth.id::text = line.subledger_ref
-    LEFT JOIN public.booth_assignments AS assignment
-      ON assignment.booth_id = booth.id AND assignment.ends_on IS NULL
-    LEFT JOIN public.vendors AS vendor ON vendor.id = assignment.vendor_id
-    WHERE line.subledger_type = 'booth'
-    GROUP BY booth.code, vendor.name
+    JOIN public.booth_assignments AS assignment ON assignment.id::text = line.subledger_ref
+    JOIN public.booths AS booth ON booth.id = assignment.booth_id
+    JOIN public.vendors AS vendor ON vendor.id = assignment.vendor_id
+    WHERE line.subledger_type = 'assignment'
+    GROUP BY assignment.id, booth.code, vendor.name, assignment.starts_on
     HAVING COALESCE(sum(line.debit_minor - line.credit_minor), 0) <> 0
-    ORDER BY booth.code;
+    ORDER BY booth.code, assignment.starts_on;
 $$;
 
 CREATE FUNCTION public.stall_refuse_rent_roll() RETURNS void
@@ -14707,10 +15321,10 @@ BEGIN
     SELECT count(*) INTO stray
     FROM public.journal_lines AS line
     JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
-    WHERE line.subledger_type IS DISTINCT FROM 'booth'
+    WHERE line.subledger_type IS DISTINCT FROM 'assignment'
        OR line.subledger_ref IS NULL
        OR NOT EXISTS (
-           SELECT 1 FROM public.booths AS booth WHERE booth.id::text = line.subledger_ref
+           SELECT 1 FROM public.booth_assignments AS assignment WHERE assignment.id::text = line.subledger_ref
        );
     IF stray > 0 THEN
         RAISE EXCEPTION 'The rent roll does not match the books.'
@@ -15142,3 +15756,305 @@ ALTER TABLE public.saved_reports
             AND grouped = 'none'
             AND range_key = ANY (ARRAY['today', 'yesterday', 'this_week', 'this_month', 'last_month']))
     );
+
+
+-- >>> vendor balances, phase 1: guards
+
+CREATE FUNCTION public.stall_lock_vendor_of_line() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    owner uuid;
+BEGIN
+    IF NEW.subledger_type = 'vendor' THEN
+        owner := NEW.subledger_ref::uuid;
+    ELSIF NEW.subledger_type = 'assignment' THEN
+        SELECT assignment.vendor_id INTO owner
+        FROM public.booth_assignments AS assignment
+        WHERE assignment.id = NEW.subledger_ref::uuid;
+    END IF;
+    IF owner IS NOT NULL THEN
+        PERFORM pg_advisory_xact_lock_shared(87401, hashtext(owner::text));
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER journal_lines_vendor_lock BEFORE INSERT ON public.journal_lines FOR EACH ROW EXECUTE FUNCTION public.stall_lock_vendor_of_line();
+
+ALTER TABLE public.journal_lines ENABLE ALWAYS TRIGGER journal_lines_vendor_lock;
+
+CREATE FUNCTION public.stall_reject_inactive_with_open_balance() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    told text;
+BEGIN
+    IF NEW.active OR NOT OLD.active THEN
+        RETURN NEW;
+    END IF;
+    PERFORM pg_advisory_xact_lock(87401, hashtext(OLD.id::text));
+    SELECT string_agg(listed.sentence, ' ' ORDER BY listed.ordinality)
+    INTO told
+    FROM public.stall_vendor_open_reasons(OLD.id) WITH ORDINALITY AS listed;
+    IF told IS NOT NULL THEN
+        RAISE EXCEPTION '% can''t be made inactive yet. %', OLD.name, told
+            USING ERRCODE = '23514',
+                  DETAIL = (SELECT string_agg(listed.reason, ',') FROM public.stall_vendor_open_reasons(OLD.id) AS listed);
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Booth deposits are a store switch. Turning it off is refused while a deposit is held.
+CREATE FUNCTION public.stall_reject_deposit_switch_off() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    held_booth text;
+BEGIN
+    IF NEW.booth_deposits_enabled OR NOT OLD.booth_deposits_enabled THEN
+        RETURN NEW;
+    END IF;
+    SELECT booth.code INTO held_booth
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_deposit_held'
+    JOIN public.booth_assignments AS assignment ON assignment.id::text = line.subledger_ref
+    JOIN public.booths AS booth ON booth.id = assignment.booth_id
+    WHERE line.subledger_type = 'assignment'
+    GROUP BY line.subledger_ref, booth.code
+    HAVING sum(line.credit_minor - line.debit_minor) <> 0
+    ORDER BY booth.code
+    LIMIT 1;
+    IF held_booth IS NOT NULL THEN
+        RAISE EXCEPTION 'A deposit is still being held for Booth %. Return or apply it first.', held_booth
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER mall_deposit_switch BEFORE UPDATE OF booth_deposits_enabled ON public.mall FOR EACH ROW EXECUTE FUNCTION public.stall_reject_deposit_switch_off();
+
+ALTER TABLE public.mall ENABLE ALWAYS TRIGGER mall_deposit_switch;
+
+CREATE TRIGGER vendors_open_balance BEFORE UPDATE OF active ON public.vendors FOR EACH ROW EXECUTE FUNCTION public.stall_reject_inactive_with_open_balance();
+
+ALTER TABLE public.vendors ENABLE ALWAYS TRIGGER vendors_open_balance;
+
+-- A late fee is the stored amount for its ordinal, on the day grace makes it
+-- due, for a period whose rent was charged and is still unpaid.
+CREATE FUNCTION public.stall_assert_late_fee() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    policy record;
+    parts text[];
+    stay uuid;
+    period date;
+    ordinal integer;
+    expected bigint;
+    due_on date;
+    lines_ok integer;
+    line_count integer;
+BEGIN
+    IF NEW.source_type <> 'late_fee' OR NEW.is_reversal THEN
+        RETURN NULL;
+    END IF;
+    SELECT * INTO policy FROM public.mall;
+    IF NOT (policy.booth_rentals_enabled AND policy.late_fees_enabled) THEN
+        RAISE EXCEPTION 'late fees are turned off'
+            USING ERRCODE = '23514';
+    END IF;
+    parts := regexp_match(NEW.posting_key, '^late-fee:([0-9a-f-]{36}):([0-9-]+):([1-9][0-9]{0,3})$');
+    IF parts IS NULL THEN
+        RAISE EXCEPTION 'a late fee posting key is one booth assignment, one rent period and one fee number'
+            USING ERRCODE = '23514';
+    END IF;
+    stay := parts[1]::uuid;
+    period := public.stall_rent_period_of(parts[2]);
+    ordinal := parts[3]::integer;
+    IF period IS NULL OR NEW.source_reference <> parts[1] || ':' || parts[2] || ':' || parts[3] THEN
+        RAISE EXCEPTION 'a late fee posting key is one booth assignment, one rent period and one fee number'
+            USING ERRCODE = '23514';
+    END IF;
+    IF period < COALESCE(policy.late_fee_effective_on, period) THEN
+        RAISE EXCEPTION 'a late fee starts with the period the fee rule took effect'
+            USING ERRCODE = '23514';
+    END IF;
+    due_on := period + policy.late_fee_grace_days + (ordinal - 1) * GREATEST(policy.late_fee_grace_days, 1);
+    IF NEW.posting_date <> due_on OR due_on > public.stall_rent_period_end(period) THEN
+        RAISE EXCEPTION 'a late fee is posted on the day grace makes it due'
+            USING ERRCODE = '23514';
+    END IF;
+    IF public.stall_live_journal('rent-charge:' || parts[1] || ':' || parts[2]) IS NULL THEN
+        RAISE EXCEPTION 'a late fee needs that period''s rent charge'
+            USING ERRCODE = '23514';
+    END IF;
+    IF ordinal > 1 AND public.stall_live_journal(
+        'late-fee:' || parts[1] || ':' || parts[2] || ':' || (ordinal - 1)::text
+    ) IS NULL THEN
+        RAISE EXCEPTION 'late fees in a period are posted in order'
+            USING ERRCODE = '23514';
+    END IF;
+    IF (
+        SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0)
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+        WHERE line.subledger_type = 'assignment'
+          AND line.subledger_ref = parts[1]
+          AND line.journal_id <> NEW.id
+    ) < 1 THEN
+        RAISE EXCEPTION 'a late fee is only for rent still unpaid'
+            USING ERRCODE = '23514';
+    END IF;
+    expected := CASE WHEN ordinal = 1 THEN policy.late_fee_first_minor ELSE policy.late_fee_next_minor END;
+    SELECT count(*) INTO line_count FROM public.journal_lines WHERE journal_id = NEW.id;
+    SELECT count(*) INTO lines_ok
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id
+      AND (
+          (role.role = 'booth_rent_receivable' AND line.debit_minor = expected
+           AND line.subledger_type = 'assignment' AND line.subledger_ref = parts[1])
+          OR (role.role = 'late_fee_income' AND line.credit_minor = expected AND line.subledger_type IS NULL)
+      );
+    IF line_count <> 2 OR lines_ok <> 2 THEN
+        RAISE EXCEPTION 'a late fee debits that assignment receivable and credits late fee income for the stored amount'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER journals_late_fee AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_late_fee();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_late_fee;
+
+REVOKE ALL ON FUNCTION public.stall_assignment_rated(uuid, date) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_assignment_rated(uuid, date) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_assignment_rated(uuid, date) TO stall_backup;
+
+REVOKE ALL ON FUNCTION public.stall_money_text(bigint) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_money_text(bigint) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_rent_quote(uuid, date) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_rent_quote(uuid, date) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_rent_period_of(text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_rent_period_of(text) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_open_rent(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open_rent(uuid) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_open_clawback(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open_clawback(uuid) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_open_payable(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open_payable(uuid) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_deposit_held(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_deposit_held(uuid) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_balances(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_balances(uuid) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_assignment_open_rent(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_assignment_open_rent(uuid) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_open_reasons(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open_reasons(uuid) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_live_journal(text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_live_journal(text) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_rent_payment_split(uuid, bigint) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_rent_payment_split(uuid, bigint) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_late_fees_due(date) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_late_fees_due(date) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_post_lines(text, date, text, text, text, jsonb) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_post_lines(text, date, text, text, text, jsonb) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_line(text, bigint, bigint, text, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_line(text, bigint, bigint, text, text) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_post_rent_charge(uuid, date, date) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_post_rent_charge(uuid, date, date) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_post_rent_payment(uuid, bigint, bigint, bigint, date) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_post_rent_payment(uuid, bigint, bigint, bigint, date) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_post_late_fees(date) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_post_late_fees(date) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_waive_late_fee(uuid, date, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_waive_late_fee(uuid, date, text) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_post_booth_charge(uuid, bigint, text, date) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_post_booth_charge(uuid, bigint, text, date) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_post_booth_deposit(uuid, bigint, text, date, boolean) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_post_booth_deposit(uuid, bigint, text, date, boolean) TO stall_poster;
+
+GRANT EXECUTE ON FUNCTION public.stall_money_text(bigint) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_rent_quote(uuid, date) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_rent_period_of(text) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open_rent(uuid) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open_clawback(uuid) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open_payable(uuid) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_deposit_held(uuid) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_balances(uuid) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_assignment_open_rent(uuid) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_vendor_open_reasons(uuid) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_live_journal(text) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_rent_payment_split(uuid, bigint) TO stall_backup;
+
+GRANT EXECUTE ON FUNCTION public.stall_late_fees_due(date) TO stall_backup;
+
+REVOKE ALL ON FUNCTION public.stall_lock_vendor_of_line() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_reject_inactive_with_open_balance() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_reject_deposit_switch_off() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_assert_late_fee() FROM PUBLIC;
