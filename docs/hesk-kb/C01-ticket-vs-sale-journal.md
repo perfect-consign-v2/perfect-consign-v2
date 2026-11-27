@@ -1,7 +1,7 @@
 ---
 title: Ticket vs sale journal
 category: Sales and register
-hesk: pending
+hesk: published 2026-11-26
 as_of: 2026-11-26
 ---
 
