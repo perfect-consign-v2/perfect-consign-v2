@@ -30,7 +30,7 @@ BEGIN
             ('commission_revenue', '4000', 'revenue', 'credit', true, false, NULL),
             ('sales_tax_payable', '2100', 'liability', 'credit', true, false, NULL),
             ('vendor_payable', '2000', 'liability', 'credit', true, true, 'vendor'),
-            ('booth_rent_receivable', '1200', 'asset', 'debit', true, true, 'booth'),
+            ('booth_rent_receivable', '1200', 'asset', 'debit', true, true, 'assignment'),
             ('card', '1020', 'asset', 'debit', true, false, NULL),
             ('rent_revenue', '4100', 'revenue', 'credit', true, false, NULL),
             ('operating_expense', '6000', 'expense', 'debit', true, false, NULL),
@@ -54,7 +54,7 @@ BEGIN
             ('returned_checks', '1290', 'asset', 'debit', true, false, NULL),
             ('booth_other_revenue', '4220', 'revenue', 'credit', true, false, NULL),
             ('booth_deposits', '2150', 'liability', 'credit', true, false, NULL),
-            ('booth_deposit_held', '2151', 'liability', 'credit', true, true, 'booth'),
+            ('booth_deposit_held', '2151', 'liability', 'credit', true, true, 'assignment'),
             ('vendor_receivable', '1210', 'asset', 'debit', true, true, 'vendor')
     ) AS expected (role, code, account_type, normal_balance, is_postable, is_control, subledger_type)
         ON expected.role = roles.role
