@@ -149,6 +149,7 @@ else
     fi
 
     reinstalled=0
+    mall_missing=0
     if ! platform_err=$("$php_bin" "${root}/bin/migrate.php" platform 2>&1); then
         printf '%s\n' "$platform_err" >&2
         if [[ "$allow_reinstall" -eq 1 ]] && printf '%s' "$platform_err" | grep -q 'changed after it was applied'; then
@@ -172,6 +173,7 @@ else
         printf '%s\n' "$tenant_err" >&2
         if printf '%s' "$tenant_err" | grep -q 'is not provisioned'; then
             echo "deploy-demo: mall is not provisioned; run seed-demo to load mall/shop books"
+            mall_missing=1
         else
             echo "deploy-demo: tenant migrate failed" >&2
             exit 1
@@ -182,7 +184,7 @@ else
     # Demo convenience: plant or refresh mall owner from .env. set-owner.php is
     # idempotent when the password already matches (no credentials_version bump).
     if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
-        if [[ "$reinstalled" -eq 1 ]]; then
+        if [[ "$reinstalled" -eq 1 || "$mall_missing" -eq 1 ]]; then
             echo "deploy-demo: skipping set-owner until seed-demo provisions mall"
         elif ! owner_err=$("$php_bin" "${root}/bin/set-owner.php" mall owner 2>&1); then
             printf '%s\n' "$owner_err" >&2

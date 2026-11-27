@@ -109,6 +109,21 @@ final class DeployDemoScriptTest extends TestCase
         self::assertStringContainsString('idempotent', $script);
     }
 
+    public function testDeploySkipsTheOwnerUntilTheMallIsSeeded(): void
+    {
+        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
+        $script = file_get_contents($path);
+        self::assertIsString($script);
+        $missingAt = strpos($script, "mall is not provisioned; run seed-demo to load mall/shop books\"\n            mall_missing=1");
+        $skipAt = strpos($script, 'if [[ "$reinstalled" -eq 1 || "$mall_missing" -eq 1 ]]; then');
+        $ownerAt = strpos($script, 'bin/set-owner.php" mall owner');
+        self::assertNotFalse($missingAt);
+        self::assertNotFalse($skipAt);
+        self::assertNotFalse($ownerAt);
+        self::assertGreaterThan($missingAt, $skipAt);
+        self::assertGreaterThan($skipAt, $ownerAt);
+    }
+
     public function testDeployPlantsPlatformAdminWhenEnvPasswordIsSet(): void
     {
         $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
