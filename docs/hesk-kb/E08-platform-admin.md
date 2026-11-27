@@ -1,7 +1,7 @@
 ---
 title: Platform admin portal
 category: Platform notes
-hesk: published 2026-11-21
+hesk: published 2026-11-26
 as_of: 2026-11-20
 ---
 
