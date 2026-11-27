@@ -74,7 +74,7 @@ class PartyStore
         $roles = [];
         foreach (
             $this->statements->bound(
-                'SELECT role_type FROM party_roles WHERE party_id = ?::uuid ORDER BY role_type',
+                "SELECT role_type FROM party_roles WHERE party_id = ?::uuid AND status = 'active' ORDER BY role_type",
                 [$partyId]
             ) as $roleRow
         ) {
@@ -279,10 +279,19 @@ class PartyStore
 
     public function removeVendor(string $id): void
     {
-        $count = $this->statements->affected('DELETE FROM vendors WHERE id = ?::uuid', [$id]);
-        if ($count === 0) {
-            throw new \InvalidArgumentException('that vendor is not in this mall');
-        }
+        // The seller role ends with the record, so the party page never forwards to a deleted seller.
+        $this->statements->transaction(function () use ($id): void {
+            $this->statements->change(
+                "UPDATE party_roles SET status = 'inactive'
+                 WHERE role_type = ? AND status = 'active'
+                   AND party_id = (SELECT party_id FROM vendors WHERE id = ?::uuid)",
+                [PartyRoleType::VENDOR, $id]
+            );
+            $count = $this->statements->affected('DELETE FROM vendors WHERE id = ?::uuid', [$id]);
+            if ($count === 0) {
+                throw new \InvalidArgumentException('that vendor is not in this mall');
+            }
+        });
     }
 
     public function addCustomerRole(string $vendorId): string

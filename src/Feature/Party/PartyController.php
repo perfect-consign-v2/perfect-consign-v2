@@ -49,11 +49,10 @@ final class PartyController
         if ($party === null) {
             $this->app->notFound();
         }
-        if (in_array(PartyRoleType::VENDOR, $party['roles'], true)) {
-            $vendorId = $this->parties->vendorIdForParty($partyId);
-            if ($vendorId !== null) {
-                $this->app->redirect($this->paths->record($slug, $vendorId));
-            }
+        // A seller record keeps its page even while inactive, so it is found by record, not by role.
+        $vendorId = $this->parties->vendorIdForParty($partyId);
+        if ($vendorId !== null) {
+            $this->app->redirect($this->paths->record($slug, $vendorId));
         }
         if (in_array(PartyRoleType::CUSTOMER, $party['roles'], true)) {
             $this->app->redirect('/' . $slug . '/customers/' . $partyId);

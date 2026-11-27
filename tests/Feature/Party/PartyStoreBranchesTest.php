@@ -7,6 +7,7 @@ namespace PerfectConsign\Tests\Feature\Party;
 use InvalidArgumentException;
 use PerfectConsign\Feature\Party\AssignmentBook;
 use PerfectConsign\Feature\Party\PartyIdentity;
+use PerfectConsign\Feature\Party\PartyRoleType;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
 use PerfectConsign\Shared\Database\Statements;
@@ -125,7 +126,6 @@ final class PartyStoreBranchesTest extends TestCase
                 if (str_contains($sql, 'INSERT INTO booths')) {
                     return [['id' => self::BOOTH]];
                 }
-
                 return [];
             },
             static function (string $sql): array {
@@ -161,6 +161,39 @@ final class PartyStoreBranchesTest extends TestCase
         $store->saveBooth(self::BOOTH, 'A1', 'North wing', 10, 8, 'North wall');
         $store->removeBooth(self::BOOTH);
         $store->removeVendor(self::VENDOR);
+    }
+
+    public function testDeletingAVendorEndsTheSellerRoleInTheSameTransaction(): void
+    {
+        $ended = [];
+        $inTransaction = false;
+        $deleted = false;
+        $store = $this->store(
+            static fn (string $sql): array => [],
+            null,
+            static function (string $sql) use (&$deleted, &$ended): int {
+                if (str_contains($sql, 'DELETE FROM vendors')) {
+                    self::assertNotSame([], $ended, 'the role must end before the record goes');
+                    $deleted = true;
+                }
+
+                return 1;
+            },
+            static function () use (&$inTransaction): void {
+                $inTransaction = true;
+            },
+            static function (string $sql, array $params) use (&$ended): void {
+                if (str_contains($sql, "SET status = 'inactive'")) {
+                    $ended = $params;
+                }
+            },
+        );
+
+        $store->removeVendor(self::VENDOR);
+
+        self::assertTrue($inTransaction);
+        self::assertTrue($deleted);
+        self::assertSame([PartyRoleType::VENDOR, self::VENDOR], $ended);
     }
 
     public function testPayoutModeRefusesAMissingVendor(): void

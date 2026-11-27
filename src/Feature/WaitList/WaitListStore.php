@@ -245,10 +245,13 @@ final class WaitListStore
 
     public function remove(string $id): void
     {
-        $count = $this->statements->affected('DELETE FROM wait_list WHERE party_id = ?::uuid', [$id]);
-        if ($count === 0) {
-            throw new \InvalidArgumentException('That person is not on the wait list.');
-        }
+        $this->statements->transaction(function () use ($id): void {
+            $count = $this->statements->affected('DELETE FROM wait_list WHERE party_id = ?::uuid', [$id]);
+            if ($count === 0) {
+                throw new \InvalidArgumentException('That person is not on the wait list.');
+            }
+            $this->identity->endRole($id, PartyRoleType::WAIT_LIST);
+        });
     }
 
     private function select(): string

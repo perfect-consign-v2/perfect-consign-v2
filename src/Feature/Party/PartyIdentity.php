@@ -144,6 +144,15 @@ final class PartyIdentity
         );
     }
 
+    /** Ends a role whose record is gone, so no page forwards to that missing record. */
+    public function endRole(string $partyId, string $roleType): void
+    {
+        $this->statements->change(
+            "UPDATE party_roles SET status = 'inactive' WHERE party_id = ?::uuid AND role_type = ? AND status = 'active'",
+            [$partyId, $roleType]
+        );
+    }
+
     public function hasActiveRole(string $partyId, string $roleType): bool
     {
         $rows = $this->statements->bound(

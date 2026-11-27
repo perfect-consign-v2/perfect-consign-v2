@@ -15,7 +15,7 @@ as_of: 2026-11-24
 
 ## In one sentence
 
-Staff open identity at `/{slug}/parties`; the seller roster is `/{slug}/vendors` or `/{slug}/consignors`, a customer is `/{slug}/customers/{party id}`, and a wait-list person is `/{slug}/wait-list/{party id}`.
+Staff open identity at `/{slug}/parties`; the seller roster is `/{slug}/vendors` or `/{slug}/consignors`, a customer is `/{slug}/customers/{party id}`, and a wait-list person is `/{slug}/wait-list/{party id}`. Taking someone off the wait list, or deleting a seller, ends that role; the person stays in Parties and their party page no longer sends you to the removed record.
 
 ## When it happens
 
