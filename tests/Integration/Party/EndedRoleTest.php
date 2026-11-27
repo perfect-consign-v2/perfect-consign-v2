@@ -9,6 +9,7 @@ use PerfectApp\Session\Session;
 use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Feature\Dev\DemoSubject;
 use PerfectConsign\Feature\Party\AssignmentBook;
+use PerfectConsign\Feature\Party\PartyIdentity;
 use PerfectConsign\Feature\Party\PartyRoleType;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
@@ -41,6 +42,12 @@ final class EndedRoleTest extends TestCase
             self::assertNotNull($removed, 'the person stays a party after leaving the wait list');
             self::assertSame([], $removed['roles']);
             self::assertSame('inactive', $this->roleStatus($pdo, $partyId, PartyRoleType::WAIT_LIST));
+
+            $identity = new PartyIdentity($statements);
+            $identity->endRole($partyId, PartyRoleType::WAIT_LIST);
+            self::assertSame('inactive', $this->roleStatus($pdo, $partyId, PartyRoleType::WAIT_LIST), 'ending an ended role changes nothing');
+            $identity->ensureRole($partyId, PartyRoleType::WAIT_LIST);
+            self::assertSame('active', $this->roleStatus($pdo, $partyId, PartyRoleType::WAIT_LIST), 'an ended role can be taken up again');
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
