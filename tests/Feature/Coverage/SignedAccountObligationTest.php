@@ -38,10 +38,10 @@ use PerfectConsign\Feature\Inventory\ItemSale;
 use PerfectConsign\Feature\Offer\OfferController;
 use PerfectConsign\Feature\Offer\OfferStore;
 use PerfectConsign\Feature\Party\AssignmentBook;
+use PerfectConsign\Feature\Party\BoothStays;
 use PerfectConsign\Feature\Party\BoothWrite;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
-use PerfectConsign\Feature\Party\VendorMove;
 use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Feature\Password\PasswordChoice;
 use PerfectConsign\Feature\Password\RecoveryAddress;
@@ -137,19 +137,19 @@ final class SignedAccountObligationTest extends TestCase
         $audit = QuietAudit::make($this->stopping());
         $book = new AssignmentBook($this->stopping());
         $parties = new PartyStore($this->stopping(), $audit, $book);
-        $moves = new VendorMove($this->stopping(), $book, $audit);
+        $stays = new BoothStays($book, $audit);
         $booths = new BoothWrite($parties, $book, $audit);
         $this->stopped(static function () use ($parties): void {
             $parties->addPricedVendor(new VendorDraft([], null), 'hold');
         });
-        $this->stopped(static function () use ($moves): void {
-            $moves->addStay(self::ADMIN, self::ADMIN, '2026-01-01', '', null);
+        $this->stopped(static function () use ($stays): void {
+            $stays->addStay(self::ADMIN, self::ADMIN, '2026-01-01', '', null);
         });
-        $this->stopped(static function () use ($moves): void {
-            $moves->setStayEnd(self::ADMIN, '2026-02-01');
+        $this->stopped(static function () use ($stays): void {
+            $stays->setStayEnd(self::ADMIN, '2026-02-01');
         });
-        $this->stopped(static function () use ($moves): void {
-            $moves->setStayRent(self::ADMIN, '2026-01-01', 10000);
+        $this->stopped(static function () use ($stays): void {
+            $stays->setStayRent(self::ADMIN, '2026-01-01', 10000);
         });
         $this->stopped(static function () use ($booths): void {
             $booths->addPricedBooth('A1', 'Front', null, null, null, null);

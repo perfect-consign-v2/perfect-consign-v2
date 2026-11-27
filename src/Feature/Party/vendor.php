@@ -314,48 +314,6 @@ $boothLine = match (count($boothCodes)) {
         <?php endif; ?>
     </div>
     </div>
-    <?php
-    $openStay = null;
-    foreach ($vendor['current'] as $stay) {
-        if ($stay['ends_on'] === '') {
-            $openStay = $stay;
-            break;
-        }
-    }
-    ?>
-    <?php if (!$consignmentOnly && is_array($openStay)): ?>
-        <form class="card mt-6" method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/move">
-            <div class="card-head"><div class="h3">Move to another booth</div></div>
-            <div class="card-body stack">
-                <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                <input type="hidden" name="assignment_id" value="<?= View::text($openStay['id']) ?>">
-                <input type="hidden" name="rent" value="">
-                <p class="muted">They leave on the date you pick. The next booth starts the following day. Rent for the month they leave stays the full month. Rent for the move-in month is the days left.</p>
-                <div class="field">
-                    <label for="move_booth">Next booth</label>
-                    <select class="select" id="move_booth" name="booth_id" required>
-                        <option value="">Choose a booth</option>
-                        <?php foreach ($booths as $booth): ?>
-                            <?php
-                            $boothId = $booth['id'] ?? null;
-                            $boothCode = $booth['code'] ?? null;
-                            $available = $booth['available_on'] ?? '';
-                            if (!is_string($boothId) || !is_string($boothCode) || !is_string($available)) {
-                                continue;
-                            }
-                            ?>
-                            <option value="<?= View::text($boothId) ?>"><?= View::text($boothCode) ?><?php if ($available !== ''): ?> — available <?= View::date($available) ?><?php endif; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="field">
-                    <label for="move_out">Move-out date</label>
-                    <input class="input" id="move_out" name="ends_on" type="date" required min="<?= View::text($openStay['starts_on']) ?>">
-                </div>
-                <p><button class="btn btn-primary" type="submit">Move</button></p>
-            </div>
-        </form>
-    <?php endif; ?>
     <form class="card mt-6" method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/customer-role">
         <div class="card-head"><div class="h3">Also a customer</div></div>
         <div class="card-body stack">

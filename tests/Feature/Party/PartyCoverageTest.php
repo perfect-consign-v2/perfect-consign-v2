@@ -11,7 +11,6 @@ use PerfectConsign\Feature\Party\MapStore;
 use PerfectConsign\Feature\Party\PartyIdentity;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\VendorDraft;
-use PerfectConsign\Feature\Party\VendorMove;
 use PerfectConsign\Feature\Party\VendorPlacement;
 use PerfectConsign\Feature\Party\VendorValues;
 use PerfectConsign\Shared\Database\Statements;
@@ -306,25 +305,6 @@ final class PartyCoverageTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertSame('a booth date is YYYY-MM-DD', $error->getMessage());
         }
-    }
-
-    public function testAMoveNeedsAnOpenStay(): void
-    {
-        $statements = $this->createStub(Statements::class);
-        $statements->method('transaction')->willReturnCallback(static function (callable $work): mixed {
-            return $work();
-        });
-        $statements->method('bound')->willReturn([]);
-        $move = new VendorMove($statements, new AssignmentBook($statements), QuietAudit::make($statements));
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('That booth stay is already finished.');
-        $move->move(
-            '00000000-0000-7000-8000-0000000000a1',
-            '00000000-0000-7000-8000-0000000000b1',
-            '00000000-0000-7000-8000-0000000000c1',
-            '2026-09-30',
-            1000
-        );
     }
 
     public function testPartyWritesKeepStringIdsAndOpenEndedAssignments(): void

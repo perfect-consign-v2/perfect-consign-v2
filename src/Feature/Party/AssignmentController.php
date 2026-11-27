@@ -18,7 +18,7 @@ final class AssignmentController
         private readonly AssignmentBook $stays,
         private readonly AssignmentOffer $offers,
         private readonly VendorPage $pages,
-        private readonly VendorMove $moves,
+        private readonly BoothStays $boothStays,
         private readonly MallSettings $mall,
         private readonly VendorRoster $roster,
         private readonly SellerPaths $sellerPaths,
@@ -32,7 +32,7 @@ final class AssignmentController
         $vendorId = $this->app->request()->field('vendor_id');
         $this->attempt($slug, $vendorId, 'Booth assigned.', function (): void {
             $boothId = $this->app->request()->field('booth_id');
-            $this->moves->addStay(
+            $this->boothStays->addStay(
                 $boothId,
                 $this->app->request()->field('vendor_id'),
                 $this->app->request()->field('starts_on'),
@@ -49,7 +49,7 @@ final class AssignmentController
         $this->app->open($slug, true);
         $vendorId = $this->vendorOf($id);
         $this->attempt($slug, $vendorId, 'Booth assignment ended.', function () use ($id): void {
-            $this->moves->setStayEnd($id, $this->app->request()->field('ends_on'));
+            $this->boothStays->setStayEnd($id, $this->app->request()->field('ends_on'));
         });
     }
 
@@ -60,26 +60,10 @@ final class AssignmentController
         $this->app->open($slug, true);
         $vendorId = $this->vendorOf($id);
         $this->attempt($slug, $vendorId, 'Rent rate saved.', function () use ($id): void {
-            $this->moves->setStayRent(
+            $this->boothStays->setStayRent(
                 $id,
                 $this->app->request()->field('starts_on'),
                 Money::parseMinor($this->app->request()->field('rent')),
-            );
-        });
-    }
-
-    #[Route('/([a-z][a-z0-9-]{0,62})/(?:vendors|consignors)/([0-9a-fA-F-]{36})/move', ['POST'])]
-    public function moveVendor(string $slug, string $id): void
-    {
-        $this->app->checkCsrf();
-        $boothId = $this->app->request()->field('booth_id');
-        $this->attempt($slug, $id, 'Vendor moved.', function () use ($id, $boothId): void {
-            $this->moves->move(
-                $id,
-                $this->app->request()->field('assignment_id'),
-                $boothId,
-                $this->app->request()->field('ends_on'),
-                $this->offers->contract($boothId, $this->app->request()->field('rent')),
             );
         });
     }

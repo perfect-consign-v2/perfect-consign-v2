@@ -11,7 +11,6 @@ final class ActivityPhrase
         'adjustment.post' => 'Posted an adjustment',
         'assignment.create' => 'Started a booth stay',
         'assignment.end' => 'Ended a booth stay',
-        'assignment.move' => 'Moved a booth stay',
         'assignment.rent' => 'Changed the rent for a stay',
         'booth.create' => 'Added a booth',
         'booth.edit' => 'Changed a booth',

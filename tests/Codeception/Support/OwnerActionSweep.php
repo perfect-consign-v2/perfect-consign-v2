@@ -25,7 +25,9 @@ final class OwnerActionSweep
     /** After the latest settled payout window on the probe mall (October 2026). */
     private const STAY_START = '2026-11-01';
 
-    private const MOVE_ON = '2026-11-05';
+    private const FIRST_STAY_END = '2026-11-05';
+
+    private const NEXT_STAY_START = '2026-11-06';
 
     private const RENT_ON = '2026-11-06';
 
@@ -404,12 +406,13 @@ final class OwnerActionSweep
             'starts_on' => '2026-11-03',
             'rent' => '90.00',
         ], ['Rent rate saved.']);
-        $this->http->post('/vendors/' . $this->otherVendorId . '/move', [
-            'assignment_id' => $assignment,
+        $this->http->post('/assignments/' . $assignment . '/end', ['ends_on' => self::FIRST_STAY_END], ['Booth assignment ended.']);
+        $this->http->post('/assignments', [
             'booth_id' => $this->otherBoothId,
-            'ends_on' => self::MOVE_ON,
+            'vendor_id' => $this->otherVendorId,
+            'starts_on' => self::NEXT_STAY_START,
             'rent' => '90.00',
-        ], ['Vendor moved.']);
+        ], ['Booth assigned.']);
         $this->http->post('/rent/charge', [
             'booth_id' => $this->otherBoothId,
             'posting_date' => self::RENT_ON,

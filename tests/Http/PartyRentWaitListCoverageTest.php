@@ -211,21 +211,20 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         ]);
         self::assertSees('Booth assigned.', $assigned);
         $stayPage = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
-        self::assertSame(1, preg_match('/name="assignment_id" value="([0-9a-fA-F-]{36})"/', $stayPage->body, $stay));
-        $moved = $this->client->post('/' . self::SLUG . '/vendors/' . $vendorId . '/move', [
-            'assignment_id' => $stay[1],
-            'booth_id' => $nextBooth,
+        self::assertSame(1, preg_match('#/assignments/([0-9a-fA-F-]{36})/end#', $stayPage->body, $stay));
+        self::assertStringNotContainsString('/move', $stayPage->body);
+        $ended = $this->client->post('/' . self::SLUG . '/assignments/' . $stay[1] . '/end', [
             'ends_on' => '2026-09-15',
+        ]);
+        self::assertSees('Booth assignment ended.', $ended);
+        $next = $this->client->post('/' . self::SLUG . '/assignments', [
+            'booth_id' => $nextBooth,
+            'vendor_id' => $vendorId,
+            'starts_on' => '2026-09-16',
+            'ends_on' => '',
             'rent' => '90.00',
         ]);
-        self::assertSees('Vendor moved.', $moved);
-        $missingMove = $this->client->post('/' . self::SLUG . '/vendors/' . $vendorId . '/move', [
-            'assignment_id' => self::MISSING,
-            'booth_id' => $boothId,
-            'ends_on' => '2026-10-01',
-            'rent' => '10.00',
-        ]);
-        self::assertSees('That booth stay is already finished.', $missingMove);
+        self::assertSees('Booth assigned.', $next);
         $badAssign = $this->client->post('/' . self::SLUG . '/assignments', [
             'vendor_id' => 'not-a-vendor',
             'booth_id' => $boothId,
