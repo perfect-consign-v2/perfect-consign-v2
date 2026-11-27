@@ -620,7 +620,7 @@ DO $$
 DECLARE
     tried text;
 BEGIN
-    FOREACH tried IN ARRAY ARRAY['', '   ', ' Vase', E'Vase\t'] LOOP
+    FOREACH tried IN ARRAY ARRAY['', '   ', ' Vase', E'Vase\t', E'\t', E'\n\r', E'Vase\x0B'] LOOP
         BEGIN
             INSERT INTO items (code, vendor_id, description, price_minor, barcode, intake_on)
             VALUES ('RQ-DESC', '01900000-0000-7000-8000-000000000c10', tried, 100, 'BC-RQ-DESC', DATE '2026-09-27');
