@@ -3,7 +3,11 @@
 declare(strict_types=1);
 
 /**
- * Upsert private KB articles from this directory into local Hesk.
+ * Upsert KB articles from this directory into local Hesk.
+ *
+ * A seed whose article already holds the same text, public and as HTML, is
+ * left alone. Only new or changed seeds are written and marked published, so
+ * a seed edited after publishing is caught whatever its hesk: line says.
  *
  * Usage: php docs/hesk-kb/publish-to-hesk.php
  */
@@ -48,6 +52,7 @@ $files = glob($dir . '/*.md') ?: [];
 sort($files);
 
 $published = 0;
+$unchanged = 0;
 foreach ($files as $path) {
     $base = basename($path);
     if ($base === 'README.md') {
@@ -79,7 +84,7 @@ foreach ($files as $path) {
     $html = markdownToHtml($bodyMd);
 
     $find = $pdo->prepare(
-        "SELECT `id`, `type` FROM `{$prefix}kb_articles` WHERE `subject` = ? AND `catid` = ? LIMIT 1"
+        "SELECT `id`, `type`, `html`, `content` FROM `{$prefix}kb_articles` WHERE `subject` = ? AND `catid` = ? LIMIT 1"
     );
     $find->execute([$title, $catId]);
     $existing = $find->fetch();
@@ -89,6 +94,16 @@ foreach ($files as $path) {
         htmlspecialchars($today, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
         htmlspecialchars($base, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
     );
+
+    if (
+        $existing !== false
+        && (string) $existing['content'] === $html
+        && (string) $existing['type'] === '0'
+        && (string) $existing['html'] === '1'
+    ) {
+        $unchanged++;
+        continue;
+    }
 
     if ($existing !== false) {
         $artId = (int) $existing['id'];
@@ -148,7 +163,7 @@ if (is_file($cache) && !unlink($cache)) {
     exit(1);
 }
 
-echo "Published {$published} articles. KB cache cleared.\n";
+echo "Published {$published} articles, {$unchanged} already current. KB cache cleared.\n";
 
 /**
  * @return array{title: string, category: string, body: string}

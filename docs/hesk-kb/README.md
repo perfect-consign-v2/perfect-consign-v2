@@ -60,7 +60,7 @@ From the perfect-consign repo root:
 php docs/hesk-kb/publish-to-hesk.php
 ```
 
-Upserts public HTML articles, recounts categories, clears the KB cache, and marks each seed `hesk: published`.
+Upserts public HTML articles for new or changed seeds (a seed whose Hesk article already has the same text is skipped), recounts categories, clears the KB cache, and marks each written seed `hesk: published`. Because it compares the text itself, a seed edited after publishing is caught even if its `hesk:` line was not reset.
 
 ## Filename map
 
