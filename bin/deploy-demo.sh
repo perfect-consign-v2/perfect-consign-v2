@@ -181,10 +181,25 @@ else
     fi
     "$php_bin" "${root}/bin/migrate.php" tenant-all
 
+    # A recreated or storeless database leaves the demo with no mall, no shop and
+    # no owner sign-ins. On this disposable host (reinstall allowed), load both
+    # demo stores and their owners now, the same way seed-demo does, so an
+    # installer change on master never leaves the demo without its test logins.
+    demo_seeded=0
+    if [[ "$allow_reinstall" -eq 1 ]] && [[ "$reinstalled" -eq 1 || "$mall_missing" -eq 1 ]]; then
+        if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
+            echo "deploy-demo: the database has no demo stores; loading mall and shop books and their owner sign-ins"
+            "$php_bin" "${root}/bin/seed-mall.php"
+            demo_seeded=1
+        else
+            echo "deploy-demo: STALL_OWNER_PASSWORD is not set; set it, then run seed-demo to load mall/shop books" >&2
+        fi
+    fi
+
     # Demo convenience: plant or refresh mall owner from .env. set-owner.php is
     # idempotent when the password already matches (no credentials_version bump).
     if grep -Eq '^STALL_OWNER_PASSWORD=.+' "${root}/.env"; then
-        if [[ "$reinstalled" -eq 1 || "$mall_missing" -eq 1 ]]; then
+        if [[ "$demo_seeded" -eq 0 ]] && [[ "$reinstalled" -eq 1 || "$mall_missing" -eq 1 ]]; then
             echo "deploy-demo: skipping set-owner until seed-demo provisions mall"
         elif ! owner_err=$("$php_bin" "${root}/bin/set-owner.php" mall owner 2>&1); then
             printf '%s\n' "$owner_err" >&2

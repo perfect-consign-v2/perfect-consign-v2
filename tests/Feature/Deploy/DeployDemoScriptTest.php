@@ -115,13 +115,45 @@ final class DeployDemoScriptTest extends TestCase
         $script = file_get_contents($path);
         self::assertIsString($script);
         $missingAt = strpos($script, "mall is not provisioned; run seed-demo to load mall/shop books\"\n            mall_missing=1");
-        $skipAt = strpos($script, 'if [[ "$reinstalled" -eq 1 || "$mall_missing" -eq 1 ]]; then');
+        $skipAt = strpos(
+            $script,
+            'if [[ "$demo_seeded" -eq 0 ]] && [[ "$reinstalled" -eq 1 || "$mall_missing" -eq 1 ]]; then'
+        );
         $ownerAt = strpos($script, 'bin/set-owner.php" mall owner');
         self::assertNotFalse($missingAt);
         self::assertNotFalse($skipAt);
         self::assertNotFalse($ownerAt);
         self::assertGreaterThan($missingAt, $skipAt);
         self::assertGreaterThan($skipAt, $ownerAt);
+    }
+
+    public function testDeployLoadsTheDemoStoresAfterItRecreatesTheDatabase(): void
+    {
+        $path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'deploy-demo.sh';
+        $script = file_get_contents($path);
+        self::assertIsString($script);
+        $reinstallAt = strpos($script, 'reinstall-empty-database.php');
+        $tenantAllAt = strpos($script, 'bin/migrate.php" tenant-all');
+        $gateAt = strpos(
+            $script,
+            'if [[ "$allow_reinstall" -eq 1 ]] && [[ "$reinstalled" -eq 1 || "$mall_missing" -eq 1 ]]; then'
+        );
+        $passwordAt = strpos($script, "if grep -Eq '^STALL_OWNER_PASSWORD=.+'", (int) $gateAt);
+        $seedAt = strpos($script, '"$php_bin" "${root}/bin/seed-mall.php"' . "\n            demo_seeded=1");
+        $ownerAt = strpos($script, 'bin/set-owner.php" mall owner');
+        self::assertNotFalse($reinstallAt);
+        self::assertNotFalse($tenantAllAt);
+        self::assertNotFalse($gateAt);
+        self::assertNotFalse($passwordAt);
+        self::assertNotFalse($seedAt);
+        self::assertNotFalse($ownerAt);
+        self::assertGreaterThan($reinstallAt, $tenantAllAt);
+        self::assertGreaterThan($tenantAllAt, $gateAt);
+        self::assertGreaterThan($gateAt, $passwordAt);
+        self::assertGreaterThan($passwordAt, $seedAt);
+        self::assertGreaterThan($seedAt, $ownerAt);
+        self::assertSame(1, substr_count($script, 'bin/seed-mall.php'));
+        self::assertStringContainsString('STALL_OWNER_PASSWORD is not set; set it, then run seed-demo', $script);
     }
 
     public function testDeployPlantsPlatformAdminWhenEnvPasswordIsSet(): void
