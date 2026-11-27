@@ -1,9 +1,11 @@
 -- The Phase 1 guards cannot be switched off: the Inactive refusal
--- (vendors_open_balance), the per-vendor lock (journal_lines_vendor_lock),
--- the booth deposit switch (mall_deposit_switch) and the late fee assert
--- (journals_late_fee). Each is ENABLE ALWAYS, so a replica session still runs
+-- (vendors_active_transition), the per-vendor lock (journal_lines_vendor_lock_sealed),
+-- the booth deposit switch (mall_deposit_switch_transition) and the late fee assert
+-- (journals_late_fee_sealed). Each is ENABLE ALWAYS, so a replica session still runs
 -- it; dropping, disabling or making one replica-only is refused; the app role
--- cannot drop, alter or replace them; and their tables cannot be truncated.
+-- cannot drop, alter or replace them; the table owner cannot replace their
+-- bodies either (the _transition and _sealed names seal them through
+-- platform.guarded_function); and their tables cannot be truncated.
 -- The script rolls back.
 
 BEGIN;
@@ -15,7 +17,7 @@ BEGIN
         FROM pg_trigger AS guard
         JOIN pg_class AS relation ON relation.oid = guard.tgrelid
         WHERE relation.relnamespace = current_schema()::regnamespace
-          AND guard.tgname IN ('vendors_open_balance', 'journal_lines_vendor_lock', 'mall_deposit_switch', 'journals_late_fee')
+          AND guard.tgname IN ('vendors_active_transition', 'journal_lines_vendor_lock_sealed', 'mall_deposit_switch_transition', 'journals_late_fee_sealed')
           AND guard.tgenabled = 'A'
     ) <> 4 THEN
         RAISE EXCEPTION 'a Phase 1 guard is missing or not ENABLE ALWAYS';
@@ -46,10 +48,10 @@ DECLARE
 BEGIN
     FOR guard IN
         SELECT * FROM (VALUES
-            ('vendors', 'vendors_open_balance'),
-            ('journal_lines', 'journal_lines_vendor_lock'),
-            ('mall', 'mall_deposit_switch'),
-            ('journals', 'journals_late_fee')
+            ('vendors', 'vendors_active_transition'),
+            ('journal_lines', 'journal_lines_vendor_lock_sealed'),
+            ('mall', 'mall_deposit_switch_transition'),
+            ('journals', 'journals_late_fee_sealed')
         ) AS listed(relation, name)
     LOOP
         PERFORM pg_temp.refused(format('ALTER TABLE %I DISABLE TRIGGER %I', guard.relation, guard.name),
@@ -65,12 +67,32 @@ BEGIN
     END LOOP;
 END $$;
 
+-- The table owner cannot replace a guard's body.
+DO $$
+DECLARE
+    guard text;
+BEGIN
+    FOREACH guard IN ARRAY ARRAY[
+        'stall_reject_inactive_with_open_balance', 'stall_lock_vendor_of_line',
+        'stall_reject_deposit_switch_off', 'stall_assert_late_fee'
+    ]
+    LOOP
+        IF NOT platform.guarded_function(to_regprocedure(guard || '()')) THEN
+            RAISE EXCEPTION '% is not sealed', guard;
+        END IF;
+        PERFORM pg_temp.refused(
+            format('CREATE OR REPLACE FUNCTION %I() RETURNS trigger LANGUAGE plpgsql AS $body$ BEGIN RETURN NULL; END; $body$', guard),
+            '25006', 'a guard function cannot be replaced');
+        PERFORM pg_temp.refused(format('DROP FUNCTION %I() CASCADE', guard), '25006', 'append-only triggers cannot be dropped');
+    END LOOP;
+END $$;
+
 -- The app role cannot drop, alter or replace a guard.
 DO $$
 BEGIN
     SET LOCAL ROLE stall_poster;
-    PERFORM pg_temp.refused('DROP TRIGGER vendors_open_balance ON vendors', '42501', '');
-    PERFORM pg_temp.refused('ALTER TABLE vendors DISABLE TRIGGER vendors_open_balance', '42501', '');
+    PERFORM pg_temp.refused('DROP TRIGGER vendors_active_transition ON vendors', '42501', '');
+    PERFORM pg_temp.refused('ALTER TABLE vendors DISABLE TRIGGER vendors_active_transition', '42501', '');
     PERFORM pg_temp.refused(
         'CREATE OR REPLACE FUNCTION stall_reject_inactive_with_open_balance() RETURNS trigger '
         || 'LANGUAGE plpgsql AS $body$ BEGIN RETURN NEW; END; $body$',
@@ -160,7 +182,7 @@ BEGIN
     SELECT '01900000-0000-7000-8000-00000000c905', '01900000-0000-7000-8000-000000000001', 2, role.account_id, 0, 1
     FROM chart_roles AS role WHERE role.role = 'late_fee_income';
     PERFORM pg_temp.refused(
-        $q$SET CONSTRAINTS journals_late_fee IMMEDIATE$q$,
+        $q$SET CONSTRAINTS journals_late_fee_sealed IMMEDIATE$q$,
         '23514', 'for the stored amount');
     SET LOCAL session_replication_role = origin;
 END $$;

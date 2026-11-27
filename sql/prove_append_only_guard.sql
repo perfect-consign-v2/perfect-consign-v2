@@ -483,4 +483,16 @@ BEGIN
     RESET ROLE;
 END $$;
 
+-- Dropping a guard's function with CASCADE would drop its trigger with it.
+DO $$
+BEGIN
+    DROP FUNCTION stall_refuse_booth_deposit_overdraw() CASCADE;
+    RAISE EXCEPTION 'a guard function was dropped with its trigger';
+EXCEPTION
+    WHEN SQLSTATE '25006' THEN
+        IF SQLERRM NOT LIKE '%append-only triggers cannot be dropped%' THEN
+            RAISE;
+        END IF;
+END $$;
+
 ROLLBACK;

@@ -431,7 +431,7 @@ BEGIN
                   tgenabled NOT IN ('O', 'A')
                   OR (
                       tgenabled <> 'A'
-                      AND tgname ~ '(_append_only|_no_truncate|_no_delete)$'
+                      AND tgname ~ '(_append_only|_no_truncate|_no_delete|_transition|_sealed)$'
                   )
               )
         ) THEN
@@ -1320,7 +1320,7 @@ CREATE FUNCTION platform.guarded_function(p_function oid) RETURNS boolean
             FROM pg_trigger
             WHERE tgfoid = p_function
               AND NOT tgisinternal
-              AND tgname ~ '(_append_only|_no_truncate|_no_delete|_transition)$'
+              AND tgname ~ '(_append_only|_no_truncate|_no_delete|_transition|_sealed)$'
         )
         OR EXISTS (
             SELECT 1
@@ -1466,7 +1466,7 @@ CREATE EVENT TRIGGER platform_reject_append_only_trigger_change ON ddl_command_e
 
 ALTER EVENT TRIGGER platform_reject_append_only_trigger_change ENABLE ALWAYS;
 
-CREATE EVENT TRIGGER platform_reject_append_only_trigger_drop ON sql_drop WHEN TAG IN ('DROP TRIGGER')
+CREATE EVENT TRIGGER platform_reject_append_only_trigger_drop ON sql_drop WHEN TAG IN ('DROP FUNCTION', 'DROP TRIGGER')
     EXECUTE FUNCTION platform.reject_append_only_trigger_change();
 
 ALTER EVENT TRIGGER platform_reject_append_only_trigger_drop ENABLE ALWAYS;

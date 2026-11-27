@@ -15790,9 +15790,9 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER journal_lines_vendor_lock BEFORE INSERT ON public.journal_lines FOR EACH ROW EXECUTE FUNCTION public.stall_lock_vendor_of_line();
+CREATE TRIGGER journal_lines_vendor_lock_sealed BEFORE INSERT ON public.journal_lines FOR EACH ROW EXECUTE FUNCTION public.stall_lock_vendor_of_line();
 
-ALTER TABLE public.journal_lines ENABLE ALWAYS TRIGGER journal_lines_vendor_lock;
+ALTER TABLE public.journal_lines ENABLE ALWAYS TRIGGER journal_lines_vendor_lock_sealed;
 
 CREATE FUNCTION public.stall_reject_inactive_with_open_balance() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
@@ -15846,13 +15846,13 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER mall_deposit_switch BEFORE UPDATE OF booth_deposits_enabled ON public.mall FOR EACH ROW EXECUTE FUNCTION public.stall_reject_deposit_switch_off();
+CREATE TRIGGER mall_deposit_switch_transition BEFORE UPDATE OF booth_deposits_enabled ON public.mall FOR EACH ROW EXECUTE FUNCTION public.stall_reject_deposit_switch_off();
 
-ALTER TABLE public.mall ENABLE ALWAYS TRIGGER mall_deposit_switch;
+ALTER TABLE public.mall ENABLE ALWAYS TRIGGER mall_deposit_switch_transition;
 
-CREATE TRIGGER vendors_open_balance BEFORE UPDATE OF active ON public.vendors FOR EACH ROW EXECUTE FUNCTION public.stall_reject_inactive_with_open_balance();
+CREATE TRIGGER vendors_active_transition BEFORE UPDATE OF active ON public.vendors FOR EACH ROW EXECUTE FUNCTION public.stall_reject_inactive_with_open_balance();
 
-ALTER TABLE public.vendors ENABLE ALWAYS TRIGGER vendors_open_balance;
+ALTER TABLE public.vendors ENABLE ALWAYS TRIGGER vendors_active_transition;
 
 -- A late fee is the stored amount for its ordinal, on the day grace makes it
 -- due, for a period whose rent was charged and is still unpaid.
@@ -15957,9 +15957,9 @@ BEGIN
 END;
 $$;
 
-CREATE CONSTRAINT TRIGGER journals_late_fee AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_late_fee();
+CREATE CONSTRAINT TRIGGER journals_late_fee_sealed AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_late_fee();
 
-ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_late_fee;
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_late_fee_sealed;
 
 REVOKE ALL ON FUNCTION public.stall_assignment_rated(uuid, date) FROM PUBLIC;
 
