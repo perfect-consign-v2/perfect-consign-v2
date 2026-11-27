@@ -483,8 +483,9 @@ END $$;
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8097-0000000000c1', 'R97', 'Report booth');
 
-INSERT INTO booth_assignments (booth_id, vendor_id, starts_on)
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
 VALUES (
+    '01900000-0000-7000-8097-0000000000c9',
     '01900000-0000-7000-8097-0000000000c1',
     '01900000-0000-7000-8097-000000000101',
     '2097-05-01'
@@ -505,13 +506,13 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8097-0000000000c2',
     '01900000-0000-7000-8000-000000000001',
-    'rent-charge:01900000-0000-7000-8097-0000000000c1:2097-05',
+    'rent-charge:01900000-0000-7000-8097-0000000000c9:2097-05',
     '2097-05-01',
     '2097-05-01 12:00:00+00',
     '01900000-0000-7000-8097-000000000021',
     'USD',
     'rent_charge',
-    'R97:2097-05',
+    '01900000-0000-7000-8097-0000000000c9:2097-05',
     'May rent',
     3100,
     3100
@@ -525,8 +526,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     3100,
     0,
-    'booth',
-    '01900000-0000-7000-8097-0000000000c1'
+    'assignment',
+    '01900000-0000-7000-8097-0000000000c9'
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES (

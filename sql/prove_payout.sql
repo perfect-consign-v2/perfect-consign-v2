@@ -8,8 +8,9 @@ SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', '
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000201', 'A1', 'Booth A1');
 
-INSERT INTO booth_assignments (booth_id, vendor_id, starts_on)
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
 VALUES (
+    '01900000-0000-7000-8000-000000000301',
     '01900000-0000-7000-8000-000000000201',
     '01900000-0000-7000-8000-000000000101',
     '2026-01-01'
@@ -103,13 +104,13 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-000000000802',
     '01900000-0000-7000-8000-000000000001',
-    'rent-charge:01900000-0000-7000-8000-000000000201:2026-03',
+    'rent-charge:01900000-0000-7000-8000-000000000301:2026-03',
     '2026-03-01',
     '2026-03-01 08:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
     'rent_charge',
-    'A1:2026-03',
+    '01900000-0000-7000-8000-000000000301:2026-03',
     'March rent for booth A1',
     1500,
     1500
@@ -124,8 +125,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     1500,
     0,
-    'booth',
-    '01900000-0000-7000-8000-000000000201'
+    'assignment',
+    '01900000-0000-7000-8000-000000000301'
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
@@ -176,8 +177,8 @@ INSERT INTO journal_lines (
         '01900000-0000-7000-8000-000000000015',
         0,
         1500,
-        'booth',
-        '01900000-0000-7000-8000-000000000201'
+        'assignment',
+        '01900000-0000-7000-8000-000000000301'
     );
 
 INSERT INTO journals (
@@ -396,8 +397,8 @@ INSERT INTO journal_lines (
         '01900000-0000-7000-8000-000000000015',
         1500,
         0,
-        'booth',
-        '01900000-0000-7000-8000-000000000201'
+        'assignment',
+        '01900000-0000-7000-8000-000000000301'
     );
 
 SET CONSTRAINTS ALL IMMEDIATE;

@@ -7,8 +7,9 @@ VALUES ('01900000-0000-7000-8000-000000000201', 'A1', 'Booth A1');
 
 SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
 
-INSERT INTO booth_assignments (booth_id, vendor_id, starts_on)
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
 VALUES (
+    '01900000-0000-7000-8000-000000000301',
     '01900000-0000-7000-8000-000000000201',
     '01900000-0000-7000-8000-000000000101',
     '2026-01-01'
@@ -46,13 +47,13 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-000000000700',
     '01900000-0000-7000-8000-000000000001',
-    'rent-charge:01900000-0000-7000-8000-000000000201:2026-03',
+    'rent-charge:01900000-0000-7000-8000-000000000301:2026-03',
     '2026-03-01',
     '2026-03-01 08:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
     'rent_charge',
-    'A1:2026-03',
+    '01900000-0000-7000-8000-000000000301:2026-03',
     'March rent for booth A1',
     15000,
     15000
@@ -67,8 +68,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     15000,
     0,
-    'booth',
-    '01900000-0000-7000-8000-000000000201'
+    'assignment',
+    '01900000-0000-7000-8000-000000000301'
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
@@ -118,8 +119,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     0,
     5000,
-    'booth',
-    '01900000-0000-7000-8000-000000000201'
+    'assignment',
+    '01900000-0000-7000-8000-000000000301'
 );
 
 INSERT INTO register_session_posts (session_id, journal_id)
@@ -199,8 +200,8 @@ BEGIN
         '01900000-0000-7000-8000-000000000015',
         0,
         15000,
-        'booth',
-        '01900000-0000-7000-8000-000000000201'
+        'assignment',
+        '01900000-0000-7000-8000-000000000301'
     );
     INSERT INTO register_session_posts (session_id, journal_id)
     VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000703');
@@ -249,8 +250,8 @@ BEGIN
         '01900000-0000-7000-8000-000000000015',
         0,
         100,
-        'booth',
-        '01900000-0000-7000-8000-000000000201'
+        'assignment',
+        '01900000-0000-7000-8000-000000000301'
     );
     INSERT INTO register_session_posts (session_id, journal_id)
     VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000707');
@@ -299,8 +300,8 @@ BEGIN
         '01900000-0000-7000-8000-000000000015',
         0,
         100,
-        'booth',
-        '01900000-0000-7000-8000-000000000201'
+        'assignment',
+        '01900000-0000-7000-8000-000000000301'
     );
     INSERT INTO register_session_posts (session_id, journal_id)
     VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000708');
@@ -350,8 +351,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     0,
     4000,
-    'booth',
-    '01900000-0000-7000-8000-000000000201'
+    'assignment',
+    '01900000-0000-7000-8000-000000000301'
 );
 
 INSERT INTO register_session_posts (session_id, journal_id)
@@ -408,8 +409,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     0,
     6000,
-    'booth',
-    '01900000-0000-7000-8000-000000000201'
+    'assignment',
+    '01900000-0000-7000-8000-000000000301'
 );
 
 INSERT INTO register_session_posts (session_id, journal_id)
@@ -462,8 +463,8 @@ BEGIN
         '01900000-0000-7000-8000-000000000015',
         0,
         100,
-        'booth',
-        '01900000-0000-7000-8000-000000000201'
+        'assignment',
+        '01900000-0000-7000-8000-000000000301'
     );
     INSERT INTO register_session_posts (session_id, journal_id)
     VALUES ('01900000-0000-7000-8000-000000000d22', '01900000-0000-7000-8000-000000000704');
@@ -501,13 +502,13 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-00000000070c',
     '01900000-0000-7000-8000-000000000001',
-    'rent-charge:01900000-0000-7000-8000-000000000202:2026-03',
+    'rent-charge:01900000-0000-7000-8000-000000000302:2026-03',
     '2026-03-01',
     '2026-03-01 08:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
     'rent_charge',
-    'B2:2026-03',
+    '01900000-0000-7000-8000-000000000302:2026-03',
     'March rent for booth B2',
     1000,
     1000
@@ -522,8 +523,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     1000,
     0,
-    'booth',
-    '01900000-0000-7000-8000-000000000202'
+    'assignment',
+    '01900000-0000-7000-8000-000000000302'
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
@@ -573,8 +574,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     0,
     1000,
-    'booth',
-    '01900000-0000-7000-8000-000000000202'
+    'assignment',
+    '01900000-0000-7000-8000-000000000302'
 );
 
 INSERT INTO register_session_posts (session_id, journal_id)
@@ -623,8 +624,8 @@ BEGIN
         '01900000-0000-7000-8000-000000000015',
         0,
         1000,
-        'booth',
-        '01900000-0000-7000-8000-000000000201'
+        'assignment',
+        '01900000-0000-7000-8000-000000000301'
     );
     INSERT INTO register_checks (journal_id, check_number)
     VALUES ('01900000-0000-7000-8000-00000000070e', '1001');
@@ -632,6 +633,108 @@ BEGIN
 EXCEPTION
     WHEN SQLSTATE '23514' THEN
         IF SQLERRM NOT LIKE '%a received check number is unique for that vendor%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+-- Through the posting functions: the database splits a receipt over the
+-- vendor's stays, the stay with the oldest unpaid charge first.
+INSERT INTO booths (id, code, name)
+VALUES ('01900000-0000-7000-8000-000000000203', 'C3', 'Booth C3');
+
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
+VALUES (
+    '01900000-0000-7000-8000-000000000303',
+    '01900000-0000-7000-8000-000000000203',
+    '01900000-0000-7000-8000-000000000101',
+    '2026-02-01'
+);
+
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000303', 2000);
+
+DO $$
+DECLARE
+    receipt uuid;
+    split_c3 bigint;
+    split_a1 bigint;
+BEGIN
+    IF stall_vendor_open_rent('01900000-0000-7000-8000-000000000101') <> 0 THEN
+        RAISE EXCEPTION 'Ada should owe nothing before the new charges';
+    END IF;
+    PERFORM stall_post_rent_charge('01900000-0000-7000-8000-000000000303', '2026-02-01', '2026-03-20');
+    PERFORM stall_post_rent_charge('01900000-0000-7000-8000-000000000301', '2026-04-01', '2026-04-01');
+    PERFORM stall_post_rent_charge('01900000-0000-7000-8000-000000000303', '2026-03-01', '2026-04-02');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    IF stall_vendor_open_rent('01900000-0000-7000-8000-000000000101') <> 19000 THEN
+        RAISE EXCEPTION 'Ada open rent is not the three charges';
+    END IF;
+
+    SELECT amount_minor INTO split_c3
+    FROM stall_rent_payment_split('01900000-0000-7000-8000-000000000101', 5000)
+    WHERE assignment_id = '01900000-0000-7000-8000-000000000303';
+    SELECT amount_minor INTO split_a1
+    FROM stall_rent_payment_split('01900000-0000-7000-8000-000000000101', 5000)
+    WHERE assignment_id = '01900000-0000-7000-8000-000000000301';
+    IF split_c3 IS DISTINCT FROM 4000 OR split_a1 IS DISTINCT FROM 1000 THEN
+        RAISE EXCEPTION 'the split did not pay the stay with the oldest unpaid charge first (C3 %, A1 %)', split_c3, split_a1;
+    END IF;
+    IF (SELECT count(*) FROM stall_rent_payment_split('01900000-0000-7000-8000-000000000101', 3000)) <> 1 THEN
+        RAISE EXCEPTION 'a payment the oldest stay can absorb touched another stay';
+    END IF;
+
+    receipt := stall_post_rent_payment('01900000-0000-7000-8000-000000000101', 5000, 0, 0, '2026-04-03');
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d22', receipt);
+    SET CONSTRAINTS ALL IMMEDIATE;
+
+    IF stall_assignment_open_rent('01900000-0000-7000-8000-000000000303') <> 0
+       OR stall_assignment_open_rent('01900000-0000-7000-8000-000000000301') <> 14000 THEN
+        RAISE EXCEPTION 'the receipt did not land on the stays the split named';
+    END IF;
+    IF stall_register_expected_cash('01900000-0000-7000-8000-000000000d22') IS DISTINCT FROM 10000 THEN
+        RAISE EXCEPTION 'a cash receipt through the function did not raise expected drawer cash';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    PERFORM stall_post_rent_payment('01900000-0000-7000-8000-000000000101', 14001, 0, 0, '2026-04-03');
+    RAISE EXCEPTION 'the posting function took more than the open rent';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%cannot exceed the open rent%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    PERFORM stall_post_rent_payment('01900000-0000-7000-8000-000000000101', 0, 0, 0, '2026-04-03');
+    RAISE EXCEPTION 'the posting function took a receipt with no tender';
+EXCEPTION
+    WHEN SQLSTATE '22023' THEN
+        NULL;
+END $$;
+
+DO $$
+BEGIN
+    PERFORM stall_post_rent_payment('01900000-0000-7000-8000-000000000101', -100, 200, 0, '2026-04-03');
+    RAISE EXCEPTION 'the posting function took a negative tender';
+EXCEPTION
+    WHEN SQLSTATE '22023' THEN
+        NULL;
+END $$;
+
+-- A receipt through the function with no drawer link is refused at commit time.
+DO $$
+BEGIN
+    PERFORM stall_post_rent_payment('01900000-0000-7000-8000-000000000101', 0, 1000, 0, '2026-04-03');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION 'a rent receipt with no register shift was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%register session is required%' AND SQLERRM NOT LIKE '%needs an open register%' THEN
             RAISE;
         END IF;
 END $$;

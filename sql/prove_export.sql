@@ -21,8 +21,9 @@ UPDATE mall SET tax_bps = 8000;
 INSERT INTO booths (id, code, name)
 VALUES ('01900000-0000-7000-8000-000000000201', 'A1', 'Booth A1');
 
-INSERT INTO booth_assignments (booth_id, vendor_id, starts_on)
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on)
 VALUES (
+    '01900000-0000-7000-8000-000000000301',
     '01900000-0000-7000-8000-000000000201',
     '01900000-0000-7000-8000-000000000101',
     '2026-01-01'
@@ -115,18 +116,18 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-000000000d03',
     '01900000-0000-7000-8000-000000000001',
-    'rent-charge:01900000-0000-7000-8000-000000000201:2026-03',
+    'rent-charge:01900000-0000-7000-8000-000000000301:2026-03',
     '2026-03-01',
     '2026-03-01 08:00:00+00',
     '01900000-0000-7000-8000-000000000021',
-    'USD', 'rent_charge', 'A1:2026-03', 'March rent', 10000, 10000
+    'USD', 'rent_charge', '01900000-0000-7000-8000-000000000301:2026-03', 'March rent', 10000, 10000
 );
 INSERT INTO journal_lines (
     journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
 ) VALUES (
     '01900000-0000-7000-8000-000000000d03',
     '01900000-0000-7000-8000-000000000001',
-    1, '01900000-0000-7000-8000-000000000015', 10000, 0, 'booth', '01900000-0000-7000-8000-000000000201'
+    1, '01900000-0000-7000-8000-000000000015', 10000, 0, 'assignment', '01900000-0000-7000-8000-000000000301'
 );
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
 VALUES (
@@ -193,7 +194,7 @@ INSERT INTO journal_lines (
 ) VALUES (
     '01900000-0000-7000-8000-000000000d06',
     '01900000-0000-7000-8000-000000000001',
-    2, '01900000-0000-7000-8000-000000000015', 0, 10000, 'booth', '01900000-0000-7000-8000-000000000201'
+    2, '01900000-0000-7000-8000-000000000015', 0, 10000, 'assignment', '01900000-0000-7000-8000-000000000301'
 );
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
@@ -341,8 +342,8 @@ BEGIN
     IF ordered_keys <> ARRAY[
         'opening',
         'opening',
-        'rent-charge:01900000-0000-7000-8000-000000000201:2026-03',
-        'rent-charge:01900000-0000-7000-8000-000000000201:2026-03',
+        'rent-charge:01900000-0000-7000-8000-000000000301:2026-03',
+        'rent-charge:01900000-0000-7000-8000-000000000301:2026-03',
         'sale:1001',
         'sale:1001',
         'sale:1001',

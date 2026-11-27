@@ -291,22 +291,34 @@ VALUES (
     'open'
 );
 
+SET CONSTRAINTS ALL DEFERRED;
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
 ) VALUES (
     '01900000-0000-7000-8000-000000000401',
     '01900000-0000-7000-8000-000000000001',
-    'prove-vendor-ref',
+    'vendor-memo:vendor-ref',
     '2026-03-01',
     '2026-03-01 12:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
-    'sale',
+    'vendor_memo',
     'vendor-ref',
     'Vendor subledger proof',
     1000,
     1000
+);
+
+INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000401',
+    '01900000-0000-7000-8000-000000000001',
+    1,
+    '01900000-0000-7000-8000-000000000028',
+    1000,
+    0
 );
 
 INSERT INTO journal_lines (
@@ -314,7 +326,7 @@ INSERT INTO journal_lines (
 ) VALUES (
     '01900000-0000-7000-8000-000000000401',
     '01900000-0000-7000-8000-000000000001',
-    1,
+    2,
     '01900000-0000-7000-8000-000000000014',
     0,
     1000,
@@ -322,15 +334,11 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000101'
 );
 
-INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
-VALUES (
-    '01900000-0000-7000-8000-000000000401',
-    '01900000-0000-7000-8000-000000000001',
-    2,
-    '01900000-0000-7000-8000-000000000010',
-    1000,
-    0
-);
+INSERT INTO vendor_memos (journal_id, vendor_id, direction, amount_minor, reason)
+VALUES ('01900000-0000-7000-8000-000000000401', '01900000-0000-7000-8000-000000000101', 'credit', 1000, 'Vendor subledger proof');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
 
 DO $$
 BEGIN
@@ -508,13 +516,13 @@ INSERT INTO journals (
 ) VALUES (
     '01900000-0000-7000-8000-000000000403',
     '01900000-0000-7000-8000-000000000001',
-    'rent-charge:01900000-0000-7000-8000-000000000212:2026-04',
+    'rent-charge:01900000-0000-7000-8000-000000000312:2026-04',
     '2026-04-01',
     '2026-04-01 12:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
     'rent_charge',
-    'C3:2026-04',
+    '01900000-0000-7000-8000-000000000312:2026-04',
     'April rent for booth C3',
     8000,
     8000
@@ -529,8 +537,8 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     8000,
     0,
-    'booth',
-    '01900000-0000-7000-8000-000000000212'
+    'assignment',
+    '01900000-0000-7000-8000-000000000312'
 );
 
 INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
@@ -647,18 +655,20 @@ END $$;
 
 SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000102', 'owed', 'Owed', 'Lane');
 
+SET CONSTRAINTS ALL DEFERRED;
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
 ) VALUES (
     '01900000-0000-7000-8000-000000000404',
     '01900000-0000-7000-8000-000000000001',
-    'prove-owed-payable',
+    'vendor-memo:owed-payable',
     '2026-03-03',
     '2026-03-03 12:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
-    'sale',
+    'vendor_memo',
     'owed-payable',
     'Payable still owed to the vendor',
     1000,
@@ -667,44 +677,74 @@ INSERT INTO journals (
 
 INSERT INTO journal_lines (
     journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
-) VALUES (
-    '01900000-0000-7000-8000-000000000404',
-    '01900000-0000-7000-8000-000000000001',
-    1,
-    '01900000-0000-7000-8000-000000000014',
-    0,
-    1000,
-    'vendor',
-    '01900000-0000-7000-8000-000000000102'
-);
+) VALUES
+    ('01900000-0000-7000-8000-000000000404', '01900000-0000-7000-8000-000000000001', 1,
+     '01900000-0000-7000-8000-000000000028', 1000, 0, NULL, NULL),
+    ('01900000-0000-7000-8000-000000000404', '01900000-0000-7000-8000-000000000001', 2,
+     '01900000-0000-7000-8000-000000000014', 0, 1000, 'vendor', '01900000-0000-7000-8000-000000000102');
 
-INSERT INTO journal_lines (journal_id, book_id, line_no, account_id, debit_minor, credit_minor)
-VALUES (
-    '01900000-0000-7000-8000-000000000404',
-    '01900000-0000-7000-8000-000000000001',
-    2,
-    '01900000-0000-7000-8000-000000000010',
-    1000,
-    0
-);
+INSERT INTO vendor_memos (journal_id, vendor_id, direction, amount_minor, reason)
+VALUES ('01900000-0000-7000-8000-000000000404', '01900000-0000-7000-8000-000000000102', 'credit', 1000, 'We owe her for a repair');
 
-UPDATE vendors SET active = false WHERE id = '01900000-0000-7000-8000-000000000102';
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+-- Inactive is refused while money is open in either direction or a booth is
+-- held, with one plain sentence per reason and the reason codes in DETAIL.
+CREATE TEMPORARY TABLE inactive_refusal (said text, codes text) ON COMMIT DROP;
+
+CREATE FUNCTION pg_temp.try_inactive(target uuid) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $fn$
+DECLARE
+    said text;
+    codes text;
+BEGIN
+    DELETE FROM inactive_refusal;
+    BEGIN
+        UPDATE vendors SET active = false WHERE id = target;
+    EXCEPTION
+        WHEN SQLSTATE '23514' THEN
+            GET STACKED DIAGNOSTICS said = MESSAGE_TEXT, codes = PG_EXCEPTION_DETAIL;
+            INSERT INTO inactive_refusal VALUES (said, codes);
+            RETURN false;
+    END;
+    RETURN true;
+END;
+$fn$;
 
 DO $$
 BEGIN
-    IF (SELECT active FROM vendors WHERE id = '01900000-0000-7000-8000-000000000102') THEN
-        RAISE EXCEPTION 'a vendor the store still owes was left active';
+    IF pg_temp.try_inactive('01900000-0000-7000-8000-000000000102') THEN
+        RAISE EXCEPTION 'a vendor the store still owes was made inactive';
+    END IF;
+    IF (SELECT said FROM inactive_refusal) <> 'Owed Lane can''t be made inactive yet. The store owes them $10.00.'
+       OR (SELECT codes FROM inactive_refusal) <> 'payable' THEN
+        RAISE EXCEPTION 'the payable refusal read: % (%)', (SELECT said FROM inactive_refusal), (SELECT codes FROM inactive_refusal);
     END IF;
 END $$;
 
 DO $$
 BEGIN
-    UPDATE vendors SET active = false WHERE id = '01900000-0000-7000-8000-000000000101';
-    RAISE EXCEPTION 'a vendor with open rent was made inactive';
-EXCEPTION
-    WHEN SQLSTATE '23514' THEN
-        NULL;
+    IF pg_temp.try_inactive('01900000-0000-7000-8000-000000000101') THEN
+        RAISE EXCEPTION 'a vendor with open rent and a booth was made inactive';
+    END IF;
+    IF (SELECT said FROM inactive_refusal) <> 'Ada Lane can''t be made inactive yet. They owe $80.00 in rent. The store owes them $10.00. They still have a booth. End it first.'
+       OR (SELECT codes FROM inactive_refusal) <> 'rent,payable,booth' THEN
+        RAISE EXCEPTION 'the rent and booth refusal read: % (%)', (SELECT said FROM inactive_refusal), (SELECT codes FROM inactive_refusal);
+    END IF;
 END $$;
+
+INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor)
+VALUES (
+    '01900000-0000-7000-8000-000000000d23',
+    '01900000-0000-7000-8000-000000000d10',
+    'Ada',
+    '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
+    0
+);
+
+SET CONSTRAINTS ALL DEFERRED;
 
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
@@ -743,16 +783,160 @@ INSERT INTO journal_lines (
     '01900000-0000-7000-8000-000000000015',
     0,
     8000,
-    'booth',
-    '01900000-0000-7000-8000-000000000212'
+    'assignment',
+    '01900000-0000-7000-8000-000000000312'
 );
 
-UPDATE vendors SET active = false WHERE id = '01900000-0000-7000-8000-000000000101';
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d23', '01900000-0000-7000-8000-000000000405');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
 
 DO $$
 BEGIN
-    IF (SELECT active FROM vendors WHERE id = '01900000-0000-7000-8000-000000000101') THEN
-        RAISE EXCEPTION 'a vendor was left active after the rent was paid';
+    IF pg_temp.try_inactive('01900000-0000-7000-8000-000000000101') THEN
+        RAISE EXCEPTION 'a vendor who still has a booth was made inactive';
+    END IF;
+    IF (SELECT codes FROM inactive_refusal) <> 'payable,booth' THEN
+        RAISE EXCEPTION 'paid rent still blocked inactive: % (%)', (SELECT said FROM inactive_refusal), (SELECT codes FROM inactive_refusal);
+    END IF;
+END $$;
+
+-- A vendor who owes on their payout balance, then from a return (clawback).
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000103', 'claw', 'Claw', 'Lane');
+
+SET CONSTRAINTS ALL DEFERRED;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000406',
+    '01900000-0000-7000-8000-000000000001',
+    'vendor-memo:claw-owed',
+    '2026-03-04',
+    '2026-03-04 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'vendor_memo',
+    'claw-owed',
+    'A vendor who owes on the payout balance',
+    500,
+    500
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    ('01900000-0000-7000-8000-000000000406', '01900000-0000-7000-8000-000000000001', 1,
+     '01900000-0000-7000-8000-000000000014', 500, 0, 'vendor', '01900000-0000-7000-8000-000000000103'),
+    ('01900000-0000-7000-8000-000000000406', '01900000-0000-7000-8000-000000000001', 2,
+     '01900000-0000-7000-8000-000000000029', 0, 500, NULL, NULL);
+
+INSERT INTO vendor_memos (journal_id, vendor_id, direction, amount_minor, reason)
+VALUES ('01900000-0000-7000-8000-000000000406', '01900000-0000-7000-8000-000000000103', 'debit', 500, 'A sign we made for her');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+DO $$
+BEGIN
+    IF pg_temp.try_inactive('01900000-0000-7000-8000-000000000103') THEN
+        RAISE EXCEPTION 'a vendor who owes on the payout balance was made inactive';
+    END IF;
+    IF (SELECT said FROM inactive_refusal) <> 'Claw Lane can''t be made inactive yet. They owe $5.00 on their payout balance.'
+       OR (SELECT codes FROM inactive_refusal) <> 'payable' THEN
+        RAISE EXCEPTION 'the negative payable refusal read: % (%)', (SELECT said FROM inactive_refusal), (SELECT codes FROM inactive_refusal);
+    END IF;
+END $$;
+
+SET CONSTRAINTS ALL DEFERRED;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000407',
+    '01900000-0000-7000-8000-000000000001',
+    'clawback_reclass:prove-claw',
+    '2026-03-05',
+    '2026-03-05 12:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'clawback_reclass',
+    'prove-claw',
+    'Move what the vendor owes to their receivable',
+    500,
+    500
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    ('01900000-0000-7000-8000-000000000407', '01900000-0000-7000-8000-000000000001', 1,
+     '01900000-0000-7000-8000-00000000002e', 500, 0, 'vendor', '01900000-0000-7000-8000-000000000103'),
+    ('01900000-0000-7000-8000-000000000407', '01900000-0000-7000-8000-000000000001', 2,
+     '01900000-0000-7000-8000-000000000014', 0, 500, 'vendor', '01900000-0000-7000-8000-000000000103');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+DO $$
+BEGIN
+    IF pg_temp.try_inactive('01900000-0000-7000-8000-000000000103') THEN
+        RAISE EXCEPTION 'a vendor who owes from a return was made inactive';
+    END IF;
+    IF (SELECT said FROM inactive_refusal) <> 'Claw Lane can''t be made inactive yet. They owe $5.00 from returns.'
+       OR (SELECT codes FROM inactive_refusal) <> 'clawback' THEN
+        RAISE EXCEPTION 'the clawback refusal read: % (%)', (SELECT said FROM inactive_refusal), (SELECT codes FROM inactive_refusal);
+    END IF;
+    IF (SELECT active FROM vendors WHERE id = '01900000-0000-7000-8000-000000000103') IS NOT TRUE THEN
+        RAISE EXCEPTION 'a refused inactive left the vendor inactive';
+    END IF;
+END $$;
+
+-- Mary: her stay ended Jan 31. January is charged Feb 5 and paid Feb 10, after
+-- she left, and both land on her stay. With nothing open she can be made inactive.
+SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000105', 'mary', 'Mary', 'Smith');
+
+INSERT INTO booths (id, code, name)
+VALUES ('01900000-0000-7000-8000-000000000216', 'M1', 'Mary booth');
+
+INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on, ends_on)
+VALUES (
+    '01900000-0000-7000-8000-000000000316',
+    '01900000-0000-7000-8000-000000000216',
+    '01900000-0000-7000-8000-000000000105',
+    '2026-01-01',
+    '2026-01-31'
+);
+
+INSERT INTO assignment_rent (assignment_id, amount_minor)
+VALUES ('01900000-0000-7000-8000-000000000316', 6000);
+
+DO $$
+DECLARE
+    receipt uuid;
+BEGIN
+    PERFORM stall_post_rent_charge('01900000-0000-7000-8000-000000000316', '2026-01-01', '2026-02-05');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    IF pg_temp.try_inactive('01900000-0000-7000-8000-000000000105') THEN
+        RAISE EXCEPTION 'a departed vendor with open rent was made inactive';
+    END IF;
+    IF (SELECT said FROM inactive_refusal) <> 'Mary Smith can''t be made inactive yet. They owe $60.00 in rent.'
+       OR (SELECT codes FROM inactive_refusal) <> 'rent' THEN
+        RAISE EXCEPTION 'the departed vendor refusal read: % (%)', (SELECT said FROM inactive_refusal), (SELECT codes FROM inactive_refusal);
+    END IF;
+    receipt := stall_post_rent_payment('01900000-0000-7000-8000-000000000105', 0, 6000, 0, '2026-02-10');
+    INSERT INTO register_session_posts (session_id, journal_id)
+    VALUES ('01900000-0000-7000-8000-000000000d23', receipt);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    IF NOT pg_temp.try_inactive('01900000-0000-7000-8000-000000000105') THEN
+        RAISE EXCEPTION 'a vendor with nothing open was refused: % (%)', (SELECT said FROM inactive_refusal), (SELECT codes FROM inactive_refusal);
+    END IF;
+    IF (SELECT active FROM vendors WHERE id = '01900000-0000-7000-8000-000000000105') THEN
+        RAISE EXCEPTION 'Mary was left active';
     END IF;
 END $$;
 
