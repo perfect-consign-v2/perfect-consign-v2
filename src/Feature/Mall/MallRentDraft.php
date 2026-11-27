@@ -17,6 +17,8 @@ final class MallRentDraft
 
     public ?bool $prepaid = null;
 
+    public ?bool $deposits = null;
+
     public ?bool $lateFees = null;
 
     public ?int $lateGrace = null;
@@ -78,12 +80,18 @@ final class MallRentDraft
         $this->prepaid = $enabled
             ? $this->app->request()->field('rent_prepaid_from_prior_sales') === '1'
             : $this->payouts->isRentPrepaid();
+        $this->deposits = $enabled
+            ? $this->app->request()->field('booth_deposits_enabled') === '1'
+            : $this->payouts->isDepositsEnabled();
 
         return $this->readLateFees();
     }
 
     public function save(): void
     {
+        if ($this->deposits !== null) {
+            $this->payouts->saveDeposits($this->deposits);
+        }
         if ($this->lateFees === null || $this->lateGrace === null) {
             return;
         }

@@ -85,9 +85,34 @@ final class PayoutRunStore
     }
 
     /**
+     * The vendors a payout handles apart from the rest: those left out of the
+     * run (credit only or hold), and those who have left the store but may still
+     * have money open, whom the payout lists on their own.
+     *
+     * @return array{excluded: list<array{code: string, name: string, mode: string}>, departed: list<string>}
+     */
+    public function setAside(): array
+    {
+        return ['excluded' => $this->excluded(), 'departed' => $this->departed()];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function departed(): array
+    {
+        $ids = [];
+        foreach ($this->statements->rows('SELECT id::text AS id FROM vendors WHERE NOT active') as $row) {
+            $ids[] = RowValue::string($row['id'] ?? null);
+        }
+
+        return $ids;
+    }
+
+    /**
      * @return list<array{code: string, name: string, mode: string}>
      */
-    public function excluded(): array
+    private function excluded(): array
     {
         $rows = $this->statements->rows(
             "SELECT code, name, payout_mode

@@ -23,12 +23,10 @@ use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Payout\StorePurchase;
 use PerfectConsign\Feature\Payout\VendorClawback;
-use PerfectConsign\Ledger\JournalDraft;
-use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerPeriods;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
-use PerfectConsign\Ledger\PostedLines;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Tests\Support\ProbeMall;
@@ -50,10 +48,11 @@ final class PayoutRunTest extends TestCase
         $statements = new Statements($pdo);
         $audit = QuietAudit::journal($statements, $actor, $session);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
+        $postings = new PostingFunctions($pdo, new LedgerPeriods($pdo), new JournalCash($pdo));
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $lines = new PayoutRunLines($statements);
-        $settler = new PayoutSettler($ledger, $payouts, $runs, $lines, $audit, new VendorClawback($ledger, $statements));
+        $settler = new PayoutSettler($ledger, $postings, $payouts, $runs, $lines, $audit, new VendorClawback($ledger, $statements));
         $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines, new PayoutRunChecks($statements), $audit);
         $reverser = new PayoutReverser($ledger, $statements, $actor, $audit);
         $purchases = new StorePurchase($ledger);
@@ -127,17 +126,19 @@ final class PayoutRunTest extends TestCase
             self::assertSame(1000, $quoted['rent']);
             $purchase = $purchases->record($vendorId, $date, 2500, 'buy-' . substr($vendorId, 0, 8));
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
-            $ledger->post(new JournalDraft(
-                postingKey: 'rent-charge:' . $boothId . ':' . substr($date, 0, 7),
-                postingDate: $date,
-                source: new JournalSource('rent_charge', $boothId . ':' . substr($date, 0, 7), 'Rent charge'),
-                lines: [
-                    PostedLines::entry($ledger->roleAccount('booth_rent_receivable'), 1000, 0, 'booth', $boothId),
-                    PostedLines::entry($ledger->roleAccount('rent_revenue'), 0, 1000, null, null),
-                ],
-            ));
+            $stay = $statements->bound(
+                "SELECT id::text AS id, to_char(stall_rent_period_start(?::date), 'YYYY-MM-DD') AS period_start
+                 FROM booth_assignments WHERE booth_id = ?::uuid",
+                [$date, $boothId]
+            );
+            $stayId = RowValue::string($stay[0]['id'] ?? null);
+            $postings->post(
+                $date,
+                'stall_post_rent_charge(?::uuid, ?::date, ?::date)',
+                [$stayId, RowValue::string($stay[0]['period_start'] ?? null), $date],
+            );
             $pdo->exec('SET CONSTRAINTS ALL DEFERRED');
-            self::assertSame(1000, $payouts->boothRent($vendorId)[0]['open_minor'] ?? 0);
+            self::assertSame([['assignment_id' => $stayId, 'amount_minor' => 1000]], $payouts->stayShares($vendorId, 1000));
             $quiet = $ledger->newId();
             \PerfectConsign\Tests\Support\SeedVendor::withId(
                 $statements,
@@ -217,7 +218,7 @@ final class PayoutRunTest extends TestCase
             self::assertNotSame([], $pack);
             // stored( guard( materialize( carryPack( link( attachSettlement( attachDisbursement( checks( assignNumbers( numberChecks( run( envelopes( copySales( copyVendorSales( checksVoided( voidedChecks( source( report( mark( sheets( storedSheets( openSheets( previewSheets( day( tender( stamp( begin( finishedRun( savedChecks( savedPack( openPack(
             self::assertSame([], $payouts->missingCharges($runId, $vendorId));
-            self::assertIsArray($runs->excluded());
+            self::assertIsArray($runs->setAside()['excluded']);
             self::assertNotSame([], $runs->history());
             self::assertNotSame('', $purchase);
             $settler->chargeMissing($runId, $vendorId);

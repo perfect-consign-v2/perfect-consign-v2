@@ -9,7 +9,7 @@ use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\LateFeeDue;
 use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerPeriods;
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 
 final class LateFeeJob
@@ -21,7 +21,7 @@ final class LateFeeJob
     public function lateFees(string $date): void
     {
         $statements = new Statements($this->pdo);
-        $ledger = new LedgerStore($this->pdo, $statements, new LedgerPeriods($this->pdo), new JournalCash($this->pdo));
-        (new LateFeeDue($statements, $ledger, new LateFee($ledger)))->apply($date);
+        $postings = new PostingFunctions($this->pdo, new LedgerPeriods($this->pdo), new JournalCash($this->pdo));
+        (new LateFeeDue($statements, $postings, new LateFee($postings)))->apply($date);
     }
 }

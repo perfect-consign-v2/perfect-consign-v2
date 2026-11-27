@@ -11,6 +11,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var string $monthName */
 /** @var list<array{vendor_id: string, code: string, name: string, booth: string, boothId: string, payable: int, monthRent: int, check: int, owes: int, note?: string}> $pack */
 /** @var list<array{code: string, name: string, mode: string}> $excluded */
+/** @var list<string> $departed */
 /** @var string $savedRun */
 /** @var string $savedTender */
 /** @var string $savedStatus */
@@ -18,6 +19,20 @@ use PerfectConsign\Shared\Web\ListTable;
 $savedRun = $savedRun ?? '';
 $savedTender = $savedTender ?? '';
 $savedStatus = $savedStatus ?? '';
+$departed = $departed ?? [];
+$staying = [];
+$leaving = [];
+foreach ($pack as $row) {
+    if (in_array($row['vendor_id'], $departed, true)) {
+        $leaving[] = $row;
+    } else {
+        $staying[] = $row;
+    }
+}
+$groups = [['id' => 'pay-vendors', 'title' => '', 'rows' => $staying]];
+if ($leaving !== []) {
+    $groups[] = ['id' => 'pay-vendors-left', 'title' => 'Vendors who have left', 'rows' => $leaving];
+}
 
 $checks = 0;
 $checkTotal = 0;
@@ -57,10 +72,15 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
     </div>
     <a class="btn no-print" href="/<?= View::text($slug) ?>/payouts/past">Past payouts</a>
 </div>
-<div class="card list-dt-wrap">
+<?php foreach ($groups as $group): ?>
+<div class="card list-dt-wrap<?= $group['title'] === '' ? '' : ' mt-6' ?>">
     <div class="card-body">
+        <?php if ($group['title'] !== ''): ?>
+            <h2 class="h3"><?= View::text($group['title']) ?></h2>
+            <p class="muted">They are no longer in the store. Money is still open between them and the store.</p>
+        <?php endif; ?>
         <?php
-        ListTable::open(['id' => 'pay-vendors', 'export' => 'pay-vendors', 'order' => [[0, 'asc']], 'fit' => true]);
+        ListTable::open(['id' => $group['id'], 'export' => $group['id'], 'order' => [[0, 'asc']], 'fit' => true]);
         $columns = [
             ['label' => $consignmentOnly ? 'Consignor' : 'Vendor', 'token' => 'id'],
         ];
@@ -78,7 +98,7 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
         ListTable::head($columns);
         ?>
             <tbody>
-            <?php foreach ($pack as $row): ?>
+            <?php foreach ($group['rows'] as $row): ?>
                 <tr>
                     <td>
                         <a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($row['vendor_id']) ?>">(<?= View::text($row['code']) ?>) <?= View::text($row['name']) ?></a>
@@ -99,12 +119,15 @@ if ($paid && $savedTender === 'check' && $checks === 0) {
             <?php endforeach; ?>
             </tbody>
         </table>
+        <?php if ($group['title'] === ''): ?>
         <?php if (!$consignmentOnly): ?>
         <p>Rent comes out of what they earned.</p>
         <?php endif; ?>
         <p class="muted"><?= View::text((string) $checks) ?> <?= $savedStatus === 'paid' ? 'paid' : 'to pay' ?>, <?= View::text(View::money($checkTotal)) ?>. <?= View::text((string) $owesCount) ?> owe the store, <?= View::text(View::money($owesTotal)) ?>.</p>
+        <?php endif; ?>
     </div>
 </div>
+<?php endforeach; ?>
 <?php if ($excluded !== []): ?>
     <p class="muted">Left off this payout: <?php foreach ($excluded as $vendor): ?><?= View::text($vendor['name']) ?> (<?= View::text($words[$vendor['mode']] ?? $vendor['mode']) ?>) <?php endforeach; ?></p>
 <?php endif; ?>

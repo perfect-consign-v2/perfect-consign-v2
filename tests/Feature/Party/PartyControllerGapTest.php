@@ -110,7 +110,6 @@ final class PartyControllerGapTest extends TestCase
             $stays,
             $door->mall,
             $roster,
-            $balances,
             $forms,
             new VendorPage(
                 $door->app,

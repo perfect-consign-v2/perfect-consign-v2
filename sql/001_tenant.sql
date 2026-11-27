@@ -5044,6 +5044,85 @@ BEGIN
 END;
 $$;
 
+-- The rent period a rent receivable debit belongs to: a rent charge and a late
+-- fee name it in their key; anything else falls in the period of its date.
+CREATE FUNCTION public.stall_rent_move_period(source text, key text, on_date date) RETURNS date
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(
+        CASE
+            WHEN source = 'rent_charge' AND key LIKE 'rent-charge:%' THEN public.stall_rent_period_of(split_part(key, ':', 3))
+            WHEN source = 'late_fee' AND key LIKE 'late-fee:%' THEN public.stall_rent_period_of(split_part(key, ':', 3))
+        END,
+        public.stall_rent_period_start(on_date)
+    )
+$$;
+
+-- Every journal that moved rent receivable on one of a vendor's stays, netted
+-- per journal and stay. A journal that was reversed, and its reversal, are
+-- marked undone: together they move nothing, so they never pay or owe.
+CREATE FUNCTION public.stall_vendor_rent_moves(target_vendor uuid)
+RETURNS TABLE(
+    assignment_id uuid, journal_id uuid, posting_date date, journal_no bigint,
+    source_type text, posting_key text, is_reversal boolean, undone boolean,
+    debit_minor bigint, credit_minor bigint
+)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT stay.id,
+           posted.id,
+           posted.posting_date,
+           posted.journal_no,
+           posted.source_type,
+           posted.posting_key,
+           posted.is_reversal,
+           posted.is_reversal OR EXISTS (
+               SELECT 1 FROM public.journals AS reversal WHERE reversal.reverses_journal_id = posted.id
+           ),
+           GREATEST(sum(line.debit_minor - line.credit_minor), 0)::bigint,
+           GREATEST(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.booth_assignments AS stay
+    JOIN public.journal_lines AS line ON line.subledger_type = 'assignment' AND line.subledger_ref = stay.id::text
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+    JOIN public.journals AS posted ON posted.id = line.journal_id
+    WHERE stay.vendor_id = target_vendor
+    GROUP BY stay.id, posted.id
+    HAVING sum(line.debit_minor - line.credit_minor) <> 0
+$$;
+
+-- Which payment paid which charge. On each stay, credits pay charges oldest
+-- first, by date and journal number, so rent is paid before the late fee that
+-- follows it. Undone journals take no part. This is the one answer the rent
+-- payment split, the rent history and the rent payments report all use.
+CREATE FUNCTION public.stall_rent_allocation(target_vendor uuid)
+RETURNS TABLE(assignment_id uuid, charge_journal uuid, payment_journal uuid, amount_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH live AS (
+        SELECT * FROM public.stall_vendor_rent_moves(target_vendor) WHERE NOT undone
+    ), charges AS (
+        SELECT assignment_id, journal_id, debit_minor AS amount,
+               sum(debit_minor) OVER (PARTITION BY assignment_id ORDER BY posting_date, journal_no, journal_id) AS upto
+        FROM live
+        WHERE debit_minor > 0
+    ), payments AS (
+        SELECT assignment_id, journal_id, credit_minor AS amount,
+               sum(credit_minor) OVER (PARTITION BY assignment_id ORDER BY posting_date, journal_no, journal_id) AS upto
+        FROM live
+        WHERE credit_minor > 0
+    )
+    SELECT charge.assignment_id,
+           charge.journal_id,
+           payment.journal_id,
+           (LEAST(charge.upto, payment.upto) - GREATEST(charge.upto - charge.amount, payment.upto - payment.amount))::bigint
+    FROM charges AS charge
+    JOIN payments AS payment ON payment.assignment_id = charge.assignment_id
+    WHERE LEAST(charge.upto, payment.upto) > GREATEST(charge.upto - charge.amount, payment.upto - payment.amount)
+$$;
+
 -- How a rent payment spreads over a vendor's stays: the stay with the oldest
 -- unpaid charge first, each up to what it still owes.
 CREATE FUNCTION public.stall_rent_payment_split(target_vendor uuid, amount bigint)
@@ -5052,36 +5131,33 @@ RETURNS TABLE(assignment_id uuid, amount_minor bigint)
     SET search_path TO 'pg_catalog'
     AS $$
     WITH moves AS (
-        SELECT line.subledger_ref::uuid AS stay,
-               posted.posting_date,
-               posted.journal_no,
-               line.debit_minor,
-               line.credit_minor
-        FROM public.journal_lines AS line
-        JOIN public.journals AS posted ON posted.id = line.journal_id
-        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
-        WHERE line.subledger_type = 'assignment'
-          AND line.subledger_ref IN (
-              SELECT assignment.id::text FROM public.booth_assignments AS assignment WHERE assignment.vendor_id = target_vendor
-          )
-    ), credited AS (
-        SELECT stay, sum(credit_minor) AS paid, sum(debit_minor - credit_minor) AS open
+        SELECT * FROM public.stall_vendor_rent_moves(target_vendor)
+    ), paid AS (
+        SELECT charge_journal, assignment_id, sum(amount_minor) AS paid
+        FROM public.stall_rent_allocation(target_vendor)
+        GROUP BY charge_journal, assignment_id
+    ), stays AS (
+        SELECT moves.assignment_id AS stay,
+               sum(moves.debit_minor - moves.credit_minor) AS open,
+               min(moves.posting_date) FILTER (
+                   WHERE moves.debit_minor > 0 AND NOT moves.undone
+                     AND moves.debit_minor > COALESCE(paid.paid, 0)
+               ) AS since
         FROM moves
-        GROUP BY stay
+        LEFT JOIN paid ON paid.charge_journal = moves.journal_id AND paid.assignment_id = moves.assignment_id
+        GROUP BY moves.assignment_id
     ), oldest AS (
-        SELECT charge.stay,
-               min(charge.posting_date) FILTER (WHERE charge.running > credited.paid) AS since,
-               min(charge.journal_no) FILTER (WHERE charge.running > credited.paid) AS since_no,
-               credited.open
-        FROM (
-            SELECT stay, posting_date, journal_no,
-                   sum(debit_minor) OVER (PARTITION BY stay ORDER BY posting_date, journal_no) AS running
-            FROM moves
-            WHERE debit_minor > 0
-        ) AS charge
-        JOIN credited ON credited.stay = charge.stay
-        WHERE credited.open > 0
-        GROUP BY charge.stay, credited.open
+        SELECT stays.stay, stays.open, stays.since,
+               (
+                   SELECT min(moves.journal_no)
+                   FROM moves
+                   LEFT JOIN paid ON paid.charge_journal = moves.journal_id AND paid.assignment_id = moves.assignment_id
+                   WHERE moves.assignment_id = stays.stay AND moves.posting_date = stays.since
+                     AND moves.debit_minor > 0 AND NOT moves.undone
+                     AND moves.debit_minor > COALESCE(paid.paid, 0)
+               ) AS since_no
+        FROM stays
+        WHERE stays.open > 0
     ), ordered AS (
         SELECT stay, open,
                COALESCE(sum(open) OVER (ORDER BY since, since_no, stay ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS before
@@ -5091,6 +5167,422 @@ RETURNS TABLE(assignment_id uuid, amount_minor bigint)
     FROM ordered
     WHERE before < amount
     ORDER BY before
+$$;
+
+-- How a credit to a stay's rent was paid, in the words staff use, with the
+-- register and cashier of a desk payment and the payout of rent taken from sales.
+CREATE FUNCTION public.stall_rent_credit_source(target_journal uuid)
+RETURNS TABLE(paid_by text, how text, register_name text, cashier text, run_id uuid, run_date date)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH posted AS (
+        SELECT journal.id, journal.source_type, journal.is_reversal
+        FROM public.journals AS journal
+        WHERE journal.id = target_journal
+    ), tenders AS (
+        SELECT array_agg(DISTINCT role.role ORDER BY role.role) AS roles
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        WHERE line.journal_id = target_journal
+          AND role.role IN ('cash', 'card', 'checks')
+          AND line.debit_minor > 0
+    ), shift AS (
+        SELECT register.name, session.cashier
+        FROM public.register_session_posts AS link
+        JOIN public.register_sessions AS session ON session.id = link.session_id
+        JOIN public.registers AS register ON register.id = session.register_id
+        WHERE link.journal_id = target_journal
+        LIMIT 1
+    ), run AS (
+        SELECT payout.id, payout.posting_date
+        FROM public.payout_run_journals AS link
+        JOIN public.payout_runs AS payout ON payout.id = link.run_id
+        WHERE link.journal_id = target_journal
+        ORDER BY payout.posting_date
+        LIMIT 1
+    ), kind AS (
+        SELECT CASE
+                   WHEN posted.source_type = 'late_fee' AND posted.is_reversal THEN 'waived'
+                   WHEN posted.source_type IN ('settlement', 'sale') THEN 'sales'
+                   WHEN posted.source_type = 'rent_payment' AND COALESCE(cardinality(tenders.roles), 0) > 1 THEN 'split'
+                   WHEN posted.source_type = 'rent_payment' AND tenders.roles = ARRAY['card'] THEN 'card'
+                   WHEN posted.source_type = 'rent_payment' AND tenders.roles = ARRAY['checks'] THEN 'check'
+                   WHEN posted.source_type = 'rent_payment' THEN 'cash'
+                   ELSE 'other'
+               END AS paid_by,
+               tenders.roles
+        FROM posted
+        CROSS JOIN tenders
+    )
+    SELECT kind.paid_by,
+           CASE kind.paid_by
+               WHEN 'waived' THEN 'Waived'
+               WHEN 'sales' THEN 'From sales'
+               WHEN 'split' THEN array_to_string(ARRAY(
+                   SELECT CASE tender WHEN 'checks' THEN 'Check' ELSE initcap(tender) END
+                   FROM unnest(kind.roles) AS tender
+                   ORDER BY array_position(ARRAY['cash', 'card', 'checks'], tender)
+               ), ' and ')
+               WHEN 'card' THEN 'Card'
+               WHEN 'check' THEN 'Check'
+               WHEN 'cash' THEN 'Cash'
+               ELSE 'Other'
+           END,
+           (SELECT name FROM shift),
+           (SELECT cashier FROM shift),
+           (SELECT id FROM run),
+           (SELECT posting_date FROM run)
+    FROM kind
+$$;
+
+-- The rent history card: one row per charge on each of a vendor's stays,
+-- newest month first, with how it was paid and what is still owed. A waived
+-- late fee stays under its month, marked waived, owing nothing.
+CREATE FUNCTION public.stall_vendor_rent_history(target_vendor uuid)
+RETURNS TABLE(
+    assignment_id uuid, booth_code text, period_start date, kind text,
+    journal_id uuid, journal_no bigint, posted_on date, what text,
+    charged_minor bigint, waived boolean, paid_minor bigint, owed_minor bigint, payments jsonb
+)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH moves AS (
+        SELECT * FROM public.stall_vendor_rent_moves(target_vendor)
+    ), allocation AS (
+        SELECT * FROM public.stall_rent_allocation(target_vendor)
+    ), charges AS (
+        SELECT moves.*,
+               moves.undone AS waived,
+               public.stall_rent_move_period(moves.source_type, moves.posting_key, moves.posting_date) AS period,
+               CASE moves.source_type
+                   WHEN 'rent_charge' THEN 'rent'
+                   WHEN 'late_fee' THEN 'late_fee'
+                   WHEN 'booth_charge' THEN 'extra'
+                   ELSE 'other'
+               END AS kind
+        FROM moves
+        WHERE moves.debit_minor > 0
+          AND NOT moves.is_reversal
+          AND (NOT moves.undone OR moves.source_type = 'late_fee')
+    )
+    SELECT charge.assignment_id,
+           booth.code,
+           charge.period,
+           charge.kind,
+           charge.journal_id,
+           charge.journal_no,
+           charge.posting_date,
+           CASE charge.kind
+               WHEN 'rent' THEN 'Rent'
+               WHEN 'late_fee' THEN 'Late fee'
+               ELSE posted.description
+           END,
+           charge.debit_minor,
+           charge.waived,
+           COALESCE(paid.amount, 0)::bigint,
+           CASE WHEN charge.waived THEN 0 ELSE charge.debit_minor - COALESCE(paid.amount, 0) END::bigint,
+           COALESCE(paid.payments, '[]'::jsonb)
+    FROM charges AS charge
+    JOIN public.booth_assignments AS stay ON stay.id = charge.assignment_id
+    JOIN public.booths AS booth ON booth.id = stay.booth_id
+    JOIN public.journals AS posted ON posted.id = charge.journal_id
+    LEFT JOIN LATERAL (
+        SELECT sum(share.amount_minor) AS amount,
+               jsonb_agg(jsonb_build_object(
+                   'journal_id', payment.id,
+                   'journal_no', payment.journal_no,
+                   'posted_on', payment.posting_date,
+                   'amount_minor', share.amount_minor,
+                   'paid_by', source.paid_by,
+                   'how', source.how,
+                   'register', source.register_name,
+                   'cashier', source.cashier,
+                   'run_id', source.run_id,
+                   'run_date', source.run_date
+               ) ORDER BY payment.posting_date, payment.journal_no) AS payments
+        FROM allocation AS share
+        JOIN public.journals AS payment ON payment.id = share.payment_journal
+        CROSS JOIN LATERAL public.stall_rent_credit_source(payment.id) AS source
+        WHERE share.charge_journal = charge.journal_id AND share.assignment_id = charge.assignment_id
+    ) AS paid ON true
+    ORDER BY charge.period DESC, booth.code, stay.starts_on,
+             array_position(ARRAY['rent', 'late_fee', 'extra', 'other'], charge.kind),
+             charge.posting_date, charge.journal_no
+$$;
+
+-- Rent payments: every credit to a stay's rent in a date range, store wide,
+-- with how it was paid, the register and cashier, and the months it paid.
+-- A voided receipt stays listed, marked voided. The search matches the
+-- vendor's name or code, the booth, or the receipt number, as typed.
+CREATE FUNCTION public.stall_rent_payments(
+    from_date date, to_date date,
+    target_vendor uuid DEFAULT NULL, target_booth uuid DEFAULT NULL, target_paid_by text DEFAULT NULL,
+    search text DEFAULT NULL
+)
+RETURNS TABLE(
+    posted_on date, journal_id uuid, journal_no bigint, vendor_id uuid, vendor_code text, vendor_name text,
+    assignment_id uuid, booth_code text, months text, paid_by text, how text,
+    register_name text, cashier text, run_id uuid, run_date date, voided boolean, amount_minor bigint
+)
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF from_date IS NULL OR to_date IS NULL OR from_date > to_date THEN
+        RAISE EXCEPTION 'Choose a start date on or before the end date.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF target_paid_by IS NOT NULL AND target_paid_by NOT IN ('cash', 'card', 'check', 'split', 'sales', 'waived') THEN
+        RAISE EXCEPTION 'Choose how it was paid.'
+            USING ERRCODE = '22023';
+    END IF;
+    RETURN QUERY
+    WITH credits AS (
+        SELECT stay.id AS stay, stay.vendor_id, stay.booth_id, posted.id AS journal, posted.journal_no AS number,
+               posted.posting_date AS day, posted.source_type AS source, posted.is_reversal AS reversal,
+               sum(line.credit_minor - line.debit_minor)::bigint AS amount
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+        JOIN public.booth_assignments AS stay ON line.subledger_type = 'assignment' AND stay.id::text = line.subledger_ref
+        JOIN public.journals AS posted ON posted.id = line.journal_id
+        WHERE posted.posting_date BETWEEN from_date AND to_date
+          AND (target_vendor IS NULL OR stay.vendor_id = target_vendor)
+          AND (target_booth IS NULL OR stay.booth_id = target_booth)
+          AND (
+              (posted.source_type IN ('rent_payment', 'settlement', 'sale') AND NOT posted.is_reversal)
+              OR (posted.source_type = 'late_fee' AND posted.is_reversal)
+          )
+        GROUP BY stay.id, posted.id
+        HAVING sum(line.credit_minor - line.debit_minor) > 0
+    )
+    SELECT credit.day,
+           credit.journal,
+           credit.number,
+           credit.vendor_id,
+           vendor.code,
+           vendor.name,
+           credit.stay,
+           booth.code,
+           (
+               -- The months a payment paid, from the allocation; a waive names
+               -- the month of the fee it waived.
+               SELECT string_agg(to_char(covered.period, 'Mon YYYY'), ', ' ORDER BY covered.period)
+               FROM (
+                   SELECT DISTINCT public.stall_rent_move_period(charge.source_type, charge.posting_key, charge.posting_date) AS period
+                   FROM public.stall_rent_allocation(credit.vendor_id) AS share
+                   JOIN public.journals AS charge ON charge.id = share.charge_journal
+                   WHERE share.payment_journal = credit.journal AND share.assignment_id = credit.stay
+                   UNION
+                   SELECT public.stall_rent_move_period(fee.source_type, fee.posting_key, fee.posting_date)
+                   FROM public.journals AS waive
+                   JOIN public.journals AS fee ON fee.id = waive.reverses_journal_id
+                   WHERE waive.id = credit.journal AND credit.reversal
+               ) AS covered
+           ),
+           source.paid_by,
+           source.how,
+           source.register_name,
+           source.cashier,
+           source.run_id,
+           source.run_date,
+           EXISTS (SELECT 1 FROM public.journals AS undo WHERE undo.reverses_journal_id = credit.journal),
+           credit.amount
+    FROM credits AS credit
+    JOIN public.vendors AS vendor ON vendor.id = credit.vendor_id
+    JOIN public.booths AS booth ON booth.id = credit.booth_id
+    CROSS JOIN LATERAL public.stall_rent_credit_source(credit.journal) AS source
+    WHERE (target_paid_by IS NULL OR source.paid_by = target_paid_by)
+      AND (
+          NULLIF(btrim(search), '') IS NULL
+          OR strpos(lower(vendor.name), lower(btrim(search))) > 0
+          OR strpos(lower(vendor.code), lower(btrim(search))) > 0
+          OR strpos(lower(booth.code), lower(btrim(search))) > 0
+          OR credit.number::text = btrim(search)
+      )
+    ORDER BY credit.day, credit.number, booth.code;
+END;
+$$;
+
+-- The totals under the rent payments list, for the same filters: the count
+-- and total, then by how it was paid, then by register for desk payments.
+-- Voided receipts are counted on their own and left out of every total.
+CREATE FUNCTION public.stall_rent_payment_totals(
+    from_date date, to_date date,
+    target_vendor uuid DEFAULT NULL, target_booth uuid DEFAULT NULL, target_paid_by text DEFAULT NULL,
+    search text DEFAULT NULL
+)
+RETURNS TABLE(total_kind text, label text, payments bigint, amount_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH listed AS (
+        SELECT * FROM public.stall_rent_payments(from_date, to_date, target_vendor, target_booth, target_paid_by, search)
+    ), counted AS (
+        SELECT * FROM listed WHERE NOT voided
+    ), totals AS (
+        SELECT 1 AS section, 0 AS place, 'all' AS total_kind, 'Total' AS label,
+               count(*)::bigint AS payments, COALESCE(sum(amount_minor), 0)::bigint AS amount_minor
+        FROM counted
+        UNION ALL
+        SELECT 2, array_position(ARRAY['cash', 'card', 'check', 'split', 'sales', 'waived', 'other'], paid_by), 'paid_by',
+               CASE paid_by
+                   WHEN 'cash' THEN 'Cash'
+                   WHEN 'card' THEN 'Card'
+                   WHEN 'check' THEN 'Check'
+                   WHEN 'split' THEN 'More than one way'
+                   WHEN 'sales' THEN 'From sales'
+                   WHEN 'waived' THEN 'Waived'
+                   ELSE 'Other'
+               END,
+               count(*)::bigint, sum(amount_minor)::bigint
+        FROM counted
+        GROUP BY paid_by
+        UNION ALL
+        SELECT 3, 0, 'register', register_name, count(*)::bigint, sum(amount_minor)::bigint
+        FROM counted
+        WHERE register_name IS NOT NULL
+        GROUP BY register_name
+        UNION ALL
+        SELECT 4, 0, 'voided', 'Voided, not counted', count(*)::bigint, COALESCE(sum(amount_minor), 0)::bigint
+        FROM listed
+        WHERE voided
+        HAVING count(*) > 0
+    )
+    SELECT totals.total_kind, totals.label, totals.payments, totals.amount_minor
+    FROM totals
+    ORDER BY totals.section, totals.place, totals.label
+$$;
+
+-- The vendor register: a bank book of every money event for one vendor in a
+-- date range, oldest first, with one net running balance. Positive means the
+-- store owes the vendor; negative means the vendor owes the store. The first
+-- row is the opening balance; after the lines come the totals and the split.
+-- With a booth, only that booth's rent and deposit lines are shown.
+CREATE FUNCTION public.stall_vendor_register(
+    target_vendor uuid, from_date date, to_date date, target_booth uuid DEFAULT NULL
+)
+RETURNS TABLE(
+    row_kind text, posted_on date, journal_id uuid, journal_no bigint, what text, booth_code text,
+    debit_minor bigint, credit_minor bigint, balance_minor bigint
+)
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.vendors WHERE id = target_vendor) THEN
+        RAISE EXCEPTION 'Choose a vendor.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF from_date IS NULL OR to_date IS NULL OR from_date > to_date THEN
+        RAISE EXCEPTION 'Choose a start date on or before the end date.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF target_booth IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.booths WHERE id = target_booth) THEN
+        RAISE EXCEPTION 'Choose a booth.'
+            USING ERRCODE = '22023';
+    END IF;
+    RETURN QUERY
+    WITH lines AS (
+        SELECT posted.id AS journal, posted.journal_no AS number, posted.posting_date AS day,
+               posted.source_type AS source, posted.is_reversal AS reversal, posted.description,
+               posted.posting_key, role.role, stay.id AS stay, booth.code AS booth,
+               sum(line.credit_minor - line.debit_minor)::bigint AS net
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        JOIN public.journals AS posted ON posted.id = line.journal_id
+        LEFT JOIN public.booth_assignments AS stay
+            ON role.role IN ('booth_rent_receivable', 'booth_deposit_held')
+           AND line.subledger_type = 'assignment' AND stay.id::text = line.subledger_ref
+        LEFT JOIN public.booths AS booth ON booth.id = stay.booth_id
+        WHERE (
+                role.role IN ('vendor_payable', 'vendor_receivable')
+                AND line.subledger_type = 'vendor' AND line.subledger_ref = target_vendor::text
+                AND target_booth IS NULL
+            ) OR (
+                role.role IN ('booth_rent_receivable', 'booth_deposit_held')
+                AND stay.vendor_id = target_vendor
+                AND (target_booth IS NULL OR stay.booth_id = target_booth)
+            )
+        GROUP BY posted.id, role.role, stay.id, booth.code
+        HAVING sum(line.credit_minor - line.debit_minor) <> 0
+    ), shown AS (
+        SELECT lines.*,
+               CASE
+                   WHEN lines.reversal THEN 'Undone: ' || lines.description
+                   WHEN lines.source = 'sale' AND lines.role = 'vendor_payable' THEN
+                       'Sale #' || lines.number || COALESCE((
+                           SELECT ', store kept ' || public.stall_money_text(sum(sale.commission_minor)::bigint)
+                           FROM public.sale_lines AS sale
+                           JOIN public.items AS item ON item.id = sale.item_id
+                           WHERE sale.journal_id = lines.journal AND item.vendor_id = target_vendor
+                           HAVING sum(sale.commission_minor) > 0
+                       ), '')
+                   WHEN lines.source = 'rent_charge' THEN
+                       'Rent for ' || to_char(public.stall_rent_move_period(lines.source, lines.posting_key, lines.day), 'FMMonth YYYY')
+                   WHEN lines.source = 'late_fee' THEN
+                       'Late fee for ' || to_char(public.stall_rent_move_period(lines.source, lines.posting_key, lines.day), 'FMMonth YYYY')
+                   WHEN lines.source = 'rent_payment' THEN 'Rent payment, receipt #' || lines.number
+                   WHEN lines.source = 'settlement' AND lines.role = 'vendor_payable' THEN 'Rent taken from sales at payout'
+                   WHEN lines.source = 'settlement' THEN 'Rent paid from sales at payout'
+                   WHEN lines.source = 'booth_deposit' AND lines.net > 0 THEN 'Booth deposit taken'
+                   WHEN lines.source = 'booth_deposit' THEN 'Booth deposit given back'
+                   ELSE lines.description
+               END AS words,
+               array_position(ARRAY['vendor_payable', 'vendor_receivable', 'booth_rent_receivable', 'booth_deposit_held'], lines.role) AS role_order
+        FROM lines
+    ), opening AS (
+        SELECT COALESCE(sum(net), 0)::bigint AS amount FROM shown WHERE day < from_date
+    ), period AS (
+        SELECT shown.*,
+               (SELECT amount FROM opening) + sum(shown.net) OVER (
+                   ORDER BY shown.day, shown.number, shown.role_order, shown.booth, shown.stay
+                   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+               ) AS running
+        FROM shown
+        WHERE shown.day BETWEEN from_date AND to_date
+    ), closing AS (
+        SELECT role, COALESCE(sum(net), 0)::bigint AS amount FROM shown WHERE day <= to_date GROUP BY role
+    )
+    SELECT register_rows.kind, register_rows.day, register_rows.journal, register_rows.number, register_rows.words,
+           register_rows.booth, register_rows.debit, register_rows.credit, register_rows.balance
+    FROM (
+        SELECT 1 AS section, 0 AS place, 'opening' AS kind, from_date AS day, NULL::uuid AS journal,
+               NULL::bigint AS number, 'Opening balance' AS words, NULL::text AS booth,
+               NULL::bigint AS debit, NULL::bigint AS credit, (SELECT amount FROM opening) AS balance,
+               NULL::integer AS role_order, NULL::text AS stay
+        UNION ALL
+        SELECT 2, 0, 'line', period.day, period.journal, period.number, period.words, period.booth,
+               GREATEST(-period.net, 0), GREATEST(period.net, 0), period.running::bigint,
+               period.role_order, period.stay::text
+        FROM period
+        UNION ALL
+        SELECT 3, 0, 'closing', to_date, NULL, NULL, 'Closing balance', NULL,
+               COALESCE((SELECT sum(GREATEST(-net, 0)) FROM period), 0)::bigint,
+               COALESCE((SELECT sum(GREATEST(net, 0)) FROM period), 0)::bigint,
+               COALESCE((SELECT sum(amount) FROM closing), 0)::bigint,
+               NULL, NULL
+        UNION ALL
+        SELECT 4, split.place, split.kind, to_date, NULL, NULL, split.words, NULL, NULL, NULL, split.amount, NULL, NULL
+        FROM (
+            SELECT 'payable' AS kind, 1 AS place, 'The store owes them' AS words,
+                   COALESCE((SELECT amount FROM closing WHERE role = 'vendor_payable'), 0) AS amount
+            UNION ALL
+            SELECT 'clawback', 2, 'They owe from returns',
+                   -COALESCE((SELECT amount FROM closing WHERE role = 'vendor_receivable'), 0)
+            UNION ALL
+            SELECT 'rent', 3, 'They owe in rent',
+                   -COALESCE((SELECT amount FROM closing WHERE role = 'booth_rent_receivable'), 0)
+            UNION ALL
+            SELECT 'deposit', 4, 'Booth deposit the store holds',
+                   COALESCE((SELECT amount FROM closing WHERE role = 'booth_deposit_held'), 0)
+        ) AS split
+        WHERE split.amount <> 0 OR split.kind IN ('payable', 'rent')
+    ) AS register_rows
+    ORDER BY register_rows.section, register_rows.day, register_rows.number, register_rows.role_order,
+             register_rows.booth, register_rows.stay, register_rows.place;
+END;
 $$;
 
 -- A rent receipt. The tender amounts are what was handed over; the database
@@ -5320,6 +5812,10 @@ BEGIN
         RAISE EXCEPTION 'a booth and a reference are required'
             USING ERRCODE = '22023';
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.booth_assignments WHERE id = target_assignment) THEN
+        RAISE EXCEPTION 'Choose a booth.'
+            USING ERRCODE = '23514';
+    END IF;
     -- One stay, one day, one reference: the same words can be used again on
     -- another booth or another day, and a double click posts once.
     IF public.stall_live_journal('booth-charge:' || target_assignment::text || ':' || on_date::text || ':' || lower(btrim(reference))) IS NOT NULL THEN
@@ -5350,6 +5846,10 @@ BEGIN
     IF btrim(COALESCE(reference, '')) = '' THEN
         RAISE EXCEPTION 'a booth and a reference are required'
             USING ERRCODE = '22023';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.booth_assignments WHERE id = target_assignment) THEN
+        RAISE EXCEPTION 'Choose a booth.'
+            USING ERRCODE = '23514';
     END IF;
     IF public.stall_live_journal(
         CASE WHEN releasing THEN 'booth-deposit-release:' ELSE 'booth-deposit:' END
@@ -8769,7 +9269,7 @@ CREATE VIEW public.stall_vendor_items WITH (security_barrier='true') AS
 CREATE VIEW public.vendor_statement AS
  SELECT
         CASE
-            WHEN (role.role = 'vendor_payable'::text) THEN (line.subledger_ref)::uuid
+            WHEN (role.role = ANY (ARRAY['vendor_payable'::text, 'vendor_receivable'::text])) THEN (line.subledger_ref)::uuid
             ELSE assignment.vendor_id
         END AS vendor_id,
     journal.posting_date,
@@ -8787,8 +9287,8 @@ CREATE VIEW public.vendor_statement AS
    FROM (((public.journal_lines line
      JOIN public.journals journal ON (((journal.id = line.journal_id) AND (journal.book_id = line.book_id))))
      JOIN public.chart_roles role ON ((role.account_id = line.account_id)))
-     LEFT JOIN public.booth_assignments assignment ON (((role.role = 'booth_rent_receivable'::text) AND (line.subledger_type = 'assignment'::text) AND ((assignment.id)::text = line.subledger_ref))))
-  WHERE (role.role = ANY (ARRAY['vendor_payable'::text, 'booth_rent_receivable'::text]));
+     LEFT JOIN public.booth_assignments assignment ON (((role.role = ANY (ARRAY['booth_rent_receivable'::text, 'booth_deposit_held'::text])) AND (line.subledger_type = 'assignment'::text) AND ((assignment.id)::text = line.subledger_ref))))
+  WHERE (role.role = ANY (ARRAY['vendor_payable'::text, 'vendor_receivable'::text, 'booth_rent_receivable'::text, 'booth_deposit_held'::text]));
 
 CREATE VIEW public.stall_vendor_payable WITH (security_barrier='true') AS
  SELECT (COALESCE(sum((credit_minor - debit_minor)), (0)::numeric))::bigint AS open_minor
@@ -16149,6 +16649,30 @@ GRANT EXECUTE ON FUNCTION public.stall_charge_rent(uuid, date) TO stall_poster;
 REVOKE ALL ON FUNCTION public.stall_rent_book(date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_rent_book(date, date) TO stall_poster;
 GRANT EXECUTE ON FUNCTION public.stall_rent_book(date, date) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_rent_move_period(text, text, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_move_period(text, text, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_move_period(text, text, date) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_vendor_rent_moves(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_rent_moves(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_rent_moves(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_rent_allocation(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_allocation(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_allocation(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_rent_credit_source(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_credit_source(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_credit_source(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_vendor_rent_history(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_rent_history(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_rent_history(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_rent_payments(date, date, uuid, uuid, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_payments(date, date, uuid, uuid, text, text) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_payments(date, date, uuid, uuid, text, text) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_rent_payment_totals(date, date, uuid, uuid, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_payment_totals(date, date, uuid, uuid, text, text) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_payment_totals(date, date, uuid, uuid, text, text) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_vendor_register(uuid, date, date, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_register(uuid, date, date, uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_register(uuid, date, date, uuid) TO stall_backup;
 REVOKE ALL ON FUNCTION public.stall_live_journal(text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.stall_live_journal(text) TO stall_poster;

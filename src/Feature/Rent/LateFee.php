@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Rent;
 
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 
 /**
  * Waives one late fee. The database reverses it on its stay, once, keeps the
@@ -13,7 +13,7 @@ use PerfectConsign\Ledger\LedgerStore;
  */
 final class LateFee
 {
-    public function __construct(private readonly LedgerStore $ledger)
+    public function __construct(private readonly PostingFunctions $postings)
     {
     }
 
@@ -26,7 +26,7 @@ final class LateFee
             throw new DatabaseRefusal('Enter the date of the late fee.');
         }
 
-        return $this->ledger->postThrough(
+        return $this->postings->post(
             $date,
             'stall_waive_late_fee(?::uuid, ?::date, ?)',
             [$journalId, $date, trim($note)],

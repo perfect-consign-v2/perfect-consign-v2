@@ -141,10 +141,7 @@ final class CompanyPageTest extends WebTestCase
         ]);
         $rent = $this->client->get('/' . self::SLUG . '/rent');
         self::assertSame(1, preg_match('/datetime="(\d{4}-\d{2}-\d{2})"/', $rent->body, $today));
-        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => $today[1],
-        ]);
+        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($rent->body, $booth));
         self::assertSees('Rent charged.', $charged);
         $paid = $this->client->post('/' . self::SLUG . '/rent/payment', [
             'vendor_id' => $vendorId,

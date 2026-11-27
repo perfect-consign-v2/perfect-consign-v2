@@ -95,18 +95,26 @@ final class VendorMemo
     }
 
     /**
+     * Active vendors, and vendors who have left with money still open, so the
+     * owner can correct a balance after a vendor leaves.
+     *
      * @return list<array{id: string, name: string}>
      */
     public function vendors(): array
     {
         $rows = $this->statements->rows(
-            'SELECT id::text AS id, name FROM vendors WHERE active = true ORDER BY name, code'
+            "SELECT id::text AS id, name, active
+             FROM vendors
+             WHERE active
+                OR EXISTS (SELECT 1 FROM stall_vendor_open_reasons(vendors.id) AS open WHERE open.reason <> 'booth')
+             ORDER BY active DESC, name, code"
         );
         $vendors = [];
         foreach ($rows as $row) {
+            $left = !in_array($row['active'] ?? true, [true, 1, '1', 't', 'true'], true);
             $vendors[] = [
                 'id' => RowValue::string($row['id'] ?? null),
-                'name' => RowValue::string($row['name'] ?? null),
+                'name' => RowValue::string($row['name'] ?? null) . ($left ? ' (has left the store)' : ''),
             ];
         }
 

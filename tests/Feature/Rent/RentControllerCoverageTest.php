@@ -39,6 +39,7 @@ use PerfectConsign\Feature\Payout\VendorClawback;
 use PerfectConsign\Feature\Register\RegisterActivity;
 use PerfectConsign\Feature\Register\RegisterStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\LateFeeDue;
 use PerfectConsign\Feature\Rent\RentBook;
@@ -67,6 +68,8 @@ final class RentControllerCoverageTest extends TestCase
     private const VENDOR = '01900000-0000-7000-8000-0000000000a1';
 
     private const BOOTH = '01900000-0000-7000-8000-0000000000b1';
+
+    private const STAY = '01900000-0000-7000-8000-0000000000c1';
 
     private const FEE = '01900000-0000-7000-8000-0000000000d1';
 
@@ -327,6 +330,7 @@ final class RentControllerCoverageTest extends TestCase
         );
         $settings = new MallPayoutSettings($statements);
         $ledger = $this->createStub(LedgerStore::class);
+        $postings = $this->createStub(PostingFunctions::class);
         $ledger->method('roleAccount')->willReturn(self::ACCOUNT);
         $ledger->method('post')->willReturnCallback(function (): string {
             if ($this->refusePost) {
@@ -335,7 +339,7 @@ final class RentControllerCoverageTest extends TestCase
 
             return self::FEE;
         });
-        $ledger->method('postThrough')->willReturnCallback(function (): string {
+        $postings->method('post')->willReturnCallback(function (): string {
             if ($this->refusePost) {
                 throw new DatabaseRefusal('That late fee is already waived.');
             }
@@ -368,7 +372,7 @@ final class RentControllerCoverageTest extends TestCase
         ]);
         $clock = new MallClock($mall);
         $payouts = new PayoutStore($app['pdo'], $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow());
-        $fees = new LateFee($ledger);
+        $fees = new LateFee($postings);
         $receipts = new RentReceipt(
             $app['pdo'],
             $statements,
@@ -376,9 +380,11 @@ final class RentControllerCoverageTest extends TestCase
             $settings,
             new RentPosting(
                 $ledger,
+                $postings,
                 $payouts,
                 new PayoutSettler(
                     $ledger,
+                    $postings,
                     $payouts,
                     new PayoutRunStore($statements, new OccupiedPack($statements)),
                     new PayoutRunLines($statements),
@@ -395,14 +401,14 @@ final class RentControllerCoverageTest extends TestCase
 
         return new RentController(
             $app['app'],
-            new RentStore($statements, $mall, $ledger),
+            new RentStore($statements, $mall, $postings),
             new RentBook(),
             new RegisterStore($statements, $clock, new RegisterActivity($statements, $clock)),
             new ActiveRegister($app['pdo'], $app['session'], $mall, $clock),
             $settings,
             $receipts,
             new JournalCash($app['pdo']),
-            new LateFeeDue($statements, $ledger, $fees),
+            new LateFeeDue($statements, $postings, $fees),
         );
     }
 
@@ -613,6 +619,7 @@ final class RentControllerCoverageTest extends TestCase
                     'starts_on' => '2026-01-01',
                     'booth' => 'A1',
                     'booth_id' => self::BOOTH,
+                    'stay_id' => self::STAY,
                     'debit_minor' => 5000,
                     'credit_minor' => 0,
                 ]];

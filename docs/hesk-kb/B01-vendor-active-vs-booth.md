@@ -1,15 +1,15 @@
 ---
 title: Vendor Active vs booth assignment vs Unassigned
 category: Vendors and booths
-hesk: published 2026-11-20
-as_of: 2026-10-25
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Vendor Active vs booth assignment vs Unassigned
 
 ## As of
 
-2026-10-25
+2026-11-27 — Money is kept per stay. 2026-10-25
 
 ## In one sentence
 
@@ -25,6 +25,7 @@ Creating or editing a vendor, assigning or ending a booth, or reading the vendor
 - Name is first + last; business name may be empty. When present, lists and receipts show the business name.
 - The payable id (vendor id) does not change when the name or booth changes.
 - An inactive vendor can still own inventory items. The booth stays on the assignment, not on the item.
+- Each stay (one vendor in one booth for a span of dates) carries its own rent, late fees, extras, and deposit. A vendor with two booths, or one who moved booths, has a balance per stay.
 
 ## What is refused
 
@@ -40,5 +41,5 @@ Open a vendor with no assignment: standing Active, booth Unassigned. End an assi
 
 ## Related
 
-- Why open rent blocks Inactive
+- What blocks making a vendor Inactive
 - Booth / consignment / store-stock switches

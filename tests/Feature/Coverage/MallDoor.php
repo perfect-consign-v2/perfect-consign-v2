@@ -26,6 +26,7 @@ use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallDay;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Auth\OwnerAccess;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Shared\Http\View;
@@ -82,6 +83,7 @@ final class MallDoor
         public readonly DatabaseRole $roles,
         public readonly DoorKnobs $knobs,
         public readonly ArrayObject $bag,
+        public readonly PostingFunctions $postings,
     ) {
     }
 
@@ -177,6 +179,9 @@ final class MallDoor
         $ledger->method('roleAccount')->willReturn(self::ACCOUNT);
         $ledger->method('post')->willReturn(self::JOURNAL);
         $ledger->method('periods')->willReturn([]);
+        /** @var PostingFunctions&Stub $postings */
+        $postings = self::stub($test, PostingFunctions::class);
+        $postings->method('post')->willReturn(self::JOURNAL);
         /** @var LoggerInterface&Stub $logger */
         $logger = self::stub($test, LoggerInterface::class);
         $view = new View(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src');
@@ -218,7 +223,7 @@ final class MallDoor
             ),
         );
 
-        return new self($app, $mall, $statements, $pdo, $session, new Actor($session), $register, $ledger, $roles, $knobs, $bag);
+        return new self($app, $mall, $statements, $pdo, $session, new Actor($session), $register, $ledger, $roles, $knobs, $bag, $postings);
     }
 
     /**

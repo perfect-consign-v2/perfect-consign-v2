@@ -310,6 +310,7 @@ final class MallController
             'operatingMode' => $this->payouts->getOperatingMode(),
             'payoutCadence' => $this->payouts->getPayoutCadence(),
             'rentPrepaid' => $this->rentDraft->prepaid ?? $this->payouts->isRentPrepaid(),
+            'boothDeposits' => $this->rentDraft->deposits ?? $this->payouts->isDepositsEnabled(),
             'boothRentals' => $this->rentDraft->rentals ?? $this->payouts->isRentalsEnabled(),
             'consignmentEnabled' => $this->payouts->getShop()['consignment'],
             'storeStockEnabled' => $this->payouts->getShop()['store'],

@@ -26,7 +26,9 @@ Store take is a percent of the sale kept by the mall. Settings holds the mall de
 
 A vendor is tax exempt only with a resale or tax exempt number on file. That number is required when tax exempt is enabled. When tax exempt is off, the number may be empty.
 
-A vendor with open rent cannot be made Inactive. Open rent is a positive rent receivable on a booth that vendor held. A positive vendor payable means the store owes the vendor, and that balance does not by itself block Inactive.
+A vendor cannot be made Inactive while anything is still open between them and the store. The database refuses Inactive, and the page names every reason in one message, for example: "Ada Lane can't be made inactive yet. They owe $100.00 in rent. They still have a booth. End it first." The reasons are rent they owe on any of their stays, money they owe from returns, money the store owes them, a payout balance below zero, a booth deposit the store still holds for them, and a booth they still hold today or later. Each reason clears only by the money moving or the stay ending. Making a vendor Inactive and posting money for that vendor take the same per-vendor lock, so one cannot slip past the other.
+
+A vendor who has left (Inactive, or with no current stay) but still has money open stays in front of staff. The dashboard lists them under Left the store, money still open. Pay vendors lists them under Vendors who have left. The vendor memo list still offers them, marked (has left the store).
 
 A booth is Active or Inactive. That is whether the booth is offered. It is not the same fact as who holds it. The booth list opens on Active. Inactive booths are on the Inactive list. Make inactive is on an empty booth and on that booth's row. Make active is on an inactive booth and on the Inactive list, and it offers the booth again. Making a booth Inactive hides it from that default list, from the assignment choices, and from the map. A current or scheduled assignment refuses Inactive until that assignment ends, and those booths do not show Make inactive. Open rent on a booth whose assignment has ended does not by itself refuse Inactive.
 
@@ -46,7 +48,13 @@ An expired consigned item that is still on hand cannot be sold until it is retur
 
 The rent period starts on the cycle day, a whole number from 1 to 28. Day 1 is a calendar month. Any other day runs from that day through the day before it next month. The cycle day cannot change after a rent charge is posted.
 
+Rent belongs to the stay, not to the booth. A stay is one vendor in one booth from a start date to an end date. Every rent charge, rent payment, late fee, booth charge, and booth deposit names its stay, so two vendors who held the same booth never share a balance.
+
+The rent page lists one row per stay per rent period, built by the database, plus empty booths that have an asking rate. Each row shows the vendor, the amount for that period, whether it is charged, and what is still open on that stay. Charge on a row posts that stay's rent for that period. A month that has not started cannot be charged ("That month has not started yet."). The charge is dated today when today is inside the period, otherwise on the later of the period start and the stay start. A charge that was voided can be charged again. A second charge for the same stay and period is refused.
+
 A rent charge for the period a vendor moves in counts the days from the start date through the end of that period, and the amount truncates toward zero. Collect rent names those dates on that charge. A full period shows its charge date. A rent charge for a period the vendor leaves is the full period. Sales can pay that period's rent only up to what the vendor earned. Anything sales do not cover stays receivable and is collected at the register.
+
+A rent payment is split across the vendor's stays by the database. The stay with the oldest unpaid charge is paid first. Inside one stay, rent is paid before late fees. A payment cannot be more than the rent they owe. A credit on one stay pays only charges on that same stay.
 
 ## Payouts
 
@@ -150,7 +158,7 @@ The filing strip is gross, exempt, returns, taxable sales, and tax collected, th
 
 Sales are price times quantity, minus both discounts, before tax. A return subtracts the returned amount on the day it posts. The groups are day, vendor, cashier, category, and hour. A missing cashier is "Not recorded". Hour is one day. Tender is a separate column: net money on cash, card, check, gift card, gift certificate, and store credit, tax included, for sales (including reversals) and returns. Tender is not added to the merchandise column. To before From is an error. An empty query is this month.
 
-The rent roll is the booth, the vendor on the open assignment, and the open balance. A zero balance stays off the list. The sum must equal booth rent receivable. A receivable line that is not a booth refuses the page and the nightly job with "The rent roll does not match the books."
+The rent roll is one row per stay: the booth, the vendor who held that stay, and the open balance, so rent a vendor left owing never moves to the next vendor in that booth. A zero balance stays off the list. The sum must equal booth rent receivable. A receivable line that does not name a stay refuses the page and the nightly job with "The rent roll does not match the books."
 
 Payments are checks, cash, money from the safe, and rent settled against what the vendor owed. A settlement is the vendor-payable debit on that journal. This list is not a balance and is not part of the tie-out.
 
@@ -176,9 +184,9 @@ A mall-wide sale has a start, an end, a percent, and who absorbs it. The percent
 
 A floor finding is a missing tag or an item that is not where the system says. A pickup records the person and the day the goods went back to the vendor. A tag that is not on the floor is refused.
 
-A booth charge beyond rent debits booth rent receivable and credits booth extras. A deposit collected at the desk debits cash and credits booth deposits, and it names the open shift. A deposit release cannot exceed the deposit still held for that booth, and the cash returned names that same open shift. No open register refuses either post. Year-to-date disbursements sit next to the vendor's tax id. The 1099 file waits for an accountant's field list.
+A booth charge beyond rent (electric, a sign) is posted on a stay from Booth extras: debit that stay's rent receivable, credit booth extras. The same stay, day, and reference cannot be charged twice ("That charge is already posted today."). Booth deposits are a store setting, off by default. While they are off, Booth extras does not offer them and the database refuses a deposit. A deposit collected at the desk debits cash and credits booth deposits on that stay, and it names the open shift. A deposit release cannot exceed the deposit still held for that stay, and the cash returned names that same open shift. No open register refuses either post. Booth deposits cannot be turned off while the store still holds one. Year-to-date disbursements sit next to the vendor's tax id. The 1099 file waits for an accountant's field list.
 
-The assignment is the lease: the contracted rent is locked when the stay starts and holds until that stay ends. The rent-charge posting key stays one booth and one period. A mid-period move-in prorates. The deposit stays on the booth deposits account.
+The assignment is the lease: the contracted rent is locked when the stay starts and holds until that stay ends. The rent-charge posting key is one stay and one period. A mid-period move-in prorates. The deposit stays on the booth deposits account, on that stay.
 
 The vendor's accepted terms are who may discount, how long goods stay (`keep_days`, a day count from 1 to 3650 when set), and what happens at expiry.
 
@@ -194,7 +202,7 @@ A bounced check is a dated journal that debits returned checks and credits check
 
 Late fees are a mall setting: on or off, grace days (0–28), a first fee amount, and an amount for each later fee. Turning them on records the effective date as that day. Fees start from that effective date, not from older unpaid history before the feature was enabled.
 
-A late fee posts as its own journal: debit that booth's rent receivable, credit late-fee income. It does not reduce vendor payable. A job posts due late fees. A waive is a reversal of that fee journal. A late fee that tries to hit vendor payable is refused.
+A late fee posts as its own journal: debit that stay's rent receivable, credit late-fee income. It does not reduce vendor payable. A job posts due late fees through the database, which decides what is due. Each unpaid rent period takes a fee each time grace passes, through the end of that period; the first fee in a period uses the first amount and each later one the next amount. Grace 0 is one fee a day. Fees start over with each new period. A fee is posted at most once: a fee that was waived is not charged again, and the next fee in that period still follows it. A waive is a reversal of that fee journal, with a note of at most 500 characters. Waiving a fee twice is refused. A late fee that tries to hit vendor payable is refused.
 
 ## Store use and missed sale
 

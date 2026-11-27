@@ -13,6 +13,20 @@ final class LedgerPeriods
     {
     }
 
+    public function defaultBookId(): string
+    {
+        $book = $this->pdo->query('SELECT id FROM ledger_books WHERE is_default');
+        if ($book === false) {
+            throw new DatabaseRefusal('the mall book is missing');
+        }
+        $id = $book->fetchColumn();
+        if (!is_string($id)) {
+            throw new DatabaseRefusal('the mall book is missing');
+        }
+
+        return $id;
+    }
+
     public function idFor(string $bookId, string $postingDate): string
     {
         $open = $this->covering($bookId, $postingDate, 'open');

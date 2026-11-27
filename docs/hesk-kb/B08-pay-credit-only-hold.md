@@ -1,7 +1,7 @@
 ---
 title: Pay vs credit-only vs hold
 category: Payouts and settlement
-hesk: published 2026-11-20
+hesk: pending
 as_of: 2026-10-25
 ---
 
@@ -40,4 +40,4 @@ Build a run: only pay vendors listed. Credit-only vendor’s rent can still be c
 ## Related
 
 - Settlement vs check / drawer / safe disbursement
-- Why open rent blocks Inactive
+- What blocks making a vendor Inactive

@@ -80,88 +80,143 @@ final class BoothFloorMallCoverageTest extends WebTestCase
 
     public function testBoothExtrasChargeDepositAndRelease(): void
     {
+        $this->saveDeposits(false);
+        $tag = bin2hex(random_bytes(3));
+        $code = 'x' . $tag;
+        $stay = $this->rentedStay($code, 'Xena ' . $tag);
         $page = $this->client->get('/' . self::SLUG . '/booth-extras');
         self::assertSees('Booth extras', $page);
-        self::assertSees('Collect deposit', $page);
-        self::assertSees('Return deposit', $page);
-        self::assertStringNotContainsString('<p>a booth and a reference are required</p>', $page->body);
+        self::assertSees('Charge an extra', $page);
+        self::assertStringNotContainsString('Take a deposit', $page->body);
+        self::assertSees('Booth ' . $code . ', Xena ' . $tag, $page);
 
-        $missing = $this->charge(['booth_id' => '', 'source_reference' => '', 'amount' => '5.00']);
-        self::assertSees('a booth and a reference are required', $missing);
-        $badBooth = $this->charge([
-            'booth_id' => 'not-a-booth',
-            'source_reference' => 'ref-' . bin2hex(random_bytes(3)),
+        $missing = $this->charge(['assignment_id' => '', 'source_reference' => '', 'amount' => '5.00']);
+        self::assertSees('Choose the booth and enter a reference.', $missing);
+        $badStay = $this->charge([
+            'assignment_id' => 'not-a-stay',
+            'source_reference' => 'ref-' . $tag,
             'amount' => '5.00',
         ]);
-        self::assertSees('a booth and a reference are required', $badBooth);
+        self::assertSees('Choose the booth and enter a reference.', $badStay);
         $unknown = $this->charge([
-            'booth_id' => self::MISSING,
-            'source_reference' => 'ref-' . bin2hex(random_bytes(3)),
+            'assignment_id' => self::MISSING,
+            'source_reference' => 'ref-' . $tag,
             'amount' => '5.00',
         ]);
-        self::assertSees('that booth does not exist', $unknown);
-
-        $tag = bin2hex(random_bytes(3));
-        $booth = $this->client->post('/' . self::SLUG . '/booths', [
-            'code' => 'x' . $tag,
-            'name' => 'Extra ' . $tag,
-        ]);
-        self::assertSees('Booth created.', $booth);
-        $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', 'x' . $tag);
+        self::assertSees('Choose a booth.', $unknown);
         $badAmount = $this->charge([
-            'booth_id' => $boothId,
-            'source_reference' => 'ref-' . bin2hex(random_bytes(3)),
+            'assignment_id' => $stay,
+            'source_reference' => 'ref-' . $tag,
             'amount' => 'five',
         ]);
         self::assertSees('enter an amount in dollars and cents', $badAmount);
         $zero = $this->charge([
-            'booth_id' => $boothId,
-            'source_reference' => 'ref-' . bin2hex(random_bytes(3)),
+            'assignment_id' => $stay,
+            'source_reference' => 'ref-' . $tag,
             'amount' => '0.00',
         ]);
         self::assertSees('the amount must be greater than zero', $zero);
         $reference = 'chg-' . $tag;
-        $charged = $this->charge([
-            'booth_id' => $boothId,
-            'source_reference' => $reference,
-            'amount' => '5.00',
-        ]);
+        $charged = $this->charge(['assignment_id' => $stay, 'source_reference' => $reference, 'amount' => '5.00']);
         self::assertSees('Booth charge posted.', $charged);
-        $again = $this->charge([
-            'booth_id' => $boothId,
-            'source_reference' => $reference,
-            'amount' => '5.00',
-        ]);
-        self::assertSees('That could not be saved.', $again);
+        $again = $this->charge(['assignment_id' => $stay, 'source_reference' => $reference, 'amount' => '5.00']);
+        self::assertSees('That charge is already posted today.', $again);
 
+        $this->ensureTwoOpenDrawers();
+        $this->useARegister();
+        $off = $this->client->post('/' . self::SLUG . '/booth-deposit', [
+            'assignment_id' => $stay,
+            'source_reference' => 'dep-off-' . $tag,
+            'amount' => '20.00',
+        ]);
+        self::assertSees('Booth deposits are turned off for this store.', $off);
+
+        $this->saveDeposits(true);
+        try {
+            $this->depositsTakenAndReturned($stay, $code, $tag);
+        } finally {
+            $this->saveDeposits(false);
+        }
+    }
+
+    private function depositsTakenAndReturned(string $stay, string $code, string $tag): void
+    {
+        $page = $this->client->get('/' . self::SLUG . '/booth-extras');
+        self::assertSees('Take a deposit', $page);
         $this->ensureTwoOpenDrawers();
         $other = self::client();
         $signed = $other->signIn(self::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
         self::assertSees("Today's sales", $signed);
         $refused = $other->post('/' . self::SLUG . '/booth-deposit', [
-            'booth_id' => $boothId,
+            'assignment_id' => $stay,
             'source_reference' => 'dep-closed-' . $tag,
             'amount' => '20.00',
-            'posting_date' => ProbeMall::POSTING_DATE,
         ]);
-        self::assertSees('open a register before taking a deposit', $refused);
+        self::assertSees('Open the register first to take or return cash.', $refused);
         $this->useARegister();
-        $depositRef = 'dep-' . $tag;
-
         $deposited = $this->client->post('/' . self::SLUG . '/booth-deposit', [
-            'booth_id' => $boothId,
-            'source_reference' => $depositRef,
+            'assignment_id' => $stay,
+            'source_reference' => 'dep-' . $tag,
             'amount' => '20.00',
-            'posting_date' => ProbeMall::POSTING_DATE,
         ]);
         self::assertSees('Booth deposit posted.', $deposited);
+        self::assertSees('Booth ' . $code . ', Xena ' . $tag . ' (holding $20.00)', $deposited);
         $released = $this->client->post('/' . self::SLUG . '/booth-deposit/release', [
-            'booth_id' => $boothId,
+            'assignment_id' => $stay,
             'source_reference' => 'rel-' . $tag,
             'amount' => '20.00',
-            'posting_date' => ProbeMall::POSTING_DATE,
         ]);
         self::assertSees('Booth deposit returned posted.', $released);
+        self::assertStringNotContainsString('(holding $20.00)', $released->body);
+    }
+
+    private function rentedStay(string $code, string $vendorName): string
+    {
+        [$first, $last] = explode(' ', $vendorName, 2);
+        $vendor = $this->client->post('/' . self::SLUG . '/vendors', [
+            'code' => 'v' . $code,
+            'first_name' => $first,
+            'last_name' => $last,
+            'store_take' => '0',
+        ]);
+        self::assertSees('Vendor created.', $vendor);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', 'v' . $code);
+        $booth = $this->client->post('/' . self::SLUG . '/booths', ['code' => $code, 'name' => 'Extra ' . $code]);
+        self::assertSees('Booth created.', $booth);
+        $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', $code);
+        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
+            'vendor_id' => $vendorId,
+            'booth_id' => $boothId,
+            'starts_on' => ProbeMall::PERIOD_START,
+            'rent' => '10.00',
+        ]);
+        self::assertSees('Booth assigned.', $assigned);
+        $page = $this->client->get('/' . self::SLUG . '/booth-extras');
+        $label = preg_quote('Booth ' . $code . ', ' . $vendorName, '/');
+        if (preg_match('/<option value="([0-9a-f-]{36})">' . $label . '<\/option>/', $page->body, $found) !== 1) {
+            self::fail('the booth extras page does not offer booth ' . $code);
+        }
+
+        return $found[1];
+    }
+
+    private function saveDeposits(bool $on): void
+    {
+        $fields = [
+            'settings_part' => 'money',
+            'default_store_take' => '0',
+            'tax_rate' => '0',
+            'operating_mode' => 'both',
+            'booth_rentals_enabled' => '1',
+            'rent_cycle_day' => '1',
+            'late_fee_grace_days' => '0',
+            'cash_round_minor' => '0',
+        ];
+        if ($on) {
+            $fields['booth_deposits_enabled'] = '1';
+        }
+        $saved = $this->client->post('/' . self::SLUG . '/settings/money', $fields);
+        self::assertSees('Money saved.', $saved);
     }
 
     public function testTheFloorNotesAFindingAndAPickup(): void
@@ -320,14 +375,11 @@ final class BoothFloorMallCoverageTest extends WebTestCase
     }
 
     /**
-     * @param array{booth_id: string, source_reference: string, amount: string} $fields
+     * @param array{assignment_id: string, source_reference: string, amount: string} $fields
      */
     private function charge(array $fields): PageResponse
     {
-        return $this->client->post('/' . self::SLUG . '/booth-extras', [
-            ...$fields,
-            'posting_date' => ProbeMall::POSTING_DATE,
-        ]);
+        return $this->client->post('/' . self::SLUG . '/booth-extras', $fields);
     }
 
     private function ensureTwoOpenDrawers(): void

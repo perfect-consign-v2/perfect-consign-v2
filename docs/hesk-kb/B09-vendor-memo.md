@@ -1,15 +1,15 @@
 ---
 title: Vendor memo (and payable below zero)
 category: Payouts and settlement
-hesk: published 2026-11-20
-as_of: 2026-10-25
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Vendor memo (and payable below zero)
 
 ## As of
 
-2026-10-25
+2026-11-27 — Vendors who have left with money open are still offered. 2026-10-25
 
 ## In one sentence
 
@@ -25,6 +25,7 @@ Recording a memo before the next payout; viewing the vendor statement.
 - Credit memo increases what the mall owes; debit memo decreases it.
 - A debit may leave payable below zero. While below zero, the check is zero. Later sales pay that balance down before a check.
 - The memo does not charge or pay booth rent.
+- A vendor who has left the store but still has money open is still offered, marked (has left the store).
 
 ## What is refused
 

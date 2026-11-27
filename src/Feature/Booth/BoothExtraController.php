@@ -12,7 +12,7 @@ use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\SignedInPerson;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\Money;
 
 /**
@@ -24,7 +24,7 @@ final class BoothExtraController
 {
     public function __construct(
         private readonly MallApp $app,
-        private readonly LedgerStore $ledger,
+        private readonly PostingFunctions $postings,
         private readonly ActiveRegister $register,
         private readonly Actor $actor,
         private readonly JournalAudit $audit,
@@ -43,7 +43,7 @@ final class BoothExtraController
     public function charge(string $slug): void
     {
         $this->post($slug, 'Booth charge', function (string $stay, int $amount, string $reference, string $today): string {
-            return $this->ledger->postThrough(
+            return $this->postings->post(
                 $today,
                 'stall_post_booth_charge(?::uuid, ?, ?, ?::date)',
                 [$stay, $amount, $reference, $today],
@@ -104,7 +104,7 @@ final class BoothExtraController
             throw new DatabaseRefusal('Open the register first to take or return cash.');
         }
 
-        return $this->ledger->postThrough(
+        return $this->postings->post(
             $today,
             'stall_post_booth_deposit(?::uuid, ?, ?, ?::date, ?::boolean)',
             [$stay, $amount, $reference, $today, $releasing ? 'true' : 'false'],

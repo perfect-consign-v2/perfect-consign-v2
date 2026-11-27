@@ -149,16 +149,15 @@ final class OwnerJourneyTest extends WebTestCase
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
         ]);
-        $book = $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => ProbeMall::POSTING_DATE,
-        ]);
+        $month = substr(ProbeMall::POSTING_DATE, 0, 7);
+        $button = self::chargeButton($this->client->get('/' . ProbeMall::SLUG . '/rent?month=' . $month)->body, $booth);
+        $book = $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', $button);
 
         self::assertSame(200, $book->status);
         self::assertSees('Charged', $book);
-        // saved( returns to the charge month. chosen( reads the posting month when the form omits it.
+        // saved( returns to the charge month. chosen( reads the period month when the form omits it.
         self::assertSame(1, preg_match(
-            '#id="booth-' . preg_quote($boothId, '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
+            '#id="rent-' . preg_quote($button['assignment_id'] . ':' . $button['period_start'], '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
             $book->body,
             $journalId
         ));
@@ -602,16 +601,17 @@ final class OwnerJourneyTest extends WebTestCase
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
         ]);
-        $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => ProbeMall::POSTING_DATE,
-        ]);
+        $month = substr(ProbeMall::POSTING_DATE, 0, 7);
+        $this->client->post(
+            '/' . ProbeMall::SLUG . '/rent/charge',
+            self::chargeButton($this->client->get('/' . ProbeMall::SLUG . '/rent?month=' . $month)->body, $booth),
+        );
         $refused = $this->client->post('/' . ProbeMall::SLUG . '/vendors/' . $vendorId . '/standing', [
             'standing' => 'inactive',
         ]);
 
         self::assertSame(200, $refused->status);
-        self::assertSees('A vendor who is still owed, or who still owes rent, cannot be made inactive.', $refused);
+        self::assertSees('be made inactive yet. They owe $100.00 in rent. They still have a booth. End it first.', $refused);
         self::assertSees('Make inactive', $refused);
     }
 

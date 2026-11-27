@@ -19,6 +19,7 @@ use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Payout\RentShortfall;
 use PerfectConsign\Feature\Rent\RentCycle;
 use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Support\QuietAudit;
 use PHPUnit\Framework\TestCase;
@@ -56,6 +57,7 @@ final class PayoutMutationTest extends TestCase
     public function testAZeroDisbursementIsNotPosted(): void
     {
         $ledger = $this->createStub(LedgerStore::class);
+        $postings = $this->createStub(PostingFunctions::class);
         $ledger->method('post')->willReturn('jid');
         $statements = $this->createStub(Statements::class);
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
@@ -404,6 +406,7 @@ final class PayoutMutationTest extends TestCase
             new PayoutRunSheets($sheets),
             new PayoutSettler(
                 $this->createStub(LedgerStore::class),
+                $this->createStub(PostingFunctions::class),
                 new PayoutStore($this->createStub(PDO::class), $runs, $store, new PayoutWindow()),
                 $store,
                 new PayoutRunLines($runs),

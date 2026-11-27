@@ -13,6 +13,7 @@ use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Rent\RentStore;
 use PerfectConsign\Ledger\JournalCash;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\LedgerPeriods;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
@@ -86,7 +87,7 @@ final class RentGuardTest extends TestCase
                 new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines()),
                 new \PerfectConsign\Feature\Mall\MallDay($statements),
             ),
-            new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo)),
+            new PostingFunctions($pdo, new LedgerPeriods($pdo), new JournalCash($pdo)),
         );
     }
 }

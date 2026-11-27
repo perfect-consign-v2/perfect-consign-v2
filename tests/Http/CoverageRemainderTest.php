@@ -229,11 +229,7 @@ final class CoverageRemainderTest extends WebTestCase
         ]);
         $june = $this->client->get('/' . self::SLUG . '/rent?month=2026-06');
         self::assertSees('Charge $48.00', $june);
-        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $moveInId,
-            'posting_date' => '2026-06-15',
-            'month' => '2026-06',
-        ]);
+        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($june->body, 'm' . $tag) + ['month' => '2026-06']);
         self::assertSees('Rent charged.', $charged);
 
         $special = $this->client->post('/' . self::SLUG . '/booths', [
@@ -252,11 +248,7 @@ final class CoverageRemainderTest extends WebTestCase
         self::assertSees('Booth assigned.', $assigned);
         $march = $this->client->get('/' . self::SLUG . '/rent?month=2026-03');
         self::assertSees('Charge $34.00', $march);
-        $overridden = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $specialId,
-            'posting_date' => '2026-03-15',
-            'month' => '2026-03',
-        ]);
+        $overridden = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($march->body, 'o' . $tag) + ['month' => '2026-03']);
         self::assertSees('Rent charged.', $overridden);
 
         $vacant = $this->client->post('/' . self::SLUG . '/booths', [
@@ -327,15 +319,18 @@ final class CoverageRemainderTest extends WebTestCase
         self::assertSees('Charge $40.00', $book);
         // chosen( keeps the month from the query.
         self::assertSees('Still to charge', $book);
-        $noRate = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => '2020-01-15',
+        $button = self::chargeButton($book->body, $boothCode);
+        $early = $this->client->post('/' . self::SLUG . '/rent/charge', [
+            'assignment_id' => $button['assignment_id'],
+            'period_start' => '2020-01-01',
         ]);
-        self::assertSees('a rent charge requires an assignment that covers the charge date', $noRate);
-        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => $today,
+        self::assertSees('a rent charge is for a period the assignment covers', $early);
+        $ahead = $this->client->post('/' . self::SLUG . '/rent/charge', [
+            'assignment_id' => $button['assignment_id'],
+            'period_start' => '2099-01-01',
         ]);
+        self::assertSees('That month has not started yet.', $ahead);
+        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', $button);
         self::assertSees('Rent charged.', $charged);
         $owing = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
         self::assertSees('Owes the store', $owing);
@@ -641,7 +636,11 @@ final class CoverageRemainderTest extends WebTestCase
 
             return;
         }
-        if (!str_contains($page->body, '/open')) {
+        // A register already in use by this person offers Close, not Use.
+        if (preg_match('#/' . self::SLUG . '/registers/[0-9a-fA-F-]{36}/close#', $page->body) === 1) {
+            return;
+        }
+        if (preg_match('#/' . self::SLUG . '/registers/[0-9a-fA-F-]{36}/open#', $page->body) !== 1) {
             $created = $this->client->post('/' . self::SLUG . '/registers', [
                 'name' => 'Open ' . bin2hex(random_bytes(2)),
             ]);

@@ -305,6 +305,7 @@ final class VendorCheck
                 FROM vendor_statement AS statement
                 JOIN journals AS journal ON journal.id = statement.journal_id
                 WHERE statement.vendor_id = ?::uuid
+                  AND statement.role IN ('vendor_payable', 'booth_rent_receivable')
                   AND NOT (statement.source_type = 'settlement' AND statement.role = 'booth_rent_receivable')";
         $params = [$vendorId];
         if ($runId !== null) {

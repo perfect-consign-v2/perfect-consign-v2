@@ -37,6 +37,7 @@ use PerfectConsign\Ledger\LedgerPeriods;
 use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Shared\Tenant\TenantRecord;
@@ -205,6 +206,7 @@ final class ShopDemo
         $lines = new PayoutRunLines($this->statements);
         $this->settler = new PayoutSettler(
             $this->ledger,
+            new PostingFunctions($pdo, new LedgerPeriods($pdo), new JournalCash($pdo)),
             $payouts,
             $this->runs,
             $lines,

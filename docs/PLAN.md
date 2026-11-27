@@ -38,16 +38,16 @@ The finished kernel in `C:\laragon\www\double-entry` stays where it is. Stall do
 ## Database work, in order
 
 1. **Chart seed.** One book. Cash, bank, commission revenue, sales-tax payable, a vendor-payable control account, and a booth-rent receivable control account.
-2. **Vendors and booths.** Identity only. The vendor id is the payable subledger ref. The booth id is the rent subledger ref. A vendor assigned to a booth is a row with a start date, not a money table.
+2. **Vendors and booths.** Identity only. The vendor id is the payable subledger ref. The stay (booth assignment) id is the rent, late fee, booth extra, and booth deposit subledger ref (`subledger_type = 'assignment'`). A vendor assigned to a booth is a row with a start date, not a money table.
 3. **Sale.** One posting key per sale. Debit cash or card, credit commission, credit sales tax, credit that vendor's payable. The same sale posted twice is refused. A void is a reversal.
-4. **Rent charge.** One posting key per booth per month. Debit that booth's rent receivable, credit rent revenue. The amount is the rate stored for that month. Payout does not calculate it again.
-5. **Rent payment.** Debit cash, credit that booth's receivable, for rent paid outside a payout.
+4. **Rent charge.** One posting key per stay (booth assignment) per rent period, posted by `stall_post_rent_charge`. Debit that stay's rent receivable, credit rent revenue. The amount is `stall_rent_quote`, from the rate stored for that period. Payout does not calculate it again.
+5. **Rent payment.** Debit cash, card, or checks, credit the vendor's stays' receivable, for rent paid outside a payout. `stall_post_rent_payment` splits it with `stall_rent_payment_split`: oldest unpaid stay first, rent before late fees inside a stay.
 6. **Payout.** Read the open payable and the open rent receivable. One journal clears them against cash. It does not look back at sales. A second payout for the same vendor and month is refused. A wrong payout is reversed.
 7. **Statement query.** For one vendor, the payable lines and that booth's rent lines, in order. That result is the check. If it disagrees with the payout journal, the schema is wrong.
 
 ## Ledger gate, proven
 
-Truncate is refused on the ledger tables and on vendors, booths, assignments, rates, and chart roles. A posted account's type, normal balance, and code freeze. Names stay editable. Vendor payable and booth rent accept only a sale, rent charge, rent payment, or payout, and they cannot go below zero. A rent charge requires an assignment that covers the charge date. An assignment end or delete cannot uncover rent already posted. A post locks the book, the period, the account, and the vendor or booth. A rent charge also locks the rate and the assignment. `stall_poster` may insert only journals and lines.
+Truncate is refused on the ledger tables and on vendors, booths, assignments, rates, and chart roles. A posted account's type, normal balance, and code freeze. Names stay editable. Vendor payable and booth rent accept only a sale, rent charge, rent payment, or payout, and they cannot go below zero. A rent charge requires an assignment that covers the rent period. An assignment end or delete cannot uncover rent already posted. A post locks the book, the period, the account, and the vendor or stay. A post that names a vendor or a stay takes advisory lock 87401 on that vendor; Make inactive takes it too. A rent charge also locks the rate and the assignment. `stall_poster` may insert only journals and lines.
 
 ## Database finished
 

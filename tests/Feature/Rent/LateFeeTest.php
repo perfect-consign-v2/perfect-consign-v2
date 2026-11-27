@@ -8,6 +8,7 @@ use PDO;
 use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\LateFeeDue;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerPeriods;
 use PerfectConsign\Ledger\LedgerStore;
@@ -22,7 +23,7 @@ final class LateFeeTest extends TestCase
     {
         $pdo = $this->createStub(PDO::class);
         $statements = new Statements($pdo);
-        $fee = new LateFee(new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo)));
+        $fee = new LateFee(new PostingFunctions($pdo, new LedgerPeriods($pdo), new JournalCash($pdo)));
 
         try {
             $fee->waive('00000000-0000-7000-8000-000000000099', 'October', 'Rain check');
@@ -43,8 +44,9 @@ final class LateFeeTest extends TestCase
         $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
         $statements = new Statements($pdo);
         $ledger = new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo));
-        $fee = new LateFee($ledger);
-        $due = new LateFeeDue($statements, $ledger, $fee);
+        $postings = new PostingFunctions($pdo, new LedgerPeriods($pdo), new JournalCash($pdo));
+        $fee = new LateFee($postings);
+        $due = new LateFeeDue($statements, $postings, $fee);
         $pdo->beginTransaction();
         try {
             $vendorId = $ledger->newId();
@@ -63,7 +65,7 @@ final class LateFeeTest extends TestCase
                         late_fee_next_minor = 1000, late_fee_effective_on = '2026-10-01'",
                 []
             );
-            $ledger->postThrough('2026-10-01', 'stall_post_rent_charge(?::uuid, ?::date, ?::date)', [$stayId, '2026-10-01', '2026-10-01']);
+            $postings->post('2026-10-01', 'stall_post_rent_charge(?::uuid, ?::date, ?::date)', [$stayId, '2026-10-01', '2026-10-01']);
 
             self::assertSame(2, $due->apply('2026-10-11'));
             self::assertSame(0, $due->apply('2026-10-11'));

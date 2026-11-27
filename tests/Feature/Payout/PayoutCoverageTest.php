@@ -22,6 +22,7 @@ use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Payout\RentShortfall;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Support\QuietAudit;
@@ -122,6 +123,7 @@ final class PayoutCoverageTest extends TestCase
         $statements->method('bound')->willReturn([]);
         $settler = new PayoutSettler(
             $this->createStub(LedgerStore::class),
+            $this->createStub(PostingFunctions::class),
             $this->payouts($statements, '0'),
             new PayoutRunStore($statements, new OccupiedPack($statements)),
             new PayoutRunLines($statements),
@@ -289,6 +291,10 @@ final class PayoutCoverageTest extends TestCase
 
             public function rows(string $sql): array
             {
+                if (str_contains($sql, 'WHERE NOT active')) {
+                    return [['id' => '00000000-0000-7000-8000-000000000021']];
+                }
+
                 return [[
                     'code' => 'H1',
                     'first_name' => 'Hold',
@@ -307,7 +313,9 @@ final class PayoutCoverageTest extends TestCase
             }
         };
         $store = new PayoutRunStore($statements, new OccupiedPack($statements));
-        self::assertSame('hold', $store->excluded()[0]['mode'] ?? null);
+        $aside = $store->setAside();
+        self::assertSame('hold', $aside['excluded'][0]['mode'] ?? null);
+        self::assertSame(['00000000-0000-7000-8000-000000000021'], $aside['departed']);
         self::assertTrue($store->checksVoided('00000000-0000-7000-8000-000000000020'));
     }
 
@@ -542,7 +550,7 @@ final class PayoutCoverageTest extends TestCase
         return new PayoutOnce(
             $store,
             new PayoutRunSheets($sheets),
-            new PayoutSettler($this->createStub(LedgerStore::class), $this->payouts($runs, '0'), $store, new PayoutRunLines($runs), QuietAudit::make($runs), (new \ReflectionClass(\PerfectConsign\Feature\Payout\VendorClawback::class))->newInstanceWithoutConstructor()),
+            new PayoutSettler($this->createStub(LedgerStore::class), $this->createStub(PostingFunctions::class), $this->payouts($runs, '0'), $store, new PayoutRunLines($runs), QuietAudit::make($runs), (new \ReflectionClass(\PerfectConsign\Feature\Payout\VendorClawback::class))->newInstanceWithoutConstructor()),
             new PayoutDisburser(
                 $this->createStub(LedgerStore::class),
                 $this->payouts($runs, '0'),

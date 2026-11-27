@@ -148,7 +148,7 @@ class LedgerStore
 
     public function addPeriod(string $startsOn, string $endsOn): void
     {
-        $book = $this->bookId();
+        $book = $this->periods->defaultBookId();
         $this->statements->change(
             'INSERT INTO accounting_periods (book_id, starts_on, ends_on, status) VALUES (?::uuid, ?::date, ?::date, ?)',
             [$book, $startsOn, $endsOn, 'open']
@@ -158,97 +158,6 @@ class LedgerStore
     public function post(JournalDraft $draft): string
     {
         return $this->commitJournal($draft);
-    }
-
-    /**
-     * Posts through a database posting function, which computes its own amounts.
-     * The call is a fixed SQL expression from the caller, never user text; every
-     * value a person chose is bound. The drawer and check are linked in the same
-     * transaction, then the journal is checked as a whole.
-     *
-     * @param list<string|int|null> $values
-     * @param (callable(string): void)|null $beforeCommit
-     */
-    public function postThrough(
-        string $postingDate,
-        string $call,
-        array $values,
-        ?string $sessionId = null,
-        ?string $checkNumber = null,
-        ?int $tenderedMinor = null,
-        ?callable $beforeCommit = null,
-    ): string {
-        $journalId = $this->runPosting([$postingDate], $call, $values, function (mixed $posted) use ($sessionId, $checkNumber, $tenderedMinor, $beforeCommit): void {
-            if (!is_string($posted) || $posted === '') {
-                throw new DatabaseRefusal('the posting function returned no journal');
-            }
-            $this->linkSession($posted, $sessionId, $checkNumber);
-            $this->cash->storeTendered($posted, $tenderedMinor);
-            if ($beforeCommit !== null) {
-                $beforeCommit($posted);
-            }
-        });
-
-        return is_string($journalId) ? $journalId : '';
-    }
-
-    /**
-     * Runs a database posting function that may post several journals (late
-     * fees), each on its own date, and returns how many it posted.
-     *
-     * @param list<string> $postingDates
-     * @param list<string|int|null> $values
-     */
-    public function postBatch(array $postingDates, string $call, array $values): int
-    {
-        $posted = $this->runPosting($postingDates, $call, $values, null);
-
-        return is_int($posted) ? $posted : (int) (is_string($posted) ? $posted : 0);
-    }
-
-    /**
-     * Opens the periods for the dates, calls the function, lets the caller link
-     * what belongs to the journal, then checks every deferred rule.
-     *
-     * @param list<string> $postingDates
-     * @param list<string|int|null> $values
-     * @param (callable(mixed): void)|null $linked
-     */
-    private function runPosting(array $postingDates, string $call, array $values, ?callable $linked): mixed
-    {
-        if (preg_match('/^stall_[a-z_]+\((\?(::[a-z]+)?(, )?)*\)$/', $call) !== 1) {
-            throw new DatabaseRefusal('that posting function is not one the books use');
-        }
-        $own = !$this->pdo->inTransaction();
-        try {
-            if ($own) {
-                $this->pdo->beginTransaction();
-            }
-            $book = $this->bookId();
-            foreach (array_unique($postingDates) as $postingDate) {
-                $this->periods->idFor($book, $postingDate);
-            }
-            $statement = $this->pdo->prepare('SELECT ' . $call . ' AS posted');
-            $statement->execute($values);
-            $posted = $statement->fetchColumn();
-            if ($linked !== null) {
-                $linked($posted);
-            }
-            $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
-            if ($own) {
-                $this->pdo->commit();
-            }
-
-            return $posted;
-        } catch (PDOException $error) {
-            $this->abortJournal($own);
-
-            throw DatabaseRefusal::fromPdo($error);
-        } catch (DatabaseRefusal $error) {
-            $this->abortJournal($own);
-
-            throw $error;
-        }
     }
 
     private function commitJournal(JournalDraft $draft): string
@@ -283,7 +192,7 @@ class LedgerStore
             PgBool::literal($draft->reversesJournalId !== null),
             $draft->reversesJournalId,
         );
-        $this->linkSession($journalId, $draft->sessionId, $draft->checkNumber);
+        $this->cash->linkDrawer($journalId, $draft->sessionId, $draft->checkNumber);
         $this->cash->storeTendered($journalId, $draft->tenderedMinor);
         if ($draft->beforeCommit !== null) {
             $finished = $draft->beforeCommit;
@@ -454,41 +363,10 @@ class LedgerStore
         return $value;
     }
 
-    private function linkSession(string $journalId, ?string $sessionId, ?string $checkNumber): void
-    {
-        if ($sessionId !== null) {
-            $link = $this->pdo->prepare(
-                'INSERT INTO register_session_posts (session_id, journal_id) VALUES (?::uuid, ?::uuid)'
-            );
-            $link->execute([$sessionId, $journalId]);
-        }
-        if ($checkNumber === null) {
-            return;
-        }
-        $check = $this->pdo->prepare(
-            'INSERT INTO register_checks (journal_id, check_number) VALUES (?::uuid, ?)'
-        );
-        $check->execute([$journalId, $checkNumber]);
-    }
-
     private function rollBackOpen(): void
     {
         if ($this->pdo->inTransaction()) {
             $this->pdo->rollBack();
         }
-    }
-
-    private function bookId(): string
-    {
-        $book = $this->pdo->query('SELECT id FROM ledger_books WHERE is_default');
-        if ($book === false) {
-            throw new DatabaseRefusal('the mall book is missing');
-        }
-        $id = $book->fetchColumn();
-        if (!is_string($id)) {
-            throw new DatabaseRefusal('the mall book is missing');
-        }
-
-        return $id;
     }
 }

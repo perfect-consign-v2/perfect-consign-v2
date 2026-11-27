@@ -18,6 +18,7 @@ use PerfectConsign\Shared\Web\ListTable;
  *   shelf: array{value: string, unsold: int}
  * } $picture */
 /** @var list<array{id: string, code: string, vendor_id: ?string, vendor_name: ?string, rate_minor: ?int, charged: bool, chargeable: bool, journal_id: ?string, open_minor: int}> $rentRows */
+/** @var list<array{vendor_id: string, name: string, said: string}> $leftOpen */
 /** @var string $rentMonth */
 /** @var string $activeSessionId */
 $activeSessionId = is_string($activeSessionId ?? null) ? $activeSessionId : '';
@@ -149,6 +150,18 @@ $blank = '—';
             </table>
         </div>
     </div>
+    <?php if (($leftOpen ?? []) !== []): ?>
+    <div class="card">
+        <div class="card-head">
+            <div class="h3">Left the store, money still open</div>
+        </div>
+        <div class="card-body stack">
+            <?php foreach ($leftOpen as $left): ?>
+                <p><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($left['vendor_id']) ?>"><?= View::text($left['name']) ?></a> <span class="muted"><?= View::text($left['said']) ?></span></p>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
     <?php if (!$consignmentOnly): ?>
     <div class="card">
         <div class="card-head">
@@ -172,7 +185,7 @@ $blank = '—';
                     </thead>
                     <tbody>
                     <?php foreach ($rentRows as $row): ?>
-                        <?php $rentRow = '/' . $slug . '/rent?month=' . rawurlencode($rentMonth) . '#booth-' . $row['id']; ?>
+                        <?php $rentRow = '/' . $slug . '/rent?month=' . rawurlencode($rentMonth) . '#rent-' . $row['id']; ?>
                         <tr>
                             <td><a class="strong" href="<?= View::text($rentRow) ?>"><?= View::text($row['code']) ?></a></td>
                             <td>
@@ -202,8 +215,6 @@ $blank = '—';
                                     <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>
                                 <?php elseif ($row['vendor_id'] !== null): ?>
                                     <a class="btn btn-sm" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>">Collect</a>
-                                <?php else: ?>
-                                    <a class="btn btn-sm" href="/<?= View::text($slug) ?>/rent/collect?booth=<?= View::text($row['id']) ?>">Collect</a>
                                 <?php endif; ?>
                             </td>
                         </tr>

@@ -7,12 +7,7 @@ namespace PerfectConsign\Tests\Integration\Staff;
 use PDO;
 use PerfectConsign\Feature\Password\PasswordChoice;
 use PerfectConsign\Feature\Password\RecoveryAddress;
-use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Staff\StaffStore;
-use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\JournalCash;
-use PerfectConsign\Ledger\LedgerPeriods;
-use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Support\ProbeMall;
 use PHPUnit\Framework\TestCase;
@@ -61,30 +56,6 @@ final class StaffAndLateFeeTest extends TestCase
             }
         } finally {
             $pdo->rollBack();
-        }
-    }
-
-    public function testALateFeePostsAgainstABooth(): void
-    {
-        ProbeMall::ensure(dirname(__DIR__, 3));
-        $pdo = $this->connection();
-        $pdo->exec('SET search_path TO ' . $this->schema($pdo) . ', pg_catalog, extensions');
-        $pdo->beginTransaction();
-        try {
-            $statements = new Statements($pdo);
-            $code = 'L' . bin2hex(random_bytes(3));
-            $statements->change('INSERT INTO booths (code, name) VALUES (?, ?)', [$code, 'Late fee booth']);
-            $booth = $statements->bound('SELECT id FROM booths WHERE code = ?', [$code]);
-            $boothId = (string) ($booth[0]['id'] ?? '');
-            $fee = new LateFee(new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo)), $statements);
-            $journalId = $fee->post($boothId, '2026-06', '2026-06-15', 150);
-            self::assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $journalId);
-        } catch (DatabaseRefusal $error) {
-            self::assertNotSame('', $error->getMessage());
-        } finally {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
         }
     }
 

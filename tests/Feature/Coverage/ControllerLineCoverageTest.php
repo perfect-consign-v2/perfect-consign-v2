@@ -389,7 +389,6 @@ final class ControllerLineCoverageTest extends TestCase
             $stays,
             $door->mall,
             $roster,
-            $balances,
             $forms,
             new VendorPage($door->app, $store, $stays, $door->mall, $roster, $balances, new AssignmentOffer($store, $stays), $forms, $staff),
         );

@@ -697,13 +697,13 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Pos\\LayawayBook.php' && $line === 244 && $from === '||' && $to === '&&') {
         return 'hold already refused an empty ticket, a zero amount, and an unknown tender, so this guard is never true';
     }
-    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 52 && $from === '<' && $to === '<=') {
+    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 66 && $from === '<' && $to === '<=') {
         return 'the third failed insert throws before the loop condition is tested again';
     }
-    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 87 && $from === '>' && $to === '>=') {
+    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 101 && $from === '>' && $to === '>=') {
         return 'the day after the previous period is already the start, so assigning it changes nothing';
     }
-    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 100 && $from === '<' && $to === '<=') {
+    if ($file === 'src\\Ledger\\LedgerPeriods.php' && $line === 114 && $from === '<' && $to === '<=') {
         return 'the day before the next period is already the end, so assigning it changes nothing';
     }
     if ($file === 'src\\Shared\\Web\\layout.php' && $line === 220 && $from === '&&' && $to === '||') {
@@ -715,7 +715,7 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Backup\\NightlyCopy.php' && $line === 73 && $from === '>' && $to === '>=') {
         return 'two backup names cannot be the same day, so the equal case does not exist';
     }
-    if ($file === 'src\\Feature\\Payout\\PayoutRunController.php' && $line === 107 && $from === '&&' && $to === '||') {
+    if ($file === 'src\\Feature\\Payout\\PayoutRunController.php' && $line === 106 && $from === '&&' && $to === '||') {
         return 'a missing or blank reversal time formats as an empty local time either way';
     }
     if ($file === 'src\\Feature\\Payout\\envelope.php' && $line === 27 && $from === '&&' && $to === '||') {

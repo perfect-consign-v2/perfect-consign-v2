@@ -127,6 +127,14 @@ $settingsTabs = [
                         </span>
                         Take rent from prior sales
                     </label>
+                    <label class="switch-row" for="booth_deposits_enabled">
+                        <span class="switch">
+                            <input id="booth_deposits_enabled" name="booth_deposits_enabled" type="checkbox" value="1"<?= !empty($boothDeposits) ? ' checked' : '' ?>>
+                            <span class="switch-track" aria-hidden="true"></span>
+                            <span class="switch-knob" aria-hidden="true"></span>
+                        </span>
+                        Booth deposits
+                    </label>
                 <?php endif; ?>
             </div>
             <?php if ($showRent && $cycleFrozen): ?>

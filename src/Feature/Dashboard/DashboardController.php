@@ -19,6 +19,7 @@ final class DashboardController
         private readonly DashboardStore $dashboard,
         private readonly MallSettings $mall,
         private readonly RentDue $rentDue,
+        private readonly LeftWithMoney $leftWithMoney,
         private readonly JobQueue $jobs,
         private readonly PDO $pdo,
     ) {
@@ -45,6 +46,7 @@ final class DashboardController
             'picture' => $this->dashboard->picture($today),
             'rentRows' => $due['rows'],
             'rentMonth' => $due['month'],
+            'leftOpen' => $this->leftWithMoney->vendors(),
             'overdueJobs' => $this->jobs->overdue($this->pdo, $tenant->slug),
         ]);
     }

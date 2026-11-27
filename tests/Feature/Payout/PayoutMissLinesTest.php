@@ -31,6 +31,7 @@ use PerfectConsign\Feature\Payout\PrintedChecks;
 use PerfectConsign\Feature\Payout\RentShortfall;
 use PerfectConsign\Feature\Payout\VendorClawback;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Http\Request;
 use PerfectConsign\Tests\Feature\Coverage\CapturesPage;
@@ -98,6 +99,7 @@ final class PayoutMissLinesTest extends TestCase
         $ledger = $this->ledger();
         $settler = new PayoutSettler(
             $ledger,
+            $this->postings(),
             new PayoutStore(MallDoor::open($this, new Request('GET', '/', [], []))->pdo, $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
             new PayoutRunStore($statements, new OccupiedPack($statements)),
             new PayoutRunLines($statements),
@@ -143,6 +145,7 @@ final class PayoutMissLinesTest extends TestCase
             new PayoutStore(MallDoor::open($this, new Request('GET', '/', [], []))->pdo, $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
             new PayoutSettler(
                 $this->ledger(),
+                $this->postings(),
                 new PayoutStore(MallDoor::open($this, new Request('GET', '/', [], []))->pdo, $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
                 new PayoutRunStore($statements, new OccupiedPack($statements)),
                 new PayoutRunLines($statements),
@@ -316,9 +319,16 @@ final class PayoutMissLinesTest extends TestCase
         $ledger = $this->createStub(LedgerStore::class);
         $ledger->method('roleAccount')->willReturn(MallDoor::ACCOUNT);
         $ledger->method('post')->willReturn(MallDoor::JOURNAL);
-        $ledger->method('postThrough')->willReturn(MallDoor::JOURNAL);
 
         return $ledger;
+    }
+
+    private function postings(): PostingFunctions
+    {
+        $postings = $this->createStub(PostingFunctions::class);
+        $postings->method('post')->willReturn(MallDoor::JOURNAL);
+
+        return $postings;
     }
 
     private function payoutOnce(SheetStatements $statements, LedgerStore $ledger): PayoutOnce
@@ -331,7 +341,7 @@ final class PayoutMissLinesTest extends TestCase
         return new PayoutOnce(
             $runs,
             new PayoutRunSheets($statements),
-            new PayoutSettler($ledger, new PayoutStore($this->createStub(PDO::class), $statements, $runs, new PayoutWindow()), $runs, $lines, $audit, new VendorClawback($ledger, $statements)),
+            new PayoutSettler($ledger, $this->postings(), new PayoutStore($this->createStub(PDO::class), $statements, $runs, new PayoutWindow()), $runs, $lines, $audit, new VendorClawback($ledger, $statements)),
             new PayoutDisburser($ledger, new PayoutStore($this->createStub(PDO::class), $statements, $runs, new PayoutWindow()), $runs, $lines, new PayoutRunChecks($statements), $audit),
             $statements,
             new CheckWords(),
@@ -378,7 +388,7 @@ final class PayoutMissLinesTest extends TestCase
             new PayoutSingle(
                 $statements,
                 $payouts,
-                new PayoutSettler($door->ledger, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::journal($statements, $door->actor), new VendorClawback($door->ledger, $statements)),
+                new PayoutSettler($door->ledger, $door->postings, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::journal($statements, $door->actor), new VendorClawback($door->ledger, $statements)),
                 new PayoutDisburser($door->ledger, $payouts, $runs, new PayoutRunLines($statements), new PayoutRunChecks($statements), QuietAudit::journal($statements, $door->actor)),
                 new PayoutRunLines($statements),
                 new PayoutReverser($door->ledger, $statements, $door->actor, QuietAudit::journal($statements, $door->actor)),
@@ -397,7 +407,7 @@ final class PayoutMissLinesTest extends TestCase
         $payouts = new PayoutStore($door->pdo, $door->statements, $runs, $window);
         $lines = new PayoutRunLines($door->statements);
         $audit = QuietAudit::journal($door->statements, $door->actor);
-        $settler = new PayoutSettler($door->ledger, $payouts, $runs, $lines, $audit, new VendorClawback($door->ledger, $door->statements));
+        $settler = new PayoutSettler($door->ledger, $door->postings, $payouts, $runs, $lines, $audit, new VendorClawback($door->ledger, $door->statements));
         $disburser = new PayoutDisburser($door->ledger, $payouts, $runs, $lines, new PayoutRunChecks($door->statements), $audit);
         $once = new PayoutOnce($runs, $sheets, $settler, $disburser, $door->statements, new CheckWords(), new RentShortfall($door->statements), new SaleCeiling($door->statements, $door->actor, QuietAudit::journal($door->statements, $door->actor), $door->app->request()));
 

@@ -34,6 +34,7 @@ use PerfectConsign\Feature\Vendor\VendorSales;
 use PerfectConsign\Feature\WaitList\WaitListFields;
 use PerfectConsign\Feature\WaitList\WaitListStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Schema\MigrationLock;
 use PerfectConsign\Schema\SchemaCatalog;
@@ -148,6 +149,7 @@ final class SurvivorPinsTest extends TestCase
     {
         $posts = 0;
         $ledger = $this->createStub(LedgerStore::class);
+        $postings = $this->createStub(PostingFunctions::class);
         $ledger->method('post')->willReturnCallback(static function () use (&$posts): string {
             $posts++;
 
@@ -155,6 +157,7 @@ final class SurvivorPinsTest extends TestCase
         });
         $settler = new PayoutSettler(
             $ledger,
+            $postings,
             (new ReflectionClass(PayoutStore::class))->newInstanceWithoutConstructor(),
             (new ReflectionClass(PayoutRunStore::class))->newInstanceWithoutConstructor(),
             (new ReflectionClass(PayoutRunLines::class))->newInstanceWithoutConstructor(),
@@ -404,6 +407,7 @@ final class SurvivorPinsTest extends TestCase
         });
         $statements->method('bound')->willReturn([['id' => '01900000-0000-7000-8000-0000000000aa']]);
         $ledger = $this->createStub(LedgerStore::class);
+        $postings = $this->createStub(PostingFunctions::class);
         $ledger->method('roleAccount')->willReturn('acct');
         $ledger->method('post')->willReturn('journal');
 

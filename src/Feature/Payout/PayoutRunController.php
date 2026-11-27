@@ -62,7 +62,7 @@ final class PayoutRunController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'runs' => $this->shown($this->runs->history()),
-            'excluded' => $this->runs->excluded(),
+            ...$this->runs->setAside(),
             'error' => null,
         ]);
     }
@@ -118,7 +118,7 @@ final class PayoutRunController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'runs' => $this->shown($this->runs->history()),
-            'excluded' => $this->runs->excluded(),
+            ...$this->runs->setAside(),
             'error' => $error,
         ]);
     }
@@ -217,7 +217,7 @@ final class PayoutRunController
             'savedRun' => $finished === null ? '' : $finished['id'],
             'savedTender' => $finished === null ? '' : $finished['tender'],
             'savedStatus' => $finished === null ? '' : $finished['status'],
-            'excluded' => $this->runs->excluded(),
+            ...$this->runs->setAside(),
             'error' => $error,
         ]);
     }

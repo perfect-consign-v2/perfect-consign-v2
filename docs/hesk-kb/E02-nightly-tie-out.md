@@ -1,15 +1,15 @@
 ---
 title: Nightly tie-out
 category: Tax reports and export
-hesk: published 2026-11-26
-as_of: 2026-11-20
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Nightly tie-out
 
 ## As of
 
-2026-11-20
+2026-11-27 — Rent lives on the stay, so the rent roll is one row per stay. 2026-11-20
 
 ## In one sentence
 
@@ -22,7 +22,7 @@ Overnight, after the day's posts. The same checks run when those pages open.
 ## What the books / screens do
 
 - Sales tax collected on the taxable, exempt, return, and void rows must match sales-tax payable.
-- The rent roll must equal booth rent receivable. A receivable line that is not a booth refuses.
+- The rent roll is one row per stay (booth and the vendor who held it) and must equal booth rent receivable. A receivable line that does not name a stay refuses.
 - Gift card, gift certificate, and store credit must each match that account.
 - Role balances must match their journal lines. The books view must match the lines.
 - Sales merchandise is not one account, so the sales report is not part of the tie-out. Payments to vendors are not part of it either.
@@ -37,7 +37,7 @@ Overnight, after the day's posts. The same checks run when those pages open.
 
 ## How to check
 
-After a clean day the nightly job exits success. A one-cent stored-value gap, or a receivable line that is not a booth, makes the job fail.
+After a clean day the nightly job exits success. A one-cent stored-value gap, or a receivable line that does not name a stay, makes the job fail.
 
 ## Source
 

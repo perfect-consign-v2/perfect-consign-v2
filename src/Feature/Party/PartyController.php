@@ -19,7 +19,6 @@ final class PartyController
         private readonly AssignmentBook $stays,
         private readonly MallSettings $mall,
         private readonly VendorRoster $roster,
-        private readonly VendorBalances $balances,
         private readonly VendorForm $forms,
         private readonly VendorPage $pages,
         ?PartySellerPaths $paths = null,
@@ -157,17 +156,11 @@ final class PartyController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $inactive = $this->app->request()->field('standing') === 'inactive';
-        $quoted = $this->balances->quote($id, $this->mall->today());
-        $payable = $this->balances->payable($id);
-        if ($inactive && (($quoted !== null && $quoted['rent'] > 0) || $payable > 0)) {
-            $this->refuseInactive($slug, $id);
-
-            return;
-        }
+        // The database decides: it refuses while anything is open and says why.
         try {
             $this->parties->setActive($id, !$inactive);
-        } catch (DatabaseRefusal) {
-            $this->refuseInactive($slug, $id);
+        } catch (DatabaseRefusal $refusal) {
+            $this->refuseInactive($slug, $id, $this->app->catchRefusal($refusal));
 
             return;
         }
@@ -241,13 +234,13 @@ final class PartyController
         ]);
     }
 
-    private function refuseInactive(string $slug, string $id): void
+    private function refuseInactive(string $slug, string $id, string $reason): void
     {
         $vendor = $this->parties->findVendor($id);
         if ($vendor === null) {
             $this->app->notFound();
         }
-        $this->forms->form($slug, $vendor, 'A vendor who is still owed, or who still owes rent, cannot be made inactive.');
+        $this->forms->form($slug, $vendor, $reason);
     }
 
     private function showRecord(string $slug, string $id, ?string $error): void

@@ -60,6 +60,7 @@ use PerfectConsign\Feature\Rent\RentSlip;
 use PerfectConsign\Feature\Signup\SignupSlug;
 use PerfectConsign\Feature\Staff\MallOwners;
 use PerfectConsign\Ledger\DatabaseRefusal;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Shared\Database\CatalogLinks;
 use PerfectConsign\Shared\Database\Statements;
@@ -224,6 +225,7 @@ final class SignedAccountObligationTest extends TestCase
         $pdo->method('inTransaction')->willReturn(false);
         $pdo->method('beginTransaction')->willReturn(true);
         $ledger = $this->createStub(LedgerStore::class);
+        $postings = $this->createStub(PostingFunctions::class);
         $payouts = new PayoutStore($pdo, $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow());
         $receipts = new RentReceipt(
             $pdo,
@@ -232,9 +234,11 @@ final class SignedAccountObligationTest extends TestCase
             new \PerfectConsign\Feature\Mall\MallPayoutSettings($statements),
             new RentPosting(
                 $ledger,
+                $postings,
                 $payouts,
                 new PayoutSettler(
                     $ledger,
+                    $postings,
                     $payouts,
                     new PayoutRunStore($statements, new OccupiedPack($statements)),
                     new PayoutRunLines($statements),
@@ -245,7 +249,7 @@ final class SignedAccountObligationTest extends TestCase
             ),
             new RentSlip($statements),
             new RentPayment(),
-            new LateFee($ledger),
+            new LateFee($postings),
             new SaleCeiling($statements, new Actor($session), QuietAudit::make($statements, $session), new Request('POST', '/', [], [])),
         );
         $this->expectException(DatabaseRefusal::class);

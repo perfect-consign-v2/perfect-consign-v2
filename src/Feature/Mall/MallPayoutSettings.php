@@ -188,6 +188,23 @@ final class MallPayoutSettings
         );
     }
 
+    public function isDepositsEnabled(): bool
+    {
+        return $this->flag('booth_deposits_enabled');
+    }
+
+    /**
+     * Booth deposits are a store switch. The database refuses turning it off
+     * while a deposit is still held, and says which booth.
+     */
+    public function saveDeposits(bool $enabled): void
+    {
+        $this->statements->change(
+            'UPDATE mall SET booth_deposits_enabled = ?::boolean WHERE booth_deposits_enabled IS DISTINCT FROM ?::boolean',
+            [PgBool::literal($enabled), PgBool::literal($enabled)]
+        );
+    }
+
     private function flag(string $column): bool
     {
         $value = $this->row()[$column] ?? null;
@@ -204,7 +221,7 @@ final class MallPayoutSettings
             'SELECT operating_mode, payout_cadence, rent_prepaid_from_prior_sales,
                     booth_rentals_enabled, rent_cycle_day, consignment_enabled, store_stock_enabled,
                     late_fees_enabled, late_fee_grace_days, late_fee_first_minor, late_fee_next_minor,
-                    late_fee_effective_on, require_second_signature
+                    late_fee_effective_on, require_second_signature, booth_deposits_enabled
              FROM mall'
         );
         $row = $rows[0] ?? null;

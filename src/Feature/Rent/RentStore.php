@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use InvalidArgumentException;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -24,7 +24,7 @@ final class RentStore
     public function __construct(
         private readonly Statements $statements,
         private readonly MallSettings $mall,
-        private readonly LedgerStore $ledger,
+        private readonly PostingFunctions $postings,
     ) {
     }
 
@@ -69,7 +69,7 @@ final class RentStore
             throw new DatabaseRefusal('Choose a booth to charge.');
         }
 
-        return $this->ledger->postThrough(
+        return $this->postings->post(
             $onDate,
             'stall_charge_rent(?::uuid, ?::date)',
             [$assignmentId, $periodStart],

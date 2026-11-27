@@ -42,6 +42,7 @@ use PerfectConsign\Ledger\LedgerPeriods;
 use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\PostedLines;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 use PerfectConsign\Shared\Tenant\TenantRecord;
@@ -108,6 +109,8 @@ final class MallDemo
 
     private readonly LedgerStore $ledger;
 
+    private readonly PostingFunctions $postings;
+
     private readonly PartyStore $parties;
 
     private readonly \PerfectConsign\Feature\Party\AssignmentBook $stays;
@@ -160,6 +163,7 @@ final class MallDemo
         }
         $this->statements = new Statements($pdo);
         $this->ledger = new LedgerStore($pdo, $this->statements, new LedgerPeriods($pdo), new JournalCash($pdo));
+        $this->postings = new PostingFunctions($pdo, new LedgerPeriods($pdo), new JournalCash($pdo));
         $this->session = new \PerfectApp\Session\Session(null, false);
         $request = new \PerfectConsign\Shared\Http\Request('GET', '/', [], []);
         $auditLog = new \PerfectConsign\Bootstrap\AuditLog(
@@ -221,13 +225,14 @@ final class MallDemo
         $this->rent = new RentStore(
             $this->statements,
             $mall,
-            $this->ledger,
+            $this->postings,
         );
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));
         $payouts = new PayoutStore($pdo, $this->statements, $this->runs, new PayoutWindow());
         $lines = new PayoutRunLines($this->statements);
         $this->settler = new PayoutSettler(
             $this->ledger,
+            $this->postings,
             $payouts,
             $this->runs,
             $lines,
@@ -394,8 +399,8 @@ final class MallDemo
         );
         (new LateFeeDue(
             $this->statements,
-            $this->ledger,
-            new LateFee($this->ledger),
+            $this->postings,
+            new LateFee($this->postings),
         ))->apply('2026-10-05');
     }
 
@@ -805,7 +810,7 @@ final class MallDemo
         if ($open < 1) {
             return;
         }
-        $this->ledger->postThrough(
+        $this->postings->post(
             $date,
             'stall_post_rent_payment(?::uuid, ?, ?, ?, ?::date)',
             [RowValue::string($rows[0]['vendor_id'] ?? null), $open, 0, 0, $date],
@@ -900,7 +905,7 @@ final class MallDemo
             'SELECT vendor_id::text AS vendor_id FROM booth_assignments WHERE id = ?::uuid',
             [$this->stayOn($booth, $date)]
         );
-        $this->ledger->postThrough(
+        $this->postings->post(
             $date,
             'stall_post_rent_payment(?::uuid, ?, ?, ?, ?::date)',
             [RowValue::string($vendor[0]['vendor_id'] ?? null), 0, 0, $amount, $date],

@@ -38,7 +38,7 @@ final class RentMoves
     /**
      * Posted rent and late fees for every booth this vendor has had.
      *
-     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}>
+     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, stay_id: string, debit: int, credit: int}>
      */
     public function charges(string $vendorId): array
     {
@@ -50,7 +50,7 @@ final class RentMoves
     }
 
     /**
-     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}>
+     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, stay_id: string, debit: int, credit: int}>
      */
     private function moves(string $vendorId): array
     {
@@ -58,6 +58,7 @@ final class RentMoves
                        to_char(journal.posting_date, 'YYYY-MM-DD') AS posted_on,
                        booth.code AS booth,
                        stay.booth_id::text AS booth_id,
+                       stay.id::text AS stay_id,
                        line.debit_minor, line.credit_minor,
                        to_char(stay.starts_on, 'YYYY-MM-DD') AS starts_on
                 FROM journal_lines AS line
@@ -88,6 +89,7 @@ final class RentMoves
                 'date' => $this->covered($source, $postedOn, $startsOn, $cycleDay),
                 'booth' => RowValue::string($row['booth'] ?? null),
                 'booth_id' => RowValue::string($row['booth_id'] ?? null),
+                'stay_id' => RowValue::string($row['stay_id'] ?? null),
                 'debit' => RowValue::integer($row['debit_minor'] ?? null),
                 'credit' => RowValue::integer($row['credit_minor'] ?? null),
             ];
@@ -97,7 +99,7 @@ final class RentMoves
     }
 
     /**
-     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}>
+     * @return list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, stay_id: string, debit: int, credit: int}>
      */
     private function uncovered(string $vendorId, string $today): array
     {
@@ -105,6 +107,7 @@ final class RentMoves
             return [];
         }
         $sql = "SELECT book.booth_code AS booth, book.booth_id::text AS booth_id,
+                       book.assignment_id::text AS stay_id,
                        to_char(book.starts_on, 'YYYY-MM-DD') AS starts_on,
                        to_char(book.period_start, 'YYYY-MM-DD') AS period_start,
                        book.quote_minor
@@ -127,6 +130,7 @@ final class RentMoves
                 'date' => $partial !== '' ? $partial : $period,
                 'booth' => RowValue::string($row['booth'] ?? null),
                 'booth_id' => RowValue::string($row['booth_id'] ?? null),
+                'stay_id' => RowValue::string($row['stay_id'] ?? null),
                 'debit' => RowValue::integer($row['quote_minor'] ?? null),
                 'credit' => 0,
             ];

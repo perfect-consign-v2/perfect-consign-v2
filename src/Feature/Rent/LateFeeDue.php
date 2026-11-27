@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Rent;
 
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -18,7 +18,7 @@ final class LateFeeDue
 {
     public function __construct(
         private readonly Statements $statements,
-        private readonly LedgerStore $ledger,
+        private readonly PostingFunctions $postings,
         private readonly LateFee $fees,
     ) {
     }
@@ -49,6 +49,6 @@ final class LateFeeDue
             return 0;
         }
 
-        return $this->ledger->postBatch($dates, 'stall_post_late_fees(?::date)', [$today]);
+        return $this->postings->postBatch($dates, 'stall_post_late_fees(?::date)', [$today]);
     }
 }

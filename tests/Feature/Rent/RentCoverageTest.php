@@ -16,7 +16,7 @@ use PerfectConsign\Feature\Rent\RentForm;
 use PerfectConsign\Feature\Rent\RentOwed;
 use PerfectConsign\Feature\Rent\RentPayment;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 use PHPUnit\Framework\TestCase;
 
@@ -37,11 +37,11 @@ final class RentCoverageTest extends TestCase
 
     public function testTheNightlyRunPostsNothingWhenTheDatabaseListsNoFee(): void
     {
-        $ledger = $this->createMock(LedgerStore::class);
-        $ledger->expects(self::never())->method('postBatch');
+        $postings = $this->createMock(PostingFunctions::class);
+        $postings->expects(self::never())->method('postBatch');
         $nothing = $this->createStub(Statements::class);
         $nothing->method('bound')->willReturn([]);
-        $due = new LateFeeDue($nothing, $ledger, new LateFee($ledger));
+        $due = new LateFeeDue($nothing, $postings, new LateFee($postings));
 
         self::assertSame(0, $due->apply('not-a-day'));
         self::assertSame(0, $due->apply('2026-10-15'));
@@ -49,15 +49,15 @@ final class RentCoverageTest extends TestCase
 
     public function testTheNightlyRunOpensEachFeeDayAndLetsTheDatabasePost(): void
     {
-        $ledger = $this->createMock(LedgerStore::class);
-        $ledger->expects(self::once())
+        $postings = $this->createMock(PostingFunctions::class);
+        $postings->expects(self::once())
             ->method('postBatch')
             ->with(['2026-10-06', '2026-10-11'], 'stall_post_late_fees(?::date)', ['2026-10-15'])
             ->willReturn(2);
         $listed = $this->createStub(Statements::class);
         $listed->method('bound')->willReturn([['fee_date' => '2026-10-06'], ['fee_date' => '2026-10-11']]);
 
-        self::assertSame(2, (new LateFeeDue($listed, $ledger, new LateFee($ledger)))->apply('2026-10-15'));
+        self::assertSame(2, (new LateFeeDue($listed, $postings, new LateFee($postings)))->apply('2026-10-15'));
     }
 
     public function testOpenRentNeedsAVendorWhoOwes(): void

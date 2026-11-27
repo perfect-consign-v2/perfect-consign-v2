@@ -9,12 +9,14 @@ use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalDraft;
 use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\PostedLines;
 
 final class PayoutSettler
 {
     public function __construct(
         private readonly LedgerStore $ledger,
+        private readonly PostingFunctions $postings,
         private readonly PayoutStore $payouts,
         private readonly PayoutRunStore $runs,
         private readonly PayoutRunLines $lines,
@@ -30,7 +32,7 @@ final class PayoutSettler
     {
         $posted = [];
         foreach ($this->payouts->missingCharges($runId, $vendorId) as $charge) {
-            $posted[] = $this->ledger->postThrough(
+            $posted[] = $this->postings->post(
                 $charge['posting_date'],
                 'stall_post_rent_charge(?::uuid, ?::date, ?::date)',
                 [$charge['assignment_id'], $charge['month_start'], $charge['posting_date']],

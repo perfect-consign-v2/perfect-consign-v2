@@ -83,6 +83,7 @@ use PerfectConsign\Feature\WaitList\WaitListController;
 use PerfectConsign\Feature\WaitList\WaitListFields;
 use PerfectConsign\Feature\WaitList\WaitListStore;
 use PerfectConsign\Ledger\CashRound;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerPeriods;
@@ -330,7 +331,7 @@ final class ListedLineCoverageTest extends TestCase
         $store = new RentStore(
             new FlexibleStatements(static fn (string $sql): array => [], static fn (string $sql): array => []),
             $this->mallSettings(),
-            $this->createStub(LedgerStore::class),
+            $this->createStub(PostingFunctions::class),
         );
         try {
             $store->chargeStay(self::VENDOR, '2026-06-01');
@@ -632,6 +633,7 @@ final class ListedLineCoverageTest extends TestCase
             'posting_date' => '2026-06-15',
         ]));
         $ledger = $this->createStub(LedgerStore::class);
+        $postings = $this->createStub(PostingFunctions::class);
         $ledger->method('roleAccount')->willReturn(self::ACCOUNT);
         $ledger->method('post')->willReturn(MallDoor::JOURNAL);
         $controller = new TaxController($door->app, $ledger, new TaxStore($door->pdo), QuietAudit::journal($door->statements, $door->actor));
@@ -1420,6 +1422,7 @@ final class ListedLineCoverageTest extends TestCase
         );
         $runs = new PayoutRunStore($quoted, new OccupiedPack($quoted));
         $ledger = $this->createStub(LedgerStore::class);
+        $postings = $this->createStub(PostingFunctions::class);
         $ledger->method('newId')->willReturn(self::VENDOR);
         $ledger->method('roleAccount')->willReturn(self::ACCOUNT);
         $ledger->method('post')->willReturn(self::VENDOR);
@@ -1427,8 +1430,9 @@ final class ListedLineCoverageTest extends TestCase
 
         return new RentPosting(
             $ledger,
+            $postings,
             $payouts,
-            new PayoutSettler($ledger, $payouts, $runs, new \PerfectConsign\Feature\Payout\PayoutRunLines($quoted), QuietAudit::journal($quoted, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $quoted)),
+            new PayoutSettler($ledger, $postings, $payouts, $runs, new \PerfectConsign\Feature\Payout\PayoutRunLines($quoted), QuietAudit::journal($quoted, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $quoted)),
             new MallPayoutSettings($statements),
         );
     }
@@ -1459,10 +1463,12 @@ final class ListedLineCoverageTest extends TestCase
             'operating_mode' => 'both',
         ]]);
         $ledger = $this->createStub(LedgerStore::class);
+        $postings = $this->createStub(PostingFunctions::class);
         $posting = new RentPosting(
             $ledger,
+            $postings,
             new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
-            new PayoutSettler($ledger, new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), new PayoutRunStore($statements, new OccupiedPack($statements)), new \PerfectConsign\Feature\Payout\PayoutRunLines($statements), QuietAudit::journal($statements, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $statements)),
+            new PayoutSettler($ledger, $postings, new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), new PayoutRunStore($statements, new OccupiedPack($statements)), new \PerfectConsign\Feature\Payout\PayoutRunLines($statements), QuietAudit::journal($statements, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $statements)),
             new MallPayoutSettings($statements),
         );
 
@@ -1474,7 +1480,7 @@ final class ListedLineCoverageTest extends TestCase
             $posting,
             new RentSlip($statements),
             new RentPayment(),
-            new LateFee($ledger),
+            new LateFee($postings),
             $this->createStub(\PerfectConsign\Bootstrap\SaleCeiling::class),
         );
     }

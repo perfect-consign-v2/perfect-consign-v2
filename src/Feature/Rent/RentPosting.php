@@ -9,6 +9,7 @@ use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Ledger\PostedLines;
 
@@ -16,6 +17,7 @@ final class RentPosting
 {
     public function __construct(
         private readonly LedgerStore $ledger,
+        private readonly PostingFunctions $postings,
         private readonly PayoutStore $payouts,
         private readonly PayoutSettler $settler,
         private readonly MallPayoutSettings $settings,
@@ -69,7 +71,7 @@ final class RentPosting
 
         // The database splits the receipt over the vendor's stays, the stay
         // with the oldest unpaid charge first, and refuses more than is owed.
-        return $this->ledger->postThrough(
+        return $this->postings->post(
             $today,
             'stall_post_rent_payment(?::uuid, ?, ?, ?, ?::date)',
             [$vendorId, $cash, $card, $checks, $today],

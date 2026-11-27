@@ -90,6 +90,24 @@ final class RentBillTest extends TestCase
         self::assertSame('Rent C-2', $lines[1]['label']);
     }
 
+    public function testAPaymentPaysOnlyItsOwnStay(): void
+    {
+        $older = $this->move('rent-a', 'rent_charge', '2026-08-01', 'C-1', 10000, 0);
+        $older['stay_id'] = 'stay-a';
+        $fee = $this->move('fee-a', 'late_fee', '2026-08-29', 'C-1', 2500, 0);
+        $fee['stay_id'] = 'stay-a';
+        $newer = $this->move('rent-b', 'rent_charge', '2026-10-01', 'C-2', 20000, 0);
+        $newer['stay_id'] = 'stay-b';
+        $paid = $this->move('pay-b', 'rent_payment', '2026-10-02', 'C-2', 0, 20000);
+        $paid['stay_id'] = 'stay-b';
+
+        $lines = (new RentBill())->explain([$older, $fee, $newer, $paid], 12500);
+
+        self::assertSame(['Rent', 'Late fee'], array_column($lines, 'label'));
+        self::assertSame([10000, 2500], array_column($lines, 'amount'));
+        self::assertSame('fee-a', $lines[1]['journal_id']);
+    }
+
     public function testRentThatIsNotChargedYetIsStillALine(): void
     {
         $lines = (new RentBill())->explain([], 40000);
@@ -100,7 +118,7 @@ final class RentBillTest extends TestCase
     }
 
     /**
-     * @return array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, credit: int}
+     * @return array{journal_id: string, source: string, date: string, booth: string, booth_id: string, stay_id?: string, debit: int, credit: int}
      */
     private function move(string $id, string $source, string $date, string $booth, int $debit, int $credit, string $boothId = ''): array
     {

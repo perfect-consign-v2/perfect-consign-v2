@@ -1,47 +1,49 @@
 ---
-title: Booth deposit release and assignment rent
+title: Booth extras, booth deposits, and assignment rent
 category: Floor and ops
-hesk: published 2026-11-20
-as_of: 2026-11-18
+hesk: pending
+as_of: 2026-11-27
 ---
 
-# Booth deposit release and assignment rent
+# Booth extras, booth deposits, and assignment rent
 
 ## As of
 
-2026-11-18 — A cash booth deposit and the cash returned from it name the open shift. No open register refuses the post. 2026-10-25.
+2026-11-27 — Extras and deposits post on a stay. Deposits are a store setting, off by default. 2026-11-18 — A cash booth deposit and the cash returned from it name the open shift.
 
 ## In one sentence
 
-Collecting a booth deposit credits booth deposits and names the open shift; releasing it cannot exceed what that booth still holds and returns that cash on the same shift. The assignment is the lease and supplies the contracted rent for charges.
+Booth extras and booth deposits are posted on a stay from Booth extras; deposits appear only when the store turns them on, and a release cannot exceed what that stay holds.
 
 ## When it happens
 
-Desk collects or returns a deposit; assignment sets rent; rent charge posts for a booth period.
+Charging electric or a sign; taking or giving back a deposit; assigning a booth with a rent.
 
 ## What the books / screens do
 
-- Collect: debit cash, credit booth deposits (subledger booth). The cash names the open shift.
-- Release: cannot exceed the deposit still held for that booth. The cash returned names that open shift.
-- No open register refuses the collect and the return.
-- Assignment contracted rent is locked for that stay. Rent-charge posting key remains one booth and one period. Mid-period move-in prorates.
-- Booth extras beyond rent debit rent receivable and credit booth extras; actor is recorded.
+- Booth extra: debit that stay's rent receivable, credit booth extras. The person picks the booth ("Booth A1, Ada Lane"), types what it is for and the amount.
+- Settings → Booth deposits switch. While off, Booth extras shows no deposit forms.
+- Take a deposit: debit cash, credit booth deposits on that stay. The cash names the open shift.
+- Give it back: only stays holding a deposit are offered, with the amount held. Cannot exceed what is held. The cash names the open shift.
+- The assignment is the lease: its rent is locked for that stay. Mid-period move-in prorates.
 
 ## What is refused
 
+- The same stay, day, and reference twice ("That charge is already posted today.").
+- A deposit while deposits are off ("Booth deposits are turned off for this store.").
 - A release larger than the deposit held.
-- A cash deposit or return when no register is open.
-- A rent charge with no assignment covering the charge date.
+- A cash deposit or return when no register is open ("Open the register first to take or return cash.").
+- Turning deposits off while the store still holds one.
 
 ## How to check
 
-Hold $50; release $50.01 refused. Mid-month move-in: prorated rent charge; deposit account unchanged by the rent charge itself.
+Turn deposits on; hold $20 on a stay; Give it back shows "(holding $20.00)"; release $20.01 is refused.
 
 ## Source
 
-`docs/business-rules.md` — Floor (deposit / assignment rent). `sql/prove_booth_deposit.sql`.
+`docs/business-rules.md` — Floor (extras / deposit / assignment rent). `sql/prove_booth_deposit.sql`, `sql/prove_rent_book.sql`.
 
 ## Related
 
 - Rent cycle day and prorated move-in charge
-- What a rent charge posts; what a rent payment posts
+- What blocks making a vendor Inactive

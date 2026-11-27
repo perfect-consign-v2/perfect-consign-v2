@@ -413,10 +413,17 @@ final class OwnerActionSweep
             'starts_on' => self::NEXT_STAY_START,
             'rent' => '90.00',
         ], ['Booth assigned.']);
-        $this->http->post('/rent/charge', [
-            'booth_id' => $this->otherBoothId,
-            'posting_date' => self::RENT_ON,
-        ], ['Rent charged.', 'a rent charge requires an assignment that covers the charge date']);
+        $book = $this->http->get('/rent?month=' . substr(self::RENT_ON, 0, 7), [$other]);
+        $pattern = '/data-charge-stay="([0-9a-f-]{36})"\s+data-charge-period="(\d{4}-\d{2}-\d{2})"[^>]*data-charge-code="'
+            . preg_quote($other, '/') . '"/';
+        if (preg_match($pattern, $book->body, $button) === 1) {
+            $this->http->post('/rent/charge', [
+                'assignment_id' => $button[1],
+                'period_start' => $button[2],
+            ], ['Rent charged.']);
+        } else {
+            $this->http->failures[] = 'the rent page had no charge button for booth ' . $other;
+        }
         $moved = $this->http->get('/vendors/' . $this->otherVendorId);
         $current = $this->http->id($moved->body, '#/assignments/([0-9a-fA-F-]{36})/#', 'moved assignment');
         if ($current !== '') {
@@ -438,24 +445,27 @@ final class OwnerActionSweep
         }
         $this->http->post('/rent/waive', [], ['Choose a late fee.', 'Late fee waived.']);
         $reference = 'bx' . $this->tag();
+        if ($current === '') {
+            return;
+        }
+        $this->http->get('/booth-extras', ['Booth ' . $other . ', ']);
         $this->http->post('/booth-extras', [
-            'booth_id' => $this->boothId,
+            'assignment_id' => $current,
             'source_reference' => $reference,
             'amount' => '5.00',
-            'posting_date' => self::DATE,
         ], ['Booth charge posted.']);
+        $this->money(true);
         $this->http->post('/booth-deposit', [
-            'booth_id' => $this->boothId,
+            'assignment_id' => $current,
             'source_reference' => $reference . 'd',
             'amount' => '5.00',
-            'posting_date' => self::DATE,
         ], ['Booth deposit posted.']);
         $this->http->post('/booth-deposit/release', [
-            'booth_id' => $this->boothId,
+            'assignment_id' => $current,
             'source_reference' => $reference . 'r',
             'amount' => '5.00',
-            'posting_date' => self::DATE,
         ], ['Booth deposit returned posted.']);
+        $this->money();
     }
 
     private function inventory(): void
@@ -1484,9 +1494,9 @@ final class OwnerActionSweep
         return array_values($ids);
     }
 
-    private function money(): void
+    private function money(bool $deposits = false): void
     {
-        $this->http->post('/settings/money', [
+        $fields = [
             'settings_part' => 'money',
             'default_store_take' => '10',
             'tax_rate' => '8.5',
@@ -1497,7 +1507,11 @@ final class OwnerActionSweep
             'booth_rentals_enabled' => '1',
             'rent_cycle_day' => '1',
             'late_fee_grace_days' => '0',
-        ], ['Money saved.']);
+        ];
+        if ($deposits) {
+            $fields['booth_deposits_enabled'] = '1';
+        }
+        $this->http->post('/settings/money', $fields, ['Money saved.']);
     }
 
     private function freshSale(): void

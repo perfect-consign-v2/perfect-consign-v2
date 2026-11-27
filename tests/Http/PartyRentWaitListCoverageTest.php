@@ -309,8 +309,8 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         $collect = $this->client->get('/' . self::SLUG . '/rent/collect');
         self::assertSees('Choose who is paying rent.', $collect);
         $chargePrepaid = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => '2026-10-01',
+            'assignment_id' => self::MISSING,
+            'period_start' => '2026-10-01',
         ]);
         self::assertLessThan(500, $chargePrepaid->status);
         $this->client->signIn(self::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
@@ -387,15 +387,11 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         self::assertSees('Your check', $check);
         self::assertSees('$65.00', $check);
         self::assertStringNotContainsString('$80.00', $check->body);
-        $oldCharge = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => '2026-03-01',
-        ], 120);
+        $march = $this->client->get('/' . self::SLUG . '/rent?month=2026-03');
+        $oldCharge = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($march->body, 'rh' . $tag), 120);
         self::assertSees('Rent charged.', $oldCharge);
-        $newCharge = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => '2026-04-01',
-        ], 120);
+        $april = $this->client->get('/' . self::SLUG . '/rent?month=2026-04');
+        $newCharge = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($april->body, 'rh' . $tag), 120);
         self::assertSees('Rent charged.', $newCharge);
         $payouts = $this->client->get('/' . self::SLUG . '/payouts');
         self::assertSame(200, $payouts->status);
@@ -438,10 +434,8 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
             'rent' => '40.00',
         ]);
         self::assertSees('Booth assigned.', $assigned);
-        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => '2026-09-01',
-        ]);
+        $september = $this->client->get('/' . self::SLUG . '/rent?month=2026-09');
+        $charged = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($september->body, 'b' . $tag));
         self::assertSees('Rent charged.', $charged);
         $lateOn = [
             'settings_part' => 'money',
@@ -539,8 +533,8 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
             $withDrawer = $this->client->get('/' . self::SLUG . '/rent');
             self::assertSees('Who owes the store', $withDrawer);
             $blocked = $this->client->post('/' . self::SLUG . '/rent/charge', [
-                'booth_id' => self::MISSING,
-                'posting_date' => '2026-10-01',
+                'assignment_id' => self::MISSING,
+                'period_start' => '2026-10-01',
             ]);
             self::assertSees('this rent comes out of sales', $blocked);
         } finally {

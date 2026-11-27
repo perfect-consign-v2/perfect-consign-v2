@@ -193,7 +193,7 @@ BEGIN
         'a booth and a reference are required');
     PERFORM pg_temp.refused(
         $q$SELECT stall_post_booth_charge('01900000-0000-7000-8000-00000000b212', 100, 'Sign', '2026-04-02')$q$,
-        'must name a booth assignment');
+        'Choose a booth.');
     IF stall_assignment_open_rent('01900000-0000-7000-8000-00000000b313') <> 2709 + 3000 THEN
         RAISE EXCEPTION 'Joe''s two extras did not land on his stay';
     END IF;

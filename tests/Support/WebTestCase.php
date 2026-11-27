@@ -83,6 +83,23 @@ abstract class WebTestCase extends TestCase
         }
     }
 
+    /**
+     * The Charge button a person would press on the rent page for that booth:
+     * the stay and rent period it posts. Fails when the booth has no button.
+     *
+     * @return array{assignment_id: string, period_start: string}
+     */
+    protected static function chargeButton(string $page, string $boothCode): array
+    {
+        $pattern = '/data-charge-stay="([0-9a-f-]{36})"\s+data-charge-period="(\d{4}-\d{2}-\d{2})"[^>]*data-charge-code="'
+            . preg_quote($boothCode, '/') . '"/';
+        if (preg_match($pattern, $page, $found) !== 1) {
+            self::fail('the rent page has no charge button for booth ' . $boothCode);
+        }
+
+        return ['assignment_id' => $found[1], 'period_start' => $found[2]];
+    }
+
     protected static function assertSees(string $text, PageResponse|string $page): void
     {
         $body = $page instanceof PageResponse ? $page->body : $page;

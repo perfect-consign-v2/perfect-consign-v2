@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Booth;
 
+use PerfectConsign\Ledger\Money;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -75,7 +76,7 @@ final class BoothStayChoices
             $label = 'Booth ' . RowValue::string($row['code'] ?? null) . ', ' . RowValue::string($row['vendor_name'] ?? null);
             if ($held !== null) {
                 $minor = RowValue::integer($row[$held] ?? null);
-                $label .= ' (holding $' . number_format(intdiv($minor, 100)) . '.' . str_pad((string) ($minor % 100), 2, '0', STR_PAD_LEFT) . ')';
+                $label .= ' (holding ' . Money::format($minor) . ')';
             }
             $choices[] = ['id' => RowValue::string($row['id'] ?? null), 'label' => $label];
         }
