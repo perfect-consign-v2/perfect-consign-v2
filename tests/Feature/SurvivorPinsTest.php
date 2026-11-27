@@ -166,19 +166,13 @@ final class SurvivorPinsTest extends TestCase
         self::assertSame(0, $posts);
     }
 
-    public function testMoveInDaysFollowTheStartDay(): void
+    public function testMoveInDaysAreWordedOnTheNote(): void
     {
-        $short = (new ReflectionClass(RentShortfall::class))->newInstanceWithoutConstructor();
-        $days = new ReflectionMethod(RentShortfall::class, 'days');
-        $monthly = 30000;
-        $starts = '2026-09-11';
-        $charged = \PerfectConsign\Feature\Party\MoveInRent::due($monthly, $starts);
+        $note = $this->shortfall([], [
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-12', 'starts_on' => '2026-05-12', 'move_in_days' => 20, 'charged' => 2000],
+        ], 2000);
 
-        self::assertSame(0, $days->invoke($short, 1, $monthly, '2026-09-11', $charged));
-        self::assertSame(0, $days->invoke($short, 'nope', $monthly, '2026-09-11', $charged));
-        self::assertSame(0, $days->invoke($short, '2026-08-11', $monthly, '2026-09-11', $charged));
-        self::assertSame(0, $days->invoke($short, '2026-09-01', $monthly, '2026-09-01', $monthly));
-        self::assertSame(20, $days->invoke($short, $starts, $monthly, '2026-09-11', $charged));
+        self::assertStringContainsString('Twenty days at A was $20.00', $note);
     }
 
     public function testAnUnknownBoothFallsBackToTheFirstSpot(): void
@@ -359,7 +353,7 @@ final class SurvivorPinsTest extends TestCase
         $note = $this->shortfall([
             ['vendor_id' => 'v', 'booth' => 'A', 'month' => '2026-05', 'paid' => 0],
         ], [
-            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'monthly' => 50, 'charged' => 50],
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'move_in_days' => 0, 'charged' => 50],
         ], 80);
 
         self::assertStringContainsString('earlier month', $note);
@@ -370,7 +364,7 @@ final class SurvivorPinsTest extends TestCase
         $note = $this->shortfall([
             ['vendor_id' => 'v', 'booth' => 'A', 'month' => '2026-05', 'paid' => 100],
         ], [
-            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'monthly' => 100, 'charged' => 100],
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'move_in_days' => 0, 'charged' => 100],
         ], 200);
 
         self::assertStringContainsString('earlier month', $note);
@@ -381,8 +375,8 @@ final class SurvivorPinsTest extends TestCase
         $note = $this->shortfall([
             ['vendor_id' => 'v', 'booth' => 'A', 'month' => '2026-05', 'paid' => 100],
         ], [
-            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'monthly' => 100, 'charged' => 100],
-            ['vendor_id' => 'v', 'booth' => 'B', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'monthly' => 50, 'charged' => 50],
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'move_in_days' => 0, 'charged' => 100],
+            ['vendor_id' => 'v', 'booth' => 'B', 'posted' => '2026-05-15', 'starts_on' => '2026-05-15', 'move_in_days' => 0, 'charged' => 50],
         ], 50);
 
         self::assertStringNotContainsString('$0.00', $note);
@@ -394,8 +388,8 @@ final class SurvivorPinsTest extends TestCase
         $note = $this->shortfall([
             ['vendor_id' => 'v', 'booth' => 'A', 'month' => '2026-05', 'paid' => 40],
         ], [
-            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-10', 'starts_on' => '2026-05-10', 'monthly' => 40, 'charged' => 40],
-            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-20', 'starts_on' => '2026-05-20', 'monthly' => 100, 'charged' => 100],
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-10', 'starts_on' => '2026-05-10', 'move_in_days' => 0, 'charged' => 40],
+            ['vendor_id' => 'v', 'booth' => 'A', 'posted' => '2026-05-20', 'starts_on' => '2026-05-20', 'move_in_days' => 0, 'charged' => 100],
         ], 100);
 
         self::assertStringContainsString('$1.00', $note);

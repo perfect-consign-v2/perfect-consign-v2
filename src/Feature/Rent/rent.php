@@ -18,7 +18,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var int $matched */
 /** @var array{due: int, charged: int, owed: int} $counts */
 /** @var array{due_minor: int, due_count: int, charged_minor: int, charged_count: int, owed_minor: int, owed_count: int} $stats */
-/** @var list<array{id: string, code: string, name: string, vendor_id: ?string, vendor_name: ?string, rate_minor: ?int, charged: bool, chargeable: bool, charge_minor: ?int, journal_id: ?string, open_minor: int, charge_date: string, collect_amount: string}> $rows */
+/** @var list<array{id: string, assignment_id: ?string, booth_id: string, code: string, name: string, vendor_id: ?string, vendor_name: ?string, period_start: string, period_label: string, rate_minor: ?int, charged: bool, chargeable: bool, charge_minor: ?int, journal_id: ?string, open_minor: int, charge_date: string, collect_amount: string}> $rows */
 /** @var bool $fromSales */
 /** @var list<array{vendor_id: string, code: string, name: string, booth_id: string, booth: string, owes: int, collect: string}> $debtors */
 /** @var list<array{month: string, label: string, count: int}> $backlog */
@@ -215,16 +215,16 @@ $booths = static function (int $count): string {
             ListTable::head([
                 ['label' => 'Booth'],
                 ['label' => 'Vendor'],
-                ['label' => 'Rate', 'sort' => 'num'],
-                ['label' => 'This month'],
+                ['label' => 'Rent', 'sort' => 'num'],
+                ['label' => 'For'],
                 ['label' => 'Still owed', 'sort' => 'num'],
                 ['label' => '', 'actions' => true],
             ]);
             ?>
                 <tbody>
                 <?php foreach ($rows as $row): ?>
-                    <tr id="booth-<?= View::text($row['id']) ?>">
-                        <td><a class="strong" href="/<?= View::text($slug) ?>/booths/<?= View::text($row['id']) ?>/edit"><?= View::text($row['code']) ?></a></td>
+                    <tr id="rent-<?= View::text($row['id']) ?>">
+                        <td><a class="strong" href="/<?= View::text($slug) ?>/booths/<?= View::text($row['booth_id']) ?>/edit"><?= View::text($row['code']) ?></a></td>
                         <td>
                             <?php if ($row['vendor_id'] === null || $row['vendor_name'] === null): ?>
                                 <span class="muted"><?= $blank ?></span>
@@ -236,21 +236,24 @@ $booths = static function (int $count): string {
                         <td>
                             <?php if ($row['charged'] && is_string($row['journal_id'])): ?>
                                 <a class="badge badge-success" href="/<?= View::text($slug) ?>/journals/<?= View::text($row['journal_id']) ?>">Charged</a>
+                            <?php elseif ($row['assignment_id'] === null): ?>
+                                <span class="muted">Empty</span>
                             <?php elseif ($row['rate_minor'] === null): ?>
-                                <a class="badge" href="/<?= View::text($slug) ?>/booths/<?= View::text($row['id']) ?>/edit">No rate</a>
+                                <a class="badge" href="/<?= View::text($slug) ?>/booths/<?= View::text($row['booth_id']) ?>/edit">No rate</a>
                             <?php elseif (!$row['chargeable']): ?>
-                                <span class="muted"><?= $blank ?></span>
+                                <span class="muted"><?= View::text($row['period_label']) ?></span>
                             <?php else: ?>
                                 <button
                                     class="btn btn-sm btn-primary"
                                     type="button"
                                     data-open-modal="rent-charge"
-                                    data-charge-booth="<?= View::text($row['id']) ?>"
-                                    data-charge-date="<?= View::text($row['charge_date']) ?>"
+                                    data-charge-stay="<?= View::text($row['assignment_id']) ?>"
+                                    data-charge-period="<?= View::text($row['period_start']) ?>"
+                                    data-charge-period-label="<?= View::text($row['period_label']) ?>"
                                     data-charge-code="<?= View::text($row['code']) ?>"
                                     data-charge-vendor="<?= View::text((string) ($row['vendor_name'] ?? '')) ?>"
                                     data-charge-money="<?= View::text(View::money($row['rate_minor'])) ?>"
-                                >Charge <?= View::text(View::money($row['rate_minor'])) ?></button>
+                                >Charge <?= View::text(View::money($row['rate_minor'])) ?> for <?= View::text($row['period_label']) ?></button>
                             <?php endif; ?>
                         </td>
                         <td class="num"><?= View::text(View::money($row['open_minor'])) ?></td>
@@ -261,8 +264,6 @@ $booths = static function (int $count): string {
                                 <a href="/<?= View::text($slug) ?>/registers">Open a register to collect</a>
                             <?php elseif ($row['open_minor'] > 0 && $row['vendor_id'] !== null): ?>
                                 <a class="btn btn-sm" href="/<?= View::text($slug) ?>/rent/collect?vendor=<?= View::text($row['vendor_id']) ?>">Collect</a>
-                            <?php elseif ($row['open_minor'] > 0): ?>
-                                <a class="btn btn-sm" href="/<?= View::text($slug) ?>/rent/collect?booth=<?= View::text($row['id']) ?>">Collect</a>
                             <?php else: ?>
                                 <span class="muted"><?= $blank ?></span>
                             <?php endif; ?>
@@ -278,8 +279,8 @@ $booths = static function (int $count): string {
             <div class="card-head"><div class="h3" id="rent-charge-title">Charge this rent</div></div>
             <div class="card-body stack">
                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                <input type="hidden" name="booth_id" value="">
-                <input type="hidden" name="posting_date" value="">
+                <input type="hidden" name="assignment_id" value="">
+                <input type="hidden" name="period_start" value="">
                 <input type="hidden" name="month" value="<?= View::text($month) ?>">
                 <?php if ($query !== ''): ?>
                     <input type="hidden" name="q" value="<?= View::text($query) ?>">
@@ -289,7 +290,7 @@ $booths = static function (int $count): string {
                 <?php endif; ?>
                 <p>Booth <span data-charge-code></span></p>
                 <p data-charge-vendor hidden></p>
-                <p><?= View::text($label) ?></p>
+                <p data-charge-period-label><?= View::text($label) ?></p>
                 <p class="h3">Charge <span data-charge-amount></span></p>
                 <div class="row gap-2">
                     <button class="btn btn-primary" type="submit">Charge <span data-charge-amount></span></button>

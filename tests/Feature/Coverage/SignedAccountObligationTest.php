@@ -53,7 +53,6 @@ use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Payout\VendorClawback;
 use PerfectConsign\Feature\Rent\LateFee;
-use PerfectConsign\Feature\Rent\RentMoves;
 use PerfectConsign\Feature\Rent\RentPayment;
 use PerfectConsign\Feature\Rent\RentPosting;
 use PerfectConsign\Feature\Rent\RentReceipt;
@@ -243,11 +242,10 @@ final class SignedAccountObligationTest extends TestCase
                     new VendorClawback($ledger, $statements),
                 ),
                 new \PerfectConsign\Feature\Mall\MallPayoutSettings($statements),
-                new RentMoves($statements, new \PerfectConsign\Feature\Mall\MallPayoutSettings($statements)),
             ),
             new RentSlip($statements),
             new RentPayment(),
-            new LateFee($ledger, $statements),
+            new LateFee($ledger),
             new SaleCeiling($statements, new Actor($session), QuietAudit::make($statements, $session), new Request('POST', '/', [], [])),
         );
         $this->expectException(DatabaseRefusal::class);

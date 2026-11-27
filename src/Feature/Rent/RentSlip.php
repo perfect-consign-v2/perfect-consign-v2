@@ -79,16 +79,13 @@ final class RentSlip
         foreach (
             $this->statements->bound(
                 "SELECT booth.code AS booth,
-                    COALESCE(vendor.name, '') AS vendor_name
+                    vendor.name AS vendor_name
              FROM journal_lines AS line
-             JOIN journals AS posted ON posted.id = line.journal_id
-             JOIN booths AS booth ON booth.id = line.subledger_ref::uuid
-             LEFT JOIN booth_assignments AS assignment
-               ON assignment.booth_id = booth.id
-              AND assignment.assignment_range @> posted.posting_date
-             LEFT JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
+             JOIN booth_assignments AS stay ON stay.id::text = line.subledger_ref
+             JOIN booths AS booth ON booth.id = stay.booth_id
+             JOIN vendors AS vendor ON vendor.id = stay.vendor_id
              WHERE line.journal_id = ?::uuid
-               AND line.subledger_type = 'booth'
+               AND line.subledger_type = 'assignment'
                AND line.credit_minor > 0
              ORDER BY booth.code",
                 [$journalId]

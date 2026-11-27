@@ -30,7 +30,7 @@ use PerfectConsign\Shared\Http\View;
         <select id="line_subledger_type_<?= View::text($slot) ?>" name="line_subledger_type_<?= View::text($slot) ?>">
             <option value=""></option>
             <option value="vendor">Vendor</option>
-            <option value="booth">Booth</option>
+            <option value="assignment">Booth stay</option>
         </select>
         <label for="line_subledger_ref_<?= View::text($slot) ?>">Subledger id</label>
         <input id="line_subledger_ref_<?= View::text($slot) ?>" name="line_subledger_ref_<?= View::text($slot) ?>">

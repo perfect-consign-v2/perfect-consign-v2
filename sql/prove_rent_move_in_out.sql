@@ -143,6 +143,18 @@ BEGIN
     PERFORM pg_temp.expect_charge('01900000-0000-7000-8000-00000000c314', '2027-03-01', '2027-03-17', 4354, 'new booth from the 17th');
 END $$;
 
+-- The days a move-in pays for, as the payout note words them.
+DO $$
+BEGIN
+    IF stall_rent_move_in_days('01900000-0000-7000-8000-00000000c302', '2027-03-01') <> 15
+       OR stall_rent_move_in_days('01900000-0000-7000-8000-00000000c301', '2027-03-01') <> 0
+       OR stall_rent_move_in_days('01900000-0000-7000-8000-00000000c302', '2027-04-01') <> 0
+       OR stall_rent_move_in_days('01900000-0000-7000-8000-00000000c304', '2028-02-01') <> 15
+       OR stall_rent_move_in_days('01900000-0000-7000-8000-00000000c305', '2027-02-01') <> 14 THEN
+        RAISE EXCEPTION 'the move-in days are wrong';
+    END IF;
+END $$;
+
 -- Nothing credits unused days: rent moves only through the charges above.
 DO $$
 BEGIN

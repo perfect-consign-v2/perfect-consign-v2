@@ -34,7 +34,6 @@ use PerfectConsign\Feature\Pos\TicketStore;
 use PerfectConsign\Feature\Register\DenominationCount;
 use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\LateFeeDue;
-use PerfectConsign\Feature\Rent\RentLines;
 use PerfectConsign\Feature\Rent\RentStore;
 use PerfectConsign\Ledger\CashRound;
 use PerfectConsign\Ledger\JournalDraft;
@@ -222,7 +221,6 @@ final class MallDemo
         $this->rent = new RentStore(
             $this->statements,
             $mall,
-            new RentLines(),
             $this->ledger,
         );
         $this->runs = new PayoutRunStore($this->statements, new OccupiedPack($this->statements));
@@ -396,8 +394,8 @@ final class MallDemo
         );
         (new LateFeeDue(
             $this->statements,
-            new MallPayoutSettings($this->statements),
-            new LateFee($this->ledger, $this->statements),
+            $this->ledger,
+            new LateFee($this->ledger),
         ))->apply('2026-10-05');
     }
 
@@ -505,7 +503,7 @@ final class MallDemo
         }
         if ($month === '2026-09') {
             $this->assign('C-1', 'GIN', '2026-09-20', '', 40000);
-            $this->rent->postCharge($this->booths['C-1'], '2026-09-20');
+            $this->ensureCharge('C-1', '2026-09-20');
             $this->collectRent($session, 'C-1', '2026-09-20', 5000, '8801');
         }
         $who = ['ADA', 'BEA'];
@@ -792,43 +790,58 @@ final class MallDemo
 
     private function ensureCharge(string $booth, string $date): void
     {
-        $rows = $this->statements->bound(
-            'SELECT id FROM journals WHERE posting_key = ?',
-            ['rent-charge:' . $this->booths[$booth] . ':' . substr($date, 0, 7)]
-        );
-        if ($rows !== []) {
-            return;
-        }
-        $this->rent->postCharge($this->booths[$booth], $date);
+        $this->rent->chargeStay($this->stayOn($booth, $date), $this->periodOf($date));
     }
 
     private function payOpenRent(string $sessionId, string $booth, string $date): void
     {
+        $stay = $this->stayOn($booth, $date);
         $rows = $this->statements->bound(
-            "SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0) AS open_minor
-             FROM journal_lines AS line
-             JOIN chart_roles AS role ON role.account_id = line.account_id
-             WHERE role.role = 'booth_rent_receivable'
-               AND line.subledger_type = 'booth'
-               AND line.subledger_ref = ?",
-            [$this->booths[$booth]]
+            'SELECT stall_assignment_open_rent(?::uuid) AS open_minor, vendor_id::text AS vendor_id
+             FROM booth_assignments WHERE id = ?::uuid',
+            [$stay, $stay]
         );
         $open = RowValue::integer($rows[0]['open_minor'] ?? null);
         if ($open < 1) {
             return;
         }
-        $id = $this->ledger->newId();
-        $this->ledger->post(new JournalDraft(
-            postingKey: 'rent-payment:' . $id,
-            postingDate: $date,
-            source: new JournalSource('rent_payment', $id, 'Rent receipt'),
-            lines: [
-                PostedLines::entry($this->ledger->roleAccount('cash'), $open, 0, null, null),
-                PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), 0, $open, 'booth', $this->booths[$booth]),
-            ],
-            sessionId: $sessionId,
-            tenderedMinor: $open,
-        ));
+        $this->ledger->postThrough(
+            $date,
+            'stall_post_rent_payment(?::uuid, ?, ?, ?, ?::date)',
+            [RowValue::string($rows[0]['vendor_id'] ?? null), $open, 0, 0, $date],
+            $sessionId,
+            null,
+            $open,
+        );
+    }
+
+    /**
+     * The stay that holds the booth on that day.
+     */
+    private function stayOn(string $booth, string $date): string
+    {
+        $rows = $this->statements->bound(
+            'SELECT id::text AS id
+             FROM booth_assignments
+             WHERE booth_id = ?::uuid
+               AND starts_on <= ?::date
+               AND (ends_on IS NULL OR ends_on >= ?::date)
+             ORDER BY starts_on DESC
+             LIMIT 1',
+            [$this->booths[$booth], $date, $date]
+        );
+
+        return RowValue::string($rows[0]['id'] ?? null);
+    }
+
+    private function periodOf(string $date): string
+    {
+        $rows = $this->statements->bound(
+            "SELECT to_char(stall_rent_period_start(?::date), 'YYYY-MM-DD') AS period_start",
+            [$date]
+        );
+
+        return RowValue::string($rows[0]['period_start'] ?? null);
     }
 
     private function payout(string $postingDate): void
@@ -883,18 +896,17 @@ final class MallDemo
 
     private function collectRent(string $sessionId, string $booth, string $date, int $amount, string $check): void
     {
-        $id = $this->ledger->newId();
-        $this->ledger->post(new JournalDraft(
-            postingKey: 'rent-payment:' . $id,
-            postingDate: $date,
-            source: new JournalSource('rent_payment', $id, 'Rent receipt'),
-            lines: [
-                PostedLines::entry($this->ledger->roleAccount('checks'), $amount, 0, null, null),
-                PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), 0, $amount, 'booth', $this->booths[$booth]),
-            ],
-            sessionId: $sessionId,
-            checkNumber: $check,
-        ));
+        $vendor = $this->statements->bound(
+            'SELECT vendor_id::text AS vendor_id FROM booth_assignments WHERE id = ?::uuid',
+            [$this->stayOn($booth, $date)]
+        );
+        $this->ledger->postThrough(
+            $date,
+            'stall_post_rent_payment(?::uuid, ?, ?, ?, ?::date)',
+            [RowValue::string($vendor[0]['vendor_id'] ?? null), 0, 0, $amount, $date],
+            $sessionId,
+            $check,
+        );
     }
 
     private function itemNotes(): void

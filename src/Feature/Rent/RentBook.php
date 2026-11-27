@@ -8,51 +8,49 @@ use DateTimeImmutable;
 use InvalidArgumentException;
 
 /**
- * One month of rent: who holds the booth, the stored rate, the live charge, and what is still owed.
+ * One month of rent on screen. The rows come from the database rent book: one
+ * per stay in each rent period, so a vendor who leaves mid-month keeps her own
+ * row and charge beside the vendor who moves in.
+ *
+ * @phpstan-type RentRow array{
+ *   id: string,
+ *   assignment_id: ?string,
+ *   booth_id: string,
+ *   code: string,
+ *   name: string,
+ *   vendor_id: ?string,
+ *   vendor_name: ?string,
+ *   period_start: string,
+ *   period_label: string,
+ *   rate_minor: ?int,
+ *   charged: bool,
+ *   chargeable: bool,
+ *   charge_minor: ?int,
+ *   journal_id: ?string,
+ *   open_minor: int,
+ *   charge_date: string,
+ *   collect_amount: string
+ * }
+ * @phpstan-type RentStats array{due_minor: int, due_count: int, charged_minor: int, charged_count: int, owed_minor: int, owed_count: int}
  */
 final class RentBook
 {
-    public function __construct(private readonly RentLines $lines)
-    {
-    }
-
     /**
-     * @param array{
-     *   booths: list<array<string, mixed>>,
-     *   assignments: list<array<string, mixed>>,
-     *   rates: list<array<string, mixed>>,
-     *   charges: list<array<string, mixed>>,
-     *   open_rent: list<array<string, mixed>>
-     * } $facts
+     * @param list<RentRow> $rows
      * @return array{
      *   month: string,
      *   label: string,
      *   previous: string,
      *   next: string,
      *   today: string,
-     *   stats: array{due_minor: int, due_count: int, charged_minor: int, charged_count: int, owed_minor: int, owed_count: int},
-     *   rows: list<array{
-     *     id: string,
-     *     code: string,
-     *     name: string,
-     *     vendor_id: ?string,
-     *     vendor_name: ?string,
-     *     rate_minor: ?int,
-     *     charged: bool,
-     *     chargeable: bool,
-     *     charge_minor: ?int,
-     *     journal_id: ?string,
-     *     open_minor: int,
-     *     charge_date: string,
-     *     collect_amount: string
-     *   }>
+     *   stats: RentStats,
+     *   rows: list<RentRow>
      * }
      */
-    public function assemble(array $facts, string $month, string $today, int $cycleDay = 1): array
+    public function assemble(array $rows, string $month, string $today): array
     {
         $this->requireMonth($month);
         $this->requireDay($today);
-        $rows = $this->lines->build($facts, $month, $today, $cycleDay);
         $start = new DateTimeImmutable($month . '-01');
 
         return [
@@ -77,41 +75,8 @@ final class RentBook
     }
 
     /**
-     * @param list<array{
-     *   id: string,
-     *   code: string,
-     *   name: string,
-     *   vendor_id: ?string,
-     *   vendor_name: ?string,
-     *   rate_minor: ?int,
-     *   charged: bool,
-     *   chargeable: bool,
-     *   charge_minor: ?int,
-     *   journal_id: ?string,
-     *   open_minor: int,
-     *   charge_date: string,
-     *   collect_amount: string
-     * }> $rows
-     * @return array{
-     *   rows: list<array{
-     *     id: string,
-     *     code: string,
-     *     name: string,
-     *     vendor_id: ?string,
-     *     vendor_name: ?string,
-     *     rate_minor: ?int,
-     *     charged: bool,
-     *     chargeable: bool,
-     *     charge_minor: ?int,
-     *     journal_id: ?string,
-     *     open_minor: int,
-     *     charge_date: string,
-     *     collect_amount: string
-     *   }>,
-     *   counts: array{due: int, charged: int, owed: int},
-     *   standing: string,
-     *   matched: int
-     * }
+     * @param list<RentRow> $rows
+     * @return array{rows: list<RentRow>, counts: array{due: int, charged: int, owed: int}, standing: string, matched: int}
      */
     public function narrow(array $rows, string $query, string $standing): array
     {
@@ -134,8 +99,10 @@ final class RentBook
     }
 
     /**
-     * @param list<array{rate_minor: ?int, charged: bool, chargeable: bool, charge_minor: ?int, open_minor: int}> $rows
-     * @return array{due_minor: int, due_count: int, charged_minor: int, charged_count: int, owed_minor: int, owed_count: int}
+     * Still owed is per stay: a stay that spans two periods on this page counts once.
+     *
+     * @param list<RentRow> $rows
+     * @return RentStats
      */
     private function stats(array $rows): array
     {
@@ -147,26 +114,28 @@ final class RentBook
             'owed_minor' => 0,
             'owed_count' => 0,
         ];
+        $owing = [];
         foreach ($rows as $row) {
             if ($this->due($row)) {
                 $stats['due_minor'] += $row['rate_minor'] ?? 0;
                 $stats['due_count']++;
             }
-            if ($row['charged'] === true) {
+            if ($row['charged']) {
                 $stats['charged_minor'] += $row['charge_minor'] ?? 0;
                 $stats['charged_count']++;
             }
             if ($row['open_minor'] > 0) {
-                $stats['owed_minor'] += $row['open_minor'];
-                $stats['owed_count']++;
+                $owing[$row['assignment_id'] ?? $row['booth_id']] = $row['open_minor'];
             }
         }
+        $stats['owed_minor'] = array_sum($owing);
+        $stats['owed_count'] = count($owing);
 
         return $stats;
     }
 
     /**
-     * @param list<array{rate_minor: ?int, charged: bool, chargeable: bool, open_minor: int}> $rows
+     * @param list<RentRow> $rows
      * @return array{due: int, charged: int, owed: int}
      */
     private function counts(array $rows): array
@@ -176,7 +145,7 @@ final class RentBook
             if ($this->due($row)) {
                 $counts['due']++;
             }
-            if ($row['charged'] === true) {
+            if ($row['charged']) {
                 $counts['charged']++;
             }
             if ($row['open_minor'] > 0) {
@@ -188,11 +157,11 @@ final class RentBook
     }
 
     /**
-     * @param array{rate_minor: ?int, charged: bool, chargeable: bool} $row
+     * @param RentRow $row
      */
     private function due(array $row): bool
     {
-        return $row['chargeable'] && $row['charged'] !== true;
+        return $row['chargeable'] && !$row['charged'];
     }
 
     /**
@@ -211,36 +180,8 @@ final class RentBook
     }
 
     /**
-     * @param list<array{
-     *   id: string,
-     *   code: string,
-     *   name: string,
-     *   vendor_id: ?string,
-     *   vendor_name: ?string,
-     *   rate_minor: ?int,
-     *   charged: bool,
-     *   chargeable: bool,
-     *   charge_minor: ?int,
-     *   journal_id: ?string,
-     *   open_minor: int,
-     *   charge_date: string,
-     *   collect_amount: string
-     * }> $rows
-     * @return list<array{
-     *   id: string,
-     *   code: string,
-     *   name: string,
-     *   vendor_id: ?string,
-     *   vendor_name: ?string,
-     *   rate_minor: ?int,
-     *   charged: bool,
-     *   chargeable: bool,
-     *   charge_minor: ?int,
-     *   journal_id: ?string,
-     *   open_minor: int,
-     *   charge_date: string,
-     *   collect_amount: string
-     * }>
+     * @param list<RentRow> $rows
+     * @return list<RentRow>
      */
     private function picked(array $rows, string $standing): array
     {
@@ -258,7 +199,7 @@ final class RentBook
     }
 
     /**
-     * @param array{rate_minor: ?int, charged: bool, chargeable: bool, open_minor: int} $row
+     * @param RentRow $row
      */
     private function kept(array $row, string $standing): bool
     {
@@ -266,14 +207,14 @@ final class RentBook
             return $this->due($row);
         }
         if ($standing === 'charged') {
-            return $row['charged'] === true;
+            return $row['charged'];
         }
 
         return $row['open_minor'] > 0;
     }
 
     /**
-     * @param array{code: string, vendor_name: ?string} $row
+     * @param RentRow $row
      */
     private function matches(array $row, string $needle): bool
     {

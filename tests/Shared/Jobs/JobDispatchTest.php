@@ -36,12 +36,29 @@ final class JobDispatchTest extends TestCase
 {
     public function testALateFeeJobUsesThePayloadDate(): void
     {
-        try {
-            $this->runner($this->pdo())->handle($this->job('assess-late-fees', '{"date":"2026-01-02"}'));
-            self::fail('a dated job should read the mall');
-        } catch (RuntimeException $error) {
-            self::assertSame('the mall has no payout settings', $error->getMessage());
-        }
+        $asked = [];
+        $statement = $this->createStub(PDOStatement::class);
+        $statement->method('execute')->willReturnCallback(static function (?array $params = null) use (&$asked): bool {
+            $asked[] = $params ?? [];
+
+            return true;
+        });
+        $statement->method('fetchColumn')->willReturn('tenant_' . str_repeat('ab', 16));
+        $sql = [];
+        $pdo = $this->createStub(PDO::class);
+        $pdo->method('prepare')->willReturnCallback(static function (string $query) use (&$sql, $statement): PDOStatement {
+            $sql[] = $query;
+
+            return $statement;
+        });
+        $pdo->method('exec')->willReturn(1);
+        $pdo->method('query')->willReturn($this->emptyRows());
+
+        $this->runner($pdo)->handle($this->job('assess-late-fees', '{"date":"2026-01-02"}'));
+
+        $due = array_keys(array_filter($sql, static fn (string $query): bool => str_contains($query, 'stall_late_fees_due')));
+        self::assertNotSame([], $due);
+        self::assertContains(['2026-01-02'], $asked);
     }
 
     public function testAMarkdownJobProposesTheDay(): void

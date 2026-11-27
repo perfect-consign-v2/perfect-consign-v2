@@ -94,17 +94,17 @@ final class PayoutStore
     /**
      * Uncharged rent rows the pack already counted.
      *
-     * @return list<array{booth_id: string, posting_date: string, amount: int, month: string}>
+     * @return list<array{assignment_id: string, month_start: string, posting_date: string, amount: int}>
      */
     public function missingCharges(string $runId, string $vendorId): array
     {
         $charges = [];
         foreach (
             $this->statements->bound(
-                "SELECT booth_id::text AS booth_id,
+                "SELECT assignment_id::text AS assignment_id,
+                    to_char(month_start, 'YYYY-MM-DD') AS month_start,
                     to_char(posting_date, 'YYYY-MM-DD') AS posting_date,
-                    amount,
-                    stall_rent_charge_suffix(month_start) AS month
+                    amount
              FROM payout_missing_rent
              WHERE run_id = ?::uuid AND vendor_id = ?::uuid AND amount > 0
              ORDER BY month_start, booth_id",
@@ -112,10 +112,10 @@ final class PayoutStore
             ) as $row
         ) {
             $charges[] = [
-                'booth_id' => RowValue::string($row['booth_id'] ?? null),
+                'assignment_id' => RowValue::string($row['assignment_id'] ?? null),
+                'month_start' => RowValue::string($row['month_start'] ?? null),
                 'posting_date' => RowValue::string($row['posting_date'] ?? null),
                 'amount' => RowValue::integer($row['amount'] ?? null),
-                'month' => RowValue::string($row['month'] ?? null),
             ];
         }
 
@@ -212,39 +212,27 @@ final class PayoutStore
     }
 
     /**
-     * Positive booth rent that can take the settlement credit. The amount settled is the pack figure.
+     * How a settlement of this many cents pays the vendor's stays: the database's
+     * split, the stay with the oldest unpaid charge first. The amount settled is the pack figure.
      *
-     * @return list<array{booth_id: string, open_minor: int}>
+     * @return list<array{assignment_id: string, amount_minor: int}>
      */
-    public function boothRent(string $vendorId): array
+    public function stayShares(string $vendorId, int $amount): array
     {
-        $rent = $this->pdo->prepare(
-            "SELECT line.subledger_ref AS booth_id, sum(line.debit_minor - line.credit_minor) AS open_minor
-             FROM journal_lines AS line
-             JOIN journals AS posted ON posted.id = line.journal_id
-             JOIN chart_roles AS role ON role.account_id = line.account_id
-             WHERE role.role = 'booth_rent_receivable'
-               AND line.subledger_type = 'booth'
-               AND EXISTS (
-                   SELECT 1 FROM booth_assignments AS assignment
-                   WHERE assignment.vendor_id = ?::uuid
-                     AND assignment.booth_id = line.subledger_ref::uuid
-                     AND assignment.assignment_range @> posted.posting_date
-               )
-             GROUP BY line.subledger_ref
-             HAVING sum(line.debit_minor - line.credit_minor) > 0
-             ORDER BY line.subledger_ref"
-        );
-        $rent->execute([$vendorId]);
-        $booths = [];
-        foreach ($this->statements->all($rent) as $row) {
-            $booths[] = [
-                'booth_id' => RowValue::string($row['booth_id'] ?? null),
-                'open_minor' => RowValue::integer($row['open_minor'] ?? null),
+        $shares = [];
+        foreach (
+            $this->statements->bound(
+                'SELECT assignment_id::text AS assignment_id, amount_minor FROM stall_rent_payment_split(?::uuid, ?)',
+                [$vendorId, $amount]
+            ) as $row
+        ) {
+            $shares[] = [
+                'assignment_id' => RowValue::string($row['assignment_id'] ?? null),
+                'amount_minor' => RowValue::integer($row['amount_minor'] ?? null),
             ];
         }
 
-        return $booths;
+        return $shares;
     }
 
     private function cycleDay(): int

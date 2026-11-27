@@ -14,10 +14,10 @@ final class MutationAllowListTest extends TestCase
         require_once dirname(__DIR__, 2) . '/bin/mutate.php';
         putenv('PC_MUTATE_FUNCTIONS');
 
-        $linux = relative('/workspace/repo', '/workspace/repo/src/Feature/Rent/RentFigure.php');
-        self::assertSame('src\\Feature\\Rent\\RentFigure.php', $linux);
-        self::assertNotNull(equivalentReason($linux, 46, '&&', '||'));
-        self::assertNotNull(equivalentReason($linux, 46, '>', '>='));
+        $linux = relative('/workspace/repo', '/workspace/repo/src/Feature/Payout/PayoutStore.php');
+        self::assertSame('src\\Feature\\Payout\\PayoutStore.php', $linux);
+        self::assertNotNull(equivalentReason($linux, 243, '&&', '||'));
+        self::assertNotNull(equivalentReason($linux, 243, '>=', '>'));
         self::assertNotNull(equivalentReason('src\\Shared\\Mail\\SmtpClient.php', 41, '||', '&&'));
         self::assertNotNull(equivalentReason('src\\Shared\\Mail\\SmtpClient.php', 46, '||', '&&'));
         self::assertNotNull(equivalentReason('src\\Feature\\Mall\\settings.php', 14, '>=', '>'));
@@ -26,7 +26,6 @@ final class MutationAllowListTest extends TestCase
         self::assertNotNull(equivalentReason('src\\Feature\\Vendor\\VendorCheck.php', 126, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Feature\\Pos\\SaleJournal.php', 130, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Feature\\Pos\\SaleJournal.php', 147, '>', '>='));
-        self::assertNotNull(equivalentReason('src\\Feature\\Rent\\LateFeeDue.php', 84, '<', '<='));
         self::assertNotNull(equivalentReason('src\\Feature\\Pos\\TicketPricing.php', 182, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Feature\\Book\\MissedSaleQuote.php', 17, '>', '>='));
         self::assertNotNull(equivalentReason('src\\Shared\\Web\\layout.php', 244, '&&', '||'));
@@ -41,10 +40,10 @@ final class MutationAllowListTest extends TestCase
 
         $windows = relative(
             'C:\\laragon\\www\\perfect-consign',
-            'C:\\laragon\\www\\perfect-consign\\src\\Feature\\Rent\\RentFigure.php'
+            'C:\\laragon\\www\\perfect-consign\\src\\Feature\\Payout\\PayoutStore.php'
         );
-        self::assertSame('src\\Feature\\Rent\\RentFigure.php', $windows);
-        self::assertNotNull(equivalentReason($windows, 46, '&&', '||'));
+        self::assertSame('src\\Feature\\Payout\\PayoutStore.php', $windows);
+        self::assertNotNull(equivalentReason($windows, 243, '&&', '||'));
     }
 
     public function testARunThatMutatesNothingIsRefused(): void

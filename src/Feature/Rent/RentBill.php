@@ -32,46 +32,6 @@ final class RentBill
     }
 
     /**
-     * Oldest rent first, across booths, then late fees.
-     *
-     * @param list<array{journal_id: string, source: string, date: string, booth: string, booth_id?: string, debit: int, credit: int}> $moves
-     * @return list<array{booth_id: string, amount: int}>
-     */
-    public function share(array $moves, int $amount): array
-    {
-        $settled = $this->settle($moves);
-        $charges = $settled['charges'];
-        $left = $amount;
-        $totals = [];
-        $order = [];
-        foreach (['rent', 'late'] as $kind) {
-            foreach ($charges as $index => $charge) {
-                if ($left < 1) {
-                    break 2;
-                }
-                if ($charge['booth_id'] === '' || $charge['left'] < 1 || !$this->accepts($charge['source'], $kind)) {
-                    continue;
-                }
-                $used = min($charge['left'], $left);
-                $charges[$index]['left'] -= $used;
-                $booth = $charge['booth_id'];
-                if (!isset($totals[$booth])) {
-                    $order[] = $booth;
-                    $totals[$booth] = 0;
-                }
-                $totals[$booth] += $used;
-                $left -= $used;
-            }
-        }
-        $shares = [];
-        foreach ($order as $booth) {
-            $shares[] = ['booth_id' => $booth, 'amount' => $totals[$booth]];
-        }
-
-        return $shares;
-    }
-
-    /**
      * @param list<array{journal_id: string, source: string, date: string, booth: string, booth_id?: string, debit: int, credit: int}> $moves
      * @return array{
      *     charges: list<array{journal_id: string, source: string, date: string, booth: string, booth_id: string, debit: int, left: int, credits: list<array{source: string, date: string, amount: int}>}>,

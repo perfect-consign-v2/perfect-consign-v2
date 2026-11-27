@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Payout;
 
-use PerfectConsign\Feature\Party\MoveInRent;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Http\View;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -143,7 +142,7 @@ final class RentShortfall
             $stories[$vendorId][] = [
                 'month' => (new \DateTimeImmutable($posted))->format('F'),
                 'booth' => $booth,
-                'days' => $this->days($row['starts_on'] ?? null, $row['monthly'] ?? null, $posted, $charged),
+                'days' => RowValue::integer($row['move_in_days'] ?? null),
                 'charged' => $charged,
                 'paid' => $used,
                 'unpaid' => $unpaid,
@@ -165,10 +164,10 @@ final class RentShortfall
              FROM journals AS journal
              JOIN journal_lines AS line ON line.journal_id = journal.id
              JOIN chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
-             JOIN booths AS booth ON booth.id::text = line.subledger_ref
              JOIN booth_assignments AS assignment
-               ON assignment.booth_id = booth.id
-              AND assignment.assignment_range @> journal.posting_date
+               ON line.subledger_type = 'assignment'
+              AND assignment.id::text = line.subledger_ref
+             JOIN booths AS booth ON booth.id = assignment.booth_id
              JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
              WHERE journal.source_type IN ('rent_payment', 'settlement')
                AND NOT journal.is_reversal
@@ -191,28 +190,19 @@ final class RentShortfall
         return $this->statements->bound(
             "SELECT vendor.id AS vendor_id, booth.code AS booth,
                     to_char(journal.posting_date, 'YYYY-MM-DD') AS posted,
-                    to_char(assignment.starts_on, 'YYYY-MM-DD') AS starts_on,
-                    rate.amount_minor AS monthly,
+                    stall_rent_move_in_days(assignment.id, charge.period_start) AS move_in_days,
                     line.debit_minor AS charged
              FROM journals AS journal
              JOIN journal_lines AS line ON line.journal_id = journal.id
              JOIN chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
-             JOIN booths AS booth ON booth.id::text = line.subledger_ref
              JOIN booth_assignments AS assignment
-               ON assignment.booth_id = booth.id
-              AND assignment.assignment_range @> journal.posting_date
+               ON line.subledger_type = 'assignment'
+              AND assignment.id::text = line.subledger_ref
+             JOIN booths AS booth ON booth.id = assignment.booth_id
              JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
-             JOIN LATERAL (
-                 SELECT history.amount_minor
-                 FROM assignment_rent_rates AS history
-                 WHERE history.assignment_id = assignment.id
-                   AND history.starts_on <= GREATEST(
-                       stall_rent_period_start(journal.posting_date),
-                       assignment.starts_on
-                   )
-                 ORDER BY history.starts_on DESC
-                 LIMIT 1
-             ) AS rate ON true
+             CROSS JOIN LATERAL (
+                 SELECT stall_rent_period_of(substring(journal.posting_key FROM '^rent-charge:[0-9a-f-]{36}:(.+)$')) AS period_start
+             ) AS charge
              WHERE journal.source_type = 'rent_charge'
                AND NOT journal.is_reversal
                AND line.debit_minor > 0
@@ -224,26 +214,5 @@ final class RentShortfall
              ORDER BY journal.posting_date, booth.code",
             [$rentMonth]
         );
-    }
-
-    private function days(mixed $starts, mixed $monthly, string $posted, int $charged): int
-    {
-        if (!is_string($starts) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $starts) !== 1) {
-            return 0;
-        }
-        if (substr($starts, 0, 7) !== substr($posted, 0, 7)) {
-            return 0;
-        }
-        $rate = RowValue::integer($monthly);
-        if (MoveInRent::due($rate, $starts) !== $charged) {
-            return 0;
-        }
-        $day = (int) substr($starts, 8, 2);
-        if ($day <= 1) {
-            return 0;
-        }
-        $daysInMonth = (int) (new \DateTimeImmutable(substr($starts, 0, 8) . '01'))->format('t');
-
-        return $daysInMonth - $day + 1;
     }
 }

@@ -65,12 +65,7 @@ final class VendorShare
             [$vendorId, 'booth', 'sale']
         );
         $rent = $this->statements->bound(
-            "SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0) AS open
-             FROM journal_lines AS line
-             JOIN chart_roles AS role ON role.account_id = line.account_id
-             JOIN booth_assignments AS assignment ON assignment.booth_id::text = line.subledger_ref
-             WHERE role.role = 'booth_rent_receivable'
-               AND assignment.vendor_id = ?::uuid",
+            'SELECT stall_vendor_open_rent(?::uuid) AS open',
             [$vendorId]
         );
         $row = $sales[0] ?? [];

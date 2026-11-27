@@ -446,7 +446,7 @@ final class PayoutMutationTest extends TestCase
                     'booth' => 'B-2',
                     'posted' => '2026-09-01',
                     'starts_on' => '2026-08-01',
-                    'monthly' => 7000,
+                    'move_in_days' => 0,
                     'charged' => 70,
                 ]];
             }

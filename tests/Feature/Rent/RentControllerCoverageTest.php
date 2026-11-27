@@ -43,7 +43,6 @@ use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\LateFeeDue;
 use PerfectConsign\Feature\Rent\RentBook;
 use PerfectConsign\Feature\Rent\RentController;
-use PerfectConsign\Feature\Rent\RentLines;
 use PerfectConsign\Feature\Rent\RentPayment;
 use PerfectConsign\Feature\Rent\RentPosting;
 use PerfectConsign\Feature\Rent\RentReceipt;
@@ -104,8 +103,8 @@ final class RentControllerCoverageTest extends TestCase
         $this->prepaid = true;
         $prepaid = $this->capture(function (): void {
             $this->controller($this->request('POST', '/zcov/rent/charge', [], [
-                'booth_id' => self::BOOTH,
-                'posting_date' => '2026-06-15',
+                'assignment_id' => self::BOOTH,
+                'period_start' => '2026-06-01',
             ]))->charge(self::SLUG);
         });
         self::assertStringContainsString('this rent comes out of sales', $prepaid);
@@ -114,8 +113,8 @@ final class RentControllerCoverageTest extends TestCase
         $this->redirect(function (): void {
             $this->cover = true;
             $this->controller($this->request('POST', '/zcov/rent/charge', [], [
-                'booth_id' => self::BOOTH,
-                'posting_date' => '2026-06-15',
+                'assignment_id' => self::BOOTH,
+                'period_start' => '2026-06-01',
                 'month' => '2026-06',
             ]))->charge(self::SLUG);
         }, '/zcov/rent?month=2026-06');
@@ -123,16 +122,16 @@ final class RentControllerCoverageTest extends TestCase
         $this->redirect(function (): void {
             $this->cover = true;
             $this->controller($this->request('POST', '/zcov/rent/charge', [], [
-                'booth_id' => self::BOOTH,
-                'posting_date' => '2026-06-15',
+                'assignment_id' => self::BOOTH,
+                'period_start' => '2026-06-01',
             ]))->charge(self::SLUG);
         }, '/zcov/rent?month=2026-06');
 
         $this->cover = false;
         $refused = $this->capture(function (): void {
             $this->controller($this->request('POST', '/zcov/rent/charge', [], [
-                'booth_id' => self::BOOTH,
-                'posting_date' => '2026-06-15',
+                'assignment_id' => self::BOOTH,
+                'period_start' => '2026-06-01',
             ]))->charge(self::SLUG);
         });
         self::assertNotSame('', $refused);
@@ -336,6 +335,13 @@ final class RentControllerCoverageTest extends TestCase
 
             return self::FEE;
         });
+        $ledger->method('postThrough')->willReturnCallback(function (): string {
+            if ($this->refusePost) {
+                throw new DatabaseRefusal('That late fee is already waived.');
+            }
+
+            return self::FEE;
+        });
         $ledger->method('newId')->willReturn(self::FEE);
         $ledger->method('reversed')->willReturn(false);
         $ledger->method('journal')->willReturn([
@@ -360,10 +366,9 @@ final class RentControllerCoverageTest extends TestCase
                 'subledger_ref' => null,
             ],
         ]);
-        $lines = new RentLines();
         $clock = new MallClock($mall);
         $payouts = new PayoutStore($app['pdo'], $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow());
-        $fees = new LateFee($ledger, $statements);
+        $fees = new LateFee($ledger);
         $receipts = new RentReceipt(
             $app['pdo'],
             $statements,
@@ -381,7 +386,6 @@ final class RentControllerCoverageTest extends TestCase
                     new VendorClawback($ledger, $statements),
                 ),
                 $settings,
-                new \PerfectConsign\Feature\Rent\RentMoves($statements, $settings),
             ),
             new RentSlip($statements),
             new RentPayment(),
@@ -391,14 +395,14 @@ final class RentControllerCoverageTest extends TestCase
 
         return new RentController(
             $app['app'],
-            new RentStore($statements, $mall, $lines, $ledger),
-            new RentBook($lines),
+            new RentStore($statements, $mall, $ledger),
+            new RentBook(),
             new RegisterStore($statements, $clock, new RegisterActivity($statements, $clock)),
             new ActiveRegister($app['pdo'], $app['session'], $mall, $clock),
             $settings,
             $receipts,
             new JournalCash($app['pdo']),
-            new LateFeeDue($statements, $settings, $fees),
+            new LateFeeDue($statements, $ledger, $fees),
         );
     }
 
@@ -584,7 +588,7 @@ final class RentControllerCoverageTest extends TestCase
             return [];
         });
         $statements->method('bound')->willReturnCallback(function (string $sql): array {
-            if (str_contains($sql, 'AS open_minor') && str_contains($sql, 'booth_rent_receivable')) {
+            if (str_contains($sql, 'stall_vendor_open_rent')) {
                 if ($this->figuresLeft < 1) {
                     return [];
                 }
@@ -595,7 +599,7 @@ final class RentControllerCoverageTest extends TestCase
             if (str_contains($sql, 'vendor_name FROM vendors')) {
                 return [['vendor_name' => 'Ada']];
             }
-            if (str_contains($sql, 'AS open')) {
+            if (str_contains($sql, 'stall_assignment_open_rent(stay.id) > 0')) {
                 return [['id' => self::BOOTH, 'code' => 'A1']];
             }
             if (str_contains($sql, 'AS late_minor')) {
@@ -613,11 +617,8 @@ final class RentControllerCoverageTest extends TestCase
                     'credit_minor' => 0,
                 ]];
             }
-            if (str_contains($sql, 'amount_minor') && str_contains($sql, 'LIMIT 1')) {
-                return $this->cover ? [['amount_minor' => 10000]] : [];
-            }
-            if (str_contains($sql, 'starts_on') && str_contains($sql, 'LIMIT 1')) {
-                return $this->cover ? [['starts_on' => '2026-01-01']] : [];
+            if (str_contains($sql, 'stall_rent_charge_date')) {
+                return $this->cover ? [['on_date' => '2026-06-15']] : [];
             }
             if (str_contains($sql, "source_type = 'rent_payment'") && $this->slip) {
                 return [[

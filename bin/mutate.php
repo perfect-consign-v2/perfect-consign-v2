@@ -619,21 +619,6 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Party\\BoothMap.php' && $line === 58 && $from === '<=' && $to === '<') {
         return 'a stay that starts today is covering, so the incoming comparison is not used';
     }
-    if ($file === 'src\\Feature\\Party\\MoveInRent.php' && $line === 18 && $from === '<=' && $to === '<') {
-        return 'a move-in on the first still charges every day of that month, so the comparison and the proration agree';
-    }
-    if ($file === 'src\\Feature\\Rent\\RentCycle.php' && $line === 78 && $from === '<=' && $to === '<') {
-        return 'a move-in on the period start is charged for every day, which is the full amount';
-    }
-    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 25 && $from === '>' && $to === '>=') {
-        return 'a stay that starts on the pinned day keeps that day';
-    }
-    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 46 && $from === '&&' && $to === '||') {
-        return 'a start outside this month cannot hold the booth, and a start on the first returns that same day';
-    }
-    if ($file === 'src\\Feature\\Rent\\RentFigure.php' && $line === 46 && $from === '>' && $to === '>=') {
-        return 'a start on the first of the month returns that same day either way';
-    }
     if ($file === 'src\\Ledger\\Money.php' && $line === 19 && $from === '>' && $to === '>=') {
         return 'nine digits still fit in an integer, and the dollar cap is only reachable on a 32-bit build';
     }
@@ -685,17 +670,11 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Rent\\RentBill.php' && $line === 25 && $from === '>' && $to === '>=') {
         return 'an equal total already returned the lines, so this comparison is only reached when the totals differ';
     }
-    if ($file === 'src\\Feature\\Rent\\LateFee.php' && $line === 67 && $from === '<' && $to === '<=') {
-        return 'a waive on the fee date stores that same date';
-    }
     if ($file === 'src\\Feature\\Party\\AssignmentOffer.php' && $line === 105 && $from === '>' && $to === '>=') {
         return 'one pass per stay plus the day after the last end already finds the free day';
     }
     if ($file === 'src\\Shared\\Web\\layout.php' && $line === 192 && $from === '&&' && $to === '||') {
         return 'preview mode only lists vendor links, and an empty preview leaves the address unchanged';
-    }
-    if ($file === 'src\\Feature\\Rent\\RentSpan.php' && $line === 30 && $from === '>=' && $to === '>') {
-        return 'day 1 is the fallback, so the strict comparison stores the same day';
     }
     if ($file === 'src\\Feature\\Payout\\PayoutWindow.php' && $line === 16 && $from === '>=' && $to === '>') {
         return 'day 1 is the fallback, so the strict comparison stores the same day';
@@ -748,10 +727,10 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Vendor\\VendorCheck.php' && $line === 115 && $from === '>' && $to === '>=') {
         return 'nothing owed is already zero, so the equal case stores the same desk amount';
     }
-    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 251 && $from === '>=' && $to === '>') {
+    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 243 && $from === '>=' && $to === '>') {
         return 'day 1 is the fallback, and the payout window clamps that same day again';
     }
-    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 251 && $from === '&&' && $to === '||') {
+    if ($file === 'src\\Feature\\Payout\\PayoutStore.php' && $line === 243 && $from === '&&' && $to === '||') {
         return 'a day outside 1 through 28 is clamped to day 1 again by the payout window';
     }
     if ($file === 'src\\Feature\\Mall\\MallPayoutSettings.php' && $line === 82 && $from === '>=' && $to === '>') {
@@ -774,9 +753,6 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     }
     if ($file === 'src\\Feature\\Pos\\SaleJournal.php' && ($line === 130 || $line === 147) && $from === '>' && $to === '>=') {
         return 'a zero cash difference posts a zero rounding line either way';
-    }
-    if ($file === 'src\\Feature\\Rent\\LateFeeDue.php' && $line === 84 && $from === '<' && $to === '<=') {
-        return 'grace of one day already steps one day, so the equal case stores that same step';
     }
     if ($file === 'src\\Feature\\Pos\\pos.php' && $line === 96 && $from === '>' && $to === '>=') {
         return 'a zero cash adjustment is not shown, and a positive one keeps the plus sign';

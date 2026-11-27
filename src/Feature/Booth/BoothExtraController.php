@@ -10,13 +10,16 @@ use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\SignedInPerson;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\JournalDraft;
-use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\Money;
-use PerfectConsign\Shared\Database\Statements;
 
+/**
+ * An extra charge on a stay (electric, a sign), and booth deposits for stores
+ * that take them. A person chooses the stay, types the amount and a reference;
+ * the database posts it on that stay and refuses what the store does not allow.
+ */
 final class BoothExtraController
 {
     public function __construct(
@@ -25,137 +28,104 @@ final class BoothExtraController
         private readonly ActiveRegister $register,
         private readonly Actor $actor,
         private readonly JournalAudit $audit,
-        private readonly Statements $statements,
+        private readonly BoothStayChoices $stays,
+        private readonly MallSettings $mall,
     ) {
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/booth-extras', ['GET'])]
     public function show(string $slug): void
     {
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Booth/booth-extras', [
-            'title' => 'Booth extras',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'error' => null,
-        ]);
+        $this->page($slug, null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/booth-extras', ['POST'])]
     public function charge(string $slug): void
     {
-        $this->post($slug, 'booth_charge', 'booth-charge:', 'Booth charge', true, false);
+        $this->post($slug, 'Booth charge', function (string $stay, int $amount, string $reference, string $today): string {
+            return $this->ledger->postThrough(
+                $today,
+                'stall_post_booth_charge(?::uuid, ?, ?, ?::date)',
+                [$stay, $amount, $reference, $today],
+                null,
+                null,
+                null,
+                $this->audited('booth_charge'),
+            );
+        });
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/booth-deposit', ['POST'])]
     public function deposit(string $slug): void
     {
-        $this->post($slug, 'booth_deposit', 'booth-deposit:', 'Booth deposit', false, false);
+        $this->post($slug, 'Booth deposit', fn (string $stay, int $amount, string $reference, string $today): string
+            => $this->depositMove($slug, $stay, $amount, $reference, $today, false));
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/booth-deposit/release', ['POST'])]
     public function release(string $slug): void
     {
-        $this->post($slug, 'booth_deposit', 'booth-deposit-release:', 'Booth deposit returned', false, true);
+        $this->post($slug, 'Booth deposit returned', fn (string $stay, int $amount, string $reference, string $today): string
+            => $this->depositMove($slug, $stay, $amount, $reference, $today, true));
     }
 
-    private function post(string $slug, string $source, string $key, string $description, bool $charge, bool $release): void
+    /**
+     * @param callable(string, int, string, string): string $posting
+     */
+    private function post(string $slug, string $description, callable $posting): void
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
+        $request = $this->app->request();
         try {
-            $this->record($slug, $source, $key, $description, $charge, $release);
+            $stay = $request->field('assignment_id');
+            $reference = trim($request->field('source_reference'));
+            if ($reference === '' || preg_match('/^[0-9a-fA-F-]{36}$/', $stay) !== 1) {
+                throw new DatabaseRefusal('Choose the booth and enter a reference.');
+            }
+            SignedInPerson::require($this->actor->name(), $this->actor->role());
+            $posting($stay, Money::parseMinor($request->field('amount')), $reference, $this->mall->today());
         } catch (DatabaseRefusal $refusal) {
-            $this->showFailure($slug, $this->app->catchRefusal($refusal));
+            $this->page($slug, $this->app->catchRefusal($refusal));
 
             return;
         } catch (\InvalidArgumentException $error) {
-            $this->showFailure($slug, $error->getMessage());
+            $this->page($slug, $error->getMessage());
 
             return;
         }
         $this->app->redirect('/' . $slug . '/booth-extras', $description . ' posted.');
     }
 
-    private function record(string $slug, string $source, string $key, string $description, bool $charge, bool $release): void
+    private function depositMove(string $slug, string $stay, int $amount, string $reference, string $today, bool $releasing): string
     {
-        $request = $this->app->request();
-        $reference = $request->field('source_reference');
-        $booth = $request->field('booth_id');
-        if ($reference === '' || preg_match('/^[0-9a-fA-F-]{36}$/', $booth) !== 1) {
-            throw new DatabaseRefusal('a booth and a reference are required');
-        }
-        if ($this->statements->bound('SELECT id::text AS id FROM booths WHERE id = ?::uuid', [$booth]) === []) {
-            throw new DatabaseRefusal('that booth does not exist');
-        }
-        $amount = Money::parseMinor($request->field('amount'));
-        $this->signer();
-        [$debit, $credit] = $this->sides($charge, $release);
-        $debitBooth = $debit === 'booth_deposit_held' || $debit === 'booth_rent_receivable' ? $booth : null;
-        $creditBooth = $credit === 'booth_deposit_held' || $credit === 'booth_rent_receivable' ? $booth : null;
-        $this->ledger->post(new JournalDraft(
-            postingKey: $key . $reference,
-            postingDate: $request->field('posting_date'),
-            source: new JournalSource($source, $reference, $description),
-            sessionId: $this->drawer($slug, $charge),
-            beforeCommit: function (string $journalId) use ($source): void {
-                $this->audit->record($source, 'journal', $journalId);
-            },
-            lines: [
-                $this->line($debit, $amount, 0, $debitBooth),
-                $this->line($credit, 0, $amount, $creditBooth),
-            ],
-        ));
-    }
-
-    private function signer(): void
-    {
-        SignedInPerson::require($this->actor->name(), $this->actor->role());
-    }
-
-    private function drawer(string $slug, bool $charge): ?string
-    {
-        if ($charge) {
-            return null;
-        }
         $session = $this->register->current($slug, true);
         if ($session === '') {
-            throw new DatabaseRefusal('open a register before taking a deposit');
+            throw new DatabaseRefusal('Open the register first to take or return cash.');
         }
 
-        return $session;
+        return $this->ledger->postThrough(
+            $today,
+            'stall_post_booth_deposit(?::uuid, ?, ?, ?::date, ?::boolean)',
+            [$stay, $amount, $reference, $today, $releasing ? 'true' : 'false'],
+            $session,
+            null,
+            null,
+            $this->audited('booth_deposit'),
+        );
     }
 
     /**
-     * @return array{0: string, 1: string}
+     * @return callable(string): void
      */
-    private function sides(bool $charge, bool $release): array
+    private function audited(string $action): callable
     {
-        if ($release) {
-            return ['booth_deposit_held', 'cash'];
-        }
-        if ($charge) {
-            return ['booth_rent_receivable', 'booth_other_revenue'];
-        }
-
-        return ['cash', 'booth_deposit_held'];
+        return function (string $journalId) use ($action): void {
+            $this->audit->record($action, 'journal', $journalId);
+        };
     }
 
-    /**
-     * @return array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}
-     */
-    private function line(string $role, int $debit, int $credit, ?string $booth): array
-    {
-        return [
-            'account_id' => $this->ledger->roleAccount($role),
-            'debit' => $debit,
-            'credit' => $credit,
-            'subledger_type' => $booth === null ? null : 'booth',
-            'subledger_ref' => $booth,
-        ];
-    }
-
-    private function showFailure(string $slug, string $error): void
+    private function page(string $slug, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Booth/booth-extras', [
@@ -163,6 +133,9 @@ final class BoothExtraController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'error' => $error,
+            'stays' => $this->stays->current($this->mall->today()),
+            'held' => $this->stays->depositsHeld(),
+            'depositsOn' => $this->stays->depositsEnabled(),
         ]);
     }
 }

@@ -46,15 +46,15 @@ final class RentController
 
             return;
         }
-        $boothId = $this->app->request()->field('booth_id');
-        $postingDate = $this->app->request()->field('posting_date');
+        $assignmentId = $this->app->request()->field('assignment_id');
+        $periodStart = $this->app->request()->field('period_start');
         try {
-            $this->rent->postCharge($boothId, $postingDate);
+            $this->rent->chargeStay($assignmentId, $periodStart);
         } catch (DatabaseRefusal $refusal) {
             $this->render($slug, $this->app->catchRefusal($refusal));
             return;
         }
-        $this->saved($slug, $postingDate, 'Rent charged.');
+        $this->saved($slug, $periodStart, 'Rent charged.');
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/rent/collect', ['GET'])]
@@ -219,7 +219,7 @@ final class RentController
         $today = $this->rent->today();
         $month = $this->book->month($this->chosen('month'), $today);
         $fromSales = $this->settings->isRentPrepaid();
-        $book = $this->book->assemble($this->rent->facts($month), $month, $today, $this->settings->getCycleDay());
+        $book = $this->book->assemble($this->rent->book($month), $month, $today);
         $visible = $this->book->narrow($book['rows'], $this->chosen('q'), $fromSales ? '' : $this->chosen('standing'));
         $this->app->show('Feature/Rent/rent', [
             'title' => 'Rent',
@@ -288,11 +288,11 @@ final class RentController
         return $this->app->request()->field($name);
     }
 
-    private function saved(string $slug, string $postingDate, string $notice): never
+    private function saved(string $slug, string $periodStart, string $notice): never
     {
         $month = $this->chosen('month');
         if ($month === '') {
-            $month = substr($postingDate, 0, 7);
+            $month = substr($periodStart, 0, 7);
         }
         $month = $this->book->month($month, $this->rent->today());
         $this->app->redirect('/' . $slug . '/rent?month=' . $month, $notice);

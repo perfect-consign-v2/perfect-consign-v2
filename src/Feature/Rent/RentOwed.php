@@ -143,18 +143,7 @@ final class RentOwed
     private function owedOn(string $vendorId): int
     {
         $rows = $this->statements->bound(
-            "SELECT COALESCE(sum(line.debit_minor - line.credit_minor), 0) AS open_minor
-             FROM journal_lines AS line
-             JOIN journals AS journal ON journal.id = line.journal_id
-             JOIN chart_roles AS role ON role.account_id = line.account_id
-             WHERE role.role = 'booth_rent_receivable'
-               AND line.subledger_type = 'booth'
-               AND EXISTS (
-                   SELECT 1 FROM booth_assignments AS assignment
-                   WHERE assignment.vendor_id = ?::uuid
-                     AND assignment.booth_id = line.subledger_ref::uuid
-                     AND assignment.assignment_range @> journal.posting_date
-               )",
+            'SELECT stall_vendor_open_rent(?::uuid) AS open_minor',
             [$vendorId]
         );
         $row = $rows[0] ?? null;
@@ -184,23 +173,11 @@ final class RentOwed
     {
         $rows = $this->statements->bound(
             "SELECT booth.id::text AS id, booth.code
-             FROM (
-                 SELECT line.subledger_ref AS booth_id
-                 FROM journal_lines AS line
-                 JOIN journals AS journal ON journal.id = line.journal_id
-                 JOIN chart_roles AS role ON role.account_id = line.account_id
-                 WHERE role.role = 'booth_rent_receivable'
-                   AND line.subledger_type = 'booth'
-                   AND EXISTS (
-                       SELECT 1 FROM booth_assignments AS assignment
-                       WHERE assignment.vendor_id = ?::uuid
-                         AND assignment.booth_id = line.subledger_ref::uuid
-                         AND assignment.assignment_range @> journal.posting_date
-                   )
-                 GROUP BY line.subledger_ref
-                 HAVING sum(line.debit_minor - line.credit_minor) > 0
-             ) AS open
-             JOIN booths AS booth ON booth.id::text = open.booth_id
+             FROM booth_assignments AS stay
+             JOIN booths AS booth ON booth.id = stay.booth_id
+             WHERE stay.vendor_id = ?::uuid
+               AND stall_assignment_open_rent(stay.id) > 0
+             GROUP BY booth.id, booth.code
              ORDER BY booth.code",
             [$vendorId]
         );
@@ -285,23 +262,20 @@ final class RentOwed
                 FROM journal_lines AS line
                 JOIN journals AS journal ON journal.id = line.journal_id
                 JOIN chart_roles AS role ON role.account_id = line.account_id
+                JOIN booth_assignments AS stay ON stay.id::text = line.subledger_ref
                 WHERE role.role = 'booth_rent_receivable'
                   AND journal.source_type = 'late_fee'
-                  AND line.subledger_type = 'booth'
+                  AND line.subledger_type = 'assignment'
                   AND line.debit_minor > 0
+                  AND NOT journal.is_reversal
                   AND NOT EXISTS (
                       SELECT 1 FROM journals AS reversal
                       WHERE reversal.reverses_journal_id = journal.id
                   )
-                  AND EXISTS (
-                      SELECT 1 FROM booth_assignments AS assignment
-                      WHERE assignment.vendor_id = ?::uuid
-                        AND assignment.booth_id = line.subledger_ref::uuid
-                        AND assignment.assignment_range @> journal.posting_date
-                  )";
+                  AND stay.vendor_id = ?::uuid";
         $params = [$vendorId];
         if ($boothId !== '') {
-            $sql .= ' AND line.subledger_ref = ?';
+            $sql .= ' AND stay.booth_id = ?::uuid';
             $params[] = $boothId;
         }
         $row = $this->statements->bound($sql, $params)[0] ?? null;

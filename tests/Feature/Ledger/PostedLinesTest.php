@@ -59,7 +59,7 @@ final class PostedLinesTest extends TestCase
             PostedLines::read($subledger, 2, true);
             self::fail('a drawer subledger was posted');
         } catch (DatabaseRefusal $error) {
-            self::assertSame('a subledger is a vendor or a booth', $error->getMessage());
+            self::assertSame('a subledger is a vendor or a booth stay', $error->getMessage());
         }
     }
 
@@ -116,7 +116,7 @@ final class PostedLinesTest extends TestCase
             PostedLines::read($request, 2, true);
             self::fail('a ref without a type was posted');
         } catch (DatabaseRefusal $error) {
-            self::assertSame('a subledger is a vendor or a booth', $error->getMessage());
+            self::assertSame('a subledger is a vendor or a booth stay', $error->getMessage());
         }
     }
 }

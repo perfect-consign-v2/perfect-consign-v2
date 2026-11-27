@@ -323,4 +323,26 @@ EXCEPTION
         END IF;
 END $$;
 
+-- A later period starts again at the first amount, and a note of 500
+-- characters is kept whole on the waive.
+DO $$
+DECLARE
+    fourth uuid;
+BEGIN
+    PERFORM stall_post_rent_charge('01900000-0000-7000-8000-00000000e8a1', '2097-05-01', '2097-05-01');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    IF (SELECT string_agg(due.ordinal || '=' || due.amount_minor, ' ' ORDER BY due.ordinal)
+        FROM stall_late_fees_due('2097-05-11') AS due
+        WHERE due.period_start = '2097-05-01') IS DISTINCT FROM '1=1000 2=500' THEN
+        RAISE EXCEPTION 'May did not start again at the first amount';
+    END IF;
+    SELECT id INTO fourth FROM journals
+    WHERE posting_key = 'late-fee:01900000-0000-7000-8000-00000000e8a1:2097-04:4';
+    PERFORM stall_waive_late_fee(fourth, '2097-05-02', repeat('n', 500));
+    SET CONSTRAINTS ALL IMMEDIATE;
+    IF (SELECT description FROM journals WHERE reverses_journal_id = fourth) <> 'Late fee waived. ' || repeat('n', 500) THEN
+        RAISE EXCEPTION 'a 500-character waive note was not kept whole';
+    END IF;
+END $$;
+
 ROLLBACK;

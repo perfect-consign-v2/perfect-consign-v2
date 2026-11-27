@@ -25,7 +25,7 @@ final class VendorFiguresTest extends TestCase
             if (str_contains($sql, 'vendor_payable')) {
                 return [['total' => 125]];
             }
-            if (str_contains($sql, 'booth_rent_receivable')) {
+            if (str_contains($sql, 'stall_vendor_open_rent')) {
                 return [['total' => 40]];
             }
             if (str_contains($sql, 'vendor_receivable')) {

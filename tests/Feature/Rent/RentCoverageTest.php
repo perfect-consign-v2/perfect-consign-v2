@@ -35,67 +35,29 @@ final class RentCoverageTest extends TestCase
         self::assertFalse($form->needsDrawer(['fee'], '', '', '', ''));
     }
 
-    public function testALateFeeNeedsAPeriodAndAnAmount(): void
+    public function testTheNightlyRunPostsNothingWhenTheDatabaseListsNoFee(): void
     {
-        $fee = new LateFee(
-            $this->createStub(LedgerStore::class),
-            $this->createStub(Statements::class),
-        );
-        try {
-            $fee->post('00000000-0000-7000-8000-000000000004', 'October', '2026-10-01', 150);
-            self::fail('a late fee without a period was accepted');
-        } catch (DatabaseRefusal $error) {
-            self::assertSame('Enter the late fee.', $error->getMessage());
-        }
-        try {
-            $fee->post('00000000-0000-7000-8000-000000000004', '2026-10', '2026-10-01', 0);
-            self::fail('a zero late fee was accepted');
-        } catch (DatabaseRefusal $error) {
-            self::assertSame('Enter the late fee.', $error->getMessage());
-        }
-        try {
-            $fee->waive('00000000-0000-7000-8000-000000000099', 'October');
-            self::fail('a waive without a date was accepted');
-        } catch (DatabaseRefusal $error) {
-            self::assertSame('Enter the date of the late fee.', $error->getMessage());
-        }
+        $ledger = $this->createMock(LedgerStore::class);
+        $ledger->expects(self::never())->method('postBatch');
+        $nothing = $this->createStub(Statements::class);
+        $nothing->method('bound')->willReturn([]);
+        $due = new LateFeeDue($nothing, $ledger, new LateFee($ledger));
+
+        self::assertSame(0, $due->apply('not-a-day'));
+        self::assertSame(0, $due->apply('2026-10-15'));
     }
 
-    public function testLateFeesAreSkippedWhenThePolicyIsOff(): void
+    public function testTheNightlyRunOpensEachFeeDayAndLetsTheDatabasePost(): void
     {
-        $idle = new LateFee(
-            $this->createStub(LedgerStore::class),
-            $this->createStub(Statements::class),
-        );
-        $off = new LateFeeDue(
-            $this->mallStatements($this->mallRow(false, false, 0, 500, 250)),
-            new MallPayoutSettings($this->mallStatements($this->mallRow(false, false, 0, 500, 250))),
-            $idle,
-        );
-        $off->apply('not-a-day');
-        $off->apply('2026-10-15');
-        $zero = new LateFeeDue(
-            $this->mallStatements($this->mallRow(true, true, 0, 0, 250)),
-            new MallPayoutSettings($this->mallStatements($this->mallRow(true, true, 0, 0, 250))),
-            $idle,
-        );
-        $zero->apply('2026-10-15');
-        $existing = $this->createStub(Statements::class);
-        $existing->method('bound')->willReturn([['id' => '00000000-0000-7000-8000-0000000000fe']]);
-        $posted = new LateFee($this->createStub(LedgerStore::class), $existing);
-        $books = $this->moveStatements();
-        $live = new LateFeeDue(
-            $books,
-            new MallPayoutSettings($this->mallStatements($this->mallRow(true, true, 5, 500, 250))),
-            $posted,
-        );
-        $live->apply('2026-10-15');
-        try {
-            $live->waive('00000000-0000-7000-8000-000000000099', '2026-10-15');
-            self::fail('a missing late fee was waived');
-        } catch (DatabaseRefusal $error) {
-            self::assertSame('Choose a late fee.', $error->getMessage());
-        }
+        $ledger = $this->createMock(LedgerStore::class);
+        $ledger->expects(self::once())
+            ->method('postBatch')
+            ->with(['2026-10-06', '2026-10-11'], 'stall_post_late_fees(?::date)', ['2026-10-15'])
+            ->willReturn(2);
+        $listed = $this->createStub(Statements::class);
+        $listed->method('bound')->willReturn([['fee_date' => '2026-10-06'], ['fee_date' => '2026-10-11']]);
+
+        self::assertSame(2, (new LateFeeDue($listed, $ledger, new LateFee($ledger)))->apply('2026-10-15'));
     }
 
     public function testOpenRentNeedsAVendorWhoOwes(): void
@@ -336,64 +298,5 @@ final class RentCoverageTest extends TestCase
             'late_fee_first_minor' => $first,
             'late_fee_next_minor' => $next,
         ];
-    }
-
-    private function moveStatements(): Statements
-    {
-        $pdo = $this->createStub(PDO::class);
-
-        return new class ($pdo) extends Statements {
-            public function rows(string $sql): array
-            {
-                if (str_contains($sql, 'late-fee:%')) {
-                    return [['posting_key' => null], ['posting_key' => 'late-fee:booth:2026-08']];
-                }
-
-                return [
-                    [
-                        'posting_key' => 'other',
-                        'source_type' => 'rent_charge',
-                        'booth_id' => null,
-                        'debit_minor' => 1000,
-                        'credit_minor' => 0,
-                    ],
-                    [
-                        'posting_key' => 'rent-charge:booth',
-                        'source_type' => 'rent_charge',
-                        'booth_id' => '00000000-0000-7000-8000-0000000000b1',
-                        'debit_minor' => 1000,
-                        'credit_minor' => 0,
-                    ],
-                    [
-                        'posting_key' => 'rent-charge:booth:2026-13',
-                        'source_type' => 'late_fee',
-                        'booth_id' => '00000000-0000-7000-8000-0000000000b1',
-                        'debit_minor' => 1000,
-                        'credit_minor' => 50,
-                    ],
-                    [
-                        'posting_key' => 'rent-charge:booth:2026-08',
-                        'source_type' => 'rent_charge',
-                        'booth_id' => '00000000-0000-7000-8000-0000000000b1',
-                        'debit_minor' => 0,
-                        'credit_minor' => 0,
-                    ],
-                    [
-                        'posting_key' => 'rent-charge:booth:2026-09',
-                        'source_type' => 'rent_charge',
-                        'booth_id' => '00000000-0000-7000-8000-0000000000b1',
-                        'debit_minor' => 4000,
-                        'credit_minor' => 0,
-                    ],
-                    [
-                        'posting_key' => 'rent-charge:booth:2026-09-15',
-                        'source_type' => 'rent_charge',
-                        'booth_id' => '00000000-0000-7000-8000-0000000000b1',
-                        'debit_minor' => 1500,
-                        'credit_minor' => 0,
-                    ],
-                ];
-            }
-        };
     }
 }

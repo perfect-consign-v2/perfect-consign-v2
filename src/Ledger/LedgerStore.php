@@ -160,6 +160,97 @@ class LedgerStore
         return $this->commitJournal($draft);
     }
 
+    /**
+     * Posts through a database posting function, which computes its own amounts.
+     * The call is a fixed SQL expression from the caller, never user text; every
+     * value a person chose is bound. The drawer and check are linked in the same
+     * transaction, then the journal is checked as a whole.
+     *
+     * @param list<string|int|null> $values
+     * @param (callable(string): void)|null $beforeCommit
+     */
+    public function postThrough(
+        string $postingDate,
+        string $call,
+        array $values,
+        ?string $sessionId = null,
+        ?string $checkNumber = null,
+        ?int $tenderedMinor = null,
+        ?callable $beforeCommit = null,
+    ): string {
+        $journalId = $this->runPosting([$postingDate], $call, $values, function (mixed $posted) use ($sessionId, $checkNumber, $tenderedMinor, $beforeCommit): void {
+            if (!is_string($posted) || $posted === '') {
+                throw new DatabaseRefusal('the posting function returned no journal');
+            }
+            $this->linkSession($posted, $sessionId, $checkNumber);
+            $this->cash->storeTendered($posted, $tenderedMinor);
+            if ($beforeCommit !== null) {
+                $beforeCommit($posted);
+            }
+        });
+
+        return is_string($journalId) ? $journalId : '';
+    }
+
+    /**
+     * Runs a database posting function that may post several journals (late
+     * fees), each on its own date, and returns how many it posted.
+     *
+     * @param list<string> $postingDates
+     * @param list<string|int|null> $values
+     */
+    public function postBatch(array $postingDates, string $call, array $values): int
+    {
+        $posted = $this->runPosting($postingDates, $call, $values, null);
+
+        return is_int($posted) ? $posted : (int) (is_string($posted) ? $posted : 0);
+    }
+
+    /**
+     * Opens the periods for the dates, calls the function, lets the caller link
+     * what belongs to the journal, then checks every deferred rule.
+     *
+     * @param list<string> $postingDates
+     * @param list<string|int|null> $values
+     * @param (callable(mixed): void)|null $linked
+     */
+    private function runPosting(array $postingDates, string $call, array $values, ?callable $linked): mixed
+    {
+        if (preg_match('/^stall_[a-z_]+\((\?(::[a-z]+)?(, )?)*\)$/', $call) !== 1) {
+            throw new DatabaseRefusal('that posting function is not one the books use');
+        }
+        $own = !$this->pdo->inTransaction();
+        try {
+            if ($own) {
+                $this->pdo->beginTransaction();
+            }
+            $book = $this->bookId();
+            foreach (array_unique($postingDates) as $postingDate) {
+                $this->periods->idFor($book, $postingDate);
+            }
+            $statement = $this->pdo->prepare('SELECT ' . $call . ' AS posted');
+            $statement->execute($values);
+            $posted = $statement->fetchColumn();
+            if ($linked !== null) {
+                $linked($posted);
+            }
+            $this->pdo->exec('SET CONSTRAINTS ALL IMMEDIATE');
+            if ($own) {
+                $this->pdo->commit();
+            }
+
+            return $posted;
+        } catch (PDOException $error) {
+            $this->abortJournal($own);
+
+            throw DatabaseRefusal::fromPdo($error);
+        } catch (DatabaseRefusal $error) {
+            $this->abortJournal($own);
+
+            throw $error;
+        }
+    }
+
     private function commitJournal(JournalDraft $draft): string
     {
         $own = !$this->pdo->inTransaction();

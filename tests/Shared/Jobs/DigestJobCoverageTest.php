@@ -33,11 +33,11 @@ final class DigestJobCoverageTest extends TestCase
         $pdo->pushPrepare('SELECT 1 AS sent', [['sent' => '1']]);
         $pdo->pushPrepare('SELECT 1 AS sent', []);
         $pdo->pushPrepare('vendor_payable', [['total' => '0']]);
-        $pdo->pushPrepare('booth_rent_receivable', [['total' => '-5']]);
+        $pdo->pushPrepare('stall_vendor_open_rent', [['total' => '-5']]);
         $pdo->pushPrepare('vendor_receivable', [['total' => '0']]);
         $pdo->pushPrepare('SELECT 1 AS sent', []);
         $pdo->pushPrepare('vendor_payable', [['total' => '2500']]);
-        $pdo->pushPrepare('booth_rent_receivable', [['total' => '10']]);
+        $pdo->pushPrepare('stall_vendor_open_rent', [['total' => '10']]);
         $pdo->pushPrepare('vendor_receivable', [['total' => '0']]);
         try {
             $this->job($pdo)->digest('mall', '2026-11-08');
@@ -63,11 +63,11 @@ final class DigestJobCoverageTest extends TestCase
         ]);
         $pdo->pushPrepare('SELECT 1 AS sent', []);
         $pdo->pushPrepare('vendor_payable', [['total' => '0']]);
-        $pdo->pushPrepare('booth_rent_receivable', [['total' => '0']]);
+        $pdo->pushPrepare('stall_vendor_open_rent', [['total' => '0']]);
         $pdo->pushPrepare('vendor_receivable', [['total' => '0']]);
         $pdo->pushPrepare('SELECT 1 AS sent', []);
         $pdo->pushPrepare('vendor_payable', [['total' => '0']]);
-        $pdo->pushPrepare('booth_rent_receivable', [['total' => '1500']]);
+        $pdo->pushPrepare('stall_vendor_open_rent', [['total' => '1500']]);
         $pdo->pushPrepare('vendor_receivable', [['total' => '0']]);
         try {
             $this->expectException(RuntimeException::class);

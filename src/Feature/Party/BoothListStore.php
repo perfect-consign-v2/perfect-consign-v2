@@ -48,13 +48,14 @@ final class BoothListStore
                  ORDER BY assignment.starts_on'
             ),
             'open_rent' => $this->statements->rows(
-                "SELECT line.subledger_ref AS booth_id,
+                "SELECT stay.booth_id::text AS booth_id,
                         sum(line.debit_minor - line.credit_minor) AS open_minor
                  FROM journal_lines AS line
                  JOIN chart_roles AS role ON role.account_id = line.account_id
+                 JOIN booth_assignments AS stay ON stay.id::text = line.subledger_ref
                  WHERE role.role = 'booth_rent_receivable'
-                   AND line.subledger_type = 'booth'
-                 GROUP BY line.subledger_ref
+                   AND line.subledger_type = 'assignment'
+                 GROUP BY stay.booth_id
                  HAVING sum(line.debit_minor - line.credit_minor) > 0"
             ),
             'blocked' => $this->statements->rows(
@@ -63,10 +64,6 @@ final class BoothListStore
                      SELECT 1 FROM booth_assignments WHERE booth_id = booths.id
                  ) OR EXISTS (
                      SELECT 1 FROM booth_rent_rates WHERE booth_id = booths.id
-                 ) OR EXISTS (
-                     SELECT 1 FROM journal_lines
-                     WHERE subledger_type = 'booth'
-                       AND subledger_ref = booths.id::text
                  )"
             ),
         ];

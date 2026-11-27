@@ -11,7 +11,6 @@ use PerfectConsign\Feature\Company\CompanyLines;
 use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Mall\MallSettings;
-use PerfectConsign\Feature\Rent\RentLines;
 use PerfectConsign\Feature\Rent\RentStore;
 use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerPeriods;
@@ -26,22 +25,39 @@ final class RentGuardTest extends TestCase
     {
         $store = $this->store();
         try {
-            $store->uncharged('March', '2026-03');
+            $store->unchargedMonths('March', '2026-03');
             self::fail('a rent day that is not a date was accepted');
         } catch (InvalidArgumentException $error) {
             self::assertSame('a rent day is YYYY-MM-DD', $error->getMessage());
         }
         try {
-            $store->uncharged('2026-03-01', 'March');
+            $store->unchargedMonths('2026-03-01', 'March');
             self::fail('a rent month that is not a month was accepted');
         } catch (InvalidArgumentException $error) {
             self::assertSame('a rent month is YYYY-MM', $error->getMessage());
         }
         try {
-            $store->facts('March');
+            $store->book('March');
             self::fail('a rent book month that is not a month was accepted');
         } catch (InvalidArgumentException $error) {
             self::assertSame('a rent month is YYYY-MM', $error->getMessage());
+        }
+    }
+
+    public function testAChargeNeedsAStayAndAPeriod(): void
+    {
+        $store = $this->store();
+        try {
+            $store->chargeStay('booth', '2026-03-01');
+            self::fail('a charge without a stay was accepted');
+        } catch (\PerfectConsign\Ledger\DatabaseRefusal $error) {
+            self::assertSame('Choose a booth to charge.', $error->getMessage());
+        }
+        try {
+            $store->chargeStay('01900000-0000-7000-8000-000000000301', 'March');
+            self::fail('a charge without a period was accepted');
+        } catch (\PerfectConsign\Ledger\DatabaseRefusal $error) {
+            self::assertSame('Choose the month to charge.', $error->getMessage());
         }
     }
 
@@ -70,7 +86,6 @@ final class RentGuardTest extends TestCase
                 new CompanyStore($statements, new DatabaseRole($pdo), $pdo, new CompanyLines()),
                 new \PerfectConsign\Feature\Mall\MallDay($statements),
             ),
-            new RentLines(),
             new LedgerStore($pdo, $statements, new LedgerPeriods($pdo), new JournalCash($pdo)),
         );
     }

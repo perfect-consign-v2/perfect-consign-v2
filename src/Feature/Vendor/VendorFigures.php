@@ -29,23 +29,7 @@ final class VendorFigures
                 [$vendorId]
             ),
             'rent' => $this->sum(
-                "SELECT COALESCE(sum(booth.open_minor), 0) AS total
-                 FROM (
-                     SELECT sum(line.debit_minor - line.credit_minor) AS open_minor
-                     FROM journal_lines AS line
-                     JOIN journals AS posted ON posted.id = line.journal_id
-                     JOIN chart_roles AS role ON role.account_id = line.account_id
-                     WHERE role.role = 'booth_rent_receivable'
-                       AND line.subledger_type = 'booth'
-                       AND EXISTS (
-                           SELECT 1 FROM booth_assignments AS assignment
-                           WHERE assignment.vendor_id = ?::uuid
-                             AND assignment.booth_id = line.subledger_ref::uuid
-                             AND assignment.assignment_range @> posted.posting_date
-                       )
-                     GROUP BY line.subledger_ref
-                     HAVING sum(line.debit_minor - line.credit_minor) > 0
-                 ) AS booth",
+                'SELECT stall_vendor_open_rent(?::uuid) AS total',
                 [$vendorId]
             ),
             'clawback' => $this->sum(

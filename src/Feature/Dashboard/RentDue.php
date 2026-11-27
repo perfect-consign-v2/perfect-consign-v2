@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Dashboard;
 
-use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Rent\RentBook;
 use PerfectConsign\Feature\Rent\RentStore;
 
@@ -13,7 +12,6 @@ final class RentDue
     public function __construct(
         private readonly RentStore $rent,
         private readonly RentBook $book,
-        private readonly MallPayoutSettings $settings,
     ) {
     }
 
@@ -24,12 +22,7 @@ final class RentDue
     {
         $today = $this->rent->today();
         $month = $this->book->month('', $today);
-        $assembled = $this->book->assemble(
-            $this->rent->facts($month),
-            $month,
-            $today,
-            $this->settings->getCycleDay(),
-        );
+        $assembled = $this->book->assemble($this->rent->book($month), $month, $today);
         $rows = [];
         foreach ($assembled['rows'] as $row) {
             if ($row['open_minor'] > 0) {

@@ -5320,8 +5320,15 @@ BEGIN
         RAISE EXCEPTION 'a booth and a reference are required'
             USING ERRCODE = '22023';
     END IF;
+    -- One stay, one day, one reference: the same words can be used again on
+    -- another booth or another day, and a double click posts once.
+    IF public.stall_live_journal('booth-charge:' || target_assignment::text || ':' || on_date::text || ':' || lower(btrim(reference))) IS NOT NULL THEN
+        RAISE EXCEPTION 'That charge is already posted today.'
+            USING ERRCODE = '23505';
+    END IF;
     RETURN public.stall_post_lines(
-        'booth-charge:' || btrim(reference), on_date, 'booth_charge', btrim(reference), 'Booth charge',
+        'booth-charge:' || target_assignment::text || ':' || on_date::text || ':' || lower(btrim(reference)),
+        on_date, 'booth_charge', btrim(reference), 'Booth charge: ' || btrim(reference),
         jsonb_build_array(
             public.stall_line('booth_rent_receivable', amount, 0, 'assignment', target_assignment::text),
             public.stall_line('booth_other_revenue', 0, amount)
@@ -5344,9 +5351,17 @@ BEGIN
         RAISE EXCEPTION 'a booth and a reference are required'
             USING ERRCODE = '22023';
     END IF;
+    IF public.stall_live_journal(
+        CASE WHEN releasing THEN 'booth-deposit-release:' ELSE 'booth-deposit:' END
+            || target_assignment::text || ':' || on_date::text || ':' || lower(btrim(reference))
+    ) IS NOT NULL THEN
+        RAISE EXCEPTION 'That deposit is already posted today.'
+            USING ERRCODE = '23505';
+    END IF;
     IF releasing THEN
         RETURN public.stall_post_lines(
-            'booth-deposit-release:' || btrim(reference), on_date, 'booth_deposit', btrim(reference), 'Booth deposit returned',
+            'booth-deposit-release:' || target_assignment::text || ':' || on_date::text || ':' || lower(btrim(reference)),
+            on_date, 'booth_deposit', btrim(reference), 'Booth deposit returned: ' || btrim(reference),
             jsonb_build_array(
                 public.stall_line('booth_deposit_held', amount, 0, 'assignment', target_assignment::text),
                 public.stall_line('cash', 0, amount)
@@ -5354,13 +5369,129 @@ BEGIN
         );
     END IF;
     RETURN public.stall_post_lines(
-        'booth-deposit:' || btrim(reference), on_date, 'booth_deposit', btrim(reference), 'Booth deposit',
+        'booth-deposit:' || target_assignment::text || ':' || on_date::text || ':' || lower(btrim(reference)),
+        on_date, 'booth_deposit', btrim(reference), 'Booth deposit: ' || btrim(reference),
         jsonb_build_array(
             public.stall_line('cash', amount, 0),
             public.stall_line('booth_deposit_held', 0, amount, 'assignment', target_assignment::text)
         )
     );
 END;
+$$;
+
+-- The days a stay pays for in the period it moves in during: from its start
+-- through the period's last day. 0 when it was already there on the first day.
+CREATE FUNCTION public.stall_rent_move_in_days(target_assignment uuid, period_start date) RETURNS integer
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT CASE
+        WHEN stay.starts_on > period_start AND stay.starts_on <= public.stall_rent_period_end(period_start)
+            THEN (public.stall_rent_period_end(period_start) - stay.starts_on) + 1
+        ELSE 0
+    END
+    FROM public.booth_assignments AS stay
+    WHERE stay.id = target_assignment
+$$;
+
+-- The day a rent charge is dated: today inside its period, otherwise the first
+-- day of the period the stay covers.
+CREATE FUNCTION public.stall_rent_charge_date(target_assignment uuid, period_start date) RETURNS date
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT CASE
+        WHEN today.day BETWEEN period_start AND public.stall_rent_period_end(period_start) THEN today.day
+        ELSE GREATEST(period_start, stay.starts_on)
+    END
+    FROM public.booth_assignments AS stay
+    CROSS JOIN (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date AS day FROM public.mall) AS today
+    WHERE stay.id = target_assignment
+$$;
+
+-- Rent charged at the desk: a person chooses the stay and the period; the
+-- database dates it and computes it. A period that has not started is refused.
+CREATE FUNCTION public.stall_charge_rent(target_assignment uuid, period_start date) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    today date;
+    on_date date;
+BEGIN
+    SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date INTO today FROM public.mall;
+    IF period_start IS NULL OR period_start > today THEN
+        RAISE EXCEPTION 'That month has not started yet.'
+            USING ERRCODE = '23514';
+    END IF;
+    on_date := public.stall_rent_charge_date(target_assignment, period_start);
+    IF on_date IS NULL THEN
+        RAISE EXCEPTION 'a rent charge requires an assignment'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN public.stall_post_rent_charge(target_assignment, period_start, on_date);
+END;
+$$;
+
+-- The rent book: one row for each stay in each rent period that touches the
+-- days asked for, and one row for each empty booth with an asking rate.
+CREATE FUNCTION public.stall_rent_book(from_date date, to_date date)
+RETURNS TABLE(
+    assignment_id uuid, booth_id uuid, booth_code text, booth_name text,
+    vendor_id uuid, vendor_name text, starts_on date, ends_on date,
+    period_start date, period_suffix text, quote_minor bigint,
+    charge_journal uuid, charge_minor bigint, chargeable boolean, charge_date date, open_minor bigint
+)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH today AS (
+        SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date AS day, mall.booth_rentals_enabled AS renting
+        FROM public.mall
+    ), stays AS (
+        SELECT stay.*, period.start::date AS period_start
+        FROM public.booth_assignments AS stay
+        CROSS JOIN LATERAL generate_series(
+            public.stall_rent_period_start(GREATEST(from_date, stay.starts_on))::timestamp,
+            public.stall_rent_period_start(LEAST(to_date, COALESCE(stay.ends_on, to_date)))::timestamp,
+            interval '1 month'
+        ) AS period(start)
+        WHERE stay.starts_on <= to_date
+          AND (stay.ends_on IS NULL OR stay.ends_on >= from_date)
+    ), priced AS (
+        SELECT stays.*,
+               public.stall_rent_charge_suffix(stays.period_start) AS suffix,
+               CASE WHEN public.stall_assignment_rated(stays.id, stays.period_start)
+                    THEN public.stall_rent_quote(stays.id, stays.period_start) END AS quote,
+               public.stall_live_journal(
+                   'rent-charge:' || stays.id::text || ':' || public.stall_rent_charge_suffix(stays.period_start)
+               ) AS charged
+        FROM stays
+    )
+    SELECT priced.id, booth.id, booth.code, booth.name, vendor.id, vendor.name, priced.starts_on, priced.ends_on,
+           priced.period_start, priced.suffix, priced.quote,
+           priced.charged, posted.debit_total_minor,
+           (today.renting AND priced.quote IS NOT NULL AND priced.quote > 0 AND priced.charged IS NULL
+               AND priced.period_start <= today.day),
+           public.stall_rent_charge_date(priced.id, priced.period_start),
+           public.stall_assignment_open_rent(priced.id)
+    FROM priced
+    CROSS JOIN today
+    JOIN public.booths AS booth ON booth.id = priced.booth_id
+    JOIN public.vendors AS vendor ON vendor.id = priced.vendor_id
+    LEFT JOIN public.journals AS posted ON posted.id = priced.charged
+    UNION ALL
+    SELECT NULL, booth.id, booth.code, booth.name, NULL, NULL, NULL, NULL,
+           public.stall_rent_period_start(from_date), public.stall_rent_charge_suffix(public.stall_rent_period_start(from_date)),
+           rate.amount_minor, NULL, NULL, false, NULL, 0
+    FROM public.booths AS booth
+    JOIN public.booth_rent_rates AS rate ON rate.booth_id = booth.id
+    WHERE NOT EXISTS (
+        SELECT 1 FROM public.booth_assignments AS stay
+        WHERE stay.booth_id = booth.id
+          AND stay.starts_on <= to_date
+          AND (stay.ends_on IS NULL OR stay.ends_on >= from_date)
+    )
 $$;
 
 CREATE VIEW public.payout_missing_rent AS
@@ -16007,6 +16138,17 @@ REVOKE ALL ON FUNCTION public.stall_vendor_open_reasons(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.stall_vendor_open_reasons(uuid) TO stall_poster;
 
+REVOKE ALL ON FUNCTION public.stall_rent_move_in_days(uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_move_in_days(uuid, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_move_in_days(uuid, date) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_rent_charge_date(uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_charge_date(uuid, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_charge_date(uuid, date) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_charge_rent(uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_charge_rent(uuid, date) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_rent_book(date, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_book(date, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_book(date, date) TO stall_backup;
 REVOKE ALL ON FUNCTION public.stall_live_journal(text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.stall_live_journal(text) TO stall_poster;

@@ -90,8 +90,8 @@ final class PostedLines
         if ($type === '' && $ref === '') {
             return ['type' => null, 'ref' => null];
         }
-        if ($type !== 'vendor' && $type !== 'booth') {
-            throw new DatabaseRefusal('a subledger is a vendor or a booth');
+        if ($type !== 'vendor' && $type !== 'assignment') {
+            throw new DatabaseRefusal('a subledger is a vendor or a booth stay');
         }
 
         return ['type' => $type, 'ref' => $ref];

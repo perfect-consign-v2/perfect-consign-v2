@@ -144,7 +144,7 @@ final class RentOwedTest extends TestCase
                 if (str_contains($sql, 'vendor_name')) {
                     return $name === null ? [] : [['vendor_name' => $name]];
                 }
-                if (str_contains($sql, 'HAVING sum')) {
+                if (str_contains($sql, 'stall_assignment_open_rent(stay.id) > 0')) {
                     return $spots;
                 }
                 if (str_contains($sql, 'starts_on')) {

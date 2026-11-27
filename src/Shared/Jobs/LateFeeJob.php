@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PerfectConsign\Shared\Jobs;
 
 use PDO;
-use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\LateFeeDue;
 use PerfectConsign\Ledger\JournalCash;
@@ -22,10 +21,7 @@ final class LateFeeJob
     public function lateFees(string $date): void
     {
         $statements = new Statements($this->pdo);
-        $fees = new LateFee(
-            new LedgerStore($this->pdo, $statements, new LedgerPeriods($this->pdo), new JournalCash($this->pdo)),
-            $statements
-        );
-        (new LateFeeDue($statements, new MallPayoutSettings($statements), $fees))->apply($date);
+        $ledger = new LedgerStore($this->pdo, $statements, new LedgerPeriods($this->pdo), new JournalCash($this->pdo));
+        (new LateFeeDue($statements, $ledger, new LateFee($ledger)))->apply($date);
     }
 }

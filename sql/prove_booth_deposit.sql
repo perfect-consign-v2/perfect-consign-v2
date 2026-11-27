@@ -245,6 +245,14 @@ BEGIN
     IF stall_vendor_deposit_held('01900000-0000-7000-8000-00000000e960') <> 0 THEN
         RAISE EXCEPTION 'the function release did not clear the stay';
     END IF;
+    IF (SELECT string_agg(role.role || ':' || line.debit_minor || '/' || line.credit_minor, ' ' ORDER BY line.line_no)
+        FROM journal_lines AS line JOIN chart_roles AS role ON role.account_id = line.account_id
+        WHERE line.journal_id = taken) <> 'cash:2500/0 booth_deposit_held:0/2500'
+       OR (SELECT string_agg(role.role || ':' || line.debit_minor || '/' || line.credit_minor, ' ' ORDER BY line.line_no)
+        FROM journal_lines AS line JOIN chart_roles AS role ON role.account_id = line.account_id
+        WHERE line.journal_id = returned) <> 'booth_deposit_held:2500/0 cash:0/2500' THEN
+        RAISE EXCEPTION 'a deposit is not cash in and a release cash out';
+    END IF;
 END $$;
 
 -- A held deposit keeps a vendor who has left from being made inactive.

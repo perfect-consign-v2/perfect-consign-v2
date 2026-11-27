@@ -7,18 +7,15 @@ namespace PerfectConsign\Tests\Feature\Rent;
 use InvalidArgumentException;
 use PerfectConsign\Feature\Payout\PayoutWindow;
 use PerfectConsign\Feature\Rent\RentCycle;
-use PerfectConsign\Feature\Rent\RentFigure;
-use PerfectConsign\Feature\Rent\RentLines;
-use PerfectConsign\Feature\Rent\RentSpan;
 use PHPUnit\Framework\TestCase;
 
 final class RentCycleTest extends TestCase
 {
     // refuseClosedRentals( chrome( rentPolicy( rentalsEnabled( cycleDay( cycleFrozen(
     // getCompanyLines( isRentalsEnabled( getCycleDay( staysByBooth( availableOn( endsLater(
-    // nextDay( requireDate( optionalDay( openPeriods( dueLines( periodLabel( chargeFacts(
+    // nextDay( requireDate( optionalDay( periodLabel(
     // away( rentHome( optional( place( profile( writeContact( rename( writeName(
-    // shift( ordinal( cover( uncovered( unposted( covered( moves(
+    // shift( ordinal( uncovered( covered( moves(
     public function testDayOneMatchesACalendarMonth(): void
     {
         $cycle = new RentCycle(1);
@@ -33,7 +30,6 @@ final class RentCycleTest extends TestCase
         );
         self::assertSame('2026-03', $cycle->suffix($cycle->start('2026-03-20')));
         self::assertSame(['2026-03'], $cycle->suffixesTouching('2026-03'));
-        self::assertSame(3400, $cycle->amount(6200, '2026-03-15', '2026-03-20'));
     }
 
     public function testDayFifteenRunsFromTheFifteenthThroughTheFourteenth(): void
@@ -43,7 +39,6 @@ final class RentCycleTest extends TestCase
         self::assertSame('2026-03-15', $cycle->start('2026-03-20'));
         self::assertSame('2026-04-14', $cycle->end('2026-03-15'));
         self::assertSame('2026-03-15', $cycle->suffix('2026-03-15'));
-        self::assertSame(2600, $cycle->amount(3100, '2026-03-20', '2026-03-20'));
         self::assertSame(['2026-02-15', '2026-03-15'], $cycle->suffixesTouching('2026-03'));
         self::assertSame(
             ['from' => '2026-02-15', 'to' => '2026-03-14', 'rent' => '2026-03-15'],
@@ -82,41 +77,6 @@ final class RentCycleTest extends TestCase
         self::assertStringContainsString('the 13th through the 12th', (new RentCycle(13))->sentence(false));
     }
 
-    public function testAPinnedPeriodUsesThatPeriodOnTheRentBook(): void
-    {
-        try {
-            (new RentLines())->build($this->emptyFacts(), '2026-03', '2026-03-20', 15, '2026-03-15');
-            self::fail('a booth without a name was listed');
-        } catch (InvalidArgumentException $error) {
-            self::assertSame('a rent field is missing', $error->getMessage());
-        }
-        $moved = RentFigure::posted(3100, '2026-03-20', null, '2026-03', '2026-04-01', 15, '2026-03-15');
-        self::assertSame('2026-03-20', $moved['date']);
-        self::assertSame(2600, $moved['amount']);
-        $later = RentFigure::posted(3100, '2026-05-01', null, '2026-03', '2026-04-01', 15, '2026-03-15');
-        self::assertSame('2026-03-15', $later['date']);
-    }
-
-    /**
-     * @return array{
-     *   booths: list<array<string, mixed>>,
-     *   assignments: list<array<string, mixed>>,
-     *   rates: list<array<string, mixed>>,
-     *   charges: list<array<string, mixed>>,
-     *   open_rent: list<array<string, mixed>>
-     * }
-     */
-    private function emptyFacts(): array
-    {
-        return [
-            'booths' => [['id' => '']],
-            'assignments' => [],
-            'rates' => [],
-            'charges' => [],
-            'open_rent' => [],
-        ];
-    }
-
     public function testDayTwentyEightIsTheLastCycleDay(): void
     {
         $cycle = new RentCycle(28);
@@ -131,14 +91,6 @@ final class RentCycleTest extends TestCase
         $cycle = new RentCycle(15);
 
         self::assertSame('2026-03-15', $cycle->start('2026-03-15'));
-        self::assertSame(3100, $cycle->amount(3100, '2026-03-01', '2026-03-20'));
-        self::assertSame(100, $cycle->amount(3100, '2026-04-14', '2026-03-20'));
-        $onEnd = RentFigure::posted(3100, '2026-04-14', null, '2026-03', '2026-04-01', 15, '2026-03-15');
-        self::assertSame('2026-04-14', $onEnd['date']);
-        $day = RentSpan::cover('2026-02', '2026-03-10', 28, null);
-        self::assertSame(28, $day->day);
-        self::assertSame(1, RentSpan::cover('2026-02', '2026-03-10', 0, null)->day);
-        self::assertSame(1, RentSpan::cover('2026-02', '2026-03-10', 29, null)->day);
         $window = new PayoutWindow();
         self::assertSame($window->window('2026-03-10', 1), $window->window('2026-03-10', 0));
         self::assertSame($window->window('2026-03-10', 1), $window->window('2026-03-10', 29));

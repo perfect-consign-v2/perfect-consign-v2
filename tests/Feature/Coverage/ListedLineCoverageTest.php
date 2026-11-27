@@ -291,9 +291,9 @@ final class ListedLineCoverageTest extends TestCase
         }
         try {
             $this->posting(true, true)->postReceipt('', '2026-06-15', '', 100, $this->blankTender(), []);
-            self::fail('an empty share was posted');
+            self::fail('a receipt with no tender was posted');
         } catch (DatabaseRefusal $error) {
-            self::assertSame('a rent receipt cannot exceed the open rent', $error->getMessage());
+            self::assertSame('a rent receipt needs a tender', $error->getMessage());
         }
     }
 
@@ -325,61 +325,18 @@ final class ListedLineCoverageTest extends TestCase
         }
     }
 
-    public function testALateFeeWithOneLineCannotBeWaived(): void
-    {
-        $ledger = $this->createStub(LedgerStore::class);
-        $ledger->method('journal')->willReturn([
-            'source_type' => 'late_fee',
-            'is_reversal' => false,
-            'posting_date' => '2026-01-01',
-            'source_reference' => 'booth:2026-01:1',
-        ]);
-        $ledger->method('reversed')->willReturn(false);
-        $ledger->method('lines')->willReturn([[
-            'account_id' => self::ACCOUNT,
-            'credit_minor' => 100,
-            'debit_minor' => 0,
-            'subledger_type' => null,
-            'subledger_ref' => null,
-        ]]);
-        $fees = new LateFee($ledger, new Statements($this->createStub(PDO::class)));
-        $this->expectException(DatabaseRefusal::class);
-        $this->expectExceptionMessage('Choose a late fee.');
-        $fees->waive(self::VENDOR, '2026-06-15');
-    }
-
-    public function testRentStoreRefusesAMissingRateAndABadMonthList(): void
+    public function testRentStoreRefusesAStayTheBookDoesNotKnowAndABadMonthList(): void
     {
         $store = new RentStore(
-            new FlexibleStatements(static function (string $sql): array {
-                if (str_contains($sql, 'stall_rent_charge_suffix')) {
-                    return [['month' => '2026-01-02']];
-                }
-                if (str_contains($sql, 'amount_minor') || str_contains($sql, 'vendor_name')) {
-                    return [];
-                }
-                if (str_contains($sql, 'starts_on')) {
-                    return [['starts_on' => '2026-01-01']];
-                }
-
-                return [];
-            }, static function (string $sql): array {
-                if (str_contains($sql, 'rent_cycle_day')) {
-                    return [['rent_cycle_day' => 1]];
-                }
-
-                return [];
-            }),
+            new FlexibleStatements(static fn (string $sql): array => [], static fn (string $sql): array => []),
             $this->mallSettings(),
-            new \PerfectConsign\Feature\Rent\RentLines(),
             $this->createStub(LedgerStore::class),
         );
-        self::assertNull($store->rate(self::VENDOR, '2026-06-15'));
         try {
-            $store->chargeAmount(self::VENDOR, '2026-06-15');
-            self::fail('a missing rate was charged');
+            $store->chargeStay(self::VENDOR, '2026-06-01');
+            self::fail('a stay the database does not know was charged');
         } catch (DatabaseRefusal $error) {
-            self::assertSame('a rent charge requires the booth rate from the assignment', $error->getMessage());
+            self::assertSame('Choose a booth to charge.', $error->getMessage());
         }
         try {
             $store->unchargedMonths('yesterday', '2026-06');
@@ -393,9 +350,9 @@ final class ListedLineCoverageTest extends TestCase
         } catch (\InvalidArgumentException $error) {
             self::assertSame('a rent month is YYYY-MM', $error->getMessage());
         }
-        self::assertSame([], $store->uncharged('2026-06-15', '2026-05'));
+        self::assertSame([], $store->unchargedMonths('2026-06-15', '2026-05'));
+        self::assertSame([], $store->book('2026-06'));
     }
-
     public function testReportSheetsRenderRentStoredAndAClampedRange(): void
     {
         $door = MallDoor::open($this, new Request('GET', '/gapmall/reports/rent', [], []));
@@ -1473,7 +1430,6 @@ final class ListedLineCoverageTest extends TestCase
             $payouts,
             new PayoutSettler($ledger, $payouts, $runs, new \PerfectConsign\Feature\Payout\PayoutRunLines($quoted), QuietAudit::journal($quoted, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $quoted)),
             new MallPayoutSettings($statements),
-            new \PerfectConsign\Feature\Rent\RentMoves($statements, new MallPayoutSettings($statements)),
         );
     }
 
@@ -1508,7 +1464,6 @@ final class ListedLineCoverageTest extends TestCase
             new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
             new PayoutSettler($ledger, new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), new PayoutRunStore($statements, new OccupiedPack($statements)), new \PerfectConsign\Feature\Payout\PayoutRunLines($statements), QuietAudit::journal($statements, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $statements)),
             new MallPayoutSettings($statements),
-            new \PerfectConsign\Feature\Rent\RentMoves($statements, new MallPayoutSettings($statements)),
         );
 
         return new RentReceipt(
@@ -1519,7 +1474,7 @@ final class ListedLineCoverageTest extends TestCase
             $posting,
             new RentSlip($statements),
             new RentPayment(),
-            new LateFee($ledger, $statements),
+            new LateFee($ledger),
             $this->createStub(\PerfectConsign\Bootstrap\SaleCeiling::class),
         );
     }

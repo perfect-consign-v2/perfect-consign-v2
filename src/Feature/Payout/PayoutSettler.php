@@ -30,15 +30,11 @@ final class PayoutSettler
     {
         $posted = [];
         foreach ($this->payouts->missingCharges($runId, $vendorId) as $charge) {
-            $posted[] = $this->ledger->post(new JournalDraft(
-                postingKey: 'rent-charge:' . $charge['booth_id'] . ':' . $charge['month'],
-                postingDate: $charge['posting_date'],
-                source: new JournalSource('rent_charge', $charge['booth_id'] . ':' . $charge['month'], 'Rent charge'),
-                lines: [
-                    PostedLines::entry($this->ledger->roleAccount('booth_rent_receivable'), $charge['amount'], 0, 'booth', $charge['booth_id']),
-                    PostedLines::entry($this->ledger->roleAccount('rent_revenue'), 0, $charge['amount'], null, null),
-                ],
-            ));
+            $posted[] = $this->ledger->postThrough(
+                $charge['posting_date'],
+                'stall_post_rent_charge(?::uuid, ?::date, ?::date)',
+                [$charge['assignment_id'], $charge['month_start'], $charge['posting_date']],
+            );
         }
 
         return $posted;
@@ -79,22 +75,18 @@ final class PayoutSettler
         $lines = [
             PostedLines::entry($this->ledger->roleAccount('vendor_payable'), $applied, 0, 'vendor', $vendorId),
         ];
-        $left = $applied;
-        foreach ($this->payouts->boothRent($vendorId) as $booth) {
-            $take = min($left, $booth['open_minor']);
-            if ($take <= 0) {
-                continue;
-            }
+        $placed = 0;
+        foreach ($this->payouts->stayShares($vendorId, $applied) as $share) {
             $lines[] = PostedLines::entry(
                 $this->ledger->roleAccount('booth_rent_receivable'),
                 0,
-                $take,
-                'booth',
-                $booth['booth_id']
+                $share['amount_minor'],
+                'assignment',
+                $share['assignment_id']
             );
-            $left -= $take;
+            $placed += $share['amount_minor'];
         }
-        if ($left !== 0) {
+        if ($placed !== $applied) {
             throw new DatabaseRefusal('the settlement does not match the open booth rent');
         }
 

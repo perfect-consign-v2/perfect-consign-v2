@@ -8,8 +8,6 @@ use PerfectConsign\Feature\Mall\MallPayoutSettings;
 use PerfectConsign\Feature\Payout\PayoutSettler;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\JournalDraft;
-use PerfectConsign\Ledger\JournalSource;
 use PerfectConsign\Ledger\LedgerStore;
 use PerfectConsign\Ledger\Money;
 use PerfectConsign\Ledger\PostedLines;
@@ -21,7 +19,6 @@ final class RentPosting
         private readonly PayoutStore $payouts,
         private readonly PayoutSettler $settler,
         private readonly MallPayoutSettings $settings,
-        private readonly RentMoves $moves,
     ) {
     }
 
@@ -62,46 +59,24 @@ final class RentPosting
             }
             $this->settler->chargeMissing($quote['run_id'], $vendorId);
         }
-        $id = $this->ledger->newId();
         $check = $this->minor($tender['checks']) > 0 ? trim($tender['check']) : null;
-        $lines = $debits;
-        foreach ($this->credits($vendorId, $amount) as $credit) {
-            $lines[] = $credit;
+        $cash = $this->minor($tender['cash']);
+        $card = $this->minor($tender['card']);
+        $checks = $this->minor($tender['checks']);
+        if ($cash + $card + $checks !== $amount || $debits === []) {
+            throw new DatabaseRefusal('a rent receipt needs a tender');
         }
 
-        return $this->ledger->post(new JournalDraft(
-            postingKey: 'rent-payment:' . $id,
-            postingDate: $today,
-            source: new JournalSource('rent_payment', $id, 'Rent receipt'),
-            lines: $lines,
-            sessionId: $sessionId,
-            checkNumber: $check,
-            tenderedMinor: $this->tenderedMinor($tender),
-        ));
-    }
-
-    /**
-     * @return list<array{account_id: string, debit: int, credit: int, subledger_type: ?string, subledger_ref: ?string}>
-     */
-    private function credits(string $vendorId, int $amount): array
-    {
-        $placed = 0;
-        $lines = [];
-        foreach ((new RentBill())->share($this->moves->charges($vendorId), $amount) as $share) {
-            $placed += $share['amount'];
-            $lines[] = PostedLines::entry(
-                $this->ledger->roleAccount('booth_rent_receivable'),
-                0,
-                $share['amount'],
-                'booth',
-                $share['booth_id'],
-            );
-        }
-        if ($placed !== $amount || $lines === []) {
-            throw new DatabaseRefusal('a rent receipt cannot exceed the open rent');
-        }
-
-        return $lines;
+        // The database splits the receipt over the vendor's stays, the stay
+        // with the oldest unpaid charge first, and refuses more than is owed.
+        return $this->ledger->postThrough(
+            $today,
+            'stall_post_rent_payment(?::uuid, ?, ?, ?, ?::date)',
+            [$vendorId, $cash, $card, $checks, $today],
+            $sessionId,
+            $check,
+            $this->tenderedMinor($tender),
+        );
     }
 
     private function requireCheck(int $checks, string $number): void

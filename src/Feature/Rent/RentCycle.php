@@ -6,7 +6,6 @@ namespace PerfectConsign\Feature\Rent;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
-use PerfectConsign\Feature\Party\MoveInRent;
 
 /**
  * One rent period. Day 1 is a calendar month. Any other day runs from that day through the day before it next month.
@@ -68,20 +67,6 @@ final class RentCycle
         ];
     }
 
-    public function amount(int $monthly, string $startsOn, string $postingDate): int
-    {
-        if ($this->day === 1) {
-            return MoveInRent::charge($monthly, $startsOn, substr($postingDate, 0, 7));
-        }
-        $start = $this->start($postingDate);
-        $end = $this->end($start);
-        if ($startsOn <= $start || $startsOn > $end) {
-            return $monthly;
-        }
-
-        return intdiv($this->span($startsOn, $end) * $monthly, $this->span($start, $end));
-    }
-
     /**
      * @return list<string>
      */
@@ -122,11 +107,6 @@ final class RentCycle
         }
 
         return (new DateTimeImmutable($date))->modify('+' . $days . ' days')->format('Y-m-d');
-    }
-
-    private function span(string $from, string $to): int
-    {
-        return (int) (new DateTimeImmutable($from))->diff(new DateTimeImmutable($to))->days + 1;
     }
 
     private function ordinal(int $day): string

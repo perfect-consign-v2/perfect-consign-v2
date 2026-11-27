@@ -115,18 +115,22 @@
       if (field && name !== null) {
         field.value = name;
       }
-      var chargeBooth = button.getAttribute('data-charge-booth');
-      if (form && chargeBooth !== null) {
-        var boothField = form.querySelector('input[name="booth_id"]');
-        var dateField = form.querySelector('input[name="posting_date"]');
+      var chargeStay = button.getAttribute('data-charge-stay');
+      if (form && chargeStay !== null) {
+        var stayField = form.querySelector('input[name="assignment_id"]');
+        var periodField = form.querySelector('input[name="period_start"]');
         var codeEl = modal.querySelector('[data-charge-code]');
         var vendorEl = modal.querySelector('[data-charge-vendor]');
+        var periodEl = modal.querySelector('[data-charge-period-label]');
         var amountEls = modal.querySelectorAll('[data-charge-amount]');
-        if (boothField) {
-          boothField.value = chargeBooth;
+        if (stayField) {
+          stayField.value = chargeStay;
         }
-        if (dateField) {
-          dateField.value = button.getAttribute('data-charge-date') || '';
+        if (periodField) {
+          periodField.value = button.getAttribute('data-charge-period') || '';
+        }
+        if (periodEl) {
+          periodEl.textContent = button.getAttribute('data-charge-period-label') || '';
         }
         if (codeEl) {
           codeEl.textContent = button.getAttribute('data-charge-code') || '';

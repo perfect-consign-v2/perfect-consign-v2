@@ -109,7 +109,7 @@ final class PayoutMissLinesTest extends TestCase
         self::assertSame('', $clawback->reclass(self::VENDOR, 0, '2026-11-12', self::RUN));
         self::assertSame(MallDoor::JOURNAL, $clawback->reclass(self::VENDOR, 3, '2026-11-12', self::RUN));
         $settler->close(self::RUN, '2026-11-12');
-        $statements->movement = [['booth_id' => MallDoor::DRAWER, 'open_minor' => 1]];
+        $statements->boundRoutes[] = ['match' => 'stall_rent_payment_split', 'rows' => [['assignment_id' => MallDoor::DRAWER, 'amount_minor' => 1]]];
         $this->expectException(DatabaseRefusal::class);
         $settler->settle(self::RUN, self::VENDOR, '2026-11-12', 4);
     }
@@ -131,13 +131,13 @@ final class PayoutMissLinesTest extends TestCase
             ]]],
             ['match' => 'INSERT INTO payout_runs', 'rows' => [['id' => MallDoor::JOURNAL]]],
             ['match' => 'FROM payout_missing_rent', 'rows' => [[
-                'booth_id' => MallDoor::DRAWER,
+                'assignment_id' => MallDoor::DRAWER,
+                'month_start' => '2026-11-01',
                 'posting_date' => '2026-11-12',
                 'amount' => 4,
-                'month' => '2026-11',
             ]]],
         ];
-        $statements->movement = [['booth_id' => MallDoor::DRAWER, 'open_minor' => 4]];
+        $statements->boundRoutes[] = ['match' => 'stall_rent_payment_split', 'rows' => [['assignment_id' => MallDoor::DRAWER, 'amount_minor' => 4]]];
         $single = new PayoutSingle(
             $statements,
             new PayoutStore(MallDoor::open($this, new Request('GET', '/', [], []))->pdo, $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
@@ -316,6 +316,7 @@ final class PayoutMissLinesTest extends TestCase
         $ledger = $this->createStub(LedgerStore::class);
         $ledger->method('roleAccount')->willReturn(MallDoor::ACCOUNT);
         $ledger->method('post')->willReturn(MallDoor::JOURNAL);
+        $ledger->method('postThrough')->willReturn(MallDoor::JOURNAL);
 
         return $ledger;
     }
