@@ -21,7 +21,6 @@ use PerfectConsign\Feature\Pos\SaleReversal;
 use PerfectConsign\Feature\Pos\SaleTicketAttach;
 use PerfectConsign\Feature\Pos\SnapSync;
 use PerfectConsign\Feature\Pos\TicketCustomer;
-use PerfectConsign\Feature\Pos\TicketDrafts;
 use PerfectConsign\Feature\Pos\TicketStore;
 use PerfectConsign\Feature\Pos\TicketTenders;
 use PerfectConsign\Feature\Payout\PayoutStore;
@@ -67,7 +66,7 @@ final class PosPagePayCartTest extends TestCase
             'buyer_id' => '',
             'due' => 100,
             'lines' => [['line_no' => 1]],
-        ], [], [], 0, '');
+        ], [], 0, '');
 
         self::assertSame(['01900000-0000-7000-8000-00000000bb01'], $panel['cart']['snap_keys']);
         self::assertSame(100, $panel['remaining']);
@@ -85,7 +84,7 @@ final class PosPagePayCartTest extends TestCase
             'buyer_id' => '',
             'due' => 500,
             'lines' => [['line_no' => 1]],
-        ], [], [], 125, '');
+        ], [], 125, '');
 
         self::assertSame(375, $panel['remaining']);
     }
@@ -142,7 +141,7 @@ final class PosPagePayCartTest extends TestCase
             'buyer_id' => '',
             'due' => 0,
             'lines' => [],
-        ], [], [], 0, '');
+        ], [], 0, '');
 
         self::assertSame('GC-100', $panel['giftNumber']);
         self::assertSame(2500, $panel['giftBalance']);
@@ -167,7 +166,7 @@ final class PosPagePayCartTest extends TestCase
             'buyer_id' => 'vendor-1',
             'due' => 100,
             'lines' => [],
-        ], [], [], 0, '');
+        ], [], 0, '');
 
         self::assertSame(4200, $panel['salesAvailable']);
     }
@@ -215,7 +214,7 @@ final class PosPagePayCartTest extends TestCase
             'buyer_id' => '',
             'due' => 0,
             'lines' => [],
-        ], [], [], 0, $journalId);
+        ], [], 0, $journalId);
 
         self::assertSame(500, $panel['change']);
         self::assertSame(1500, $panel['completed']['cash']);
@@ -326,10 +325,6 @@ final class PosPagePayCartTest extends TestCase
         (new ReflectionProperty(PosRegister::class, 'held'))->setValue(
             $register,
             (new ReflectionClass(TicketTenders::class))->newInstanceWithoutConstructor()
-        );
-        (new ReflectionProperty(PosRegister::class, 'drafts'))->setValue(
-            $register,
-            (new ReflectionClass(TicketDrafts::class))->newInstanceWithoutConstructor()
         );
         (new ReflectionProperty(PosRegister::class, 'gate'))->setValue(
             $register,

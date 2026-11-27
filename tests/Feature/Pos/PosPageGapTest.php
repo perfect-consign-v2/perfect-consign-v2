@@ -29,7 +29,6 @@ use PerfectConsign\Feature\Pos\SaleTicketAttach;
 use PerfectConsign\Feature\Pos\SnapSync;
 use PerfectConsign\Feature\Pos\TicketBuyer;
 use PerfectConsign\Feature\Pos\TicketCustomer;
-use PerfectConsign\Feature\Pos\TicketDrafts;
 use PerfectConsign\Feature\Pos\TicketLines;
 use PerfectConsign\Feature\Pos\TicketPriceChange;
 use PerfectConsign\Feature\Pos\TicketPricing;
@@ -96,7 +95,6 @@ final class PosPageGapTest extends TestCase
                 $payouts,
                 $door->mall,
             ),
-            new TicketDrafts($statements),
             new RegisterGate($door->app, $door->register, $tickets),
             new LayawayBook($statements, $door->ledger),
             new SnapSync($statements),

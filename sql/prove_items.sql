@@ -613,4 +613,65 @@ EXCEPTION
         END IF;
 END $$;
 
+
+-- Instant Add needs a description, a price, a seller, and a quantity of at least one.
+-- The form and the app refuse a blank or spaced field first; these rules stop it again here.
+DO $$
+DECLARE
+    tried text;
+BEGIN
+    FOREACH tried IN ARRAY ARRAY['', '   ', ' Vase', E'Vase\t'] LOOP
+        BEGIN
+            INSERT INTO items (code, vendor_id, description, price_minor, barcode, intake_on)
+            VALUES ('RQ-DESC', '01900000-0000-7000-8000-000000000c10', tried, 100, 'BC-RQ-DESC', DATE '2026-09-27');
+            RAISE EXCEPTION 'description % was accepted', quote_literal(tried);
+        EXCEPTION
+            WHEN SQLSTATE '23514' THEN
+                IF SQLERRM NOT LIKE '%items_description_chk%' THEN
+                    RAISE;
+                END IF;
+        END;
+    END LOOP;
+END $$;
+
+DO $$
+BEGIN
+    INSERT INTO items (code, vendor_id, description, price_minor, barcode, intake_on)
+    VALUES ('RQ-PRICE', '01900000-0000-7000-8000-000000000c10', 'Vase', 0, 'BC-RQ-PRICE', DATE '2026-09-27');
+    RAISE EXCEPTION 'a zero price was accepted';
+EXCEPTION
+    WHEN SQLSTATE '23514' THEN
+        IF SQLERRM NOT LIKE '%items_price_chk%' THEN
+            RAISE;
+        END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint AS rule
+        WHERE rule.conrelid = 'ticket_lines'::regclass
+          AND rule.conname = 'ticket_lines_quantity_chk'
+          AND rule.contype = 'c'
+          AND rule.convalidated
+          AND pg_get_constraintdef(rule.oid) = 'CHECK ((quantity > 0))'
+    ) THEN
+        RAISE EXCEPTION 'a ticket line can hold a quantity below one';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'ticket_lines'
+          AND column_name = 'quantity'
+          AND is_nullable = 'YES'
+    ) THEN
+        RAISE EXCEPTION 'a ticket line can hold no quantity';
+    END IF;
+    IF to_regclass('ticket_draft_lines') IS NOT NULL THEN
+        RAISE EXCEPTION 'incomplete Instant Add lines still have a table';
+    END IF;
+END $$;
+
 ROLLBACK;

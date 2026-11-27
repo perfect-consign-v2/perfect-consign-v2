@@ -74,10 +74,7 @@ $showBrand = ($showBrand ?? true) === true;
 /** @var string $payCreditNumber */
 /** @var string|null $notice */
 /** @var string|null $error */
-/** @var list<array{id: string, draft_no: int, vendor_id: string, vendor_label: string, description: string, price_text: string, brand_id: string, brand_label: string, discount_kind: string, discount_value: string, attributes: array<string, array{id: string, label: string}>, missing: list<string>}> $drafts */
-$drafts = is_array($drafts ?? null) ? $drafts : [];
-$hasDrafts = $drafts !== [];
-$open = ($cart['ticket_id'] !== '' || $hasDrafts) && $completed === null;
+$open = $cart['ticket_id'] !== '' && $completed === null;
 $locked = $completed !== null;
 $lines = $cart['lines'];
 $nonCashTender = false;
@@ -161,7 +158,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
             <?php if ($locked): ?>
                 <button class="btn" type="button" data-open-modal="sale-completed">Sale completed</button>
             <?php endif; ?>
-            <?php if ($lines === [] && !$hasDrafts): ?>
+            <?php if ($lines === []): ?>
                 <p class="muted"><?php if ($locked): ?>Scan and Instant inventory stay locked until you start a new sale.<?php else: ?>Cart is empty. Scan a barcode, search by code, or use <strong>Instant inventory</strong>.<?php endif; ?></p>
             <?php else: ?>
                 <div class="table-wrap">
@@ -177,51 +174,6 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($drafts as $draft): ?>
-                                <?php
-                                $missingLabels = [];
-                                foreach ($draft['missing'] as $field) {
-                                    $missingLabels[] = match ($field) {
-                                        'vendor' => 'vendor',
-                                        'description' => 'description',
-                                        'price' => 'price',
-                                        default => $field,
-                                    };
-                                }
-                                $missingText = implode(', ', $missingLabels);
-                                ?>
-                                <tr class="register-draft">
-                                    <td class="register-item">
-                                        <p><?= View::text($draft['description'] !== '' ? $draft['description'] : '—') ?></p>
-                                        <p class="ticket-meta"><?= View::text($draft['vendor_label'] !== '' ? $draft['vendor_label'] : '—') ?></p>
-                                        <p><span class="badge badge-danger">MISSING</span> <span class="muted text-sm"><?= View::text($missingText) ?></span></p>
-                                    </td>
-                                    <td class="register-qty-col muted">1</td>
-                                    <td class="register-price-col muted"><?= View::text($draft['price_text'] !== '' ? $draft['price_text'] : '—') ?></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td class="row gap-2">
-                                        <button
-                                            class="btn btn-sm btn-primary"
-                                            type="button"
-                                            data-open-modal="instant-add"
-                                            data-draft-no="<?= View::text((string) $draft['draft_no']) ?>"
-                                            data-draft-vendor-id="<?= View::text($draft['vendor_id']) ?>"
-                                            data-draft-vendor-label="<?= View::text($draft['vendor_label']) ?>"
-                                            data-draft-description="<?= View::text($draft['description']) ?>"
-                                            data-draft-price="<?= View::text($draft['price_text']) ?>"
-                                            data-draft-brand-id="<?= View::text($draft['brand_id']) ?>"
-                                            data-draft-brand-label="<?= View::text($draft['brand_label']) ?>"
-                                            data-draft-discount-kind="<?= View::text($draft['discount_kind']) ?>"
-                                            data-draft-discount-value="<?= View::text($draft['discount_value']) ?>"
-                                        >Complete</button>
-                                        <form method="post" action="/<?= View::text($slug) ?>/pos/draft/<?= View::text((string) $draft['draft_no']) ?>/remove">
-                                            <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                                            <button class="btn btn-sm" type="submit">Remove</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
                             <?php foreach ($lines as $line): ?>
                                 <?php
                                 $offerName = is_string($line['offer_name'] ?? null) ? $line['offer_name'] : '';
@@ -363,7 +315,7 @@ require $templateDirectory . '/Feature/Pos/register-nav.php';
                 <button class="btn btn-primary btn-block" type="button" disabled>Enter payment</button>
             <?php endif; ?>
             <?php if ($open): ?>
-                <button class="btn btn-primary btn-block register-complete" type="submit" form="pos-pay"<?= $lines === [] || $hasDrafts || $remaining > 0 ? ' disabled' : '' ?>>Finish sale</button>
+                <button class="btn btn-primary btn-block register-complete" type="submit" form="pos-pay"<?= $lines === [] || $remaining > 0 ? ' disabled' : '' ?>>Finish sale</button>
             <?php elseif ($locked): ?>
                 <button class="btn btn-primary btn-block register-complete" type="button" disabled>Finish sale</button>
             <?php endif; ?>

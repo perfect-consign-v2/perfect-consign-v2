@@ -47,14 +47,13 @@ final class PosPage
         $tenant = $this->app->open($slug, true);
         $session = $this->register->session($slug);
         $cart = $this->register->cart($session);
-        $drafts = $this->register->drafts($session);
         $tenders = $this->register->tenders($cart['ticket_id']);
         $applied = $this->register->deposits($cart['ticket_id']);
         foreach ($tenders as $tender) {
             $applied += $tender['amount'];
         }
         $held = $this->sales->id($slug);
-        $panel = $this->cartView->salePanel($slug, $session, $cart, $drafts, $tenders, $applied, $held);
+        $panel = $this->cartView->salePanel($slug, $session, $cart, $tenders, $applied, $held);
         $this->app->show('Feature/Pos/pos', array_merge(
             $this->cartView->chrome($tenant, $error),
             $panel,
@@ -155,6 +154,7 @@ final class PosPage
             'instantVendorLabel' => '',
             'instantDescription' => '',
             'instantPrice' => '',
+            'instantQuantity' => '1',
             'instantDiscountKind' => 'consignor_default',
             'instantDiscountValue' => '',
             'instantBrandId' => '',
@@ -178,6 +178,7 @@ final class PosPage
         $form['instantVendorLabel'] = $request->field('vendor_label');
         $form['instantDescription'] = $request->field('description');
         $form['instantPrice'] = $request->field('price');
+        $form['instantQuantity'] = $request->field('quantity');
         $form['instantDiscountKind'] = in_array($kind, ['consignor_default', 'none', 'percent', 'flat'], true)
             ? $kind
             : 'consignor_default';

@@ -173,23 +173,6 @@ final class RegisterPageTest extends TestCase
         $empty = $this->page([
             'cart' => ['ticket_id' => 'ticket-1'],
         ]);
-        $drafts = $this->page([
-            'cart' => ['ticket_id' => 'ticket-1', 'lines' => [$this->line()]],
-            'drafts' => [[
-                'id' => 'draft-1',
-                'draft_no' => 1,
-                'vendor_id' => 'vendor-1',
-                'vendor_label' => 'Ada',
-                'description' => 'Coat',
-                'price_text' => '10.00',
-                'brand_id' => '',
-                'brand_label' => '',
-                'discount_kind' => '',
-                'discount_value' => '',
-                'attributes' => [],
-                'missing' => [],
-            ]],
-        ]);
         $owing = $this->page([
             'remaining' => 100,
             'cart' => ['ticket_id' => 'ticket-1', 'lines' => [$this->line()]],
@@ -199,7 +182,6 @@ final class RegisterPageTest extends TestCase
         ]);
 
         self::assertStringContainsString('form="pos-pay" disabled', $empty);
-        self::assertStringContainsString('form="pos-pay" disabled', $drafts);
         self::assertStringContainsString('form="pos-pay" disabled', $owing);
         self::assertStringContainsString('form="pos-pay">Finish sale', $ready);
     }
@@ -374,6 +356,8 @@ final class RegisterPageTest extends TestCase
     {
         $open = $this->page(['openInstant' => true, 'instantError' => '']);
         $price = $this->page(['openInstant' => true, 'instantError' => 'Enter a price.']);
+        $quantity = $this->page(['openInstant' => true, 'instantError' => 'Enter a whole quantity.', 'instantQuantity' => 'two']);
+        $description = $this->page(['openInstant' => true, 'instantError' => 'Enter a description.']);
         $closed = $this->page(['openInstant' => false]);
         $finished = $this->page([
             'completed' => $this->completed([
@@ -399,14 +383,22 @@ final class RegisterPageTest extends TestCase
         self::assertStringContainsString('class="alert alert-success" role="status">Item added to cart.', $added);
         self::assertStringContainsString('class="alert alert-success" role="status">Item added to cart.', $addedPage);
         self::assertStringNotContainsString('Item added to cart.', $open);
-        self::assertStringContainsString('placeholder="Name or vendor number" autofocus', $open);
+        self::assertStringContainsString('placeholder="Name or vendor number" required autofocus', $open);
+        self::assertStringContainsString('<label for="instant_vendor">Vendor</label>', $open);
+        self::assertMatchesRegularExpression('/id="instant_description"[^>]*maxlength="200" required>/', $open);
+        self::assertMatchesRegularExpression('/id="instant_price"[^>]*inputmode="decimal" required>/', $open);
+        self::assertStringContainsString('id="instant_quantity" name="quantity" value="1" inputmode="numeric" maxlength="9" required>', $open);
+        self::assertStringNotContainsString('MISSING', $open);
+        self::assertStringContainsString('value="two" inputmode="numeric" maxlength="9" required aria-invalid="true" aria-describedby="instant-error" autofocus', $quantity);
+        self::assertStringNotContainsString('placeholder="Name or vendor number" required autofocus', $quantity);
+        self::assertMatchesRegularExpression('/id="instant_description"[^>]*required aria-invalid="true" aria-describedby="instant-error" autofocus/', $description);
         self::assertStringContainsString('value="consignor_default" selected', $open);
         self::assertStringNotContainsString('value="none" selected', $open);
         self::assertStringContainsString('>Enter a price.</p>', $price);
         self::assertStringNotContainsString('id="instant-error" role="alert" hidden', $price);
         self::assertStringContainsString('aria-invalid="true" aria-describedby="instant-error" autofocus', $price);
-        self::assertStringNotContainsString('placeholder="Name or vendor number" autofocus', $price);
-        self::assertStringNotContainsString('placeholder="Name or vendor number" autofocus', $closed);
+        self::assertStringNotContainsString('placeholder="Name or vendor number" required autofocus', $price);
+        self::assertStringNotContainsString('placeholder="Name or vendor number" required autofocus', $closed);
         self::assertStringContainsString('$18.50', $finished);
         self::assertStringContainsString('>Return</button>', $finished);
         self::assertStringNotContainsString('id="discount"', $finished);

@@ -20,7 +20,6 @@ use PerfectConsign\Feature\Pos\InstantDiscount;
 use PerfectConsign\Feature\Pos\InstantItem;
 use PerfectConsign\Feature\Pos\TicketBuyer;
 use PerfectConsign\Feature\Pos\TicketCustomer;
-use PerfectConsign\Feature\Pos\TicketDrafts;
 use PerfectConsign\Feature\Pos\TicketLines;
 use PerfectConsign\Feature\Pos\TicketPriceChange;
 use PerfectConsign\Feature\Pos\TicketPricing;
@@ -44,19 +43,30 @@ final class InstantItemGapTest extends TestCase
 {
     private const VENDOR = MallDoor::VENDOR;
 
-    public function testDiscardDraftRemovesTheParkedLine(): void
+    public function testAddRefusesEachRequiredFieldWhenBlankOrOnlySpaces(): void
     {
         [$item, $statements] = $this->item(false);
-        $item->discardDraft('session', 3);
-        self::assertSame(1, $statements->draftDeletes);
+        $this->expectInvalid($item, $this->add('nope', 'Hat', '2.00', '1', ''), 'Choose a vendor.');
+        $this->expectInvalid($item, $this->add('   ', 'Hat', '2.00', '1', ''), 'Choose a vendor.');
+        $this->expectInvalid($item, $this->add(self::VENDOR, '', '2.00', '1', ''), 'Enter a description.');
+        $this->expectInvalid($item, $this->add(self::VENDOR, " \t ", '2.00', '1', ''), 'Enter a description.');
+        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '', '1', ''), 'Enter a price.');
+        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '   ', '1', ''), 'Enter a price.');
+        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '2.00', '', ''), 'Enter a quantity.');
+        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '2.00', '   ', ''), 'Enter a quantity.');
+        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '2.00', '0', ''), 'Enter a quantity of at least 1.');
+        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '2.00', 'two', ''), 'Enter a whole quantity.');
+        self::assertSame(0, $statements->itemInserts, 'a refused Instant Add wrote an item');
     }
 
-    public function testAddRefusesAVendorDescriptionAndPrice(): void
+    public function testPaddedFieldsAreTrimmedBeforeTheItemIsWritten(): void
     {
-        [$item] = $this->item(false);
-        $this->expectInvalid($item, $this->add('nope', 'Hat', '2.00', '1', ''), 'Choose a vendor.');
-        $this->expectInvalid($item, $this->add(self::VENDOR, '   ', '2.00', '1', ''), 'Enter a description.');
-        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '   ', '1', ''), 'Enter a price.');
+        [$item, $statements] = $this->item(false);
+        $item->add('session', '2026-11-12', $this->add(' ' . self::VENDOR . ' ', '  Hat  ', ' 2.50 ', ' 1 ', ''));
+        self::assertSame(1, $statements->itemInserts);
+        self::assertContains('Hat', $statements->itemParams);
+        self::assertContains(self::VENDOR, $statements->itemParams);
+        self::assertNotContains('  Hat  ', $statements->itemParams);
     }
 
     public function testAMissingTicketLineIsRefused(): void
@@ -159,7 +169,6 @@ final class InstantItemGapTest extends TestCase
             new InventoryStore($statements, new CatalogLinks($statements), $mall, QuietAudit::journal($statements, $actor, $session)),
             $tickets,
             new TicketLines($statements, $pricing),
-            new TicketDrafts($statements),
             $ceiling,
             $mall,
         ), $statements];
@@ -168,7 +177,10 @@ final class InstantItemGapTest extends TestCase
 
 final class InstantStatements extends Statements
 {
-    public int $draftDeletes = 0;
+    public int $itemInserts = 0;
+
+    /** @var list<mixed> */
+    public array $itemParams = [];
 
     public int $quantityWrites = 0;
 
@@ -186,9 +198,6 @@ final class InstantStatements extends Statements
      */
     public function change(string $sql, array $params): void
     {
-        if (str_contains($sql, 'DELETE FROM ticket_draft_lines')) {
-            $this->draftDeletes++;
-        }
     }
 
     /**
@@ -273,6 +282,9 @@ final class InstantStatements extends Statements
             return [];
         }
         if (str_contains($sql, 'INSERT INTO items')) {
+            $this->itemInserts++;
+            $this->itemParams = array_values($params);
+
             return [['id' => '01900000-0000-7000-8000-0000000000i1']];
         }
         if (str_contains($sql, 'price_minor FROM items')) {

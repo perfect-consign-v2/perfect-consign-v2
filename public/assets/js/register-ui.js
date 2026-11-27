@@ -43,9 +43,8 @@ const scanList = document.getElementById('scan-suggest');
 const instantOpen = document.getElementById('instant-add');
 const giftOpen = document.getElementById('gift-sell');
 if (instantOpen && !instantOpen.hidden) {
-    const price = document.getElementById('instant_price');
-    const consignor = document.getElementById('instant_vendor');
-    const focus = price && price.getAttribute('aria-invalid') === 'true' ? price : consignor;
+    const refused = instantOpen.querySelector('input[aria-invalid="true"]');
+    const focus = refused || document.getElementById('instant_vendor');
     if (focus) {
         focus.focus();
     }
@@ -102,7 +101,21 @@ if (instantForm) {
     const vendorError = document.getElementById('instant-vendor-error');
     const vendorHint = document.getElementById('instant-vendor-hint');
     const vendorsUrl = instantForm.getAttribute('data-vendors') || '';
+    const chooseSeller = instantForm.getAttribute('data-choose-seller') || 'Choose a vendor.';
+    const requiredFields = instantForm.querySelectorAll('input[required]');
     let vendorLookup = 0;
+    // A field of spaces is blank: trim it so the browser's own required check stops it.
+    function trimField(input) {
+        const trimmed = input.value.trim();
+        if (trimmed !== input.value) {
+            input.value = trimmed;
+        }
+    }
+    requiredFields.forEach(function (input) {
+        input.addEventListener('change', function () {
+            trimField(input);
+        });
+    });
     function showInstantError(message) {
         const banner = document.getElementById('instant-error');
         if (!banner) {
@@ -120,11 +133,11 @@ if (instantForm) {
             vendorHint.hidden = true;
         }
         if (vendorError) {
-            vendorError.textContent = 'Choose a vendor.';
+            vendorError.textContent = chooseSeller;
             vendorError.hidden = false;
         }
         if (announce) {
-            showInstantError('Choose a vendor.');
+            showInstantError(chooseSeller);
         }
     }
     function sameVendor(left, right) {
@@ -260,6 +273,16 @@ if (instantForm) {
         }
         return '';
     }
+    function instantQuantity(raw) {
+        const text = String(raw).trim();
+        if (!/^(?:0|[1-9][0-9]{0,8})$/.test(text)) {
+            return 'Enter a whole quantity.';
+        }
+        if (Number(text) < 1) {
+            return 'Enter a quantity of at least 1.';
+        }
+        return '';
+    }
     function catalogLabelPending() {
         const boxes = instantForm.querySelectorAll('[data-name-list]');
         for (let i = 0; i < boxes.length; i += 1) {
@@ -306,7 +329,14 @@ if (instantForm) {
         return null;
     }
     instantForm.addEventListener('submit', function (event) {
+        requiredFields.forEach(trimField);
+        if (!instantForm.checkValidity()) {
+            event.preventDefault();
+            instantForm.reportValidity();
+            return;
+        }
         const price = document.getElementById('instant_price');
+        const quantity = document.getElementById('instant_quantity');
         const banner = document.getElementById('instant-error');
         const kind = document.getElementById('instant_discount_kind');
         const discount = document.getElementById('instant_discount_value');
@@ -314,6 +344,10 @@ if (instantForm) {
         let field = price;
         if (price && price.value.trim() !== '') {
             problem = instantAmount(price.value);
+        }
+        if (problem === '' && quantity) {
+            field = quantity;
+            problem = instantQuantity(quantity.value);
         }
         if (problem === '' && kind && discount && (kind.value === 'percent' || kind.value === 'flat')) {
             field = discount;
@@ -359,9 +393,9 @@ if (instantForm) {
             banner.hidden = true;
             banner.textContent = '';
         }
-        if (price) {
-            price.removeAttribute('aria-invalid');
-        }
+        instantForm.querySelectorAll('input[aria-invalid="true"]').forEach(function (input) {
+            input.removeAttribute('aria-invalid');
+        });
         if (!vendorNumber || !vendorId || vendorId.value !== '') {
             return;
         }
@@ -554,42 +588,6 @@ document.querySelectorAll('[data-open-modal]').forEach(function (button) {
             }
             modal.hidden = false;
             if (modal.id === 'instant-add') {
-                const draftNo = document.getElementById('instant_draft_no');
-                const vendor = document.getElementById('instant_vendor');
-                const vendorId = document.getElementById('instant_vendor_id');
-                const description = document.getElementById('instant_description');
-                const price = document.getElementById('instant_price');
-                const brand = document.getElementById('instant_brand');
-                const brandId = document.getElementById('instant_brand_id');
-                const discountKind = document.getElementById('instant_discount_kind');
-                const discountValue = document.getElementById('instant_discount_value');
-                if (draftNo) {
-                    draftNo.value = button.getAttribute('data-draft-no') || '';
-                }
-                if (vendor) {
-                    vendor.value = button.getAttribute('data-draft-vendor-label') || vendor.value;
-                }
-                if (vendorId) {
-                    vendorId.value = button.getAttribute('data-draft-vendor-id') || vendorId.value;
-                }
-                if (description && button.hasAttribute('data-draft-description')) {
-                    description.value = button.getAttribute('data-draft-description') || '';
-                }
-                if (price && button.hasAttribute('data-draft-price')) {
-                    price.value = button.getAttribute('data-draft-price') || '';
-                }
-                if (brand && button.hasAttribute('data-draft-brand-label')) {
-                    brand.value = button.getAttribute('data-draft-brand-label') || '';
-                }
-                if (brandId && button.hasAttribute('data-draft-brand-id')) {
-                    brandId.value = button.getAttribute('data-draft-brand-id') || '';
-                }
-                if (discountKind && button.hasAttribute('data-draft-discount-kind')) {
-                    discountKind.value = button.getAttribute('data-draft-discount-kind') || 'consignor_default';
-                }
-                if (discountValue && button.hasAttribute('data-draft-discount-value')) {
-                    discountValue.value = button.getAttribute('data-draft-discount-value') || '';
-                }
                 const consignor = document.getElementById('instant_vendor');
                 if (consignor) {
                     consignor.focus();

@@ -770,7 +770,6 @@ BEGIN
     ALTER TABLE vendor_memos DROP CONSTRAINT vendor_memos_vendor_id_fkey;
     ALTER TABLE pickups DROP CONSTRAINT pickups_vendor_id_fkey;
     ALTER TABLE vendor_letter_copies DROP CONSTRAINT vendor_letter_copies_vendor_id_fkey;
-    ALTER TABLE ticket_draft_lines DROP CONSTRAINT ticket_draft_lines_vendor_fkey;
     IF EXISTS (
         SELECT 1
         FROM pg_constraint AS constraint_row

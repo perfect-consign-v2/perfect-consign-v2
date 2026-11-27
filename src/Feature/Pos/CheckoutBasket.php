@@ -12,13 +12,7 @@ final class CheckoutBasket
         private readonly TicketStore $tickets,
         private readonly TicketTenders $held,
         private readonly LayawayBook $layaways,
-        private readonly TicketDrafts $drafts,
     ) {
-    }
-
-    public function hasDrafts(string $session): bool
-    {
-        return $this->drafts->hasAny($session);
     }
 
     /**

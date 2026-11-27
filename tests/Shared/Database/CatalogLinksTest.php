@@ -38,11 +38,12 @@ final class CatalogLinksTest extends TestCase
         self::assertSame(['kept' => true], $links->referenced('brands'));
     }
 
-    public function testItemCountsSkipDraftsAndBlankIds(): void
+    public function testItemCountsSkipOtherTablesAndBlankIds(): void
     {
+        // Only items count as use. Any other table that names a brand is not an item.
         $links = new CatalogLinks($this->statements(
             [
-                ['relation' => 'public.ticket_draft_lines', 'column_name' => 'brand_id'],
+                ['relation' => 'public.other_links', 'column_name' => 'brand_id'],
                 ['relation' => 'public.items', 'column_name' => 'brand_id'],
             ],
             static fn (): array => [
@@ -61,7 +62,7 @@ final class CatalogLinksTest extends TestCase
         $statements = $this->createMock(Statements::class);
         $statements->method('bound')->willReturn([
             ['relation' => 'public.items', 'column_name' => 'color_id'],
-            ['relation' => 'public.ticket_draft_lines', 'column_name' => 'brand_id'],
+            ['relation' => 'public.other_links', 'column_name' => 'brand_id'],
         ]);
         $source = '01900000-0000-7000-8000-0000000000b1';
         $target = '01900000-0000-7000-8000-0000000000b2';
@@ -69,7 +70,7 @@ final class CatalogLinksTest extends TestCase
             function (string $sql, array $params) use ($source, $target): void {
                 self::assertContains($sql, [
                     'UPDATE public.items SET color_id = ?::uuid WHERE color_id = ?::uuid',
-                    'UPDATE public.ticket_draft_lines SET brand_id = ?::uuid WHERE brand_id = ?::uuid',
+                    'UPDATE public.other_links SET brand_id = ?::uuid WHERE brand_id = ?::uuid',
                 ]);
                 self::assertSame([$target, $source], $params);
             }

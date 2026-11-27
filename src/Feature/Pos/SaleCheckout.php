@@ -243,10 +243,6 @@ final class SaleCheckout
      */
     public function pay(string $slug, string $session, Request $request): array
     {
-        if ($this->basket->hasDrafts($session)) {
-            throw new DatabaseRefusal('Complete Instant Add lines before pay.');
-        }
-
         return $this->collect($slug, $session, $request);
     }
 }

@@ -24,14 +24,12 @@ final class PosCartView
     /**
      * @param array{ticket_id: string, buyer_id: string, due: int, lines: list<mixed>} $cart
      * @param list<array{role: string, amount: int, reference: string}> $tenders
-     * @param list<mixed> $drafts
      * @return array<string, mixed>
      */
     public function salePanel(
         string $slug,
         string $session,
         array $cart,
-        array $drafts,
         array $tenders,
         int $applied,
         string $held
@@ -41,7 +39,6 @@ final class PosCartView
 
         return [
             'cart' => $this->payCart($session, $cart, $held),
-            'drafts' => $drafts,
             'tenders' => $tenders,
             'deposits' => $this->register->deposits($cart['ticket_id']),
             'payments' => $this->register->payments($cart['ticket_id']),

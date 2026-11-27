@@ -47,7 +47,6 @@ use PerfectConsign\Feature\Pos\CheckoutBasket;
 use PerfectConsign\Feature\Pos\CustomerController;
 use PerfectConsign\Feature\Pos\CustomerDirectory;
 use PerfectConsign\Feature\Pos\CustomerStore;
-use PerfectConsign\Feature\Pos\DraftAwareDiscard;
 use PerfectConsign\Feature\Pos\GiftIssue;
 use PerfectConsign\Feature\Pos\GiftIssuePosting;
 use PerfectConsign\Feature\Pos\InstantItem;
@@ -83,7 +82,6 @@ use PerfectConsign\Feature\Pos\SnapSync;
 use PerfectConsign\Feature\Pos\TenderSplit;
 use PerfectConsign\Feature\Pos\TicketBuyer;
 use PerfectConsign\Feature\Pos\TicketCustomer;
-use PerfectConsign\Feature\Pos\TicketDrafts;
 use PerfectConsign\Feature\Pos\TicketLines;
 use PerfectConsign\Feature\Pos\TicketPriceChange;
 use PerfectConsign\Feature\Pos\TicketPricing;
@@ -121,7 +119,7 @@ final class PosMissLinesTest extends TestCase
 
     private const ITEM = '01900000-0000-7000-8000-0000000000c3';
 
-    public function testAnOpenTicketShowsABlankLineAndAProbeDraft(): void
+    public function testARefusedInstantAddKeepsTheTypedFieldsAndMarksTheRefusedOne(): void
     {
         $door = MallDoor::open($this, new Request('POST', '/' . MallDoor::SLUG . '/pos', ['instant' => '1'], [
             'discount_kind' => 'nope',
@@ -129,30 +127,30 @@ final class PosMissLinesTest extends TestCase
             'vendor_id' => MallDoor::VENDOR,
             'vendor_label' => 'Ada',
             'price' => '4.00',
+            'quantity' => '3',
         ]));
         $statements = new CartStatements($this->createStub(PDO::class));
-        $drafts = new TicketDrafts($statements);
-        $drafts->setProbeMissing(['barcode']);
-        $page = $this->page($door, $statements, $drafts);
+        $page = $this->page($door, $statements);
         $html = $this->capture(function () use ($page): void {
-            $page->instant(MallDoor::SLUG, 'Enter a description.');
+            $page->instant(MallDoor::SLUG, 'Enter a quantity of at least 1.');
         });
-        self::assertStringContainsString('Enter a description.', $html);
-        self::assertStringContainsString('barcode', $html);
+        self::assertStringContainsString('Enter a quantity of at least 1.', $html);
+        self::assertMatchesRegularExpression('/id="instant_quantity"[^>]*value="3"[^>]*required aria-invalid="true"/', $html);
+        self::assertMatchesRegularExpression('/id="instant_price"[^>]*value="4.00"/', $html);
+        self::assertStringNotContainsString('MISSING', $html);
         self::assertStringContainsString(str_repeat('A', 41), $html);
     }
 
     public function testParkingAndBadPricesRenderTheRegister(): void
     {
-        $drafts = new TicketDrafts($this->routed([['match' => 'ticket_draft_lines', 'rows' => [['present' => 1]]]]));
         $door = $this->door('POST', '/' . MallDoor::SLUG . '/pos/park', [], ['csrf' => 'csrf-token', 'park_label' => 'Hat']);
-        $this->capture(function () use ($door, $drafts): void {
-            $this->pos($door, $drafts)->park(MallDoor::SLUG);
+        $this->capture(function () use ($door): void {
+            $this->pos($door)->park(MallDoor::SLUG);
         });
 
         $json = $this->door('POST', '/' . MallDoor::SLUG . '/pos/park', [], ['csrf' => 'csrf-token'], 'application/json');
-        $this->capture(function () use ($json, $drafts): void {
-            $this->pos($json, $drafts)->park(MallDoor::SLUG);
+        $this->capture(function () use ($json): void {
+            $this->pos($json)->park(MallDoor::SLUG);
         });
 
         $bad = $this->door('POST', '/' . MallDoor::SLUG . '/pos/price', [], [
@@ -161,7 +159,7 @@ final class PosMissLinesTest extends TestCase
             'price' => 'abc',
         ], 'application/json');
         $this->capture(function () use ($bad): void {
-            $this->pos($bad, new TicketDrafts($bad->statements))->price(MallDoor::SLUG);
+            $this->pos($bad)->price(MallDoor::SLUG);
         });
 
         $plain = $this->door('POST', '/' . MallDoor::SLUG . '/pos/price', [], [
@@ -170,22 +168,22 @@ final class PosMissLinesTest extends TestCase
             'price' => 'abc',
         ]);
         $html = $this->capture(function () use ($plain): void {
-            $this->pos($plain, new TicketDrafts($plain->statements))->price(MallDoor::SLUG);
+            $this->pos($plain)->price(MallDoor::SLUG);
         });
         self::assertNotSame('', $html);
 
         $line = $this->door('POST', '/' . MallDoor::SLUG . '/pos/remove', [], ['csrf' => 'csrf-token', 'line_no' => '0']);
         $this->capture(function () use ($line): void {
-            $this->pos($line, new TicketDrafts($line->statements))->remove(MallDoor::SLUG);
+            $this->pos($line)->remove(MallDoor::SLUG);
         });
 
         $recall = $this->door('POST', '/' . MallDoor::SLUG . '/pos/recall', [], ['csrf' => 'csrf-token', 'ticket_id' => 'nope']);
         $this->capture(function () use ($recall): void {
-            $this->pos($recall, new TicketDrafts($recall->statements))->recall(MallDoor::SLUG);
+            $this->pos($recall)->recall(MallDoor::SLUG);
         });
     }
 
-    public function testInstantAddRefusesAHeldSaleABlankVendorAndRemovesADraft(): void
+    public function testInstantAddRefusesAHeldSaleAndABlankVendor(): void
     {
         $door = $this->door('POST', '/' . MallDoor::SLUG . '/pos/instant', [], [
             'csrf' => 'csrf-token',
@@ -203,20 +201,15 @@ final class PosMissLinesTest extends TestCase
 
         $door = $this->door('POST', '/' . MallDoor::SLUG . '/pos/instant', [], [
             'csrf' => 'csrf-token',
-            'draft_no' => '2',
             'vendor_id' => 'nope',
             'description' => 'Hat',
             'price' => '2.00',
+            'quantity' => '1',
         ]);
         $html = $this->capture(function () use ($door): void {
             $this->adds($door)->instant(MallDoor::SLUG);
         });
-        self::assertStringContainsString('vendor', strtolower($html));
-
-        $door = $this->door('POST', '/' . MallDoor::SLUG . '/pos/draft/2/remove', [], ['csrf' => 'csrf-token']);
-        $this->capture(function () use ($door): void {
-            $this->adds($door)->removeDraft(MallDoor::SLUG, '2');
-        });
+        self::assertStringContainsString('Choose a vendor.', $html);
     }
 
     public function testBuyerLineLayawayAndTenderRefusalsRepaint(): void
@@ -338,23 +331,13 @@ final class PosMissLinesTest extends TestCase
             (new PosPayController(
                 $door->app,
                 $this->gate($door),
-                $this->page($door, $door->statements, new TicketDrafts($door->statements)),
+                $this->page($door, $door->statements),
                 $this->split($door),
                 $poster,
                 $door->mall,
                 $this->checkout($door),
                 $view,
             ))->returnItem(MallDoor::SLUG, MallDoor::JOURNAL);
-        });
-
-        $door = $this->door('POST', '/' . MallDoor::SLUG . '/pos/pay', [], [
-            'csrf' => 'csrf-token',
-            'tender_cash' => '1.00',
-        ], 'application/json');
-        $drafted = new RoutedStatements($this->createStub(PDO::class));
-        $drafted->boundRoutes[] = ['match' => 'ticket_draft_lines', 'rows' => [['present' => 1]]];
-        $this->capture(function () use ($door, $drafted): void {
-            $this->pay($door, null, null, null, new TicketDrafts($drafted))->pay(MallDoor::SLUG);
         });
 
         $door = $this->door('POST', '/' . MallDoor::SLUG . '/pos/receipt/' . MallDoor::JOURNAL . '/return', [], [
@@ -547,7 +530,7 @@ final class PosMissLinesTest extends TestCase
                 new TicketCustomer($statements, new CustomerStore($statements, new PartyIdentity($statements))),
                 new SaleCeiling($statements, $this->actor(), QuietAudit::journal($statements, $this->actor()), new Request('GET', '/', [], [])),
                 new TicketPriceChange($statements, new TicketPricing($statements), QuietAudit::journal($statements, $this->actor())),
-            ), new TicketTenders($statements, $ledger, new RegisterStore($statements, new MallClock($this->mall($statements)), new RegisterActivity($statements, new MallClock($this->mall($statements)))), new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), $this->mall($statements)), new LayawayBook($statements, $ledger), new TicketDrafts($statements)),
+            ), new TicketTenders($statements, $ledger, new RegisterStore($statements, new MallClock($this->mall($statements)), new RegisterActivity($statements, new MallClock($this->mall($statements)))), new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), $this->mall($statements)), new LayawayBook($statements, $ledger)),
             $this->split($this->door('GET', '/', [], [])),
             $poster,
             $this->mall($statements),
@@ -569,7 +552,7 @@ final class PosMissLinesTest extends TestCase
         $cash->rowRoutes[] = ['match' => 'SELECT time_zone FROM mall', 'rows' => [['time_zone' => 'America/Los_Angeles']]];
         $cash->rowRoutes[] = ['match' => 'tax_bps', 'rows' => [['tax_bps' => 0, 'cash_round_minor' => 0]]];
         $checkout = new SaleCheckout(
-            new CheckoutBasket($this->store($cash, $ledger), new TicketTenders($cash, $ledger, new RegisterStore($cash, new MallClock($this->mall($cash)), new RegisterActivity($cash, new MallClock($this->mall($cash)))), new PayoutStore($this->createStub(PDO::class), $cash, new PayoutRunStore($cash, new OccupiedPack($cash)), new PayoutWindow()), $this->mall($cash)), new LayawayBook($cash, $ledger), new TicketDrafts($cash)),
+            new CheckoutBasket($this->store($cash, $ledger), new TicketTenders($cash, $ledger, new RegisterStore($cash, new MallClock($this->mall($cash)), new RegisterActivity($cash, new MallClock($this->mall($cash)))), new PayoutStore($this->createStub(PDO::class), $cash, new PayoutRunStore($cash, new OccupiedPack($cash)), new PayoutWindow()), $this->mall($cash)), new LayawayBook($cash, $ledger)),
             new TenderSplit($ledger, new RegisterStore($cash, new MallClock($this->mall($cash)), new RegisterActivity($cash, new MallClock($this->mall($cash)))), new PayoutStore($this->createStub(PDO::class), $cash, new PayoutRunStore($cash, new OccupiedPack($cash)), new PayoutWindow()), $this->mall($cash)),
             $poster,
             $this->mall($cash),
@@ -724,25 +707,6 @@ final class PosMissLinesTest extends TestCase
         try {
             (new TicketCustomer($quiet, new CustomerStore($quiet, new PartyIdentity($quiet))))->clear(self::TICKET);
             self::fail('a missed customer clear must be refused');
-        } catch (DatabaseRefusal) {
-        }
-
-        $drafts = new TicketDrafts($this->routed([['match' => 'ticket_draft_lines', 'rows' => [[
-            'id' => self::TICKET,
-            'draft_no' => 1,
-            'vendor_id' => MallDoor::VENDOR,
-            'vendor_label' => 'Ada',
-            'description' => 'Hat',
-            'price_text' => '1.00',
-            'brand_id' => '',
-            'brand_label' => '',
-            'discount_kind' => 'none',
-            'discount_value' => '',
-            'attributes_json' => 'true',
-        ]]]]));
-        try {
-            $drafts->forSession(MallDoor::DRAWER);
-            self::fail('a scalar attribute map must be refused');
         } catch (DatabaseRefusal) {
         }
 
@@ -965,17 +929,6 @@ final class PosMissLinesTest extends TestCase
     }
 
     /**
-     * @param list<array{match: string, rows: list<array<string, mixed>>}> $routes
-     */
-    private function routed(array $routes): RoutedStatements
-    {
-        $statements = new RoutedStatements($this->createStub(PDO::class));
-        $statements->boundRoutes = $routes;
-
-        return $statements;
-    }
-
-    /**
      * @param array<string, mixed> $query
      * @param array<string, mixed> $post
      */
@@ -984,7 +937,7 @@ final class PosMissLinesTest extends TestCase
         return MallDoor::open($this, new Request($method, $path, $query, $post, '', '', '', [], new RequestTrace(accept: $accept)));
     }
 
-    private function page(MallDoor $door, \PerfectConsign\Shared\Database\Statements $statements, TicketDrafts $drafts, ?LedgerStore $ledger = null): PosPage
+    private function page(MallDoor $door, \PerfectConsign\Shared\Database\Statements $statements, ?LedgerStore $ledger = null): PosPage
     {
         $ledger ??= $door->ledger;
         $pricing = new TicketPricing($statements);
@@ -996,7 +949,6 @@ final class PosMissLinesTest extends TestCase
         $register = new PosRegister(
             $tickets,
             new TicketTenders($statements, $door->ledger, new RegisterStore($statements, $clock, new RegisterActivity($statements, $clock)), $payouts, $door->mall),
-            $drafts,
             new RegisterGate($door->app, $door->register, $tickets),
             new LayawayBook($statements, $door->ledger),
             new SnapSync($statements),
@@ -1152,9 +1104,9 @@ final class PosMissLinesTest extends TestCase
         return new \PerfectConsign\Bootstrap\Actor($this->door('GET', '/', [], [])->session);
     }
 
-    private function pos(MallDoor $door, TicketDrafts $drafts): PosController
+    private function pos(MallDoor $door): PosController
     {
-        $page = $this->page($door, $door->statements, new TicketDrafts($door->statements));
+        $page = $this->page($door, $door->statements);
 
         return new PosController(
             $door->app,
@@ -1163,8 +1115,6 @@ final class PosMissLinesTest extends TestCase
             $this->gate($door),
             new SaleHold($door->session),
             $this->createStub(LoggerInterface::class),
-            $drafts,
-            new DraftAwareDiscard($this->store($door->statements, $door->ledger), $drafts),
         );
     }
 
@@ -1184,12 +1134,11 @@ final class PosMissLinesTest extends TestCase
             new InventoryStore($statements, new CatalogLinks($statements), $mall, QuietAudit::make($statements)),
             $tickets,
             new TicketLines($statements, $pricing),
-            new TicketDrafts($statements),
             new SaleCeiling($statements, $door->actor, QuietAudit::journal($statements, $door->actor), $door->app->request()),
             $mall,
         );
 
-        return new PosAddController($door->app, $door->mall, $this->gate($door), $this->page($door, $door->statements, new TicketDrafts($door->statements), $ledger), $item, new SaleHold($door->session));
+        return new PosAddController($door->app, $door->mall, $this->gate($door), $this->page($door, $door->statements, $ledger), $item, new SaleHold($door->session));
     }
 
     private function buyer(MallDoor $door, CartStatements $bad): PosBuyerController
@@ -1197,7 +1146,7 @@ final class PosMissLinesTest extends TestCase
         return new PosBuyerController(
             $door->app,
             $this->gate($door),
-            $this->page($door, $door->statements, new TicketDrafts($door->statements)),
+            $this->page($door, $door->statements),
             $this->store($bad, $door->ledger),
             new TicketBuyer($bad, $door->mall),
             new SaleHold($door->session),
@@ -1209,7 +1158,7 @@ final class PosMissLinesTest extends TestCase
         return new PosLineController(
             $door->app,
             $this->gate($door),
-            $this->page($door, $door->statements, new TicketDrafts($door->statements)),
+            $this->page($door, $door->statements),
             $this->store($door->statements, $door->ledger),
             new TicketLines($door->statements, new TicketPricing($door->statements)),
             new SaleHold($door->session),
@@ -1223,7 +1172,7 @@ final class PosMissLinesTest extends TestCase
             $door->app,
             $door->mall,
             $this->gate($door),
-            $this->page($door, $door->statements, new TicketDrafts($door->statements)),
+            $this->page($door, $door->statements),
             new LayawayBook($door->statements, $door->ledger),
             $slips,
             new SaleHold($door->session),
@@ -1236,7 +1185,7 @@ final class PosMissLinesTest extends TestCase
             $door->app,
             $door->mall,
             $this->gate($door),
-            $this->page($door, $door->statements, new TicketDrafts($door->statements)),
+            $this->page($door, $door->statements),
             $this->store($door->statements, $door->ledger),
             new TicketTenders($door->statements, $door->ledger, new RegisterStore($door->statements, new MallClock($door->mall), new RegisterActivity($door->statements, new MallClock($door->mall))), new PayoutStore($door->pdo, $door->statements, new PayoutRunStore($door->statements, new OccupiedPack($door->statements)), new PayoutWindow()), $door->mall),
             new GiftIssue($door->statements, $door->ledger),
@@ -1257,12 +1206,10 @@ final class PosMissLinesTest extends TestCase
         );
     }
 
-    private function checkout(MallDoor $door, ?TicketDrafts $drafts = null): SaleCheckout
+    private function checkout(MallDoor $door): SaleCheckout
     {
-        $drafts ??= new TicketDrafts($door->statements);
-
         return new SaleCheckout(
-            new CheckoutBasket($this->store($door->statements, $door->ledger), new TicketTenders($door->statements, $door->ledger, new RegisterStore($door->statements, new MallClock($door->mall), new RegisterActivity($door->statements, new MallClock($door->mall))), new PayoutStore($door->pdo, $door->statements, new PayoutRunStore($door->statements, new OccupiedPack($door->statements)), new PayoutWindow()), $door->mall), new LayawayBook($door->statements, $door->ledger), $drafts),
+            new CheckoutBasket($this->store($door->statements, $door->ledger), new TicketTenders($door->statements, $door->ledger, new RegisterStore($door->statements, new MallClock($door->mall), new RegisterActivity($door->statements, new MallClock($door->mall))), new PayoutStore($door->pdo, $door->statements, new PayoutRunStore($door->statements, new OccupiedPack($door->statements)), new PayoutWindow()), $door->mall), new LayawayBook($door->statements, $door->ledger)),
             $this->split($door),
             new SalePoster($door->ledger, new SaleReceipt($door->ledger, $door->statements), new ReceiptChange(), new SaleTicketAttach($door->statements), $this->reversal($door->ledger, $door->statements), QuietAudit::make($door->statements)),
             $door->mall,
@@ -1271,7 +1218,7 @@ final class PosMissLinesTest extends TestCase
         );
     }
 
-    private function pay(MallDoor $door, ?LedgerStore $ledger = null, ?SalePoster $poster = null, ?ReceiptView $view = null, ?TicketDrafts $drafts = null): PosPayController
+    private function pay(MallDoor $door, ?LedgerStore $ledger = null, ?SalePoster $poster = null, ?ReceiptView $view = null): PosPayController
     {
         $ledger ??= $door->ledger;
         $poster ??= new SalePoster($ledger, new SaleReceipt($ledger, $door->statements), new ReceiptChange(), new SaleTicketAttach($door->statements), $this->reversal($ledger, $door->statements), QuietAudit::make($door->statements));
@@ -1280,18 +1227,11 @@ final class PosMissLinesTest extends TestCase
         return new PosPayController(
             $door->app,
             $this->gate($door),
-            $this->page($door, $door->statements, new TicketDrafts($door->statements)),
+            $this->page($door, $door->statements),
             $this->split($door),
             $poster,
             $door->mall,
-            $drafts === null ? $this->checkout($door) : new SaleCheckout(
-                new CheckoutBasket($this->store($door->statements, $door->ledger), new TicketTenders($door->statements, $door->ledger, new RegisterStore($door->statements, new MallClock($door->mall), new RegisterActivity($door->statements, new MallClock($door->mall))), new PayoutStore($door->pdo, $door->statements, new PayoutRunStore($door->statements, new OccupiedPack($door->statements)), new PayoutWindow()), $door->mall), new LayawayBook($door->statements, $door->ledger), $drafts),
-                $this->split($door),
-                $poster,
-                $door->mall,
-                new SaleHold($door->session),
-                new TicketCustomer($door->statements, new CustomerStore($door->statements, new PartyIdentity($door->statements))),
-            ),
+            $this->checkout($door),
             $view,
         );
     }
@@ -1425,21 +1365,6 @@ final class CartStatements extends RoutedStatements
         }
         if (str_contains($sql, 'AS balance')) {
             return [['balance' => 0]];
-        }
-        if (str_contains($sql, 'FROM ticket_draft_lines')) {
-            return [[
-                'id' => '01900000-0000-7000-8000-0000000000c4',
-                'draft_no' => 1,
-                'vendor_id' => MallDoor::VENDOR,
-                'vendor_label' => 'Ada',
-                'description' => 'Hat',
-                'price_text' => '1.00',
-                'brand_id' => '',
-                'brand_label' => '',
-                'discount_kind' => 'none',
-                'discount_value' => '',
-                'attributes_json' => '{}',
-            ]];
         }
         if (str_contains($sql, 'AS customer') && $this->badPrice) {
             return [['customer' => 'Ada']];

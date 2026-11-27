@@ -295,7 +295,6 @@ END $$;
 DO $$
 BEGIN
     ALTER TABLE items DROP CONSTRAINT items_brand_id_fkey;
-    ALTER TABLE ticket_draft_lines DROP CONSTRAINT ticket_draft_lines_brand_fkey;
     SET LOCAL session_replication_role = replica;
     TRUNCATE brands;
     RAISE EXCEPTION 'replica brand truncate was accepted';
@@ -368,7 +367,6 @@ END $$;
 DO $$
 BEGIN
     ALTER TABLE items DROP CONSTRAINT items_brand_id_fkey;
-    ALTER TABLE ticket_draft_lines DROP CONSTRAINT ticket_draft_lines_brand_fkey;
     TRUNCATE brands;
     RAISE EXCEPTION 'brand truncate was accepted after the guard held';
 EXCEPTION

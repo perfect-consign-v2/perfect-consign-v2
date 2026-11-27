@@ -17,12 +17,18 @@ $instantVendorId = is_string($instantVendorId ?? null) ? $instantVendorId : '';
 $instantVendorLabel = is_string($instantVendorLabel ?? null) ? $instantVendorLabel : '';
 $instantDescription = is_string($instantDescription ?? null) ? $instantDescription : '';
 $instantPrice = is_string($instantPrice ?? null) ? $instantPrice : '';
+$instantQuantity = is_string($instantQuantity ?? null) ? $instantQuantity : '1';
 $instantDiscountKind = is_string($instantDiscountKind ?? null) ? $instantDiscountKind : 'consignor_default';
 $instantDiscountValue = is_string($instantDiscountValue ?? null) ? $instantDiscountValue : '';
 $instantBrandId = is_string($instantBrandId ?? null) ? $instantBrandId : '';
 $instantBrandLabel = is_string($instantBrandLabel ?? null) ? $instantBrandLabel : '';
 $instantAttributes = is_array($instantAttributes ?? null) ? $instantAttributes : [];
 $instantPriceError = in_array($instantError, ['Enter a price.', 'enter an amount in dollars and cents', 'the amount is too large', 'the amount must be greater than zero'], true);
+$instantQuantityError = in_array($instantError, ['Enter a quantity.', 'Enter a whole quantity.', 'Enter a quantity of at least 1.'], true);
+$instantDescriptionError = $instantError === 'Enter a description.';
+$instantVendorError = in_array($instantError, ['Choose a vendor.', 'Choose a consignor.'], true);
+$instantFieldError = $instantPriceError || $instantQuantityError || $instantDescriptionError;
+$sellerWord = !empty($consignmentOnly) ? 'Consignor' : 'Vendor';
 $instantAdded = ($instantAdded ?? false) === true || ($instantAddedPage ?? false) === true;
 $pendingCatalog = '';
 if (preg_match('/^Add that ([a-z]+) before saving the item\.$/', $instantError, $pendingMatch) === 1) {
@@ -34,22 +40,20 @@ $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
     : '/' . $slug . '/inventory/' . (!empty($consignmentOnly) ? 'consignors' : 'vendors') . '.json';
 ?>
 <div id="instant-add" class="modal" role="dialog" aria-modal="true" aria-labelledby="instant-add-title"<?= $openInstant ? '' : ' hidden' ?>>
-    <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="<?= View::text($sellersJsonUrl) ?>">
+    <form id="instant-form" class="modal-panel card register-instant" method="post" action="/<?= View::text($slug) ?>/pos/instant" data-vendors="<?= View::text($sellersJsonUrl) ?>" data-choose-seller="<?= View::text('Choose a ' . strtolower($sellerWord) . '.') ?>">
         <div class="card-head">
             <div class="h3" id="instant-add-title">Instant inventory</div>
             <button class="btn" type="button" data-close-modal="instant-add">Close</button>
         </div>
         <div class="card-body stack">
             <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-            <input type="hidden" id="instant_draft_no" name="draft_no" value="">
-            <p class="muted text-sm">Leave a field blank to put a MISSING line on the ticket. Finish those lines before pay.</p>
             <p class="error" id="instant-error" role="alert"<?= $instantError === '' ? ' hidden' : '' ?>><?= View::text($instantError) ?></p>
             <?php if ($instantAdded): ?>
                 <p class="alert alert-success" role="status">Item added to cart.</p>
             <?php endif; ?>
             <div class="field combo">
-                <label for="instant_vendor">Consignor</label>
-                <input class="input" id="instant_vendor" name="vendor_label" value="<?= View::text($instantVendorLabel) ?>" autocomplete="off" placeholder="<?= !empty($consignmentOnly) ? 'Name or consignor number' : 'Name or vendor number' ?>"<?= ($openInstant && !$instantPriceError) ? ' autofocus' : '' ?>>
+                <label for="instant_vendor"><?= View::text($sellerWord) ?></label>
+                <input class="input" id="instant_vendor" name="vendor_label" value="<?= View::text($instantVendorLabel) ?>" autocomplete="off" placeholder="<?= !empty($consignmentOnly) ? 'Name or consignor number' : 'Name or vendor number' ?>" required<?= $instantVendorError ? ' aria-invalid="true" aria-describedby="instant-error"' : '' ?><?= ($openInstant && !$instantFieldError) ? ' autofocus' : '' ?>>
                 <input type="hidden" id="instant_vendor_id" name="vendor_id" value="<?= View::text($instantVendorId) ?>">
                 <div class="suggest" id="instant-vendor-suggest" hidden></div>
                 <p class="muted text-sm" id="instant-vendor-hint" hidden></p>
@@ -57,11 +61,15 @@ $sellersJsonUrl = is_string($sellersJsonUrl ?? null) && $sellersJsonUrl !== ''
             </div>
             <div class="field">
                 <label for="instant_description">Description</label>
-                <input class="input" id="instant_description" name="description" value="<?= View::text($instantDescription) ?>" placeholder="Short description for tags and receipt">
+                <input class="input" id="instant_description" name="description" value="<?= View::text($instantDescription) ?>" placeholder="Short description for tags and receipt" maxlength="200" required<?= $instantDescriptionError ? ' aria-invalid="true" aria-describedby="instant-error" autofocus' : '' ?>>
             </div>
             <div class="field">
                 <label for="instant_price">Price</label>
-                <input class="input" id="instant_price" name="price" value="<?= View::text($instantPrice) ?>" inputmode="decimal"<?= $instantPriceError ? ' aria-invalid="true" aria-describedby="instant-error" autofocus' : '' ?>>
+                <input class="input" id="instant_price" name="price" value="<?= View::text($instantPrice) ?>" inputmode="decimal" required<?= $instantPriceError ? ' aria-invalid="true" aria-describedby="instant-error" autofocus' : '' ?>>
+            </div>
+            <div class="field">
+                <label for="instant_quantity">Quantity</label>
+                <input class="input" id="instant_quantity" name="quantity" value="<?= View::text($instantQuantity) ?>" inputmode="numeric" maxlength="9" required<?= $instantQuantityError ? ' aria-invalid="true" aria-describedby="instant-error" autofocus' : '' ?>>
             </div>
             <div class="field">
                 <label for="instant_discount_kind">Line discount</label>

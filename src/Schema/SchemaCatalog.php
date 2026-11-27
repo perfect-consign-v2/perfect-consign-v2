@@ -25,6 +25,7 @@ final class SchemaCatalog
      */
     public const TENANT = [
         '001_tenant.sql',
+        '002_drop_ticket_draft_lines.sql',
     ];
 
     public function __construct(private readonly string $directory)

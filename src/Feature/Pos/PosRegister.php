@@ -9,7 +9,6 @@ final class PosRegister
     public function __construct(
         private readonly TicketStore $tickets,
         private readonly TicketTenders $held,
-        private readonly TicketDrafts $drafts,
         private readonly RegisterGate $gate,
         private readonly LayawayBook $layaways,
         private readonly SnapSync $snaps,
@@ -57,27 +56,6 @@ final class PosRegister
         }
 
         return $this->snaps->mint($session, $cart['ticket_id']);
-    }
-
-    /**
-     * @return list<array{
-     *     id: string,
-     *     draft_no: int,
-     *     vendor_id: string,
-     *     vendor_label: string,
-     *     description: string,
-     *     price_text: string,
-     *     brand_id: string,
-     *     brand_label: string,
-     *     discount_kind: string,
-     *     discount_value: string,
-     *     attributes: array<string, array{id: string, label: string}>,
-     *     missing: list<string>
-     * }>
-     */
-    public function drafts(string $session): array
-    {
-        return $this->drafts->forSession($session);
     }
 
     /**

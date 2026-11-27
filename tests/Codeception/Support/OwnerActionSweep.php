@@ -644,17 +644,20 @@ final class OwnerActionSweep
         }
         if ($this->vendorId !== '') {
             $this->freshSale();
-        $this->http->post('/pos/discard', [], ['Ticket discarded.', 'Start a sale, then try again.']);
-            $instant = $this->http->post('/pos/instant', [
+            $this->http->post('/pos/discard', [], ['Ticket discarded.', 'Start a sale, then try again.']);
+            $this->http->post('/pos/instant', [
+                'vendor_id' => $this->vendorId,
+                'description' => '   ',
+                'price' => '9.00',
+                'quantity' => '1',
+            ], ['Enter a description.']);
+            $this->http->post('/pos/instant', [
                 'vendor_id' => $this->vendorId,
                 'description' => 'Instant ' . $this->tag(),
                 'price' => '9.00',
-            ], ['Incomplete line on the ticket.', 'instant_added', 'Item added to cart.']);
-            $draft = '1';
-            if (preg_match('/data-draft-no="([1-9][0-9]*)"/', $instant->body, $match) === 1) {
-                $draft = $match[1];
-            }
-            $this->http->post('/pos/draft/' . $draft . '/remove', [], ['Draft line removed.']);
+                'quantity' => '2',
+            ], ['instant_added', 'Item added to cart.']);
+            $this->http->post('/pos/discard', [], ['Ticket discarded.']);
         }
         $gift = $this->http->get('/pos', ['name="form_token"', 'name="scan"']);
         $token = '';

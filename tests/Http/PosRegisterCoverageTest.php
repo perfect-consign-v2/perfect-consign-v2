@@ -43,14 +43,16 @@ final class PosRegisterCoverageTest extends WebTestCase
             'vendor_id' => $vendor,
             'description' => '',
             'price' => '4.00',
+            'quantity' => '1',
         ]);
-        self::assertSees('Incomplete line on the ticket.', $blank);
+        self::assertSees('Enter a description.', $blank);
         $noPrice = $this->client->post('/' . self::SLUG . '/pos/instant', [
             'vendor_id' => $vendor,
             'description' => 'No price',
             'price' => '',
+            'quantity' => '1',
         ]);
-        self::assertSees('Incomplete line on the ticket.', $noPrice);
+        self::assertSees('Enter a price.', $noPrice);
         $this->client->post('/' . self::SLUG . '/pos/discard', []);
         $cart = $this->client->post('/' . self::SLUG . '/pos/scan', ['scan' => $item['code']]);
         self::assertSees($item['code'], $cart);

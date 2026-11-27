@@ -19,8 +19,6 @@ final class PosController
         private readonly RegisterGate $gate,
         private readonly SaleHold $sales,
         private readonly LoggerInterface $logger,
-        private readonly TicketDrafts $drafts,
-        private readonly DraftAwareDiscard $discard,
     ) {
     }
 
@@ -59,7 +57,7 @@ final class PosController
     public function discard(string $slug): void
     {
         $this->act($slug, function (string $session): void {
-            $this->discard->run($session);
+            $this->tickets->discard($session);
         }, 'Ticket discarded.');
     }
 
@@ -67,9 +65,6 @@ final class PosController
     public function park(string $slug): void
     {
         $this->act($slug, function (string $session): void {
-            if ($this->drafts->hasAny($session)) {
-                throw new DatabaseRefusal('Complete Instant Add lines before parking.');
-            }
             $this->tickets->park($session, $this->app->request()->field('park_label'));
         }, 'Ticket parked.');
     }

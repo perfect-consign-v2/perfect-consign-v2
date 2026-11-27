@@ -16,42 +16,19 @@ final class InstantItem
         private readonly InventoryStore $items,
         private readonly TicketStore $tickets,
         private readonly TicketLines $lines,
-        private readonly TicketDrafts $drafts,
         private readonly SaleCeiling $ceiling,
         private readonly MallSettings $mall,
     ) {
     }
 
     /**
-     * @return 'added'|'draft'
+     * The seller, description, price, and quantity are all required, checked in the order the
+     * form shows them. Each is trimmed first, so a field of spaces is blank.
      */
-    public function stage(string $session, string $today, InstantAdd $item, string $vendorLabel): string
-    {
-        $missing = $this->drafts->missingFields($item->vendorId, $item->description, $item->price);
-        if ($missing !== []) {
-            $this->drafts->park($session, $vendorLabel, $item);
-
-            return 'draft';
-        }
-        $this->add($session, $today, $item);
-
-        return 'added';
-    }
-
-    public function complete(string $session, string $today, int $draftNo, InstantAdd $item): void
-    {
-        $this->add($session, $today, $item);
-        $this->drafts->remove($session, $draftNo);
-    }
-
-    public function discardDraft(string $session, int $draftNo): void
-    {
-        $this->drafts->remove($session, $draftNo);
-    }
-
     public function add(string $session, string $today, InstantAdd $item): void
     {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $item->vendorId) !== 1) {
+        $vendorId = trim($item->vendorId);
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
             throw new \InvalidArgumentException(
                 $this->mall->getPartyLabel('Choose a vendor.', 'Choose a consignor.')
             );
@@ -60,17 +37,22 @@ final class InstantItem
         if ($description === '') {
             throw new \InvalidArgumentException('Enter a description.');
         }
-        if (trim($item->price) === '') {
+        $price = trim($item->price);
+        if ($price === '') {
             throw new \InvalidArgumentException('Enter a price.');
+        }
+        $quantity = trim($item->quantity);
+        if ($quantity === '') {
+            throw new \InvalidArgumentException('Enter a quantity.');
         }
         $saved = $this->writer->entry([
             'id' => '',
             'code' => $this->code(),
             'barcode' => trim($item->barcode),
             'description' => $description,
-            'price' => $item->price,
-            'quantity' => trim($item->quantity) === '' ? '1' : trim($item->quantity),
-            'vendor_id' => $item->vendorId,
+            'price' => $price,
+            'quantity' => $quantity,
+            'vendor_id' => $vendorId,
             'vendor_label' => '',
             'brand_id' => trim($item->brand->id),
             'brand_label' => trim($item->brand->label),

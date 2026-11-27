@@ -1,15 +1,15 @@
 ---
 title: Ticket vs sale journal
 category: Sales and register
-hesk: published 2026-11-20
-as_of: 2026-11-18
+hesk: pending
+as_of: 2026-11-26
 ---
 
 # Ticket vs sale journal
 
 ## As of
 
-2026-11-18 — Instant Add keeps a typed name that was not added on the form. The Add button stays available for that name and for a different new name. Saving again repeats the refusal until the name is added. 2026-11-10 — Emailing a receipt keeps the success/failure flash (receipt posts are not register-swapped).
+2026-11-26 — Instant Add needs the vendor or consignor, a description, a price, and a quantity (starts at 1). A field of only spaces counts as blank. Incomplete MISSING lines are gone. 2026-11-18 — Instant Add keeps a typed name that was not added on the form. The Add button stays available for that name and for a different new name. Saving again repeats the refusal until the name is added. 2026-11-10 — Emailing a receipt keeps the success/failure flash (receipt posts are not register-swapped).
 
 ## In one sentence
 
@@ -30,6 +30,7 @@ Scanning items, changing prices, parking, layaway deposits, and finally paying.
 
 ## What is refused
 
+- Instant Add with a blank vendor or consignor, description, price, or quantity (spaces alone count as blank), or a quantity that is not a whole number of at least 1. The form stays open with what was typed, and nothing goes on the ticket.
 - Posting without completing pay when tenders do not cover the amount due (except layaway deposit path).
 - Holding more units across open/parked/layaway tickets than on hand — flash: There aren't that many left.
 
