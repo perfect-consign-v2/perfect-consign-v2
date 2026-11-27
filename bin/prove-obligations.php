@@ -26,6 +26,11 @@ if ($ledgerFiles === false) {
 }
 sort($ledgerFiles);
 $tenantFiles = array_flip($catalog->tenantFiles());
+$ledgerSql = [];
+foreach ($ledgerFiles as $path) {
+    $ledgerSql[basename($path)] = readSql($path);
+}
+$dropped = droppedTables($ledgerSql);
 
 foreach ($ledgerFiles as $path) {
     $file = basename($path);
@@ -41,12 +46,18 @@ foreach ($ledgerFiles as $path) {
     if ($file > '001_tenant.sql' && chartRoles($sql) !== [] && !str_contains($sql, 'stall_seed_export_accounts')) {
         $failures[] = $file . ' adds a chart role and does not call stall_seed_export_accounts()';
     }
-    foreach (referenceConstraints($sql, 'items') as $constraint) {
+    foreach (referenceConstraints($sql, 'items') as $constraint => $table) {
+        if (droppedLater($dropped, $table, $file)) {
+            continue;
+        }
         if (!droppedBeforeTruncate($itemProof, $constraint, 'items')) {
             $failures[] = $file . ' references items by ' . $constraint . ' and prove_append_only_guard.sql does not drop it before TRUNCATE items';
         }
     }
-    foreach (referenceConstraints($sql, 'vendors') as $constraint) {
+    foreach (referenceConstraints($sql, 'vendors') as $constraint => $table) {
+        if (droppedLater($dropped, $table, $file)) {
+            continue;
+        }
         if (!droppedBeforeTruncate($vendorProof, $constraint, 'vendors')) {
             $failures[] = $file . ' references vendors by ' . $constraint . ' and prove_vendors_booths.sql does not drop it before TRUNCATE vendors';
         }
@@ -381,12 +392,12 @@ function chartRoles(string $sql): array
 }
 
 /**
- * @return list<string>
+ * @return array<string, string> constraint => the table that holds it
  */
 function referenceConstraints(string $sql, string $target): array
 {
     $bare = stripComments($sql);
-    $names = [];
+    $owners = [];
     if (preg_match_all('/CREATE TABLE(?: IF NOT EXISTS)?\\s+(?:public\\.)?([a-z_]+)\\s*\\(/i', $bare, $tables, PREG_OFFSET_CAPTURE) !== false) {
         foreach ($tables[1] as $index => $table) {
             $open = $tables[0][$index][1] + strlen($tables[0][$index][0]) - 1;
@@ -395,19 +406,58 @@ function referenceConstraints(string $sql, string $target): array
                 continue;
             }
             foreach (columnReferences($body, $table[0], $target) as $name) {
-                $names[] = $name;
+                $owners[$name] = strtolower($table[0]);
             }
         }
     }
     if (preg_match_all('/ALTER TABLE(?:\\s+ONLY)?\\s+(?:public\\.)?([a-z_]+)\\b[^;]*;/is', $bare, $alters) !== false) {
         foreach ($alters[0] as $index => $statement) {
             foreach (columnReferences($statement, $alters[1][$index], $target) as $name) {
-                $names[] = $name;
+                $owners[$name] = strtolower($alters[1][$index]);
             }
         }
     }
 
-    return array_values(array_unique($names));
+    return $owners;
+}
+
+/**
+ * Tables a ledger file drops, with the first file (in apply order) that drops each.
+ * A reference held by a table that a later file drops is gone once that file runs,
+ * so no proof has to clear it before a TRUNCATE.
+ *
+ * @param array<string, string> $sqlByFile file name => SQL, in apply order
+ * @return array<string, string> table => file that drops it
+ */
+function droppedTables(array $sqlByFile): array
+{
+    $dropped = [];
+    foreach ($sqlByFile as $file => $sql) {
+        if (preg_match_all('/\\bDROP TABLE(?:\\s+IF EXISTS)?\\s+([a-z0-9_.,\\s]+?)\\s*(?:\\bCASCADE\\b|\\bRESTRICT\\b)?\\s*;/i', stripComments($sql), $drops) === false) {
+            continue;
+        }
+        foreach ($drops[1] as $list) {
+            foreach (explode(',', $list) as $named) {
+                $table = strtolower(trim($named));
+                if (str_starts_with($table, 'public.')) {
+                    $table = substr($table, strlen('public.'));
+                }
+                if (preg_match('/^[a-z_][a-z0-9_]*$/', $table) === 1) {
+                    $dropped[$table] ??= (string) $file;
+                }
+            }
+        }
+    }
+
+    return $dropped;
+}
+
+/**
+ * @param array<string, string> $dropped table => file that drops it
+ */
+function droppedLater(array $dropped, string $table, string $file): bool
+{
+    return isset($dropped[$table]) && strcmp($dropped[$table], $file) > 0;
 }
 
 /**

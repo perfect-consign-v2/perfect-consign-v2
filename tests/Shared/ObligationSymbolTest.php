@@ -78,6 +78,24 @@ PHP;
         self::assertFalse(\privateHelperIsCovered($source, 'seal', "key(\n"));
     }
 
+    public function testAReferenceHeldByATableALaterFileDropsNeedsNoProof(): void
+    {
+        $installer = "CREATE TABLE public.notes (\n    id uuid,\n    vendor_id uuid\n);\n"
+            . "ALTER TABLE ONLY public.notes\n    ADD CONSTRAINT notes_vendor_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);\n"
+            . "DROP TABLE public.legacy;\n";
+        $dropped = \droppedTables([
+            '001_tenant.sql' => $installer,
+            '002_drop_notes.sql' => "-- DROP TABLE ignored;\nDROP TABLE IF EXISTS public.notes, other CASCADE;\n",
+        ]);
+
+        self::assertSame(['legacy' => '001_tenant.sql', 'notes' => '002_drop_notes.sql', 'other' => '002_drop_notes.sql'], $dropped);
+        self::assertSame(['notes_vendor_fkey' => 'notes'], \referenceConstraints($installer, 'vendors'));
+        self::assertTrue(\droppedLater($dropped, 'notes', '001_tenant.sql'));
+        self::assertFalse(\droppedLater($dropped, 'notes', '002_drop_notes.sql'));
+        self::assertFalse(\droppedLater($dropped, 'legacy', '001_tenant.sql'));
+        self::assertFalse(\droppedLater($dropped, 'kept', '001_tenant.sql'));
+    }
+
     public function testTheObligationBaseIsNotHead(): void
     {
         $base = \obligationBase(dirname(__DIR__, 2));
