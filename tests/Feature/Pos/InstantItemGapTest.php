@@ -43,30 +43,26 @@ final class InstantItemGapTest extends TestCase
 {
     private const VENDOR = MallDoor::VENDOR;
 
-    public function testAddRefusesEachRequiredFieldWhenBlankOrOnlySpaces(): void
+    public function testAddRefusesEachRequiredFieldWhenBlank(): void
     {
         [$item, $statements] = $this->item(false);
         $this->expectInvalid($item, $this->add('nope', 'Hat', '2.00', '1', ''), 'Choose a vendor.');
-        $this->expectInvalid($item, $this->add('   ', 'Hat', '2.00', '1', ''), 'Choose a vendor.');
+        $this->expectInvalid($item, $this->add('', 'Hat', '2.00', '1', ''), 'Choose a vendor.');
         $this->expectInvalid($item, $this->add(self::VENDOR, '', '2.00', '1', ''), 'Enter a description.');
-        $this->expectInvalid($item, $this->add(self::VENDOR, " \t ", '2.00', '1', ''), 'Enter a description.');
         $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '', '1', ''), 'Enter a price.');
-        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '   ', '1', ''), 'Enter a price.');
         $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '2.00', '', ''), 'Enter a quantity.');
-        $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '2.00', '   ', ''), 'Enter a quantity.');
         $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '2.00', '0', ''), 'Enter a quantity of at least 1.');
         $this->expectInvalid($item, $this->add(self::VENDOR, 'Hat', '2.00', 'two', ''), 'Enter a whole quantity.');
         self::assertSame(0, $statements->itemInserts, 'a refused Instant Add wrote an item');
     }
 
-    public function testPaddedFieldsAreTrimmedBeforeTheItemIsWritten(): void
+    public function testAFilledAddWritesTheItemOnce(): void
     {
         [$item, $statements] = $this->item(false);
-        $item->add('session', '2026-11-12', $this->add(' ' . self::VENDOR . ' ', '  Hat  ', ' 2.50 ', ' 1 ', ''));
+        $item->add('session', '2026-11-12', $this->add(self::VENDOR, 'Hat', '2.50', '1', ''));
         self::assertSame(1, $statements->itemInserts);
         self::assertContains('Hat', $statements->itemParams);
         self::assertContains(self::VENDOR, $statements->itemParams);
-        self::assertNotContains('  Hat  ', $statements->itemParams);
     }
 
     public function testAMissingTicketLineIsRefused(): void

@@ -23,39 +23,40 @@ final class InstantItem
 
     /**
      * The seller, description, price, and quantity are all required, checked in the order the
-     * form shows them. Each is trimmed first, so a field of spaces is blank.
+     * form shows them. The fields arrive trimmed: Request::field trims every posted field once,
+     * so a field of only spaces reaches here blank.
      */
     public function add(string $session, string $today, InstantAdd $item): void
     {
-        $vendorId = trim($item->vendorId);
+        $vendorId = $item->vendorId;
         if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
             throw new \InvalidArgumentException(
                 $this->mall->getPartyLabel('Choose a vendor.', 'Choose a consignor.')
             );
         }
-        $description = trim($item->description);
+        $description = $item->description;
         if ($description === '') {
             throw new \InvalidArgumentException('Enter a description.');
         }
-        $price = trim($item->price);
+        $price = $item->price;
         if ($price === '') {
             throw new \InvalidArgumentException('Enter a price.');
         }
-        $quantity = trim($item->quantity);
+        $quantity = $item->quantity;
         if ($quantity === '') {
             throw new \InvalidArgumentException('Enter a quantity.');
         }
         $saved = $this->writer->entry([
             'id' => '',
             'code' => $this->code(),
-            'barcode' => trim($item->barcode),
+            'barcode' => $item->barcode,
             'description' => $description,
             'price' => $price,
             'quantity' => $quantity,
             'vendor_id' => $vendorId,
             'vendor_label' => '',
-            'brand_id' => trim($item->brand->id),
-            'brand_label' => trim($item->brand->label),
+            'brand_id' => $item->brand->id,
+            'brand_label' => $item->brand->label,
             'attributes' => $item->attributes,
             'store_take' => '',
             'intake_on' => $today,
@@ -98,14 +99,14 @@ final class InstantItem
 
     private function discount(string $session, string $ticketId, int $lineNo, InstantAdd $item): void
     {
-        $kind = strtolower(trim($item->discount->kind));
+        $kind = strtolower($item->discount->kind);
         if ($kind === 'flat') {
             $kind = 'amount';
         }
         if ($kind !== 'percent' && $kind !== 'amount') {
             return;
         }
-        if (trim($item->discount->value) === '') {
+        if ($item->discount->value === '') {
             throw new \InvalidArgumentException('Enter a line discount.');
         }
         $posted = TicketAdjustment::discount('apply', $kind, $item->discount->value, 'other');

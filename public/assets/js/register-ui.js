@@ -102,20 +102,7 @@ if (instantForm) {
     const vendorHint = document.getElementById('instant-vendor-hint');
     const vendorsUrl = instantForm.getAttribute('data-vendors') || '';
     const chooseSeller = instantForm.getAttribute('data-choose-seller') || 'Choose a vendor.';
-    const requiredFields = instantForm.querySelectorAll('input[required]');
     let vendorLookup = 0;
-    // A field of spaces is blank: trim it so the browser's own required check stops it.
-    function trimField(input) {
-        const trimmed = input.value.trim();
-        if (trimmed !== input.value) {
-            input.value = trimmed;
-        }
-    }
-    requiredFields.forEach(function (input) {
-        input.addEventListener('change', function () {
-            trimField(input);
-        });
-    });
     function showInstantError(message) {
         const banner = document.getElementById('instant-error');
         if (!banner) {
@@ -329,12 +316,6 @@ if (instantForm) {
         return null;
     }
     instantForm.addEventListener('submit', function (event) {
-        requiredFields.forEach(trimField);
-        if (!instantForm.checkValidity()) {
-            event.preventDefault();
-            instantForm.reportValidity();
-            return;
-        }
         const price = document.getElementById('instant_price');
         const quantity = document.getElementById('instant_quantity');
         const banner = document.getElementById('instant-error');
