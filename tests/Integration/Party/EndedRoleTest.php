@@ -40,7 +40,7 @@ final class EndedRoleTest extends TestCase
             $removed = $parties->findParty($partyId);
             self::assertNotNull($removed, 'the person stays a party after leaving the wait list');
             self::assertSame([], $removed['roles']);
-            self::assertSame('inactive', $this->status($pdo, $partyId, PartyRoleType::WAIT_LIST));
+            self::assertSame('inactive', $this->roleStatus($pdo, $partyId, PartyRoleType::WAIT_LIST));
         } finally {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -76,12 +76,12 @@ final class EndedRoleTest extends TestCase
             self::assertNotNull($vendor);
             $partyId = $vendor['party_id'] ?? null;
             self::assertIsString($partyId);
-            self::assertSame('active', $this->status($pdo, $partyId, PartyRoleType::VENDOR));
+            self::assertSame('active', $this->roleStatus($pdo, $partyId, PartyRoleType::VENDOR));
 
             $parties->removeVendor($vendorId);
 
             self::assertNull($parties->vendorIdForParty($partyId));
-            self::assertSame('inactive', $this->status($pdo, $partyId, PartyRoleType::VENDOR));
+            self::assertSame('inactive', $this->roleStatus($pdo, $partyId, PartyRoleType::VENDOR));
             $removed = $parties->findParty($partyId);
             self::assertNotNull($removed);
             self::assertNotContains(PartyRoleType::VENDOR, $removed['roles']);
@@ -113,7 +113,7 @@ final class EndedRoleTest extends TestCase
         )];
     }
 
-    private function status(PDO $pdo, string $partyId, string $roleType): string
+    private function roleStatus(PDO $pdo, string $partyId, string $roleType): string
     {
         $statement = $pdo->prepare('SELECT status FROM party_roles WHERE party_id = ?::uuid AND role_type = ?');
         $statement->execute([$partyId, $roleType]);
