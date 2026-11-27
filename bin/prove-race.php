@@ -135,6 +135,18 @@ execSql($schema, "INSERT INTO register_sessions (id, register_id, cashier, openi
 execSql($schema, "INSERT INTO register_snaps (posting_key, session_id, business_date, item_id, price_minor, tax_minor, commission_minor, commission_bps, tax_bps, quantity) VALUES ('01900000-0000-7000-8000-0000000009f1', '01900000-0000-7000-8000-0000000009f6', DATE '2093-11-15', '01900000-0000-7000-8000-0000000009f3', 1000, 0, 0, 0, 0, 1), ('01900000-0000-7000-8000-0000000009f2', '01900000-0000-7000-8000-0000000009f6', DATE '2093-11-15', '01900000-0000-7000-8000-0000000009f3', 1000, 0, 0, 0, 0, 1)");
 race($schema, $sql, 'prove_race_snap_a.sql', 'prove_race_snap_b.sql', false, null, true);
 
+// Make inactive against a posting for the same vendor, in both orders. The lines
+// are on a stay, so only the per-vendor lock (87401) can make the sessions wait.
+execSql($schema, "SELECT stall_seed_vendor('01900000-0000-7000-8000-0000000009a0', 'race-left', 'Race', 'Left'); SELECT stall_seed_vendor('01900000-0000-7000-8000-0000000009a1', 'race-gone', 'Race', 'Gone'); INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-0000000009a4', 'RL', 'Race left booth'), ('01900000-0000-7000-8000-0000000009a5', 'RG', 'Race gone booth'); INSERT INTO booth_assignments (id, booth_id, vendor_id, starts_on, ends_on) VALUES ('01900000-0000-7000-8000-0000000009a6', '01900000-0000-7000-8000-0000000009a4', '01900000-0000-7000-8000-0000000009a0', '2026-01-01', '2026-01-31'), ('01900000-0000-7000-8000-0000000009a7', '01900000-0000-7000-8000-0000000009a5', '01900000-0000-7000-8000-0000000009a1', '2026-01-01', '2026-01-31'); INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES ('01900000-0000-7000-8000-0000000009a6', 6000), ('01900000-0000-7000-8000-0000000009a7', 6000); INSERT INTO accounting_periods (id, book_id, starts_on, ends_on, status) VALUES ('01900000-0000-7000-8000-0000000009a2', '01900000-0000-7000-8000-000000000001', '2026-01-01', '2026-12-31', 'open')");
+race($schema, $sql, 'prove_race_vendor_inactive_a.sql', 'prove_race_vendor_inactive_b.sql', true, "can't be made inactive yet. They owe $60.00 in rent.", false);
+if (trim(value($schema, "SELECT active::text FROM vendors WHERE id = '01900000-0000-7000-8000-0000000009a0'")) !== 'true') {
+    fail('a vendor was made inactive while a rent charge was in flight');
+}
+race($schema, $sql, 'prove_race_vendor_post_a.sql', 'prove_race_vendor_post_b.sql', false, null, true);
+if (trim(value($schema, "SELECT active::text || ',' || stall_vendor_open_rent('01900000-0000-7000-8000-0000000009a1') FROM vendors WHERE id = '01900000-0000-7000-8000-0000000009a1'")) !== 'false,6000') {
+    fail('a charge that waited for Make inactive did not post on the departed vendor');
+}
+
 $left = trim(value($schema, "SELECT (SELECT count(*) FROM journals WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM vendors WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM booths WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM accounting_periods WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM brands WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM items WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM wait_list WHERE party_id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM register_sessions WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM tickets WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')"));
 if ($left !== '0,0,0,0,0,0,0,0,0') {
     fail('race proof left rows: ' . $left);

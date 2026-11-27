@@ -127,7 +127,7 @@ BEGIN
       AND account_id = '01900000-0000-7000-8000-000000000014';
     SELECT COALESCE(sum(debit_minor - credit_minor), 0) INTO rent
     FROM journal_lines
-    WHERE subledger_type = 'booth'
+    WHERE subledger_type = 'assignment'
       AND account_id = '01900000-0000-7000-8000-000000000015';
     SELECT carried_payable_minor, adjustment_minor, check_minor
     INTO carried, adjustment, check_amount

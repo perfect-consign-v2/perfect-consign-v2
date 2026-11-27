@@ -5204,11 +5204,17 @@ RETURNS TABLE(assignment_id uuid, period_start date, ordinal integer, fee_date d
         ) WITH ORDINALITY AS slot(on_day, ordinal)
         WHERE unpaid.period >= policy.effective
     )
+    -- A fee posted once is never due again, even after it is waived: the waive
+    -- is a person's decision, and the nightly run must not undo it.
     SELECT slots.stay, slots.period, slots.ordinal, slots.fee_date, slots.amount
     FROM slots
-    WHERE public.stall_live_journal(
-        'late-fee:' || slots.stay::text || ':' || public.stall_rent_charge_suffix(slots.period) || ':' || slots.ordinal::text
-    ) IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.journals AS posted
+        WHERE posted.posting_key = 'late-fee:' || slots.stay::text || ':'
+                  || public.stall_rent_charge_suffix(slots.period) || ':' || slots.ordinal::text
+          AND NOT posted.is_reversal
+    )
     ORDER BY slots.stay, slots.period, slots.ordinal
 $$;
 
@@ -5269,6 +5275,9 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
     entry_day := GREATEST(on_date, fee.posting_date);
+    -- The reversal and its lines are checked together, at commit or at the
+    -- caller's SET CONSTRAINTS ALL IMMEDIATE, as stall_post_lines does.
+    SET CONSTRAINTS ALL DEFERRED;
     INSERT INTO public.journals (
         id, book_id, posting_key, posting_date, occurred_at, period_id,
         currency, source_type, source_reference, description, is_reversal, reverses_journal_id,
@@ -15891,13 +15900,30 @@ BEGIN
         RAISE EXCEPTION 'a late fee is posted on the day grace makes it due'
             USING ERRCODE = '23514';
     END IF;
+    -- The live-key rule frees a key once its journal is reversed. A waived fee
+    -- stays waived: its key is never posted again.
+    IF EXISTS (
+        SELECT 1
+        FROM public.journals AS prior
+        WHERE prior.posting_key = NEW.posting_key
+          AND NOT prior.is_reversal
+          AND prior.id <> NEW.id
+    ) THEN
+        RAISE EXCEPTION 'a waived late fee is not charged again'
+            USING ERRCODE = '23514';
+    END IF;
     IF public.stall_live_journal('rent-charge:' || parts[1] || ':' || parts[2]) IS NULL THEN
         RAISE EXCEPTION 'a late fee needs that period''s rent charge'
             USING ERRCODE = '23514';
     END IF;
-    IF ordinal > 1 AND public.stall_live_journal(
-        'late-fee:' || parts[1] || ':' || parts[2] || ':' || (ordinal - 1)::text
-    ) IS NULL THEN
+    -- The fee before it was posted, whether or not it was later waived.
+    IF ordinal > 1 AND NOT EXISTS (
+        SELECT 1
+        FROM public.journals AS prior
+        WHERE prior.posting_key = 'late-fee:' || parts[1] || ':' || parts[2] || ':' || (ordinal - 1)::text
+          AND NOT prior.is_reversal
+          AND prior.id <> NEW.id
+    ) THEN
         RAISE EXCEPTION 'late fees in a period are posted in order'
             USING ERRCODE = '23514';
     END IF;
