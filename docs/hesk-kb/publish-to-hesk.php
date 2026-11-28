@@ -148,7 +148,7 @@ foreach ($files as $path) {
     }
 
     $newRaw = preg_replace(
-        '/^hesk:\s*.*$/m',
+        '/^hesk:[^\S\r\n]*[^\r\n]*/m',
         'hesk: published ' . $today,
         $raw,
         1
