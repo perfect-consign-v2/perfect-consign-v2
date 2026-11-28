@@ -66,6 +66,7 @@ final class VendorPage
             'leaving' => $this->moveOut->leaving($id, $today),
             'debts' => $this->moveOut->debts($id, $today),
             'writeOffs' => $this->moveOut->writeOffs($id),
+            'unpaid' => $this->moveOut->unpaid($id),
             'countHistory' => $this->moveOut->history($id),
             'error' => $error,
             'sellerPrefix' => $this->sellerPaths->prefix(),

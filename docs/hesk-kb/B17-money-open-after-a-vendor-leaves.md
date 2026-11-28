@@ -9,7 +9,7 @@ as_of: 2026-11-27
 
 ## As of
 
-2026-11-27
+2026-11-27 — Money the store owes a vendor it cannot reach can be moved to unclaimed money after the dormancy days; money they owe can be written off after the waiting days. 2026-11-27
 
 ## In one sentence
 
@@ -41,6 +41,8 @@ End a vendor's booth with rent unpaid: the dashboard card lists them; collect th
 
 ## Related
 
+- Money the store cannot pay a vendor
+- Writing off what a vendor owes
 - What blocks making a vendor Inactive
 - Settlement vs check / drawer / safe disbursement
 - Vendor memo (and payable below zero)

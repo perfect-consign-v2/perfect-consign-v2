@@ -9,7 +9,7 @@ as_of: 2026-11-27
 
 ## As of
 
-2026-11-27 — New roles: rent paid in advance, forfeited booth reservations, bad debt, and bad debt recovered. 2026-10-25
+2026-11-27 — New roles: rent paid in advance, forfeited booth reservations, bad debt, bad debt recovered, and unclaimed vendor money. 2026-10-25
 
 ## In one sentence
 
@@ -33,6 +33,7 @@ Typical seeded roles:
 - **Forfeited booth reservations (4230)** — money paid ahead that the store kept when the owner cancelled a reservation.
 - **Bad debt (6300)** — rent or returns the owner wrote off as a loss. Its own line, never netted into rent or sales.
 - **Bad debt recovered (4240)** — money taken back after a write-off, when the vendor paid later.
+- **Unclaimed vendor money (2400, control)** — money the store owes a vendor it cannot reach, moved here by the owner after the dormancy days; paid to the vendor later or sent to the state; subledger = vendor.
 - **Rent revenue** — credit side of a rent charge.
 - **Retained earnings** — year-end close target.
 - **Operating expense** — adjustments on non-control accounts.

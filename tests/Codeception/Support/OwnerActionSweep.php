@@ -1395,7 +1395,7 @@ final class OwnerActionSweep
     private function badDebts(): void
     {
         $this->http->get('/settings/bad-debts', ['Days past due before a debt can be written off']);
-        $this->http->post('/settings/bad-debts', ['write_off_wait_days' => '90'], ['Saved.']);
+        $this->http->post('/settings/bad-debts', ['write_off_wait_days' => '90', 'unclaimed_dormancy_days' => '1095'], ['Saved.']);
         $tag = $this->tag();
         $created = $this->http->post('/vendors', ['code' => 'd' . $tag, 'first_name' => 'Dora', 'last_name' => $tag, 'store_take' => '50'], ['Vendor created.', 'Consignor created.']);
         $debtor = $this->http->id($created->body, '#/(?:vendors|consignors)/([0-9a-fA-F-]{36})/edit#', 'debtor');
@@ -1421,6 +1421,39 @@ final class OwnerActionSweep
         $this->http->post('/vendors/' . $debtor . '/write-offs/' . $journal . '/recover', ['amount' => '10.00'], ['$10.00 taken back.']);
         $this->http->get('/reports/bad-debts', ['Moved away']);
         $this->http->get('/reports/bad-debts.csv', ['Moved away']);
+        $this->unclaimed();
+    }
+
+    /**
+     * Money the store cannot pay a vendor: with no waiting days, the sale's
+     * money moves to unclaimed, is paid out in part, and the rest is sent.
+     */
+    private function unclaimed(): void
+    {
+        $tag = $this->tag();
+        $created = $this->http->post('/vendors', ['code' => 'q' . $tag, 'first_name' => 'Quin', 'last_name' => $tag, 'store_take' => '0'], ['Vendor created.', 'Consignor created.']);
+        $quin = $this->http->id($created->body, '#/(?:vendors|consignors)/([0-9a-fA-F-]{36})/edit#', 'unclaimed vendor');
+        $code = $this->item($quin, '40.00', '1', '');
+        if ($quin === '' || $code === '') {
+            return;
+        }
+        $this->http->post('/pos/new', []);
+        $this->http->post('/pos/discard', []);
+        $cart = $this->http->post('/pos/scan', ['scan' => $code], [$code]);
+        if (preg_match('/class="register-due">\$([0-9.]+)</', $cart->body, $due) !== 1) {
+            $this->http->failures[] = 'the unclaimed sale shows no amount due';
+
+            return;
+        }
+        $this->http->post('/pos/pay', ['tender_cash' => $due[1], 'cash_received' => $due[1]], ['Sale posted.']);
+        $this->http->post('/pos/new', []);
+        $this->http->post('/settings/bad-debts', ['write_off_wait_days' => '90', 'unclaimed_dormancy_days' => '0'], ['Saved.']);
+        $this->http->post('/vendors/' . $quin . '/unclaimed', ['reason' => 'No reply'], ['Moved to unclaimed money.']);
+        $this->http->post('/vendors/' . $quin . '/unclaimed/pay', ['amount' => '15.00', 'pay_with' => 'check', 'check_number' => 'S' . $tag], ['Paid from unclaimed money.']);
+        $this->http->post('/vendors/' . $quin . '/unclaimed/remit', ['amount' => '25.00', 'state_reference' => 'ST-' . $tag], ['Recorded as sent to the state.']);
+        $this->http->post('/settings/bad-debts', ['write_off_wait_days' => '90', 'unclaimed_dormancy_days' => '1095'], ['Saved.']);
+        $this->http->get('/reports/unclaimed', ['ST-' . $tag]);
+        $this->http->get('/reports/unclaimed.csv', ['ST-' . $tag]);
     }
 
     private function item(string $vendorId, string $price, string $quantity, string $expires): string

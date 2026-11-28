@@ -955,6 +955,7 @@ BEGIN
     ALTER TABLE pickups DROP CONSTRAINT pickups_vendor_id_fkey;
     ALTER TABLE item_quantity_changes DROP CONSTRAINT item_quantity_changes_vendor_id_fkey;
     ALTER TABLE bad_debt_events DROP CONSTRAINT bad_debt_events_vendor_id_fkey;
+    ALTER TABLE unclaimed_events DROP CONSTRAINT unclaimed_events_vendor_id_fkey;
     ALTER TABLE vendor_letter_copies DROP CONSTRAINT vendor_letter_copies_vendor_id_fkey;
     IF EXISTS (
         SELECT 1

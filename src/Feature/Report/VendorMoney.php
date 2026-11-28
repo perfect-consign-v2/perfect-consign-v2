@@ -126,6 +126,39 @@ final class VendorMoney
     }
 
     /**
+     * Unclaimed money by vendor and age, for the yearly state filing.
+     *
+     * @return list<array{vendor_id: string, vendor: string, code: string, moved_on: string, moved: int, paid: int, remitted: int, held: int, days: int, references: string}>
+     */
+    public function unclaimed(string $today): array
+    {
+        $listed = [];
+        foreach (
+            $this->statements->bound(
+                "SELECT vendor_id::text AS vendor_id, vendor, code, moved_on::text AS moved_on, moved_minor, paid_minor,
+                        remitted_minor, held_minor, days_held, COALESCE(remitted_refs, '') AS refs
+                 FROM stall_unclaimed_balances(?::date)",
+                [$today]
+            ) as $row
+        ) {
+            $listed[] = [
+                'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
+                'vendor' => RowValue::string($row['vendor'] ?? null),
+                'code' => RowValue::string($row['code'] ?? null),
+                'moved_on' => RowValue::string($row['moved_on'] ?? null),
+                'moved' => RowValue::integer($row['moved_minor'] ?? null),
+                'paid' => RowValue::integer($row['paid_minor'] ?? null),
+                'remitted' => RowValue::integer($row['remitted_minor'] ?? null),
+                'held' => RowValue::integer($row['held_minor'] ?? null),
+                'days' => RowValue::integer($row['days_held'] ?? null),
+                'references' => RowValue::string($row['refs'] ?? null),
+            ];
+        }
+
+        return $listed;
+    }
+
+    /**
      * D9: every write-off in the range, with who, why, and what was taken back since.
      *
      * @return list<array{journal_id: string, date: string, vendor_id: string, vendor: string, booth: string, kind: string, amount: int, recovered: int, reason: string, who: string}>

@@ -31,8 +31,8 @@ final class BadDebtHttpTest extends WebTestCase
     {
         $settings = $this->owner->get('/' . self::SLUG . '/settings/bad-debts');
         self::assertSees('Days past due before a debt can be written off', $settings);
-        self::assertSees('Enter the days as a whole number from 0 to 3650.', $this->owner->post('/' . self::SLUG . '/settings/bad-debts', ['write_off_wait_days' => 'soon']));
-        self::assertSees('Saved.', $this->owner->post('/' . self::SLUG . '/settings/bad-debts', ['write_off_wait_days' => '90']));
+        self::assertSees('Enter the days as a whole number from 0 to 3650.', $this->owner->post('/' . self::SLUG . '/settings/bad-debts', ['write_off_wait_days' => 'soon', 'unclaimed_dormancy_days' => '1095']));
+        self::assertSees('Saved.', $this->owner->post('/' . self::SLUG . '/settings/bad-debts', ['write_off_wait_days' => '90', 'unclaimed_dormancy_days' => '1095']));
 
         $tag = bin2hex(random_bytes(3));
         $created = $this->owner->post('/' . self::SLUG . '/vendors', ['code' => 'w' . $tag, 'first_name' => 'Wren', 'last_name' => $tag, 'store_take' => '40']);

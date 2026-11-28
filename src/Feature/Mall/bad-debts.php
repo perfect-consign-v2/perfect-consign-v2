@@ -6,14 +6,14 @@ use PerfectConsign\Shared\Http\View;
 
 /** @var string $slug */
 /** @var string $csrf */
-/** @var array{wait_days: string, deposit_covers_rent: bool, deposits_on: bool} $rules */
+/** @var array{wait_days: string, deposit_covers_rent: bool, deposits_on: bool, dormancy_days: string} $rules */
 /** @var string|null $error */
 
 ?>
 <div class="page-head">
     <div class="titles">
         <h1 class="h1">Settings</h1>
-        <p class="muted">When rent or returns a vendor never paid can be written off as a loss.</p>
+        <p class="muted">When rent or returns a vendor never paid can be written off as a loss, and when money the store cannot pay a vendor becomes unclaimed money.</p>
     </div>
 </div>
 <?php $settingsPart = 'bad-debts'; require __DIR__ . '/settings-tabs.php'; ?>
@@ -43,6 +43,12 @@ use PerfectConsign\Shared\Http\View;
         <?php elseif ($rules['deposit_covers_rent']): ?>
             <input type="hidden" name="deposit_covers_rent" value="1">
         <?php endif; ?>
+        <div class="h4 mt-4">Money the store cannot pay a vendor</div>
+        <p class="muted text-sm">Money owed to a vendor the store cannot reach is not the store's. After this many days with nothing moving on it, the owner can move it to unclaimed money, then pay the vendor from it or send it to the state. Many states use three years (1095 days); check your state's rule.</p>
+        <div class="field">
+            <label for="unclaimed_dormancy_days">Days with nothing moving before money is unclaimed</label>
+            <input class="input" id="unclaimed_dormancy_days" name="unclaimed_dormancy_days" inputmode="numeric" maxlength="4" value="<?= View::text($rules['dormancy_days']) ?>" required>
+        </div>
     </div>
     <div class="card-foot"><button class="btn btn-primary" type="submit">Save</button></div>
 </form>

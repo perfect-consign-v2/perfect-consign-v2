@@ -13,7 +13,7 @@ $settingsTabs = [
     'receipt' => 'Receipt',
     'backup' => 'Backup',
     'counts' => 'Item counts',
-    'bad-debts' => 'Bad debts',
+    'bad-debts' => 'Bad debts and unclaimed',
 ];
 ?>
 <div class="list-show mt-4">

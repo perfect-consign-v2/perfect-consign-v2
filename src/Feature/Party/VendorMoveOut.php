@@ -112,6 +112,29 @@ final class VendorMoveOut
     }
 
     /**
+     * What the store owes the vendor, since when nothing moved on it, when it
+     * can go to unclaimed money, and what is already held as unclaimed.
+     *
+     * @return array{owed: int, since: string, movable_on: string, held: int}
+     */
+    public function unpaid(string $vendorId): array
+    {
+        $rows = $this->statements->bound(
+            "SELECT owed_minor, COALESCE(since::text, '') AS since, COALESCE(movable_on::text, '') AS movable_on, held_minor
+             FROM stall_vendor_unpaid(?::uuid)",
+            [$vendorId]
+        );
+        $row = $rows[0] ?? [];
+
+        return [
+            'owed' => RowValue::optionalInteger($row['owed_minor'] ?? null) ?? 0,
+            'since' => RowValue::optionalString($row['since'] ?? null) ?? '',
+            'movable_on' => RowValue::optionalString($row['movable_on'] ?? null) ?? '',
+            'held' => RowValue::optionalInteger($row['held_minor'] ?? null) ?? 0,
+        ];
+    }
+
+    /**
      * @return list<array{code: string, said: string}>
      */
     public function history(string $vendorId): array

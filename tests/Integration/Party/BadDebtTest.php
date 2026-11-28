@@ -51,10 +51,11 @@ final class BadDebtTest extends TestCase
         try {
             $today = RowValue::string($statements->rows("SELECT to_char((clock_timestamp() AT TIME ZONE time_zone)::date, 'YYYY-MM-DD') AS today FROM mall")[0]['today'] ?? null);
             $tenant = RowValue::string($statements->rows('SELECT id::text AS id FROM platform.tenants WHERE schema_name = current_schema()')[0]['id'] ?? null);
-            $rules->save('90', false, $tenant);
+            $rules->save('90', false, '1095', $tenant);
             self::assertSame('90', $rules->current()['wait_days']);
-            $this->refusedInput('Enter the days as a whole number from 0 to 3650.', fn () => $rules->save('3651', false, $tenant), $pdo);
-            $this->refusedInput('Enter the days as a whole number from 0 to 3650.', fn () => $rules->save('ten', false, $tenant), $pdo);
+            self::assertSame('1095', $rules->current()['dormancy_days']);
+            $this->refusedInput('Enter the days as a whole number from 0 to 3650.', fn () => $rules->save('3651', false, '1095', $tenant), $pdo);
+            $this->refusedInput('Enter the days as a whole number from 0 to 3650.', fn () => $rules->save('90', false, 'ten', $tenant), $pdo);
 
             $tag = bin2hex(random_bytes(3));
             $vendor = RowValue::string($statements->rows('SELECT uuidv7()::text AS id')[0]['id'] ?? null);

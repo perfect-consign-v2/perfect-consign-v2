@@ -61,11 +61,20 @@ final class VendorMoneyControllerTest extends TestCase
             $this->controller('bad-debts', ['range' => 'last_month'])->badDebts(MallDoor::SLUG);
         });
         self::assertStringContainsString('Nothing was written off in these dates.', $badDebtPage);
+
+        $unclaimed = $this->capture(function (): void {
+            $this->controller('unclaimed.csv', [])->unclaimedCsv(MallDoor::SLUG);
+        });
+        self::assertStringStartsWith('Vendor,Code,"Moved on","Days held",Moved,"Paid to vendor","Sent to the state","Still held","State report numbers"', $unclaimed);
+        $unclaimedPage = $this->capture(function (): void {
+            $this->controller('unclaimed', [])->unclaimed(MallDoor::SLUG);
+        });
+        self::assertStringContainsString('No money has been moved to unclaimed money.', $unclaimedPage);
     }
 
     public function testACashierCannotOpenThem(): void
     {
-        foreach (['register', 'registerCsv', 'payments', 'paymentsCsv', 'badDebts', 'badDebtsCsv'] as $page) {
+        foreach (['register', 'registerCsv', 'payments', 'paymentsCsv', 'badDebts', 'badDebtsCsv', 'unclaimed', 'unclaimedCsv'] as $page) {
             $door = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/reports/' . $page, [], []));
             $door->session->set('actor_role', 'cashier');
             $controller = new VendorMoneyController($door->app, $door->actor, $door->mall, new VendorMoney($door->statements));
@@ -76,11 +85,14 @@ final class VendorMoneyControllerTest extends TestCase
                     'payments' => $controller->payments(MallDoor::SLUG),
                     'badDebts' => $controller->badDebts(MallDoor::SLUG),
                     'badDebtsCsv' => $controller->badDebtsCsv(MallDoor::SLUG),
+                    'unclaimed' => $controller->unclaimed(MallDoor::SLUG),
+                    'unclaimedCsv' => $controller->unclaimedCsv(MallDoor::SLUG),
                     default => $controller->paymentsCsv(MallDoor::SLUG),
                 };
             });
             self::assertStringNotContainsString('Opening balance', $html, $page);
             self::assertStringNotContainsString('Date,', $html, $page);
+            self::assertStringNotContainsString('Vendor,Code', $html, $page);
         }
     }
 

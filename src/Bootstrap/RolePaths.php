@@ -11,10 +11,13 @@ final class RolePaths
         return preg_match('#^/inventory/[0-9a-fA-F-]{36}/buy$#', $rest) === 1;
     }
 
-    /** Writing off what a vendor owes, and taking it back, are the owner's (D4, D5). */
+    /**
+     * Writing off what a vendor owes and taking it back (D4, D5), and moving,
+     * paying or sending unclaimed money (Phase 3), are the owner's.
+     */
     public static function writeOff(string $rest): bool
     {
-        return preg_match('#^/(?:vendors|consignors)/[0-9a-fA-F-]{36}/(?:write-off|write-offs/[0-9a-fA-F-]{36}/recover)$#', $rest) === 1;
+        return preg_match('#^/(?:vendors|consignors)/[0-9a-fA-F-]{36}/(?:write-off|write-offs/[0-9a-fA-F-]{36}/recover|unclaimed|unclaimed/pay|unclaimed/remit)$#', $rest) === 1;
     }
 
     /** The store keeping a piece left behind is the owner's call (D11). */

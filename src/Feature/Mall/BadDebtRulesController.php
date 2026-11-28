@@ -32,7 +32,12 @@ final class BadDebtRulesController
         $tenant = $this->app->open($slug, true);
         $request = $this->app->request();
         try {
-            $this->rules->save($request->field('write_off_wait_days'), $request->field('deposit_covers_rent') === '1', $tenant->id);
+            $this->rules->save(
+                $request->field('write_off_wait_days'),
+                $request->field('deposit_covers_rent') === '1',
+                $request->field('unclaimed_dormancy_days'),
+                $tenant->id,
+            );
         } catch (DatabaseRefusal | \InvalidArgumentException $error) {
             $this->page($slug, $this->app->catchRefusal($error));
 
@@ -45,7 +50,7 @@ final class BadDebtRulesController
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Mall/bad-debts', [
-            'title' => 'Bad debts',
+            'title' => 'Bad debts and unclaimed money',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'settingsPart' => 'bad-debts',

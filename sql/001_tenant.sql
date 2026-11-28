@@ -8092,7 +8092,8 @@ BEGIN
         'layaway_deposit',
         'layaway_refund',
         'booth_deposit',
-        'rent_advance'
+        'rent_advance',
+        'unclaimed_payout'
     ) THEN
         RAISE EXCEPTION 'a drawer journal needs an open register'
             USING ERRCODE = '23514';
@@ -10021,6 +10022,7 @@ INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balan
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000030', '01900000-0000-7000-8000-000000000001', '4230', 'Forfeited booth reservations', 'revenue', 'credit', true, false, NULL, '2026-11-27 18:00:00+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000031', '01900000-0000-7000-8000-000000000001', '6300', 'Bad debt', 'expense', 'debit', true, false, NULL, '2026-11-27 18:00:00+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000032', '01900000-0000-7000-8000-000000000001', '4240', 'Bad debt recovered', 'revenue', 'credit', true, false, NULL, '2026-11-27 18:00:00+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000033', '01900000-0000-7000-8000-000000000001', '2400', 'Unclaimed vendor money', 'liability', 'credit', true, true, 'vendor', '2026-11-27 18:00:00+00');
 
 INSERT INTO public.book_journal_counters (book_id, last_no) VALUES ('01900000-0000-7000-8000-000000000001', 0);
 
@@ -10061,6 +10063,7 @@ INSERT INTO public.chart_roles (role, account_id) VALUES ('rent_paid_in_advance'
 INSERT INTO public.chart_roles (role, account_id) VALUES ('forfeited_reservation_income', '01900000-0000-7000-8000-000000000030');
 INSERT INTO public.chart_roles (role, account_id) VALUES ('bad_debt_expense', '01900000-0000-7000-8000-000000000031');
 INSERT INTO public.chart_roles (role, account_id) VALUES ('bad_debt_recovered', '01900000-0000-7000-8000-000000000032');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('unclaimed_property_payable', '01900000-0000-7000-8000-000000000033');
 
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'sale');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'rent_charge');
@@ -10194,6 +10197,13 @@ INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_re
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bad_debt_recovered', 'rent_write_off_recovery');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_receivable', 'clawback_write_off_recovery');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bad_debt_recovered', 'clawback_write_off_recovery');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'payable_to_unclaimed');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('unclaimed_property_payable', 'payable_to_unclaimed');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('unclaimed_property_payable', 'unclaimed_payout');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'unclaimed_payout');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'unclaimed_payout');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('unclaimed_property_payable', 'unclaimed_remittance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bank', 'unclaimed_remittance');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'rent_advance');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'rent_advance');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'rent_advance');
@@ -10268,6 +10278,8 @@ INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickb
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'bad_debt_expense', '6300');
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'bad_debt_recovered', '4240');
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'bad_debt_recovered', '4240');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'unclaimed_property_payable', '2400');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'unclaimed_property_payable', '2400');
 
 INSERT INTO public.ledger_books (id, code, name, currency, currency_scale, is_default, created_at) VALUES ('01900000-0000-7000-8000-000000000001', 'mall', 'Mall', 'USD', 2, true, '2026-10-21 00:42:50.440076+00');
 
@@ -18392,3 +18404,362 @@ GRANT EXECUTE ON FUNCTION public.stall_vendor_write_offs(uuid) TO stall_backup;
 REVOKE ALL ON FUNCTION public.stall_bad_debts(date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_bad_debts(date, date) TO stall_poster;
 GRANT EXECUTE ON FUNCTION public.stall_bad_debts(date, date) TO stall_backup;
+
+-- >>> vendor balances, phase 3: unclaimed vendor money
+-- Money the store owes a vendor it cannot reach is not store income. After the
+-- dormancy days with no movement, the owner moves it to a liability that still
+-- names the vendor; the vendor can then be made inactive. Later the vendor is
+-- paid from it, or it is sent to the state with the state's reference.
+
+ALTER TABLE public.mall
+    ADD COLUMN unclaimed_dormancy_days integer DEFAULT 1095 NOT NULL,
+    ADD CONSTRAINT mall_unclaimed_dormancy_days_chk CHECK (((unclaimed_dormancy_days >= 0) AND (unclaimed_dormancy_days <= 3650)));
+
+CREATE TABLE public.unclaimed_events (
+    journal_id uuid NOT NULL,
+    vendor_id uuid NOT NULL,
+    kind text NOT NULL,
+    reason text NOT NULL,
+    reference text,
+    owner_account uuid NOT NULL,
+    owner_username text NOT NULL,
+    recorded_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    written_xid xid8 DEFAULT pg_current_xact_id() NOT NULL,
+    CONSTRAINT unclaimed_events_kind_chk CHECK ((kind = ANY (ARRAY['move'::text, 'payout'::text, 'remittance'::text]))),
+    CONSTRAINT unclaimed_events_reason_chk CHECK (((reason = btrim(reason)) AND (reason <> ''::text) AND (char_length(reason) <= 500))),
+    CONSTRAINT unclaimed_events_reference_chk CHECK (((reference IS NULL) OR ((reference = btrim(reference)) AND (reference <> ''::text) AND (char_length(reference) <= 80)))),
+    CONSTRAINT unclaimed_events_remittance_chk CHECK (((kind <> 'remittance'::text) OR (reference IS NOT NULL)))
+);
+
+ALTER TABLE ONLY public.unclaimed_events
+    ADD CONSTRAINT unclaimed_events_pkey PRIMARY KEY (journal_id);
+
+ALTER TABLE ONLY public.unclaimed_events
+    ADD CONSTRAINT unclaimed_events_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.journals(id);
+
+ALTER TABLE ONLY public.unclaimed_events
+    ADD CONSTRAINT unclaimed_events_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
+
+CREATE INDEX unclaimed_events_vendor_idx ON public.unclaimed_events USING btree (vendor_id, recorded_at);
+
+CREATE FUNCTION public.stall_reject_unclaimed_rewrite() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'an unclaimed money record is history and cannot change'
+        USING ERRCODE = '23514';
+END;
+$$;
+
+CREATE TRIGGER unclaimed_events_append_only_sealed BEFORE UPDATE OR DELETE ON public.unclaimed_events FOR EACH ROW EXECUTE FUNCTION public.stall_reject_unclaimed_rewrite();
+
+ALTER TABLE public.unclaimed_events ENABLE ALWAYS TRIGGER unclaimed_events_append_only_sealed;
+
+CREATE TRIGGER unclaimed_events_no_truncate BEFORE TRUNCATE ON public.unclaimed_events FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.unclaimed_events ENABLE ALWAYS TRIGGER unclaimed_events_no_truncate;
+
+-- What the store holds as unclaimed money for a vendor.
+CREATE FUNCTION public.stall_vendor_unclaimed(target uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'unclaimed_property_payable'
+    WHERE line.subledger_type = 'vendor'
+      AND line.subledger_ref = target::text
+$$;
+
+-- What the store owes a vendor, since when nothing has moved on it, and when
+-- it can be moved to unclaimed money.
+CREATE FUNCTION public.stall_vendor_unpaid(target uuid)
+RETURNS TABLE(owed_minor bigint, since date, movable_on date, held_minor bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT public.stall_vendor_open_payable(target),
+           last_move.since,
+           last_move.since + mall.unclaimed_dormancy_days,
+           public.stall_vendor_unclaimed(target)
+    FROM public.mall
+    CROSS JOIN LATERAL (
+        SELECT max(posted.posting_date) AS since
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'vendor_payable'
+        JOIN public.journals AS posted ON posted.id = line.journal_id
+        WHERE line.subledger_type = 'vendor'
+          AND line.subledger_ref = target::text
+    ) AS last_move
+$$;
+
+-- Moves everything the store owes the vendor to unclaimed money. Owner only,
+-- with a reason, once nothing has moved on it for the dormancy days.
+CREATE FUNCTION public.stall_move_to_unclaimed(target_vendor uuid, reason text, owner_account uuid, owner_username text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    today date;
+    said text := btrim(COALESCE(reason, ''));
+    seller text;
+    unpaid record;
+    ordinal bigint;
+    posted uuid;
+BEGIN
+    PERFORM public.stall_refuse_unless_owner(owner_account, owner_username);
+    IF said = '' THEN
+        RAISE EXCEPTION 'Say why the store cannot pay them.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF char_length(said) > 500 THEN
+        RAISE EXCEPTION 'Keep the reason to 500 letters or fewer.'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT name INTO seller FROM public.vendors WHERE id = target_vendor;
+    IF seller IS NULL THEN
+        RAISE EXCEPTION 'That vendor was not found.'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(87401, hashtext(target_vendor::text));
+    today := (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall);
+    SELECT * INTO unpaid FROM public.stall_vendor_unpaid(target_vendor);
+    IF unpaid.owed_minor <= 0 THEN
+        RAISE EXCEPTION 'The store owes % nothing.', seller
+            USING ERRCODE = '23514';
+    END IF;
+    IF unpaid.movable_on > today THEN
+        RAISE EXCEPTION 'What the store owes % can be moved to unclaimed money from %.', seller, to_char(unpaid.movable_on, 'MM-DD-YYYY')
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT count(*) INTO ordinal FROM public.journals WHERE source_type = 'payable_to_unclaimed' AND source_reference = target_vendor::text;
+    posted := public.stall_post_lines(
+        'payable_to_unclaimed:' || target_vendor::text || ':' || ordinal, today, 'payable_to_unclaimed', target_vendor::text,
+        'Moved to unclaimed money: ' || said,
+        jsonb_build_array(
+            public.stall_line('vendor_payable', unpaid.owed_minor, 0, 'vendor', target_vendor::text),
+            public.stall_line('unclaimed_property_payable', 0, unpaid.owed_minor, 'vendor', target_vendor::text)
+        )
+    );
+    INSERT INTO public.unclaimed_events (journal_id, vendor_id, kind, reason, owner_account, owner_username)
+    VALUES (posted, target_vendor, 'move', said, owner_account, owner_username);
+    RETURN posted;
+END;
+$$;
+
+-- The vendor turns up: pay them from unclaimed money, in cash on the open
+-- register (PHP links the drawer) or by check from the bank.
+CREATE FUNCTION public.stall_unclaimed_pay(target_vendor uuid, amount_minor bigint, way text, check_number text, owner_account uuid, owner_username text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    today date;
+    held bigint;
+    ordinal bigint;
+    posted uuid;
+    number text := NULLIF(btrim(COALESCE(check_number, '')), '');
+BEGIN
+    PERFORM public.stall_refuse_unless_owner(owner_account, owner_username);
+    IF way IS NULL OR way NOT IN ('cash', 'check') THEN
+        RAISE EXCEPTION 'Choose how they are paid.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF way = 'check' AND number IS NULL THEN
+        RAISE EXCEPTION 'Enter the check number.'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(87401, hashtext(target_vendor::text));
+    today := (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall);
+    held := public.stall_vendor_unclaimed(target_vendor);
+    IF amount_minor IS NULL OR amount_minor < 1 THEN
+        RAISE EXCEPTION 'Enter the amount.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF amount_minor > held THEN
+        RAISE EXCEPTION 'The store holds % for them.', public.stall_money_text(held)
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT count(*) INTO ordinal FROM public.journals WHERE source_type = 'unclaimed_payout' AND source_reference = target_vendor::text;
+    posted := public.stall_post_lines(
+        'unclaimed_payout:' || target_vendor::text || ':' || ordinal, today, 'unclaimed_payout', target_vendor::text,
+        CASE WHEN way = 'cash' THEN 'Unclaimed money paid in cash' ELSE 'Unclaimed money paid by check ' || number END,
+        jsonb_build_array(
+            public.stall_line('unclaimed_property_payable', amount_minor, 0, 'vendor', target_vendor::text),
+            public.stall_line(CASE WHEN way = 'cash' THEN 'cash' ELSE 'bank' END, 0, amount_minor)
+        )
+    );
+    INSERT INTO public.unclaimed_events (journal_id, vendor_id, kind, reason, reference, owner_account, owner_username)
+    VALUES (posted, target_vendor, 'payout', 'They came back', number, owner_account, owner_username);
+    RETURN posted;
+END;
+$$;
+
+-- Sent to the state as unclaimed property, with the state's reference.
+CREATE FUNCTION public.stall_unclaimed_remit(target_vendor uuid, amount_minor bigint, state_reference text, owner_account uuid, owner_username text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    today date;
+    held bigint;
+    ordinal bigint;
+    posted uuid;
+    reference text := NULLIF(btrim(COALESCE(state_reference, '')), '');
+BEGIN
+    PERFORM public.stall_refuse_unless_owner(owner_account, owner_username);
+    IF reference IS NULL THEN
+        RAISE EXCEPTION 'Enter the state''s report number.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF char_length(reference) > 80 THEN
+        RAISE EXCEPTION 'Keep the report number to 80 letters or fewer.'
+            USING ERRCODE = '23514';
+    END IF;
+    PERFORM pg_advisory_xact_lock(87401, hashtext(target_vendor::text));
+    today := (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall);
+    held := public.stall_vendor_unclaimed(target_vendor);
+    IF amount_minor IS NULL OR amount_minor < 1 THEN
+        RAISE EXCEPTION 'Enter the amount.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF amount_minor > held THEN
+        RAISE EXCEPTION 'The store holds % for them.', public.stall_money_text(held)
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT count(*) INTO ordinal FROM public.journals WHERE source_type = 'unclaimed_remittance' AND source_reference = target_vendor::text;
+    posted := public.stall_post_lines(
+        'unclaimed_remittance:' || target_vendor::text || ':' || ordinal, today, 'unclaimed_remittance', target_vendor::text,
+        'Sent to the state as unclaimed property, report ' || reference,
+        jsonb_build_array(
+            public.stall_line('unclaimed_property_payable', amount_minor, 0, 'vendor', target_vendor::text),
+            public.stall_line('bank', 0, amount_minor)
+        )
+    );
+    INSERT INTO public.unclaimed_events (journal_id, vendor_id, kind, reason, reference, owner_account, owner_username)
+    VALUES (posted, target_vendor, 'remittance', 'Sent to the state', reference, owner_account, owner_username);
+    RETURN posted;
+END;
+$$;
+
+-- The three kinds have one shape each, come only from the functions above,
+-- never go below zero for the vendor, and are never voided.
+CREATE FUNCTION public.stall_assert_unclaimed() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    event record;
+    total bigint;
+    shaped integer;
+    line_count integer;
+    other_role text;
+BEGIN
+    IF NEW.source_type NOT IN ('payable_to_unclaimed', 'unclaimed_payout', 'unclaimed_remittance') THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.is_reversal THEN
+        RAISE EXCEPTION 'unclaimed money is not voided'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT * INTO event FROM public.unclaimed_events WHERE journal_id = NEW.id;
+    IF NOT FOUND OR event.written_xid <> pg_current_xact_id() OR event.vendor_id::text <> NEW.source_reference
+       OR event.kind <> (CASE NEW.source_type WHEN 'payable_to_unclaimed' THEN 'move' WHEN 'unclaimed_payout' THEN 'payout' ELSE 'remittance' END) THEN
+        RAISE EXCEPTION 'unclaimed money moves only through the owner''s unclaimed money steps'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NEW.posting_key <> NEW.source_type || ':' || NEW.source_reference || ':' || (
+        SELECT count(*) FROM public.journals AS earlier
+        WHERE earlier.source_type = NEW.source_type AND earlier.source_reference = NEW.source_reference
+          AND earlier.id <> NEW.id AND earlier.journal_no < NEW.journal_no
+    ) THEN
+        RAISE EXCEPTION 'an unclaimed money posting key names its vendor and count'
+            USING ERRCODE = '23514';
+    END IF;
+    total := NEW.debit_total_minor;
+    SELECT count(*) INTO line_count FROM public.journal_lines WHERE journal_id = NEW.id;
+    IF NEW.source_type = 'payable_to_unclaimed' THEN
+        SELECT count(*) INTO shaped
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        WHERE line.journal_id = NEW.id
+          AND line.subledger_type = 'vendor' AND line.subledger_ref = NEW.source_reference
+          AND ((role.role = 'vendor_payable' AND line.debit_minor = total AND line.credit_minor = 0)
+               OR (role.role = 'unclaimed_property_payable' AND line.credit_minor = total AND line.debit_minor = 0));
+        IF line_count <> 2 OR shaped <> 2 OR total < 1 OR public.stall_vendor_open_payable(NEW.source_reference::uuid) <> 0 THEN
+            RAISE EXCEPTION 'a move to unclaimed money takes exactly what the store owes'
+                USING ERRCODE = '23514';
+        END IF;
+        RETURN NULL;
+    END IF;
+    other_role := CASE WHEN NEW.source_type = 'unclaimed_remittance' THEN 'bank' ELSE NULL END;
+    SELECT count(*) INTO shaped
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id
+      AND ((role.role = 'unclaimed_property_payable' AND line.debit_minor = total AND line.credit_minor = 0
+            AND line.subledger_type = 'vendor' AND line.subledger_ref = NEW.source_reference)
+           OR (role.role = COALESCE(other_role, role.role) AND role.role IN ('cash', 'bank')
+               AND line.credit_minor = total AND line.debit_minor = 0 AND line.subledger_type IS NULL));
+    IF line_count <> 2 OR shaped <> 2 OR total < 1 OR public.stall_vendor_unclaimed(NEW.source_reference::uuid) < 0 THEN
+        RAISE EXCEPTION 'unclaimed money is paid out only up to what is held'
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'cash'
+        WHERE line.journal_id = NEW.id
+    ) AND NOT EXISTS (SELECT 1 FROM public.register_session_posts WHERE journal_id = NEW.id) THEN
+        RAISE EXCEPTION 'a drawer journal needs an open register'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER journals_unclaimed_sealed AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_unclaimed();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_unclaimed_sealed;
+
+-- The yearly state filing: what is held for each vendor, since when, and how
+-- old it is, with what was paid out and sent so far.
+CREATE FUNCTION public.stall_unclaimed_balances(today date)
+RETURNS TABLE(vendor_id uuid, vendor text, code text, moved_on date, moved_minor bigint, paid_minor bigint, remitted_minor bigint, held_minor bigint, days_held integer, remitted_refs text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT vendor.id, vendor.name, vendor.code,
+           min(posted.posting_date) FILTER (WHERE event.kind = 'move'),
+           COALESCE(sum(posted.debit_total_minor) FILTER (WHERE event.kind = 'move'), 0)::bigint,
+           COALESCE(sum(posted.debit_total_minor) FILTER (WHERE event.kind = 'payout'), 0)::bigint,
+           COALESCE(sum(posted.debit_total_minor) FILTER (WHERE event.kind = 'remittance'), 0)::bigint,
+           public.stall_vendor_unclaimed(vendor.id),
+           (today - min(posted.posting_date) FILTER (WHERE event.kind = 'move'))::integer,
+           string_agg(event.reference, ', ' ORDER BY posted.posting_date) FILTER (WHERE event.kind = 'remittance')
+    FROM public.unclaimed_events AS event
+    JOIN public.journals AS posted ON posted.id = event.journal_id
+    JOIN public.vendors AS vendor ON vendor.id = event.vendor_id
+    GROUP BY vendor.id, vendor.name, vendor.code
+    ORDER BY min(posted.posting_date), vendor.name
+$$;
+
+GRANT SELECT ON TABLE public.unclaimed_events TO stall_poster;
+GRANT SELECT ON TABLE public.unclaimed_events TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_reject_unclaimed_rewrite() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_assert_unclaimed() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_vendor_unclaimed(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_unclaimed(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_unclaimed(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_vendor_unpaid(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_unpaid(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_unpaid(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_move_to_unclaimed(uuid, text, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_move_to_unclaimed(uuid, text, uuid, text) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_unclaimed_pay(uuid, bigint, text, text, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_unclaimed_pay(uuid, bigint, text, text, uuid, text) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_unclaimed_remit(uuid, bigint, text, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_unclaimed_remit(uuid, bigint, text, uuid, text) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_unclaimed_balances(date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_unclaimed_balances(date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_unclaimed_balances(date) TO stall_backup;

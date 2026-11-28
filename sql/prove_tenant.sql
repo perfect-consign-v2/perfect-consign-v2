@@ -248,6 +248,8 @@ BEGIN
         DROP CONSTRAINT bad_debt_events_journal_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bad_debt_events
         DROP CONSTRAINT bad_debt_events_written_off_journal_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.unclaimed_events
+        DROP CONSTRAINT unclaimed_events_journal_id_fkey;
     TRUNCATE
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_lines,
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journals;

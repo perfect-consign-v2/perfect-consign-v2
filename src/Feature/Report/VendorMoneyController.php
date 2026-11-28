@@ -164,6 +164,44 @@ final class VendorMoneyController
         $this->download('bad-debts.csv', ['Date', 'Vendor', 'Booth', 'What', 'Amount', 'Taken back', 'Reason', 'Who'], $body);
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/unclaimed', ['GET'])]
+    public function unclaimed(string $slug): void
+    {
+        $tenant = $this->access->open($slug);
+        $this->app->show('Feature/Report/unclaimed', [
+            'title' => 'Unclaimed money',
+            'displayName' => $tenant->displayName,
+            'slug' => $tenant->slug,
+            'today' => $this->mall->today(),
+            'rows' => $this->money->unclaimed($this->mall->today()),
+        ]);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/unclaimed.csv', ['GET'])]
+    public function unclaimedCsv(string $slug): void
+    {
+        $this->access->open($slug);
+        $body = [];
+        foreach ($this->money->unclaimed($this->mall->today()) as $row) {
+            $body[] = [
+                'Vendor' => $row['vendor'],
+                'Code' => $row['code'],
+                'Moved on' => $row['moved_on'],
+                'Days held' => (string) $row['days'],
+                'Moved' => Money::decimal($row['moved']),
+                'Paid to vendor' => Money::decimal($row['paid']),
+                'Sent to the state' => Money::decimal($row['remitted']),
+                'Still held' => Money::decimal($row['held']),
+                'State report numbers' => $row['references'],
+            ];
+        }
+        $this->download(
+            'unclaimed-money.csv',
+            ['Vendor', 'Code', 'Moved on', 'Days held', 'Moved', 'Paid to vendor', 'Sent to the state', 'Still held', 'State report numbers'],
+            $body,
+        );
+    }
+
     /**
      * @return array{0: list<RegisterRow>, 1: ?string}
      */
