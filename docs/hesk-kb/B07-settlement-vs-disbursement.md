@@ -9,7 +9,7 @@ as_of: 2026-11-27
 
 ## As of
 
-2026-11-27 — Settlement pays rent stay by stay, oldest first; vendors who have left are listed on their own. 2026-11-18 — Print checks does not ask for a check number. The stock already has the company name and the number. Print sales and rent opens the sales and rent sheet, including a payout for one vendor. 2026-11-06 — Money record Void refuses settlement and check / cash / safe disbursement journals; undo a paid run with payout reverse.
+2026-11-27 — Net first: a write-off is refused while the store still owes the vendor; pay or apply that first. 2026-11-27 — Settlement pays rent stay by stay, oldest first; vendors who have left are listed on their own. 2026-11-18 — Print checks does not ask for a check number. The stock already has the company name and the number. Print sales and rent opens the sales and rent sheet, including a payout for one vendor. 2026-11-06 — Money record Void refuses settlement and check / cash / safe disbursement journals; undo a paid run with payout reverse.
 
 ## In one sentence
 
@@ -35,6 +35,8 @@ Closing a payout run, then writing a check, paying from the drawer, or paying fr
 - The Money record Void button refuses settlement and disbursement journals — use payout reverse, then re-pay if needed.
 
 Note: older Stall PLAN text described payout clearing payable and rent against cash in one step. Current mall rules use clawback apply, then settlement, then cash later.
+
+- Net first: before the owner can write off what a vendor owes, everything the store owes them must be paid or applied here. Each offset is its own journal.
 
 ## What is refused
 

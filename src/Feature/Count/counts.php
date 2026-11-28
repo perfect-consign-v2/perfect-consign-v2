@@ -10,13 +10,6 @@ use PerfectConsign\Shared\Http\View;
 /** @var string $waitDays */
 /** @var string|null $error */
 
-$settingsTabs = [
-    'money' => 'Money',
-    'building' => 'Building',
-    'receipt' => 'Receipt',
-    'backup' => 'Backup',
-    'counts' => 'Item counts',
-];
 $kinds = ['leaving' => 'It left the store', 'correction' => 'A correction'];
 $whoChoices = ['both' => 'Vendors and staff', 'staff' => 'Staff only'];
 ?>
@@ -26,14 +19,7 @@ $whoChoices = ['both' => 'Vendors and staff', 'staff' => 'Staff only'];
         <p class="muted">Why an item count goes down, and what happens to pieces left behind when a booth ends.</p>
     </div>
 </div>
-<div class="list-show mt-4">
-    <div class="segmented" role="navigation" aria-label="Settings">
-        <?php foreach ($settingsTabs as $tab => $label): ?>
-            <?php $selected = $tab === 'counts'; ?>
-            <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="/<?= View::text($slug) ?>/settings/<?= View::text($tab) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
-        <?php endforeach; ?>
-    </div>
-</div>
+<?php $settingsPart = 'counts'; require dirname(__DIR__) . '/Mall/settings-tabs.php'; ?>
 
 <?php if ($error !== null): ?>
     <div class="alert alert-danger mt-4" role="alert"><?= View::text($error) ?></div>

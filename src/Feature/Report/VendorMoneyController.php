@@ -128,6 +128,42 @@ final class VendorMoneyController
         );
     }
 
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/bad-debts', ['GET'])]
+    public function badDebts(string $slug): void
+    {
+        $tenant = $this->access->open($slug);
+        $filters = VendorMoneyFilters::read($this->app->request(), $this->mall->today(), []);
+        $this->show($tenant, 'Feature/Report/bad-debts', 'Bad debts', $filters, $filters->error, [
+            'rows' => $filters->error === null ? $this->money->badDebts($filters->window->from, $filters->window->to) : [],
+        ]);
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/reports/bad-debts.csv', ['GET'])]
+    public function badDebtsCsv(string $slug): void
+    {
+        $tenant = $this->access->open($slug);
+        $filters = VendorMoneyFilters::read($this->app->request(), $this->mall->today(), []);
+        if ($filters->error !== null) {
+            $this->show($tenant, 'Feature/Report/bad-debts', 'Bad debts', $filters, $filters->error, ['rows' => []]);
+
+            return;
+        }
+        $body = [];
+        foreach ($this->money->badDebts($filters->window->from, $filters->window->to) as $row) {
+            $body[] = [
+                'Date' => $row['date'],
+                'Vendor' => $row['vendor'],
+                'Booth' => $row['booth'],
+                'What' => $row['kind'] === 'rent' ? 'Rent' : 'Returns',
+                'Amount' => Money::decimal($row['amount']),
+                'Taken back' => Money::decimal($row['recovered']),
+                'Reason' => $row['reason'],
+                'Who' => $row['who'],
+            ];
+        }
+        $this->download('bad-debts.csv', ['Date', 'Vendor', 'Booth', 'What', 'Amount', 'Taken back', 'Reason', 'Who'], $body);
+    }
+
     /**
      * @return array{0: list<RegisterRow>, 1: ?string}
      */

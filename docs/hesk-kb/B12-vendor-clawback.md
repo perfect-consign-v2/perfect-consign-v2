@@ -1,15 +1,15 @@
 ---
 title: Vendor clawback (they owe us after return/void)
 category: Payouts and settlement
-hesk: published 2026-11-20
-as_of: 2026-10-25
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Vendor clawback (they owe us after return/void)
 
 ## As of
 
-2026-10-25
+2026-11-27 — A clawback a vendor never pays can be written off by the owner after the waiting days (Bad debt), and taken back if they pay later. 2026-10-25
 
 ## In one sentence
 
@@ -26,6 +26,8 @@ Return or void on a sale whose vendor payable was already settled or disbursed; 
 - **Payout close:** apply the smaller of open payable and open receivable for that vendor (no cash), then settle rent as usual.
 - Vendor screen shows **They owe us (returns)** when receivable is open.
 - Vendor receivable is a control account (subledger = vendor) and cannot go below zero.
+
+- **How a clawback ends:** applied at a payout, paid at the desk, or written off by the owner as bad debt once it is past due for the waiting days (Settings → Bad debts). A write-off takes exactly what is open; if the vendor pays later, the owner takes back up to that amount and the payment posts as usual.
 
 ## What is refused
 

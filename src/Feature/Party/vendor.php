@@ -18,12 +18,16 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var array<string, int> $paidAhead */
 /** @var array{vendor_id: string, name: string, ends_on: string, items: int}|null $leaving */
 /** @var list<array{code: string, said: string}> $countHistory */
+/** @var list<array{kind: string, booth: string, open: int, since: string, eligible_on: string}> $debts */
+/** @var list<array{journal_id: string, said: string, left: int}> $writeOffs */
 /** @var array{months: list<array{month: string, charges: list<array{booth: string, kind: string, what: string, date: string, journal_id: string, charged: int, waived: bool, paid: int, owed: int, payments: list<array{number: string, date: string, amount: int, how: string, register: string, cashier: string, run_id: string, run_date: string, journal_id: string, paid_by: string}>}>}>, more: bool}|null $rentPaid */
 
 $rentHistories ??= [];
 $paidAhead ??= [];
 $leaving ??= null;
 $countHistory ??= [];
+$debts ??= [];
+$writeOffs ??= [];
 $sections = [
     'Current Booths' => $vendor['current'],
     'Upcoming Booths' => $vendor['upcoming'],
@@ -318,6 +322,7 @@ $boothLine = match (count($boothCodes)) {
         $rentPaidAll = ($rentPaidAll ?? false) === true;
         require __DIR__ . '/vendor-rent-history.php';
     } ?>
+    <?php $isOwner = $actorRole === 'owner'; require __DIR__ . '/vendor-debts.php'; ?>
     <?php if ($countHistory !== []): ?>
         <section class="card mt-6" aria-labelledby="vendor-count-history">
             <div class="card-head"><div class="h3" id="vendor-count-history">Item count history</div></div>

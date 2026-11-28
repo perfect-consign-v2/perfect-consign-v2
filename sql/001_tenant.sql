@@ -5289,6 +5289,7 @@ RETURNS TABLE(paid_by text, how text, register_name text, cashier text, run_id u
                    WHEN posted.source_type = 'late_fee' AND posted.is_reversal THEN 'waived'
                    WHEN posted.source_type IN ('settlement', 'sale') THEN 'sales'
                    WHEN posted.source_type = 'rent_advance' THEN 'paid_ahead'
+                   WHEN posted.source_type = 'rent_write_off' THEN 'written_off'
                    WHEN posted.source_type = 'rent_payment' AND COALESCE(cardinality(tenders.roles), 0) > 1 THEN 'split'
                    WHEN posted.source_type = 'rent_payment' AND tenders.roles = ARRAY['card'] THEN 'card'
                    WHEN posted.source_type = 'rent_payment' AND tenders.roles = ARRAY['checks'] THEN 'check'
@@ -5304,6 +5305,7 @@ RETURNS TABLE(paid_by text, how text, register_name text, cashier text, run_id u
                WHEN 'waived' THEN 'Waived'
                WHEN 'sales' THEN 'From sales'
                WHEN 'paid_ahead' THEN 'Paid ahead'
+               WHEN 'written_off' THEN 'Written off'
                WHEN 'split' THEN array_to_string(ARRAY(
                    SELECT CASE tender WHEN 'checks' THEN 'Check' ELSE initcap(tender) END
                    FROM unnest(kind.roles) AS tender
@@ -5419,7 +5421,7 @@ BEGIN
         RAISE EXCEPTION 'Choose a start date on or before the end date.'
             USING ERRCODE = '22023';
     END IF;
-    IF target_paid_by IS NOT NULL AND target_paid_by NOT IN ('cash', 'card', 'check', 'split', 'sales', 'paid_ahead', 'waived') THEN
+    IF target_paid_by IS NOT NULL AND target_paid_by NOT IN ('cash', 'card', 'check', 'split', 'sales', 'paid_ahead', 'waived', 'written_off') THEN
         RAISE EXCEPTION 'Choose how it was paid.'
             USING ERRCODE = '22023';
     END IF;
@@ -5436,7 +5438,7 @@ BEGIN
           AND (target_vendor IS NULL OR stay.vendor_id = target_vendor)
           AND (target_booth IS NULL OR stay.booth_id = target_booth)
           AND (
-              (posted.source_type IN ('rent_payment', 'settlement', 'sale', 'rent_advance') AND NOT posted.is_reversal)
+              (posted.source_type IN ('rent_payment', 'settlement', 'sale', 'rent_advance', 'rent_write_off') AND NOT posted.is_reversal)
               OR (posted.source_type = 'late_fee' AND posted.is_reversal)
           )
         GROUP BY stay.id, posted.id
@@ -5511,7 +5513,7 @@ RETURNS TABLE(total_kind text, label text, payments bigint, amount_minor bigint)
                count(*)::bigint AS payments, COALESCE(sum(amount_minor), 0)::bigint AS amount_minor
         FROM counted
         UNION ALL
-        SELECT 2, array_position(ARRAY['cash', 'card', 'check', 'split', 'sales', 'paid_ahead', 'waived', 'other'], paid_by), 'paid_by',
+        SELECT 2, array_position(ARRAY['cash', 'card', 'check', 'split', 'sales', 'paid_ahead', 'waived', 'written_off', 'other'], paid_by), 'paid_by',
                CASE paid_by
                    WHEN 'cash' THEN 'Cash'
                    WHEN 'card' THEN 'Card'
@@ -5520,6 +5522,7 @@ RETURNS TABLE(total_kind text, label text, payments bigint, amount_minor bigint)
                    WHEN 'sales' THEN 'From sales'
                    WHEN 'paid_ahead' THEN 'Paid ahead'
                    WHEN 'waived' THEN 'Waived'
+                   WHEN 'written_off' THEN 'Written off'
                    ELSE 'Other'
                END,
                count(*)::bigint, sum(amount_minor)::bigint
@@ -10016,6 +10019,8 @@ INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balan
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002e', '01900000-0000-7000-8000-000000000001', '1210', 'Vendor receivable', 'asset', 'debit', true, true, 'vendor', '2026-10-28 06:05:57.306203+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002f', '01900000-0000-7000-8000-000000000001', '2160', 'Rent paid in advance', 'liability', 'credit', true, true, 'assignment', '2026-11-27 18:00:00+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000030', '01900000-0000-7000-8000-000000000001', '4230', 'Forfeited booth reservations', 'revenue', 'credit', true, false, NULL, '2026-11-27 18:00:00+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000031', '01900000-0000-7000-8000-000000000001', '6300', 'Bad debt', 'expense', 'debit', true, false, NULL, '2026-11-27 18:00:00+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000032', '01900000-0000-7000-8000-000000000001', '4240', 'Bad debt recovered', 'revenue', 'credit', true, false, NULL, '2026-11-27 18:00:00+00');
 
 INSERT INTO public.book_journal_counters (book_id, last_no) VALUES ('01900000-0000-7000-8000-000000000001', 0);
 
@@ -10054,6 +10059,8 @@ INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_deposit_held', 
 INSERT INTO public.chart_roles (role, account_id) VALUES ('vendor_receivable', '01900000-0000-7000-8000-00000000002e');
 INSERT INTO public.chart_roles (role, account_id) VALUES ('rent_paid_in_advance', '01900000-0000-7000-8000-00000000002f');
 INSERT INTO public.chart_roles (role, account_id) VALUES ('forfeited_reservation_income', '01900000-0000-7000-8000-000000000030');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('bad_debt_expense', '01900000-0000-7000-8000-000000000031');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('bad_debt_recovered', '01900000-0000-7000-8000-000000000032');
 
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'sale');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'rent_charge');
@@ -10179,6 +10186,14 @@ INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payabl
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_paid_in_advance', 'rent_advance');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'rent_advance');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('forfeited_reservation_income', 'rent_advance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bad_debt_expense', 'rent_write_off');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'rent_write_off');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bad_debt_expense', 'clawback_write_off');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_receivable', 'clawback_write_off');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'rent_write_off_recovery');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bad_debt_recovered', 'rent_write_off_recovery');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_receivable', 'clawback_write_off_recovery');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('bad_debt_recovered', 'clawback_write_off_recovery');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'rent_advance');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'rent_advance');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'rent_advance');
@@ -10249,6 +10264,10 @@ INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickb
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'rent_paid_in_advance', '2160');
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'forfeited_reservation_income', '4230');
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'forfeited_reservation_income', '4230');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'bad_debt_expense', '6300');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'bad_debt_expense', '6300');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'bad_debt_recovered', '4240');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'bad_debt_recovered', '4240');
 
 INSERT INTO public.ledger_books (id, code, name, currency, currency_scale, is_default, created_at) VALUES ('01900000-0000-7000-8000-000000000001', 'mall', 'Mall', 'USD', 2, true, '2026-10-21 00:42:50.440076+00');
 
@@ -17891,3 +17910,485 @@ CREATE VIEW public.held_pieces AS
 GRANT SELECT ON TABLE public.held_pieces TO stall_poster;
 
 GRANT SELECT ON TABLE public.held_pieces TO stall_backup;
+
+-- >>> vendor balances, phase 2: bad debt write-off and recovery (D4-D9)
+-- A vendor's unpaid rent or returns become a loss only through the owner, with
+-- a reason, after the store has applied what it owes them, once every debt is
+-- old enough. It writes off exactly what is open. If they pay later, the owner
+-- takes back up to what that write-off took, and the payment posts as usual.
+
+ALTER TABLE public.mall
+    ADD COLUMN write_off_wait_days integer DEFAULT 90 NOT NULL,
+    ADD COLUMN deposit_covers_rent boolean DEFAULT false NOT NULL,
+    ADD CONSTRAINT mall_write_off_wait_days_chk CHECK (((write_off_wait_days >= 0) AND (write_off_wait_days <= 3650)));
+
+-- Who wrote off or took back, and why. Written only by stall_write_off and
+-- stall_write_off_recover, in the journal's own transaction.
+CREATE TABLE public.bad_debt_events (
+    journal_id uuid NOT NULL,
+    vendor_id uuid NOT NULL,
+    kind text NOT NULL,
+    written_off_journal uuid,
+    reason text NOT NULL,
+    owner_account uuid NOT NULL,
+    owner_username text NOT NULL,
+    recorded_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    written_xid xid8 DEFAULT pg_current_xact_id() NOT NULL,
+    CONSTRAINT bad_debt_events_kind_chk CHECK (((kind = 'write_off'::text AND written_off_journal IS NULL) OR (kind = 'recovery'::text AND written_off_journal IS NOT NULL))),
+    CONSTRAINT bad_debt_events_reason_chk CHECK (((reason = btrim(reason)) AND (reason <> ''::text) AND (char_length(reason) <= 500)))
+);
+
+ALTER TABLE ONLY public.bad_debt_events
+    ADD CONSTRAINT bad_debt_events_pkey PRIMARY KEY (journal_id);
+
+ALTER TABLE ONLY public.bad_debt_events
+    ADD CONSTRAINT bad_debt_events_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.journals(id);
+
+ALTER TABLE ONLY public.bad_debt_events
+    ADD CONSTRAINT bad_debt_events_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
+
+ALTER TABLE ONLY public.bad_debt_events
+    ADD CONSTRAINT bad_debt_events_written_off_journal_fkey FOREIGN KEY (written_off_journal) REFERENCES public.journals(id);
+
+CREATE INDEX bad_debt_events_vendor_idx ON public.bad_debt_events USING btree (vendor_id, recorded_at);
+
+CREATE FUNCTION public.stall_reject_bad_debt_rewrite() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'a write-off record is history and cannot change'
+        USING ERRCODE = '23514';
+END;
+$$;
+
+CREATE TRIGGER bad_debt_events_append_only_sealed BEFORE UPDATE OR DELETE ON public.bad_debt_events FOR EACH ROW EXECUTE FUNCTION public.stall_reject_bad_debt_rewrite();
+
+ALTER TABLE public.bad_debt_events ENABLE ALWAYS TRIGGER bad_debt_events_append_only_sealed;
+
+CREATE TRIGGER bad_debt_events_no_truncate BEFORE TRUNCATE ON public.bad_debt_events FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.bad_debt_events ENABLE ALWAYS TRIGGER bad_debt_events_no_truncate;
+
+-- What a vendor owes the store, debt by debt: each stay's open rent (with its
+-- late fees and extras) and the open returns. A debt is past due from the due
+-- date of its newest live charge (oldest charges are paid first, so while any
+-- of it is open, the newest charge is); it can be written off
+-- write_off_wait_days after that.
+CREATE FUNCTION public.stall_vendor_debts(target uuid, today date)
+RETURNS TABLE(kind text, ref uuid, booth text, open_minor bigint, since date, eligible_on date)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT 'rent'::text,
+           stay.id,
+           booth.code,
+           public.stall_assignment_open_rent(stay.id),
+           moves.since,
+           moves.since + mall.write_off_wait_days
+    FROM public.booth_assignments AS stay
+    JOIN public.booths AS booth ON booth.id = stay.booth_id
+    CROSS JOIN public.mall
+    CROSS JOIN LATERAL (
+        -- Rent and late fees are due on their period's first day; anything
+        -- else (an extra, money taken back after a write-off) on its own date.
+        SELECT max(CASE WHEN move.source_type IN ('rent_charge', 'late_fee')
+                        THEN public.stall_rent_move_period(move.source_type, move.posting_key, move.posting_date)
+                        ELSE move.posting_date END) AS since
+        FROM public.stall_vendor_rent_moves(target) AS move
+        WHERE move.assignment_id = stay.id
+          AND move.debit_minor > 0
+          AND NOT move.undone
+    ) AS moves
+    WHERE stay.vendor_id = target
+      AND public.stall_assignment_open_rent(stay.id) > 0
+    UNION ALL
+    SELECT 'clawback'::text,
+           target,
+           NULL::text,
+           public.stall_vendor_open_clawback(target),
+           (
+               SELECT max(posted.posting_date)
+               FROM public.journal_lines AS line
+               JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'vendor_receivable'
+               JOIN public.journals AS posted ON posted.id = line.journal_id
+               WHERE line.subledger_type = 'vendor'
+                 AND line.subledger_ref = target::text
+                 AND line.debit_minor > 0
+                 AND NOT posted.is_reversal
+                 AND NOT EXISTS (SELECT 1 FROM public.journals AS reversal WHERE reversal.reverses_journal_id = posted.id)
+           ),
+           NULL::date
+    FROM public.mall
+    WHERE public.stall_vendor_open_clawback(target) > 0
+$$;
+
+-- The signed-in owner of this store, as platform.owners knows them.
+CREATE FUNCTION public.stall_refuse_unless_owner(owner_account uuid, owner_username text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    mall_schema text;
+BEGIN
+    SELECT namespace.nspname INTO mall_schema
+    FROM pg_catalog.pg_class AS relation
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+    WHERE relation.oid = 'public.mall'::regclass;
+    IF owner_account IS NULL OR owner_username IS NULL OR NOT EXISTS (
+        SELECT 1
+        FROM platform.owners AS owners
+        JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
+        WHERE owners.id = owner_account
+          AND owners.username = owner_username
+          AND tenants.schema_name = mall_schema
+    ) THEN
+        RAISE EXCEPTION 'Only the owner can do that.'
+            USING ERRCODE = '42501';
+    END IF;
+END;
+$$;
+
+-- D4. Writes off every debt the vendor owes, each in full, as bad debt. Owner
+-- only, with a reason, after the store has applied what it owes them, once
+-- every debt is old enough. Returns how many journals it posted.
+CREATE FUNCTION public.stall_write_off(target_vendor uuid, reason text, owner_account uuid, owner_username text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    today date;
+    said text := btrim(COALESCE(reason, ''));
+    seller text;
+    owed_them bigint;
+    deposit bigint;
+    debt record;
+    last_eligible date;
+    ordinal bigint;
+    posted uuid;
+    done integer := 0;
+BEGIN
+    PERFORM public.stall_refuse_unless_owner(owner_account, owner_username);
+    IF said = '' THEN
+        RAISE EXCEPTION 'Say why it is written off.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF char_length(said) > 500 THEN
+        RAISE EXCEPTION 'Keep the reason to 500 letters or fewer.'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT name INTO seller FROM public.vendors WHERE id = target_vendor;
+    IF seller IS NULL THEN
+        RAISE EXCEPTION 'That vendor was not found.'
+            USING ERRCODE = '23514';
+    END IF;
+    -- Exclusive: no sale, payment or Make inactive for this vendor meanwhile.
+    PERFORM pg_advisory_xact_lock(87401, hashtext(target_vendor::text));
+    today := (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall);
+
+    owed_them := public.stall_vendor_open_payable(target_vendor);
+    IF owed_them > 0 THEN
+        RAISE EXCEPTION 'The store owes % %. Apply that first.', seller, public.stall_money_text(owed_them)
+            USING ERRCODE = '23514';
+    END IF;
+    deposit := public.stall_vendor_deposit_held(target_vendor);
+    IF deposit > 0 AND (SELECT booth_deposits_enabled AND deposit_covers_rent FROM public.mall) THEN
+        RAISE EXCEPTION 'The store holds a % booth deposit for %. Apply it to the rent first.', public.stall_money_text(deposit), seller
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM public.stall_vendor_debts(target_vendor, today)) THEN
+        RAISE EXCEPTION '% owes nothing to write off.', seller
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT max(listed.eligible_on) INTO last_eligible
+    FROM public.stall_vendor_debts(target_vendor, today) AS listed;
+    IF last_eligible > today THEN
+        RAISE EXCEPTION '%''s debts can be written off from %.', seller, to_char(last_eligible, 'MM-DD-YYYY')
+            USING ERRCODE = '23514';
+    END IF;
+
+    FOR debt IN SELECT * FROM public.stall_vendor_debts(target_vendor, today) ORDER BY kind DESC, booth LOOP
+        SELECT count(*) INTO ordinal
+        FROM public.journals AS earlier
+        WHERE earlier.source_type = debt.kind || '_write_off'
+          AND earlier.source_reference = debt.ref::text
+          AND NOT earlier.is_reversal;
+        IF debt.kind = 'rent' THEN
+            posted := public.stall_post_lines(
+                'rent_write_off:' || debt.ref::text || ':' || ordinal, today, 'rent_write_off', debt.ref::text,
+                'Written off: ' || said,
+                jsonb_build_array(
+                    public.stall_line('bad_debt_expense', debt.open_minor, 0),
+                    public.stall_line('booth_rent_receivable', 0, debt.open_minor, 'assignment', debt.ref::text)
+                )
+            );
+        ELSE
+            posted := public.stall_post_lines(
+                'clawback_write_off:' || debt.ref::text || ':' || ordinal, today, 'clawback_write_off', debt.ref::text,
+                'Written off: ' || said,
+                jsonb_build_array(
+                    public.stall_line('bad_debt_expense', debt.open_minor, 0),
+                    public.stall_line('vendor_receivable', 0, debt.open_minor, 'vendor', debt.ref::text)
+                )
+            );
+        END IF;
+        INSERT INTO public.bad_debt_events (journal_id, vendor_id, kind, reason, owner_account, owner_username)
+        VALUES (posted, target_vendor, 'write_off', said, owner_account, owner_username);
+        done := done + 1;
+    END LOOP;
+    RETURN done;
+END;
+$$;
+
+-- D5. The vendor pays after a write-off: the owner takes back up to what that
+-- write-off took, less what was already taken back, dated today. The payment
+-- then posts as an ordinary rent payment or returns repayment.
+CREATE FUNCTION public.stall_write_off_recover(written_off uuid, amount_minor bigint, owner_account uuid, owner_username text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    today date;
+    original record;
+    seller uuid;
+    took bigint;
+    back bigint;
+    ordinal bigint;
+    posted uuid;
+BEGIN
+    PERFORM public.stall_refuse_unless_owner(owner_account, owner_username);
+    SELECT posted_journal.id, posted_journal.source_type, posted_journal.source_reference, event.vendor_id
+    INTO original
+    FROM public.journals AS posted_journal
+    JOIN public.bad_debt_events AS event ON event.journal_id = posted_journal.id AND event.kind = 'write_off'
+    WHERE posted_journal.id = written_off;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'That write-off was not found.'
+            USING ERRCODE = '23514';
+    END IF;
+    seller := original.vendor_id;
+    PERFORM pg_advisory_xact_lock(87401, hashtext(seller::text));
+    today := (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall);
+
+    SELECT COALESCE(sum(line.debit_minor), 0) INTO took
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'bad_debt_expense'
+    WHERE line.journal_id = written_off;
+    SELECT COALESCE(sum(line.credit_minor), 0) INTO back
+    FROM public.bad_debt_events AS event
+    JOIN public.journal_lines AS line ON line.journal_id = event.journal_id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'bad_debt_recovered'
+    WHERE event.written_off_journal = written_off;
+    IF amount_minor IS NULL OR amount_minor < 1 THEN
+        RAISE EXCEPTION 'Enter the amount they paid.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF amount_minor > took - back THEN
+        RAISE EXCEPTION 'You can take back up to % for this write-off.', public.stall_money_text(took - back)
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT count(*) INTO ordinal
+    FROM public.bad_debt_events AS event
+    WHERE event.written_off_journal = written_off;
+    IF original.source_type = 'rent_write_off' THEN
+        posted := public.stall_post_lines(
+            'rent_write_off_recovery:' || written_off::text || ':' || ordinal, today, 'rent_write_off_recovery', original.source_reference,
+            'Taken back after a write-off',
+            jsonb_build_array(
+                public.stall_line('booth_rent_receivable', amount_minor, 0, 'assignment', original.source_reference),
+                public.stall_line('bad_debt_recovered', 0, amount_minor)
+            )
+        );
+    ELSE
+        posted := public.stall_post_lines(
+            'clawback_write_off_recovery:' || written_off::text || ':' || ordinal, today, 'clawback_write_off_recovery', original.source_reference,
+            'Taken back after a write-off',
+            jsonb_build_array(
+                public.stall_line('vendor_receivable', amount_minor, 0, 'vendor', original.source_reference),
+                public.stall_line('bad_debt_recovered', 0, amount_minor)
+            )
+        );
+    END IF;
+    INSERT INTO public.bad_debt_events (journal_id, vendor_id, kind, written_off_journal, reason, owner_account, owner_username)
+    VALUES (posted, seller, 'recovery', written_off, 'Paid after the write-off', owner_account, owner_username);
+    RETURN posted;
+END;
+$$;
+
+-- The four journal kinds have one shape each, come only from the two
+-- functions above (their event row is written in the same transaction), and
+-- are never voided: a recovery is the only way back.
+CREATE FUNCTION public.stall_assert_bad_debt() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    event record;
+    parts text[];
+    receivable text;
+    kind text;
+    total bigint;
+    shaped integer;
+    line_count integer;
+    took bigint;
+    back bigint;
+BEGIN
+    IF NEW.source_type NOT IN ('rent_write_off', 'clawback_write_off', 'rent_write_off_recovery', 'clawback_write_off_recovery') THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.is_reversal THEN
+        RAISE EXCEPTION 'a write-off is not voided; take the money back instead'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT * INTO event FROM public.bad_debt_events WHERE journal_id = NEW.id;
+    IF NOT FOUND OR event.written_xid <> pg_current_xact_id() THEN
+        RAISE EXCEPTION 'a write-off posts only through the owner''s write-off'
+            USING ERRCODE = '23514';
+    END IF;
+    receivable := CASE WHEN NEW.source_type LIKE 'rent_%' THEN 'booth_rent_receivable' ELSE 'vendor_receivable' END;
+    kind := CASE WHEN NEW.source_type LIKE 'rent_%' THEN 'assignment' ELSE 'vendor' END;
+    parts := string_to_array(NEW.posting_key, ':');
+    SELECT count(*) INTO line_count FROM public.journal_lines WHERE journal_id = NEW.id;
+    IF NEW.source_type LIKE '%_recovery' THEN
+        IF event.kind <> 'recovery' OR cardinality(parts) <> 3 OR parts[1] <> NEW.source_type
+           OR parts[2] <> event.written_off_journal::text
+           OR parts[3] <> (SELECT count(*)::text FROM public.bad_debt_events AS earlier
+                           WHERE earlier.written_off_journal = event.written_off_journal AND earlier.journal_id <> NEW.id
+                             AND earlier.recorded_at < event.recorded_at) THEN
+            RAISE EXCEPTION 'a recovery posting key names its write-off and count'
+                USING ERRCODE = '23514';
+        END IF;
+        total := NEW.debit_total_minor;
+        SELECT count(*) INTO shaped
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id
+        WHERE line.journal_id = NEW.id
+          AND ((role.role = receivable AND line.debit_minor = total AND line.credit_minor = 0
+                AND line.subledger_type = kind AND line.subledger_ref = NEW.source_reference)
+               OR (role.role = 'bad_debt_recovered' AND line.credit_minor = total AND line.debit_minor = 0 AND line.subledger_type IS NULL));
+        SELECT COALESCE(sum(line.debit_minor), 0) INTO took
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'bad_debt_expense'
+        JOIN public.journals AS original ON original.id = line.journal_id
+        WHERE line.journal_id = event.written_off_journal
+          AND original.source_reference = NEW.source_reference
+          AND original.source_type || '_recovery' = NEW.source_type;
+        SELECT COALESCE(sum(line.credit_minor), 0) INTO back
+        FROM public.bad_debt_events AS earlier
+        JOIN public.journal_lines AS line ON line.journal_id = earlier.journal_id
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'bad_debt_recovered'
+        WHERE earlier.written_off_journal = event.written_off_journal;
+        IF line_count <> 2 OR shaped <> 2 OR total < 1 OR back > took THEN
+            RAISE EXCEPTION 'a recovery takes back no more than its write-off took'
+                USING ERRCODE = '23514';
+        END IF;
+        RETURN NULL;
+    END IF;
+    IF event.kind <> 'write_off' OR cardinality(parts) <> 3 OR parts[1] <> NEW.source_type
+       OR parts[2] <> NEW.source_reference
+       OR parts[3] <> (SELECT count(*)::text FROM public.journals AS earlier
+                       WHERE earlier.source_type = NEW.source_type AND earlier.source_reference = NEW.source_reference
+                         AND NOT earlier.is_reversal AND earlier.id <> NEW.id AND earlier.journal_no < NEW.journal_no) THEN
+        RAISE EXCEPTION 'a write-off posting key names its debt and count'
+            USING ERRCODE = '23514';
+    END IF;
+    total := NEW.debit_total_minor;
+    SELECT count(*) INTO shaped
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id
+      AND ((role.role = 'bad_debt_expense' AND line.debit_minor = total AND line.credit_minor = 0 AND line.subledger_type IS NULL)
+           OR (role.role = receivable AND line.credit_minor = total AND line.debit_minor = 0
+               AND line.subledger_type = kind AND line.subledger_ref = NEW.source_reference));
+    IF line_count <> 2 OR shaped <> 2 OR total < 1 THEN
+        RAISE EXCEPTION 'a write-off debits bad debt and credits that one receivable'
+            USING ERRCODE = '23514';
+    END IF;
+    IF (CASE WHEN kind = 'assignment' THEN public.stall_assignment_open_rent(NEW.source_reference::uuid)
+             ELSE public.stall_vendor_open_clawback(NEW.source_reference::uuid) END) <> 0 THEN
+        RAISE EXCEPTION 'a write-off takes exactly what is open'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER journals_bad_debt_sealed AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_bad_debt();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_bad_debt_sealed;
+
+-- D7. Each write-off for a vendor, with what was taken back so far.
+CREATE FUNCTION public.stall_vendor_write_offs(target uuid)
+RETURNS TABLE(journal_id uuid, posting_date date, kind text, booth text, amount_minor bigint, recovered_minor bigint, reason text, who text, said text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT listed.journal_id, listed.posting_date, listed.kind, listed.booth, listed.amount_minor,
+           listed.recovered_minor, listed.reason, listed.who,
+           'Written off ' || public.stall_money_text(listed.amount_minor) || ' on '
+               || to_char(listed.posting_date, 'Mon FMDD, YYYY') || ': ' || listed.reason
+               || CASE WHEN listed.reason ~ '[.!?]$' THEN '' ELSE '.' END
+               || CASE WHEN listed.recovered_minor > 0
+                       THEN ' Taken back so far: ' || public.stall_money_text(listed.recovered_minor) || '.'
+                       ELSE '' END
+    FROM (
+    SELECT posted.id,
+           posted.posting_date,
+           CASE posted.source_type WHEN 'rent_write_off' THEN 'rent' ELSE 'clawback' END,
+           booth.code,
+           posted.debit_total_minor,
+           COALESCE((
+               SELECT sum(back.debit_total_minor)::bigint
+               FROM public.bad_debt_events AS recovery
+               JOIN public.journals AS back ON back.id = recovery.journal_id
+               WHERE recovery.written_off_journal = posted.id
+           ), 0),
+           event.reason,
+           event.owner_username,
+           posted.journal_no
+    FROM public.bad_debt_events AS event
+    JOIN public.journals AS posted ON posted.id = event.journal_id
+    LEFT JOIN public.booth_assignments AS stay ON posted.source_type = 'rent_write_off' AND stay.id::text = posted.source_reference
+    LEFT JOIN public.booths AS booth ON booth.id = stay.booth_id
+    WHERE event.vendor_id = target
+      AND event.kind = 'write_off'
+    ) AS listed (journal_id, posting_date, kind, booth, amount_minor, recovered_minor, reason, who, journal_no)
+    ORDER BY listed.posting_date, listed.journal_no
+$$;
+
+-- D9. The Bad debts report: every write-off in the range, with who, why, and
+-- what has been taken back since.
+CREATE FUNCTION public.stall_bad_debts(from_date date, to_date date)
+RETURNS TABLE(journal_id uuid, posting_date date, vendor_id uuid, vendor text, booth text, kind text, amount_minor bigint, recovered_minor bigint, reason text, who text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT listed.journal_id, listed.posting_date, vendor.id, vendor.name, listed.booth, listed.kind,
+           listed.amount_minor, listed.recovered_minor, listed.reason, listed.who
+    FROM public.vendors AS vendor
+    CROSS JOIN LATERAL public.stall_vendor_write_offs(vendor.id) AS listed
+    WHERE listed.posting_date BETWEEN from_date AND to_date
+    ORDER BY listed.posting_date, vendor.name, listed.booth NULLS LAST
+$$;
+
+GRANT SELECT ON TABLE public.bad_debt_events TO stall_poster;
+
+GRANT SELECT ON TABLE public.bad_debt_events TO stall_backup;
+
+REVOKE ALL ON FUNCTION public.stall_vendor_debts(uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_debts(uuid, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_debts(uuid, date) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_refuse_unless_owner(uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_write_off(uuid, text, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_write_off(uuid, text, uuid, text) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_write_off_recover(uuid, bigint, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_write_off_recover(uuid, bigint, uuid, text) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_assert_bad_debt() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_reject_bad_debt_rewrite() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_vendor_write_offs(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_write_offs(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_write_offs(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_bad_debts(date, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_bad_debts(date, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_bad_debts(date, date) TO stall_backup;

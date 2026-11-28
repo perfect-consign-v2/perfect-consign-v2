@@ -73,6 +73,8 @@ final class ActivityPhrase
         'tax.save' => 'Saved sales tax',
         'vendor.create' => 'Added a vendor',
         'vendor.edit' => 'Changed a vendor',
+        'vendor.write_off' => 'Wrote off what a vendor owes',
+        'vendor.write_off_recover' => 'Took back money written off',
         'vendor_memo.record' => 'Recorded a vendor memo',
         'year.close' => 'Closed the year',
     ];

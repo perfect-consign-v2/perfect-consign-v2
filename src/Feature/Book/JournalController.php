@@ -25,6 +25,10 @@ final class JournalController
         'cash_disbursement',
         'safe_disbursement',
         'settlement',
+        'rent_write_off',
+        'clawback_write_off',
+        'rent_write_off_recovery',
+        'clawback_write_off_recovery',
     ];
 
     public function __construct(

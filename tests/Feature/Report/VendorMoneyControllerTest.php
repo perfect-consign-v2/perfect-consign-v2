@@ -47,11 +47,25 @@ final class VendorMoneyControllerTest extends TestCase
             $this->controller('vendor-register', [])->register(MallDoor::SLUG);
         });
         self::assertStringContainsString('Choose a vendor to see their register.', $empty);
+
+        $badDebts = $this->capture(function (): void {
+            $this->controller('bad-debts.csv', ['range' => 'this_month'])->badDebtsCsv(MallDoor::SLUG);
+        });
+        self::assertStringStartsWith('Date,Vendor,Booth,What,Amount,"Taken back",Reason,Who', $badDebts);
+        $badDebtDates = $this->capture(function (): void {
+            $this->controller('bad-debts.csv', ['range' => 'this_month', 'from' => '2026-01-01'])->badDebtsCsv(MallDoor::SLUG);
+        });
+        self::assertStringContainsString('Choose a range or two dates.', $badDebtDates);
+        self::assertStringNotContainsString('"Taken back"', $badDebtDates);
+        $badDebtPage = $this->capture(function (): void {
+            $this->controller('bad-debts', ['range' => 'last_month'])->badDebts(MallDoor::SLUG);
+        });
+        self::assertStringContainsString('Nothing was written off in these dates.', $badDebtPage);
     }
 
     public function testACashierCannotOpenThem(): void
     {
-        foreach (['register', 'registerCsv', 'payments', 'paymentsCsv'] as $page) {
+        foreach (['register', 'registerCsv', 'payments', 'paymentsCsv', 'badDebts', 'badDebtsCsv'] as $page) {
             $door = MallDoor::open($this, new Request('GET', '/' . MallDoor::SLUG . '/reports/' . $page, [], []));
             $door->session->set('actor_role', 'cashier');
             $controller = new VendorMoneyController($door->app, $door->actor, $door->mall, new VendorMoney($door->statements));
@@ -60,6 +74,8 @@ final class VendorMoneyControllerTest extends TestCase
                     'register' => $controller->register(MallDoor::SLUG),
                     'registerCsv' => $controller->registerCsv(MallDoor::SLUG),
                     'payments' => $controller->payments(MallDoor::SLUG),
+                    'badDebts' => $controller->badDebts(MallDoor::SLUG),
+                    'badDebtsCsv' => $controller->badDebtsCsv(MallDoor::SLUG),
                     default => $controller->paymentsCsv(MallDoor::SLUG),
                 };
             });

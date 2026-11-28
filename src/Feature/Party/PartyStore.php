@@ -165,7 +165,10 @@ class PartyStore
                     mailing.state AS mailing_state, mailing.postal AS mailing_postal,
                     vendor.commission_bps, vendor.agreement_starts_on, vendor.agreement_ends_on, vendor.tax_id, vendor.notes,
                     vendor.tax_exempt, vendor.tax_exempt_number, vendor.payout_mode,
-                    vendor.discount_by, vendor.keep_days, vendor.expiry_action, vendor.email_bounced
+                    vendor.discount_by, vendor.keep_days, vendor.expiry_action, vendor.email_bounced,
+                    (SELECT string_agg(written.said, ' ' ORDER BY written.posting_date)
+                     FROM stall_vendor_write_offs(vendor.id) AS written
+                     WHERE written.amount_minor > written.recovered_minor) AS write_off_warning
              FROM vendors AS vendor
              JOIN persons AS person ON person.party_id = vendor.party_id
              LEFT JOIN party_addresses AS physical

@@ -126,6 +126,39 @@ final class VendorMoney
     }
 
     /**
+     * D9: every write-off in the range, with who, why, and what was taken back since.
+     *
+     * @return list<array{journal_id: string, date: string, vendor_id: string, vendor: string, booth: string, kind: string, amount: int, recovered: int, reason: string, who: string}>
+     */
+    public function badDebts(string $from, string $to): array
+    {
+        $listed = [];
+        foreach (
+            $this->statements->bound(
+                "SELECT journal_id::text AS journal_id, posting_date::text AS posting_date, vendor_id::text AS vendor_id, vendor,
+                        COALESCE(booth, '') AS booth, kind, amount_minor, recovered_minor, reason, who
+                 FROM stall_bad_debts(?::date, ?::date)",
+                [$from, $to]
+            ) as $row
+        ) {
+            $listed[] = [
+                'journal_id' => RowValue::string($row['journal_id'] ?? null),
+                'date' => RowValue::string($row['posting_date'] ?? null),
+                'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
+                'vendor' => RowValue::string($row['vendor'] ?? null),
+                'booth' => RowValue::string($row['booth'] ?? null),
+                'kind' => RowValue::string($row['kind'] ?? null),
+                'amount' => RowValue::integer($row['amount_minor'] ?? null),
+                'recovered' => RowValue::integer($row['recovered_minor'] ?? null),
+                'reason' => RowValue::string($row['reason'] ?? null),
+                'who' => RowValue::string($row['who'] ?? null),
+            ];
+        }
+
+        return $listed;
+    }
+
+    /**
      * Every vendor, those who have left marked so, for the vendor choice.
      *
      * @return list<array{id: string, label: string}>

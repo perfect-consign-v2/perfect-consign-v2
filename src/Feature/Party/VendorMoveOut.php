@@ -59,6 +59,59 @@ final class VendorMoveOut
     }
 
     /**
+     * What the vendor owes the store, debt by debt, and when each can be written off.
+     *
+     * @return list<array{kind: string, booth: string, open: int, since: string, eligible_on: string}>
+     */
+    public function debts(string $vendorId, string $today): array
+    {
+        $listed = [];
+        foreach (
+            $this->statements->bound(
+                "SELECT kind, COALESCE(booth, '') AS booth, open_minor, since::text AS since, COALESCE(eligible_on::text, '') AS eligible_on
+                 FROM stall_vendor_debts(?::uuid, ?::date)
+                 ORDER BY kind DESC, booth",
+                [$vendorId, $today]
+            ) as $row
+        ) {
+            $listed[] = [
+                'kind' => RowValue::string($row['kind'] ?? null),
+                'booth' => RowValue::string($row['booth'] ?? null),
+                'open' => RowValue::integer($row['open_minor'] ?? null),
+                'since' => RowValue::string($row['since'] ?? null),
+                'eligible_on' => RowValue::string($row['eligible_on'] ?? null),
+            ];
+        }
+
+        return $listed;
+    }
+
+    /**
+     * Each write-off for the vendor, in plain words, with what is left to take back.
+     *
+     * @return list<array{journal_id: string, said: string, left: int}>
+     */
+    public function writeOffs(string $vendorId): array
+    {
+        $listed = [];
+        foreach (
+            $this->statements->bound(
+                'SELECT journal_id::text AS journal_id, said, amount_minor - recovered_minor AS left_minor
+                 FROM stall_vendor_write_offs(?::uuid)',
+                [$vendorId]
+            ) as $row
+        ) {
+            $listed[] = [
+                'journal_id' => RowValue::string($row['journal_id'] ?? null),
+                'said' => RowValue::string($row['said'] ?? null),
+                'left' => RowValue::integer($row['left_minor'] ?? null),
+            ];
+        }
+
+        return $listed;
+    }
+
+    /**
      * @return list<array{code: string, said: string}>
      */
     public function history(string $vendorId): array

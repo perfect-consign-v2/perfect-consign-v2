@@ -38,13 +38,6 @@ $settingsPart = is_string($settingsPart ?? null) ? $settingsPart : 'money';
 if (!in_array($settingsPart, ['money', 'building', 'receipt', 'backup'], true)) {
     $settingsPart = 'money';
 }
-$settingsTabs = [
-    'money' => 'Money',
-    'building' => 'Building',
-    'receipt' => 'Receipt',
-    'backup' => 'Backup',
-    'counts' => 'Item counts',
-];
 ?>
 <div class="page-head">
     <div class="titles">
@@ -54,14 +47,7 @@ $settingsTabs = [
             : 'The mall clock, the default booth size, the floor the map draws, the store take, the sales tax rate, the stickers, how long items stay out, the receipt footer, and a copy of the mall.' ?></p>
     </div>
 </div>
-<div class="list-show mt-4">
-    <div class="segmented" role="navigation" aria-label="Settings">
-        <?php foreach ($settingsTabs as $tab => $label): ?>
-            <?php $selected = $settingsPart === $tab; ?>
-            <a class="seg-btn<?= $selected ? ' is-selected' : '' ?>" href="/<?= View::text($slug) ?>/settings/<?= View::text($tab) ?>"<?= $selected ? ' aria-current="page"' : '' ?>><?= View::text($label) ?></a>
-        <?php endforeach; ?>
-    </div>
-</div>
+<?php require __DIR__ . '/settings-tabs.php'; ?>
 
 <?php if ($settingsPart === 'backup'): ?>
 <div class="card mt-6">

@@ -1,15 +1,15 @@
 ---
 title: Chart roles in plain English
 category: Money spine
-hesk: published 2026-11-20
-as_of: 2026-10-25
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Chart roles in plain English
 
 ## As of
 
-2026-10-25
+2026-11-27 — New roles: rent paid in advance, forfeited booth reservations, bad debt, and bad debt recovered. 2026-10-25
 
 ## In one sentence
 
@@ -28,7 +28,11 @@ Typical seeded roles:
 - **Sales-tax payable** — tax collected; payments reduce it; cannot go below zero.
 - **Vendor payable (control)** — what the mall owes consignors; subledger = vendor.
 - **Vendor receivable (control)** — what a consignor owes the mall after return/void when payable was already paid; subledger = vendor.
-- **Booth rent receivable (control)** — rent owed by booths; subledger = booth.
+- **Booth rent receivable (control)** — rent, late fees and extras owed on a stay; subledger = the stay.
+- **Rent paid in advance (2160)** — first rent paid for a booth that starts in a later period; held until that period arrives; subledger = the stay.
+- **Forfeited booth reservations (4230)** — money paid ahead that the store kept when the owner cancelled a reservation.
+- **Bad debt (6300)** — rent or returns the owner wrote off as a loss. Its own line, never netted into rent or sales.
+- **Bad debt recovered (4240)** — money taken back after a write-off, when the vendor paid later.
 - **Rent revenue** — credit side of a rent charge.
 - **Retained earnings** — year-end close target.
 - **Operating expense** — adjustments on non-control accounts.

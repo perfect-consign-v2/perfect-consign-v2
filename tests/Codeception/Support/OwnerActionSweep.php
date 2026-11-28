@@ -102,6 +102,7 @@ final class OwnerActionSweep
         $this->boothsAndRent();
         $this->inventory();
         $this->countsAndCloseOut();
+        $this->badDebts();
         $this->registerDesk();
         $this->books();
         $this->storefront();
@@ -1385,6 +1386,41 @@ final class OwnerActionSweep
         $this->http->post('/inventory/' . $vase . '/hold', [], ['Held for Cleo']);
         $this->http->post($base . '/picked-up', ['item_id' => $vase], ['Pickup saved.']);
         $this->http->post('/settings/counts/wait', ['abandon_wait_days' => ''], ['Saved.']);
+    }
+
+    /**
+     * Settings → Bad debts, then a vendor who left owing July: write it off,
+     * take some back, and the Bad debts report and its download.
+     */
+    private function badDebts(): void
+    {
+        $this->http->get('/settings/bad-debts', ['Days past due before a debt can be written off']);
+        $this->http->post('/settings/bad-debts', ['write_off_wait_days' => '90'], ['Saved.']);
+        $tag = $this->tag();
+        $created = $this->http->post('/vendors', ['code' => 'd' . $tag, 'first_name' => 'Dora', 'last_name' => $tag, 'store_take' => '50'], ['Vendor created.', 'Consignor created.']);
+        $debtor = $this->http->id($created->body, '#/(?:vendors|consignors)/([0-9a-fA-F-]{36})/edit#', 'debtor');
+        $booth = 'd' . $tag;
+        $this->http->post('/booths', ['code' => $booth, 'name' => $booth, 'amount' => '30.00'], ['Booth created.']);
+        $boothId = $this->safeId($this->http->get('/booths', [$booth])->body, 'tr', 'booth', $booth, 'bad debt booth');
+        if ($debtor === '' || $boothId === '') {
+            return;
+        }
+        ProbeMall::plantStay($boothId, $debtor, '2026-06-01', '2026-07-31', 3000);
+        $july = $this->http->get('/rent?month=2026-07', [$booth]);
+        $pattern = '/data-charge-stay="([0-9a-f-]{36})"\s+data-charge-period="(\d{4}-\d{2}-\d{2})"[^>]*data-charge-code="'
+            . preg_quote($booth, '/') . '"/';
+        if (preg_match($pattern, $july->body, $button) !== 1) {
+            $this->http->failures[] = 'the rent page had no charge button for booth ' . $booth;
+
+            return;
+        }
+        $this->http->post('/rent/charge', ['assignment_id' => $button[1], 'period_start' => $button[2]], ['Rent charged.']);
+        $this->http->get('/vendors/' . $debtor . '/write-off', ['Writing it off records it as a loss.']);
+        $written = $this->http->post('/vendors/' . $debtor . '/write-off', ['reason' => 'Moved away'], ['$30.00 written off.']);
+        $journal = $this->http->id($written->body, '#/write-offs/([0-9a-f-]{36})/recover#', 'write-off');
+        $this->http->post('/vendors/' . $debtor . '/write-offs/' . $journal . '/recover', ['amount' => '10.00'], ['$10.00 taken back.']);
+        $this->http->get('/reports/bad-debts', ['Moved away']);
+        $this->http->get('/reports/bad-debts.csv', ['Moved away']);
     }
 
     private function item(string $vendorId, string $price, string $quantity, string $expires): string

@@ -27,6 +27,7 @@ $ways = [
     'sales' => 'From sales at payout',
     'paid_ahead' => 'Paid ahead with a reservation',
     'waived' => 'Late fee waived',
+    'written_off' => 'Written off as a bad debt',
 ];
 $overall = null;
 $byWay = [];

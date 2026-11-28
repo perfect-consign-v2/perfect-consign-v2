@@ -35,6 +35,9 @@ final class RoleGate
         if ($method === 'POST' && (RolePaths::inventoryBuy($rest) || RolePaths::keepLeftBehind($rest))) {
             return false;
         }
+        if (RolePaths::writeOff($rest)) {
+            return false;
+        }
         if (self::cashier($rest, $method) || self::floor($rest)) {
             return true;
         }

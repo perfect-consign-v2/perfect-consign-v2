@@ -244,6 +244,10 @@ BEGIN
         DROP CONSTRAINT pickups_item_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.item_quantity_changes
         DROP CONSTRAINT item_quantity_changes_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bad_debt_events
+        DROP CONSTRAINT bad_debt_events_journal_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bad_debt_events
+        DROP CONSTRAINT bad_debt_events_written_off_journal_fkey;
     TRUNCATE
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_lines,
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journals;

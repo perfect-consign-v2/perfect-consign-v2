@@ -325,6 +325,10 @@ $standingBadge = $active ? 'badge-success' : 'badge-warning';
             <p class="muted text-sm"><?= $consignmentOnly
                 ? 'A consignor who is still owed cannot be made inactive. Delete is refused once this consignor has a posted line.'
                 : 'A vendor who is still owed, or who still owes rent, cannot be made inactive. Delete is refused once this vendor has a booth assignment or a posted line.' ?></p>
+            <?php $writeOffWarning = is_array($vendor) && is_string($vendor['write_off_warning'] ?? null) ? $vendor['write_off_warning'] : ''; ?>
+            <?php if (!$active && $writeOffWarning !== ''): ?>
+                <p class="alert alert-warning" role="status"><?= View::text($writeOffWarning) ?> Making them active again is allowed.</p>
+            <?php endif; ?>
             <div class="row gap-3 wrap">
                 <form method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($id) ?>/standing">
                     <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

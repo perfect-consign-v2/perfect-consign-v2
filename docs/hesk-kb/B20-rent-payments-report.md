@@ -22,7 +22,7 @@ Reports → Rent payments. Staff who read reports only.
 ## What the books / screens do
 
 - One row per stay per payment: Date · Receipt · Vendor · Booth · Months · How paid · Register · Cashier · Amount.
-- How paid: Cash, Card, Check, more than one way, From sales (at payout), or Waived (a late fee waived).
+- How paid: Cash, Card, Check, more than one way, From sales (at payout), Paid ahead (with a reservation), Waived (a late fee waived), or Written off (bad debt, by the owner).
 - Rent from sales shows "Payout of" its date in place of the register.
 - Months come from the database's rule: on each stay, payments pay the oldest charge first.
 - Filters: dates (This month, Last month), vendor, booth, how paid, and a search for name, vendor code, receipt number, or booth.

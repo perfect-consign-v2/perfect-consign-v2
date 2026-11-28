@@ -57,7 +57,9 @@ BEGIN
             ('booth_deposit_held', '2151', 'liability', 'credit', true, true, 'assignment'),
             ('vendor_receivable', '1210', 'asset', 'debit', true, true, 'vendor'),
             ('rent_paid_in_advance', '2160', 'liability', 'credit', true, true, 'assignment'),
-            ('forfeited_reservation_income', '4230', 'revenue', 'credit', true, false, NULL)
+            ('forfeited_reservation_income', '4230', 'revenue', 'credit', true, false, NULL),
+            ('bad_debt_expense', '6300', 'expense', 'debit', true, false, NULL),
+            ('bad_debt_recovered', '4240', 'revenue', 'credit', true, false, NULL)
     ) AS expected (role, code, account_type, normal_balance, is_postable, is_control, subledger_type)
         ON expected.role = roles.role
         AND expected.code = account.code
@@ -67,7 +69,7 @@ BEGIN
         AND expected.is_control = account.is_control
         AND expected.subledger_type IS NOT DISTINCT FROM account.subledger_type;
 
-    IF role_count <> 33 OR (SELECT count(*) FROM chart_roles) <> 33 THEN
+    IF role_count <> 35 OR (SELECT count(*) FROM chart_roles) <> 35 THEN
         RAISE EXCEPTION 'chart roles do not match the mall chart';
     END IF;
 END $$;
@@ -149,7 +151,7 @@ DECLARE
     role_count integer;
 BEGIN
     SELECT count(*) INTO role_count FROM chart_roles;
-    IF role_count <> 33
+    IF role_count <> 35
         OR (
             SELECT count(*)
             FROM chart_roles
