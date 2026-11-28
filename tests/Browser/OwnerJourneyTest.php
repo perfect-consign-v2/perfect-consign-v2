@@ -106,18 +106,19 @@ final class OwnerJourneyTest extends WebTestCase
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
         ]);
-        $this->session->open('/' . ProbeMall::SLUG . '/rent');
-        $book = $this->session->submit('/' . ProbeMall::SLUG . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => ProbeMall::POSTING_DATE,
-            // Hidden month on the page is "today"; override so saved() returns to the charge month.
-            'month' => ProbeMall::MONTH,
-        ]);
+        $this->session->open('/' . ProbeMall::SLUG . '/rent?month=' . ProbeMall::MONTH);
+        $listed = $this->session->revealListRows();
+        $button = '/data-charge-stay="([0-9a-f-]{36})"\s+data-charge-period="(\d{4}-\d{2}-\d{2})"[^>]*data-charge-code="'
+            . preg_quote($booth, '/') . '"/';
+        self::assertSame(1, preg_match($button, $listed, $stay), 'the rent page has no Charge button for the booth');
+        // The person presses Charge on the booth's row, then Charge in the box that opens.
+        $this->session->clickSelector('button[data-charge-code="' . $booth . '"]');
+        $book = $this->session->clickSelector('form[action="/' . ProbeMall::SLUG . '/rent/charge"] button[type="submit"]', true);
 
         self::assertSees('Charged', $book);
         $book = $this->session->revealListRows();
         self::assertSame(1, preg_match(
-            '#id="booth-' . preg_quote($boothId, '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
+            '#id="rent-' . preg_quote($stay[1] . ':' . $stay[2], '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
             $book,
             $journalId
         ));
