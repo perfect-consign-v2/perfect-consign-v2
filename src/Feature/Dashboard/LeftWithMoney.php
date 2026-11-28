@@ -30,7 +30,7 @@ final class LeftWithMoney
                  FROM vendors AS vendor
                  CROSS JOIN LATERAL stall_vendor_open_reasons(vendor.id) WITH ORDINALITY AS open(reason, sentence, ordinality)
                  WHERE NOT vendor.active
-                   AND open.reason <> 'booth'
+                   AND open.reason NOT IN ('booth', 'items', 'tickets')
                  GROUP BY vendor.id, vendor.name
                  ORDER BY vendor.name"
             ) as $row

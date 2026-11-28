@@ -1,15 +1,15 @@
 ---
 title: Vendor portal sees only one vendor
 category: Platform notes
-hesk: published 2026-11-26
-as_of: 2026-11-18
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Vendor portal sees only one vendor
 
 ## As of
 
-2026-11-18 — A deal asks for a bunch at one price, or a lower price each once they buy enough. The sticker price does not change. A vendor deal on one item is chosen from that vendor’s own items. The list matches the tag, the barcode, or the description, and shows the tag price. Another vendor’s tag is refused. The lookup stays available while inventory is off. An owner who opens sticker labels with `?as=` stays on that vendor’s item list. Since your last check is the day after the last posted check through today. A check written today leaves that list empty. The last check includes one linked on the payout when the line has no journal id. With no check yet, the list starts at the current payout window. This check is that window. A typed name that was not added stays on the form, and the Add button stays available for that name and for a different new name. 2026-11-17 — Column filters and the search box search that vendor’s whole item list. The table shows one page of matches. Building has Vendor portal (on by default), Vendor inventory (off by default), and Weekly vendor letter (off by default). Inventory applies only while the portal is on. Saving the portal off stores inventory off. The Sunday letter is filed only when Weekly vendor letter is on. A vendor adds one item at a time when inventory is on, and can search or add a brand, color, category, size, condition, or department before saving. The vendor list colors rows by days on the floor. A consignor entry link still shows a confirm page, and the session starts only when that page is submitted. Making a vendor Inactive still ends portal sessions on the next request.
+2026-11-27 — A lower Qty in the portal asks "Why are there fewer?" with the reasons vendors may use, and the item shows its count history. 2026-11-18 — A deal asks for a bunch at one price, or a lower price each once they buy enough. The sticker price does not change. A vendor deal on one item is chosen from that vendor’s own items. The list matches the tag, the barcode, or the description, and shows the tag price. Another vendor’s tag is refused. The lookup stays available while inventory is off. An owner who opens sticker labels with `?as=` stays on that vendor’s item list. Since your last check is the day after the last posted check through today. A check written today leaves that list empty. The last check includes one linked on the payout when the line has no journal id. With no check yet, the list starts at the current payout window. This check is that window. A typed name that was not added stays on the form, and the Add button stays available for that name and for a different new name. 2026-11-17 — Column filters and the search box search that vendor’s whole item list. The table shows one page of matches. Building has Vendor portal (on by default), Vendor inventory (off by default), and Weekly vendor letter (off by default). Inventory applies only while the portal is on. Saving the portal off stores inventory off. The Sunday letter is filed only when Weekly vendor letter is on. A vendor adds one item at a time when inventory is on, and can search or add a brand, color, category, size, condition, or department before saving. The vendor list colors rows by days on the floor. A consignor entry link still shows a confirm page, and the session starts only when that page is submitted. Making a vendor Inactive still ends portal sessions on the next request.
 
 ## In one sentence
 
@@ -44,7 +44,7 @@ The owner saves Building. A vendor signs in, an owner opens `?as=`, or a consign
 
 ## How to check
 
-Set vendor A; list shows only A. Clear setting or set B; A’s rows disappear. Turn the portal off; vendor sign-in, preview, and a consignor link stop, and an open session ends on the next click. Turn inventory off; the check and sales stay, and the item list is gone. On Deals, a deal for one item still finds A’s tag and shows the description and tag price; B’s tag is not in that list. Turn inventory on; add one item, print its sticker, set quantity to zero, and see the row color for its days on the floor. Mark A Inactive while a portal session is open; the next portal click returns to consignor sign-in.
+Set vendor A; list shows only A. Clear setting or set B; A’s rows disappear. Turn the portal off; vendor sign-in, preview, and a consignor link stop, and an open session ends on the next click. Turn inventory off; the check and sales stay, and the item list is gone. On Deals, a deal for one item still finds A’s tag and shows the description and tag price; B’s tag is not in that list. Turn inventory on; add one item, print its sticker, set quantity to zero (the portal asks "Why are there fewer?"; press Took it home), and see the row color for its days on the floor. Mark A Inactive while a portal session is open; the next portal click returns to consignor sign-in.
 
 ## Source
 

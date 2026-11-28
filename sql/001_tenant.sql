@@ -524,7 +524,7 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
     IF NEW.kind = 'return' THEN
-        UPDATE public.items SET quantity = 0 WHERE id = NEW.item_id;
+        PERFORM public.stall_count_item(NEW.item_id, -(SELECT quantity FROM public.items WHERE id = NEW.item_id), 'returned_to_consignor', NULL);
     ELSIF NEW.kind = 'donate' THEN
         UPDATE public.items
         SET placement = 'store', vendor_id = NULL, expires_on = NULL, commission_bps = NULL, cost_minor = NULL
@@ -654,7 +654,7 @@ END;
 $$;
 
 CREATE FUNCTION public.stall_apply_missed_sale() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
@@ -754,9 +754,7 @@ BEGIN
     END IF;
 
     IF NEW.item_id IS NOT NULL THEN
-        UPDATE public.items
-        SET quantity = quantity - 1
-        WHERE id = NEW.item_id;
+        PERFORM public.stall_count_item(NEW.item_id, -1, 'missed_sale', NEW.journal_id);
     END IF;
 
     RETURN NEW;
@@ -793,7 +791,7 @@ END;
 $$;
 
 CREATE FUNCTION public.stall_apply_store_use() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
@@ -884,16 +882,18 @@ BEGIN
     END IF;
 
     IF NEW.item_id IS NOT NULL THEN
-        UPDATE public.items AS piece
-        SET quantity = piece.quantity - 1
-        WHERE piece.id = NEW.item_id
-          AND piece.placement = ANY (ARRAY['consigned'::text, 'booth'::text])
-          AND piece.vendor_id = NEW.vendor_id
-          AND piece.cost_minor IS NULL;
-        IF NOT FOUND THEN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM public.items AS piece
+            WHERE piece.id = NEW.item_id
+              AND piece.placement = ANY (ARRAY['consigned'::text, 'booth'::text])
+              AND piece.vendor_id = NEW.vendor_id
+              AND piece.cost_minor IS NULL
+        ) THEN
             RAISE EXCEPTION 'a store use stays with the vendor'
                 USING ERRCODE = '23514';
         END IF;
+        PERFORM public.stall_count_item(NEW.item_id, -1, 'store_use', NEW.journal_id);
     END IF;
     RETURN NEW;
 END;
@@ -1272,7 +1272,7 @@ END;
 $$;
 
 CREATE FUNCTION public.stall_assert_item_return() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
@@ -1384,9 +1384,7 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
 
-        UPDATE public.items
-        SET quantity = quantity + NEW.quantity
-        WHERE id = NEW.item_id;
+        PERFORM public.stall_count_item(NEW.item_id, NEW.quantity, 'customer_return', NEW.journal_id);
 
         RETURN NEW;
     END IF;
@@ -2212,7 +2210,7 @@ END;
 $$;
 
 CREATE FUNCTION public.stall_assert_sale_shape() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
@@ -2392,9 +2390,7 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
 
-        UPDATE public.items
-        SET quantity = quantity - NEW.quantity
-        WHERE id = NEW.item_id;
+        PERFORM public.stall_count_item(NEW.item_id, -NEW.quantity, 'sold', NEW.journal_id);
 
         RETURN NEW;
     END IF;
@@ -3295,6 +3291,9 @@ DECLARE
     vendor_off bigint;
     store_off bigint;
     net bigint;
+    seller uuid;
+    locked_seller uuid;
+    seller_name text;
 BEGIN
     IF TG_OP = 'DELETE' THEN
         line_item := OLD.item_id;
@@ -3319,7 +3318,17 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT item_row.id, item_row.quantity INTO item, on_hand
+    -- The vendor's lock comes before the item row, the same order as a count
+    -- change by hand. Make inactive takes it exclusively, so a vendor never
+    -- leaves with one of their pieces going onto a sale at the same moment.
+    SELECT item_row.vendor_id INTO seller
+    FROM public.items AS item_row
+    WHERE item_row.id = line_item;
+    IF seller IS NOT NULL THEN
+        PERFORM pg_advisory_xact_lock_shared(87401, hashtext(seller::text));
+    END IF;
+
+    SELECT item_row.id, item_row.quantity, item_row.vendor_id INTO item, on_hand, locked_seller
     FROM public.items AS item_row
     WHERE item_row.id = line_item
     FOR UPDATE OF item_row;
@@ -3328,9 +3337,24 @@ BEGIN
         RAISE EXCEPTION 'a ticket line needs an item'
             USING ERRCODE = '23514';
     END IF;
+    IF locked_seller IS DISTINCT FROM seller THEN
+        RAISE EXCEPTION 'That item just changed. Try again.'
+            USING ERRCODE = '40001';
+    END IF;
 
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;
+    END IF;
+
+    IF seller IS NOT NULL THEN
+        SELECT vendor.name INTO seller_name
+        FROM public.vendors AS vendor
+        WHERE vendor.id = seller
+          AND NOT vendor.active;
+        IF FOUND THEN
+            RAISE EXCEPTION 'This piece belongs to %, who has left the store. Please set it aside and give it to the manager.', seller_name
+                USING ERRCODE = '23514';
+        END IF;
     END IF;
 
     SELECT deal.picked_offer, deal.vendor_discount, deal.store_discount
@@ -4060,7 +4084,18 @@ CREATE FUNCTION public.stall_guard_item_placement() RETURNS trigger
     AS $$
 DECLARE
     today date;
+    seller text;
 BEGIN
+    IF NEW.vendor_id IS NOT NULL AND (TG_OP = 'INSERT' OR OLD.vendor_id IS DISTINCT FROM NEW.vendor_id) THEN
+        SELECT vendor.name INTO seller
+        FROM public.vendors AS vendor
+        WHERE vendor.id = NEW.vendor_id
+          AND NOT vendor.active;
+        IF FOUND THEN
+            RAISE EXCEPTION '% has left the store. Choose another vendor.', seller
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
     IF NEW.placement = 'booth' AND NEW.expires_on IS NOT NULL THEN
         RAISE EXCEPTION 'a booth piece does not expire'
             USING ERRCODE = '23514';
@@ -4886,6 +4921,7 @@ RETURNS TABLE(reason text, sentence text)
 DECLARE
     open record;
     today date;
+    units bigint;
 BEGIN
     SELECT * INTO open FROM public.stall_vendor_balances(target);
     SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date INTO today FROM public.mall;
@@ -4927,6 +4963,25 @@ BEGIN
     ) THEN
         reason := 'booth';
         sentence := 'They still have a booth. End it first.';
+        RETURN NEXT;
+    END IF;
+    SELECT COALESCE(sum(item.quantity), 0) INTO units
+    FROM public.items AS item
+    WHERE item.vendor_id = target;
+    IF units > 0 THEN
+        reason := 'items';
+        sentence := 'They still have ' || units || CASE WHEN units = 1 THEN ' item' ELSE ' items' END || ' in the store. Close them out first.';
+        RETURN NEXT;
+    END IF;
+    SELECT COALESCE(sum(line.quantity), 0) INTO units
+    FROM public.ticket_lines AS line
+    JOIN public.tickets AS ticket ON ticket.id = line.ticket_id
+    JOIN public.items AS item ON item.id = line.item_id
+    WHERE item.vendor_id = target
+      AND ticket.status IN ('open', 'parked', 'layaway');
+    IF units > 0 THEN
+        reason := 'tickets';
+        sentence := units || CASE WHEN units = 1 THEN ' of their items is' ELSE ' of their items are' END || ' on an open, parked or layaway sale.';
         RETURN NEXT;
     END IF;
 END;
@@ -8490,7 +8545,7 @@ END;
 $$;
 
 CREATE FUNCTION public.stall_restore_missed_sale() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 BEGIN
@@ -8509,17 +8564,16 @@ BEGIN
         RAISE EXCEPTION 'a second void is refused'
             USING ERRCODE = '23514';
     END IF;
-    UPDATE public.items AS item
-    SET quantity = item.quantity + 1
+    PERFORM public.stall_count_item(missed.item_id, 1, 'missed_sale_undone', NEW.id)
     FROM public.missed_sales AS missed
     WHERE missed.journal_id = NEW.reverses_journal_id
-      AND missed.item_id = item.id;
+      AND missed.item_id IS NOT NULL;
     RETURN NEW;
 END;
 $$;
 
 CREATE FUNCTION public.stall_restore_on_hand() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
@@ -8551,17 +8605,13 @@ BEGIN
             WHERE sale.journal_id = NEW.reverses_journal_id
         LOOP
             IF units > 0 THEN
-                UPDATE public.items
-                SET quantity = quantity + units
-                WHERE id = item;
+                PERFORM public.stall_count_item(item, units, 'sale_undone', NEW.id);
             END IF;
         END LOOP;
     ELSIF NEW.source_type = 'item_return' THEN
-        UPDATE public.items AS item
-        SET quantity = item.quantity - returned.quantity
+        PERFORM public.stall_count_item(returned.item_id, -returned.quantity, 'customer_return_undone', NEW.id)
         FROM public.item_returns AS returned
-        WHERE returned.journal_id = NEW.reverses_journal_id
-          AND item.id = returned.item_id;
+        WHERE returned.journal_id = NEW.reverses_journal_id;
     END IF;
 
     RETURN NEW;
@@ -8569,7 +8619,7 @@ END;
 $$;
 
 CREATE FUNCTION public.stall_restore_store_use() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 BEGIN
@@ -8588,11 +8638,10 @@ BEGIN
         RAISE EXCEPTION 'a second void is refused'
             USING ERRCODE = '23514';
     END IF;
-    UPDATE public.items AS item
-    SET quantity = item.quantity + 1
+    PERFORM public.stall_count_item(used.item_id, 1, 'store_use_undone', NEW.id)
     FROM public.store_uses AS used
     WHERE used.journal_id = NEW.reverses_journal_id
-      AND used.item_id = item.id;
+      AND used.item_id IS NOT NULL;
     RETURN NEW;
 END;
 $$;
@@ -9362,7 +9411,7 @@ CREATE TABLE public.floor_findings (
     noted_on date NOT NULL,
     noted_by text NOT NULL,
     CONSTRAINT floor_findings_by_chk CHECK (((noted_by = btrim(noted_by)) AND (noted_by <> ''::text) AND (char_length(noted_by) <= 80))),
-    CONSTRAINT floor_findings_kind_chk CHECK ((kind = ANY (ARRAY['missing'::text, 'misplaced'::text])))
+    CONSTRAINT floor_findings_kind_chk CHECK ((kind = ANY (ARRAY['missing'::text, 'misplaced'::text, 'held'::text])))
 );
 
 CREATE TABLE public.item_buys (
@@ -9379,7 +9428,7 @@ CREATE TABLE public.item_dispositions (
     item_id uuid NOT NULL,
     kind text NOT NULL,
     posted_on date NOT NULL,
-    CONSTRAINT item_dispositions_kind_chk CHECK ((kind = ANY (ARRAY['return'::text, 'donate'::text])))
+    CONSTRAINT item_dispositions_kind_chk CHECK ((kind = ANY (ARRAY['return'::text, 'donate'::text, 'abandoned'::text])))
 );
 
 CREATE TABLE public.item_floors (
@@ -16207,7 +16256,7 @@ ALTER TABLE public.item_dispositions
     ADD CONSTRAINT item_dispositions_vendor_name_chk CHECK ((vendor_name IS NULL) OR ((vendor_name = btrim(vendor_name)) AND (vendor_name <> '') AND (char_length(vendor_name) <= 240)));
 
 CREATE OR REPLACE FUNCTION public.stall_apply_disposition() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $$
 DECLARE
@@ -16237,7 +16286,9 @@ BEGIN
     END IF;
 
     today := (SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date FROM public.mall);
-    IF piece_placement IS DISTINCT FROM 'consigned'
+    IF NEW.kind = 'abandoned' THEN
+        PERFORM public.stall_refuse_keeping_left_behind(NEW.item_id, piece_vendor, piece_vendor_name, today);
+    ELSIF piece_placement IS DISTINCT FROM 'consigned'
        OR piece_expires IS NULL
        OR piece_expires >= today THEN
         RAISE EXCEPTION 'only an expired consigned piece can leave the floor'
@@ -16251,8 +16302,8 @@ BEGIN
     NEW.quantity := piece_quantity;
 
     IF NEW.kind = 'return' THEN
-        UPDATE public.items SET quantity = 0 WHERE id = NEW.item_id;
-    ELSIF NEW.kind = 'donate' THEN
+        PERFORM public.stall_count_item(NEW.item_id, -piece_quantity, 'returned_to_consignor', NULL);
+    ELSIF NEW.kind IN ('donate', 'abandoned') THEN
         UPDATE public.items
         SET placement = 'store', vendor_id = NULL, expires_on = NULL, commission_bps = NULL, cost_minor = NULL
         WHERE id = NEW.item_id;
@@ -17289,3 +17340,554 @@ REVOKE ALL ON FUNCTION public.stall_reject_inactive_with_open_balance() FROM PUB
 REVOKE ALL ON FUNCTION public.stall_reject_deposit_switch_off() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION public.stall_assert_late_fee() FROM PUBLIC;
+
+-- >>> vendor balances, phase 1b: item counts and move-out (D10, D11)
+-- Every change of an item's count is recorded with why, who and when, in the
+-- same transaction. The items trigger refuses a count change without its row,
+-- and only the database's own functions write those rows: the endings (sale,
+-- return, void, missed sale, store use, return to consignor) and
+-- stall_change_item_quantity for a change by hand.
+
+ALTER TABLE public.mall
+    ADD COLUMN abandon_wait_days smallint,
+    ADD CONSTRAINT mall_abandon_wait_days_chk CHECK (((abandon_wait_days IS NULL) OR ((abandon_wait_days >= 1) AND (abandon_wait_days <= 365))));
+
+CREATE TABLE public.quantity_reasons (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    code text,
+    label text NOT NULL,
+    kind text NOT NULL,
+    vendor_may boolean NOT NULL,
+    staff_may boolean DEFAULT true NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    position integer NOT NULL,
+    CONSTRAINT quantity_reasons_code_chk CHECK (((code IS NULL) OR (code ~ '^[a-z][a-z_]{0,39}$'::text))),
+    CONSTRAINT quantity_reasons_kind_chk CHECK ((kind = ANY (ARRAY['leaving'::text, 'correction'::text]))),
+    CONSTRAINT quantity_reasons_label_chk CHECK (((label = btrim(label)) AND (label <> ''::text) AND (char_length(label) <= 60))),
+    CONSTRAINT quantity_reasons_someone_chk CHECK ((vendor_may OR staff_may)),
+    CONSTRAINT quantity_reasons_position_chk CHECK ((position >= 0))
+);
+
+ALTER TABLE ONLY public.quantity_reasons
+    ADD CONSTRAINT quantity_reasons_pkey PRIMARY KEY (id);
+
+CREATE UNIQUE INDEX quantity_reasons_code_key ON public.quantity_reasons USING btree (code) WHERE (code IS NOT NULL);
+
+CREATE UNIQUE INDEX quantity_reasons_label_key ON public.quantity_reasons USING btree (lower(label));
+
+INSERT INTO public.quantity_reasons (id, code, label, kind, vendor_may, staff_may, active, position) VALUES
+    ('01900000-0000-7000-8000-0000000000f1', 'took_home', 'Took it home', 'leaving', true, true, true, 1),
+    ('01900000-0000-7000-8000-0000000000f2', 'lost', 'Lost or stolen', 'leaving', true, true, true, 2),
+    ('01900000-0000-7000-8000-0000000000f3', 'damaged', 'Damaged', 'leaving', true, true, true, 3),
+    ('01900000-0000-7000-8000-0000000000f4', 'entered_wrong', 'It was entered wrong', 'correction', true, true, true, 4);
+
+CREATE TABLE public.item_quantity_changes (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    item_id uuid NOT NULL,
+    vendor_id uuid,
+    old_quantity integer NOT NULL,
+    new_quantity integer NOT NULL,
+    ending text NOT NULL,
+    reason_id uuid,
+    journal_id uuid,
+    actor_kind text NOT NULL,
+    actor text,
+    changed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    written_xid xid8 DEFAULT pg_current_xact_id() NOT NULL,
+    applied boolean DEFAULT false NOT NULL,
+    CONSTRAINT item_quantity_changes_actor_chk CHECK ((((actor_kind = 'system'::text) AND (actor IS NULL)) OR ((actor_kind = ANY (ARRAY['staff'::text, 'vendor'::text])) AND (actor = btrim(actor)) AND (actor <> ''::text) AND (char_length(actor) <= 80)))),
+    CONSTRAINT item_quantity_changes_counts_chk CHECK (((old_quantity >= 0) AND (new_quantity >= 0) AND (old_quantity <> new_quantity))),
+    CONSTRAINT item_quantity_changes_ending_chk CHECK ((ending = ANY (ARRAY['sold'::text, 'sale_undone'::text, 'customer_return'::text, 'customer_return_undone'::text, 'missed_sale'::text, 'missed_sale_undone'::text, 'store_use'::text, 'store_use_undone'::text, 'returned_to_consignor'::text, 'by_hand'::text, 'added'::text, 'found'::text]))),
+    CONSTRAINT item_quantity_changes_reason_chk CHECK ((((ending = 'by_hand'::text) AND (reason_id IS NOT NULL) AND (new_quantity < old_quantity) AND (actor_kind <> 'system'::text))
+        OR ((ending = ANY (ARRAY['added'::text, 'found'::text])) AND (reason_id IS NULL) AND (new_quantity > old_quantity) AND (actor_kind <> 'system'::text))
+        OR ((ending <> ALL (ARRAY['by_hand'::text, 'added'::text, 'found'::text])) AND (reason_id IS NULL) AND (actor_kind = 'system'::text))))
+);
+
+ALTER TABLE ONLY public.item_quantity_changes
+    ADD CONSTRAINT item_quantity_changes_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.item_quantity_changes
+    ADD CONSTRAINT item_quantity_changes_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(id);
+
+ALTER TABLE ONLY public.item_quantity_changes
+    ADD CONSTRAINT item_quantity_changes_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id);
+
+ALTER TABLE ONLY public.item_quantity_changes
+    ADD CONSTRAINT item_quantity_changes_reason_id_fkey FOREIGN KEY (reason_id) REFERENCES public.quantity_reasons(id);
+
+ALTER TABLE ONLY public.item_quantity_changes
+    ADD CONSTRAINT item_quantity_changes_journal_id_fkey FOREIGN KEY (journal_id) REFERENCES public.journals(id);
+
+CREATE INDEX item_quantity_changes_item_idx ON public.item_quantity_changes USING btree (item_id, changed_at);
+
+CREATE INDEX item_quantity_changes_vendor_idx ON public.item_quantity_changes USING btree (vendor_id, changed_at);
+
+CREATE INDEX item_quantity_changes_pending_idx ON public.item_quantity_changes USING btree (item_id, written_xid) WHERE (NOT applied);
+
+-- Writes the change row and the new count together. Not granted to the app:
+-- only the database's ending functions and stall_change_item_quantity call it.
+CREATE FUNCTION public.stall_count_item(target uuid, change integer, why text, journal uuid, reason uuid DEFAULT NULL::uuid, who_kind text DEFAULT 'system'::text, who text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    was integer;
+    owner uuid;
+BEGIN
+    IF change IS NULL OR change = 0 THEN
+        RAISE EXCEPTION 'an item count change needs an amount'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT item.quantity, item.vendor_id INTO was, owner
+    FROM public.items AS item
+    WHERE item.id = target
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'an item count change needs an item'
+            USING ERRCODE = '23514';
+    END IF;
+    IF was + change < 0 THEN
+        RAISE EXCEPTION 'there are not enough on hand'
+            USING ERRCODE = '23514';
+    END IF;
+    INSERT INTO public.item_quantity_changes (item_id, vendor_id, old_quantity, new_quantity, ending, reason_id, journal_id, actor_kind, actor)
+    VALUES (target, owner, was, was + change, why, reason, journal, who_kind, who);
+    UPDATE public.items SET quantity = was + change WHERE id = target;
+    RETURN was + change;
+END;
+$$;
+
+-- The count changes only when this transaction wrote a matching row. Each row
+-- is used once, so one row can never stand for two changes.
+CREATE FUNCTION public.stall_require_count_row() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    matched uuid;
+BEGIN
+    IF NEW.quantity IS NOT DISTINCT FROM OLD.quantity THEN
+        RETURN NEW;
+    END IF;
+    SELECT change.id INTO matched
+    FROM public.item_quantity_changes AS change
+    WHERE change.item_id = NEW.id
+      AND change.old_quantity = OLD.quantity
+      AND change.new_quantity = NEW.quantity
+      AND change.written_xid = pg_current_xact_id()
+      AND NOT change.applied
+    ORDER BY change.id
+    LIMIT 1
+    FOR UPDATE;
+    IF matched IS NULL THEN
+        RAISE EXCEPTION 'an item count changes only with its recorded reason'
+            USING ERRCODE = '23514';
+    END IF;
+    UPDATE public.item_quantity_changes SET applied = true WHERE id = matched;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER items_quantity_sealed BEFORE UPDATE OF quantity ON public.items FOR EACH ROW EXECUTE FUNCTION public.stall_require_count_row();
+
+ALTER TABLE public.items ENABLE ALWAYS TRIGGER items_quantity_sealed;
+
+-- A change row is history. The one update allowed is the count trigger marking
+-- it used, in the transaction that wrote it.
+CREATE FUNCTION public.stall_reject_count_row_rewrite() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF TG_OP = 'UPDATE'
+       AND NOT OLD.applied AND NEW.applied
+       AND OLD.written_xid = pg_current_xact_id()
+       AND (NEW.id, NEW.item_id, NEW.vendor_id, NEW.old_quantity, NEW.new_quantity, NEW.ending, NEW.reason_id, NEW.journal_id, NEW.actor_kind, NEW.actor, NEW.changed_at, NEW.written_xid)
+           IS NOT DISTINCT FROM
+           (OLD.id, OLD.item_id, OLD.vendor_id, OLD.old_quantity, OLD.new_quantity, OLD.ending, OLD.reason_id, OLD.journal_id, OLD.actor_kind, OLD.actor, OLD.changed_at, OLD.written_xid) THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'an item count change is history and cannot change'
+        USING ERRCODE = '23514';
+END;
+$$;
+
+CREATE TRIGGER item_quantity_changes_rewrite_sealed BEFORE UPDATE OR DELETE ON public.item_quantity_changes FOR EACH ROW EXECUTE FUNCTION public.stall_reject_count_row_rewrite();
+
+ALTER TABLE public.item_quantity_changes ENABLE ALWAYS TRIGGER item_quantity_changes_rewrite_sealed;
+
+CREATE TRIGGER item_quantity_changes_no_truncate BEFORE TRUNCATE ON public.item_quantity_changes FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.item_quantity_changes ENABLE ALWAYS TRIGGER item_quantity_changes_no_truncate;
+
+-- A row that no count change used is refused at commit, so the history never
+-- shows a change that did not happen.
+CREATE FUNCTION public.stall_assert_count_row_used() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.item_quantity_changes WHERE id = NEW.id AND applied) THEN
+        RAISE EXCEPTION 'an item count change was written but the count did not change'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER item_quantity_changes_used_sealed AFTER INSERT ON public.item_quantity_changes DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_count_row_used();
+
+ALTER TABLE public.item_quantity_changes ENABLE ALWAYS TRIGGER item_quantity_changes_used_sealed;
+
+-- The store's reasons are data. At least one stays switched on, and a reason
+-- the history uses is never deleted.
+CREATE FUNCTION public.stall_guard_quantity_reason() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF TG_OP = 'UPDATE' AND NEW.code IS DISTINCT FROM OLD.code THEN
+        RAISE EXCEPTION 'a reason keeps its code'
+            USING ERRCODE = '23514';
+    END IF;
+    IF TG_OP = 'DELETE' AND EXISTS (SELECT 1 FROM public.item_quantity_changes WHERE reason_id = OLD.id) THEN
+        RAISE EXCEPTION 'That reason is in the count history. Switch it off instead.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF (TG_OP = 'DELETE' AND OLD.active) OR (TG_OP = 'UPDATE' AND OLD.active AND NOT NEW.active) THEN
+        PERFORM 1 FROM public.quantity_reasons FOR UPDATE;
+        IF NOT EXISTS (SELECT 1 FROM public.quantity_reasons WHERE active AND id <> OLD.id) THEN
+            RAISE EXCEPTION 'Keep at least one reason switched on.'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER quantity_reasons_keep_sealed BEFORE UPDATE OR DELETE ON public.quantity_reasons FOR EACH ROW EXECUTE FUNCTION public.stall_guard_quantity_reason();
+
+ALTER TABLE public.quantity_reasons ENABLE ALWAYS TRIGGER quantity_reasons_keep_sealed;
+
+CREATE TRIGGER quantity_reasons_no_truncate BEFORE TRUNCATE ON public.quantity_reasons FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.quantity_reasons ENABLE ALWAYS TRIGGER quantity_reasons_no_truncate;
+
+-- A count change by hand: staff on the item page, a vendor in the portal, or
+-- the Close out vendor page. A lower count names one of the store's reasons
+-- that this person may use. A higher count records Added more, or Found when
+-- the piece had been marked missing or counted out by hand.
+CREATE FUNCTION public.stall_change_item_quantity(target uuid, new_count integer, reason uuid, who_kind text, who text, acting_vendor uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    piece record;
+    locked_seller uuid;
+    chosen record;
+    held integer;
+    seller_active boolean;
+    why text;
+BEGIN
+    IF who_kind IS NULL OR who_kind NOT IN ('staff', 'vendor') THEN
+        RAISE EXCEPTION 'a count change names staff or a vendor'
+            USING ERRCODE = '23514';
+    END IF;
+    IF who IS NULL OR btrim(who) = '' THEN
+        RAISE EXCEPTION 'a count change names who made it'
+            USING ERRCODE = '23514';
+    END IF;
+    IF new_count IS NULL OR new_count < 0 THEN
+        RAISE EXCEPTION 'Enter a count of 0 or more.'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT item.id, item.quantity, item.vendor_id INTO piece
+    FROM public.items AS item
+    WHERE item.id = target;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'That item was not found.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF who_kind = 'vendor' AND (acting_vendor IS NULL OR piece.vendor_id IS DISTINCT FROM acting_vendor) THEN
+        RAISE EXCEPTION 'That item is not yours.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF piece.vendor_id IS NOT NULL THEN
+        PERFORM pg_advisory_xact_lock_shared(87401, hashtext(piece.vendor_id::text));
+    END IF;
+    SELECT item.vendor_id INTO locked_seller
+    FROM public.items AS item
+    WHERE item.id = target
+    FOR UPDATE;
+    IF locked_seller IS DISTINCT FROM piece.vendor_id THEN
+        RAISE EXCEPTION 'That item just changed. Try again.'
+            USING ERRCODE = '40001';
+    END IF;
+    SELECT item.id, item.quantity, item.vendor_id INTO piece
+    FROM public.items AS item
+    WHERE item.id = target;
+    IF new_count = piece.quantity THEN
+        RETURN new_count;
+    END IF;
+    SELECT vendor.active INTO seller_active FROM public.vendors AS vendor WHERE vendor.id = piece.vendor_id;
+    IF new_count > piece.quantity THEN
+        IF reason IS NOT NULL THEN
+            RAISE EXCEPTION 'a higher count takes no reason'
+                USING ERRCODE = '23514';
+        END IF;
+        IF seller_active IS NOT DISTINCT FROM false THEN
+            RAISE EXCEPTION '% has left the store. Choose another vendor.',
+                (SELECT vendor.name FROM public.vendors AS vendor WHERE vendor.id = piece.vendor_id)
+                USING ERRCODE = '23514';
+        END IF;
+        why := 'added';
+        IF piece.quantity = 0 AND (
+            EXISTS (SELECT 1 FROM public.floor_findings WHERE item_id = target AND kind = 'missing')
+            OR EXISTS (SELECT 1 FROM public.item_quantity_changes WHERE item_id = target AND ending = 'by_hand')
+        ) THEN
+            why := 'found';
+        END IF;
+        RETURN public.stall_count_item(target, new_count - piece.quantity, why, NULL, NULL, who_kind, btrim(who));
+    END IF;
+    SELECT quantity_reason.id, quantity_reason.active, quantity_reason.vendor_may, quantity_reason.staff_may INTO chosen
+    FROM public.quantity_reasons AS quantity_reason
+    WHERE quantity_reason.id = reason;
+    IF NOT FOUND OR NOT chosen.active
+       OR (who_kind = 'vendor' AND NOT chosen.vendor_may)
+       OR (who_kind = 'staff' AND NOT chosen.staff_may) THEN
+        RAISE EXCEPTION 'Choose why there are fewer.'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT COALESCE(sum(line.quantity), 0)::integer INTO held
+    FROM public.ticket_lines AS line
+    JOIN public.tickets AS ticket ON ticket.id = line.ticket_id
+    WHERE line.item_id = target
+      AND ticket.status IN ('open', 'parked', 'layaway');
+    IF new_count < held THEN
+        RAISE EXCEPTION '% of these % on an open, parked or layaway sale. Finish or remove that sale first.',
+            held, CASE WHEN held = 1 THEN 'is' ELSE 'are' END
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN public.stall_count_item(target, new_count - piece.quantity, 'by_hand', NULL, chosen.id, who_kind, btrim(who));
+END;
+$$;
+
+-- D11: a piece left behind after a booth ends becomes store stock, only when the
+-- owner has set a waiting time and it has passed.
+CREATE FUNCTION public.stall_refuse_keeping_left_behind(target uuid, seller uuid, seller_name text, today date) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    wait smallint;
+    last_end date;
+BEGIN
+    SELECT mall.abandon_wait_days INTO wait FROM public.mall;
+    IF wait IS NULL THEN
+        RAISE EXCEPTION 'Keeping left-behind items is off. Set the waiting days in Settings → Item counts first.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT (SELECT store_stock_enabled FROM public.mall) THEN
+        RAISE EXCEPTION 'Turn on store stock first.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM public.booth_assignments AS assignment
+        WHERE assignment.vendor_id = seller
+          AND assignment.cancelled_on IS NULL
+          AND (assignment.ends_on IS NULL OR assignment.ends_on >= today)
+    ) THEN
+        RAISE EXCEPTION '% still has a booth.', seller_name
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT max(assignment.ends_on) INTO last_end
+    FROM public.booth_assignments AS assignment
+    WHERE assignment.vendor_id = seller
+      AND assignment.cancelled_on IS NULL;
+    IF last_end IS NULL THEN
+        RAISE EXCEPTION 'Only items left after a booth ends can be kept.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF last_end + wait > today THEN
+        RAISE EXCEPTION 'The store can keep %''s items from %.', seller_name, to_char(last_end + wait, 'MM-DD-YYYY')
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM public.ticket_lines AS line
+        JOIN public.tickets AS ticket ON ticket.id = line.ticket_id
+        WHERE line.item_id = target
+          AND ticket.status IN ('open', 'parked', 'layaway')
+    ) THEN
+        RAISE EXCEPTION 'That piece is on an open, parked or layaway sale.'
+            USING ERRCODE = '23514';
+    END IF;
+END;
+$$;
+
+-- The seller lookup at the desk, in Instant Add and in the tag import.
+CREATE VIEW public.active_sellers AS
+    SELECT vendor.id, vendor.code, vendor.name
+    FROM public.vendors AS vendor
+    WHERE vendor.active;
+
+REVOKE UPDATE ON TABLE public.items FROM stall_poster;
+
+GRANT UPDATE (code, vendor_id, brand_id, description, price_minor, barcode, commission_bps, intake_on, expires_on, color_id, category_id, size_id, condition_id, department_id, has_photo, placement, cost_minor, held, sticker_printed_at, tax_exempt) ON TABLE public.items TO stall_poster;
+
+GRANT SELECT ON TABLE public.item_quantity_changes TO stall_poster;
+
+GRANT SELECT ON TABLE public.item_quantity_changes TO stall_backup;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.quantity_reasons TO stall_poster;
+
+GRANT SELECT ON TABLE public.quantity_reasons TO stall_backup;
+
+GRANT SELECT ON TABLE public.active_sellers TO stall_poster;
+
+GRANT SELECT ON TABLE public.active_sellers TO stall_backup;
+
+REVOKE ALL ON FUNCTION public.stall_count_item(uuid, integer, text, uuid, uuid, text, text) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_require_count_row() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_reject_count_row_rewrite() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_assert_count_row_used() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_guard_quantity_reason() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_refuse_keeping_left_behind(uuid, uuid, text, date) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_change_item_quantity(uuid, integer, uuid, text, text, uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.stall_change_item_quantity(uuid, integer, uuid, text, text, uuid) TO stall_poster;
+
+REVOKE ALL ON FUNCTION public.stall_apply_missed_sale() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_apply_store_use() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_assert_item_return() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_assert_sale_shape() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_restore_missed_sale() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_restore_on_hand() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_restore_store_use() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION public.stall_apply_disposition() FROM PUBLIC;
+
+-- The count history in plain words, newest first on screens:
+-- "Mary Smith: 3 → 2, Took it home, Nov 27, 2026 2:14 pm".
+CREATE VIEW public.item_count_history AS
+    SELECT change.id,
+           change.item_id,
+           change.vendor_id,
+           change.changed_at,
+           change.old_quantity,
+           change.new_quantity,
+           COALESCE(change.actor || ': ', '')
+               || change.old_quantity || ' → ' || change.new_quantity || ', '
+               || CASE change.ending
+                      WHEN 'by_hand' THEN quantity_reason.label
+                      WHEN 'sold' THEN 'Sold'
+                      WHEN 'sale_undone' THEN 'Sale voided'
+                      WHEN 'customer_return' THEN 'Customer brought it back'
+                      WHEN 'customer_return_undone' THEN 'Return voided'
+                      WHEN 'missed_sale' THEN 'Missed sale'
+                      WHEN 'missed_sale_undone' THEN 'Missed sale voided'
+                      WHEN 'store_use' THEN 'Store used it'
+                      WHEN 'store_use_undone' THEN 'Store use voided'
+                      WHEN 'returned_to_consignor' THEN 'Given back to the consignor'
+                      WHEN 'added' THEN 'Added more'
+                      WHEN 'found' THEN 'Found'
+                  END
+               || ', ' || to_char(change.changed_at AT TIME ZONE mall.time_zone, 'Mon FMDD, YYYY FMHH12:MI am') AS said
+    FROM public.item_quantity_changes AS change
+    LEFT JOIN public.quantity_reasons AS quantity_reason ON quantity_reason.id = change.reason_id
+    CROSS JOIN public.mall;
+
+GRANT SELECT ON TABLE public.item_count_history TO stall_poster;
+
+GRANT SELECT ON TABLE public.item_count_history TO stall_backup;
+
+-- A piece that turns up after its vendor has left is set aside and held for
+-- them (decision 19). It is already at a count of zero, so nothing sells it.
+CREATE FUNCTION public.stall_guard_held_piece() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    IF NEW.kind <> 'held' THEN
+        RETURN NEW;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.items AS item
+        JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        WHERE item.id = NEW.item_id
+          AND NOT vendor.active
+    ) THEN
+        RAISE EXCEPTION 'Only a piece from a vendor who has left is held for them.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM public.floor_findings AS finding
+        WHERE finding.item_id = NEW.item_id
+          AND finding.kind = 'held'
+          AND NOT EXISTS (
+              SELECT 1 FROM public.pickups AS pickup
+              WHERE pickup.item_id = finding.item_id
+                AND pickup.picked_up_on >= finding.noted_on
+          )
+    ) THEN
+        RAISE EXCEPTION 'That piece is already held.'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER floor_findings_held_sealed BEFORE INSERT ON public.floor_findings FOR EACH ROW EXECUTE FUNCTION public.stall_guard_held_piece();
+
+ALTER TABLE public.floor_findings ENABLE ALWAYS TRIGGER floor_findings_held_sealed;
+
+-- Held pieces live in floor findings and pickups, so neither can be emptied.
+CREATE TRIGGER floor_findings_no_truncate BEFORE TRUNCATE ON public.floor_findings FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.floor_findings ENABLE ALWAYS TRIGGER floor_findings_no_truncate;
+
+CREATE TRIGGER pickups_no_truncate BEFORE TRUNCATE ON public.pickups FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+
+ALTER TABLE public.pickups ENABLE ALWAYS TRIGGER pickups_no_truncate;
+
+REVOKE ALL ON FUNCTION public.stall_guard_held_piece() FROM PUBLIC;
+
+-- Pieces held for vendors who have left, until the vendor collects them.
+CREATE VIEW public.held_pieces AS
+    SELECT finding.id AS finding_id,
+           finding.item_id,
+           item.vendor_id,
+           item.code,
+           item.description,
+           finding.noted_on,
+           finding.noted_by
+    FROM public.floor_findings AS finding
+    JOIN public.items AS item ON item.id = finding.item_id
+    WHERE finding.kind = 'held'
+      AND NOT EXISTS (
+          SELECT 1 FROM public.pickups AS pickup
+          WHERE pickup.item_id = finding.item_id
+            AND pickup.picked_up_on >= finding.noted_on
+      );
+
+GRANT SELECT ON TABLE public.held_pieces TO stall_poster;
+
+GRANT SELECT ON TABLE public.held_pieces TO stall_backup;

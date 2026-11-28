@@ -101,6 +101,20 @@ abstract class WebTestCase extends TestCase
     }
 
     /**
+     * The value of a "Why are there fewer?" button, by its label. Fails when the
+     * page does not ask or has no button with that label.
+     */
+    protected static function countReason(string $page, string $label): string
+    {
+        $pattern = '/name="quantity_reason" value="([0-9a-f-]{36})">' . preg_quote($label, '/') . '</';
+        if (str_contains($page, 'Why are there fewer?') === false || preg_match($pattern, $page, $found) !== 1) {
+            self::fail('the page does not ask why there are fewer with a ' . $label . ' button');
+        }
+
+        return $found[1];
+    }
+
+    /**
      * The first day of this rent period on the mall clock, from the rent page.
      */
     protected static function thisMonthStart(FormClient $client, string $slug): string

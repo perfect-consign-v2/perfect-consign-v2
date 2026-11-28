@@ -157,6 +157,9 @@ $expireHint = $floorDays === ''
             </section>
         </div>
     </div>
+    <?php if (($countWas ?? '') !== ''): ?>
+        <?php $countNow = $item['quantity']; require dirname(__DIR__) . '/Inventory/count-why.php'; ?>
+    <?php endif; ?>
     <div class="vendor-save">
         <button class="btn btn-primary" type="submit"><?= $editing ? 'Save item' : 'Add item' ?></button>
         <a class="btn btn-ghost" href="<?= View::text($back) ?>">Cancel</a>
@@ -168,5 +171,6 @@ $expireHint = $floorDays === ''
         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
         <button class="btn" type="submit">Delete item</button>
     </form>
+    <?php $countHistory = $countHistory ?? []; require dirname(__DIR__) . '/Inventory/count-history.php'; ?>
 <?php endif; ?>
 <?php endif; ?>

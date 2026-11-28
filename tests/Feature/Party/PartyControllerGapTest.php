@@ -8,7 +8,6 @@ use PerfectConsign\Tests\Support\QuietAudit;
 use PerfectConsign\Bootstrap\AuditLog;
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Feature\Party\AssignmentBook;
-use PerfectConsign\Feature\Party\AssignmentOffer;
 use PerfectConsign\Feature\Party\PartyController;
 use PerfectConsign\Feature\Party\PartyStore;
 use PerfectConsign\Feature\Party\SellerPaths;
@@ -119,7 +118,7 @@ final class PartyControllerGapTest extends TestCase
                 $door->mall,
                 $roster,
                 $balances,
-                new AssignmentOffer($parties, $stays),
+                new \PerfectConsign\Feature\Party\VendorMoveOut($door->statements),
                 $forms,
                 $staff,
             ),

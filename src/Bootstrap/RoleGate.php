@@ -32,7 +32,7 @@ final class RoleGate
 
     private static function manager(string $rest, string $method): bool
     {
-        if ($method === 'POST' && RolePaths::inventoryBuy($rest)) {
+        if ($method === 'POST' && (RolePaths::inventoryBuy($rest) || RolePaths::keepLeftBehind($rest))) {
             return false;
         }
         if (self::cashier($rest, $method) || self::floor($rest)) {

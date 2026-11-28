@@ -320,6 +320,7 @@ BEGIN
     ALTER TABLE pickups DROP CONSTRAINT pickups_item_id_fkey;
     ALTER TABLE item_dispositions DROP CONSTRAINT item_dispositions_item_id_fkey;
     ALTER TABLE item_price_events DROP CONSTRAINT item_price_events_item_id_fkey;
+    ALTER TABLE item_quantity_changes DROP CONSTRAINT item_quantity_changes_item_id_fkey;
     TRUNCATE items;
     RAISE EXCEPTION 'replica item truncate was accepted';
 EXCEPTION
@@ -390,6 +391,7 @@ BEGIN
     ALTER TABLE pickups DROP CONSTRAINT pickups_item_id_fkey;
     ALTER TABLE item_dispositions DROP CONSTRAINT item_dispositions_item_id_fkey;
     ALTER TABLE item_price_events DROP CONSTRAINT item_price_events_item_id_fkey;
+    ALTER TABLE item_quantity_changes DROP CONSTRAINT item_quantity_changes_item_id_fkey;
     TRUNCATE items;
     RAISE EXCEPTION 'item truncate was accepted after the guard held';
 EXCEPTION

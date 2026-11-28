@@ -20,6 +20,7 @@ final class InventoryController
         private readonly MallSettings $mall,
         private readonly LabelCatalog $stocks,
         private readonly ItemPhotoController $photos,
+        private readonly ItemCountDesk $countDesk,
     ) {
     }
 
@@ -61,6 +62,14 @@ final class InventoryController
     public function save(string $slug, string $id): void
     {
         $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $stored = $this->items->find($id);
+        $draft = $this->draft($id);
+        if ($this->countDesk->asks($stored, $draft['quantity'], $this->app->request()->field('quantity_reason'))) {
+            $this->form($slug, $this->forms->posted($draft), null, '', $stored);
+
+            return;
+        }
         $this->change($slug, $id);
     }
 
@@ -128,7 +137,7 @@ final class InventoryController
         if ($id === null) {
             return $this->items->add($item, $this->mall->today());
         }
-        $this->items->save($id, $item, $this->mall->today());
+        $this->items->save($id, $item, $this->mall->today(), $this->countDesk->recount($this->app->request()->field('quantity_reason'))->apply(...));
 
         return $id;
     }
@@ -255,13 +264,14 @@ final class InventoryController
      *     fill_expire: string,
      *     tax_exempt: string
      * } $item
+     * @param array<string, mixed>|null $asking the stored item, when a lower count needs its reason
      */
-    private function form(string $slug, array $item, ?string $error, string $printId = ''): void
+    private function form(string $slug, array $item, ?string $error, string $printId = '', ?array $asking = null): void
     {
         $tenant = $this->app->open($slug, true);
         $days = $this->mall->floorDays();
         $sold = $item['id'] !== '' && $this->items->sold($item['id']);
-        $this->app->show('Feature/Inventory/inventory-form', [
+        $this->app->show('Feature/Inventory/inventory-form', $this->countDesk->view($item['id'], $asking, $asking !== null) + [
             'title' => $item['id'] !== '' ? 'Edit item' : 'New item',
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,

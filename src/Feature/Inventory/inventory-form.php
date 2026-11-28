@@ -208,6 +208,9 @@ if ($printId !== '') {
         </section>
         </div>
     </div>
+    <?php if (($countWas ?? '') !== ''): ?>
+        <?php $countNow = $item['quantity']; require __DIR__ . '/count-why.php'; ?>
+    <?php endif; ?>
     <div class="vendor-save">
         <button class="btn btn-primary" type="submit"><svg aria-hidden="true"><use href="#i-check"></use></svg> <?= $editing ? 'Save changes' : 'Create item' ?></button>
         <a class="btn btn-ghost" href="/<?= View::text($slug) ?>/inventory">Cancel</a>
@@ -234,5 +237,7 @@ if ($printId !== '') {
     </div>
 </form>
 <?php endif; ?>
+<?php $departed = $departed ?? null; require __DIR__ . '/item-departed.php'; ?>
+<?php $countHistory = $countHistory ?? []; require __DIR__ . '/count-history.php'; ?>
 <script src="<?= View::asset('/assets/js/name-list.js') ?>" defer></script>
 <script src="<?= View::asset('/assets/js/inventory-intake.js') ?>" defer></script>

@@ -1,15 +1,15 @@
 ---
 title: Return / donate / buy into store stock
 category: Inventory
-hesk: published 2026-11-20
-as_of: 2026-11-13
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Return / donate / buy into store stock
 
 ## As of
 
-2026-11-13
+2026-11-27 — Giving an expired piece back records a line in the item's count history. 2026-11-13
 
 ## In one sentence
 
@@ -21,7 +21,7 @@ Clearing consigned goods that cannot or should not sell as consignment.
 
 ## What the books / screens do
 
-- **Return:** sets quantity to zero (back to vendor path).
+- **Return:** sets quantity to zero (back to vendor path), and the item's count history records "Given back to the consignor".
 - **Donation:** makes it store stock with no cost.
 - **Buy:** an owner posts one store purchase. The piece must already be expired (expire date before today in the mall time zone; a piece that expires today stays on the floor). It becomes store stock, the expire date clears, and the cost is the amount paid, above or below the tag. A manager may return or donate and cannot post the buy.
 - Booth pieces do not use the expired-consigned sale gate the same way.

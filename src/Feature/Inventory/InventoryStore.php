@@ -85,15 +85,23 @@ final class InventoryStore
         return $this->kept(null, $item, $today, 'item.create');
     }
 
-    public function save(string $id, ItemEntry $item, string $today): void
+    /**
+     * Saves the item. The new count is set inside the same transaction by
+     * $recount (ItemRecount::apply), through the database with its reason.
+     *
+     * @param callable(string, int): void $recount
+     */
+    public function save(string $id, ItemEntry $item, string $today, callable $recount): void
     {
-        $this->kept($id, $item, $today, 'item.edit');
+        $this->kept($id, $item, $today, 'item.edit', function (string $stored) use ($item, $recount): void {
+            $recount($stored, $item->sale->quantity);
+        });
     }
 
     public function remove(string $id): void
     {
         if (isset($this->referenced()[$id])) {
-            throw new \InvalidArgumentException('That item is in use.');
+            throw new \InvalidArgumentException($this->inUse($id));
         }
         $this->statements->transaction(function () use ($id): void {
             $count = $this->statements->affected('DELETE FROM items WHERE id = ?::uuid', [$id]);
@@ -104,11 +112,14 @@ final class InventoryStore
         });
     }
 
-    private function kept(?string $id, ItemEntry $item, string $today, string $action): string
+    private function kept(?string $id, ItemEntry $item, string $today, string $action, ?callable $then = null): string
     {
         $stored = '';
-        $this->statements->transaction(function () use ($id, $item, $today, $action, &$stored): void {
+        $this->statements->transaction(function () use ($id, $item, $today, $action, $then, &$stored): void {
             $stored = $this->place($id, $item, $today);
+            if ($then !== null) {
+                $then($stored);
+            }
             $this->audit->record($action, 'item', $stored);
         });
 
@@ -205,7 +216,9 @@ final class InventoryStore
     {
         [$columns, $casts, $params] = ItemWriteColumns::fields($this->mall, $item, $code, $barcode);
         if ($id === null) {
-            return $this->inserted($columns, $casts, $params);
+            // A new item starts with its count. Every later change goes
+            // through stall_change_item_quantity, with its reason.
+            return $this->inserted([...$columns, 'quantity'], [...$casts, '?'], [...$params, $item->sale->quantity]);
         }
         $assignments = [];
         foreach ($columns as $index => $column) {
@@ -247,6 +260,23 @@ final class InventoryStore
         }
 
         return $id;
+    }
+
+    /**
+     * Why an item cannot be deleted. A count changed by hand is history, so the
+     * item stays, at a count of 0 when it is gone.
+     */
+    private function inUse(string $id): string
+    {
+        $rows = $this->statements->bound(
+            "SELECT (EXISTS (SELECT 1 FROM item_quantity_changes WHERE item_id = ?::uuid AND ending IN ('by_hand', 'added', 'found'))
+                    AND NOT EXISTS (SELECT 1 FROM sale_lines WHERE item_id = ?::uuid))::text AS counted",
+            [$id, $id]
+        );
+
+        return RowValue::string($rows[0]['counted'] ?? null) === 'true'
+            ? 'This item has a count history, so it stays. Set its count to 0 instead.'
+            : 'That item is in use.';
     }
 
     public function sold(string $id): bool

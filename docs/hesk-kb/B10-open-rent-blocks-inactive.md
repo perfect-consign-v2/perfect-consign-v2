@@ -9,7 +9,7 @@ as_of: 2026-11-27
 
 ## As of
 
-2026-11-27 — The database decides, and it names every reason. Money the store owes the vendor now blocks Inactive too. 2026-10-25.
+2026-11-27 — Pieces still counted or on an open sale block Inactive too; the Close out page clears them. The database decides, and it names every reason. Money the store owes the vendor now blocks Inactive too. 2026-10-25.
 
 ## In one sentence
 
@@ -30,6 +30,8 @@ Pressing Make inactive on a vendor.
   - They have paid ahead for a booth that has not started.
   - The store still holds a booth deposit for them.
   - They still have a booth today or later ("End it first.").
+  - They still have pieces counted in the store ("Close them out first.").
+  - One of their pieces is on an open, parked or layaway sale.
 - Example: "Ada Lane can't be made inactive yet. They owe $100.00 in rent. They still have a booth. End it first."
 
 ## What is refused
@@ -42,10 +44,11 @@ Vendor with a booth and unpaid rent: Make inactive shows both sentences. End the
 
 ## Source
 
-`docs/business-rules.md` — Vendors. `sql/prove_vendor_balances.sql`, `sql/prove_vendors_booths.sql`, `sql/prove_race.sql` (vendor inactive races).
+`docs/business-rules.md` — Vendors. `sql/prove_vendor_balances.sql`, `sql/prove_vendors_booths.sql`, `sql/prove_race.sql` (vendor inactive races), `sql/prove_item_quantity.sql`.
 
 ## Related
 
+- Closing out a vendor who is leaving
 - Vendor Active vs booth assignment vs Unassigned
 - Money still open after a vendor leaves
 - What a rent charge posts; what a rent payment posts

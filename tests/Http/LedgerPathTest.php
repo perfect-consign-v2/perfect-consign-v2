@@ -84,6 +84,24 @@ final class LedgerPathTest extends WebTestCase
     {
         $owner = self::client();
         $owner->signIn(self::SLUG, ProbeMall::USERNAME, ProbeMall::PASSWORD);
+        // The account page lists items only while the portal shows inventory.
+        // This test turns that on itself instead of relying on another test.
+        $building = $owner->post('/' . self::SLUG . '/settings/building', [
+            'time_zone' => 'America/Los_Angeles',
+            'booth_width_ft' => '10',
+            'booth_depth_ft' => '10',
+            'floor_width_ft' => '120',
+            'floor_depth_ft' => '90',
+            'use_color' => '1',
+            'use_category' => '1',
+            'use_size' => '1',
+            'use_condition' => '1',
+            'use_department' => '1',
+            'use_brand' => '1',
+            'vendor_portal_enabled' => '1',
+            'vendor_inventory_enabled' => '1',
+        ]);
+        self::assertSees('Building saved.', $building);
         $adaMail = 'ada-' . bin2hex(random_bytes(3)) . '@example.test';
         $ada = $this->vendor($owner, $adaMail);
         $bea = $this->vendor($owner, '');

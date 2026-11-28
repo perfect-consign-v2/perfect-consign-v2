@@ -334,23 +334,38 @@ final class VendorInventoryHttpTest extends WebTestCase
             'SELECT count(*) FROM ' . $this->schema() . '.item_dispositions WHERE item_id = ?::uuid',
             [$looseId]
         );
-        $pulled = $login['client']->post('/' . self::SLUG . '/vendor/inventory/' . $looseId, [
+        $pulledFields = [
             'description' => 'Loose bowl pulled',
             'price' => '6.00',
             'quantity' => '0',
             'intake_on' => $today,
             'placement' => 'consigned',
+        ];
+        $asked = $login['client']->post('/' . self::SLUG . '/vendor/inventory/' . $looseId, $pulledFields);
+        self::assertSees('The count goes from 1 to 0.', $asked);
+        self::assertSame(1, (int) $this->itemRow($looseId)['quantity']);
+        $pulled = $login['client']->post('/' . self::SLUG . '/vendor/inventory/' . $looseId, $pulledFields + [
+            'quantity_reason' => self::countReason($asked->body, 'Took it home'),
         ]);
         self::assertSees('Item saved.', $pulled);
         self::assertSame(0, (int) $this->itemRow($looseId)['quantity']);
+        self::assertSame(1, $this->countSql(
+            'SELECT count(*) FROM ' . $this->schema() . ".item_quantity_changes AS change
+             JOIN " . $this->schema() . ".quantity_reasons AS reason ON reason.id = change.reason_id
+             WHERE change.item_id = ?::uuid AND change.actor_kind = 'vendor' AND reason.code = 'took_home'
+               AND change.old_quantity = 1 AND change.new_quantity = 0",
+            [$looseId]
+        ));
         self::assertSame($journals, $this->countSql('SELECT count(*) FROM ' . $this->schema() . '.journals', []));
         self::assertSame($dispositions, $this->countSql(
             'SELECT count(*) FROM ' . $this->schema() . '.item_dispositions WHERE item_id = ?::uuid',
             [$looseId]
         ));
+        // A count changed by hand is history, so the piece stays on the list at 0.
         $deleted = $login['client']->post('/' . self::SLUG . '/vendor/inventory/' . $looseId . '/delete', []);
-        self::assertSees('Item deleted.', $deleted);
-        self::assertStringNotContainsString(
+        self::assertSees('This item has a count history, so it stays. Set its count to 0 instead.', $deleted);
+        self::assertSame(0, (int) $this->itemRow($looseId)['quantity']);
+        self::assertStringContainsString(
             'Loose bowl pulled',
             ItemListBody::html($login['client'], '/' . self::SLUG . '/vendor/inventory?q=Loose+bowl+pulled'),
         );
@@ -386,12 +401,17 @@ final class VendorInventoryHttpTest extends WebTestCase
         self::assertSees('Item saved.', $kept);
         self::assertSees($renamed, $kept);
         self::assertSame(1, (int) $this->itemRow($id)['quantity']);
-        $zero = $login['client']->post('/' . self::SLUG . '/vendor/inventory/' . $id, [
+        $zeroFields = [
             'description' => $renamed,
             'price' => '10.00',
             'quantity' => '0',
             'intake_on' => $today,
             'placement' => 'consigned',
+        ];
+        $asked = $login['client']->post('/' . self::SLUG . '/vendor/inventory/' . $id, $zeroFields);
+        self::assertSame(1, (int) $this->itemRow($id)['quantity']);
+        $zero = $login['client']->post('/' . self::SLUG . '/vendor/inventory/' . $id, $zeroFields + [
+            'quantity_reason' => self::countReason($asked->body, 'Lost or stolen'),
         ]);
         self::assertSame(0, (int) $this->itemRow($id)['quantity']);
         self::assertSees('That item is sold.', $zero);
@@ -428,7 +448,7 @@ final class VendorInventoryHttpTest extends WebTestCase
         }
         $this->staffItem($vendor['id'], $token . ' future', $this->shiftDate($today, 1), '1');
         $pulled = $this->staffItem($vendor['id'], $token . ' zero', $today, '1');
-        $this->owner->post('/' . self::SLUG . '/inventory/' . $pulled['id'], [
+        $zeroFields = [
             'code' => $pulled['code'],
             'description' => $token . ' zero',
             'vendor_id' => $vendor['id'],
@@ -437,7 +457,13 @@ final class VendorInventoryHttpTest extends WebTestCase
             'quantity' => '0',
             'barcode' => $pulled['barcode'],
             'intake_on' => $today,
+        ];
+        $asked = $this->owner->post('/' . self::SLUG . '/inventory/' . $pulled['id'], $zeroFields);
+        $zeroed = $this->owner->post('/' . self::SLUG . '/inventory/' . $pulled['id'], $zeroFields + [
+            'quantity_reason' => self::countReason($asked->body, 'Damaged'),
         ]);
+        self::assertSees('Item saved.', $zeroed);
+        self::assertSees('Damaged', $zeroed);
 
         $list = $login['client']->get('/' . self::SLUG . '/vendor/inventory?q=' . rawurlencode($token));
         self::assertSees('Row colors', $list);

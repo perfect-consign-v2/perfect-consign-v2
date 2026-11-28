@@ -12,6 +12,7 @@ use PerfectConsign\Feature\Catalog\NameListStore;
 use PerfectConsign\Feature\Company\CompanyLines;
 use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Feature\Inventory\BarcodePng;
+use PerfectConsign\Feature\Inventory\DepartedPiece;
 use PerfectConsign\Feature\Inventory\Code128;
 use PerfectConsign\Feature\Inventory\ExpireDesk;
 use PerfectConsign\Feature\Inventory\ExpireDeskController;
@@ -19,6 +20,8 @@ use PerfectConsign\Feature\Inventory\IntakeCatalog;
 use PerfectConsign\Feature\Inventory\IntakeController;
 use PerfectConsign\Feature\Inventory\InventoryController;
 use PerfectConsign\Feature\Inventory\InventoryStore;
+use PerfectConsign\Feature\Inventory\ItemCount;
+use PerfectConsign\Feature\Inventory\ItemCountDesk;
 use PerfectConsign\Feature\Inventory\ItemDates;
 use PerfectConsign\Feature\Inventory\ItemEntry;
 use PerfectConsign\Feature\Inventory\ItemForm;
@@ -710,7 +713,9 @@ final class InventoryMissCoverageTest extends TestCase
         }
         $store = new InventoryStore($statements, new CatalogLinks($statements), $this->mall($statements), QuietAudit::make($statements));
         try {
-            $store->save(self::ITEM, $this->entry('TAG', 'BC'), '2026-01-01');
+            $store->save(self::ITEM, $this->entry('TAG', 'BC'), '2026-01-01', static function (): void {
+                self::fail('a refused change reached the count');
+            });
             self::fail($label . ' change was saved');
         } catch (\InvalidArgumentException $error) {
             self::assertSame($message, $error->getMessage());
@@ -759,6 +764,7 @@ final class InventoryMissCoverageTest extends TestCase
             $mall,
             new LabelCatalog(),
             $photos,
+            new ItemCountDesk(new ItemCount($storeStatements), $door->actor, new DepartedPiece($storeStatements, QuietAudit::journal($storeStatements, $door->actor))),
         );
     }
 

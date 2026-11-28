@@ -1,15 +1,15 @@
 ---
 title: Ticket vs sale journal
 category: Sales and register
-hesk: published 2026-11-26
-as_of: 2026-11-26
+hesk: pending
+as_of: 2026-11-27
 ---
 
 # Ticket vs sale journal
 
 ## As of
 
-2026-11-26 — Instant Add needs the vendor or consignor, a description, a price, and a quantity (starts at 1). A field of only spaces counts as blank. Incomplete MISSING lines are gone. 2026-11-18 — Instant Add keeps a typed name that was not added on the form. The Add button stays available for that name and for a different new name. Saving again repeats the refusal until the name is added. 2026-11-10 — Emailing a receipt keeps the success/failure flash (receipt posts are not register-swapped).
+2026-11-27 — Instant Add and the desk list only Active sellers; a vendor who has left is refused ("Mary Smith has left the store. Choose another vendor."), and a scanned piece of theirs is refused with "Please set it aside and give it to the manager." 2026-11-26 — Instant Add needs the vendor or consignor, a description, a price, and a quantity (starts at 1). A field of only spaces counts as blank. Incomplete MISSING lines are gone. 2026-11-18 — Instant Add keeps a typed name that was not added on the form. The Add button stays available for that name and for a different new name. Saving again repeats the refusal until the name is added. 2026-11-10 — Emailing a receipt keeps the success/failure flash (receipt posts are not register-swapped).
 
 ## In one sentence
 
@@ -30,6 +30,7 @@ Scanning items, changing prices, parking, layaway deposits, and finally paying.
 
 ## What is refused
 
+- Instant Add for a vendor who has left ("Mary Smith has left the store. Choose another vendor."), and scanning one of their pieces ("This piece belongs to Mary Smith, who has left the store. Please set it aside and give it to the manager.").
 - Instant Add with a blank vendor or consignor, description, price, or quantity (spaces alone count as blank), or a quantity that is not a whole number of at least 1. The form stays open with what was typed, and nothing goes on the ticket.
 - Posting without completing pay when tenders do not cover the amount due (except layaway deposit path).
 - Holding more units across open/parked/layaway tickets than on hand — flash: There aren't that many left.

@@ -106,7 +106,7 @@ final class VendorMemo
             "SELECT id::text AS id, name, active
              FROM vendors
              WHERE active
-                OR EXISTS (SELECT 1 FROM stall_vendor_open_reasons(vendors.id) AS open WHERE open.reason <> 'booth')
+                OR EXISTS (SELECT 1 FROM stall_vendor_open_reasons(vendors.id) AS open WHERE open.reason NOT IN ('booth', 'items', 'tickets'))
              ORDER BY active DESC, name, code"
         );
         $vendors = [];

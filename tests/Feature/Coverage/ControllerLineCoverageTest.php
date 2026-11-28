@@ -21,7 +21,6 @@ use PerfectConsign\Feature\Inventory\ItemRowsController;
 use PerfectConsign\Feature\Inventory\ItemWriter;
 use PerfectConsign\Feature\Inventory\StoreTake;
 use PerfectConsign\Feature\Party\AssignmentBook;
-use PerfectConsign\Feature\Party\AssignmentOffer;
 use PerfectConsign\Feature\Party\BoothController;
 use PerfectConsign\Feature\Party\BoothWrite;
 use PerfectConsign\Feature\Party\BoothFields;
@@ -391,7 +390,7 @@ final class ControllerLineCoverageTest extends TestCase
             $door->mall,
             $roster,
             $forms,
-            new VendorPage($door->app, $store, $stays, $door->mall, $roster, $balances, new AssignmentOffer($store, $stays), $forms, $staff),
+            new VendorPage($door->app, $store, $stays, $door->mall, $roster, $balances, new \PerfectConsign\Feature\Party\VendorMoveOut($door->statements), $forms, $staff),
         );
     }
 
@@ -447,6 +446,8 @@ final class ControllerLineCoverageTest extends TestCase
             new VendorItemCatalog($door->mall, new \PerfectConsign\Feature\Inventory\LabelCatalog()),
             new VendorPlacement($rows, $door->mall),
             $form,
+            new \PerfectConsign\Feature\Inventory\ItemCount($rows),
+            $door->actor,
         );
     }
 

@@ -43,6 +43,7 @@ $settingsTabs = [
     'building' => 'Building',
     'receipt' => 'Receipt',
     'backup' => 'Backup',
+    'counts' => 'Item counts',
 ];
 ?>
 <div class="page-head">

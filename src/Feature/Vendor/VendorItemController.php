@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Vendor;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\Actor;
 use PerfectConsign\Bootstrap\MallApp;
+use PerfectConsign\Feature\Inventory\CountQuestion;
+use PerfectConsign\Feature\Inventory\CountWho;
 use PerfectConsign\Feature\Inventory\InventoryStore;
+use PerfectConsign\Feature\Inventory\ItemCount;
+use PerfectConsign\Feature\Inventory\ItemRecount;
 use PerfectConsign\Feature\Inventory\ItemForm;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Shared\Scalar\RowValue;
@@ -22,6 +27,8 @@ final class VendorItemController
         private readonly VendorItemCatalog $catalog,
         private readonly VendorPlacement $placement,
         private readonly ItemForm $forms,
+        private readonly ItemCount $counts,
+        private readonly Actor $actor,
     ) {
     }
 
@@ -80,8 +87,15 @@ final class VendorItemController
         if ($this->draft->isSoldOut($row)) {
             $this->app->redirect($this->listPath($slug), null, 'That item is sold.');
         }
+        $reason = $this->app->request()->field('quantity_reason');
+        if (CountQuestion::needed($row, $posted['quantity'], $reason)) {
+            $this->show($slug, $this->redisplay($row, $posted), '', null, CountQuestion::was($row));
+
+            return;
+        }
         try {
-            $this->items->save($id, $this->draft->update($row, $posted, $vendorId), $this->catalog->today());
+            $recount = new ItemRecount($this->counts, $reason, CountWho::of($this->actor));
+            $this->items->save($id, $this->draft->update($row, $posted, $vendorId), $this->catalog->today(), $recount->apply(...));
         } catch (DatabaseRefusal $refusal) {
             $this->show($slug, $this->redisplay($row, $posted), '', $this->app->catchRefusal($refusal));
 
@@ -154,7 +168,7 @@ final class VendorItemController
      *     attributes: array<string, array{id: string, label: string}>
      * } $posted
      */
-    private function show(string $slug, array $posted, string $printId, ?string $error): void
+    private function show(string $slug, array $posted, string $printId, ?string $error, string $countWas = ''): void
     {
         $tenant = $this->app->open($slug, true);
         $choices = $this->placement->choices();
@@ -170,6 +184,9 @@ final class VendorItemController
             'stocks' => $this->catalog->stocks(),
             'printId' => $printId,
             'sold' => $posted['id'] !== '' && $this->items->sold($posted['id']),
+            'countWas' => $countWas,
+            'countReasons' => $countWas === '' ? [] : $this->counts->reasons(CountWho::of($this->actor)),
+            'countHistory' => $posted['id'] === '' ? [] : $this->counts->history($posted['id']),
             'error' => $error,
             'closed' => $choices === [] && $posted['id'] === '',
         ]);

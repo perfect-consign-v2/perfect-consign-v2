@@ -19,6 +19,7 @@ use PerfectConsign\Shared\Web\ListTable;
  * } $picture */
 /** @var list<array{id: string, code: string, vendor_id: ?string, vendor_name: ?string, rate_minor: ?int, charged: bool, chargeable: bool, journal_id: ?string, open_minor: int}> $rentRows */
 /** @var list<array{vendor_id: string, name: string, said: string}> $leftOpen */
+/** @var list<array{vendor_id: string, name: string, ends_on: string, items: int}> $leavingSoon */
 /** @var string $rentMonth */
 /** @var string $activeSessionId */
 $activeSessionId = is_string($activeSessionId ?? null) ? $activeSessionId : '';
@@ -158,6 +159,20 @@ $blank = '—';
         <div class="card-body stack">
             <?php foreach ($leftOpen as $left): ?>
                 <p><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($left['vendor_id']) ?>"><?= View::text($left['name']) ?></a> <span class="muted"><?= View::text($left['said']) ?></span></p>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+    <?php if (($leavingSoon ?? []) !== []): ?>
+    <div class="card">
+        <div class="card-head">
+            <div class="h3">Leaving in the next two weeks</div>
+        </div>
+        <div class="card-body stack">
+            <p class="muted text-sm">Rent for the month they leave is the full month.</p>
+            <?php foreach ($leavingSoon as $leaving): ?>
+                <p><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($leaving['vendor_id']) ?>"><?= View::text($leaving['name']) ?></a>
+                    <span class="muted">Booth ends <?= View::date($leaving['ends_on']) ?> · <?= View::text((string) $leaving['items']) ?> <?= $leaving['items'] === 1 ? 'item' : 'items' ?> still in the system</span></p>
             <?php endforeach; ?>
         </div>
     </div>

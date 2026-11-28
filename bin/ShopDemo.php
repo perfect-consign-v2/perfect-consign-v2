@@ -396,8 +396,10 @@ final class ShopDemo
 
     private function itemNotes(): void
     {
-        $this->statements->change(
-            'UPDATE items SET quantity = 3 WHERE vendor_id = ?::uuid AND code = ?',
+        // Three on hand: a count change goes through the database, with who made it.
+        $this->statements->bound(
+            "SELECT stall_change_item_quantity(item.id, 3, NULL, 'staff', 'Store owner', NULL)
+             FROM items AS item WHERE item.vendor_id = ?::uuid AND item.code = ?",
             [$this->vendors['ADA'], 'ADA-011']
         );
         $this->statements->change(
@@ -513,8 +515,26 @@ final class ShopDemo
         $next = (new DateTimeImmutable($month . '-01'))->modify('first day of next month')->format('Y-m-d');
         $this->payout($next);
         if ($month === '2026-09') {
-            $this->parties->setActive($this->vendors['DAN'], false);
+            $this->leave('DAN');
         }
+    }
+
+    /**
+     * A vendor leaves: everything still counted is marked Took it home, the
+     * way the Close out page does it, and then they are made inactive.
+     */
+    private function leave(string $vendor): void
+    {
+        $this->statements->bound(
+            "SELECT stall_change_item_quantity(item.id, 0, reason.id, 'staff', 'Store owner', NULL)
+             FROM items AS item
+             CROSS JOIN quantity_reasons AS reason
+             WHERE item.vendor_id = ?::uuid
+               AND item.quantity > 0
+               AND reason.code = 'took_home'",
+            [$this->vendors[$vendor]]
+        );
+        $this->parties->setActive($this->vendors[$vendor], false);
     }
 
     private function october(): void

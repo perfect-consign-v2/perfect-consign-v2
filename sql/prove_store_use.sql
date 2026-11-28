@@ -540,4 +540,46 @@ BEGIN
     RESET ROLE;
 END $$;
 
+-- Item counts (D10): every count change above wrote exactly one row, used by
+-- that change; each item's rows run from one count to the next and end at its
+-- count now; and each ending wrote one row per event.
+DO $$
+BEGIN
+    SET CONSTRAINTS item_quantity_changes_used_sealed IMMEDIATE;
+    IF EXISTS (SELECT 1 FROM item_quantity_changes WHERE NOT applied) THEN
+        RAISE EXCEPTION 'a count change row was never used';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            SELECT change.item_id, change.old_quantity, change.new_quantity,
+                   lag(change.new_quantity) OVER (PARTITION BY change.item_id ORDER BY change.changed_at, change.id) AS before,
+                   lead(change.id) OVER (PARTITION BY change.item_id ORDER BY change.changed_at, change.id) AS later
+            FROM item_quantity_changes AS change
+        ) AS chain
+        JOIN items AS item ON item.id = chain.item_id
+        WHERE (chain.before IS NOT NULL AND chain.before <> chain.old_quantity)
+           OR (chain.later IS NULL AND chain.new_quantity <> item.quantity)
+    ) THEN
+        RAISE EXCEPTION 'an item count history does not match its counts';
+    END IF;
+    IF (SELECT count(*) FROM item_quantity_changes WHERE ending = 'sold') <> (SELECT count(*) FROM sale_lines)
+       OR (SELECT count(*) FROM item_quantity_changes WHERE ending = 'customer_return') <> (SELECT count(*) FROM item_returns)
+       OR (SELECT count(*) FROM item_quantity_changes WHERE ending = 'missed_sale') <> (SELECT count(*) FROM missed_sales WHERE item_id IS NOT NULL)
+       OR (SELECT count(*) FROM item_quantity_changes WHERE ending = 'store_use') <> (SELECT count(*) FROM store_uses WHERE item_id IS NOT NULL)
+       OR (SELECT count(*) FROM item_quantity_changes WHERE ending = 'missed_sale_undone') <> (
+           SELECT count(*) FROM missed_sales AS missed
+           JOIN journals AS reversal ON reversal.reverses_journal_id = missed.journal_id AND reversal.is_reversal
+           WHERE missed.item_id IS NOT NULL)
+       OR (SELECT count(*) FROM item_quantity_changes WHERE ending = 'store_use_undone') <> (
+           SELECT count(*) FROM store_uses AS used
+           JOIN journals AS reversal ON reversal.reverses_journal_id = used.journal_id AND reversal.is_reversal
+           WHERE used.item_id IS NOT NULL)
+       OR (SELECT count(*) FROM item_quantity_changes WHERE ending = 'customer_return_undone') <> (
+           SELECT count(*) FROM item_returns AS returned
+           JOIN journals AS reversal ON reversal.reverses_journal_id = returned.journal_id AND reversal.is_reversal) THEN
+        RAISE EXCEPTION 'an ending did not write exactly one count row per event';
+    END IF;
+END $$;
+
 ROLLBACK;

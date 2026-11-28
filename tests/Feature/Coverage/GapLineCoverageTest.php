@@ -556,6 +556,7 @@ final class GapLineCoverageTest extends TestCase
             $door->mall,
             (new ReflectionClass(RentDue::class))->newInstanceWithoutConstructor(),
             (new ReflectionClass(\PerfectConsign\Feature\Dashboard\LeftWithMoney::class))->newInstanceWithoutConstructor(),
+            new \PerfectConsign\Feature\Party\VendorMoveOut($door->statements),
             new JobQueue(),
             $door->pdo,
         );

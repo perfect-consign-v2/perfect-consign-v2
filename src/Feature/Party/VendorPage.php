@@ -12,6 +12,8 @@ final class VendorPage
 {
     private readonly SellerPaths $sellerPaths;
 
+    private readonly AssignmentOffer $offers;
+
     public function __construct(
         private readonly MallApp $app,
         private readonly PartyStore $parties,
@@ -19,11 +21,12 @@ final class VendorPage
         private readonly MallSettings $mall,
         private readonly VendorRoster $roster,
         private readonly VendorBalances $balances,
-        private readonly AssignmentOffer $offers,
+        private readonly VendorMoveOut $moveOut,
         private readonly VendorForm $forms,
         private readonly StaffStore $staff,
     ) {
         $this->sellerPaths = new SellerPaths($mall);
+        $this->offers = new AssignmentOffer($parties, $stays);
     }
 
     /**
@@ -60,6 +63,8 @@ final class VendorPage
             'earliestStart' => $this->stays->earliestStart($this->mall->today()),
             'paidAhead' => $this->stays->paidAhead($id),
             'booking' => $booking,
+            'leaving' => $this->moveOut->leaving($id, $today),
+            'countHistory' => $this->moveOut->history($id),
             'error' => $error,
             'sellerPrefix' => $this->sellerPaths->prefix(),
             'sellerBase' => $this->sellerPaths->list($slug),

@@ -99,7 +99,7 @@ final class AssignmentControllerTest extends TestCase
         );
         $forms = new VendorForm($door->app, $door->mall, new SellerPaths($door->mall));
         $staff = new StaffStore($door->statements, new RecoveryAddress(), new PasswordChoice());
-        $page = new VendorPage($door->app, $parties, $stays, $door->mall, $roster, $balances, new AssignmentOffer($parties, $stays), $forms, $staff);
+        $page = new VendorPage($door->app, $parties, $stays, $door->mall, $roster, $balances, new \PerfectConsign\Feature\Party\VendorMoveOut($door->statements), $forms, $staff);
 
         return new AssignmentOutcome($door->app, $parties, $stays, $page, $door->mall, $roster, new SellerPaths($door->mall));
     }

@@ -16,10 +16,14 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var array{username: string, display_name: string, email: string}|null $signIn */
 /** @var array<string, list<array{starts_on: string, amount_minor: int}>> $rentHistories */
 /** @var array<string, int> $paidAhead */
+/** @var array{vendor_id: string, name: string, ends_on: string, items: int}|null $leaving */
+/** @var list<array{code: string, said: string}> $countHistory */
 /** @var array{months: list<array{month: string, charges: list<array{booth: string, kind: string, what: string, date: string, journal_id: string, charged: int, waived: bool, paid: int, owed: int, payments: list<array{number: string, date: string, amount: int, how: string, register: string, cashier: string, run_id: string, run_date: string, journal_id: string, paid_by: string}>}>}>, more: bool}|null $rentPaid */
 
 $rentHistories ??= [];
 $paidAhead ??= [];
+$leaving ??= null;
+$countHistory ??= [];
 $sections = [
     'Current Booths' => $vendor['current'],
     'Upcoming Booths' => $vendor['upcoming'],
@@ -69,9 +73,18 @@ $boothLine = match (count($boothCodes)) {
             <?php if ($readsReports): ?>
                 <a class="btn" href="/<?= View::text($slug) ?>/reports/vendor-register?<?= View::text(http_build_query(['vendor' => $vendor['id']])) ?>">Register</a>
             <?php endif; ?>
+            <a class="btn" href="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/close-out">Close out</a>
             <a class="btn" href="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
         </div>
     </div>
+    <?php if ($leaving !== null): ?>
+        <div class="alert alert-warning mt-4" role="status">
+            <?= View::text($vendor['name']) ?>'s booth ends <?= View::date($leaving['ends_on']) ?>.
+            <?= View::text((string) $leaving['items']) ?> <?= $leaving['items'] === 1 ? 'item is' : 'items are' ?> still in the system.
+            Rent for the month they leave is the full month.
+            <a href="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/close-out">Close out</a>
+        </div>
+    <?php endif; ?>
 
     <div class="vendor-layout">
     <div class="vendor-figures">
@@ -305,6 +318,18 @@ $boothLine = match (count($boothCodes)) {
         $rentPaidAll = ($rentPaidAll ?? false) === true;
         require __DIR__ . '/vendor-rent-history.php';
     } ?>
+    <?php if ($countHistory !== []): ?>
+        <section class="card mt-6" aria-labelledby="vendor-count-history">
+            <div class="card-head"><div class="h3" id="vendor-count-history">Item count history</div></div>
+            <div class="card-body">
+                <ul class="stack text-sm">
+                    <?php foreach ($countHistory as $line): ?>
+                        <li><strong><?= View::text($line['code']) ?></strong> · <?= View::text($line['said']) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        </section>
+    <?php endif; ?>
     <form class="card mt-6" method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/customer-role">
         <div class="card-head"><div class="h3">Also a customer</div></div>
         <div class="card-body stack">

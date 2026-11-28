@@ -28,12 +28,11 @@ final class ItemWriteColumns
             $casts[] = '?::uuid';
             $params[] = $item->brandId;
         }
-        $columns = array_merge($columns, ['description', 'price_minor', 'quantity', 'commission_bps', 'tax_exempt', 'intake_on', 'expires_on']);
-        $casts = array_merge($casts, ['?', '?', '?', '?', '?::boolean', '?::date', '?::date']);
+        $columns = array_merge($columns, ['description', 'price_minor', 'commission_bps', 'tax_exempt', 'intake_on', 'expires_on']);
+        $casts = array_merge($casts, ['?', '?', '?', '?::boolean', '?::date', '?::date']);
         $params = array_merge($params, [
             $item->description,
             $item->sale->priceMinor,
-            $item->sale->quantity,
             $item->sale->commissionBps,
             PgBool::literal($item->sale->taxExempt),
             $item->dates->intakeOn,
@@ -47,7 +46,6 @@ final class ItemWriteColumns
             $casts[] = '?::uuid';
             $params[] = $item->attributes[$list->key] ?? null;
         }
-
         return [$columns, $casts, $params];
     }
 }

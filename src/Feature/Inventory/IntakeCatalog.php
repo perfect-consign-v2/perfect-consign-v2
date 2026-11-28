@@ -27,7 +27,8 @@ final class IntakeCatalog
         return $this->statements->bound(
             'SELECT vendor.id::text AS id, vendor.code, vendor.name,
                     COALESCE(vendor.commission_bps, mall.commission_bps) AS take_bps
-             FROM vendors AS vendor
+             FROM active_sellers AS seller
+             JOIN vendors AS vendor ON vendor.id = seller.id
              CROSS JOIN mall
              WHERE strpos(lower(vendor.code), ?) > 0
                 OR strpos(lower(vendor.name), ?) > 0
@@ -38,6 +39,10 @@ final class IntakeCatalog
     }
 
     /**
+     * A seller already on an item, Active or not, so an edit still shows who it
+     * belongs to. Choosing a seller lists only Active ones, and the database
+     * refuses a new item or a change of seller for one who has left.
+     *
      * @return array<string, mixed>|null
      */
     public function vendor(string $id): ?array
@@ -66,7 +71,8 @@ final class IntakeCatalog
         $rows = $this->statements->bound(
             'SELECT vendor.id::text AS id, vendor.code, vendor.name,
                     COALESCE(vendor.commission_bps, mall.commission_bps) AS take_bps
-             FROM vendors AS vendor
+             FROM active_sellers AS seller
+             JOIN vendors AS vendor ON vendor.id = seller.id
              CROSS JOIN mall
              WHERE lower(vendor.code) = ?',
             [$needle]

@@ -9,6 +9,7 @@ use DateTimeZone;
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
+use PerfectConsign\Feature\Party\VendorMoveOut;
 use PerfectConsign\Shared\Jobs\JobQueue;
 use PDO;
 
@@ -20,6 +21,7 @@ final class DashboardController
         private readonly MallSettings $mall,
         private readonly RentDue $rentDue,
         private readonly LeftWithMoney $leftWithMoney,
+        private readonly VendorMoveOut $moveOut,
         private readonly JobQueue $jobs,
         private readonly PDO $pdo,
     ) {
@@ -47,6 +49,7 @@ final class DashboardController
             'rentRows' => $due['rows'],
             'rentMonth' => $due['month'],
             'leftOpen' => $this->leftWithMoney->vendors(),
+            'leavingSoon' => $this->moveOut->soon($today),
             'overdueJobs' => $this->jobs->overdue($this->pdo, $tenant->slug),
         ]);
     }

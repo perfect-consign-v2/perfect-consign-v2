@@ -153,6 +153,21 @@ if (trim(value($schema, "SELECT count(*) FROM booth_assignments WHERE booth_id =
     fail('two desks took the same booth for the same dates');
 }
 
+// Item counts (D10): a sale racing Make inactive, and a sale racing a hand count
+// change on the same piece, in both orders. Each waits; none double-counts.
+execSql($schema, "SELECT stall_seed_vendor('01900000-0000-7000-8000-0000000009c0', 'race-shelf', 'Race', 'Shelf'); SELECT stall_seed_vendor('01900000-0000-7000-8000-0000000009c2', 'race-count', 'Race', 'Count'); INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity) VALUES ('01900000-0000-7000-8000-0000000009c1', 'RACE-SHELF', '01900000-0000-7000-8000-0000000009c0', 'Race vase', 1500, 'BC-RACE-SHELF', CURRENT_DATE, 1), ('01900000-0000-7000-8000-0000000009c3', 'RACE-COUNT', '01900000-0000-7000-8000-0000000009c2', 'Race lamp', 1500, 'BC-RACE-COUNT', CURRENT_DATE, 1); INSERT INTO register_sessions (id, register_id, cashier, opening_counts, opening_cash_minor) SELECT '01900000-0000-7000-8000-0000000009c5', '01900000-0000-7000-8000-000000000d10', 'Race', '{\"10000\":0,\"5000\":0,\"2000\":0,\"1000\":0,\"500\":0,\"100\":0,\"25\":0,\"10\":0,\"5\":0,\"1\":0}'::jsonb, 0 WHERE NOT EXISTS (SELECT 1 FROM register_sessions WHERE register_id = '01900000-0000-7000-8000-000000000d10' AND closed_at IS NULL); INSERT INTO tickets (id, session_id) SELECT '01900000-0000-7000-8000-0000000009c6', id FROM register_sessions WHERE register_id = '01900000-0000-7000-8000-000000000d10' AND closed_at IS NULL");
+race($schema, $sql, 'prove_race_inactive_sale_a.sql', 'prove_race_inactive_sale_b.sql', true, '1 of their items is on an open, parked or layaway sale.', false);
+if (trim(value($schema, "SELECT active::text FROM vendors WHERE id = '01900000-0000-7000-8000-0000000009c0'")) !== 'true') {
+    fail('a vendor was made inactive while one of their pieces went onto a sale');
+}
+race($schema, $sql, 'prove_race_count_sale_a.sql', 'prove_race_count_sale_b.sql', true, '1 of these is on an open, parked or layaway sale.', false);
+execSql($schema, "DELETE FROM ticket_lines WHERE ticket_id = '01900000-0000-7000-8000-0000000009c6' AND item_id = '01900000-0000-7000-8000-0000000009c3'");
+race($schema, $sql, 'prove_race_sale_count_a.sql', 'prove_race_sale_count_b.sql', true, 'there are not enough on hand', false);
+if (trim(value($schema, "SELECT quantity || ',' || (SELECT count(*) FROM item_quantity_changes WHERE item_id = '01900000-0000-7000-8000-0000000009c3') || ',' || (SELECT count(*) FROM ticket_lines WHERE item_id = '01900000-0000-7000-8000-0000000009c3') FROM items WHERE id = '01900000-0000-7000-8000-0000000009c3'")) !== '0,1,0') {
+    fail('a sale and a hand count change both took the last piece');
+}
+execSql($schema, "DELETE FROM ticket_lines WHERE ticket_id = '01900000-0000-7000-8000-0000000009c6'");
+
 $left = trim(value($schema, "SELECT (SELECT count(*) FROM journals WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM vendors WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM booths WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM accounting_periods WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM brands WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM items WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM wait_list WHERE party_id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM register_sessions WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM tickets WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')"));
 if ($left !== '0,0,0,0,0,0,0,0,0') {
     fail('race proof left rows: ' . $left);

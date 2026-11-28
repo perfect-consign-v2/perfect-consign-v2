@@ -761,7 +761,7 @@ final class PartyMissCoverageTest extends TestCase
             $door->mall,
             $roster,
             $forms,
-            new VendorPage($door->app, $parties, $stays, $door->mall, $roster, $balances, new AssignmentOffer($parties, $stays), $forms, $staff),
+            new VendorPage($door->app, $parties, $stays, $door->mall, $roster, $balances, new \PerfectConsign\Feature\Party\VendorMoveOut($door->statements), $forms, $staff),
         );
     }
 

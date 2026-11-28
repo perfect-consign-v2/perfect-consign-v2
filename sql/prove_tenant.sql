@@ -242,6 +242,8 @@ BEGIN
         DROP CONSTRAINT floor_findings_item_id_fkey;
     ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pickups
         DROP CONSTRAINT pickups_item_id_fkey;
+    ALTER TABLE tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.item_quantity_changes
+        DROP CONSTRAINT item_quantity_changes_journal_id_fkey;
     TRUNCATE
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journal_lines,
         tenant_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.journals;

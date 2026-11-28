@@ -101,6 +101,7 @@ final class OwnerActionSweep
         $this->catalogs();
         $this->boothsAndRent();
         $this->inventory();
+        $this->countsAndCloseOut();
         $this->registerDesk();
         $this->books();
         $this->storefront();
@@ -1335,6 +1336,55 @@ final class OwnerActionSweep
     {
         $this->http->post('/logout', [], ['Sign out']);
         $this->http->post('/logout/confirm', [], ['Signed out.']);
+    }
+
+    /**
+     * Settings → Item counts, a lower count with its reason, and a vendor who
+     * leaves: Close out, Make inactive, the stray held and picked up, and the
+     * store keeping what was left after the waiting days.
+     */
+    private function countsAndCloseOut(): void
+    {
+        $this->http->get('/settings/counts', ['Why are there fewer?']);
+        $label = 'Sweep reason ' . $this->tag();
+        $added = $this->http->post('/settings/counts/reasons', ['label' => $label, 'kind' => 'leaving', 'who' => 'staff'], ['Reason added.']);
+        $reason = $this->http->id($added->body, '#value="' . preg_quote(htmlspecialchars($label), '#') . '"(?:(?!</tr>).)*/settings/counts/reasons/([0-9a-fA-F-]{36})"#s', 'new reason');
+        $this->http->post('/settings/counts/reasons/' . $reason, ['label' => $label . ' saved', 'kind' => 'correction', 'who' => 'both'], ['Reason saved.']);
+        $this->http->post('/settings/counts/reasons/' . $reason . '/active', ['active' => '0'], ['Reason switched off.']);
+        $this->http->post('/settings/counts/reasons/' . $reason . '/delete', [], ['Reason deleted.']);
+        $this->http->post('/settings/counts/wait', ['abandon_wait_days' => '1'], ['Saved.']);
+
+        $tag = $this->tag();
+        $created = $this->http->post('/vendors', ['code' => 'c' . $tag, 'first_name' => 'Cleo', 'last_name' => $tag, 'store_take' => '50'], ['Vendor created.', 'Consignor created.']);
+        $leaver = $this->http->id($created->body, '#/(?:vendors|consignors)/([0-9a-fA-F-]{36})/edit#', 'leaving vendor');
+        $booth = 'k' . $tag;
+        $this->http->post('/booths', ['code' => $booth, 'name' => $booth, 'amount' => '25.00'], ['Booth created.']);
+        $boothId = $this->safeId($this->http->get('/booths', [$booth])->body, 'tr', 'booth', $booth, 'close-out booth');
+        if ($leaver === '' || $boothId === '') {
+            return;
+        }
+        ProbeMall::plantStay($boothId, $leaver, '2026-01-01', '2026-02-28', 2500);
+        $vaseCode = $this->item($leaver, '9.00', '3', '');
+        $vase = $this->itemId($vaseCode);
+        $lampCode = $this->item($leaver, '7.00', '1', '');
+        $lamp = $this->itemId($lampCode);
+        $keepCode = $this->item($leaver, '5.00', '1', '');
+        $keep = $this->itemId($keepCode);
+        $lower = $this->itemFields($leaver, $vaseCode, '9.00', '2', '', 'Probe ' . $vaseCode);
+        $asked = $this->http->post('/inventory/' . $vase, $lower, ['Why are there fewer?']);
+        $damaged = $this->http->id($asked->body, '#name="quantity_reason" value="([0-9a-f-]{36})">Damaged<#', 'Damaged reason');
+        $this->http->post('/inventory/' . $vase, $lower + ['quantity_reason' => $damaged], ['Item saved.', 'Count history']);
+
+        $base = '/vendors/' . $leaver . '/close-out';
+        $page = $this->http->get($base, ['Close out Cleo', 'Mark all as Took it home']);
+        $lost = $this->http->id($page->body, '#name="item_id" value="' . preg_quote($lamp, '#') . '">(?:(?!</form>).)*?name="quantity_reason" value="([0-9a-f-]{36})">Lost or stolen<#s', 'Lost or stolen reason');
+        $this->http->post($base . '/count', ['item_id' => $lamp, 'quantity_reason' => $lost], ['Item counted out.']);
+        $this->http->post($base . '/keep', ['item_id' => $keep], ['The store keeps that piece. It is now store stock.']);
+        $this->http->post($base . '/all', [], ['Every item is marked Took it home.']);
+        $this->http->post('/vendors/' . $leaver . '/standing', ['standing' => 'inactive'], ['Vendor is inactive.', 'Consignor is inactive.']);
+        $this->http->post('/inventory/' . $vase . '/hold', [], ['Held for Cleo']);
+        $this->http->post($base . '/picked-up', ['item_id' => $vase], ['Pickup saved.']);
+        $this->http->post('/settings/counts/wait', ['abandon_wait_days' => ''], ['Saved.']);
     }
 
     private function item(string $vendorId, string $price, string $quantity, string $expires): string

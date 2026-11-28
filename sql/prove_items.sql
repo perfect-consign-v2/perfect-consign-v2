@@ -438,9 +438,10 @@ SET code = 'Cee',
     price_minor = 2500,
     commission_bps = 2500,
     intake_on = DATE '2026-09-01',
-    expires_on = DATE '2026-10-01',
-    quantity = 4
+    expires_on = DATE '2026-10-01'
 WHERE id = '01900000-0000-7000-8000-000000000c02';
+
+SELECT stall_change_item_quantity('01900000-0000-7000-8000-000000000c02', 4, NULL, 'staff', 'Proof desk', NULL);
 
 DO $$
 BEGIN
@@ -538,6 +539,10 @@ EXCEPTION
         END IF;
 END $$;
 
+-- The count change above is checked now, so its table can be altered below.
+SET CONSTRAINTS item_quantity_changes_used_sealed IMMEDIATE;
+SET CONSTRAINTS item_quantity_changes_used_sealed DEFERRED;
+
 ALTER TABLE ticket_lines DROP CONSTRAINT ticket_lines_item_id_fkey;
 ALTER TABLE sale_lines DROP CONSTRAINT sale_lines_item_id_fkey;
 ALTER TABLE item_returns DROP CONSTRAINT item_returns_item_id_fkey;
@@ -550,6 +555,7 @@ ALTER TABLE floor_findings DROP CONSTRAINT floor_findings_item_id_fkey;
 ALTER TABLE pickups DROP CONSTRAINT pickups_item_id_fkey;
 ALTER TABLE item_dispositions DROP CONSTRAINT item_dispositions_item_id_fkey;
 ALTER TABLE item_price_events DROP CONSTRAINT item_price_events_item_id_fkey;
+ALTER TABLE item_quantity_changes DROP CONSTRAINT item_quantity_changes_item_id_fkey;
 
 DO $$
 BEGIN
