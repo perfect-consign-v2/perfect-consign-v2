@@ -45,6 +45,7 @@ final class BoothListStore
                         vendor.code AS vendor_code, assignment.starts_on, assignment.ends_on
                  FROM booth_assignments AS assignment
                  JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
+                 WHERE assignment.cancelled_on IS NULL
                  ORDER BY assignment.starts_on'
             ),
             'open_rent' => $this->statements->rows(
@@ -74,6 +75,7 @@ final class BoothListStore
         $rows = $this->statements->bound(
             'SELECT 1 FROM booth_assignments
              WHERE booth_id = ?::uuid
+               AND cancelled_on IS NULL
                AND (ends_on IS NULL OR ends_on >= ?::date)
              LIMIT 1',
             [$id, $today]

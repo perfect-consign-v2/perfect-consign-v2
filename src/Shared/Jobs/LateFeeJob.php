@@ -7,6 +7,7 @@ namespace PerfectConsign\Shared\Jobs;
 use PDO;
 use PerfectConsign\Feature\Rent\LateFee;
 use PerfectConsign\Feature\Rent\LateFeeDue;
+use PerfectConsign\Feature\Rent\RentPaidAhead;
 use PerfectConsign\Ledger\JournalCash;
 use PerfectConsign\Ledger\LedgerPeriods;
 use PerfectConsign\Ledger\PostingFunctions;
@@ -22,6 +23,7 @@ final class LateFeeJob
     {
         $statements = new Statements($this->pdo);
         $postings = new PostingFunctions($this->pdo, new LedgerPeriods($this->pdo), new JournalCash($this->pdo));
+        (new RentPaidAhead($statements, $postings))->apply($date);
         (new LateFeeDue($statements, $postings, new LateFee($postings)))->apply($date);
     }
 }

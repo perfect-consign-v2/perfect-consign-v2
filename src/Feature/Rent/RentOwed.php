@@ -131,6 +131,7 @@ final class RentOwed
              FROM booth_assignments AS assignment
              JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
              WHERE assignment.booth_id = ?::uuid
+               AND assignment.cancelled_on IS NULL
              ORDER BY (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date) DESC, assignment.starts_on DESC
              LIMIT 1",
             [$boothId, $today]
@@ -243,6 +244,7 @@ final class RentOwed
              FROM booth_assignments AS assignment
              JOIN booths AS booth ON booth.id = assignment.booth_id
              WHERE assignment.vendor_id = ?::uuid
+               AND assignment.cancelled_on IS NULL
                AND assignment.starts_on <= ?::date
                AND (assignment.ends_on IS NULL OR assignment.ends_on >= ?::date)
              ORDER BY booth.code",

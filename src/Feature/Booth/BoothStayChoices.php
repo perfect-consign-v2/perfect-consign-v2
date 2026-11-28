@@ -30,9 +30,8 @@ final class BoothStayChoices
              FROM booth_assignments AS stay
              JOIN booths AS booth ON booth.id = stay.booth_id
              JOIN vendors AS vendor ON vendor.id = stay.vendor_id
-             WHERE stay.ends_on IS NULL
-                OR stay.ends_on >= ?::date
-                OR stall_assignment_open_rent(stay.id) > 0
+             WHERE stay.cancelled_on IS NULL
+               AND (stay.ends_on IS NULL OR stay.ends_on >= ?::date OR stall_assignment_open_rent(stay.id) > 0)
              ORDER BY booth.code, stay.starts_on",
             [$today]
         ), null);

@@ -26,7 +26,10 @@ final class VendorPage
         $this->sellerPaths = new SellerPaths($mall);
     }
 
-    public function show(string $slug, string $id, ?string $error): void
+    /**
+     * @param array<string, mixed>|null $booking a booth the person chose, waiting for its first rent
+     */
+    public function show(string $slug, string $id, ?string $error, ?array $booking = null): void
     {
         $today = $this->mall->today();
         $assembled = $this->roster->assemble($this->stays->vendorRowsFor($id, $today), $today);
@@ -54,6 +57,9 @@ final class VendorPage
             'rentPaid' => $this->balances->rentHistory($id, $showAll),
             'rentPaidAll' => $showAll,
             'today' => $this->mall->today(),
+            'earliestStart' => $this->stays->earliestStart($this->mall->today()),
+            'paidAhead' => $this->stays->paidAhead($id),
+            'booking' => $booking,
             'error' => $error,
             'sellerPrefix' => $this->sellerPaths->prefix(),
             'sellerBase' => $this->sellerPaths->list($slug),

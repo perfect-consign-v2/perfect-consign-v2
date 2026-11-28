@@ -25,6 +25,7 @@ final class AssignmentBook
              JOIN booths AS booth ON booth.id = assignment.booth_id
              JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
                  JOIN persons AS person ON person.party_id = vendor.party_id
+             WHERE assignment.cancelled_on IS NULL
              ORDER BY assignment.starts_on, booth.code'
         );
     }
@@ -126,43 +127,36 @@ final class AssignmentBook
         );
     }
 
-    public function addAssignment(
-        string $boothId,
-        string $vendorId,
-        string $startsOn,
-        string $endsOn,
-        ?int $rentMinor = null,
-    ): string {
-        $id = '';
-        $this->statements->transaction(function () use ($boothId, $vendorId, $startsOn, $endsOn, $rentMinor, &$id): void {
-            $id = $this->insertStay($boothId, $vendorId, $startsOn, $endsOn);
-            if ($rentMinor === null) {
-                throw new \InvalidArgumentException('that booth has no asking rent');
-            }
-            $this->statements->change(
-                'INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES (?::uuid, ?)',
-                [$id, $rentMinor]
-            );
-        });
+    /**
+     * The first day a new booth can start: the first day of the current rent period.
+     */
+    public function earliestStart(string $today): string
+    {
+        $rows = $this->statements->bound("SELECT to_char(stall_rent_period_start(?::date), 'YYYY-MM-DD') AS earliest", [$today]);
 
-        return $id;
+        return RowValue::string($rows[0]['earliest'] ?? null);
     }
 
-    private function insertStay(string $boothId, string $vendorId, string $startsOn, string $endsOn): string
+    /**
+     * What each of a vendor's reserved stays holds, paid ahead.
+     *
+     * @return array<string, int>
+     */
+    public function paidAhead(string $vendorId): array
     {
-        $sql = $endsOn === ''
-            ? 'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on) VALUES (?::uuid, ?::uuid, ?::date) RETURNING id'
-            : 'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on, ends_on) VALUES (?::uuid, ?::uuid, ?::date, ?::date) RETURNING id';
-        $params = $endsOn === ''
-            ? [$boothId, $vendorId, $startsOn]
-            : [$boothId, $vendorId, $startsOn, $endsOn];
-        $rows = $this->statements->bound($sql, $params);
-        $id = $rows[0]['id'] ?? null;
-        if (!is_string($id) || $id === '') {
-            throw new \InvalidArgumentException('that assignment was not created');
+        $held = [];
+        foreach (
+            $this->statements->bound(
+                'SELECT id::text AS id, stall_rent_paid_ahead(id) AS held
+                 FROM booth_assignments
+                 WHERE vendor_id = ?::uuid AND cancelled_on IS NULL AND stall_rent_paid_ahead(id) > 0',
+                [$vendorId]
+            ) as $row
+        ) {
+            $held[RowValue::string($row['id'] ?? null)] = RowValue::integer($row['held'] ?? null);
         }
 
-        return $id;
+        return $held;
     }
 
     public function askingRent(string $boothId): ?int
@@ -207,7 +201,8 @@ final class AssignmentBook
                 JOIN persons AS person ON person.party_id = vendor.party_id
                 LEFT JOIN party_addresses AS physical
                   ON physical.party_id = vendor.party_id AND physical.kind = \'physical\'
-                LEFT JOIN booth_assignments AS assignment ON assignment.vendor_id = vendor.id
+                LEFT JOIN booth_assignments AS assignment
+                  ON assignment.vendor_id = vendor.id AND assignment.cancelled_on IS NULL
                 LEFT JOIN booths AS booth ON booth.id = assignment.booth_id';
         $params = [$asOf];
         if ($vendorId !== null) {
@@ -217,14 +212,6 @@ final class AssignmentBook
         $sql .= ' ORDER BY vendor.name, vendor.code, assignment.starts_on';
 
         return $this->statements->bound($sql, $params);
-    }
-
-    public function endAssignment(string $id, string $endsOn): void
-    {
-        $this->statements->change(
-            'UPDATE booth_assignments SET ends_on = ?::date WHERE id = ?::uuid',
-            [$endsOn, $id]
-        );
     }
 
     public function setAskingRent(string $boothId, int $amount): void

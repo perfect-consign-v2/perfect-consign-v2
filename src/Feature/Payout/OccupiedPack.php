@@ -96,7 +96,8 @@ final class OccupiedPack
              FROM booth_assignments AS stay
              JOIN vendors AS vendor ON vendor.id = stay.vendor_id
              JOIN booths AS booth ON booth.id = stay.booth_id
-             WHERE stay.starts_on <= ?::date
+             WHERE stay.cancelled_on IS NULL
+               AND stay.starts_on <= ?::date
                AND (stay.ends_on IS NULL OR stay.ends_on >= ?::date)
              ORDER BY vendor.code, booth.code',
             [$today, $today]

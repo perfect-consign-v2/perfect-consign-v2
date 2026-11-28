@@ -22,6 +22,7 @@ final class MapStore
             'SELECT assignment.booth_id, vendor.name AS vendor_name, assignment.starts_on, assignment.ends_on
              FROM booth_assignments AS assignment
              JOIN vendors AS vendor ON vendor.id = assignment.vendor_id
+             WHERE assignment.cancelled_on IS NULL
              ORDER BY assignment.starts_on'
         );
         $stays = [];

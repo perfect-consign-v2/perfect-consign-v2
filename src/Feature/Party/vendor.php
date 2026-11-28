@@ -15,9 +15,11 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var list<array{id: string, code: string, rent: string, available_on: string}> $booths */
 /** @var array{username: string, display_name: string, email: string}|null $signIn */
 /** @var array<string, list<array{starts_on: string, amount_minor: int}>> $rentHistories */
+/** @var array<string, int> $paidAhead */
 /** @var array{months: list<array{month: string, charges: list<array{booth: string, kind: string, what: string, date: string, journal_id: string, charged: int, waived: bool, paid: int, owed: int, payments: list<array{number: string, date: string, amount: int, how: string, register: string, cashier: string, run_id: string, run_date: string, journal_id: string, paid_by: string}>}>}>, more: bool}|null $rentPaid */
 
 $rentHistories ??= [];
+$paidAhead ??= [];
 $sections = [
     'Current Booths' => $vendor['current'],
     'Upcoming Booths' => $vendor['upcoming'],
@@ -228,7 +230,14 @@ $boothLine = match (count($boothCodes)) {
                             <tbody>
                             <?php foreach ($assignments as $assignment): ?>
                                 <tr>
-                                    <td><a href="/<?= View::text($slug) ?>/booths#booth-<?= View::text($assignment['booth_id']) ?>"><?= View::text($assignment['booth_code']) ?></a></td>
+                                    <td>
+                                        <a href="/<?= View::text($slug) ?>/booths#booth-<?= View::text($assignment['booth_id']) ?>"><?= View::text($assignment['booth_code']) ?></a>
+                                        <?php if (isset($paidAhead[$assignment['id']])) {
+                                            $held = $paidAhead[$assignment['id']];
+                                            $isOwner = $actorRole === 'owner';
+                                            require __DIR__ . '/vendor-reservation.php';
+                                        } ?>
+                                    </td>
                                     <td><?= View::date($assignment['starts_on']) ?></td>
                                     <td>
                                         <?php if ($assignment['ends_on'] === ''): ?>
@@ -236,7 +245,8 @@ $boothLine = match (count($boothCodes)) {
                                                 <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
                                                 <label class="sr-only" for="ends-<?= View::text($assignment['id']) ?>">End date</label>
                                                 <input class="input" id="ends-<?= View::text($assignment['id']) ?>" name="ends_on" type="date" required min="<?= View::text($assignment['starts_on']) ?>">
-                                                <button class="btn btn-sm" type="submit">End</button>
+                                                <button class="btn btn-sm" type="submit">End booth</button>
+                                                <span class="muted text-sm">The month it ends stays full rent.</span>
                                             </form>
                                         <?php else: ?>
                                             <?= View::date($assignment['ends_on']) ?>
@@ -282,41 +292,11 @@ $boothLine = match (count($boothCodes)) {
 
         <?php if (!$consignmentOnly): ?>
         <div class="vendor-work">
-            <div class="card">
-                <div class="card-head"><div class="h3">Assign a booth</div></div>
-                <form method="post" action="/<?= View::text($slug) ?>/assignments" data-today="<?= View::text($today) ?>">
-                    <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">
-                    <input type="hidden" name="vendor_id" value="<?= View::text($vendor['id']) ?>">
-                    <div class="card-body stack">
-                        <div class="field">
-                            <label for="assign_booth">Booth</label>
-                            <select class="select" id="assign_booth" name="booth_id" required>
-                                <option value="">Choose a booth</option>
-                                <?php foreach ($booths as $booth): ?>
-                                    <option value="<?= View::text($booth['id']) ?>" data-rent="<?= View::text($booth['rent']) ?>" data-available="<?= View::text($booth['available_on']) ?>"><?= View::text($booth['code']) ?><?php if ($booth['available_on'] !== ''): ?> — available <?= View::date($booth['available_on']) ?><?php endif; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="assign_rent">Rent <span class="badge badge-warning" id="assign_rent_badge" hidden></span></label>
-                            <input class="input" id="assign_rent" name="rent" inputmode="decimal">
-                            <p class="muted text-sm">Default booth rent. You can change it.</p>
-                        </div>
-                        <div class="field">
-                            <label for="starts_on">Start</label>
-                            <input class="input" id="starts_on" name="starts_on" type="date" value="<?= View::text($today) ?>" required>
-                        </div>
-                        <div class="field">
-                            <label for="ends_on">End</label>
-                            <input class="input" id="ends_on" name="ends_on" type="date">
-                        </div>
-                    </div>
-                    <div class="card-foot">
-                        <button class="btn btn-primary" type="submit">Add assignment</button>
-                    </div>
-                </form>
-                <script src="/assets/js/vendor-assign.js"></script>
-            </div>
+            <?php
+            $booking = $booking ?? null;
+            $earliestStart = is_string($earliestStart ?? null) ? $earliestStart : $today;
+            require __DIR__ . '/vendor-booking.php';
+            ?>
         </div>
         <?php endif; ?>
     </div>

@@ -101,6 +101,19 @@ BEGIN
     END IF;
 END $$;
 
+-- What the desk shows before taking payment is what assigning takes.
+DO $$
+BEGIN
+    IF (SELECT due_minor || ' ' || first_period || ' ' || paid_ahead FROM stall_booth_due('01900000-0000-7000-8000-00000000a202', '2026-11-17', NULL, '2026-11-15'))
+           <> '1446 2026-11-01 false'
+       OR (SELECT due_minor || ' ' || paid_ahead FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2026-12-01', NULL, '2026-11-15')) <> '5000 true'
+       OR (SELECT due_minor FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2024-02-15', 2900, '2024-02-10')) <> 1500
+       OR (SELECT due_minor FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2025-02-15', 2800, '2025-02-10')) <> 1400
+       OR EXISTS (SELECT 1 FROM stall_booth_due('01900000-0000-7000-8000-00000000a999', '2026-12-01', NULL, '2026-11-15')) THEN
+        RAISE EXCEPTION 'the amount due before assigning is not the quote';
+    END IF;
+END $$;
+
 -- The refusals, each in plain words, and none of them leaves a stay behind.
 DO $$
 DECLARE
@@ -200,6 +213,18 @@ BEGIN
     END IF;
     IF stall_recognize_rent_paid_in_advance('2026-12-02') <> 0 THEN
         RAISE EXCEPTION 'a reservation was applied twice';
+    END IF;
+    IF (SELECT paid_by || '/' || how || '/' || months || '/' || amount_minor
+        FROM stall_rent_payments('2026-12-01', '2026-12-31', '01900000-0000-7000-8000-00000000a101')) <> 'paid_ahead/Paid ahead/Dec 2026/5000' THEN
+        RAISE EXCEPTION 'the applied reservation is not on the rent payments list as paid ahead';
+    END IF;
+    IF (SELECT balance_minor FROM stall_vendor_register('01900000-0000-7000-8000-00000000a101', '2026-11-01', '2026-11-30')
+        WHERE row_kind = 'paid_ahead') <> 5000
+       OR (SELECT balance_minor FROM stall_vendor_register('01900000-0000-7000-8000-00000000a101', '2026-11-01', '2026-11-30')
+        WHERE row_kind = 'closing') <> 5000
+       OR (SELECT balance_minor FROM stall_vendor_register('01900000-0000-7000-8000-00000000a101', '2026-11-01', '2026-12-31')
+        WHERE row_kind = 'closing') <> 0 THEN
+        RAISE EXCEPTION 'the vendor register does not hold the reservation for her in November and clear it in December';
     END IF;
 END $$;
 

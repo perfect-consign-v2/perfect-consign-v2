@@ -252,6 +252,7 @@ final class VendorCheck
                  LIMIT 1
              ) AS rate ON true
              WHERE assignment.vendor_id = ?::uuid
+               AND assignment.cancelled_on IS NULL
              ORDER BY assignment.starts_on DESC",
                 [$today, $today, $today, $vendorId]
             ) as $row

@@ -544,10 +544,10 @@ final class MallDemo
         }
         $this->closeDrawer($session, $month, $month === '2026-06' ? 200 : 0);
         if ($month === '2026-05') {
-            $this->stays->endAssignment($this->assignmentId('C-2', 'LEO'), '2026-05-31');
+            $this->endStay('C-2', 'LEO', '2026-05-31');
         }
         if ($month === '2026-07') {
-            $this->stays->endAssignment($this->assignmentId('B-2', 'DAN'), '2026-07-31');
+            $this->endStay('B-2', 'DAN', '2026-07-31');
             $this->stays->setAskingRent($this->booths['A-1'], 35000);
             $this->stays->setAskingRent($this->booths['B-2'], 27500);
             $this->assign('B-2', 'EVE', '2026-08-01', '', 27500);
@@ -570,8 +570,8 @@ final class MallDemo
             $this->parties->setActive($this->vendors['DAN'], false);
         }
         if ($month === '2026-09') {
-            $this->stays->endAssignment($this->assignmentId('A-2', 'BEA'), '2026-10-31');
-            $this->stays->endAssignment($this->assignmentId('B-1', 'CAL'), '2026-10-18');
+            $this->endStay('A-2', 'BEA', '2026-10-31');
+            $this->endStay('B-1', 'CAL', '2026-10-18');
             $this->assign('A-2', 'IRI', '2026-11-01', '', 25000);
             $this->assign('B-1', 'JON', '2026-11-01', '', 15000);
         }
@@ -634,7 +634,24 @@ final class MallDemo
 
     private function assign(string $booth, string $vendor, string $starts, string $ends, int $rent): void
     {
-        $this->stays->addAssignment($this->booths[$booth], $this->vendors[$vendor], $starts, $ends, $rent);
+        // The demo loads history, as an import would; the desk assigns through stall_assign_booth.
+        $rows = $this->statements->bound(
+            'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on, ends_on)
+             VALUES (?::uuid, ?::uuid, ?::date, NULLIF(?, \'\')::date) RETURNING id::text AS id',
+            [$this->booths[$booth], $this->vendors[$vendor], $starts, $ends]
+        );
+        $this->statements->change(
+            'INSERT INTO assignment_rent (assignment_id, amount_minor) VALUES (?::uuid, ?)',
+            [RowValue::string($rows[0]['id'] ?? null), $rent]
+        );
+    }
+
+    private function endStay(string $booth, string $vendor, string $endsOn): void
+    {
+        $this->statements->change(
+            'UPDATE booth_assignments SET ends_on = ?::date WHERE id = ?::uuid',
+            [$endsOn, $this->assignmentId($booth, $vendor)]
+        );
     }
 
     private function assignmentId(string $booth, string $vendor): string

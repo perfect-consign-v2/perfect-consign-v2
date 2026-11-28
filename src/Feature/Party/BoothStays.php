@@ -7,7 +7,8 @@ namespace PerfectConsign\Feature\Party;
 use PerfectConsign\Bootstrap\JournalAudit;
 
 /**
- * Starts, ends and re-rates a vendor's booth stays, each inside an audited transaction.
+ * Re-rates a vendor's booth stay inside an audited transaction. Starting,
+ * ending and cancelling a stay go through BoothBooking.
  */
 final class BoothStays
 {
@@ -15,30 +16,6 @@ final class BoothStays
         private readonly AssignmentBook $stays,
         private readonly JournalAudit $audit,
     ) {
-    }
-
-    public function addStay(
-        string $boothId,
-        string $vendorId,
-        string $startsOn,
-        string $endsOn,
-        ?int $rentMinor,
-    ): string {
-        $id = '';
-        $this->audit->within(function () use ($boothId, $vendorId, $startsOn, $endsOn, $rentMinor, &$id): void {
-            $id = $this->stays->addAssignment($boothId, $vendorId, $startsOn, $endsOn, $rentMinor);
-            $this->audit->record('assignment.create', 'assignment', $id);
-        });
-
-        return $id;
-    }
-
-    public function setStayEnd(string $id, string $endsOn): void
-    {
-        $this->audit->within(function () use ($id, $endsOn): void {
-            $this->stays->endAssignment($id, $endsOn);
-            $this->audit->record('assignment.end', 'assignment', $id);
-        });
     }
 
     public function setStayRent(string $id, string $startsOn, int $amount): void

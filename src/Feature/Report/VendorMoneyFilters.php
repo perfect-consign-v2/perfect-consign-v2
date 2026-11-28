@@ -13,7 +13,7 @@ use PerfectConsign\Shared\Http\Request;
  */
 final class VendorMoneyFilters
 {
-    private const PAID_BY = ['cash', 'card', 'check', 'split', 'sales', 'waived'];
+    private const PAID_BY = ['cash', 'card', 'check', 'split', 'sales', 'paid_ahead', 'waived'];
 
     /**
      * @param array{vendor: string, booth: string, paid_by: string, q: string} $chosen

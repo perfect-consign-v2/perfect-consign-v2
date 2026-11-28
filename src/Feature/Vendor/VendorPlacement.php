@@ -63,6 +63,7 @@ final class VendorPlacement
         $rows = $this->statements->bound(
             'SELECT id FROM booth_assignments
              WHERE vendor_id = ?::uuid
+               AND cancelled_on IS NULL
                AND starts_on <= ?::date
                AND (ends_on IS NULL OR ends_on >= ?::date)
              LIMIT 1',

@@ -25,6 +25,7 @@ $ways = [
     'check' => 'Check',
     'split' => 'More than one way',
     'sales' => 'From sales at payout',
+    'paid_ahead' => 'Paid ahead with a reservation',
     'waived' => 'Late fee waived',
 ];
 $overall = null;

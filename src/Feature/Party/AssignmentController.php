@@ -5,23 +5,30 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Party;
 
 use PerfectApp\Routing\Route;
+use PerfectConsign\Bootstrap\ActiveRegister;
+use PerfectConsign\Bootstrap\Actor;
+use PerfectConsign\Bootstrap\ActorRole;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
 use PerfectConsign\Ledger\Money;
 
+/**
+ * A vendor's booths: assigning one takes its first rent at the desk, ending
+ * one sets its last day, and a reservation that has not started can be
+ * cancelled by the owner. The database decides every amount and date rule.
+ */
 final class AssignmentController
 {
     public function __construct(
         private readonly MallApp $app,
-        private readonly PartyStore $parties,
-        private readonly AssignmentBook $stays,
         private readonly AssignmentOffer $offers,
-        private readonly VendorPage $pages,
         private readonly BoothStays $boothStays,
+        private readonly BoothBooking $booking,
+        private readonly AssignmentOutcome $outcome,
+        private readonly ActiveRegister $register,
         private readonly MallSettings $mall,
-        private readonly VendorRoster $roster,
-        private readonly SellerPaths $sellerPaths,
+        private readonly Actor $actor,
     ) {
     }
 
@@ -29,17 +36,40 @@ final class AssignmentController
     public function addAssignment(string $slug): void
     {
         $this->app->checkCsrf();
-        $vendorId = $this->app->request()->field('vendor_id');
-        $this->attempt($slug, $vendorId, 'Booth assigned.', function (): void {
-            $boothId = $this->app->request()->field('booth_id');
-            $this->boothStays->addStay(
-                $boothId,
-                $this->app->request()->field('vendor_id'),
-                $this->app->request()->field('starts_on'),
-                $this->app->request()->field('ends_on'),
-                $this->offers->contract($boothId, $this->app->request()->field('rent'))
-            );
-        });
+        $this->app->open($slug, true);
+        $request = $this->app->request();
+        $vendorId = $request->field('vendor_id');
+        $today = $this->mall->today();
+        $stay = [
+            'booth' => $request->field('booth_id'),
+            'vendor' => $vendorId,
+            'starts_on' => $request->field('starts_on'),
+            'ends_on' => $request->field('ends_on'),
+            'rent' => null,
+        ];
+        try {
+            $this->chosen($stay);
+            $stay['rent'] = $this->offers->contract($stay['booth'], $request->field('rent'));
+            $due = $this->booking->due($stay['booth'], $stay['starts_on'], $stay['rent'], $today);
+            if ($due === null) {
+                throw new DatabaseRefusal('Set the rent for this booth first.');
+            }
+            if ($request->field('pay_with') === '') {
+                $this->outcome->finish($slug, $vendorId, '', null, $stay + $due + ['rent_typed' => $request->field('rent')]);
+
+                return;
+            }
+            $this->booking->assign($stay, $this->payment($slug), $today);
+        } catch (DatabaseRefusal $refusal) {
+            $this->outcome->finish($slug, $vendorId, '', $this->app->catchRefusal($refusal));
+
+            return;
+        } catch (\InvalidArgumentException $error) {
+            $this->outcome->finish($slug, $vendorId, '', $error->getMessage());
+
+            return;
+        }
+        $this->outcome->finish($slug, $vendorId, 'Booth assigned.', null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/assignments/([0-9a-fA-F-]{36})/end', ['POST'])]
@@ -47,9 +77,33 @@ final class AssignmentController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $vendorId = $this->vendorOf($id);
-        $this->attempt($slug, $vendorId, 'Booth assignment ended.', function () use ($id): void {
-            $this->boothStays->setStayEnd($id, $this->app->request()->field('ends_on'));
+        $vendorId = $this->outcome->vendorOf($id);
+        $this->attempt($slug, $vendorId, 'Booth ended.', function () use ($id): void {
+            $this->booking->end($id, $this->app->request()->field('ends_on'));
+        });
+    }
+
+    #[Route('/([a-z][a-z0-9-]{0,62})/assignments/([0-9a-fA-F-]{36})/cancel', ['POST'])]
+    public function cancelReservation(string $slug, string $id): void
+    {
+        $this->app->checkCsrf();
+        $this->app->open($slug, true);
+        $vendorId = $this->outcome->vendorOf($id);
+        if ($this->actor->role() !== ActorRole::OWNER) {
+            $this->outcome->finish($slug, $vendorId, '', 'Only the owner can cancel a reservation.');
+
+            return;
+        }
+        $request = $this->app->request();
+        $outcome = $request->field('outcome');
+        $this->attempt($slug, $vendorId, $outcome === 'keep' ? 'Reservation cancelled. The store kept the payment.' : 'Reservation cancelled and refunded.', function () use ($slug, $id, $outcome, $request): void {
+            $this->booking->cancel(
+                $id,
+                $outcome,
+                $outcome === 'refund' ? $this->payment($slug) : ['way' => '', 'check' => '', 'session' => ''],
+                $request->field('reason'),
+                $this->mall->today(),
+            );
         });
     }
 
@@ -58,7 +112,7 @@ final class AssignmentController
     {
         $this->app->checkCsrf();
         $this->app->open($slug, true);
-        $vendorId = $this->vendorOf($id);
+        $vendorId = $this->outcome->vendorOf($id);
         $this->attempt($slug, $vendorId, 'Rent rate saved.', function () use ($id): void {
             $this->boothStays->setStayRent(
                 $id,
@@ -68,9 +122,41 @@ final class AssignmentController
         });
     }
 
+    /**
+     * @param array{booth: string, vendor: string, starts_on: string, ends_on: string, rent: ?int} $stay
+     */
+    private function chosen(array $stay): void
+    {
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $stay['vendor']) !== 1) {
+            throw new DatabaseRefusal('Choose a vendor.');
+        }
+        if (preg_match('/^[0-9a-fA-F-]{36}$/', $stay['booth']) !== 1) {
+            throw new DatabaseRefusal('Choose a booth.');
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $stay['starts_on']) !== 1) {
+            throw new DatabaseRefusal('Choose the day the booth starts.');
+        }
+        if ($stay['ends_on'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $stay['ends_on']) !== 1) {
+            throw new DatabaseRefusal('Choose the day the booth ends, or leave it empty.');
+        }
+    }
+
+    /**
+     * @return array{way: string, check: string, session: string}
+     */
+    private function payment(string $slug): array
+    {
+        $request = $this->app->request();
+
+        return [
+            'way' => $request->field('pay_with'),
+            'check' => $request->field('check_number'),
+            'session' => $this->register->current($slug, true),
+        ];
+    }
+
     private function attempt(string $slug, string $vendorId, string $notice, callable $action): void
     {
-        $this->app->open($slug, true);
         $error = null;
         try {
             $action();
@@ -79,53 +165,6 @@ final class AssignmentController
         } catch (\InvalidArgumentException $errorValue) {
             $error = $errorValue->getMessage();
         }
-        if ($error === null) {
-            $this->app->redirect($this->vendorPath($slug, $vendorId), $notice);
-        }
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) === 1 && $this->parties->findVendor($vendorId) !== null) {
-            $this->pages->show($slug, $vendorId, $error);
-
-            return;
-        }
-        $tenant = $this->app->open($slug, true);
-        $today = $this->mall->today();
-        $assembled = $this->roster->assemble($this->stays->vendorRows($today), $today);
-        $query = $this->app->request()->query('q');
-        $status = $this->roster->selected($this->app->request()->query('status'));
-        $this->app->show('Feature/Party/parties', [
-            'title' => $this->mall->getPartyLabel('Vendors', 'Consignors'),
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'stats' => $assembled['stats'],
-            'vendors' => $this->roster->matching($assembled['vendors'], $status, $query),
-            'status' => $status,
-            'query' => $query,
-            'error' => $error,
-            'sellerPrefix' => $this->sellerPaths->prefix(),
-        ]);
-    }
-
-    private function vendorOf(string $assignmentId): string
-    {
-        foreach ($this->stays->assignments() as $assignment) {
-            if (($assignment['id'] ?? null) !== $assignmentId) {
-                continue;
-            }
-            $vendorId = $assignment['vendor_id'] ?? null;
-            if (is_string($vendorId)) {
-                return $vendorId;
-            }
-        }
-
-        return '';
-    }
-
-    private function vendorPath(string $slug, string $vendorId): string
-    {
-        if (preg_match('/^[0-9a-fA-F-]{36}$/', $vendorId) !== 1) {
-            return $this->sellerPaths->list($slug);
-        }
-
-        return $this->sellerPaths->record($slug, $vendorId);
+        $this->outcome->finish($slug, $vendorId, $notice, $error);
     }
 }

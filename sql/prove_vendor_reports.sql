@@ -98,7 +98,7 @@ CREATE FUNCTION pg_temp.net_on(target uuid, through date, booth uuid DEFAULT NUL
       AND (
           (role.role IN ('vendor_payable', 'vendor_receivable') AND line.subledger_type = 'vendor'
            AND line.subledger_ref = target::text AND booth IS NULL)
-          OR (role.role IN ('booth_rent_receivable', 'booth_deposit_held') AND stay.vendor_id = target
+          OR (role.role IN ('booth_rent_receivable', 'booth_deposit_held', 'rent_paid_in_advance') AND stay.vendor_id = target
               AND (booth IS NULL OR stay.booth_id = booth))
       )
 $fn$;
@@ -146,9 +146,9 @@ BEGIN
         RAISE EXCEPTION 'the register totals do not add up the lines';
     END IF;
     IF COALESCE((
-           SELECT sum(CASE WHEN row_kind IN ('payable', 'deposit') THEN balance_minor ELSE -balance_minor END)
+           SELECT sum(CASE WHEN row_kind IN ('payable', 'deposit', 'paid_ahead') THEN balance_minor ELSE -balance_minor END)
            FROM stall_vendor_register(target, from_date, to_date, booth)
-           WHERE row_kind IN ('payable', 'clawback', 'rent', 'deposit')
+           WHERE row_kind IN ('payable', 'clawback', 'rent', 'deposit', 'paid_ahead')
        ), 0) <> closing THEN
         RAISE EXCEPTION 'the split does not add up to the closing balance';
     END IF;

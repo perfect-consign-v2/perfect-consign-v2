@@ -4697,6 +4697,23 @@ CREATE FUNCTION public.stall_money_text(amount_minor bigint) RETURNS text
         || '.' || lpad((abs(amount_minor) % 100)::text, 2, '0')
 $$;
 
+-- One period's rent at a rate for a stay starting on start_on: the full rate
+-- from the period's first day, otherwise the days from the start through the
+-- period's end, rounded down toward zero in the vendor's favor.
+CREATE FUNCTION public.stall_rent_prorated(rate_minor bigint, period_start date, start_on date) RETURNS bigint
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    period_end date := public.stall_rent_period_end(period_start);
+BEGIN
+    IF start_on > period_start THEN
+        RETURN (((period_end - start_on) + 1) * rate_minor) / ((period_end - period_start) + 1);
+    END IF;
+    RETURN rate_minor;
+END;
+$$;
+
 -- The rent for one assignment in one rent period, from the stored rate.
 -- A period the assignment starts in after its first day is prorated from the
 -- start date, rounded down toward zero in the vendor's favor. A period it
@@ -4746,10 +4763,7 @@ BEGIN
         RAISE EXCEPTION 'a rent charge requires the booth rate from the assignment'
             USING ERRCODE = '23514';
     END IF;
-    IF stay.starts_on > period_start THEN
-        RETURN (((period_end - stay.starts_on) + 1) * rate_minor) / ((period_end - period_start) + 1);
-    END IF;
-    RETURN rate_minor;
+    RETURN public.stall_rent_prorated(rate_minor, period_start, stay.starts_on);
 END;
 $$;
 
@@ -5219,6 +5233,7 @@ RETURNS TABLE(paid_by text, how text, register_name text, cashier text, run_id u
         SELECT CASE
                    WHEN posted.source_type = 'late_fee' AND posted.is_reversal THEN 'waived'
                    WHEN posted.source_type IN ('settlement', 'sale') THEN 'sales'
+                   WHEN posted.source_type = 'rent_advance' THEN 'paid_ahead'
                    WHEN posted.source_type = 'rent_payment' AND COALESCE(cardinality(tenders.roles), 0) > 1 THEN 'split'
                    WHEN posted.source_type = 'rent_payment' AND tenders.roles = ARRAY['card'] THEN 'card'
                    WHEN posted.source_type = 'rent_payment' AND tenders.roles = ARRAY['checks'] THEN 'check'
@@ -5233,6 +5248,7 @@ RETURNS TABLE(paid_by text, how text, register_name text, cashier text, run_id u
            CASE kind.paid_by
                WHEN 'waived' THEN 'Waived'
                WHEN 'sales' THEN 'From sales'
+               WHEN 'paid_ahead' THEN 'Paid ahead'
                WHEN 'split' THEN array_to_string(ARRAY(
                    SELECT CASE tender WHEN 'checks' THEN 'Check' ELSE initcap(tender) END
                    FROM unnest(kind.roles) AS tender
@@ -5348,7 +5364,7 @@ BEGIN
         RAISE EXCEPTION 'Choose a start date on or before the end date.'
             USING ERRCODE = '22023';
     END IF;
-    IF target_paid_by IS NOT NULL AND target_paid_by NOT IN ('cash', 'card', 'check', 'split', 'sales', 'waived') THEN
+    IF target_paid_by IS NOT NULL AND target_paid_by NOT IN ('cash', 'card', 'check', 'split', 'sales', 'paid_ahead', 'waived') THEN
         RAISE EXCEPTION 'Choose how it was paid.'
             USING ERRCODE = '22023';
     END IF;
@@ -5365,7 +5381,7 @@ BEGIN
           AND (target_vendor IS NULL OR stay.vendor_id = target_vendor)
           AND (target_booth IS NULL OR stay.booth_id = target_booth)
           AND (
-              (posted.source_type IN ('rent_payment', 'settlement', 'sale') AND NOT posted.is_reversal)
+              (posted.source_type IN ('rent_payment', 'settlement', 'sale', 'rent_advance') AND NOT posted.is_reversal)
               OR (posted.source_type = 'late_fee' AND posted.is_reversal)
           )
         GROUP BY stay.id, posted.id
@@ -5440,13 +5456,14 @@ RETURNS TABLE(total_kind text, label text, payments bigint, amount_minor bigint)
                count(*)::bigint AS payments, COALESCE(sum(amount_minor), 0)::bigint AS amount_minor
         FROM counted
         UNION ALL
-        SELECT 2, array_position(ARRAY['cash', 'card', 'check', 'split', 'sales', 'waived', 'other'], paid_by), 'paid_by',
+        SELECT 2, array_position(ARRAY['cash', 'card', 'check', 'split', 'sales', 'paid_ahead', 'waived', 'other'], paid_by), 'paid_by',
                CASE paid_by
                    WHEN 'cash' THEN 'Cash'
                    WHEN 'card' THEN 'Card'
                    WHEN 'check' THEN 'Check'
                    WHEN 'split' THEN 'More than one way'
                    WHEN 'sales' THEN 'From sales'
+                   WHEN 'paid_ahead' THEN 'Paid ahead'
                    WHEN 'waived' THEN 'Waived'
                    ELSE 'Other'
                END,
@@ -5507,7 +5524,7 @@ BEGIN
         JOIN public.chart_roles AS role ON role.account_id = line.account_id
         JOIN public.journals AS posted ON posted.id = line.journal_id
         LEFT JOIN public.booth_assignments AS stay
-            ON role.role IN ('booth_rent_receivable', 'booth_deposit_held')
+            ON role.role IN ('booth_rent_receivable', 'booth_deposit_held', 'rent_paid_in_advance')
            AND line.subledger_type = 'assignment' AND stay.id::text = line.subledger_ref
         LEFT JOIN public.booths AS booth ON booth.id = stay.booth_id
         WHERE (
@@ -5515,7 +5532,7 @@ BEGIN
                 AND line.subledger_type = 'vendor' AND line.subledger_ref = target_vendor::text
                 AND target_booth IS NULL
             ) OR (
-                role.role IN ('booth_rent_receivable', 'booth_deposit_held')
+                role.role IN ('booth_rent_receivable', 'booth_deposit_held', 'rent_paid_in_advance')
                 AND stay.vendor_id = target_vendor
                 AND (target_booth IS NULL OR stay.booth_id = target_booth)
             )
@@ -5542,9 +5559,14 @@ BEGIN
                    WHEN lines.source = 'settlement' THEN 'Rent paid from sales at payout'
                    WHEN lines.source = 'booth_deposit' AND lines.net > 0 THEN 'Booth deposit taken'
                    WHEN lines.source = 'booth_deposit' THEN 'Booth deposit given back'
+                   WHEN lines.source = 'rent_advance' AND lines.role = 'rent_paid_in_advance' AND lines.net > 0 THEN 'Paid ahead for Booth ' || lines.booth
+                   WHEN lines.source = 'rent_advance' AND lines.role = 'booth_rent_receivable' THEN 'First rent paid from money paid ahead'
+                   WHEN lines.source = 'rent_advance' AND lines.role = 'rent_paid_in_advance'
+                        AND lines.posting_key LIKE 'rent-advance-applied:%' THEN 'Money paid ahead applied to rent'
+                   WHEN lines.source = 'rent_advance' THEN lines.description
                    ELSE lines.description
                END AS words,
-               array_position(ARRAY['vendor_payable', 'vendor_receivable', 'booth_rent_receivable', 'booth_deposit_held'], lines.role) AS role_order
+               array_position(ARRAY['vendor_payable', 'vendor_receivable', 'booth_rent_receivable', 'booth_deposit_held', 'rent_paid_in_advance'], lines.role) AS role_order
         FROM lines
     ), opening AS (
         SELECT COALESCE(sum(net), 0)::bigint AS amount FROM shown WHERE day < from_date
@@ -5591,6 +5613,9 @@ BEGIN
             UNION ALL
             SELECT 'deposit', 4, 'Booth deposit the store holds',
                    COALESCE((SELECT amount FROM closing WHERE role = 'booth_deposit_held'), 0)
+            UNION ALL
+            SELECT 'paid_ahead', 5, 'Paid ahead for a booth',
+                   COALESCE((SELECT amount FROM closing WHERE role = 'rent_paid_in_advance'), 0)
         ) AS split
         WHERE split.amount <> 0 OR split.kind IN ('payable', 'rent')
     ) AS register_rows
@@ -5795,6 +5820,41 @@ BEGIN
 END;
 $$;
 
+-- What assigning a booth would take now, before anything is written: the
+-- first rent at the stay's rate (the given rent, or the booth's asking rent),
+-- the first period, and whether it is paid ahead of that period.
+CREATE FUNCTION public.stall_booth_due(target_booth uuid, start_on date, rent_minor bigint, today date)
+RETURNS TABLE(due_minor bigint, first_period date, period_end date, paid_ahead boolean)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT public.stall_rent_prorated(rate.amount, public.stall_rent_period_start(start_on), start_on),
+           public.stall_rent_period_start(start_on),
+           public.stall_rent_period_end(public.stall_rent_period_start(start_on)),
+           public.stall_rent_period_start(start_on) > public.stall_rent_period_start(today)
+    FROM (
+        SELECT COALESCE(rent_minor, (SELECT asking.amount_minor FROM public.booth_rent_rates AS asking WHERE asking.booth_id = target_booth)) AS amount
+    ) AS rate
+    WHERE start_on IS NOT NULL AND today IS NOT NULL AND rate.amount > 0
+$$;
+
+-- The reserved stays whose first period has arrived by today, and the day
+-- their first rent is charged.
+CREATE FUNCTION public.stall_rent_paid_ahead_due(today date)
+RETURNS TABLE(assignment_id uuid, first_period date, on_date date)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT assignment.id,
+           public.stall_rent_period_start(assignment.starts_on),
+           public.stall_rent_charge_date(assignment.id, public.stall_rent_period_start(assignment.starts_on))
+    FROM public.booth_assignments AS assignment
+    WHERE assignment.cancelled_on IS NULL
+      AND public.stall_rent_period_start(assignment.starts_on) <= today
+      AND public.stall_rent_paid_ahead(assignment.id) > 0
+    ORDER BY assignment.starts_on, assignment.id
+$$;
+
 -- Assigning a booth takes its first rent at the desk, whatever the start date:
 -- a full period when it starts on the cycle day, prorated otherwise. A stay
 -- that starts in the current period is charged and paid now; one that starts
@@ -5909,21 +5969,13 @@ CREATE FUNCTION public.stall_recognize_rent_paid_in_advance(today date) RETURNS 
     AS $$
 DECLARE
     stay record;
-    first_period date;
     applied integer := 0;
 BEGIN
-    FOR stay IN
-        SELECT assignment.id, assignment.starts_on
-        FROM public.booth_assignments AS assignment
-        WHERE assignment.cancelled_on IS NULL
-          AND public.stall_rent_period_start(assignment.starts_on) <= today
-          AND public.stall_rent_paid_ahead(assignment.id) > 0
-        ORDER BY assignment.starts_on, assignment.id
+    FOR stay IN SELECT * FROM public.stall_rent_paid_ahead_due(today)
     LOOP
-        first_period := public.stall_rent_period_start(stay.starts_on);
-        PERFORM public.stall_post_rent_charge(stay.id, first_period, public.stall_rent_charge_date(stay.id, first_period));
-        IF public.stall_rent_paid_ahead(stay.id) > 0 THEN
-            PERFORM public.stall_apply_rent_paid_ahead(stay.id, public.stall_rent_charge_date(stay.id, first_period));
+        PERFORM public.stall_post_rent_charge(stay.assignment_id, stay.first_period, stay.on_date);
+        IF public.stall_rent_paid_ahead(stay.assignment_id) > 0 THEN
+            PERFORM public.stall_apply_rent_paid_ahead(stay.assignment_id, stay.on_date);
         END IF;
         applied := applied + 1;
     END LOOP;
@@ -17098,6 +17150,15 @@ GRANT EXECUTE ON FUNCTION public.stall_end_booth(uuid, date) TO stall_poster;
 REVOKE ALL ON FUNCTION public.stall_cancel_reservation(uuid, text, bigint, bigint, bigint, date, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_cancel_reservation(uuid, text, bigint, bigint, bigint, date, text) TO stall_poster;
 REVOKE ALL ON FUNCTION public.stall_assert_rent_advance() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_rent_prorated(bigint, date, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_prorated(bigint, date, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_prorated(bigint, date, date) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_booth_due(uuid, date, bigint, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_booth_due(uuid, date, bigint, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_booth_due(uuid, date, bigint, date) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_rent_paid_ahead_due(date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_paid_ahead_due(date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_paid_ahead_due(date) TO stall_backup;
 REVOKE ALL ON FUNCTION public.stall_rent_book(date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_rent_book(date, date) TO stall_poster;
 GRANT EXECUTE ON FUNCTION public.stall_rent_book(date, date) TO stall_backup;
