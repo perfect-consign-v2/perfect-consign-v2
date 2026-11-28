@@ -240,7 +240,7 @@ A late fee posts as its own journal: debit that stay's rent receivable, credit l
 
 A store use is the mall buying a consigned piece for the business, not for resale. It posts its own journal: expense the agreed price and credit that vendor's payable. Quantity on hand falls. It is not a sale and it does not take drawer cash.
 
-A missed sale pays the vendor their share and expenses that cost to the mall when goods left without a proper sale ticket. It posts through the ledger as `missed_sale`, not as a normal register sale.
+A missed sale pays the vendor their share and expenses that cost to the mall when goods left without a proper sale ticket. It posts through the ledger as `missed_sale`, not as a normal register sale. The database works out the share from the item's rate (or the vendor's, or the store's) and posts the journal itself; the screen only says which vendor, which piece and the price. A second press of Post returns the same entry. A tagged piece leaves the count, and a piece already missed or sold is refused.
 
 ## Commission rules
 

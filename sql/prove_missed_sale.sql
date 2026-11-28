@@ -521,6 +521,98 @@ BEGIN
     RESET ROLE;
 END $$;
 
+-- T2: the database posts a missed sale itself. The application names the
+-- vendor, the piece and the price; the share comes from the rate the database
+-- keeps. The application role cannot write a missed sale any other way.
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity)
+VALUES ('01900000-0000-7000-8000-00000000e2f1', 'FnCoat', '01900000-0000-7000-8000-00000000e101', 'Rain coat', 10000, 'BC-MISS-FN', DATE '2041-03-01', 1);
+
+DO $$
+DECLARE
+    posted uuid;
+    again uuid;
+    attempt text;
+    wanted text;
+    attempts text[][] := ARRAY[
+        ['SELECT stall_post_missed_sale(''01900000-0000-7000-8000-00000000e101'', '''', 1000, DATE ''2041-03-05'', '' '', ''gone'', ''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'')', 'a missed sale names the piece'],
+        ['SELECT stall_post_missed_sale(''01900000-0000-7000-8000-00000000e101'', '''', 1000, DATE ''2041-03-05'', ''Lamp'', '''', ''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'')', 'a missed sale names the piece'],
+        ['SELECT stall_post_missed_sale(''01900000-0000-7000-8000-00000000e101'', '''', 1000, DATE ''2041-03-05'', ''Lamp'', ''gone'', ''short'')', 'this form has expired'],
+        ['SELECT stall_post_missed_sale(''01900000-0000-7000-8000-00000000e101'', '''', 1000, DATE ''2041-03-05'', ''Lamp'', ''gone'', NULL)', 'this form has expired'],
+        ['SELECT stall_post_missed_sale(''01900000-0000-7000-8000-00000000e1ff'', '''', 1000, DATE ''2041-03-05'', ''Lamp'', ''gone'', ''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'')', 'a missed sale needs a vendor'],
+        ['SELECT stall_post_missed_sale(''01900000-0000-7000-8000-00000000e101'', ''Hat'', 1000, DATE ''2041-03-05'', ''Lamp'', ''gone'', ''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'')', 'a missed sale needs an item'],
+        ['SELECT stall_post_missed_sale(''01900000-0000-7000-8000-00000000e101'', '''', 0, DATE ''2041-03-05'', ''Lamp'', ''gone'', ''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'')', 'a missed sale owes the vendor'],
+        ['SELECT stall_post_missed_sale(''01900000-0000-7000-8000-00000000e104'', '''', 1000, DATE ''2041-03-05'', ''Lamp'', ''gone'', ''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'')', 'a missed sale owes the vendor'],
+        ['SELECT stall_missed_sale_quote(''01900000-0000-7000-8000-00000000e101'', '''', NULL)', 'a missed sale owes the vendor'],
+        ['INSERT INTO missed_sales (journal_id, vendor_id, price_minor, description, memo) VALUES (''01900000-0000-7000-8000-00000000e2f9'', ''01900000-0000-7000-8000-00000000e101'', 1000, ''Lamp'', ''gone'')', 'permission denied'],
+        ['CREATE OR REPLACE FUNCTION stall_missed_sale_quote(uuid, text, bigint) RETURNS bigint LANGUAGE sql AS ''SELECT 1::bigint''', 'permission denied'],
+        ['ALTER FUNCTION stall_post_missed_sale(uuid, text, bigint, date, text, text, text) SECURITY INVOKER', 'must be owner'],
+        ['DROP FUNCTION stall_post_missed_sale(uuid, text, bigint, date, text, text, text)', 'must be owner']
+    ];
+    i integer;
+BEGIN
+    SET LOCAL ROLE stall_poster;
+    IF stall_missed_sale_quote('01900000-0000-7000-8000-00000000e101', ' fncoat ', 10000) <> 6000
+       OR stall_missed_sale_quote('01900000-0000-7000-8000-00000000e101', '', 999) <> 599 THEN
+        RAISE EXCEPTION 'the missed sale quote is not the vendor share';
+    END IF;
+    FOR i IN 1 .. array_length(attempts, 1) LOOP
+        attempt := attempts[i][1];
+        wanted := attempts[i][2];
+        BEGIN
+            EXECUTE attempt;
+            RAISE EXCEPTION 'accepted: %', attempt;
+        EXCEPTION
+            WHEN OTHERS THEN
+                IF SQLERRM NOT LIKE '%' || wanted || '%' THEN
+                    RAISE EXCEPTION '% was refused for the wrong reason: %', attempt, SQLERRM;
+                END IF;
+        END;
+    END LOOP;
+
+    posted := stall_post_missed_sale('01900000-0000-7000-8000-00000000e101', ' FnCoat ', 10000, DATE '2041-03-05', ' Rain coat ', ' walked out ', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    SET CONSTRAINTS ALL DEFERRED;
+    again := stall_post_missed_sale('01900000-0000-7000-8000-00000000e101', 'FnCoat', 10000, DATE '2041-03-05', 'Rain coat', 'walked out', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
+    RESET ROLE;
+    IF again IS DISTINCT FROM posted
+       OR (SELECT count(*) FROM journals WHERE posting_key = 'missed-sale:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb') <> 1 THEN
+        RAISE EXCEPTION 'a second press posted a second missed sale';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM missed_sales
+        WHERE journal_id = posted
+          AND vendor_id = '01900000-0000-7000-8000-00000000e101'
+          AND item_id = '01900000-0000-7000-8000-00000000e2f1'
+          AND price_minor = 10000 AND description = 'Rain coat' AND memo = 'walked out'
+    ) OR (SELECT source_type || '/' || source_reference || '/' || posting_date FROM journals WHERE id = posted)
+         <> 'missed_sale/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/2041-03-05' THEN
+        RAISE EXCEPTION 'the missed sale row does not name the piece';
+    END IF;
+    IF (SELECT sum(line.debit_minor) FROM journal_lines AS line JOIN chart_roles AS role ON role.account_id = line.account_id
+        WHERE line.journal_id = posted AND role.role = 'operating_expense') <> 6000
+       OR (SELECT sum(line.credit_minor) FROM journal_lines AS line JOIN chart_roles AS role ON role.account_id = line.account_id
+        WHERE line.journal_id = posted AND role.role = 'vendor_payable' AND line.subledger_type = 'vendor'
+          AND line.subledger_ref = '01900000-0000-7000-8000-00000000e101') <> 6000
+       OR (SELECT count(*) FROM journal_lines WHERE journal_id = posted) <> 2 THEN
+        RAISE EXCEPTION 'the missed sale did not post the vendor share';
+    END IF;
+    IF (SELECT quantity FROM items WHERE id = '01900000-0000-7000-8000-00000000e2f1') <> 0 THEN
+        RAISE EXCEPTION 'the missed piece is still counted';
+    END IF;
+    -- The piece is gone now, so a second missed sale for it is refused.
+    SET LOCAL ROLE stall_poster;
+    BEGIN
+        PERFORM stall_post_missed_sale('01900000-0000-7000-8000-00000000e101', 'FnCoat', 10000, DATE '2041-03-05', 'Rain coat', 'again', 'cccccccccccccccccccccccccccccccc');
+        RAISE EXCEPTION 'a second missed sale for one piece was accepted';
+    EXCEPTION
+        WHEN check_violation THEN
+            IF SQLERRM NOT IN ('a missed sale is already posted for that piece', 'there are not enough on hand') THEN
+                RAISE;
+            END IF;
+    END;
+    RESET ROLE;
+END $$;
+
 -- Item counts (D10): every count change above wrote exactly one row, used by
 -- that change; each item's rows run from one count to the next and end at its
 -- count now; and each ending wrote one row per event.

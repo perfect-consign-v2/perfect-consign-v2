@@ -11621,7 +11621,7 @@ GRANT SELECT ON TABLE public.wait_list TO stall_backup;
 
 GRANT SELECT, INSERT ON TABLE public.audit_events TO stall_poster;
 
-GRANT SELECT, INSERT ON TABLE public.missed_sales TO stall_poster;
+GRANT SELECT ON TABLE public.missed_sales TO stall_poster;
 
 GRANT SELECT, INSERT ON TABLE public.vendor_memos TO stall_poster;
 
@@ -18763,3 +18763,107 @@ GRANT EXECUTE ON FUNCTION public.stall_unclaimed_remit(uuid, bigint, text, uuid,
 REVOKE ALL ON FUNCTION public.stall_unclaimed_balances(date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_unclaimed_balances(date) TO stall_poster;
 GRANT EXECUTE ON FUNCTION public.stall_unclaimed_balances(date) TO stall_backup;
+
+-- T2 (audit 2026-11-27). A missed sale: the database works out the vendor's
+-- share from the rate it keeps, and posts the journal and its missed_sales row
+-- itself. The application only says which vendor, which piece and the price.
+-- stall_apply_missed_sale still checks the lines and takes the piece off the
+-- count, as a second line of defense.
+CREATE FUNCTION public.stall_missed_sale_quote(target_vendor uuid, tag_code text, price bigint) RETURNS bigint
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    wanted text := btrim(COALESCE(tag_code, ''));
+    rate integer;
+    share bigint;
+BEGIN
+    IF wanted = '' THEN
+        SELECT COALESCE(vendor.commission_bps, mall.commission_bps)
+        INTO rate
+        FROM public.vendors AS vendor
+        CROSS JOIN public.mall AS mall
+        WHERE vendor.id = target_vendor;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'a missed sale needs a vendor'
+                USING ERRCODE = '23514';
+        END IF;
+    ELSE
+        SELECT COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps)
+        INTO rate
+        FROM public.items AS item
+        JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
+        CROSS JOIN public.mall AS mall
+        WHERE item.vendor_id = target_vendor
+          AND lower(item.code) = lower(wanted);
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'a missed sale needs an item'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    IF price IS NULL OR price < 1 THEN
+        RAISE EXCEPTION 'a missed sale owes the vendor'
+            USING ERRCODE = '23514';
+    END IF;
+    share := price - public.stall_half_up(price, rate);
+    IF share IS NULL OR share < 1 THEN
+        RAISE EXCEPTION 'a missed sale owes the vendor'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN share;
+END;
+$$;
+
+-- The form token makes a second press of the button return the same journal.
+CREATE FUNCTION public.stall_post_missed_sale(
+    target_vendor uuid, tag_code text, price bigint, on_date date, piece text, said text, token text
+) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    wanted text := btrim(COALESCE(tag_code, ''));
+    named text := btrim(COALESCE(piece, ''));
+    what text := btrim(COALESCE(said, ''));
+    share bigint;
+    piece_id uuid;
+    posted uuid;
+BEGIN
+    IF named = '' OR what = '' THEN
+        RAISE EXCEPTION 'a missed sale names the piece'
+            USING ERRCODE = '23514';
+    END IF;
+    IF token IS NULL OR token !~ '^[0-9a-f]{32}$' THEN
+        RAISE EXCEPTION 'this form has expired'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT journal.id INTO posted
+    FROM public.journals AS journal
+    WHERE journal.posting_key = 'missed-sale:' || token;
+    IF posted IS NOT NULL THEN
+        RETURN posted;
+    END IF;
+    share := public.stall_missed_sale_quote(target_vendor, wanted, price);
+    IF wanted <> '' THEN
+        SELECT item.id INTO piece_id
+        FROM public.items AS item
+        WHERE item.vendor_id = target_vendor
+          AND lower(item.code) = lower(wanted);
+    END IF;
+    posted := public.stall_post_lines(
+        'missed-sale:' || token, on_date, 'missed_sale', token, 'Missed sale',
+        jsonb_build_array(
+            public.stall_line('operating_expense', share, 0),
+            public.stall_line('vendor_payable', 0, share, 'vendor', target_vendor::text)
+        )
+    );
+    INSERT INTO public.missed_sales (journal_id, vendor_id, item_id, price_minor, description, memo)
+    VALUES (posted, target_vendor, piece_id, price, named, what);
+    RETURN posted;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.stall_missed_sale_quote(uuid, text, bigint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_missed_sale_quote(uuid, text, bigint) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_post_missed_sale(uuid, text, bigint, date, text, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_post_missed_sale(uuid, text, bigint, date, text, text, text) TO stall_poster;

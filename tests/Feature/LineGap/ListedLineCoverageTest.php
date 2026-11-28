@@ -46,7 +46,6 @@ use PerfectConsign\Feature\Admin\AdminTenantController;
 use PerfectConsign\Feature\Admin\AdminTenantList;
 use PerfectConsign\Feature\Admin\AdminTenantWipe;
 use PerfectConsign\Feature\Admin\AppLogFile;
-use PerfectConsign\Feature\Book\MissedSaleQuote;
 use PerfectConsign\Feature\Company\CompanyLines;
 use PerfectConsign\Feature\Company\CompanyStore;
 use PerfectConsign\Feature\Mall\MallClock;
@@ -680,16 +679,6 @@ final class ListedLineCoverageTest extends TestCase
         $this->removeTree($blocked);
         $this->removeTree($dir);
         restore_error_handler();
-    }
-
-    public function testAMissedSaleWithoutAPriceIsRefused(): void
-    {
-        try {
-            MissedSaleQuote::vendorShare(0, 0);
-            self::fail('a free missed sale was priced');
-        } catch (\InvalidArgumentException $error) {
-            self::assertSame('a missed sale owes the vendor', $error->getMessage());
-        }
     }
 
     public function testJournalTemplatesRenderTheCertificateLinkAndTheConsignorMemo(): void

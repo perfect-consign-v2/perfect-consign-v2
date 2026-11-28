@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace PerfectConsign\Feature\Book;
 
-use InvalidArgumentException;
 use PerfectConsign\Bootstrap\JournalAudit;
-use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\JournalDraft;
-use PerfectConsign\Ledger\JournalSource;
-use PerfectConsign\Ledger\LedgerStore;
-use PerfectConsign\Ledger\PostedLines;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
+/**
+ * A piece the customer took that was never rung. The database works out the
+ * vendor's share from the rate it keeps and posts the journal itself; PHP says
+ * which vendor, which piece and the price.
+ */
 final class MissedSale
 {
     public function __construct(
-        private readonly LedgerStore $ledger,
+        private readonly PostingFunctions $postings,
         private readonly Statements $statements,
         private readonly JournalAudit $audit,
     ) {
@@ -25,50 +25,30 @@ final class MissedSale
 
     public function vendorShare(string $vendorId, string $itemCode, int $price): int
     {
-        $rate = $this->rate($vendorId, $itemCode);
+        $rows = $this->statements->bound(
+            'SELECT stall_missed_sale_quote(?::uuid, ?, ?) AS share',
+            [$vendorId, $itemCode, $price]
+        );
 
-        return MissedSaleQuote::vendorShare($price, $rate['bps']);
+        return RowValue::integer($rows[0]['share'] ?? null);
     }
 
     public function record(string $vendorId, string $itemCode, int $price, string $postingDate, string $description, string $memo, string $token): string
     {
-        $trimmedDescription = trim($description);
-        $trimmedMemo = trim($memo);
-        if ($trimmedDescription === '' || $trimmedMemo === '') {
-            throw new InvalidArgumentException('a missed sale names the piece');
-        }
-        if (preg_match('/^[0-9a-f]{32}$/', $token) !== 1) {
-            throw new InvalidArgumentException('this form has expired');
-        }
-        $rate = $this->rate($vendorId, $itemCode);
-        $share = MissedSaleQuote::vendorShare($price, $rate['bps']);
-        $reference = $token;
-        $existing = $this->statements->bound(
-            'SELECT id::text AS id FROM journals WHERE posting_key = ?',
-            ['missed-sale:' . $reference]
-        );
-        if ($existing !== []) {
-            return RowValue::string($existing[0]['id'] ?? null);
-        }
-        $itemId = $rate['item_id'];
-
-        return $this->ledger->post(new JournalDraft(
-            postingKey: 'missed-sale:' . $reference,
-            postingDate: $postingDate,
-            source: new JournalSource('missed_sale', $reference, 'Missed sale'),
-            lines: [
-                PostedLines::entry($this->ledger->roleAccount('operating_expense'), $share, 0, null, null),
-                PostedLines::entry($this->ledger->roleAccount('vendor_payable'), 0, $share, 'vendor', $vendorId),
-            ],
-            beforeCommit: function (string $journalId) use ($vendorId, $itemId, $price, $trimmedDescription, $trimmedMemo): void {
-                $this->statements->change(
-                    'INSERT INTO missed_sales (journal_id, vendor_id, item_id, price_minor, description, memo)
-                     VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?)',
-                    [$journalId, $vendorId, $itemId, $price, $trimmedDescription, $trimmedMemo]
+        return $this->postings->post(
+            $postingDate,
+            'stall_post_missed_sale(?::uuid, ?, ?, ?::date, ?, ?, ?)',
+            [$vendorId, $itemCode, $price, $postingDate, $description, $memo, $token],
+            beforeCommit: function (string $journalId): void {
+                $fresh = $this->statements->bound(
+                    'SELECT (posting_xid = pg_current_xact_id())::text AS fresh FROM journals WHERE id = ?::uuid',
+                    [$journalId]
                 );
-                $this->audit->record('missed_sale.record', 'journal', $journalId);
+                if (RowValue::string($fresh[0]['fresh'] ?? null) === 'true') {
+                    $this->audit->record('missed_sale.record', 'journal', $journalId);
+                }
             },
-        ));
+        );
     }
 
     /**
@@ -88,45 +68,5 @@ final class MissedSale
         }
 
         return $vendors;
-    }
-
-    /**
-     * @return array{bps: int, item_id: ?string}
-     */
-    private function rate(string $vendorId, string $itemCode): array
-    {
-        $code = trim($itemCode);
-        if ($code === '') {
-            $rows = $this->statements->bound(
-                'SELECT COALESCE(vendor.commission_bps, mall.commission_bps) AS bps
-                 FROM vendors AS vendor
-                 CROSS JOIN mall
-                 WHERE vendor.id = ?::uuid',
-                [$vendorId]
-            );
-            if ($rows === []) {
-                throw new DatabaseRefusal('a missed sale needs a vendor');
-            }
-
-            return ['bps' => RowValue::integer($rows[0]['bps'] ?? null), 'item_id' => null];
-        }
-
-        $rows = $this->statements->bound(
-            'SELECT item.id::text AS item_id,
-                    COALESCE(item.commission_bps, vendor.commission_bps, mall.commission_bps) AS bps
-             FROM items AS item
-             JOIN vendors AS vendor ON vendor.id = item.vendor_id
-             CROSS JOIN mall
-             WHERE item.vendor_id = ?::uuid AND lower(item.code) = lower(?)',
-            [$vendorId, $code]
-        );
-        if ($rows === []) {
-            throw new DatabaseRefusal('a missed sale needs an item');
-        }
-
-        return [
-            'bps' => RowValue::integer($rows[0]['bps'] ?? null),
-            'item_id' => RowValue::string($rows[0]['item_id'] ?? null),
-        ];
     }
 }

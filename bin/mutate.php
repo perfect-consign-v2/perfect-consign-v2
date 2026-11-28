@@ -766,9 +766,6 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Feature\\Pos\\TicketPricing.php' && $line === 182 && $from === '>' && $to === '>=') {
         return 'zero basis points round to zero either way';
     }
-    if ($file === 'src\\Feature\\Book\\MissedSaleQuote.php' && $line === 17 && $from === '>' && $to === '>=') {
-        return 'the full store take already leaves the vendor nothing, so the equal case throws too';
-    }
     if ($file === 'src\\Shared\\Web\\layout.php' && ($line === 220 || $line === 244 || $line === 245) && $from === '&&' && $to === '||') {
         return 'a vendor preview only lists vendor links, and an empty preview leaves the address unchanged';
     }
