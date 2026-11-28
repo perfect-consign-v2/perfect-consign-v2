@@ -34,6 +34,7 @@ final class RegisterActivity
         'payout' => 'Cash payouts',
         'cash_drop' => 'Cash drops',
         'booth_deposit' => 'Booth deposits',
+        'rent_advance' => 'Booth reservations',
     ];
 
     public function __construct(

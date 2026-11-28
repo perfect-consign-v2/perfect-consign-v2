@@ -31,6 +31,7 @@ final class SourceLabel
         'layaway_deposit' => 'Layaway deposit',
         'layaway_refund' => 'Layaway refund',
         'booth_deposit' => 'Booth deposit',
+        'rent_advance' => 'Rent paid ahead',
         'gift_certificate_issue' => 'Gift certificate',
         'gift_card_issue' => 'Gift card',
         'store_credit_issue' => 'Store credit',

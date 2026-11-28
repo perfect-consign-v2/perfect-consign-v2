@@ -4083,6 +4083,7 @@ BEGIN
             SELECT 1
             FROM public.booth_assignments AS assignment
             WHERE assignment.vendor_id = NEW.vendor_id
+              AND assignment.cancelled_on IS NULL
               AND assignment.starts_on <= today
               AND (assignment.ends_on IS NULL OR assignment.ends_on >= today)
         ) THEN
@@ -4454,7 +4455,8 @@ CREATE TABLE public.booth_assignments (
     vendor_id uuid NOT NULL,
     starts_on date NOT NULL,
     ends_on date,
-    assignment_range daterange GENERATED ALWAYS AS (daterange(starts_on, COALESCE(ends_on, 'infinity'::date), '[]'::text)) STORED,
+    cancelled_on date,
+    assignment_range daterange GENERATED ALWAYS AS (CASE WHEN cancelled_on IS NULL THEN daterange(starts_on, COALESCE(ends_on, 'infinity'::date), '[]'::text) ELSE 'empty'::daterange END) STORED,
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT booth_assignments_dates_chk CHECK (((ends_on IS NULL) OR (starts_on <= ends_on)))
 );
@@ -4716,7 +4718,7 @@ BEGIN
         RAISE EXCEPTION 'a rent period starts on the rent cycle day'
             USING ERRCODE = '22023';
     END IF;
-    SELECT assignment.id, assignment.starts_on, assignment.ends_on
+    SELECT assignment.id, assignment.starts_on, assignment.ends_on, assignment.cancelled_on
     INTO stay
     FROM public.booth_assignments AS assignment
     WHERE assignment.id = target_assignment;
@@ -4725,6 +4727,10 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
     period_end := public.stall_rent_period_end(period_start);
+    IF stay.cancelled_on IS NOT NULL THEN
+        RAISE EXCEPTION 'a cancelled reservation is not charged'
+            USING ERRCODE = '23514';
+    END IF;
     IF stay.starts_on > period_end OR (stay.ends_on IS NOT NULL AND stay.ends_on < period_start) THEN
         RAISE EXCEPTION 'a rent charge is for a period the assignment covers'
             USING ERRCODE = '23514';
@@ -4888,6 +4894,11 @@ BEGIN
         sentence := 'They owe ' || public.stall_money_text(-open.payable_minor) || ' on their payout balance.';
         RETURN NEXT;
     END IF;
+    IF public.stall_vendor_rent_paid_ahead(target) > 0 THEN
+        reason := 'paid_ahead';
+        sentence := 'They have paid ' || public.stall_money_text(public.stall_vendor_rent_paid_ahead(target)) || ' ahead for a booth.';
+        RETURN NEXT;
+    END IF;
     IF open.deposit_minor > 0 THEN
         reason := 'deposit';
         sentence := 'The store still holds a ' || public.stall_money_text(open.deposit_minor) || ' booth deposit for them.';
@@ -4897,6 +4908,7 @@ BEGIN
         SELECT 1
         FROM public.booth_assignments AS assignment
         WHERE assignment.vendor_id = target
+          AND assignment.cancelled_on IS NULL
           AND (assignment.ends_on IS NULL OR assignment.ends_on >= today)
     ) THEN
         reason := 'booth';
@@ -5030,7 +5042,7 @@ BEGIN
         RAISE EXCEPTION 'there is no rent to charge for that period'
             USING ERRCODE = '23514';
     END IF;
-    RETURN public.stall_post_lines(
+    existing := public.stall_post_lines(
         'rent-charge:' || target_assignment::text || ':' || suffix,
         on_date,
         'rent_charge',
@@ -5041,6 +5053,8 @@ BEGIN
             public.stall_line('rent_revenue', 0, amount)
         )
     );
+    PERFORM public.stall_apply_rent_paid_ahead(target_assignment, on_date);
+    RETURN existing;
 END;
 $$;
 
@@ -5633,6 +5647,388 @@ BEGIN
 END;
 $$;
 
+-- What a vendor paid ahead for a stay that has not started, still held.
+CREATE FUNCTION public.stall_rent_paid_ahead(target_assignment uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(line.credit_minor - line.debit_minor), 0)::bigint
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'rent_paid_in_advance'
+    WHERE line.subledger_type = 'assignment'
+      AND line.subledger_ref = target_assignment::text
+$$;
+
+CREATE FUNCTION public.stall_vendor_rent_paid_ahead(target uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE(sum(public.stall_rent_paid_ahead(stay.id)), 0)::bigint
+    FROM public.booth_assignments AS stay
+    WHERE stay.vendor_id = target
+$$;
+
+-- The tender lines of money handed over at the desk.
+CREATE FUNCTION public.stall_tender_lines(cash_minor bigint, card_minor bigint, checks_minor bigint, giving_back boolean)
+RETURNS jsonb
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    lines jsonb := '[]'::jsonb;
+BEGIN
+    IF COALESCE(cash_minor, 0) < 0 OR COALESCE(card_minor, 0) < 0 OR COALESCE(checks_minor, 0) < 0 THEN
+        RAISE EXCEPTION 'Enter amounts of zero or more.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF COALESCE(cash_minor, 0) > 0 THEN
+        lines := lines || CASE WHEN giving_back THEN public.stall_line('cash', 0, cash_minor) ELSE public.stall_line('cash', cash_minor, 0) END;
+    END IF;
+    IF COALESCE(card_minor, 0) > 0 THEN
+        lines := lines || CASE WHEN giving_back THEN public.stall_line('card', 0, card_minor) ELSE public.stall_line('card', card_minor, 0) END;
+    END IF;
+    IF COALESCE(checks_minor, 0) > 0 THEN
+        lines := lines || CASE WHEN giving_back THEN public.stall_line('checks', 0, checks_minor) ELSE public.stall_line('checks', checks_minor, 0) END;
+    END IF;
+    RETURN lines;
+END;
+$$;
+
+-- Every journal of money paid ahead for a booth has one of four shapes, and
+-- the amount is the database's: taken at assignment (the stay's first rent,
+-- before its period), applied (onto that first rent once it is charged),
+-- refunded or kept (when the reservation is cancelled). Money handed over or
+-- back names the open shift, and a check its number.
+CREATE FUNCTION public.stall_assert_rent_advance() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    kind text;
+    stay_text text;
+    stay record;
+    advance_debit bigint;
+    advance_credit bigint;
+    rent_credit bigint;
+    kept bigint;
+    tender_in bigint;
+    tender_out bigint;
+    checks_moved bigint;
+    lines_seen integer;
+    lines_known integer;
+BEGIN
+    IF NEW.source_type <> 'rent_advance' THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.is_reversal THEN
+        RAISE EXCEPTION 'rent paid ahead is not voided; cancel the reservation instead'
+            USING ERRCODE = '23514';
+    END IF;
+    kind := substring(NEW.posting_key FROM '^(rent-advance(?:-applied|-refund|-keep)?):[0-9a-f-]{36}$');
+    stay_text := substring(NEW.posting_key FROM ':([0-9a-f-]{36})$');
+    SELECT assignment.id, assignment.starts_on, assignment.cancelled_on INTO stay
+    FROM public.booth_assignments AS assignment
+    WHERE assignment.id::text = stay_text;
+    IF kind IS NULL OR NOT FOUND OR NEW.source_reference <> stay_text THEN
+        RAISE EXCEPTION 'rent paid ahead names one booth assignment'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT
+        COALESCE(sum(line.debit_minor) FILTER (WHERE role.role = 'rent_paid_in_advance' AND line.subledger_ref = stay_text), 0),
+        COALESCE(sum(line.credit_minor) FILTER (WHERE role.role = 'rent_paid_in_advance' AND line.subledger_ref = stay_text), 0),
+        COALESCE(sum(line.credit_minor) FILTER (WHERE role.role = 'booth_rent_receivable' AND line.subledger_ref = stay_text), 0),
+        COALESCE(sum(line.credit_minor) FILTER (WHERE role.role = 'forfeited_reservation_income'), 0),
+        COALESCE(sum(line.debit_minor) FILTER (WHERE role.role IN ('cash', 'card', 'checks')), 0),
+        COALESCE(sum(line.credit_minor) FILTER (WHERE role.role IN ('cash', 'card', 'checks')), 0),
+        COALESCE(sum(line.debit_minor + line.credit_minor) FILTER (WHERE role.role = 'checks'), 0),
+        count(*),
+        count(*) FILTER (WHERE (role.role = 'rent_paid_in_advance' AND line.subledger_ref = stay_text)
+                            OR (role.role = 'booth_rent_receivable' AND line.subledger_ref = stay_text)
+                            OR role.role IN ('forfeited_reservation_income', 'cash', 'card', 'checks'))
+    INTO advance_debit, advance_credit, rent_credit, kept, tender_in, tender_out, checks_moved, lines_seen, lines_known
+    FROM public.journal_lines AS line
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id;
+    IF lines_seen <> lines_known THEN
+        RAISE EXCEPTION 'rent paid ahead moves only between the tender, the stay and its rent'
+            USING ERRCODE = '23514';
+    END IF;
+    IF kind = 'rent-advance' THEN
+        IF advance_credit < 1 OR advance_debit <> 0 OR rent_credit <> 0 OR kept <> 0 OR tender_out <> 0
+           OR tender_in <> advance_credit
+           OR advance_credit <> public.stall_rent_quote(stay.id, public.stall_rent_period_start(stay.starts_on))
+           OR public.stall_rent_period_start(NEW.posting_date) >= public.stall_rent_period_start(stay.starts_on) THEN
+            RAISE EXCEPTION 'rent paid ahead is the stay''s first rent, taken before its period'
+                USING ERRCODE = '23514';
+        END IF;
+    ELSIF kind = 'rent-advance-applied' THEN
+        IF advance_debit < 1 OR advance_credit <> 0 OR rent_credit <> advance_debit OR kept <> 0
+           OR tender_in <> 0 OR tender_out <> 0
+           OR public.stall_live_journal('rent-charge:' || stay_text || ':'
+                || public.stall_rent_charge_suffix(public.stall_rent_period_start(stay.starts_on))) IS NULL THEN
+            RAISE EXCEPTION 'rent paid ahead is applied only to the stay''s charged first rent'
+                USING ERRCODE = '23514';
+        END IF;
+    ELSE
+        IF advance_debit < 1 OR advance_credit <> 0 OR rent_credit <> 0 OR tender_in <> 0
+           OR stay.cancelled_on IS NULL
+           OR (kind = 'rent-advance-refund' AND (tender_out <> advance_debit OR kept <> 0))
+           OR (kind = 'rent-advance-keep' AND (kept <> advance_debit OR tender_out <> 0)) THEN
+            RAISE EXCEPTION 'a cancelled reservation gives back or keeps what was paid ahead'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    IF public.stall_rent_paid_ahead(stay.id) < 0 THEN
+        RAISE EXCEPTION 'more was taken from money paid ahead than was paid'
+            USING ERRCODE = '23514';
+    END IF;
+    IF (tender_in > 0 OR tender_out > 0)
+       AND NOT EXISTS (SELECT 1 FROM public.register_session_posts WHERE journal_id = NEW.id) THEN
+        RAISE EXCEPTION 'a drawer journal needs an open register'
+            USING ERRCODE = '23514';
+    END IF;
+    IF (checks_moved > 0) <> EXISTS (SELECT 1 FROM public.register_checks WHERE journal_id = NEW.id) THEN
+        RAISE EXCEPTION 'a check names its number, and only a check does'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- Assigning a booth takes its first rent at the desk, whatever the start date:
+-- a full period when it starts on the cycle day, prorated otherwise. A stay
+-- that starts in the current period is charged and paid now; one that starts
+-- later is paid ahead and held for the vendor until its period arrives. The
+-- start can be no earlier than the first day of the current rent period.
+-- Returns the journal that took the money.
+CREATE FUNCTION public.stall_assign_booth(
+    target_booth uuid, target_vendor uuid, start_on date, end_on date, rent_minor bigint,
+    cash_minor bigint, card_minor bigint, checks_minor bigint, today date
+) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    earliest date;
+    rate bigint := rent_minor;
+    stay uuid;
+    due bigint;
+    total bigint;
+    first_period date;
+    code text;
+    receipt text := uuidv7()::text;
+BEGIN
+    IF today IS NULL THEN
+        RAISE EXCEPTION 'Enter today''s date.'
+            USING ERRCODE = '22023';
+    END IF;
+    SELECT booth.code INTO code FROM public.booths AS booth WHERE booth.id = target_booth;
+    IF code IS NULL THEN
+        RAISE EXCEPTION 'Choose a booth.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.vendors WHERE id = target_vendor) THEN
+        RAISE EXCEPTION 'Choose a vendor.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF start_on IS NULL THEN
+        RAISE EXCEPTION 'Choose the day the booth starts.'
+            USING ERRCODE = '22023';
+    END IF;
+    earliest := public.stall_rent_period_start(today);
+    IF start_on < earliest THEN
+        RAISE EXCEPTION 'The start date can''t be before %.', to_char(earliest, 'MM-DD-YYYY')
+            USING ERRCODE = '23514';
+    END IF;
+    IF end_on IS NOT NULL AND end_on < start_on THEN
+        RAISE EXCEPTION 'The end date can''t be before the start date.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF rate IS NULL THEN
+        SELECT asking.amount_minor INTO rate FROM public.booth_rent_rates AS asking WHERE asking.booth_id = target_booth;
+    END IF;
+    IF rate IS NULL OR rate < 1 THEN
+        RAISE EXCEPTION 'Set the rent for this booth first.'
+            USING ERRCODE = '23514';
+    END IF;
+    INSERT INTO public.booth_assignments (booth_id, vendor_id, starts_on, ends_on)
+    VALUES (target_booth, target_vendor, start_on, end_on)
+    RETURNING id INTO stay;
+    INSERT INTO public.assignment_rent (assignment_id, amount_minor) VALUES (stay, rate);
+    first_period := public.stall_rent_period_start(start_on);
+    due := public.stall_rent_quote(stay, first_period);
+    total := COALESCE(cash_minor, 0) + COALESCE(card_minor, 0) + COALESCE(checks_minor, 0);
+    IF total <> due THEN
+        RAISE EXCEPTION 'Take % to assign this booth.', public.stall_money_text(due)
+            USING ERRCODE = '23514';
+    END IF;
+    IF first_period <= earliest THEN
+        PERFORM public.stall_post_rent_charge(stay, first_period, today);
+        RETURN public.stall_post_lines(
+            'rent-payment:' || receipt, today, 'rent_payment', receipt, 'Rent receipt',
+            public.stall_tender_lines(cash_minor, card_minor, checks_minor, false)
+                || public.stall_line('booth_rent_receivable', 0, due, 'assignment', stay::text)
+        );
+    END IF;
+    RETURN public.stall_post_lines(
+        'rent-advance:' || stay::text, today, 'rent_advance', stay::text,
+        'Rent paid ahead for Booth ' || code,
+        public.stall_tender_lines(cash_minor, card_minor, checks_minor, false)
+            || public.stall_line('rent_paid_in_advance', 0, due, 'assignment', stay::text)
+    );
+END;
+$$;
+
+-- Moving money paid ahead onto the stay's first rent once that rent is charged.
+CREATE FUNCTION public.stall_apply_rent_paid_ahead(target_assignment uuid, on_date date) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    held bigint := public.stall_rent_paid_ahead(target_assignment);
+BEGIN
+    IF held < 1 THEN
+        RETURN NULL;
+    END IF;
+    RETURN public.stall_post_lines(
+        'rent-advance-applied:' || target_assignment::text, on_date, 'rent_advance', target_assignment::text,
+        'Rent paid ahead applied',
+        jsonb_build_array(
+            public.stall_line('rent_paid_in_advance', held, 0, 'assignment', target_assignment::text),
+            public.stall_line('booth_rent_receivable', 0, held, 'assignment', target_assignment::text)
+        )
+    );
+END;
+$$;
+
+-- The nightly run: each reserved stay whose first period has arrived is charged
+-- its first rent, which the money paid ahead then pays. Returns how many.
+CREATE FUNCTION public.stall_recognize_rent_paid_in_advance(today date) RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    stay record;
+    first_period date;
+    applied integer := 0;
+BEGIN
+    FOR stay IN
+        SELECT assignment.id, assignment.starts_on
+        FROM public.booth_assignments AS assignment
+        WHERE assignment.cancelled_on IS NULL
+          AND public.stall_rent_period_start(assignment.starts_on) <= today
+          AND public.stall_rent_paid_ahead(assignment.id) > 0
+        ORDER BY assignment.starts_on, assignment.id
+    LOOP
+        first_period := public.stall_rent_period_start(stay.starts_on);
+        PERFORM public.stall_post_rent_charge(stay.id, first_period, public.stall_rent_charge_date(stay.id, first_period));
+        IF public.stall_rent_paid_ahead(stay.id) > 0 THEN
+            PERFORM public.stall_apply_rent_paid_ahead(stay.id, public.stall_rent_charge_date(stay.id, first_period));
+        END IF;
+        applied := applied + 1;
+    END LOOP;
+    RETURN applied;
+END;
+$$;
+
+-- Ending a booth sets its last day. The month it ends in stays full rent; no
+-- journal is posted.
+CREATE FUNCTION public.stall_end_booth(target_assignment uuid, end_on date) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    stay record;
+BEGIN
+    SELECT assignment.starts_on, assignment.ends_on, assignment.cancelled_on INTO stay
+    FROM public.booth_assignments AS assignment
+    WHERE assignment.id = target_assignment
+    FOR UPDATE;
+    IF NOT FOUND OR stay.cancelled_on IS NOT NULL THEN
+        RAISE EXCEPTION 'Choose a booth.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF end_on IS NULL THEN
+        RAISE EXCEPTION 'Choose the day the booth ends.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF stay.ends_on IS NOT NULL THEN
+        RAISE EXCEPTION 'That booth has already ended.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF end_on < stay.starts_on THEN
+        RAISE EXCEPTION 'The end date can''t be before the start date.'
+            USING ERRCODE = '23514';
+    END IF;
+    UPDATE public.booth_assignments SET ends_on = end_on WHERE id = target_assignment;
+END;
+$$;
+
+-- Cancelling a reservation before it starts: the money paid ahead is given
+-- back (refund) or kept by the store (keep), with a reason. The stay never
+-- begins. Returns the journal.
+CREATE FUNCTION public.stall_cancel_reservation(
+    target_assignment uuid, outcome text, cash_minor bigint, card_minor bigint, checks_minor bigint,
+    today date, reason text
+) RETURNS uuid
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    stay record;
+    held bigint;
+    lines jsonb;
+BEGIN
+    SELECT assignment.starts_on, assignment.cancelled_on INTO stay
+    FROM public.booth_assignments AS assignment
+    WHERE assignment.id = target_assignment
+    FOR UPDATE;
+    IF NOT FOUND OR stay.cancelled_on IS NOT NULL THEN
+        RAISE EXCEPTION 'There is no reservation to cancel.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF stay.starts_on <= today THEN
+        RAISE EXCEPTION 'That booth has already started. End it instead.'
+            USING ERRCODE = '23514';
+    END IF;
+    held := public.stall_rent_paid_ahead(target_assignment);
+    IF held < 1 THEN
+        RAISE EXCEPTION 'There is no reservation to cancel.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF btrim(COALESCE(reason, '')) = '' THEN
+        RAISE EXCEPTION 'Say why the reservation is cancelled.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF outcome = 'refund' THEN
+        IF COALESCE(cash_minor, 0) + COALESCE(card_minor, 0) + COALESCE(checks_minor, 0) <> held THEN
+            RAISE EXCEPTION 'Give back %.', public.stall_money_text(held)
+                USING ERRCODE = '23514';
+        END IF;
+        lines := jsonb_build_array(public.stall_line('rent_paid_in_advance', held, 0, 'assignment', target_assignment::text))
+            || public.stall_tender_lines(cash_minor, card_minor, checks_minor, true);
+    ELSIF outcome = 'keep' THEN
+        IF COALESCE(cash_minor, 0) + COALESCE(card_minor, 0) + COALESCE(checks_minor, 0) <> 0 THEN
+            RAISE EXCEPTION 'Nothing is handed back when the store keeps the reservation.'
+                USING ERRCODE = '23514';
+        END IF;
+        lines := jsonb_build_array(
+            public.stall_line('rent_paid_in_advance', held, 0, 'assignment', target_assignment::text),
+            public.stall_line('forfeited_reservation_income', 0, held)
+        );
+    ELSE
+        RAISE EXCEPTION 'Choose to refund or keep the reservation.'
+            USING ERRCODE = '22023';
+    END IF;
+    UPDATE public.booth_assignments SET cancelled_on = today WHERE id = target_assignment;
+    RETURN public.stall_post_lines(
+        'rent-advance-' || outcome || ':' || target_assignment::text, today, 'rent_advance', target_assignment::text,
+        CASE WHEN outcome = 'refund' THEN 'Reservation refunded. ' ELSE 'Reservation kept. ' END || btrim(reason),
+        lines
+    );
+END;
+$$;
+
 -- Late fees due on a day: each rent period still unpaid takes a fee each time
 -- grace passes, through the end of the period. The first fee in a period uses
 -- the first amount, each later one the next amount. Grace 0 is one fee a day.
@@ -5957,6 +6353,7 @@ RETURNS TABLE(
             interval '1 month'
         ) AS period(start)
         WHERE stay.starts_on <= to_date
+          AND stay.cancelled_on IS NULL
           AND (stay.ends_on IS NULL OR stay.ends_on >= from_date)
     ), priced AS (
         SELECT stays.*,
@@ -5989,6 +6386,7 @@ RETURNS TABLE(
     WHERE NOT EXISTS (
         SELECT 1 FROM public.booth_assignments AS stay
         WHERE stay.booth_id = booth.id
+          AND stay.cancelled_on IS NULL
           AND stay.starts_on <= to_date
           AND (stay.ends_on IS NULL OR stay.ends_on >= from_date)
     )
@@ -6006,7 +6404,7 @@ CREATE VIEW public.payout_missing_rent AS
      JOIN public.booth_assignments assignment ON (((public.stall_pack_vendor_id() IS NULL) OR (assignment.vendor_id = public.stall_pack_vendor_id()))))
      JOIN LATERAL generate_series((public.stall_rent_period_start(assignment.starts_on))::timestamp without time zone, (public.stall_rent_period_start(LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date)))::timestamp without time zone, '1 mon'::interval) series(period_start) ON ((assignment.starts_on <= LEAST(COALESCE(assignment.ends_on, run.posting_date), run.posting_date))))
   WHERE (( SELECT mall.booth_rentals_enabled
-           FROM public.mall) AND public.stall_assignment_rated(assignment.id, (series.period_start)::date) AND (public.stall_live_journal(((('rent-charge:'::text || (assignment.id)::text) || ':'::text) || public.stall_rent_charge_suffix((series.period_start)::date))) IS NULL));
+           FROM public.mall) AND (assignment.cancelled_on IS NULL) AND public.stall_assignment_rated(assignment.id, (series.period_start)::date) AND (public.stall_live_journal(((('rent-charge:'::text || (assignment.id)::text) || ':'::text) || public.stall_rent_charge_suffix((series.period_start)::date))) IS NULL));
 
 CREATE TABLE public.payout_run_journals (
     run_id uuid NOT NULL,
@@ -6741,6 +7139,19 @@ BEGIN
     IF OLD.ends_on IS NOT NULL AND NEW.ends_on IS DISTINCT FROM OLD.ends_on THEN
         RAISE EXCEPTION 'a booth assignment end date is frozen once set'
             USING ERRCODE = '23514';
+    END IF;
+
+    -- A reservation is cancelled once, before it starts, with nothing charged.
+    IF NEW.cancelled_on IS DISTINCT FROM OLD.cancelled_on THEN
+        IF OLD.cancelled_on IS NOT NULL OR NEW.cancelled_on IS NULL OR NEW.cancelled_on >= OLD.starts_on
+           OR EXISTS (
+               SELECT 1 FROM public.journal_lines AS line
+               JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'booth_rent_receivable'
+               WHERE line.subledger_type = 'assignment' AND line.subledger_ref = OLD.id::text
+           ) THEN
+            RAISE EXCEPTION 'only a reservation that has not started can be cancelled, once'
+                USING ERRCODE = '23514';
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -7544,7 +7955,8 @@ BEGIN
         'register_variance',
         'layaway_deposit',
         'layaway_refund',
-        'booth_deposit'
+        'booth_deposit',
+        'rent_advance'
     ) THEN
         RAISE EXCEPTION 'a drawer journal needs an open register'
             USING ERRCODE = '23514';
@@ -7688,7 +8100,7 @@ BEGIN
     WHERE role.account_id = NEW.account_id;
 
     -- Rent and deposits belong to one stay: one vendor, one booth, one date range.
-    IF line_role IN ('booth_rent_receivable', 'booth_deposit_held')
+    IF line_role IN ('booth_rent_receivable', 'booth_deposit_held', 'rent_paid_in_advance')
        AND NEW.subledger_type IS DISTINCT FROM 'assignment' THEN
         RAISE EXCEPTION 'a rent or deposit line names its booth assignment'
             USING ERRCODE = '23514';
@@ -7704,7 +8116,7 @@ BEGIN
                 USING ERRCODE = '23514';
         END IF;
     ELSIF NEW.subledger_type = 'assignment' THEN
-        IF line_role IS NULL OR line_role NOT IN ('booth_rent_receivable', 'booth_deposit_held') THEN
+        IF line_role IS NULL OR line_role NOT IN ('booth_rent_receivable', 'booth_deposit_held', 'rent_paid_in_advance') THEN
             RAISE EXCEPTION 'only rent and deposit lines name a booth assignment'
                 USING ERRCODE = '23514';
         END IF;
@@ -9475,6 +9887,8 @@ INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balan
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002c', '01900000-0000-7000-8000-000000000001', '2150', 'Booth deposits', 'liability', 'credit', true, false, NULL, '2026-10-28 06:05:55.615883+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002d', '01900000-0000-7000-8000-000000000001', '2151', 'Booth deposits held', 'liability', 'credit', true, true, 'assignment', '2026-10-28 06:05:56.044917+00');
 INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002e', '01900000-0000-7000-8000-000000000001', '1210', 'Vendor receivable', 'asset', 'debit', true, true, 'vendor', '2026-10-28 06:05:57.306203+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-00000000002f', '01900000-0000-7000-8000-000000000001', '2160', 'Rent paid in advance', 'liability', 'credit', true, true, 'assignment', '2026-11-27 18:00:00+00');
+INSERT INTO public.accounts (id, book_id, code, name, account_type, normal_balance, is_postable, is_control, subledger_type, created_at) VALUES ('01900000-0000-7000-8000-000000000030', '01900000-0000-7000-8000-000000000001', '4230', 'Forfeited booth reservations', 'revenue', 'credit', true, false, NULL, '2026-11-27 18:00:00+00');
 
 INSERT INTO public.book_journal_counters (book_id, last_no) VALUES ('01900000-0000-7000-8000-000000000001', 0);
 
@@ -9511,6 +9925,8 @@ INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_other_revenue',
 INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_deposits', '01900000-0000-7000-8000-00000000002c');
 INSERT INTO public.chart_roles (role, account_id) VALUES ('booth_deposit_held', '01900000-0000-7000-8000-00000000002d');
 INSERT INTO public.chart_roles (role, account_id) VALUES ('vendor_receivable', '01900000-0000-7000-8000-00000000002e');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('rent_paid_in_advance', '01900000-0000-7000-8000-00000000002f');
+INSERT INTO public.chart_roles (role, account_id) VALUES ('forfeited_reservation_income', '01900000-0000-7000-8000-000000000030');
 
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('sales_tax_payable', 'sale');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'rent_charge');
@@ -9633,6 +10049,12 @@ INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_receiv
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_receivable', 'clawback_apply');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'clawback_reclass');
 INSERT INTO public.chart_source_rules (role, source_type) VALUES ('vendor_payable', 'clawback_apply');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('rent_paid_in_advance', 'rent_advance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('booth_rent_receivable', 'rent_advance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('forfeited_reservation_income', 'rent_advance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('cash', 'rent_advance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('card', 'rent_advance');
+INSERT INTO public.chart_source_rules (role, source_type) VALUES ('checks', 'rent_advance');
 
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'vendor_payable', '2000');
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'cash', '1000');
@@ -9696,6 +10118,10 @@ INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero',
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'booth_deposit_held', '2151');
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'vendor_receivable', '1210');
 INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'vendor_receivable', '1210');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'rent_paid_in_advance', '2160');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'rent_paid_in_advance', '2160');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('quickbooks', 'forfeited_reservation_income', '4230');
+INSERT INTO public.export_accounts (system, role, external_code) VALUES ('xero', 'forfeited_reservation_income', '4230');
 
 INSERT INTO public.ledger_books (id, code, name, currency, currency_scale, is_default, created_at) VALUES ('01900000-0000-7000-8000-000000000001', 'mall', 'Mall', 'USD', 2, true, '2026-10-21 00:42:50.440076+00');
 
@@ -13393,11 +13819,14 @@ CREATE OR REPLACE FUNCTION public.stall_refuse_booth_overlap() RETURNS trigger
     SET search_path TO 'pg_catalog', 'public'
     AS $$
 BEGIN
-    IF EXISTS (
+    -- Two desks assigning the same booth at once wait for each other here.
+    PERFORM 1 FROM public.booths WHERE id = NEW.booth_id FOR UPDATE;
+    IF NEW.cancelled_on IS NULL AND EXISTS (
         SELECT 1
         FROM public.booth_assignments AS other
         WHERE other.booth_id = NEW.booth_id
           AND other.id IS DISTINCT FROM NEW.id
+          AND other.cancelled_on IS NULL
           AND daterange(other.starts_on, COALESCE(other.ends_on, 'infinity'::date), '[]')
               && daterange(NEW.starts_on, COALESCE(NEW.ends_on, 'infinity'::date), '[]')
     ) THEN
@@ -16592,6 +17021,10 @@ CREATE CONSTRAINT TRIGGER journals_late_fee_sealed AFTER INSERT ON public.journa
 
 ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_late_fee_sealed;
 
+CREATE CONSTRAINT TRIGGER journals_rent_advance_sealed AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_rent_advance();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_rent_advance_sealed;
+
 REVOKE ALL ON FUNCTION public.stall_assignment_rated(uuid, date) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.stall_assignment_rated(uuid, date) TO stall_poster;
@@ -16646,6 +17079,25 @@ GRANT EXECUTE ON FUNCTION public.stall_rent_charge_date(uuid, date) TO stall_pos
 GRANT EXECUTE ON FUNCTION public.stall_rent_charge_date(uuid, date) TO stall_backup;
 REVOKE ALL ON FUNCTION public.stall_charge_rent(uuid, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_charge_rent(uuid, date) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_rent_paid_ahead(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_rent_paid_ahead(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_rent_paid_ahead(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_vendor_rent_paid_ahead(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_rent_paid_ahead(uuid) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_vendor_rent_paid_ahead(uuid) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_tender_lines(bigint, bigint, bigint, boolean) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_tender_lines(bigint, bigint, bigint, boolean) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_assign_booth(uuid, uuid, date, date, bigint, bigint, bigint, bigint, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_assign_booth(uuid, uuid, date, date, bigint, bigint, bigint, bigint, date) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_apply_rent_paid_ahead(uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_apply_rent_paid_ahead(uuid, date) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_recognize_rent_paid_in_advance(date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_recognize_rent_paid_in_advance(date) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_end_booth(uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_end_booth(uuid, date) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_cancel_reservation(uuid, text, bigint, bigint, bigint, date, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_cancel_reservation(uuid, text, bigint, bigint, bigint, date, text) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_assert_rent_advance() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.stall_rent_book(date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_rent_book(date, date) TO stall_poster;
 GRANT EXECUTE ON FUNCTION public.stall_rent_book(date, date) TO stall_backup;
