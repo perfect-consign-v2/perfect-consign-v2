@@ -1316,6 +1316,9 @@ final class CartStatements extends RoutedStatements
      */
     public function bound(string $sql, array $params): array
     {
+        if (str_contains($sql, 'stall_sign_off_needed(')) {
+            return [['needed' => 'false']];
+        }
         if (str_contains($sql, 'count(*) AS lines')) {
             return [['lines' => 1]];
         }

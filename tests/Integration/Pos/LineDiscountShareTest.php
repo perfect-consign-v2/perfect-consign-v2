@@ -43,10 +43,25 @@ final class LineDiscountShareTest extends TestCase
             \PerfectConsign\Tests\Support\SeedVendor::withId($statements, $vendorId, $code, 'Share', 'Proof');
             $this->item($statements, $firstId, $vendorId, $code . 'a', 300, 'BC-' . $code . 'a');
             $this->item($statements, $secondId, $vendorId, $code . 'b', 700, 'BC-' . $code . 'b');
-            $statements->change(
-                'INSERT INTO tickets (id, session_id, discount_kind, discount_value, discount_reason) VALUES (?::uuid, ?::uuid, ?, 100, ?)',
-                [$ticketId, $sessionId, 'amount', 'other']
+            $owner = $statements->bound(
+                'SELECT owners.id::text AS id, owners.username
+                 FROM platform.owners AS owners
+                 JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
+                 WHERE tenants.schema_name = ?
+                 ORDER BY owners.created_at
+                 LIMIT 1',
+                [$schema]
             );
+            $statements->transaction(static function () use ($statements, $owner, $ticketId, $sessionId): void {
+                $statements->bound(
+                    'SELECT stall_sign_off(?, ?, ?::uuid, ?, NULL, 10000)::text AS kept',
+                    ['sale.discount', $sessionId, RowValue::string($owner[0]['id'] ?? null), RowValue::string($owner[0]['username'] ?? null)]
+                );
+                $statements->change(
+                    'INSERT INTO tickets (id, session_id, discount_kind, discount_value, discount_reason) VALUES (?::uuid, ?::uuid, ?, 100, ?)',
+                    [$ticketId, $sessionId, 'amount', 'other']
+                );
+            });
             $statements->change(
                 'INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor)
                  VALUES (?::uuid, 1, ?::uuid, 300), (?::uuid, 2, ?::uuid, 700)',

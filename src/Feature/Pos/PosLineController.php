@@ -48,13 +48,15 @@ final class PosLineController
                 $request->field('override_user'),
                 $request->field('override_password'),
                 $session,
-            );
-            $this->lines->discount(
-                $this->tickets->cart($session)['ticket_id'],
-                $this->lineNo(),
-                $posted['kind'],
-                $posted['value'],
-                $posted['reason'],
+                function () use ($session, $posted): void {
+                    $this->lines->discount(
+                        $this->tickets->cart($session)['ticket_id'],
+                        $this->lineNo(),
+                        $posted['kind'],
+                        $posted['value'],
+                        $posted['reason'],
+                    );
+                },
             );
         }, 'Line discount saved.');
     }

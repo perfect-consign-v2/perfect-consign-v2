@@ -40,17 +40,20 @@ final class TenantBoundaryTest extends TestCase
                 QuietAudit::journal(new Statements($pdo), $this->actor(ProbeMall::SLUG, $tenantId, $cashier)),
                 $this->request(),
             );
-            $ceiling->discount(5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce01');
+            $ceiling->priced('percent', 5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce01', static function (): void {
+            });
             for ($i = 0; $i < 5; $i++) {
                 try {
-                    $ceiling->discount(5000, $manager['username'], 'wrong-password', '01900000-0000-7000-8000-00000000ce01');
+                    $ceiling->priced('percent', 5000, $manager['username'], 'wrong-password', '01900000-0000-7000-8000-00000000ce01', static function (): void {
+            });
                     self::fail('a bad override was accepted');
                 } catch (DatabaseRefusal $error) {
                     self::assertSame('a second person has to sign this', $error->getMessage());
                 }
             }
             try {
-                $ceiling->discount(5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce02');
+                $ceiling->priced('percent', 5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce02', static function (): void {
+            });
                 self::fail('a locked override was accepted');
             } catch (DatabaseRefusal $error) {
                 self::assertSame('too many sign-in attempts', $error->getMessage());
@@ -97,12 +100,30 @@ final class TenantBoundaryTest extends TestCase
                 $this->request(),
             );
             try {
-                $asCashier->discount(5000, $books['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce10');
+                $asCashier->priced('percent', 5000, $books['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce10', static function (): void {
+            });
                 self::fail('a books override was accepted');
             } catch (DatabaseRefusal $error) {
                 self::assertSame('a second person has to sign this', $error->getMessage());
             }
-            $asCashier->discount(5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce11');
+            $asCashier->priced('percent', 5000, $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce11', static function (): void {
+            });
+            $waived = false;
+            $pdo->exec('SAVEPOINT tax_free');
+            try {
+                $asCashier->waived('resale', $manager['username'], 'manager-pass-word', '01900000-0000-7000-8000-00000000ce14', static function () use (&$waived): void {
+                    $waived = true;
+                });
+                self::fail('a tax-free sale above every ceiling was accepted');
+            } catch (DatabaseRefusal $error) {
+                $pdo->exec('ROLLBACK TO SAVEPOINT tax_free');
+                self::assertSame('that amount is above the ceiling', $error->getMessage());
+            }
+            self::assertFalse($waived);
+            $asCashier->waived(null, '', '', '01900000-0000-7000-8000-00000000ce14', static function () use (&$waived): void {
+                $waived = true;
+            });
+            self::assertTrue($waived);
             $asManager = new SaleCeiling(
                 new Statements($pdo),
                 $this->actor(ProbeMall::SLUG, $tenantId, $manager),

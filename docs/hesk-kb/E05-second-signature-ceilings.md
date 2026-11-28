@@ -1,15 +1,15 @@
 ---
 title: Second-signature ceilings (discount / void / payout)
 category: Floor and ops
-hesk: published 2026-11-20
-as_of: 2026-11-06
+hesk: pending
+as_of: 2026-11-28
 ---
 
 # Second-signature ceilings (discount / void / payout)
 
 ## As of
 
-2026-11-06 — Owner Settings Money has **Require second signature** (off by default). When on, void/payout/discount/booth-correction second signatures commit with the money movement; a refused override rolls the journal back. Return tender changes also need a second sign when the toggle is on.
+2026-11-28 — Owner Settings Money has **Require second signature** (off by default). When on, void/payout/discount/booth-correction second signatures commit with the money movement; a refused override rolls the journal back. Return tender changes also need a second sign when the toggle is on.
 
 ## In one sentence
 
@@ -26,6 +26,7 @@ Aggressive discount (ticket or line), tax-free ticket, void, waive, payout, boot
 - When on: cashier or manager discount cannot pass the stored percent ceiling unless a second staff member signs as themselves and their ceiling covers it.
 - Tax-free sale cannot pass the stored tax-free ceiling without the same second signature.
 - Cashier or manager void, waive, payout, or booth correction needs that second signature; checks run before the money commit so a blank override leaves no posted journal.
+- The store's own records decide it: the ceilings and the switch are read by the database, which keeps a sign-off for every discount, tax-free sale and second signature. A discount that skipped the sign-off is refused, whatever screen it came from.
 - A return that credits a different tender than the original sale needs that second signature.
 - The second signer must be a **manager or cashier** (not books, not vendor).
 - Audit row names the signing person.

@@ -271,6 +271,9 @@ final class InstantStatements extends Statements
      */
     public function bound(string $sql, array $params): array
     {
+        if (str_contains($sql, 'stall_sign_off_needed(')) {
+            return [['needed' => 'false']];
+        }
         if (str_contains($sql, 'FROM vendors WHERE id')) {
             return [['id' => MallDoor::VENDOR]];
         }

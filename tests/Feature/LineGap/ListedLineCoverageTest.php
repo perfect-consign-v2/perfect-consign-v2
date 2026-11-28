@@ -317,8 +317,11 @@ final class ListedLineCoverageTest extends TestCase
                 if (str_contains($sql, 'stall_override_attempts')) {
                     return [['attempts' => 0]];
                 }
-                if (str_contains($sql, 'discount_ceiling_bps')) {
-                    return [['ceiling' => 0]];
+                if (str_contains($sql, 'stall_sign_off_needed(')) {
+                    return [['needed' => 'true']];
+                }
+                if (str_contains($sql, 'stall_sign_off(')) {
+                    throw new DatabaseRefusal('that amount is above the ceiling');
                 }
                 if (str_contains($sql, 'FROM staff')) {
                     return [['id' => $this->other, 'username' => 'other', 'password_hash' => $this->hash]];
@@ -342,12 +345,16 @@ final class ListedLineCoverageTest extends TestCase
             QuietAudit::journal($statements, new Actor($this->session($bag))),
             new Request('POST', '/' . self::SLUG . '/pos', [], [], '', '', '203.0.113.11'),
         );
+        $written = false;
         try {
-            $ceiling->discount(10000, 'other', 'override', self::TENANT);
+            $ceiling->priced('amount', 500, 'other', 'override', self::TENANT, static function () use (&$written): void {
+                $written = true;
+            });
             self::fail('a discount above both ceilings was accepted');
         } catch (DatabaseRefusal $error) {
             self::assertSame('that amount is above the ceiling', $error->getMessage());
         }
+        self::assertFalse($written);
     }
 
     public function testTheDirectoryRefusesARoleThatCannotBeReset(): void

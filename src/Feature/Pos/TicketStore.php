@@ -166,14 +166,18 @@ final class TicketStore
         string $overrideUser = '',
         string $overridePassword = '',
     ): void {
-        $this->ceiling->priced($kind, $value, $overrideUser, $overridePassword, $sessionId);
-        $this->pricing->discount($this->requireOpen($sessionId), $kind, $value, $reason);
+        $ticketId = $this->requireOpen($sessionId);
+        $this->ceiling->priced($kind, $value, $overrideUser, $overridePassword, $sessionId, function () use ($ticketId, $kind, $value, $reason): void {
+            $this->pricing->discount($ticketId, $kind, $value, $reason);
+        });
     }
 
     public function waive(string $sessionId, ?string $reason, string $overrideUser = '', string $overridePassword = ''): void
     {
-        $this->ceiling->waived($reason, $overrideUser, $overridePassword, $sessionId);
-        $this->pricing->waive($this->requireOpen($sessionId), $reason);
+        $ticketId = $this->requireOpen($sessionId);
+        $this->ceiling->waived($reason, $overrideUser, $overridePassword, $sessionId, function () use ($ticketId, $reason): void {
+            $this->pricing->waive($ticketId, $reason);
+        });
     }
 
     public function park(string $sessionId, string $label): void

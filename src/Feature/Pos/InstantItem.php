@@ -119,8 +119,10 @@ final class InstantItem
             $item->override->user,
             $item->override->password,
             $session,
+            function () use ($ticketId, $lineNo, $posted): void {
+                $this->lines->discount($ticketId, $lineNo, $posted['kind'], $posted['value'], $posted['reason']);
+            },
         );
-        $this->lines->discount($ticketId, $lineNo, $posted['kind'], $posted['value'], $posted['reason']);
     }
 
     private function code(): string

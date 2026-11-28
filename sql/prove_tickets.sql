@@ -2,6 +2,25 @@
 
 BEGIN;
 
+-- Discounts and tax-free sales stand only with a sign-off for their shift in
+-- the same transaction (T3). A cashier signs off each shift below, as the
+-- register does; the second-signature rule is off, so no second person.
+INSERT INTO staff (id, username, display_name, password_hash, role)
+VALUES ('01900000-0000-7000-8000-00000000a5f1', 'proofcash', 'Proof Cashier', '$2y$10$proofproofproofproofproofproo', 'cashier');
+
+CREATE FUNCTION pg_temp.sign_shifts() RETURNS void
+    LANGUAGE sql
+    AS $fn$
+    INSERT INTO sign_offs (action, entity_id, actor_account, actor_username, amount)
+    SELECT wanted.action, shift.id::text, '01900000-0000-7000-8000-00000000a5f1', 'proofcash', wanted.amount
+    FROM register_sessions AS shift
+    CROSS JOIN (VALUES ('sale.discount', 10000::bigint), ('sale.tax_free', 1::bigint)) AS wanted (action, amount)
+    WHERE NOT EXISTS (
+        SELECT 1 FROM sign_offs AS signed
+        WHERE signed.entity_id = shift.id::text AND signed.action = wanted.action AND signed.written_xid = pg_current_xact_id()
+    );
+$fn$;
+
 UPDATE mall SET tax_bps = 0;
 
 SELECT stall_seed_vendor('01900000-0000-7000-8000-000000000101', 'ada', 'Ada', 'Lane');
@@ -61,6 +80,7 @@ VALUES (
     '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
     0
 );
+SELECT pg_temp.sign_shifts();
 
 INSERT INTO tickets (id, session_id)
 VALUES ('01900000-0000-7000-8000-0000000006b1', '01900000-0000-7000-8000-000000000d28');
@@ -119,6 +139,7 @@ BEGIN
         '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
         0
     );
+    PERFORM pg_temp.sign_shifts();
     INSERT INTO tickets (id, session_id)
     VALUES ('01900000-0000-7000-8000-0000000006b3', '01900000-0000-7000-8000-000000000d29');
     INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor)
@@ -519,6 +540,7 @@ VALUES (
     '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
     0
 );
+SELECT pg_temp.sign_shifts();
 
 DO $$
 BEGIN
@@ -647,6 +669,7 @@ VALUES (
     '{"10000":0,"5000":0,"2000":0,"1000":0,"500":0,"100":0,"25":0,"10":0,"5":0,"1":0}'::jsonb,
     0
 );
+SELECT pg_temp.sign_shifts();
 
 INSERT INTO tickets (id, session_id, discount_kind, discount_value, discount_reason)
 VALUES (

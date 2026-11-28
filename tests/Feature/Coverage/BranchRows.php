@@ -44,6 +44,9 @@ final class BranchStatements extends Statements
     public function bound(string $sql, array $params): array
     {
         $this->refuse($sql);
+        if (str_contains($sql, 'stall_sign_off_needed(')) {
+            return [['needed' => 'false']];
+        }
         if ($this->rows->bound !== null) {
             return $this->rows->bound;
         }

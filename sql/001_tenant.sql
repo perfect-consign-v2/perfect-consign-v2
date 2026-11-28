@@ -19313,3 +19313,229 @@ REVOKE ALL ON FUNCTION public.stall_mall_sale_off(bigint, date, text) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.stall_mall_sale_off(bigint, date, text) TO stall_poster;
 REVOKE ALL ON FUNCTION public.stall_ticket_quote(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_ticket_quote(uuid) TO stall_poster;
+
+-- T3 (audit 2026-11-27). Ceilings and the second signature are decided by the
+-- database. The application checks the second person's password (it never
+-- travels into SQL); the database decides whether a second person is needed,
+-- whether their ceiling covers the amount, and refuses a discount or a
+-- tax-free sale on a ticket unless a sign-off in the same transaction allows
+-- it. Every sign-off is kept.
+CREATE TABLE public.sign_offs (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    action text NOT NULL,
+    entity_id text NOT NULL,
+    actor_account uuid NOT NULL,
+    actor_username text NOT NULL,
+    signer_account uuid,
+    amount bigint,
+    written_xid xid8 DEFAULT pg_current_xact_id() NOT NULL,
+    signed_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT sign_offs_pkey PRIMARY KEY (id),
+    CONSTRAINT sign_offs_action_chk CHECK ((action = ANY (ARRAY['sale.discount'::text, 'sale.tax_free'::text, 'sale.void'::text, 'sale.return_tender'::text, 'rent.waive'::text, 'payout.close'::text, 'booth.correct'::text]))),
+    CONSTRAINT sign_offs_entity_chk CHECK (((entity_id = btrim(entity_id)) AND (entity_id <> ''::text) AND (char_length(entity_id) <= 80))),
+    CONSTRAINT sign_offs_amount_chk CHECK ((
+        (action = 'sale.discount' AND amount BETWEEN 1 AND 10000)
+        OR (action = 'sale.tax_free' AND amount >= 1)
+        OR (action NOT IN ('sale.discount', 'sale.tax_free') AND amount IS NULL)
+    ))
+);
+
+CREATE INDEX sign_offs_written_xid ON public.sign_offs USING btree (written_xid, action, entity_id);
+
+-- The role of the signed-in account: 'owner' for an owner of this store, the
+-- staff role for staff, NULL for anyone else.
+CREATE FUNCTION public.stall_signed_in_role(who_account uuid, who_name text) RETURNS text
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    mall_schema text;
+    found_role text;
+BEGIN
+    SELECT namespace.nspname INTO mall_schema
+    FROM pg_catalog.pg_class AS relation
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+    WHERE relation.oid = 'public.mall'::regclass;
+    IF EXISTS (
+        SELECT 1
+        FROM platform.owners AS owners
+        JOIN platform.tenants AS tenants ON tenants.id = owners.tenant_id
+        WHERE owners.id = who_account AND owners.username = who_name AND tenants.schema_name = mall_schema
+    ) THEN
+        RETURN 'owner';
+    END IF;
+    SELECT staff.role INTO found_role
+    FROM public.staff AS staff
+    WHERE staff.id = who_account AND staff.username = who_name;
+    RETURN found_role;
+END;
+$$;
+
+-- Whether that action by that account needs a second person: only a cashier
+-- or manager, only while the store asks for second signatures, and for a
+-- discount or tax-free sale only above their own ceiling.
+CREATE FUNCTION public.stall_sign_off_needed(wanted_action text, who_account uuid, who_name text, how_much bigint) RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    signed_role text := public.stall_signed_in_role(who_account, who_name);
+    ceiling bigint;
+BEGIN
+    IF signed_role IS NULL OR signed_role NOT IN ('owner', 'manager', 'cashier') THEN
+        RAISE EXCEPTION 'the signed-in account is missing'
+            USING ERRCODE = '23514';
+    END IF;
+    IF signed_role = 'owner' OR NOT (SELECT require_second_signature FROM public.mall) THEN
+        RETURN false;
+    END IF;
+    IF wanted_action = 'sale.discount' THEN
+        SELECT staff.discount_ceiling_bps INTO ceiling FROM public.staff AS staff WHERE staff.id = who_account;
+        RETURN how_much > ceiling;
+    END IF;
+    IF wanted_action = 'sale.tax_free' THEN
+        SELECT staff.tax_free_ceiling_minor INTO ceiling FROM public.staff AS staff WHERE staff.id = who_account;
+        RETURN how_much > ceiling;
+    END IF;
+    RETURN true;
+END;
+$$;
+
+-- However a sign-off is written, it is the store's rule that decides it.
+CREATE FUNCTION public.stall_check_sign_off() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    signer record;
+BEGIN
+    NEW.written_xid := pg_current_xact_id();
+    NEW.signed_at := clock_timestamp();
+    IF NOT public.stall_sign_off_needed(NEW.action, NEW.actor_account, NEW.actor_username, NEW.amount) THEN
+        IF NEW.signer_account IS NOT NULL THEN
+            RAISE EXCEPTION 'a second person is not needed for that'
+                USING ERRCODE = '23514';
+        END IF;
+        RETURN NEW;
+    END IF;
+    SELECT staff.role, staff.discount_ceiling_bps, staff.tax_free_ceiling_minor INTO signer
+    FROM public.staff AS staff
+    WHERE staff.id = NEW.signer_account;
+    IF NEW.signer_account IS NULL OR NEW.signer_account = NEW.actor_account
+       OR signer.role IS NULL OR signer.role NOT IN ('manager', 'cashier') THEN
+        RAISE EXCEPTION 'a second person has to sign this'
+            USING ERRCODE = '23514';
+    END IF;
+    IF (NEW.action = 'sale.discount' AND NEW.amount > signer.discount_ceiling_bps)
+       OR (NEW.action = 'sale.tax_free' AND NEW.amount > signer.tax_free_ceiling_minor) THEN
+        RAISE EXCEPTION 'that amount is above the ceiling'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.stall_reject_sign_off_rewrite() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'a sign-off cannot be changed'
+        USING ERRCODE = '25006';
+END;
+$$;
+
+CREATE TRIGGER sign_offs_check_sealed BEFORE INSERT ON public.sign_offs FOR EACH ROW EXECUTE FUNCTION public.stall_check_sign_off();
+ALTER TABLE public.sign_offs ENABLE ALWAYS TRIGGER sign_offs_check_sealed;
+CREATE TRIGGER sign_offs_append_only BEFORE UPDATE OR DELETE ON public.sign_offs FOR EACH ROW EXECUTE FUNCTION public.stall_reject_sign_off_rewrite();
+ALTER TABLE public.sign_offs ENABLE ALWAYS TRIGGER sign_offs_append_only;
+CREATE TRIGGER sign_offs_no_truncate BEFORE TRUNCATE ON public.sign_offs FOR EACH STATEMENT EXECUTE FUNCTION public.ledger_reject_truncate();
+ALTER TABLE public.sign_offs ENABLE ALWAYS TRIGGER sign_offs_no_truncate;
+
+-- The application's door: records the sign-off for the signed-in account and,
+-- when one was needed, the second person whose password it checked.
+CREATE FUNCTION public.stall_sign_off(wanted_action text, entity text, who_account uuid, who_name text, signer uuid, how_much bigint) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    kept uuid;
+BEGIN
+    INSERT INTO public.sign_offs (action, entity_id, actor_account, actor_username, signer_account, amount)
+    VALUES (wanted_action, entity, who_account, who_name, signer, how_much)
+    RETURNING id INTO kept;
+    RETURN kept;
+END;
+$$;
+
+-- A discount or a tax-free sale on a ticket stands only with a sign-off for
+-- that register shift, in the same transaction, covering at least that much
+-- (an amount off counts as the whole price).
+CREATE FUNCTION public.stall_require_ticket_sign_off() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    shift text;
+    wanted bigint;
+BEGIN
+    IF TG_TABLE_NAME = 'tickets' THEN
+        shift := NEW.session_id::text;
+        IF NEW.discount_kind IS NOT NULL AND (
+            TG_OP = 'INSERT' OR (NEW.discount_kind, NEW.discount_value) IS DISTINCT FROM (OLD.discount_kind, OLD.discount_value)
+        ) THEN
+            wanted := CASE NEW.discount_kind WHEN 'percent' THEN NEW.discount_value ELSE 10000 END;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.sign_offs AS signed
+                WHERE signed.written_xid = pg_current_xact_id() AND signed.action = 'sale.discount'
+                  AND signed.entity_id = shift AND signed.amount >= wanted
+            ) THEN
+                RAISE EXCEPTION 'a discount needs the signed-in account''s sign-off'
+                    USING ERRCODE = '23514';
+            END IF;
+        END IF;
+        IF NEW.tax_waiver_reason IS NOT NULL AND (
+            TG_OP = 'INSERT' OR NEW.tax_waiver_reason IS DISTINCT FROM OLD.tax_waiver_reason
+        ) AND NOT EXISTS (
+            SELECT 1 FROM public.sign_offs AS signed
+            WHERE signed.written_xid = pg_current_xact_id() AND signed.action = 'sale.tax_free' AND signed.entity_id = shift
+        ) THEN
+            RAISE EXCEPTION 'a tax-free sale needs the signed-in account''s sign-off'
+                USING ERRCODE = '23514';
+        END IF;
+        RETURN NEW;
+    END IF;
+    IF NEW.line_discount_kind IS NOT NULL AND (
+        TG_OP = 'INSERT' OR (NEW.line_discount_kind, NEW.line_discount_value) IS DISTINCT FROM (OLD.line_discount_kind, OLD.line_discount_value)
+    ) THEN
+        SELECT ticket.session_id::text INTO shift FROM public.tickets AS ticket WHERE ticket.id = NEW.ticket_id;
+        wanted := CASE NEW.line_discount_kind WHEN 'percent' THEN NEW.line_discount_value ELSE 10000 END;
+        IF NOT EXISTS (
+            SELECT 1 FROM public.sign_offs AS signed
+            WHERE signed.written_xid = pg_current_xact_id() AND signed.action = 'sale.discount'
+              AND signed.entity_id = shift AND signed.amount >= wanted
+        ) THEN
+            RAISE EXCEPTION 'a discount needs the signed-in account''s sign-off'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tickets_signed_sealed BEFORE INSERT OR UPDATE OF discount_kind, discount_value, tax_waiver_reason ON public.tickets FOR EACH ROW EXECUTE FUNCTION public.stall_require_ticket_sign_off();
+ALTER TABLE public.tickets ENABLE ALWAYS TRIGGER tickets_signed_sealed;
+CREATE TRIGGER ticket_lines_signed_sealed BEFORE INSERT OR UPDATE OF line_discount_kind, line_discount_value ON public.ticket_lines FOR EACH ROW EXECUTE FUNCTION public.stall_require_ticket_sign_off();
+ALTER TABLE public.ticket_lines ENABLE ALWAYS TRIGGER ticket_lines_signed_sealed;
+
+REVOKE ALL ON TABLE public.sign_offs FROM PUBLIC;
+GRANT SELECT ON TABLE public.sign_offs TO stall_poster;
+GRANT SELECT ON TABLE public.sign_offs TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_signed_in_role(uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_sign_off_needed(text, uuid, text, bigint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_sign_off_needed(text, uuid, text, bigint) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_check_sign_off() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_reject_sign_off_rewrite() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_sign_off(text, text, uuid, text, uuid, bigint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_sign_off(text, text, uuid, text, uuid, bigint) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_require_ticket_sign_off() FROM PUBLIC;

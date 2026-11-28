@@ -107,6 +107,9 @@ class RoutedStatements extends Statements
                 return $route['rows'];
             }
         }
+        if (str_contains($sql, 'stall_sign_off_needed(')) {
+            return [['needed' => 'false']];
+        }
 
         return [];
     }

@@ -124,6 +124,9 @@ final class ScriptedStatements extends Statements
      */
     public function bound(string $sql, array $params): array
     {
+        if (str_contains($sql, 'stall_sign_off_needed(')) {
+            return [['needed' => 'false']];
+        }
         if (str_contains($sql, 'stall_party_display_name')) {
             $id = $params[0] ?? '';
 

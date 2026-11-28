@@ -594,6 +594,9 @@ final class RentControllerCoverageTest extends TestCase
             return [];
         });
         $statements->method('bound')->willReturnCallback(function (string $sql): array {
+            if (str_contains($sql, 'stall_sign_off_needed(')) {
+                return [['needed' => 'false']];
+            }
             if (str_contains($sql, 'stall_vendor_open_rent')) {
                 if ($this->figuresLeft < 1) {
                     return [];

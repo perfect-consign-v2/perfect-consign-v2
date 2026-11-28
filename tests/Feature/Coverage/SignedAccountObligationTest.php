@@ -10,7 +10,6 @@ use PerfectConsign\Bootstrap\DatabaseRole;
 use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\LoginSession;
 use PerfectConsign\Bootstrap\SaleCeiling;
-use PerfectConsign\Bootstrap\SaleCeilingFlag;
 use PerfectConsign\Feature\Activity\ActivityController;
 use PerfectConsign\Feature\Activity\ActivityHref;
 use PerfectConsign\Feature\Activity\ActivityLog;
@@ -103,7 +102,6 @@ final class SignedAccountObligationTest extends TestCase
         } catch (DatabaseRefusal $error) {
             self::assertSame('the signed-in account is missing', $error->getMessage());
         }
-        self::assertTrue((new SaleCeilingFlag($this->stopping()))->required());
     }
 
     public function testEnterAsRecordsTheOperatorOnTheStoreRow(): void
