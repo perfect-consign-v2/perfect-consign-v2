@@ -242,6 +242,10 @@ A store use is the mall buying a consigned piece for the business, not for resal
 
 A missed sale pays the vendor their share and expenses that cost to the mall when goods left without a proper sale ticket. It posts through the ledger as `missed_sale`, not as a normal register sale. The database works out the share from the item's rate (or the vendor's, or the store's) and posts the journal itself; the screen only says which vendor, which piece and the price. A second press of Post returns the same entry. A tagged piece leaves the count, and a piece already missed or sold is refused.
 
+## Wrong booth
+
+When a sale paid the wrong vendor for a piece, the receipt's Wrong booth moves that piece's share (its price, less discount, less the store's take) from the vendor the sale paid to the vendor chosen, once per piece. The database works out the amount and posts it; the item, its price and the sale stay as they are. A voided sale, a piece that paid no vendor, the same vendor, or a second move is refused, and so is a move that would take the wrong vendor below zero. However it is posted, a booth correction must name the sale and the piece and move exactly that share. Before 2026-11-27 the screen moved the store's take instead of the vendor's share.
+
 ## Commission rules
 
 Beyond the item / vendor / mall default store-take path, commission rules can win by specificity, then priority, then price bounds. A posted sale line keeps the commission from the rule that was in force. An equal tie between rules is refused. An offline register snap never trusts a client commission; the post uses the rule engine's take.

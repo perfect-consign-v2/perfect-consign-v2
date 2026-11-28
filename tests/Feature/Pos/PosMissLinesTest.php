@@ -645,14 +645,13 @@ final class PosMissLinesTest extends TestCase
         $this->reversal($sale, new RoutedStatements($this->createStub(PDO::class)))->voidSale(MallDoor::DRAWER, '2026-11-12', MallDoor::JOURNAL);
 
         $booth = new RoutedStatements($this->createStub(PDO::class));
-        $booth->boundRoutes[] = ['match' => 'sale_lines', 'rows' => [[
-            'vendor_id' => MallDoor::VENDOR,
-            'commission_minor' => 0,
-        ]]];
+        $postings = $this->createMock(\PerfectConsign\Ledger\PostingFunctions::class);
+        $postings->expects(self::never())->method('post');
         try {
-            (new BoothCorrection($booth, $sale, new SaleCeiling($booth, $this->actor(), QuietAudit::journal($booth, $this->actor()), new Request('GET', '/', [], []))))->move('2026-11-12', MallDoor::JOURNAL, self::ITEM, self::TICKET);
-            self::fail('a zero commission must be refused');
-        } catch (DatabaseRefusal) {
+            (new BoothCorrection($postings, new SaleCeiling($booth, $this->actor(), QuietAudit::journal($booth, $this->actor()), new Request('GET', '/', [], []))))->move('2026-11-12', MallDoor::JOURNAL, self::ITEM, 'not-a-vendor');
+            self::fail('a vendor that is not one must be refused');
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('Choose the booth that should have been paid.', $error->getMessage());
         }
 
         $gifts = new GiftIssuePosting(new RoutedStatements($this->createStub(PDO::class)), $sale);

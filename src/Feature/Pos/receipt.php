@@ -149,7 +149,7 @@ $roundText = $round > 0 ? '+' . View::money($round) : View::money($round);
         </section>
             <section class="stack no-print">
                 <h2 class="h3">Wrong booth</h2>
-                <p class="muted">This moves what the store owes. The item price and the <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?> on the item stay as they are.</p>
+                <p class="muted">This moves what the store owes for a piece (its price less the store's take) to the <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?> you choose, once. The item price and the <?= ($consignmentOnly ?? false) === true ? 'consignor' : 'vendor' ?> on the item stay as they are.</p>
                 <?php foreach ($lines as $line): ?>
                     <form class="stack" method="post" action="/<?= View::text($slug) ?>/pos/receipt/<?= View::text($receipt['journal_id']) ?>/booth">
                         <input type="hidden" name="csrf" value="<?= View::text($csrf) ?>">

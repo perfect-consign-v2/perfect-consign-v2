@@ -791,17 +791,27 @@ final class MissedReportLinesTest extends TestCase
         });
         self::assertStringContainsString('the tax payment was not posted', $taxPage);
 
+        $asked = [];
+        $postings = $this->createStub(\PerfectConsign\Ledger\PostingFunctions::class);
+        $postings->method('post')->willReturnCallback(
+            static function (string $date, string $call, array $values, ?string $session = null, ?string $check = null, ?int $tendered = null, ?callable $beforeCommit = null) use (&$asked): string {
+                $asked = [$date, $call, $values];
+                if ($beforeCommit !== null) {
+                    $beforeCommit(MallDoor::JOURNAL);
+                }
+
+                return MallDoor::JOURNAL;
+            }
+        );
         $correction = new BoothCorrection(
-            new BranchStatements($this->createStub(PDO::class), $this->saleLine()),
-            $this->ledger($taxEmpty),
+            $postings,
             new SaleCeiling($statements, $door->actor, QuietAudit::journal($statements, $door->actor), new Request('POST', '/', [], [], '', '', '127.0.0.1')),
         );
-        try {
-            $correction->move('2026-11-20', MallDoor::JOURNAL, MallDoor::ACCOUNT, MallDoor::PERSON);
-            self::fail('an empty correction journal was kept');
-        } catch (DatabaseRefusal $error) {
-            self::assertSame('that sale is not posted', $error->getMessage());
-        }
+        self::assertSame(MallDoor::JOURNAL, $correction->move('2026-11-20', MallDoor::JOURNAL, MallDoor::ACCOUNT, MallDoor::PERSON));
+        self::assertSame(
+            ['2026-11-20', 'stall_booth_correction(?::uuid, ?::uuid, ?::uuid, ?::date)', [MallDoor::JOURNAL, MallDoor::ACCOUNT, MallDoor::PERSON, '2026-11-20']],
+            $asked,
+        );
 
         $register = new RegisterSession(
             new BranchStatements($this->createStub(PDO::class), $this->openRegister()),
@@ -996,17 +1006,6 @@ final class MissedReportLinesTest extends TestCase
         });
 
         return $ledger;
-    }
-
-    private function saleLine(): BranchRows
-    {
-        $rows = new BranchRows();
-        $rows->bound = [[
-            'vendor_id' => MallDoor::VENDOR,
-            'commission_minor' => 100,
-        ]];
-
-        return $rows;
     }
 
     private function openRegister(): BranchRows

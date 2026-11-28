@@ -18990,3 +18990,121 @@ REVOKE ALL ON FUNCTION public.stall_clawback_apply(uuid, text, date) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.stall_clawback_apply(uuid, text, date) TO stall_poster;
 REVOKE ALL ON FUNCTION public.stall_clawback_reclass(uuid, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_clawback_reclass(uuid, date) TO stall_poster;
+
+-- T6 (audit 2026-11-27). A sale paid the wrong booth: the database moves that
+-- piece's vendor share (its price less discount and the store's take) from
+-- the vendor the sale paid to the one who should have been paid, once.
+CREATE FUNCTION public.stall_booth_correction(sale_journal uuid, sold_item uuid, to_vendor uuid, on_date date) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    from_vendor uuid;
+    share bigint;
+    reference text := sale_journal::text || ':' || sold_item::text;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.journals AS sale
+        WHERE sale.id = sale_journal AND sale.source_type = 'sale' AND NOT sale.is_reversal
+    ) THEN
+        RAISE EXCEPTION 'that sale is not posted'
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.journals WHERE reverses_journal_id = sale_journal AND is_reversal) THEN
+        RAISE EXCEPTION 'That sale was voided, so there is nothing to move.'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT item.vendor_id, sum(sale.price_minor * sale.quantity - sale.discount_minor - sale.commission_minor)::bigint
+    INTO from_vendor, share
+    FROM public.sale_lines AS sale
+    JOIN public.items AS item ON item.id = sale.item_id
+    WHERE sale.journal_id = sale_journal AND sale.item_id = sold_item
+    GROUP BY item.vendor_id;
+    IF from_vendor IS NULL THEN
+        RAISE EXCEPTION 'that item is not on the ticket'
+            USING ERRCODE = '23514';
+    END IF;
+    IF to_vendor IS NULL OR to_vendor = from_vendor OR NOT EXISTS (SELECT 1 FROM public.vendors WHERE id = to_vendor) THEN
+        RAISE EXCEPTION 'Choose the booth that should have been paid.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF share < 1 THEN
+        RAISE EXCEPTION 'That item did not pay a vendor.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.journals WHERE posting_key = 'booth-correction:' || reference) THEN
+        RAISE EXCEPTION 'That item was already moved to another booth.'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN public.stall_post_lines(
+        'booth-correction:' || reference, on_date, 'booth_correction', reference, 'Wrong booth',
+        jsonb_build_array(
+            public.stall_line('vendor_payable', share, 0, 'vendor', from_vendor::text),
+            public.stall_line('vendor_payable', 0, share, 'vendor', to_vendor::text)
+        )
+    );
+END;
+$$;
+
+-- However it is posted, a booth correction names a sale and a piece on it,
+-- takes that piece's vendor share from the vendor the sale paid, and gives
+-- the same amount to one other vendor.
+CREATE FUNCTION public.stall_assert_booth_correction() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    sale_id uuid;
+    piece_id uuid;
+    paid_vendor text;
+    share bigint;
+    moved record;
+BEGIN
+    IF NEW.source_type <> 'booth_correction' OR NEW.is_reversal THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.source_reference !~ '^[0-9a-f-]{36}:[0-9a-f-]{36}$'
+       OR NEW.posting_key IS DISTINCT FROM 'booth-correction:' || NEW.source_reference THEN
+        RAISE EXCEPTION 'a booth correction names a sale and a piece on it'
+            USING ERRCODE = '23514';
+    END IF;
+    sale_id := split_part(NEW.source_reference, ':', 1)::uuid;
+    piece_id := split_part(NEW.source_reference, ':', 2)::uuid;
+    SELECT item.vendor_id::text, sum(sale.price_minor * sale.quantity - sale.discount_minor - sale.commission_minor)::bigint
+    INTO paid_vendor, share
+    FROM public.journals AS journal
+    JOIN public.sale_lines AS sale ON sale.journal_id = journal.id
+    JOIN public.items AS item ON item.id = sale.item_id
+    WHERE journal.id = sale_id
+      AND journal.source_type = 'sale'
+      AND NOT journal.is_reversal
+      AND sale.item_id = piece_id
+    GROUP BY item.vendor_id;
+    SELECT count(*) AS lines,
+           count(*) FILTER (WHERE role.role = 'vendor_payable' AND line.subledger_type = 'vendor') AS payable_lines,
+           sum(line.debit_minor) FILTER (WHERE line.subledger_ref = paid_vendor) AS taken,
+           sum(line.credit_minor) FILTER (WHERE line.subledger_ref IS DISTINCT FROM paid_vendor) AS given,
+           count(*) FILTER (WHERE line.debit_minor > 0) AS debits,
+           count(*) FILTER (WHERE line.credit_minor > 0) AS credits
+    INTO moved
+    FROM public.journal_lines AS line
+    LEFT JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id;
+    IF paid_vendor IS NULL OR share IS NULL OR share < 1
+       OR moved.lines <> 2 OR moved.payable_lines <> 2 OR moved.debits <> 1 OR moved.credits <> 1
+       OR moved.taken IS DISTINCT FROM share OR moved.given IS DISTINCT FROM share THEN
+        RAISE EXCEPTION 'a booth correction moves that piece''s vendor share to another vendor'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- Named to run after the payable floor, so an overdraw reads as one.
+CREATE CONSTRAINT TRIGGER journals_wrong_booth_sealed AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_booth_correction();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_wrong_booth_sealed;
+
+REVOKE ALL ON FUNCTION public.stall_assert_booth_correction() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_booth_correction(uuid, uuid, uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_booth_correction(uuid, uuid, uuid, date) TO stall_poster;
