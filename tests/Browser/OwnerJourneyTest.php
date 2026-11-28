@@ -100,12 +100,7 @@ final class OwnerJourneyTest extends WebTestCase
             'amount' => '100.00',
         ]);
         $this->session->open('/' . ProbeMall::SLUG . '/vendors/' . $vendorId);
-        $this->session->submit('/' . ProbeMall::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-        ]);
+        ProbeMall::plantStay($boothId, $vendorId, ProbeMall::PERIOD_START, '', 10000);
         $this->session->open('/' . ProbeMall::SLUG . '/rent?month=' . ProbeMall::MONTH);
         $listed = $this->session->revealListRows();
         $button = '/data-charge-stay="([0-9a-f-]{36})"\s+data-charge-period="(\d{4}-\d{2}-\d{2})"[^>]*data-charge-code="'

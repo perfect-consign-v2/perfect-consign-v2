@@ -448,14 +448,7 @@ final class FloorCoverageTest extends WebTestCase
         self::assertSees($booth, $made);
         $booths = $this->client->get('/' . self::SLUG . '/booths?q=' . rawurlencode($booth));
         $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
-        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendor,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-            'rent' => '150.00',
-        ]);
-        self::assertSees('Booth assigned.', $assigned);
+        ProbeMall::plantStay($boothId, $vendor, ProbeMall::PERIOD_START, '', 15000);
         $missing = $this->client->post('/' . self::SLUG . '/pos/instant', [
             'vendor_id' => '',
             'description' => 'Missing',

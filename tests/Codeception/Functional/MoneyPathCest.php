@@ -95,12 +95,7 @@ final class MoneyPathCest
             $I->fail('vendor id missing after create');
         }
         $vendorId = strtolower($vendorMatch[1]);
-        $client->post('/' . $slug . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-        ]);
+        ProbeMall::plantStay($boothId, $vendorId, ProbeMall::PERIOD_START, '', 10000);
         $book = $client->get('/' . $slug . '/rent?month=' . ProbeMall::MONTH);
         $button = '/data-charge-stay="([0-9a-f-]{36})"\s+data-charge-period="(\d{4}-\d{2}-\d{2})"[^>]*data-charge-code="'
             . preg_quote($boothCode, '/') . '"/';

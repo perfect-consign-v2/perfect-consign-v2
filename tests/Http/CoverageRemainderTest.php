@@ -165,20 +165,24 @@ final class CoverageRemainderTest extends WebTestCase
             'starts_on' => '2026-09-15',
         ]);
         self::assertLessThan(500, $missingBooth->status);
-        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
+        self::useOpenRegister($this->client, self::SLUG);
+        $start = self::thisMonthStart($this->client, self::SLUG);
+        $assigned = self::assignAtDesk($this->client, self::SLUG, [
             'vendor_id' => $vendorId,
             'booth_id' => $boothId,
-            'starts_on' => '2026-09-15',
-            'ends_on' => '',
+            'starts_on' => $start,
             'rent' => '80.00',
         ]);
-        self::assertSees('Booth assigned.', $assigned);
         self::assertSees('Overridden', $assigned);
         $assignmentId = $this->match($assigned->body, '#/assignments/([0-9a-fA-F-]{36})/end#');
-        $ended = $this->client->post('/' . self::SLUG . '/assignments/' . $assignmentId . '/end', [
-            'ends_on' => '2026-09-20',
+        $early = $this->client->post('/' . self::SLUG . '/assignments/' . $assignmentId . '/end', [
+            'ends_on' => '2020-01-01',
         ]);
-        self::assertSees('Booth assignment ended.', $ended);
+        self::assertSees('The end date can&#039;t be before the start date.', $early);
+        $ended = $this->client->post('/' . self::SLUG . '/assignments/' . $assignmentId . '/end', [
+            'ends_on' => $start,
+        ]);
+        self::assertSees('Booth ended.', $ended);
 
         $spare = 'c' . $tag;
         $spareBooth = $this->client->post('/' . self::SLUG . '/booths', [
@@ -222,11 +226,7 @@ final class CoverageRemainderTest extends WebTestCase
         ]);
         self::assertSees('Booth created.', $moveIn);
         $moveInId = HtmlPage::taggedId($moveIn->body, 'tr', 'booth', 'm' . $tag);
-        $this->client->post('/' . self::SLUG . '/assignments', [
-            'vendor_id' => $vendorId,
-            'booth_id' => $moveInId,
-            'starts_on' => '2026-06-15',
-        ]);
+        ProbeMall::plantStay($moveInId, $vendorId, '2026-06-15', '', null);
         $june = $this->client->get('/' . self::SLUG . '/rent?month=2026-06');
         self::assertSees('Charge $48.00', $june);
         $charged = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($june->body, 'm' . $tag) + ['month' => '2026-06']);
@@ -239,13 +239,7 @@ final class CoverageRemainderTest extends WebTestCase
         ]);
         self::assertSees('Booth created.', $special);
         $specialId = HtmlPage::taggedId($special->body, 'tr', 'booth', 'o' . $tag);
-        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
-            'vendor_id' => $vendorId,
-            'booth_id' => $specialId,
-            'starts_on' => '2026-03-15',
-            'rent' => '62.00',
-        ]);
-        self::assertSees('Booth assigned.', $assigned);
+        $assigned = ProbeMall::plantStay($specialId, $vendorId, '2026-03-15', '', 6200);
         $march = $this->client->get('/' . self::SLUG . '/rent?month=2026-03');
         self::assertSees('Charge $34.00', $march);
         $overridden = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($march->body, 'o' . $tag) + ['month' => '2026-03']);
@@ -309,11 +303,7 @@ final class CoverageRemainderTest extends WebTestCase
             'amount' => '40.00',
         ]);
         $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', $boothCode);
-        $this->client->post('/' . self::SLUG . '/assignments', [
-            'vendor_id' => $vendorId,
-            'booth_id' => $boothId,
-            'starts_on' => $month,
-        ]);
+        ProbeMall::plantStay($boothId, $vendorId, $month, '', null);
         $book = $this->client->get('/' . self::SLUG . '/rent?month=' . substr($today, 0, 7));
         self::assertSees($boothCode, $book);
         self::assertSees('Charge $40.00', $book);

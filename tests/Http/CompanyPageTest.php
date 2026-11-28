@@ -133,12 +133,7 @@ final class CompanyPageTest extends WebTestCase
             'booth_id' => $boothId,
             'amount' => '40.00',
         ]);
-        $this->client->post('/' . self::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-        ]);
+        ProbeMall::plantStay($boothId, $vendorId, ProbeMall::PERIOD_START, '', null);
         $rent = $this->client->get('/' . self::SLUG . '/rent');
         self::assertSame(1, preg_match('/datetime="(\d{4}-\d{2}-\d{2})"/', $rent->body, $today));
         $charged = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($rent->body, $booth));

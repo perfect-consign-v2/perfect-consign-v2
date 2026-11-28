@@ -30,17 +30,18 @@ final class BoothBooking
     }
 
     /**
-     * What assigning would take now, or null when the booth has no rent.
+     * What assigning would take now. The database refuses a start before the
+     * current rent period, an end before the start, and a booth with no rent.
      *
      * @return BoothDue|null
      */
-    public function due(string $boothId, string $startsOn, ?int $rentMinor, string $today): ?array
+    public function due(string $boothId, string $startsOn, string $endsOn, ?int $rentMinor, string $today): ?array
     {
         $rows = $this->statements->bound(
             "SELECT due_minor, to_char(first_period, 'YYYY-MM-DD') AS first_period,
                     to_char(period_end, 'YYYY-MM-DD') AS period_end, paid_ahead
-             FROM stall_booth_due(?::uuid, ?::date, ?, ?::date)",
-            [$boothId, $startsOn, $rentMinor, $today],
+             FROM stall_booth_due(?::uuid, ?::date, NULLIF(?, '')::date, ?, ?::date)",
+            [$boothId, $startsOn, $endsOn, $rentMinor, $today],
         );
         $row = $rows[0] ?? null;
         if ($row === null) {
@@ -64,7 +65,7 @@ final class BoothBooking
      */
     public function assign(array $stay, array $payment, string $today): string
     {
-        $due = $this->due($stay['booth'], $stay['starts_on'], $stay['rent'], $today);
+        $due = $this->due($stay['booth'], $stay['starts_on'], $stay['ends_on'], $stay['rent'], $today);
         if ($due === null) {
             throw new DatabaseRefusal('Set the rent for this booth first.');
         }

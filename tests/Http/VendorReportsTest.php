@@ -100,6 +100,64 @@ final class VendorReportsTest extends WebTestCase
         self::assertSees('Show recent months', $all);
     }
 
+    public function testAssigningABoothTakesItsFirstRentAtTheDesk(): void
+    {
+        $tag = bin2hex(random_bytes(3));
+        $vendor = $this->client->post('/' . self::SLUG . '/vendors', [
+            'code' => 'vd' . $tag,
+            'first_name' => 'Dora',
+            'last_name' => $tag,
+            'store_take' => '0',
+        ]);
+        self::assertSees('Vendor created.', $vendor);
+        $vendorId = HtmlPage::taggedId($this->client->get('/' . self::SLUG . '/vendors')->body, 'tr', 'vendor', 'vd' . $tag);
+        $made = $this->client->post('/' . self::SLUG . '/booths', ['code' => 'bd' . $tag, 'name' => 'Desk ' . $tag, 'amount' => '30.00']);
+        $boothId = HtmlPage::taggedId($made->body, 'tr', 'booth', 'bd' . $tag);
+        $start = self::thisMonthStart($this->client, self::SLUG);
+        $page = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
+        self::assertSees('min="' . $start . '"', $page);
+        self::assertSees('See what is due', $page);
+        self::useOpenRegister($this->client, self::SLUG);
+        $refused = $this->client->post('/' . self::SLUG . '/assignments', [
+            'vendor_id' => $vendorId,
+            'booth_id' => $boothId,
+            'starts_on' => '2020-01-01',
+        ]);
+        self::assertSees('The start date can&#039;t be before', $refused);
+        $noCheck = $this->client->post('/' . self::SLUG . '/assignments', [
+            'vendor_id' => $vendorId,
+            'booth_id' => $boothId,
+            'starts_on' => $start,
+            'pay_with' => 'check',
+        ]);
+        self::assertSees('Enter the check number.', $noCheck);
+
+        // Next month's booth is paid now and held: Reserved, then the owner cancels and keeps it.
+        $next = date('Y-m-d', (int) strtotime($start . ' +1 month'));
+        $quote = $this->client->post('/' . self::SLUG . '/assignments', [
+            'vendor_id' => $vendorId,
+            'booth_id' => $boothId,
+            'starts_on' => $next,
+        ]);
+        self::assertSees('Due now: $30.00', $quote);
+        self::assertSees('The store holds it for them until the booth starts.', $quote);
+        $reserved = self::assignAtDesk($this->client, self::SLUG, ['vendor_id' => $vendorId, 'booth_id' => $boothId, 'starts_on' => $next]);
+        self::assertSees('Reserved: paid $30.00 for', $reserved);
+        self::assertSame(1, preg_match('#/assignments/([0-9a-fA-F-]{36})/cancel#', $reserved->body, $cancel));
+        $noReason = $this->client->post('/' . self::SLUG . '/assignments/' . $cancel[1] . '/cancel', ['outcome' => 'keep', 'reason' => '']);
+        self::assertSees('Say why the reservation is cancelled.', $noReason);
+        $kept = $this->client->post('/' . self::SLUG . '/assignments/' . $cancel[1] . '/cancel', ['outcome' => 'keep', 'reason' => 'No show']);
+        self::assertSees('Reservation cancelled. The store kept the payment.', $kept);
+        self::assertStringNotContainsString('Reserved: paid', $kept->body);
+
+        // This month's booth from the first: a full month by check, charged and paid at once.
+        $assigned = self::assignAtDesk($this->client, self::SLUG, ['vendor_id' => $vendorId, 'booth_id' => $boothId, 'starts_on' => $start], 'check', '5150');
+        self::assertSees('$30.00 charged', $assigned);
+        self::assertSees('$0.00 owed', $assigned);
+        $payments = $this->client->get('/' . self::SLUG . '/reports/rent-payments?' . http_build_query(['vendor' => $vendorId]));
+        self::assertSees('Check $30.00', $payments);
+    }
+
     public function testFiltersAreRefusedInPlainWords(): void
     {
         $register = '/' . self::SLUG . '/reports/vendor-register?';
@@ -153,15 +211,7 @@ final class VendorReportsTest extends WebTestCase
         $made = $this->client->post('/' . self::SLUG . '/booths', ['code' => $booth, 'name' => 'Rent ' . $booth]);
         self::assertSees('Booth created.', $made);
         $boothId = HtmlPage::taggedId($made->body, 'tr', 'booth', $booth);
-        $rent = $this->client->get('/' . self::SLUG . '/rent');
-        self::assertSame(1, preg_match('/<time datetime="(\d{4}-\d{2})-\d{2}">/', $rent->body, $month));
-        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
-            'vendor_id' => $vendorId,
-            'booth_id' => $boothId,
-            'starts_on' => $month[1] . '-01',
-            'rent' => '40.00',
-        ]);
-        self::assertSees('Booth assigned.', $assigned);
+        ProbeMall::plantStay($boothId, $vendorId, self::thisMonthStart($this->client, self::SLUG), '', 4000);
 
         return [$vendorId, $boothId];
     }

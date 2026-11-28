@@ -391,12 +391,9 @@ final class OwnerActionSweep
         if ($this->boothId === '' || $this->otherVendorId === '' || $this->otherBoothId === '') {
             return;
         }
-        $this->http->post('/assignments', [
-            'booth_id' => $this->boothId,
-            'vendor_id' => $this->otherVendorId,
-            'starts_on' => self::STAY_START,
-            'rent' => '100.00',
-        ], ['Booth assigned.']);
+        // History before this rent period is planted, as an import would load it;
+        // the desk assigns a booth below, with its first rent.
+        ProbeMall::plantStay($this->boothId, $this->otherVendorId, self::STAY_START, '', 10000);
         $vendor = $this->http->get('/vendors/' . $this->otherVendorId, [$code]);
         $assignment = $this->http->id($vendor->body, '#/assignments/([0-9a-fA-F-]{36})/#', 'assignment');
         if ($assignment === '') {
@@ -406,13 +403,8 @@ final class OwnerActionSweep
             'starts_on' => '2026-11-03',
             'rent' => '90.00',
         ], ['Rent rate saved.']);
-        $this->http->post('/assignments/' . $assignment . '/end', ['ends_on' => self::FIRST_STAY_END], ['Booth assignment ended.']);
-        $this->http->post('/assignments', [
-            'booth_id' => $this->otherBoothId,
-            'vendor_id' => $this->otherVendorId,
-            'starts_on' => self::NEXT_STAY_START,
-            'rent' => '90.00',
-        ], ['Booth assigned.']);
+        $this->http->post('/assignments/' . $assignment . '/end', ['ends_on' => self::FIRST_STAY_END], ['Booth ended.']);
+        ProbeMall::plantStay($this->otherBoothId, $this->otherVendorId, self::NEXT_STAY_START, '', 9000);
         $book = $this->http->get('/rent?month=' . substr(self::RENT_ON, 0, 7), [$other]);
         $pattern = '/data-charge-stay="([0-9a-f-]{36})"\s+data-charge-period="(\d{4}-\d{2}-\d{2})"[^>]*data-charge-code="'
             . preg_quote($other, '/') . '"/';
@@ -427,8 +419,9 @@ final class OwnerActionSweep
         $moved = $this->http->get('/vendors/' . $this->otherVendorId);
         $current = $this->http->id($moved->body, '#/assignments/([0-9a-fA-F-]{36})/#', 'moved assignment');
         if ($current !== '') {
-            $this->http->post('/assignments/' . $current . '/end', ['ends_on' => self::STAY_END], ['Booth assignment ended.']);
+            $this->http->post('/assignments/' . $current . '/end', ['ends_on' => self::STAY_END], ['Booth ended.']);
         }
+        $this->deskAssignment();
         $this->http->get('/rent/collect?booth=' . $this->otherBoothId);
         $paid = $this->http->post('/rent/payment', [
             'booth_id' => $this->otherBoothId,
@@ -466,6 +459,26 @@ final class OwnerActionSweep
             'amount' => '5.00',
         ], ['Booth deposit returned posted.']);
         $this->money();
+    }
+
+    /**
+     * A booth assigned at the desk from the first of this rent period: see what
+     * is due, then take it by card.
+     */
+    private function deskAssignment(): void
+    {
+        $desk = 'b' . $this->tag();
+        $this->http->post('/booths', ['code' => $desk, 'name' => $desk, 'amount' => '25.00'], ['Booth created.']);
+        $deskId = $this->safeId($this->http->get('/booths', [$desk])->body, 'tr', 'booth', $desk, 'desk booth');
+        $rent = $this->http->get('/rent');
+        if ($deskId === '' || preg_match('/<time datetime="(\d{4}-\d{2})-\d{2}">/', $rent->body, $month) !== 1) {
+            $this->http->failures[] = 'the desk booth could not be set up';
+
+            return;
+        }
+        $stay = ['booth_id' => $deskId, 'vendor_id' => $this->otherVendorId, 'starts_on' => $month[1] . '-01'];
+        $this->http->post('/assignments', $stay, ['Due now: $25.00']);
+        $this->http->post('/assignments', $stay + ['pay_with' => 'card'], ['Booth assigned.']);
     }
 
     private function inventory(): void

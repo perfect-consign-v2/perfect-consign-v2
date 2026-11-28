@@ -16,7 +16,7 @@ use PerfectConsign\Feature\Mall\MallClock;
 use PerfectConsign\Feature\Mall\MallDay;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Feature\Party\AssignmentBook;
-use PerfectConsign\Feature\Party\AssignmentController;
+use PerfectConsign\Feature\Party\AssignmentOutcome;
 use PerfectConsign\Feature\Party\AssignmentOffer;
 use PerfectConsign\Feature\Party\BoothController;
 use PerfectConsign\Feature\Party\BoothWrite;
@@ -182,11 +182,11 @@ final class PartyMissCoverageTest extends TestCase
             self::assertSame('a booth stay does not end', $error->getMessage());
         }
 
-        $controller = (new ReflectionClass(AssignmentController::class))->newInstanceWithoutConstructor();
+        $controller = (new ReflectionClass(AssignmentOutcome::class))->newInstanceWithoutConstructor();
         $paths = new ReflectionClass($controller);
         $property = $paths->getProperty('sellerPaths');
         $property->setValue($controller, new SellerPaths(MallDoor::open($this, new Request('GET', '/', [], []))->mall));
-        $path = new ReflectionMethod(AssignmentController::class, 'vendorPath');
+        $path = new ReflectionMethod(AssignmentOutcome::class, 'vendorPath');
         self::assertSame('/' . MallDoor::SLUG . '/vendors', $path->invoke($controller, MallDoor::SLUG, 'nope'));
 
         $lookup = new BoothStayLookup();

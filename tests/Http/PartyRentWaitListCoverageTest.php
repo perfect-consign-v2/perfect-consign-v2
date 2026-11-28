@@ -202,29 +202,15 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
             'booth',
             $nextTag
         );
-        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-            'rent' => '90.00',
-        ]);
-        self::assertSees('Booth assigned.', $assigned);
+        ProbeMall::plantStay($boothId, $vendorId, ProbeMall::PERIOD_START, '', 9000);
         $stayPage = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
         self::assertSame(1, preg_match('#/assignments/([0-9a-fA-F-]{36})/end#', $stayPage->body, $stay));
         self::assertStringNotContainsString('/move', $stayPage->body);
         $ended = $this->client->post('/' . self::SLUG . '/assignments/' . $stay[1] . '/end', [
             'ends_on' => '2026-09-15',
         ]);
-        self::assertSees('Booth assignment ended.', $ended);
-        $next = $this->client->post('/' . self::SLUG . '/assignments', [
-            'booth_id' => $nextBooth,
-            'vendor_id' => $vendorId,
-            'starts_on' => '2026-09-16',
-            'ends_on' => '',
-            'rent' => '90.00',
-        ]);
-        self::assertSees('Booth assigned.', $next);
+        self::assertSees('Booth ended.', $ended);
+        ProbeMall::plantStay($nextBooth, $vendorId, '2026-09-16', '', 9000);
         $badAssign = $this->client->post('/' . self::SLUG . '/assignments', [
             'vendor_id' => 'not-a-vendor',
             'booth_id' => $boothId,
@@ -349,14 +335,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         ]);
         self::assertSees('Booth created.', $booth);
         $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', 'rh' . $tag);
-        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => '2026-01-01',
-            'ends_on' => '',
-            'rent' => '50.00',
-        ]);
-        self::assertSees('Booth assigned.', $assigned);
+        ProbeMall::plantStay($boothId, $vendorId, '2026-01-01', '', 5000);
         $page = $this->client->get('/' . self::SLUG . '/vendors/' . $vendorId);
         self::assertSees('Change rent', $page);
         self::assertSame(1, preg_match(
@@ -426,14 +405,7 @@ final class PartyRentWaitListCoverageTest extends WebTestCase
         ]);
         self::assertSees('Booth created.', $booth);
         $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', 'b' . $tag);
-        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => '2026-09-01',
-            'ends_on' => '',
-            'rent' => '40.00',
-        ]);
-        self::assertSees('Booth assigned.', $assigned);
+        ProbeMall::plantStay($boothId, $vendorId, '2026-09-01', '', 4000);
         $september = $this->client->get('/' . self::SLUG . '/rent?month=2026-09');
         $charged = $this->client->post('/' . self::SLUG . '/rent/charge', self::chargeButton($september->body, 'b' . $tag));
         self::assertSees('Rent charged.', $charged);

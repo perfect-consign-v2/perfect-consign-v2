@@ -161,13 +161,6 @@ final class StandingListHttpTest extends WebTestCase
 
     private function assign(string $boothId, string $vendorId, string $startsOn, string $endsOn): void
     {
-        $page = $this->client->post('/' . self::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => $startsOn,
-            'ends_on' => $endsOn,
-            'rent' => '10.00',
-        ]);
-        self::assertSees('Booth assigned.', $page);
+        ProbeMall::plantStay($boothId, $vendorId, $startsOn, $endsOn, 1000);
     }
 }

@@ -132,6 +132,42 @@ final class ProbeMall
     }
 
     /**
+     * Plants a booth stay the way an import of past history would, with no
+     * first rent taken. The desk itself can only assign through
+     * stall_assign_booth, which refuses a start before the current rent period;
+     * tests about earlier months need their stays planted.
+     */
+    public static function plantStay(string $boothId, string $vendorId, string $startsOn, string $endsOn = '', ?int $rentMinor = null): string
+    {
+        $pdo = self::admin();
+        $schemaStmt = $pdo->prepare('SELECT schema_name FROM platform.tenants WHERE slug = ?');
+        $schemaStmt->execute([self::SLUG]);
+        $schema = $schemaStmt->fetchColumn();
+        if (!is_string($schema) || preg_match('/^tenant_[0-9a-f]{32}$/', $schema) !== 1) {
+            throw new RuntimeException('the web probe is missing');
+        }
+        $pdo->exec('SET search_path TO ' . $schema . ', pg_catalog, extensions');
+        $pdo->beginTransaction();
+        $stay = $pdo->prepare(
+            'INSERT INTO booth_assignments (booth_id, vendor_id, starts_on, ends_on)
+             VALUES (?::uuid, ?::uuid, ?::date, NULLIF(?, \'\')::date) RETURNING id::text'
+        );
+        $stay->execute([$boothId, $vendorId, $startsOn, $endsOn]);
+        $id = $stay->fetchColumn();
+        if (!is_string($id)) {
+            throw new RuntimeException('the planted stay was not made');
+        }
+        $rent = $pdo->prepare(
+            'INSERT INTO assignment_rent (assignment_id, amount_minor)
+             SELECT ?::uuid, COALESCE(?::bigint, (SELECT amount_minor FROM booth_rent_rates WHERE booth_id = ?::uuid))'
+        );
+        $rent->execute([$id, $rentMinor, $boothId]);
+        $pdo->commit();
+
+        return $id;
+    }
+
+    /**
      * HTTP suites flip prepaid/late-fee switches. A hung test must not leave the rent page on the debtors book.
      */
     public static function resetMallMoney(): void

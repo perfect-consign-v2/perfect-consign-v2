@@ -194,35 +194,6 @@ final class PartyCoverageTest extends TestCase
         } catch (InvalidArgumentException $error) {
             self::assertSame('that booth was not created', $error->getMessage());
         }
-        try {
-            $stays->addAssignment(
-                '00000000-0000-7000-8000-0000000000b1',
-                '00000000-0000-7000-8000-0000000000a1',
-                '2026-10-01',
-                '',
-                1000
-            );
-            self::fail('an empty assignment insert was accepted');
-        } catch (InvalidArgumentException $error) {
-            self::assertSame('that assignment was not created', $error->getMessage());
-        }
-        $withId = $this->createStub(Statements::class);
-        $withId->method('transaction')->willReturnCallback(static function (callable $work): mixed {
-            return $work();
-        });
-        $withId->method('bound')->willReturn([['id' => '00000000-0000-7000-8000-0000000000aa']]);
-        try {
-            (new \PerfectConsign\Feature\Party\AssignmentBook($withId))->addAssignment(
-                '00000000-0000-7000-8000-0000000000b1',
-                '00000000-0000-7000-8000-0000000000a1',
-                '2026-10-01',
-                '2026-10-31',
-                null
-            );
-            self::fail('an assignment without rent was accepted');
-        } catch (InvalidArgumentException $error) {
-            self::assertSame('that booth has no asking rent', $error->getMessage());
-        }
     }
 
     public function testThePartyCountCountsEveryParty(): void
@@ -347,25 +318,6 @@ final class PartyCoverageTest extends TestCase
             self::assertSame('that booth was not created', $error->getMessage());
         }
         self::assertFalse($usedTransaction);
-        $seen['id'] = '00000000-0000-7000-8000-0000000000aa';
-        $stays->addAssignment(
-            '00000000-0000-7000-8000-0000000000b1',
-            '00000000-0000-7000-8000-0000000000a1',
-            '2026-10-01',
-            '',
-            1000
-        );
-        self::assertStringNotContainsString('ends_on', $seen['sql']);
-        self::assertSame(3, $seen['count']);
-        $stays->addAssignment(
-            '00000000-0000-7000-8000-0000000000b1',
-            '00000000-0000-7000-8000-0000000000a1',
-            '2026-10-01',
-            '2026-10-31',
-            1000
-        );
-        self::assertStringContainsString('ends_on', $seen['sql']);
-        self::assertSame(4, $seen['count']);
     }
 
     public function testAStayEndMustBeADate(): void

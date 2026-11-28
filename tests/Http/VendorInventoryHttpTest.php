@@ -727,14 +727,7 @@ final class VendorInventoryHttpTest extends WebTestCase
             'amount' => '100.00',
         ]);
         self::assertSees('Asking rent saved.', $rated);
-        $assigned = $this->owner->post('/' . self::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-        ]);
-        self::assertLessThan(400, $assigned->status, HtmlPage::error($assigned->body));
-        self::assertSees('Booth assigned.', $assigned);
+        ProbeMall::plantStay($boothId, $vendorId, ProbeMall::PERIOD_START, '', null);
     }
 
     private function payCard(string $code, string $description): void

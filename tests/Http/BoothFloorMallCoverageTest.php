@@ -184,13 +184,7 @@ final class BoothFloorMallCoverageTest extends WebTestCase
         $booth = $this->client->post('/' . self::SLUG . '/booths', ['code' => $code, 'name' => 'Extra ' . $code]);
         self::assertSees('Booth created.', $booth);
         $boothId = HtmlPage::taggedId($booth->body, 'tr', 'booth', $code);
-        $assigned = $this->client->post('/' . self::SLUG . '/assignments', [
-            'vendor_id' => $vendorId,
-            'booth_id' => $boothId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'rent' => '10.00',
-        ]);
-        self::assertSees('Booth assigned.', $assigned);
+        ProbeMall::plantStay($boothId, $vendorId, ProbeMall::PERIOD_START, '', 1000);
         $page = $this->client->get('/' . self::SLUG . '/booth-extras');
         $label = preg_quote('Booth ' . $code . ', ' . $vendorName, '/');
         if (preg_match('/<option value="([0-9a-f-]{36})">' . $label . '<\/option>/', $page->body, $found) !== 1) {

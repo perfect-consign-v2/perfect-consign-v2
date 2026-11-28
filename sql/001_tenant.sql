@@ -5823,19 +5823,45 @@ $$;
 -- What assigning a booth would take now, before anything is written: the
 -- first rent at the stay's rate (the given rent, or the booth's asking rent),
 -- the first period, and whether it is paid ahead of that period.
-CREATE FUNCTION public.stall_booth_due(target_booth uuid, start_on date, rent_minor bigint, today date)
+CREATE FUNCTION public.stall_booth_due(target_booth uuid, start_on date, end_on date, rent_minor bigint, today date)
 RETURNS TABLE(due_minor bigint, first_period date, period_end date, paid_ahead boolean)
-    LANGUAGE sql STABLE
+    LANGUAGE plpgsql STABLE
     SET search_path TO 'pg_catalog'
     AS $$
-    SELECT public.stall_rent_prorated(rate.amount, public.stall_rent_period_start(start_on), start_on),
-           public.stall_rent_period_start(start_on),
-           public.stall_rent_period_end(public.stall_rent_period_start(start_on)),
-           public.stall_rent_period_start(start_on) > public.stall_rent_period_start(today)
-    FROM (
-        SELECT COALESCE(rent_minor, (SELECT asking.amount_minor FROM public.booth_rent_rates AS asking WHERE asking.booth_id = target_booth)) AS amount
-    ) AS rate
-    WHERE start_on IS NOT NULL AND today IS NOT NULL AND rate.amount > 0
+DECLARE
+    rate bigint := rent_minor;
+    earliest date;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.booths WHERE id = target_booth) THEN
+        RAISE EXCEPTION 'Choose a booth.'
+            USING ERRCODE = '22023';
+    END IF;
+    IF start_on IS NULL OR today IS NULL THEN
+        RAISE EXCEPTION 'Choose the day the booth starts.'
+            USING ERRCODE = '22023';
+    END IF;
+    earliest := public.stall_rent_period_start(today);
+    IF start_on < earliest THEN
+        RAISE EXCEPTION 'The start date can''t be before %.', to_char(earliest, 'MM-DD-YYYY')
+            USING ERRCODE = '23514';
+    END IF;
+    IF end_on IS NOT NULL AND end_on < start_on THEN
+        RAISE EXCEPTION 'The end date can''t be before the start date.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF rate IS NULL THEN
+        SELECT asking.amount_minor INTO rate FROM public.booth_rent_rates AS asking WHERE asking.booth_id = target_booth;
+    END IF;
+    IF rate IS NULL OR rate < 1 THEN
+        RAISE EXCEPTION 'Set the rent for this booth first.'
+            USING ERRCODE = '23514';
+    END IF;
+    first_period := public.stall_rent_period_start(start_on);
+    period_end := public.stall_rent_period_end(first_period);
+    due_minor := public.stall_rent_prorated(rate, first_period, start_on);
+    paid_ahead := first_period > earliest;
+    RETURN NEXT;
+END;
 $$;
 
 -- The reserved stays whose first period has arrived by today, and the day
@@ -17153,9 +17179,9 @@ REVOKE ALL ON FUNCTION public.stall_assert_rent_advance() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.stall_rent_prorated(bigint, date, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_rent_prorated(bigint, date, date) TO stall_poster;
 GRANT EXECUTE ON FUNCTION public.stall_rent_prorated(bigint, date, date) TO stall_backup;
-REVOKE ALL ON FUNCTION public.stall_booth_due(uuid, date, bigint, date) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.stall_booth_due(uuid, date, bigint, date) TO stall_poster;
-GRANT EXECUTE ON FUNCTION public.stall_booth_due(uuid, date, bigint, date) TO stall_backup;
+REVOKE ALL ON FUNCTION public.stall_booth_due(uuid, date, date, bigint, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_booth_due(uuid, date, date, bigint, date) TO stall_poster;
+GRANT EXECUTE ON FUNCTION public.stall_booth_due(uuid, date, date, bigint, date) TO stall_backup;
 REVOKE ALL ON FUNCTION public.stall_rent_paid_ahead_due(date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_rent_paid_ahead_due(date) TO stall_poster;
 GRANT EXECUTE ON FUNCTION public.stall_rent_paid_ahead_due(date) TO stall_backup;

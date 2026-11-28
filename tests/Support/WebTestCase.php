@@ -100,6 +100,63 @@ abstract class WebTestCase extends TestCase
         return ['assignment_id' => $found[1], 'period_start' => $found[2]];
     }
 
+    /**
+     * The first day of this rent period on the mall clock, from the rent page.
+     */
+    protected static function thisMonthStart(FormClient $client, string $slug): string
+    {
+        $rent = $client->get('/' . $slug . '/rent');
+        if (preg_match('/<time datetime="(\d{4}-\d{2})-\d{2}">/', $rent->body, $month) !== 1) {
+            self::fail('the rent page shows no date');
+        }
+
+        return $month[1] . '-01';
+    }
+
+    /**
+     * Uses a register shift that is open, or opens one, so money can be taken.
+     */
+    protected static function useOpenRegister(FormClient $client, string $slug): void
+    {
+        $page = $client->get('/' . $slug . '/registers');
+        if (preg_match('#(/' . $slug . '/registers/[0-9a-fA-F-]{36}/use)#', $page->body, $use) === 1) {
+            $client->post($use[1], []);
+
+            return;
+        }
+        if (preg_match('#/' . $slug . '/registers/[0-9a-fA-F-]{36}/close#', $page->body) === 1) {
+            return;
+        }
+        if (preg_match('#(/' . $slug . '/registers/[0-9a-fA-F-]{36}/open)#', $page->body, $open) !== 1) {
+            $created = $client->post('/' . $slug . '/registers', ['name' => 'Desk ' . bin2hex(random_bytes(2))]);
+            if (preg_match('#(/' . $slug . '/registers/[0-9a-fA-F-]{36}/open)#', $created->body, $open) !== 1) {
+                self::fail('no register could be opened');
+            }
+        }
+        $fields = ['cashier' => ProbeMall::USERNAME, 'opening_float' => '0.00'];
+        foreach ([10000, 5000, 2000, 1000, 500, 100, 25, 10, 5, 1] as $bill) {
+            $fields['count_' . $bill] = '0';
+        }
+        self::assertSees('Register opened.', $client->post($open[1], $fields));
+    }
+
+    /**
+     * Assigns a booth at the desk the way a person does: choose it, see what
+     * is due, then take that first rent. Returns the page after assigning.
+     *
+     * @param array{booth_id: string, vendor_id: string, starts_on: string, ends_on?: string, rent?: string} $stay
+     */
+    protected static function assignAtDesk(FormClient $client, string $slug, array $stay, string $payWith = 'card', string $check = ''): PageResponse
+    {
+        $stay += ['ends_on' => '', 'rent' => ''];
+        $quoted = $client->post('/' . $slug . '/assignments', $stay);
+        self::assertSees('Due now:', $quoted);
+        $assigned = $client->post('/' . $slug . '/assignments', $stay + ['pay_with' => $payWith, 'check_number' => $check]);
+        self::assertSees('Booth assigned.', $assigned);
+
+        return $assigned;
+    }
+
     protected static function assertSees(string $text, PageResponse|string $page): void
     {
         $body = $page instanceof PageResponse ? $page->body : $page;

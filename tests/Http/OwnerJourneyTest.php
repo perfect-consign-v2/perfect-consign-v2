@@ -143,12 +143,7 @@ final class OwnerJourneyTest extends WebTestCase
             'booth_id' => $boothId,
             'amount' => '100.00',
         ]);
-        $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-        ]);
+        ProbeMall::plantStay($boothId, $vendorId, ProbeMall::PERIOD_START, '', null);
         $month = substr(ProbeMall::POSTING_DATE, 0, 7);
         $button = self::chargeButton($this->client->get('/' . ProbeMall::SLUG . '/rent?month=' . $month)->body, $booth);
         $book = $this->client->post('/' . ProbeMall::SLUG . '/rent/charge', $button);
@@ -505,12 +500,12 @@ final class OwnerJourneyTest extends WebTestCase
         $booth = $this->booth();
         $booths = $this->client->get('/' . ProbeMall::SLUG . '/booths');
         $boothId = HtmlPage::taggedId($booths->body, 'tr', 'booth', $booth);
-        $assigned = $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
+        self::useOpenRegister($this->client, ProbeMall::SLUG);
+        $assigned = self::assignAtDesk($this->client, ProbeMall::SLUG, [
             'booth_id' => $boothId,
             'vendor_id' => $vendorId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-        ]);
+            'starts_on' => self::thisMonthStart($this->client, ProbeMall::SLUG),
+        ], 'cash');
 
         self::assertSame(200, $assigned->status);
         self::assertSees('Active', $assigned);
@@ -595,12 +590,7 @@ final class OwnerJourneyTest extends WebTestCase
             'booth_id' => $boothId,
             'amount' => '100.00',
         ]);
-        $this->client->post('/' . ProbeMall::SLUG . '/assignments', [
-            'booth_id' => $boothId,
-            'vendor_id' => $vendorId,
-            'starts_on' => ProbeMall::PERIOD_START,
-            'ends_on' => '',
-        ]);
+        ProbeMall::plantStay($boothId, $vendorId, ProbeMall::PERIOD_START, '', null);
         $month = substr(ProbeMall::POSTING_DATE, 0, 7);
         $this->client->post(
             '/' . ProbeMall::SLUG . '/rent/charge',

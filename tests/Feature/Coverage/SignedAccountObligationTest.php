@@ -143,12 +143,6 @@ final class SignedAccountObligationTest extends TestCase
             $parties->addPricedVendor(new VendorDraft([], null), 'hold');
         });
         $this->stopped(static function () use ($stays): void {
-            $stays->addStay(self::ADMIN, self::ADMIN, '2026-01-01', '', null);
-        });
-        $this->stopped(static function () use ($stays): void {
-            $stays->setStayEnd(self::ADMIN, '2026-02-01');
-        });
-        $this->stopped(static function () use ($stays): void {
             $stays->setStayRent(self::ADMIN, '2026-01-01', 10000);
         });
         $this->stopped(static function () use ($booths): void {

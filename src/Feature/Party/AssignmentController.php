@@ -6,8 +6,6 @@ namespace PerfectConsign\Feature\Party;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\ActiveRegister;
-use PerfectConsign\Bootstrap\Actor;
-use PerfectConsign\Bootstrap\ActorRole;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
@@ -16,7 +14,8 @@ use PerfectConsign\Ledger\Money;
 /**
  * A vendor's booths: assigning one takes its first rent at the desk, ending
  * one sets its last day, and a reservation that has not started can be
- * cancelled by the owner. The database decides every amount and date rule.
+ * cancelled. Only the owner reaches these routes (RoleGate). The database
+ * decides every amount and date rule.
  */
 final class AssignmentController
 {
@@ -28,7 +27,6 @@ final class AssignmentController
         private readonly AssignmentOutcome $outcome,
         private readonly ActiveRegister $register,
         private readonly MallSettings $mall,
-        private readonly Actor $actor,
     ) {
     }
 
@@ -50,7 +48,7 @@ final class AssignmentController
         try {
             $this->chosen($stay);
             $stay['rent'] = $this->offers->contract($stay['booth'], $request->field('rent'));
-            $due = $this->booking->due($stay['booth'], $stay['starts_on'], $stay['rent'], $today);
+            $due = $this->booking->due($stay['booth'], $stay['starts_on'], $stay['ends_on'], $stay['rent'], $today);
             if ($due === null) {
                 throw new DatabaseRefusal('Set the rent for this booth first.');
             }
@@ -89,11 +87,6 @@ final class AssignmentController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $vendorId = $this->outcome->vendorOf($id);
-        if ($this->actor->role() !== ActorRole::OWNER) {
-            $this->outcome->finish($slug, $vendorId, '', 'Only the owner can cancel a reservation.');
-
-            return;
-        }
         $request = $this->app->request();
         $outcome = $request->field('outcome');
         $this->attempt($slug, $vendorId, $outcome === 'keep' ? 'Reservation cancelled. The store kept the payment.' : 'Reservation cancelled and refunded.', function () use ($slug, $id, $outcome, $request): void {

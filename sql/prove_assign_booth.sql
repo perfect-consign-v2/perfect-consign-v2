@@ -101,17 +101,24 @@ BEGIN
     END IF;
 END $$;
 
--- What the desk shows before taking payment is what assigning takes.
+-- What the desk shows before taking payment is what assigning takes, and it
+-- refuses what assigning would refuse.
 DO $$
 BEGIN
-    IF (SELECT due_minor || ' ' || first_period || ' ' || paid_ahead FROM stall_booth_due('01900000-0000-7000-8000-00000000a202', '2026-11-17', NULL, '2026-11-15'))
+    IF (SELECT due_minor || ' ' || first_period || ' ' || paid_ahead FROM stall_booth_due('01900000-0000-7000-8000-00000000a202', '2026-11-17', NULL, NULL, '2026-11-15'))
            <> '1446 2026-11-01 false'
-       OR (SELECT due_minor || ' ' || paid_ahead FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2026-12-01', NULL, '2026-11-15')) <> '5000 true'
-       OR (SELECT due_minor FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2024-02-15', 2900, '2024-02-10')) <> 1500
-       OR (SELECT due_minor FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2025-02-15', 2800, '2025-02-10')) <> 1400
-       OR EXISTS (SELECT 1 FROM stall_booth_due('01900000-0000-7000-8000-00000000a999', '2026-12-01', NULL, '2026-11-15')) THEN
+       OR (SELECT due_minor || ' ' || paid_ahead FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2026-12-01', NULL, NULL, '2026-11-15')) <> '5000 true'
+       OR (SELECT due_minor FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2024-02-15', NULL, 2900, '2024-02-10')) <> 1500
+       OR (SELECT due_minor FROM stall_booth_due('01900000-0000-7000-8000-00000000a203', '2025-02-15', NULL, 2800, '2025-02-10')) <> 1400 THEN
         RAISE EXCEPTION 'the amount due before assigning is not the quote';
     END IF;
+    PERFORM pg_temp.refused($q$SELECT * FROM stall_booth_due('01900000-0000-7000-8000-00000000a999', '2026-12-01', NULL, NULL, '2026-11-15')$q$, 'Choose a booth.');
+    PERFORM pg_temp.refused($q$SELECT * FROM stall_booth_due('01900000-0000-7000-8000-00000000a202', '2026-10-31', NULL, NULL, '2026-11-15')$q$,
+        'The start date can''t be before 11-01-2026.');
+    PERFORM pg_temp.refused($q$SELECT * FROM stall_booth_due('01900000-0000-7000-8000-00000000a202', '2026-11-20', '2026-11-19', NULL, '2026-11-15')$q$,
+        'The end date can''t be before the start date.');
+    PERFORM pg_temp.refused($q$SELECT * FROM stall_booth_due('01900000-0000-7000-8000-00000000a202', NULL, NULL, NULL, '2026-11-15')$q$,
+        'Choose the day the booth starts.');
 END $$;
 
 -- The refusals, each in plain words, and none of them leaves a stay behind.
