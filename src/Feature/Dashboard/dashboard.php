@@ -18,7 +18,7 @@ use PerfectConsign\Shared\Web\ListTable;
  *   shelf: array{value: string, unsold: int}
  * } $picture */
 /** @var list<array{id: string, code: string, vendor_id: ?string, vendor_name: ?string, rate_minor: ?int, charged: bool, chargeable: bool, journal_id: ?string, open_minor: int}> $rentRows */
-/** @var list<array{vendor_id: string, name: string, said: string}> $leftOpen */
+/** @var list<array{vendor_id: string, name: string, said: string}> $leftWithMoney */
 /** @var list<array{vendor_id: string, name: string, ends_on: string, items: int}> $leavingSoon */
 /** @var string $rentMonth */
 /** @var string $activeSessionId */
@@ -151,13 +151,13 @@ $blank = '—';
             </table>
         </div>
     </div>
-    <?php if (($leftOpen ?? []) !== []): ?>
+    <?php if (($leftWithMoney ?? []) !== []): ?>
     <div class="card">
         <div class="card-head">
             <div class="h3">Left the store, money still open</div>
         </div>
         <div class="card-body stack">
-            <?php foreach ($leftOpen as $left): ?>
+            <?php foreach ($leftWithMoney as $left): ?>
                 <p><a class="strong" href="/<?= View::text($slug) ?>/vendors/<?= View::text($left['vendor_id']) ?>"><?= View::text($left['name']) ?></a> <span class="muted"><?= View::text($left['said']) ?></span></p>
             <?php endforeach; ?>
         </div>

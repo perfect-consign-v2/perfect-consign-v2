@@ -51,6 +51,39 @@ final class DashboardPageTest extends TestCase
         self::assertStringContainsString('▲ 100.0%', $up['text']);
     }
 
+    public function testARegisterLeftOpenAndAVendorWhoLeftWithMoneyBothShow(): void
+    {
+        $view = new View(dirname(__DIR__, 3) . '/src');
+        ob_start();
+        $view->render('Shared/Web/layout', $this->page([]) + [
+            'title' => 'Dashboard',
+            'nav' => true,
+            'csrf' => 'token',
+            'error' => null,
+            'notice' => null,
+            'warning' => null,
+            'body' => 'Feature/Dashboard/dashboard',
+            'path' => '/demo/dashboard',
+            'robots' => '',
+            'activeRegister' => '',
+            'chooseRegister' => false,
+            'leftOpen' => [['id' => 'drawer-1', 'name' => 'Front counter', 'opened' => 'Nov 27']],
+            'priorCloseStarted' => false,
+            'priorPrompt' => true,
+            'catalogNav' => [],
+            'posShell' => false,
+            'previewAs' => '',
+            'leftWithMoney' => [['vendor_id' => 'vendor-wren', 'name' => 'Wren Lane', 'said' => 'They owe $25.00 in rent.']],
+        ]);
+        $html = ob_get_clean();
+        self::assertIsString($html);
+
+        self::assertStringContainsString('Left the store, money still open', $html);
+        self::assertStringContainsString('href="/demo/vendors/vendor-wren">Wren Lane</a>', $html);
+        self::assertStringContainsString('They owe $25.00 in rent.', $html);
+        self::assertStringContainsString('<strong>Front counter</strong>', $html);
+    }
+
     /**
      * @param list<array<string, mixed>> $rows
      */
@@ -58,7 +91,20 @@ final class DashboardPageTest extends TestCase
     {
         $view = new View(dirname(__DIR__, 3) . '/src');
         ob_start();
-        $view->render('Feature/Dashboard/dashboard', [
+        $view->render('Feature/Dashboard/dashboard', $this->page($rows));
+        $html = ob_get_clean();
+        self::assertIsString($html);
+
+        return $html;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    private function page(array $rows): array
+    {
+        return [
             'slug' => 'demo',
             'displayName' => 'Demo',
             'greeting' => 'Hello',
@@ -75,11 +121,7 @@ final class DashboardPageTest extends TestCase
                 'occupancy' => ['percent' => 0, 'caption' => 'Empty', 'rows' => []],
                 'shelf' => ['value' => '$0.00', 'unsold' => 0],
             ],
-        ]);
-        $html = ob_get_clean();
-        self::assertIsString($html);
-
-        return $html;
+        ];
     }
 
     /**
