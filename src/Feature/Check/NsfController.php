@@ -6,21 +6,21 @@ namespace PerfectConsign\Feature\Check;
 
 use PerfectApp\Routing\Route;
 use PerfectConsign\Bootstrap\Actor;
-use PerfectConsign\Bootstrap\JournalAudit;
 use PerfectConsign\Bootstrap\MallApp;
 use PerfectConsign\Bootstrap\SignedInPerson;
+use PerfectConsign\Feature\Mall\MallSettings;
 use PerfectConsign\Ledger\DatabaseRefusal;
-use PerfectConsign\Ledger\JournalDraft;
-use PerfectConsign\Ledger\JournalSource;
-use PerfectConsign\Ledger\LedgerStore;
-use PerfectConsign\Ledger\Money;
 
+/**
+ * Bounced check: find the check the store took by its number, then mark it
+ * bounced. The database posts the check's own amount.
+ */
 final class NsfController
 {
     public function __construct(
         private readonly MallApp $app,
-        private readonly LedgerStore $ledger,
-        private readonly JournalAudit $audit,
+        private readonly ReceivedChecks $checks,
+        private readonly MallSettings $mall,
         private readonly Actor $actor,
     ) {
     }
@@ -28,13 +28,8 @@ final class NsfController
     #[Route('/([a-z][a-z0-9-]{0,62})/checks/nsf', ['GET'])]
     public function show(string $slug): void
     {
-        $tenant = $this->app->open($slug, true);
-        $this->app->show('Feature/Check/nsf', [
-            'title' => 'Bounced check',
-            'displayName' => $tenant->displayName,
-            'slug' => $tenant->slug,
-            'error' => null,
-        ]);
+        $this->app->open($slug, true);
+        $this->page($slug, $this->app->request()->query('number'), null);
     }
 
     #[Route('/([a-z][a-z0-9-]{0,62})/checks/nsf', ['POST'])]
@@ -43,52 +38,24 @@ final class NsfController
         $this->app->checkCsrf();
         $this->app->open($slug, true);
         $request = $this->app->request();
-        $reference = $request->field('source_reference');
+        $number = $request->field('number');
         try {
-            if ($reference === '') {
-                throw new DatabaseRefusal('a source reference is required');
+            SignedInPerson::require($this->actor->name(), $this->actor->role());
+            $journalId = $request->field('journal_id');
+            if (preg_match('/^[0-9a-fA-F-]{36}$/', $journalId) !== 1) {
+                throw new DatabaseRefusal('Choose the check that bounced.');
             }
-            $amount = Money::parseMinor($request->field('amount'));
-            $actor = $this->actor->name();
-            $role = $this->actor->role();
-            SignedInPerson::require($actor, $role);
-            $journalId = $this->ledger->post(new JournalDraft(
-                postingKey: 'check-return:' . $reference,
-                postingDate: $request->field('posting_date'),
-                source: new JournalSource('check_return', $reference, 'Bounced check'),
-                lines: [
-                    [
-                        'account_id' => $this->ledger->roleAccount('returned_checks'),
-                        'debit' => $amount,
-                        'credit' => 0,
-                        'subledger_type' => null,
-                        'subledger_ref' => null,
-                    ],
-                    [
-                        'account_id' => $this->ledger->roleAccount('checks'),
-                        'debit' => 0,
-                        'credit' => $amount,
-                        'subledger_type' => null,
-                        'subledger_ref' => null,
-                    ],
-                ],
-                beforeCommit: function (string $journalId): void {
-                    $this->audit->record('check.return', 'journal', $journalId);
-                },
-            ));
+            $date = $request->field('posting_date');
+            $posted = $this->checks->bounce($journalId, $date === '' ? $this->mall->today() : $date);
         } catch (DatabaseRefusal $refusal) {
-            $this->fail($slug, $this->app->catchRefusal($refusal));
-
-            return;
-        } catch (\InvalidArgumentException $error) {
-            $this->fail($slug, $error->getMessage());
+            $this->page($slug, $number, $this->app->catchRefusal($refusal));
 
             return;
         }
-        $this->app->redirect('/' . $slug . '/journals/' . $journalId, 'Bounced check posted.');
+        $this->app->redirect('/' . $slug . '/journals/' . $posted, 'Bounced check posted.');
     }
 
-    private function fail(string $slug, string $error): void
+    private function page(string $slug, string $number, ?string $error): void
     {
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Check/nsf', [
@@ -96,6 +63,8 @@ final class NsfController
             'displayName' => $tenant->displayName,
             'slug' => $tenant->slug,
             'error' => $error,
+            'number' => $number,
+            'found' => $this->checks->find($number),
         ]);
     }
 }

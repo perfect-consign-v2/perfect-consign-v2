@@ -19108,3 +19108,144 @@ ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_wrong_booth_sealed;
 REVOKE ALL ON FUNCTION public.stall_assert_booth_correction() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.stall_booth_correction(uuid, uuid, uuid, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_booth_correction(uuid, uuid, uuid, date) TO stall_poster;
+
+-- T7 (audit 2026-11-27). A bounced check: the store marks a check it took as
+-- returned by the bank. The database finds the check, takes its amount from
+-- what was taken, and posts it once. Nothing is typed but the check number.
+-- A check the store took: a journal with a check number and checks taken in.
+CREATE FUNCTION public.stall_received_checks(wanted_number text) RETURNS TABLE (
+    journal_id uuid, check_number text, received_on date, amount_minor bigint, said text, bounced boolean
+)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT journal.id, taken.check_number, journal.posting_date,
+           sum(line.debit_minor)::bigint,
+           journal.description,
+           EXISTS (
+               SELECT 1 FROM public.journals AS returned
+               WHERE returned.source_type = 'check_return'
+                 AND returned.source_reference = journal.id::text
+                 AND NOT returned.is_reversal
+                 AND NOT EXISTS (
+                     SELECT 1 FROM public.journals AS undone
+                     WHERE undone.reverses_journal_id = returned.id AND undone.is_reversal
+                 )
+           )
+    FROM public.register_checks AS taken
+    JOIN public.journals AS journal ON journal.id = taken.journal_id
+    JOIN public.journal_lines AS line ON line.journal_id = journal.id
+    JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'checks'
+    WHERE lower(taken.check_number) = lower(btrim(COALESCE(wanted_number, '')))
+      AND NOT journal.is_reversal
+      AND NOT EXISTS (
+          SELECT 1 FROM public.journals AS undone
+          WHERE undone.reverses_journal_id = journal.id AND undone.is_reversal
+      )
+      AND line.debit_minor > 0
+    GROUP BY journal.id, taken.check_number, journal.posting_date, journal.description
+    ORDER BY journal.posting_date DESC, journal.id DESC
+$$;
+
+CREATE FUNCTION public.stall_return_check(received uuid, on_date date) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    taken record;
+BEGIN
+    SELECT listed.* INTO taken
+    FROM public.register_checks AS checked
+    CROSS JOIN LATERAL public.stall_received_checks(checked.check_number) AS listed
+    WHERE checked.journal_id = received
+      AND listed.journal_id = received;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'That check was not found.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF taken.bounced THEN
+        RAISE EXCEPTION 'That check is already marked as bounced.'
+            USING ERRCODE = '23514';
+    END IF;
+    IF on_date IS NULL OR on_date < taken.received_on THEN
+        RAISE EXCEPTION 'A check cannot bounce before the day it was taken.'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN public.stall_post_lines(
+        'check-return:' || received::text || ':' || (
+            SELECT count(*) FROM public.journals WHERE source_type = 'check_return' AND source_reference = received::text AND NOT is_reversal
+        ),
+        on_date, 'check_return', received::text, 'Bounced check ' || taken.check_number,
+        jsonb_build_array(
+            public.stall_line('returned_checks', taken.amount_minor, 0),
+            public.stall_line('checks', 0, taken.amount_minor)
+        )
+    );
+END;
+$$;
+
+-- However it is posted, a bounced check names a check the store took, moves
+-- exactly its amount from checks to returned checks, and is the only live
+-- bounce of that check.
+CREATE FUNCTION public.stall_assert_check_return() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    taken bigint;
+    moved record;
+BEGIN
+    IF NEW.source_type <> 'check_return' OR NEW.is_reversal THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.source_reference !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+       OR NEW.posting_key !~ ('^check-return:' || NEW.source_reference || ':[0-9]+$') THEN
+        RAISE EXCEPTION 'a bounced check names a check the store took'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT listed.amount_minor INTO taken
+    FROM public.register_checks AS checked
+    CROSS JOIN LATERAL public.stall_received_checks(checked.check_number) AS listed
+    WHERE checked.journal_id = NEW.source_reference::uuid
+      AND listed.journal_id = checked.journal_id;
+    IF taken IS NULL THEN
+        RAISE EXCEPTION 'a bounced check names a check the store took'
+            USING ERRCODE = '23514';
+    END IF;
+    SELECT count(*) AS lines,
+           COALESCE(sum(line.debit_minor) FILTER (WHERE role.role = 'returned_checks' AND line.credit_minor = 0), 0) AS returned,
+           COALESCE(sum(line.credit_minor) FILTER (WHERE role.role = 'checks' AND line.debit_minor = 0), 0) AS checks
+    INTO moved
+    FROM public.journal_lines AS line
+    LEFT JOIN public.chart_roles AS role ON role.account_id = line.account_id
+    WHERE line.journal_id = NEW.id;
+    IF moved.lines <> 2 OR moved.returned <> taken OR moved.checks <> taken THEN
+        RAISE EXCEPTION 'a bounced check moves exactly the check''s amount'
+            USING ERRCODE = '23514';
+    END IF;
+    IF (
+        SELECT count(*) FROM public.journals AS bounce
+        WHERE bounce.source_type = 'check_return'
+          AND bounce.source_reference = NEW.source_reference
+          AND NOT bounce.is_reversal
+          AND NOT EXISTS (
+              SELECT 1 FROM public.journals AS undone
+              WHERE undone.reverses_journal_id = bounce.id AND undone.is_reversal
+          )
+    ) > 1 THEN
+        RAISE EXCEPTION 'That check is already marked as bounced.'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER journals_check_return_sealed AFTER INSERT ON public.journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.stall_assert_check_return();
+
+ALTER TABLE public.journals ENABLE ALWAYS TRIGGER journals_check_return_sealed;
+
+REVOKE ALL ON FUNCTION public.stall_assert_check_return() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.stall_received_checks(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_received_checks(text) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_return_check(uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_return_check(uuid, date) TO stall_poster;

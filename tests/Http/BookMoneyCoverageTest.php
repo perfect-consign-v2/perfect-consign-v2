@@ -351,49 +351,6 @@ final class BookMoneyCoverageTest extends WebTestCase
         self::assertSees('value="' . ProbeMall::POSTING_DATE . '"', $duplicate);
     }
 
-    public function testABouncedCheckPostsOnce(): void
-    {
-        $form = $this->client->get('/' . self::SLUG . '/checks/nsf');
-        self::assertSees('Bounced check', $form);
-        self::assertSees('This credits checks and debits returned checks.', $form);
-        self::assertStringNotContainsString('a source reference is required', $form->body);
-
-        $blank = $this->client->post('/' . self::SLUG . '/checks/nsf', [
-            'source_reference' => '',
-            'amount' => '12.34',
-            'posting_date' => ProbeMall::POSTING_DATE,
-        ]);
-        self::assertSees('a source reference is required', $blank);
-        $badAmount = $this->client->post('/' . self::SLUG . '/checks/nsf', [
-            'source_reference' => 'chk-bad',
-            'amount' => 'nope',
-            'posting_date' => ProbeMall::POSTING_DATE,
-        ]);
-        self::assertSees('enter an amount in dollars and cents', $badAmount);
-        $zero = $this->client->post('/' . self::SLUG . '/checks/nsf', [
-            'source_reference' => 'chk-zero',
-            'amount' => '0.00',
-            'posting_date' => ProbeMall::POSTING_DATE,
-        ]);
-        self::assertSees('the amount must be greater than zero', $zero);
-
-        $reference = 'chk' . bin2hex(random_bytes(4));
-        $posted = $this->client->post('/' . self::SLUG . '/checks/nsf', [
-            'source_reference' => $reference,
-            'amount' => '12.34',
-            'posting_date' => ProbeMall::POSTING_DATE,
-        ]);
-        self::assertSees('Bounced check posted.', $posted);
-        self::assertSees('check_return', $posted);
-        self::assertSees('check-return:' . $reference, $posted);
-        $again = $this->client->post('/' . self::SLUG . '/checks/nsf', [
-            'source_reference' => $reference,
-            'amount' => '12.34',
-            'posting_date' => ProbeMall::POSTING_DATE,
-        ]);
-        self::assertSees('That could not be saved.', $again);
-    }
-
     public function testConsignmentCopyOnTheBookForms(): void
     {
         $vendorId = $this->vendor();

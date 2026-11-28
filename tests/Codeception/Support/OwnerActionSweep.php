@@ -714,6 +714,7 @@ final class OwnerActionSweep
         if ($giftId !== '') {
             $this->http->get('/pos/gift/' . $giftId, ['Balance left']);
         }
+        $this->bounceACheck();
         $this->http->get('/pos/suggest.json?q=' . rawurlencode($this->payoutCode), ['[', '{']);
         $this->http->get('/pos/gift-certificate.json?number=missing&kind=gift_certificate', ['"ok"']);
         $this->http->get('/pos/tender');
@@ -764,11 +765,7 @@ final class OwnerActionSweep
                 $this->http->post('/journals/' . $journal . '/void', [], ['Journal voided.']);
             }
         }
-        $this->http->post('/checks/nsf', [
-            'source_reference' => 'nsf' . $this->tag(),
-            'amount' => '1.00',
-            'posting_date' => self::DATE,
-        ], ['Bounced check posted.']);
+        $this->http->get('/checks/nsf?number=nsf' . $this->tag(), ['Bounced check', 'No check numbered']);
         $this->http->post('/opening', [
             'source_reference' => 'open' . $this->tag(),
             'posting_date' => self::DATE,
@@ -1796,6 +1793,32 @@ final class OwnerActionSweep
         }
 
         return str_contains($path, '/vendor/') || str_ends_with($path, '/vendor');
+    }
+
+    /**
+     * Takes a check for a gift certificate, then marks it bounced through the
+     * Bounced check page, which finds it by its number.
+     */
+    private function bounceACheck(): void
+    {
+        $number = 'NSF' . $this->tag();
+        $this->http->post('/pos/gift', [
+            'gift_amount' => '2.00',
+            'gift_tender' => 'checks',
+            'check_number' => $number,
+            'gift_kind' => 'gift_certificate',
+            'gift_custom' => '0',
+            'form_token' => bin2hex(random_bytes(16)),
+        ], ['Balance left']);
+        $found = $this->http->get('/checks/nsf?number=' . $number, ['Check ' . $number]);
+        $journal = $this->locatedId($found, '#name="journal_id" value="([0-9a-fA-F-]{36})"#', 'check to bounce');
+        if ($journal !== '') {
+            $this->http->post('/checks/nsf', [
+                'journal_id' => $journal,
+                'number' => $number,
+                'posting_date' => '',
+            ], ['Bounced check posted.']);
+        }
     }
 
     private function tag(): string
