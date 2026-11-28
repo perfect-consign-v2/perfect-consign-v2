@@ -7,13 +7,25 @@ namespace PerfectConsign\Feature\Party;
 use PerfectConsign\Feature\Payout\PayoutStore;
 use PerfectConsign\Feature\Payout\VendorClawback;
 
+/**
+ * @phpstan-import-type RentMonth from RentHistory
+ */
 final class VendorBalances
 {
     public function __construct(
         private readonly PayoutStore $payouts,
         private readonly VendorClawback $clawback,
         private readonly VendorYearPaid $paid,
+        private readonly RentHistory $history,
     ) {
+    }
+
+    /**
+     * @return array{months: list<RentMonth>, more: bool}
+     */
+    public function rentHistory(string $vendorId, bool $all): array
+    {
+        return $this->history->forVendor($vendorId, $all);
     }
 
     /**

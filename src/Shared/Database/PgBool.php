@@ -14,4 +14,12 @@ final class PgBool
     {
         return $value ? 'true' : 'false';
     }
+
+    /**
+     * A boolean column as pdo_pgsql hands it back: a PHP bool, or 't'/'f'.
+     */
+    public static function read(mixed $value): bool
+    {
+        return in_array($value, [true, 1, '1', 't', 'true'], true);
+    }
 }

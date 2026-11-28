@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PerfectConsign\Feature\Booth;
 
 use PerfectConsign\Ledger\Money;
+use PerfectConsign\Shared\Database\PgBool;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Shared\Scalar\RowValue;
 
@@ -62,7 +63,7 @@ final class BoothStayChoices
     {
         $rows = $this->statements->rows('SELECT booth_deposits_enabled FROM mall');
 
-        return in_array($rows[0]['booth_deposits_enabled'] ?? false, [true, 1, '1', 't', 'true'], true);
+        return PgBool::read($rows[0]['booth_deposits_enabled'] ?? false);
     }
 
     /**

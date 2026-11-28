@@ -41,6 +41,7 @@ final class VendorPage
         $vendor['clawback_minor'] = $this->balances->clawback($id);
         $vendor['year_paid_minor'] = $this->balances->yearPaid($id);
         $histories = $this->rentHistories($vendor);
+        $showAll = $this->app->request()->query('history') === 'all';
         $tenant = $this->app->open($slug, true);
         $this->app->show('Feature/Party/vendor', [
             'title' => $vendor['name'],
@@ -50,6 +51,8 @@ final class VendorPage
             'booths' => $this->offers->booths($this->mall->today()),
             'signIn' => $this->staff->vendorSignIn($id),
             'rentHistories' => $histories,
+            'rentPaid' => $this->balances->rentHistory($id, $showAll),
+            'rentPaidAll' => $showAll,
             'today' => $this->mall->today(),
             'error' => $error,
             'sellerPrefix' => $this->sellerPaths->prefix(),

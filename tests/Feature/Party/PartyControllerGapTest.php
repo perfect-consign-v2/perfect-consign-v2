@@ -100,6 +100,7 @@ final class PartyControllerGapTest extends TestCase
             new PayoutStore($door->pdo, $door->statements, $runs, new PayoutWindow()),
             new VendorClawback($door->ledger, $door->statements),
             new VendorYearPaid($door->statements),
+            new \PerfectConsign\Feature\Party\RentHistory($door->statements),
         );
         $forms = new VendorForm($door->app, $door->mall, new SellerPaths($door->mall));
         $staff = new StaffStore($door->statements, new RecoveryAddress(), new PasswordChoice());

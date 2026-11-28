@@ -21,6 +21,8 @@ $base = '/' . $slug . '/reports';
     <li><a href="<?= View::text($base) ?>/sales">Sales</a> — By day, tender, vendor, cashier, category, or hour.</li>
     <li><a href="<?= View::text($base) ?>/sales?group=hour">Hourly sales</a> — One day, hour by hour.</li>
     <li><a href="<?= View::text($base) ?>/rent">Rent still owed</a> — Open booth rent.</li>
+    <li><a href="<?= View::text($base) ?>/rent-payments">Rent payments</a> — Every way rent was paid, with the register and cashier.</li>
+    <li><a href="<?= View::text($base) ?>/vendor-register">Vendor register</a> — Every money event for one vendor, with a running balance.</li>
     <li><a href="<?= View::text($base) ?>/payouts">Payments to vendors</a> — Checks, cash, the safe, and rent settlements.</li>
     <li><a href="<?= View::text($base) ?>/stored-value">Gift cards and store credit</a> — What the mall still owes.</li>
 </ul>

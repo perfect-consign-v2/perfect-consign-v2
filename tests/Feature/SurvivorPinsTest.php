@@ -301,6 +301,9 @@ final class SurvivorPinsTest extends TestCase
             if (str_contains($sql, 'payout_mode') && str_contains($sql, 'booth_rent_receivable')) {
                 return [['total' => 0]];
             }
+            if (str_contains($sql, 'FROM vendor_statement')) {
+                return [];
+            }
             if (str_contains($sql, 'vendor_payable')) {
                 return [['total' => 0]];
             }

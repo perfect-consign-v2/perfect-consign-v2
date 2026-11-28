@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PerfectConsign\Bootstrap\Permission;
 use PerfectConsign\Feature\Party\PartyRecord;
 use PerfectConsign\Feature\Vendor\VendorPreview;
 use PerfectConsign\Shared\Http\View;
@@ -14,6 +15,7 @@ use PerfectConsign\Shared\Web\ListTable;
 /** @var list<array{id: string, code: string, rent: string, available_on: string}> $booths */
 /** @var array{username: string, display_name: string, email: string}|null $signIn */
 /** @var array<string, list<array{starts_on: string, amount_minor: int}>> $rentHistories */
+/** @var array{months: list<array{month: string, charges: list<array{booth: string, kind: string, what: string, date: string, journal_id: string, charged: int, waived: bool, paid: int, owed: int, payments: list<array{number: string, date: string, amount: int, how: string, register: string, cashier: string, run_id: string, run_date: string, journal_id: string, paid_by: string}>}>}>, more: bool}|null $rentPaid */
 
 $rentHistories ??= [];
 $sections = [
@@ -22,6 +24,8 @@ $sections = [
     'Past Booths' => $vendor['past'],
 ];
 $blank = '—';
+$actorRole = is_string($actorRole ?? null) ? $actorRole : '';
+$readsReports = Permission::allows($actorRole, 'report.read') || Permission::allows($actorRole, 'settings.edit');
 $consignmentOnly = ($consignmentOnly ?? false) === true;
 $partyLabel = $consignmentOnly ? 'Consignors' : 'Vendors';
 $partyOne = $consignmentOnly ? 'consignor' : 'vendor';
@@ -60,6 +64,9 @@ $boothLine = match (count($boothCodes)) {
         <div class="row gap-2">
             <a class="btn" href="<?= View::text(VendorPreview::with('/' . $slug . '/vendor', $vendor['id'])) ?>" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-vendor"></use></svg> Open as <?= View::text($partyOne) ?></a>
             <a class="btn" href="/<?= View::text($slug) ?>/letters?vendor=<?= View::text($vendor['id']) ?>">Email</a>
+            <?php if ($readsReports): ?>
+                <a class="btn" href="/<?= View::text($slug) ?>/reports/vendor-register?<?= View::text(http_build_query(['vendor' => $vendor['id']])) ?>">Register</a>
+            <?php endif; ?>
             <a class="btn" href="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/edit"><svg aria-hidden="true"><use href="#i-edit"></use></svg> Edit</a>
         </div>
     </div>
@@ -314,6 +321,10 @@ $boothLine = match (count($boothCodes)) {
         <?php endif; ?>
     </div>
     </div>
+    <?php if (!$consignmentOnly && isset($rentPaid)) {
+        $rentPaidAll = ($rentPaidAll ?? false) === true;
+        require __DIR__ . '/vendor-rent-history.php';
+    } ?>
     <form class="card mt-6" method="post" action="<?= View::text($sellerBase) ?>/<?= View::text($vendor['id']) ?>/customer-role">
         <div class="card-head"><div class="h3">Also a customer</div></div>
         <div class="card-body stack">
