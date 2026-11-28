@@ -301,15 +301,20 @@ final class InstantStatements extends Statements
         if (str_contains($sql, 'MAX(line_no)')) {
             return [['line_no' => 1]];
         }
-        if (str_contains($sql, 'line.line_no, line.item_id')) {
+        if (str_contains($sql, 'FROM stall_ticket_quote')) {
             return [[
                 'line_no' => 1,
                 'item_id' => '01900000-0000-7000-8000-0000000000i1',
                 'price_minor' => 250,
                 'quantity' => 1,
+                'commission_bps' => 0,
+                'discount_minor' => 0,
+                'store_discount_minor' => 0,
+                'commission_minor' => 0,
+                'tax_minor' => 0,
+                'tax_exempt' => 'false',
                 'line_discount_minor' => 0,
                 'offer_discount_minor' => 0,
-                'store_discount_minor' => 0,
                 'offer_name' => '',
                 'code' => $this->missLine ? 'nope' : $this->code,
                 'description' => 'Hat',
@@ -317,15 +322,9 @@ final class InstantStatements extends Statements
                 'placement' => 'consigned',
                 'cost_minor' => 0,
                 'vendor_name' => 'Ada',
-                'tax_exempt' => false,
                 'line_discount_kind' => '',
                 'line_discount_value' => null,
-                'line_discount_reason' => '',
-                'commission_bps' => 0,
             ]];
-        }
-        if (str_contains($sql, 'stall_line_discount')) {
-            return [['share' => 0]];
         }
 
         return [];

@@ -74,7 +74,6 @@ final class TicketQueue
      */
     public function layaways(): array
     {
-        $tax = $this->taxRate();
         $rows = $this->statements->rows(
             "SELECT ticket.id,
                     COALESCE(
@@ -115,9 +114,8 @@ final class TicketQueue
         $held = [];
         foreach ($rows as $row) {
             $id = RowValue::string($row['id'] ?? null);
-            $adjustment = $this->pricing->adjustment($id);
             $due = 0;
-            foreach ($this->pricing->lines($id, $tax, $adjustment) as $line) {
+            foreach ($this->pricing->lines($id) as $line) {
                 $due += ($line['price'] * $line['quantity']) - $line['discount'] - $line['store_discount'] + $line['tax'];
             }
             $deposits = RowValue::integer($row['deposits'] ?? null);
@@ -153,16 +151,5 @@ final class TicketQueue
         if ($updated !== 1) {
             throw new DatabaseRefusal('that ticket is not parked');
         }
-    }
-
-    private function taxRate(): int
-    {
-        $rows = $this->statements->rows('SELECT tax_bps FROM mall');
-        $row = $rows[0] ?? null;
-        if (!is_array($row)) {
-            throw new DatabaseRefusal('the mall has no clock');
-        }
-
-        return RowValue::integer($row['tax_bps'] ?? null);
     }
 }

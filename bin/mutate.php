@@ -763,9 +763,6 @@ function equivalentReason(string $file, int $line, string $from, string $to): ?s
     if ($file === 'src\\Ledger\\CashRound.php' && $line === 31 && $from === '<' && $to === '<=') {
         return 'a one-cent step always has a zero remainder, so the equal case still returns zero';
     }
-    if ($file === 'src\\Feature\\Pos\\TicketPricing.php' && $line === 182 && $from === '>' && $to === '>=') {
-        return 'zero basis points round to zero either way';
-    }
     if ($file === 'src\\Shared\\Web\\layout.php' && ($line === 220 || $line === 244 || $line === 245) && $from === '&&' && $to === '||') {
         return 'a vendor preview only lists vendor links, and an empty preview leaves the address unchanged';
     }

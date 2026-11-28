@@ -50,87 +50,6 @@ final class TicketPricingTest extends TestCase
         }
     }
 
-    public function testQuotedLinesHonorTaxFlagsAndShownPercents(): void
-    {
-        $statements = $this->createStub(Statements::class);
-        $statements->method('change');
-        $statements->method('bound')->willReturnOnConsecutiveCalls(
-            [[
-                'line_no' => 1,
-                'item_id' => 'item-1',
-                'price_minor' => 1000,
-                'quantity' => 1,
-                'line_discount_minor' => 0,
-                'offer_discount_minor' => 0,
-                'store_discount_minor' => 0,
-                'offer_name' => '',
-                'code' => 'c1',
-                'description' => 'Coat',
-                'vendor_id' => 'v1',
-                'vendor_name' => 'Ada',
-                'tax_exempt' => 't',
-                'line_discount_kind' => 'percent',
-                'line_discount_value' => 850,
-                'commission_bps' => 1000,
-            ]],
-            [['share' => 0]],
-        );
-        $lines = (new TicketPricing($statements))->lines('ticket-1', 8000, [
-            'kind' => null,
-            'value' => null,
-            'reason' => '',
-            'waiver' => '',
-        ]);
-        self::assertSame(0, $lines[0]['tax']);
-        self::assertSame('8.50', $lines[0]['line_discount_value']);
-
-        $shown = new ReflectionMethod(TicketPricing::class, 'shown');
-        self::assertSame('', $shown->invoke(null, 'percent', 0));
-        self::assertSame('8', $shown->invoke(null, 'percent', 800));
-        self::assertSame('1.05', $shown->invoke(null, 'amount', 105));
-        $flag = new ReflectionMethod(TicketPricing::class, 'flag');
-        self::assertTrue($flag->invoke(null, true));
-        self::assertTrue($flag->invoke(null, 1));
-        self::assertTrue($flag->invoke(null, '1'));
-        self::assertTrue($flag->invoke(null, 'true'));
-        self::assertFalse($flag->invoke(null, 'f'));
-    }
-
-    public function testAWaiverZeroesTaxOnAQuotedLine(): void
-    {
-        $statements = $this->createStub(Statements::class);
-        $statements->method('change');
-        $statements->method('bound')->willReturnOnConsecutiveCalls(
-            [[
-                'line_no' => 1,
-                'item_id' => 'item-1',
-                'price_minor' => 1000,
-                'quantity' => 1,
-                'line_discount_minor' => 0,
-                'offer_discount_minor' => 0,
-                'store_discount_minor' => 0,
-                'offer_name' => '',
-                'code' => 'c1',
-                'description' => 'Coat',
-                'vendor_id' => 'v1',
-                'vendor_name' => 'Ada',
-                'tax_exempt' => false,
-                'line_discount_kind' => '',
-                'line_discount_value' => null,
-                'commission_bps' => 0,
-            ]],
-            [['share' => 0]],
-        );
-        $lines = (new TicketPricing($statements))->lines('ticket-1', 8000, [
-            'kind' => null,
-            'value' => null,
-            'reason' => '',
-            'waiver' => 'non-profit',
-        ]);
-        self::assertSame(0, $lines[0]['tax']);
-        self::assertSame('', $lines[0]['line_discount_value']);
-    }
-
     public function testAStoredAdjustmentIsReadBack(): void
     {
         $statements = $this->createStub(Statements::class);
@@ -176,90 +95,116 @@ final class TicketPricingTest extends TestCase
         self::assertSame(2, $clears);
     }
 
-    public function testQuantityAndEachDiscountChangeTheQuote(): void
+    public function testTheDatabaseQuoteIsShownAsItIs(): void
     {
+        $asked = [];
         $statements = $this->createStub(Statements::class);
         $statements->method('change');
-        $statements->method('bound')->willReturnOnConsecutiveCalls(
-            [[
+        $statements->method('bound')->willReturnCallback(static function (string $sql, array $values) use (&$asked): array {
+            $asked = [$sql, $values];
+
+            return [[
                 'line_no' => 1,
                 'item_id' => 'item-1',
                 'price_minor' => 1000,
                 'quantity' => 2,
+                'commission_bps' => 1000,
+                'discount_minor' => 175,
+                'store_discount_minor' => 10,
+                'commission_minor' => 183,
+                'tax_minor' => 145,
+                'tax_exempt' => 'false',
                 'line_discount_minor' => 100,
                 'offer_discount_minor' => 25,
-                'store_discount_minor' => 10,
-                'offer_name' => '',
+                'offer_name' => 'Two for one',
+                'line_discount_kind' => 'amount',
+                'line_discount_value' => 1,
                 'code' => 'c1',
                 'description' => 'Coat',
                 'vendor_id' => 'v1',
+                'placement' => 'consigned',
+                'cost_minor' => null,
                 'vendor_name' => 'Ada',
-                'tax_exempt' => false,
-                'line_discount_kind' => 'amount',
-                'line_discount_value' => 1,
-                'commission_bps' => 1000,
-            ]],
-            [['share' => 50]],
-        );
-        $lines = (new TicketPricing($statements))->lines('ticket-1', 8000, [
-            'kind' => 'amount',
-            'value' => 50,
-            'reason' => 'sale',
-            'waiver' => '',
-        ]);
+            ]];
+        });
 
-        self::assertSame(183, $lines[0]['commission']);
-        self::assertSame(145, $lines[0]['tax']);
-        self::assertSame(175, $lines[0]['discount']);
-        self::assertSame('0.01', $lines[0]['line_discount_value']);
+        self::assertSame([[
+            'line_no' => 1,
+            'item_id' => 'item-1',
+            'code' => 'c1',
+            'description' => 'Coat',
+            'vendor' => 'Ada',
+            'vendor_id' => 'v1',
+            'placement' => 'consigned',
+            'cost' => 0,
+            'price' => 1000,
+            'quantity' => 2,
+            'commission' => 183,
+            'commission_bps' => 1000,
+            'tax' => 145,
+            'tax_exempt' => false,
+            'discount' => 175,
+            'store_discount' => 10,
+            'offer_discount' => 25,
+            'offer_name' => 'Two for one',
+            'line_discount' => 100,
+            'line_discount_kind' => 'amount',
+            'line_discount_value' => '0.01',
+        ]], (new TicketPricing($statements))->lines('ticket-1'));
+        self::assertStringContainsString('FROM stall_ticket_quote(?::uuid) AS quote', $asked[0]);
+        self::assertSame(['ticket-1', 'ticket-1'], $asked[1]);
     }
 
-    public function testAMallSaleTakenByTheVendorChangesTheDiscount(): void
+    public function testATaxExemptPieceAndAPercentAreShown(): void
     {
-        $vendor = $this->quotedMall('vendor');
-        self::assertSame(200, $vendor[0]['discount']);
-        self::assertSame(0, $vendor[0]['store_discount']);
+        $line = $this->quoted('true', 'percent', 850)[0];
+        self::assertTrue($line['tax_exempt']);
+        self::assertSame('8.50', $line['line_discount_value']);
 
-        $mall = $this->quotedMall('mall');
-        self::assertSame(0, $mall[0]['discount']);
-        self::assertSame(200, $mall[0]['store_discount']);
+        $shown = new ReflectionMethod(TicketPricing::class, 'shown');
+        self::assertSame('', $shown->invoke(null, 'percent', 0));
+        self::assertSame('8', $shown->invoke(null, 'percent', 800));
+        self::assertSame('1.05', $shown->invoke(null, 'amount', 105));
+    }
+
+    public function testAQuoteWithoutItsTaxFlagIsRefused(): void
+    {
+        $this->expectException(DatabaseRefusal::class);
+        $this->expectExceptionMessage('the register quote is missing');
+        $this->quoted('t', '', null);
     }
 
     /**
      * @return list<array<string, mixed>>
      */
-    private function quotedMall(string $absorbed): array
+    private function quoted(string $exempt, string $kind, ?int $value): array
     {
         $statements = $this->createStub(Statements::class);
         $statements->method('change');
-        $statements->method('rows')->willReturn([['percent_bps' => 1000, 'absorbed_by' => $absorbed]]);
-        $statements->method('bound')->willReturnOnConsecutiveCalls(
-            [[
-                'line_no' => 1,
-                'item_id' => 'item-1',
-                'price_minor' => 1000,
-                'quantity' => 2,
-                'line_discount_minor' => 0,
-                'offer_discount_minor' => 0,
-                'store_discount_minor' => 0,
-                'offer_name' => '',
-                'code' => 'c1',
-                'description' => 'Coat',
-                'vendor_id' => 'v1',
-                'vendor_name' => 'Ada',
-                'tax_exempt' => false,
-                'line_discount_kind' => '',
-                'line_discount_value' => 0,
-                'commission_bps' => 0,
-            ]],
-            [['share' => 0]],
-        );
+        $statements->method('bound')->willReturn([[
+            'line_no' => 1,
+            'item_id' => 'item-1',
+            'price_minor' => 1000,
+            'quantity' => 1,
+            'commission_bps' => 0,
+            'discount_minor' => 0,
+            'store_discount_minor' => 0,
+            'commission_minor' => 0,
+            'tax_minor' => 0,
+            'tax_exempt' => $exempt,
+            'line_discount_minor' => 0,
+            'offer_discount_minor' => 0,
+            'offer_name' => '',
+            'line_discount_kind' => $kind,
+            'line_discount_value' => $value,
+            'code' => 'c1',
+            'description' => 'Coat',
+            'vendor_id' => 'v1',
+            'placement' => 'consigned',
+            'cost_minor' => 500,
+            'vendor_name' => 'Ada',
+        ]]);
 
-        return (new TicketPricing($statements))->lines('ticket-1', 0, [
-            'kind' => null,
-            'value' => null,
-            'reason' => '',
-            'waiver' => '',
-        ]);
+        return (new TicketPricing($statements))->lines('ticket-1');
     }
 }

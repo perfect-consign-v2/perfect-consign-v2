@@ -100,12 +100,9 @@ final class LayawaySlip
         if (!is_array($row)) {
             throw new DatabaseRefusal('that ticket is not parked');
         }
-        $mall = $this->statements->rows('SELECT tax_bps FROM mall');
-        $tax = RowValue::integer($mall[0]['tax_bps'] ?? null);
-        $adjustment = $this->pricing->adjustment($ticketId);
         $lines = [];
         $due = 0;
-        foreach ($this->pricing->lines($ticketId, $tax, $adjustment) as $line) {
+        foreach ($this->pricing->lines($ticketId) as $line) {
             $amount = ($line['price'] * $line['quantity']) - $line['discount'] - $line['store_discount'] + $line['tax'];
             $due += $amount;
             $lines[] = [

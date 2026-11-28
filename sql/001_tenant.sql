@@ -2230,6 +2230,23 @@ BEGIN
 END;
 $$;
 
+-- The mall-wide sale's discount on a line worth `extended`, on that day, when
+-- the sale is absorbed by `absorbed` ('vendor' or 'mall'); zero otherwise.
+CREATE FUNCTION public.stall_mall_sale_off(extended bigint, on_date date, absorbed text) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT COALESCE((
+        SELECT public.stall_half_up(extended, sale.percent_bps)
+        FROM public.mall_sales AS sale
+        WHERE sale.starts_on <= on_date
+          AND sale.ends_on >= on_date
+          AND sale.absorbed_by = absorbed
+        ORDER BY sale.starts_on DESC
+        LIMIT 1
+    ), 0)::bigint
+$$;
+
 CREATE FUNCTION public.stall_assert_sale_shape() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -2356,8 +2373,10 @@ BEGIN
         waiver := false;
         SELECT public.stall_line_discount(ticket.id, NEW.item_id, ticket.discount_kind, ticket.discount_value)
                    + line.line_discount_minor
-                   + line.offer_discount_minor,
-               line.store_discount_minor,
+                   + line.offer_discount_minor
+                   + public.stall_mall_sale_off(NEW.price_minor * NEW.quantity, sale_date, 'vendor'),
+               line.store_discount_minor
+                   + public.stall_mall_sale_off(NEW.price_minor * NEW.quantity, sale_date, 'mall'),
                line.offer_id,
                ticket.tax_waiver_reason IS NOT NULL
         INTO expected_discount, expected_store, picked_offer, waiver
@@ -15226,19 +15245,15 @@ CREATE OR REPLACE FUNCTION public.stall_mint_register_snaps(
     AS $$
 DECLARE
     business date;
-    mall_tax integer;
     waiver text;
     ticket_line RECORD;
     snap_key text;
     line_tax bigint;
     line_discount bigint;
     line_store bigint;
-    vendor_exempt boolean;
     line_count integer;
     waiting_count integer;
     mismatch boolean;
-    ticket_kind text;
-    ticket_value bigint;
 BEGIN
     IF p_session_id IS NULL OR p_ticket_id IS NULL THEN
         RAISE EXCEPTION 'a register session is required'
@@ -15255,8 +15270,8 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT ticket.tax_waiver_reason, ticket.discount_kind, ticket.discount_value
-    INTO waiver, ticket_kind, ticket_value
+    SELECT ticket.tax_waiver_reason
+    INTO waiver
     FROM public.tickets AS ticket
     WHERE ticket.id = p_ticket_id
       AND ticket.session_id = p_session_id
@@ -15276,9 +15291,8 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
-    SELECT mall.tax_bps,
-           (clock_timestamp() AT TIME ZONE mall.time_zone)::date
-    INTO mall_tax, business
+    SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date
+    INTO business
     FROM public.mall AS mall;
 
     SELECT count(*)::integer INTO waiting_count
@@ -15286,40 +15300,24 @@ BEGIN
     WHERE snap.ticket_id = p_ticket_id
       AND snap.status = 'waiting';
 
+    -- The snaps stand while they still say what the register quotes now.
     mismatch := waiting_count IS DISTINCT FROM line_count
         OR EXISTS (
             SELECT 1
-            FROM public.ticket_lines AS tl
-            JOIN public.items AS item ON item.id = tl.item_id
-            LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
-            WHERE tl.ticket_id = p_ticket_id
-              AND NOT EXISTS (
+            FROM public.stall_ticket_quote(p_ticket_id) AS quote
+            WHERE NOT EXISTS (
                   SELECT 1
                   FROM public.register_snaps AS snap
                   WHERE snap.ticket_id = p_ticket_id
                     AND snap.status = 'waiting'
-                    AND snap.line_no = tl.line_no
-                    AND snap.item_id = tl.item_id
-                    AND snap.price_minor = tl.price_minor
-                    AND snap.quantity = tl.quantity
+                    AND snap.line_no = quote.line_no
+                    AND snap.item_id = quote.item_id
+                    AND snap.price_minor = quote.price_minor
+                    AND snap.quantity = quote.quantity
                     AND snap.tax_waiver_reason IS NOT DISTINCT FROM waiver
-                    AND snap.discount_minor = public.stall_line_discount(
-                            p_ticket_id, tl.item_id, ticket_kind, ticket_value
-                        ) + tl.line_discount_minor + tl.offer_discount_minor
-                    AND snap.store_discount_minor = tl.store_discount_minor
-                    AND snap.tax_minor = CASE
-                        WHEN waiver IS NOT NULL OR public.stall_item_tax_exempt(item.id) THEN 0
-                        ELSE public.stall_tax_minor(
-                            tl.price_minor * tl.quantity
-                                - (
-                                    public.stall_line_discount(
-                                        p_ticket_id, tl.item_id, ticket_kind, ticket_value
-                                    ) + tl.line_discount_minor + tl.offer_discount_minor
-                                    + tl.store_discount_minor
-                                ),
-                            mall_tax
-                        )
-                    END
+                    AND snap.discount_minor = quote.discount_minor
+                    AND snap.store_discount_minor = quote.store_discount_minor
+                    AND snap.tax_minor = quote.tax_minor
               )
         );
 
@@ -15338,37 +15336,23 @@ BEGIN
       AND snap.status = 'waiting';
 
     FOR ticket_line IN
-        SELECT tl.line_no,
-               tl.item_id,
-               tl.price_minor,
-               tl.quantity,
-               tl.line_discount_minor,
-               tl.offer_discount_minor,
-               tl.store_discount_minor,
-               public.stall_item_tax_exempt(item.id) AS tax_exempt
-        FROM public.ticket_lines AS tl
-        JOIN public.items AS item ON item.id = tl.item_id
-        LEFT JOIN public.vendors AS vendor ON vendor.id = item.vendor_id
-        WHERE tl.ticket_id = p_ticket_id
-        ORDER BY tl.line_no
+        SELECT quote.line_no,
+               quote.item_id,
+               quote.price_minor,
+               quote.quantity,
+               quote.discount_minor,
+               quote.store_discount_minor,
+               quote.tax_minor
+        FROM public.stall_ticket_quote(p_ticket_id) AS quote
+        ORDER BY quote.line_no
     LOOP
-        vendor_exempt := ticket_line.tax_exempt;
-        line_discount := public.stall_line_discount(
-            p_ticket_id, ticket_line.item_id, ticket_kind, ticket_value
-        ) + ticket_line.line_discount_minor + ticket_line.offer_discount_minor;
+        line_discount := ticket_line.discount_minor;
         line_store := ticket_line.store_discount_minor;
         IF line_discount + line_store > ticket_line.price_minor * ticket_line.quantity THEN
             RAISE EXCEPTION 'a sale discount does not match the ticket'
                 USING ERRCODE = '23514';
         END IF;
-        IF waiver IS NOT NULL OR vendor_exempt THEN
-            line_tax := 0;
-        ELSE
-            line_tax := public.stall_tax_minor(
-                ticket_line.price_minor * ticket_line.quantity - line_discount - line_store,
-                mall_tax
-            );
-        END IF;
+        line_tax := ticket_line.tax_minor;
 
         snap_key := uuidv7()::text;
         INSERT INTO public.register_snaps (
@@ -19278,3 +19262,54 @@ CREATE TRIGGER ticket_lines_price_floor_sealed BEFORE UPDATE OF price_minor, ite
 ALTER TABLE public.ticket_lines ENABLE ALWAYS TRIGGER ticket_lines_price_floor_sealed;
 
 REVOKE ALL ON FUNCTION public.stall_refuse_price_below_floor() FROM PUBLIC;
+
+-- D1 (audit 2026-11-27). The register's figures for an open ticket, line by
+-- line, as the sale will post them: the discount the vendor shares (line,
+-- deal, ticket share and a vendor-absorbed mall-wide sale), the store's own
+-- discount (store deals and a mall-absorbed mall-wide sale), the store take,
+-- and the tax. stall_assert_sale_shape checks a posted sale against the same
+-- rules. PHP shows these figures; it keeps no copy of the math.
+CREATE FUNCTION public.stall_ticket_quote(target_ticket uuid) RETURNS TABLE (
+    line_no integer, item_id uuid, price_minor bigint, quantity integer, commission_bps integer,
+    discount_minor bigint, store_discount_minor bigint, commission_minor bigint, tax_minor bigint, tax_exempt boolean
+)
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    WITH today AS (
+        SELECT (clock_timestamp() AT TIME ZONE mall.time_zone)::date AS on_date, mall.tax_bps AS rate
+        FROM public.mall
+    ),
+    priced AS (
+        SELECT line.line_no AS number, line.item_id AS piece, line.price_minor AS unit, line.quantity AS units,
+               line.price_minor * line.quantity AS extended,
+               line.line_discount_minor + line.offer_discount_minor
+                   + public.stall_line_discount(ticket.id, line.item_id, ticket.discount_kind, ticket.discount_value)
+                   + public.stall_mall_sale_off(line.price_minor * line.quantity, today.on_date, 'vendor') AS taken,
+               line.store_discount_minor
+                   + public.stall_mall_sale_off(line.price_minor * line.quantity, today.on_date, 'mall') AS kept,
+               CASE
+                   WHEN item.placement = 'store' THEN 0
+                   ELSE public.stall_commission_for(item.id, line.price_minor, today.on_date)
+               END AS take_bps,
+               COALESCE(public.stall_item_tax_exempt(item.id), false) AS exempt,
+               ticket.tax_waiver_reason IS NOT NULL AS waived,
+               today.rate
+        FROM public.tickets AS ticket
+        JOIN public.ticket_lines AS line ON line.ticket_id = ticket.id
+        JOIN public.items AS item ON item.id = line.item_id
+        CROSS JOIN today
+        WHERE ticket.id = target_ticket
+    )
+    SELECT number, piece, unit, units, take_bps, taken, kept,
+           public.stall_half_up(extended - taken, take_bps),
+           CASE WHEN exempt OR waived THEN 0 ELSE ((extended - taken - kept) * rate + 50000) / 100000 END,
+           exempt
+    FROM priced
+    ORDER BY number
+$$;
+
+REVOKE ALL ON FUNCTION public.stall_mall_sale_off(bigint, date, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_mall_sale_off(bigint, date, text) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_ticket_quote(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_ticket_quote(uuid) TO stall_poster;

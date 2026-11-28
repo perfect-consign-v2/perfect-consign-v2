@@ -44,20 +44,15 @@ final class LineDiscountShareTest extends TestCase
             $this->item($statements, $firstId, $vendorId, $code . 'a', 300, 'BC-' . $code . 'a');
             $this->item($statements, $secondId, $vendorId, $code . 'b', 700, 'BC-' . $code . 'b');
             $statements->change(
-                'INSERT INTO tickets (id, session_id) VALUES (?::uuid, ?::uuid)',
-                [$ticketId, $sessionId]
+                'INSERT INTO tickets (id, session_id, discount_kind, discount_value, discount_reason) VALUES (?::uuid, ?::uuid, ?, 100, ?)',
+                [$ticketId, $sessionId, 'amount', 'other']
             );
             $statements->change(
                 'INSERT INTO ticket_lines (ticket_id, line_no, item_id, price_minor)
                  VALUES (?::uuid, 1, ?::uuid, 300), (?::uuid, 2, ?::uuid, 700)',
                 [$ticketId, $firstId, $ticketId, $secondId]
             );
-            $lines = (new TicketPricing($statements))->lines($ticketId, 0, [
-                'kind' => 'amount',
-                'value' => 100,
-                'reason' => 'share',
-                'waiver' => '',
-            ]);
+            $lines = (new TicketPricing($statements))->lines($ticketId);
             self::assertCount(2, $lines);
             self::assertSame($this->share($statements, $ticketId, $firstId), $lines[0]['discount']);
             self::assertSame($this->share($statements, $ticketId, $secondId), $lines[1]['discount']);

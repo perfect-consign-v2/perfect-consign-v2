@@ -768,11 +768,7 @@ final class PosMissLinesTest extends TestCase
             self::fail('a missed recall must be refused');
         } catch (DatabaseRefusal) {
         }
-        try {
-            (new TicketQueue(new RoutedStatements($this->createStub(PDO::class)), new TicketPricing(new RoutedStatements($this->createStub(PDO::class)))))->layaways();
-            self::fail('a mall without tax must be refused');
-        } catch (DatabaseRefusal) {
-        }
+        self::assertSame([], (new TicketQueue(new RoutedStatements($this->createStub(PDO::class)), new TicketPricing(new RoutedStatements($this->createStub(PDO::class)))))->layaways());
 
         $book = new LayawayBook(new RoutedStatements($this->createStub(PDO::class)), $sale);
         $bookStatements = new RoutedStatements($this->createStub(PDO::class));
@@ -1335,9 +1331,14 @@ final class CartStatements extends RoutedStatements
                 'item_id' => '01900000-0000-7000-8000-0000000000c3',
                 'price_minor' => $this->badPrice ? 'nope' : 100,
                 'quantity' => 1,
+                'commission_bps' => 0,
+                'discount_minor' => 0,
+                'store_discount_minor' => 0,
+                'commission_minor' => 0,
+                'tax_minor' => 0,
+                'tax_exempt' => 'false',
                 'line_discount_minor' => 0,
                 'offer_discount_minor' => 0,
-                'store_discount_minor' => 0,
                 'offer_name' => '',
                 'code' => str_repeat('A', 41),
                 'description' => '',
@@ -1345,15 +1346,9 @@ final class CartStatements extends RoutedStatements
                 'placement' => 'consigned',
                 'cost_minor' => 0,
                 'vendor_name' => '',
-                'tax_exempt' => false,
                 'line_discount_kind' => '',
                 'line_discount_value' => null,
-                'line_discount_reason' => '',
-                'commission_bps' => 0,
             ]];
-        }
-        if (str_contains($sql, 'stall_line_discount')) {
-            return [['share' => 0]];
         }
         if (str_contains($sql, 'AS balance')) {
             return [['balance' => 0]];

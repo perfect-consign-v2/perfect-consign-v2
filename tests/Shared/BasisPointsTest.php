@@ -24,15 +24,4 @@ final class BasisPointsTest extends TestCase
         self::assertSame(100000, BasisPoints::taxRate('100'));
         self::assertNull(BasisPoints::taxRate('100.001'));
     }
-
-    public function testHalfUpMatchesTheSaleFunction(): void
-    {
-        self::assertSame(200, BasisPoints::halfUp(1000, 2000));
-        self::assertSame(0, BasisPoints::halfUp(1002, 0));
-    }
-
-    public function testTaxMinorRoundsTheHalfMill(): void
-    {
-        self::assertSame(80, BasisPoints::tax(1000, 8000));
-    }
 }

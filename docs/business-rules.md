@@ -212,7 +212,7 @@ Password-reset and receipt emails send in the web request through the mailbox in
 
 The owner can file one plain-text letter to every active consignor with a usable email, or to the ones they check. A missing address and a bounced address are left out. An inactive consignor is left off the list.
 
-A mall-wide sale has a start, an end, a percent, and who absorbs it. The percent cannot exceed 50. Two mall sales cannot overlap on dates. The register applies the event that covers today. Mall adds a store discount. Vendor adds a discount that reduces the vendor's price. Booth, check, and mall-sale posts record who posted them.
+A mall-wide sale has a start, an end, a percent, and who absorbs it. The percent cannot exceed 50. Two mall sales cannot overlap on dates. The register applies the event that covers today. Mall adds a store discount. Vendor adds a discount that reduces the vendor's price. The database works out every register figure (each line's discount, the store's own discount, the store take and the tax, including the mall-wide sale) and checks a posted sale against the same rules; the screen only shows them. Before 2026-11-28 the database left the mall-wide sale out of that check, so a sale rung while one was running was refused. Booth, check, and mall-sale posts record who posted them.
 
 A floor finding is a missing tag or an item that is not where the system says. A pickup records the person and the day the goods went back to the vendor. A tag that is not on the floor is refused.
 

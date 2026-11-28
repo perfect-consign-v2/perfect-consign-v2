@@ -15,10 +15,12 @@ final class TicketPricing
     }
 
     /**
-     * @param array{kind: ?string, value: ?int, reason: string, waiver: string} $adjustment
-     * @return list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, price: int, quantity: int, commission: int, commission_bps: int, tax: int, tax_exempt: bool, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}>
+     * The ticket's lines with the register's figures. The database works out
+     * every amount (stall_ticket_quote); PHP only shows them.
+     *
+     * @return list<array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, placement: string, cost: int, price: int, quantity: int, commission: int, commission_bps: int, tax: int, tax_exempt: bool, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}>
      */
-    public function lines(string $ticketId, int $taxBps, array $adjustment): array
+    public function lines(string $ticketId): array
     {
         $this->statements->change(
             'UPDATE ticket_lines AS line
@@ -30,36 +32,24 @@ final class TicketPricing
             [$ticketId, 'open']
         );
         $rows = $this->statements->bound(
-            'SELECT line.line_no, line.item_id, line.price_minor, line.quantity, line.line_discount_minor,
-                    line.offer_discount_minor, line.store_discount_minor, COALESCE(offer.name, \'\') AS offer_name,
+            'SELECT quote.line_no, quote.item_id, quote.price_minor, quote.quantity, quote.commission_bps,
+                    quote.discount_minor, quote.store_discount_minor, quote.commission_minor, quote.tax_minor,
+                    quote.tax_exempt::text AS tax_exempt,
+                    line.line_discount_minor, line.offer_discount_minor, COALESCE(offer.name, \'\') AS offer_name,
+                    line.line_discount_kind, line.line_discount_value,
                     item.code, item.description, item.vendor_id, item.placement, item.cost_minor,
-                    vendor.name AS vendor_name,
-                    (COALESCE(item.tax_exempt, false) OR COALESCE(vendor.tax_exempt, false)) AS tax_exempt,
-                    line.line_discount_kind, line.line_discount_value, line.line_discount_reason,
-                    CASE
-                        WHEN item.placement = \'store\' THEN 0
-                        ELSE stall_commission_for(item.id, line.price_minor, (clock_timestamp() AT TIME ZONE mall.time_zone)::date)
-                    END AS commission_bps
-             FROM ticket_lines AS line
-             JOIN items AS item ON item.id = line.item_id
+                    vendor.name AS vendor_name
+             FROM stall_ticket_quote(?::uuid) AS quote
+             JOIN ticket_lines AS line ON line.ticket_id = ?::uuid AND line.line_no = quote.line_no
+             JOIN items AS item ON item.id = quote.item_id
              LEFT JOIN vendors AS vendor ON vendor.id = item.vendor_id
-             CROSS JOIN mall
              LEFT JOIN offers AS offer ON offer.id = line.offer_id
-             WHERE line.ticket_id = ?::uuid
-             ORDER BY line.line_no',
-            [$ticketId]
+             ORDER BY quote.line_no',
+            [$ticketId, $ticketId]
         );
-        $event = $this->mallSale();
         $lines = [];
         foreach ($rows as $row) {
-            $lines[] = $this->quote(
-                $row,
-                $taxBps,
-                $this->share($ticketId, RowValue::string($row['item_id'] ?? null), $adjustment),
-                $adjustment['waiver'],
-                $event['percent_bps'],
-                $event['absorbed_by']
-            );
+            $lines[] = $this->shownLine($row);
         }
 
         return $lines;
@@ -123,19 +113,6 @@ final class TicketPricing
         }
     }
 
-    /**
-     * @param array{kind: ?string, value: ?int, reason: string, waiver: string} $adjustment
-     */
-    private function share(string $ticketId, string $itemId, array $adjustment): int
-    {
-        $rows = $this->statements->bound(
-            'SELECT stall_line_discount(?::uuid, ?::uuid, ?, ?) AS share',
-            [$ticketId, $itemId, $adjustment['kind'], $adjustment['value']]
-        );
-
-        return RowValue::integer($rows[0]['share'] ?? null);
-    }
-
     public function recheck(string $ticketId): void
     {
         $this->statements->change(
@@ -145,48 +122,18 @@ final class TicketPricing
     }
 
     /**
-     * @return array{percent_bps: int, absorbed_by: string}
-     */
-    private function mallSale(): array
-    {
-        $rows = $this->statements->rows(
-            "SELECT percent_bps, absorbed_by
-             FROM mall_sales
-             WHERE starts_on <= (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date
-               AND ends_on >= (clock_timestamp() AT TIME ZONE (SELECT time_zone FROM mall))::date
-             ORDER BY starts_on DESC
-             LIMIT 1"
-        );
-        $row = $rows[0] ?? null;
-        if (!is_array($row)) {
-            return ['percent_bps' => 0, 'absorbed_by' => 'vendor'];
-        }
-
-        return [
-            'percent_bps' => RowValue::integer($row['percent_bps'] ?? null),
-            'absorbed_by' => RowValue::string($row['absorbed_by'] ?? null) === 'mall' ? 'mall' : 'vendor',
-        ];
-    }
-
-    /**
      * @param array<string, mixed> $row
      * @return array{line_no: int, item_id: string, code: string, description: string, vendor: string, vendor_id: string, placement: string, cost: int, price: int, quantity: int, commission: int, commission_bps: int, tax: int, tax_exempt: bool, discount: int, store_discount: int, offer_discount: int, offer_name: string, line_discount: int, line_discount_kind: string, line_discount_value: string}
      */
-    private function quote(array $row, int $taxBps, int $discount, string $waiver, int $mallBps, string $absorbed): array
+    private function shownLine(array $row): array
     {
-        $price = RowValue::integer($row['price_minor'] ?? null);
-        $quantity = RowValue::integer($row['quantity'] ?? null);
-        $extended = $price * $quantity;
-        $lineDiscount = RowValue::integer($row['line_discount_minor'] ?? null);
-        $offerDiscount = RowValue::integer($row['offer_discount_minor'] ?? null);
-        $storeDiscount = RowValue::integer($row['store_discount_minor'] ?? null);
-        $mallOff = $mallBps > 0 ? intdiv($extended * $mallBps + 5000, 10000) : 0;
-        $taken = $lineDiscount + $discount + $offerDiscount + ($absorbed === 'mall' ? 0 : $mallOff);
-        $storeDiscount += $absorbed === 'mall' ? $mallOff : 0;
-        $exempt = self::flag($row['tax_exempt'] ?? null);
         $kind = RowValue::optionalString($row['line_discount_kind'] ?? null) ?? '';
         $stored = $row['line_discount_value'] ?? null;
         $raw = $stored === null ? 0 : RowValue::integer($stored);
+        $exempt = RowValue::string($row['tax_exempt'] ?? null);
+        if ($exempt !== 'true' && $exempt !== 'false') {
+            throw new DatabaseRefusal('the register quote is missing');
+        }
 
         return [
             'line_no' => RowValue::integer($row['line_no'] ?? null),
@@ -197,17 +144,17 @@ final class TicketPricing
             'vendor_id' => RowValue::string($row['vendor_id'] ?? null),
             'placement' => is_string($row['placement'] ?? null) ? $row['placement'] : 'consigned',
             'cost' => isset($row['cost_minor']) ? RowValue::integer($row['cost_minor']) : 0,
-            'price' => $price,
-            'quantity' => $quantity,
-            'commission' => TicketQuote::halfUp($extended - $taken, RowValue::integer($row['commission_bps'] ?? null)),
+            'price' => RowValue::integer($row['price_minor'] ?? null),
+            'quantity' => RowValue::integer($row['quantity'] ?? null),
+            'commission' => RowValue::integer($row['commission_minor'] ?? null),
             'commission_bps' => RowValue::integer($row['commission_bps'] ?? null),
-            'tax' => $exempt || $waiver !== '' ? 0 : TicketQuote::tax($extended, $taken + $storeDiscount, $taxBps),
-            'tax_exempt' => $exempt,
-            'discount' => $taken,
-            'store_discount' => $storeDiscount,
-            'offer_discount' => $offerDiscount,
+            'tax' => RowValue::integer($row['tax_minor'] ?? null),
+            'tax_exempt' => $exempt === 'true',
+            'discount' => RowValue::integer($row['discount_minor'] ?? null),
+            'store_discount' => RowValue::integer($row['store_discount_minor'] ?? null),
+            'offer_discount' => RowValue::integer($row['offer_discount_minor'] ?? null),
             'offer_name' => RowValue::string($row['offer_name'] ?? null),
-            'line_discount' => $lineDiscount,
+            'line_discount' => RowValue::integer($row['line_discount_minor'] ?? null),
             'line_discount_kind' => $kind,
             'line_discount_value' => self::shown($kind, $raw),
         ];
@@ -219,11 +166,6 @@ final class TicketPricing
             'UPDATE tickets SET discount_kind = NULL, discount_value = NULL, discount_reason = NULL WHERE id = ?::uuid AND status = ?',
             [$ticketId, 'open']
         );
-    }
-
-    private static function flag(mixed $value): bool
-    {
-        return $value === true || $value === 1 || $value === '1' || $value === 't' || $value === 'true';
     }
 
     private static function shown(string $kind, int $raw): string

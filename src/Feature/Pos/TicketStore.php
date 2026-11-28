@@ -83,7 +83,7 @@ final class TicketStore
         $ticketId = $this->openId($sessionId);
         $postingKey = $ticketId === null ? '' : $this->postingKey($ticketId);
         $adjustment = $ticketId === null ? $this->pricing->emptyAdjustment() : $this->pricing->adjustment($ticketId);
-        $lines = $ticketId === null ? [] : $this->pricing->lines($ticketId, $mall['tax'], $adjustment);
+        $lines = $ticketId === null ? [] : $this->pricing->lines($ticketId);
         $merchandise = 0;
         $discount = 0;
         $tax = 0;

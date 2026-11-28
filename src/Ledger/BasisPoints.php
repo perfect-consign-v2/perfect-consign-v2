@@ -37,14 +37,4 @@ final class BasisPoints
 
         return $millis;
     }
-
-    public static function halfUp(int $amount, int $bps): int
-    {
-        return intdiv($amount * $bps + 5000, self::PERCENT);
-    }
-
-    public static function tax(int $net, int $taxBps): int
-    {
-        return intdiv($net * $taxBps + 50000, self::TAX);
-    }
 }
