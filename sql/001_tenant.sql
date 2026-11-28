@@ -19249,3 +19249,32 @@ REVOKE ALL ON FUNCTION public.stall_received_checks(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_received_checks(text) TO stall_poster;
 REVOKE ALL ON FUNCTION public.stall_return_check(uuid, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_return_check(uuid, date) TO stall_poster;
+
+-- T4 (audit 2026-11-27, closes M3). A price changed on a ticket line never
+-- goes below the item's floor, whoever changes it and however.
+CREATE FUNCTION public.stall_refuse_price_below_floor() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    floor_price bigint;
+BEGIN
+    IF NEW.price_minor IS NOT DISTINCT FROM OLD.price_minor AND NEW.item_id IS NOT DISTINCT FROM OLD.item_id THEN
+        RETURN NEW;
+    END IF;
+    SELECT floor.floor_minor INTO floor_price
+    FROM public.item_floors AS floor
+    WHERE floor.item_id = NEW.item_id;
+    IF floor_price IS NOT NULL AND NEW.price_minor < floor_price THEN
+        RAISE EXCEPTION 'that price is below the item floor'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER ticket_lines_price_floor_sealed BEFORE UPDATE OF price_minor, item_id ON public.ticket_lines FOR EACH ROW EXECUTE FUNCTION public.stall_refuse_price_below_floor();
+
+ALTER TABLE public.ticket_lines ENABLE ALWAYS TRIGGER ticket_lines_price_floor_sealed;
+
+REVOKE ALL ON FUNCTION public.stall_refuse_price_below_floor() FROM PUBLIC;

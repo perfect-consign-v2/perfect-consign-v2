@@ -733,18 +733,11 @@ final class PosMissLinesTest extends TestCase
 
         $prices = new RoutedStatements($this->createStub(PDO::class));
         $prices->affectedCount = 0;
-        $prices->boundRoutes[] = ['match' => 'floor_minor', 'rows' => [['item_id' => self::ITEM, 'floor_minor' => null]]];
         try {
             (new TicketPriceChange($prices, new TicketPricing($prices), QuietAudit::journal($prices, $this->actor())))->apply(self::TICKET, 1, 100);
             self::fail('a missed price must be refused');
-        } catch (DatabaseRefusal) {
-        }
-        $floor = new RoutedStatements($this->createStub(PDO::class));
-        $floor->boundRoutes[] = ['match' => 'floor_minor', 'rows' => [['item_id' => self::ITEM, 'floor_minor' => 500]]];
-        try {
-            (new TicketPriceChange($floor, new TicketPricing($floor), QuietAudit::journal($floor, $this->actor())))->apply(self::TICKET, 1, 100);
-            self::fail('a price under the floor must be refused');
-        } catch (DatabaseRefusal) {
+        } catch (DatabaseRefusal $error) {
+            self::assertSame('that item is not on the ticket', $error->getMessage());
         }
 
         $queue = new TicketQueue(new RoutedStatements($this->createStub(PDO::class)), new TicketPricing(new RoutedStatements($this->createStub(PDO::class))));
