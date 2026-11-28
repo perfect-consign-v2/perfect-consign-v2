@@ -110,7 +110,7 @@ final class PosPageGapTest extends TestCase
                 new SaleReceipt($door->ledger, $statements),
                 new ReceiptChange(),
                 new SaleTicketAttach($statements),
-                new SaleReversal($door->ledger, $statements, $ceiling, new VendorClawback($door->ledger, $statements)),
+                new SaleReversal($door->ledger, $statements, $ceiling, new VendorClawback($door->postings, $statements)),
                 QuietAudit::make($statements),
             ),
             $payouts,

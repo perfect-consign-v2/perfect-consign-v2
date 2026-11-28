@@ -116,7 +116,7 @@ final class VoidSecondSignatureTest extends TestCase
                     QuietAudit::journal($statements, $cashierActor),
                     $this->request(),
                 ),
-                new VendorClawback($ledger, $statements),
+                new VendorClawback($this->createStub(\PerfectConsign\Ledger\PostingFunctions::class), $statements),
             );
             try {
                 $reversals->voidSale($sessionId, $date, $saleId, '', '');

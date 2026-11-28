@@ -1,6 +1,6 @@
 -- Vendor clawback: return/void after payout posts receivable; apply at payout.
--- App path named for obligations: reclass( openReceivable( openPayable( apply(
--- clawbackBeforeVoid( giveBack( — SQL mirrors those posts.
+-- The app asks the database: stall_clawback_reclass before a void,
+-- stall_clawback_apply at payout, stall_clawback_due for what can be taken.
 -- One transaction, then ROLLBACK. Expected refusals are caught.
 
 BEGIN;
@@ -775,6 +775,195 @@ BEGIN
             NULL;
     END;
     RESET ROLE;
+END $$;
+
+-- T5: the database works out and posts clawbacks itself. Vendor Fern is paid
+-- for a sale, the sale is voided, and her next sale pays it back at payout.
+SELECT stall_seed_vendor('01900000-0000-7000-8000-00000000f103', 'fern', 'Fern', 'Back');
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, commission_bps, quantity)
+VALUES
+    ('01900000-0000-7000-8000-00000000f204', 'Lamp', '01900000-0000-7000-8000-00000000f103', 'Brass lamp', 4000, 'BC-CLAW-LAMP', DATE '2094-05-01', 0, 1),
+    ('01900000-0000-7000-8000-00000000f205', 'Vase', '01900000-0000-7000-8000-00000000f103', 'Glass vase', 1500, 'BC-CLAW-VASE', DATE '2094-05-01', 0, 1);
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES
+    ('01900000-0000-7000-8000-00000000f501', '01900000-0000-7000-8000-000000000001', 'sale:fern-lamp', '2094-05-01', '2094-05-01 12:00:00+00',
+     '01900000-0000-7000-8000-00000000f021', 'USD', 'sale', 'fern-lamp', 'Lamp sale', 4000, 4000),
+    ('01900000-0000-7000-8000-00000000f502', '01900000-0000-7000-8000-000000000001', 'check_disbursement:fern-lamp:01900000-0000-7000-8000-00000000f103',
+     '2094-05-01', '2094-05-01 13:00:00+00', '01900000-0000-7000-8000-00000000f021', 'USD', 'check_disbursement',
+     '01900000-0000-7000-8000-00000000f103', 'Pay Fern', 4000, 4000);
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    ('01900000-0000-7000-8000-00000000f501', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 4000, 0, NULL, NULL),
+    ('01900000-0000-7000-8000-00000000f501', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 0, 4000, 'vendor', '01900000-0000-7000-8000-00000000f103'),
+    ('01900000-0000-7000-8000-00000000f502', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000014', 4000, 0, 'vendor', '01900000-0000-7000-8000-00000000f103'),
+    ('01900000-0000-7000-8000-00000000f502', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000011', 0, 4000, NULL, NULL);
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-00000000f501', 1, '01900000-0000-7000-8000-00000000f204', 4000, 0, 0);
+INSERT INTO register_session_posts (session_id, journal_id) VALUES ('01900000-0000-7000-8000-00000000f022', '01900000-0000-7000-8000-00000000f501');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+DO $$
+DECLARE
+    attempt text;
+    wanted text;
+    attempts text[][] := ARRAY[
+        ['SELECT stall_clawback_apply(''01900000-0000-7000-8000-00000000f103'', ''run-fern'', DATE ''2094-05-02'')', 'There is no clawback to take out of this payout.'],
+        ['SELECT stall_clawback_apply(''01900000-0000-7000-8000-00000000f103'', ''Run Fern'', DATE ''2094-05-02'')', 'a clawback names its payout'],
+        ['SELECT stall_clawback_apply(''01900000-0000-7000-8000-00000000f1ff'', ''run-fern'', DATE ''2094-05-02'')', 'That vendor was not found.'],
+        ['SELECT stall_clawback_reclass(''01900000-0000-7000-8000-00000000f502'', DATE ''2094-05-02'')', 'that sale was not found'],
+        ['CREATE OR REPLACE FUNCTION stall_clawback_due(uuid) RETURNS bigint LANGUAGE sql AS ''SELECT 0::bigint''', 'permission denied'],
+        ['DROP FUNCTION stall_clawback_apply(uuid, text, date)', 'must be owner'],
+        ['ALTER FUNCTION stall_clawback_reclass(uuid, date) SECURITY INVOKER', 'must be owner']
+    ];
+    i integer;
+BEGIN
+    SET LOCAL ROLE stall_poster;
+    IF stall_clawback_due('01900000-0000-7000-8000-00000000f103') <> 0 THEN
+        RAISE EXCEPTION 'a paid-out vendor with nothing owed back has a clawback due';
+    END IF;
+    FOR i IN 1 .. array_length(attempts, 1) LOOP
+        attempt := attempts[i][1];
+        wanted := attempts[i][2];
+        BEGIN
+            EXECUTE attempt;
+            RAISE EXCEPTION 'accepted: %', attempt;
+        EXCEPTION
+            WHEN OTHERS THEN
+                IF SQLERRM NOT LIKE '%' || wanted || '%' THEN
+                    RAISE EXCEPTION '% was refused for the wrong reason: %', attempt, SQLERRM;
+                END IF;
+        END;
+    END LOOP;
+    -- Before the void: Fern was paid the $40.00, so all of it is owed back.
+    IF stall_clawback_reclass('01900000-0000-7000-8000-00000000f501', DATE '2094-05-02') <> 1 THEN
+        RAISE EXCEPTION 'the void did not move the paid-out share to owed back';
+    END IF;
+    RESET ROLE;
+    IF stall_vendor_open_clawback('01900000-0000-7000-8000-00000000f103') <> 4000 THEN
+        RAISE EXCEPTION 'the reclass did not move $40.00';
+    END IF;
+END $$;
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor,
+    is_reversal, reverses_journal_id
+) VALUES (
+    '01900000-0000-7000-8000-00000000f503', '01900000-0000-7000-8000-000000000001', 'reversal:01900000-0000-7000-8000-00000000f501',
+    '2094-05-02', '2094-05-02 12:05:00+00', '01900000-0000-7000-8000-00000000f021', 'USD', 'sale', 'fern-lamp:void', 'Void lamp', 4000, 4000,
+    true, '01900000-0000-7000-8000-00000000f501'
+);
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    ('01900000-0000-7000-8000-00000000f503', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 0, 4000, NULL, NULL),
+    ('01900000-0000-7000-8000-00000000f503', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 4000, 0, 'vendor', '01900000-0000-7000-8000-00000000f103');
+INSERT INTO register_session_posts (session_id, journal_id) VALUES ('01900000-0000-7000-8000-00000000f022', '01900000-0000-7000-8000-00000000f503');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+-- Her next sale credits $15.00.
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-00000000f504', '01900000-0000-7000-8000-000000000001', 'sale:fern-vase', '2094-05-03', '2094-05-03 12:00:00+00',
+    '01900000-0000-7000-8000-00000000f021', 'USD', 'sale', 'fern-vase', 'Vase sale', 1500, 1500
+);
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    ('01900000-0000-7000-8000-00000000f504', '01900000-0000-7000-8000-000000000001', 1, '01900000-0000-7000-8000-000000000010', 1500, 0, NULL, NULL),
+    ('01900000-0000-7000-8000-00000000f504', '01900000-0000-7000-8000-000000000001', 2, '01900000-0000-7000-8000-000000000014', 0, 1500, 'vendor', '01900000-0000-7000-8000-00000000f103');
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-00000000f504', 1, '01900000-0000-7000-8000-00000000f205', 1500, 0, 0);
+INSERT INTO register_session_posts (session_id, journal_id) VALUES ('01900000-0000-7000-8000-00000000f022', '01900000-0000-7000-8000-00000000f504');
+
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+
+-- A hand-built clawback must name its vendor, and a reclass may move no more
+-- than the sale credited that vendor.
+DO $$
+DECLARE
+    attempt record;
+BEGIN
+    FOR attempt IN
+        SELECT * FROM (VALUES
+            ('clawback_apply', 'run-x:01900000-0000-7000-8000-00000000f101', 100::bigint, 'a clawback names its vendor'),
+            ('clawback_reclass', '01900000-0000-7000-8000-00000000f504:01900000-0000-7000-8000-00000000f103', 1501::bigint, 'a clawback reclass moves no more than the sale credited'),
+            ('clawback_reclass', '01900000-0000-7000-8000-00000000f502:01900000-0000-7000-8000-00000000f103', 100::bigint, 'a clawback reclass moves no more than the sale credited')
+        ) AS listed (kind, reference, amount, wanted)
+    LOOP
+        BEGIN
+            INSERT INTO journals (
+                id, book_id, posting_key, posting_date, occurred_at, period_id,
+                currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+            ) VALUES (
+                '01900000-0000-7000-8000-00000000f5a1', '01900000-0000-7000-8000-000000000001', attempt.kind || ':' || attempt.reference,
+                '2094-05-03', '2094-05-03 13:00:00+00', '01900000-0000-7000-8000-00000000f021', 'USD', attempt.kind, attempt.reference,
+                'Hand-built clawback', attempt.amount, attempt.amount
+            );
+            INSERT INTO journal_lines (
+                journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+            ) VALUES
+                ('01900000-0000-7000-8000-00000000f5a1', '01900000-0000-7000-8000-000000000001', 1,
+                 CASE attempt.kind WHEN 'clawback_apply' THEN '01900000-0000-7000-8000-000000000014'::uuid ELSE '01900000-0000-7000-8000-00000000002e'::uuid END,
+                 attempt.amount, 0, 'vendor', '01900000-0000-7000-8000-00000000f103'),
+                ('01900000-0000-7000-8000-00000000f5a1', '01900000-0000-7000-8000-000000000001', 2,
+                 CASE attempt.kind WHEN 'clawback_apply' THEN '01900000-0000-7000-8000-00000000002e'::uuid ELSE '01900000-0000-7000-8000-000000000014'::uuid END,
+                 0, attempt.amount, 'vendor', '01900000-0000-7000-8000-00000000f103');
+            SET CONSTRAINTS ALL IMMEDIATE;
+            RAISE EXCEPTION 'accepted a hand-built % for %', attempt.kind, attempt.reference;
+        EXCEPTION
+            WHEN check_violation THEN
+                IF SQLERRM <> attempt.wanted THEN
+                    RAISE EXCEPTION '% % was refused for the wrong reason: %', attempt.kind, attempt.reference, SQLERRM;
+                END IF;
+        END;
+        SET CONSTRAINTS ALL DEFERRED;
+    END LOOP;
+END $$;
+
+-- At payout the database takes the smaller of what she is owed ($15.00) and
+-- what she owes back ($40.00), once.
+DO $$
+DECLARE
+    posted uuid;
+BEGIN
+    SET LOCAL ROLE stall_poster;
+    IF stall_clawback_due('01900000-0000-7000-8000-00000000f103') <> 1500 THEN
+        RAISE EXCEPTION 'the clawback due is not the smaller balance';
+    END IF;
+    posted := stall_clawback_apply('01900000-0000-7000-8000-00000000f103', 'run-fern', DATE '2094-05-04');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    SET CONSTRAINTS ALL DEFERRED;
+    BEGIN
+        PERFORM stall_clawback_apply('01900000-0000-7000-8000-00000000f103', 'run-fern-2', DATE '2094-05-04');
+        RAISE EXCEPTION 'a second clawback was taken with nothing left to take';
+    EXCEPTION
+        WHEN check_violation THEN
+            IF SQLERRM <> 'There is no clawback to take out of this payout.' THEN
+                RAISE;
+            END IF;
+    END;
+    RESET ROLE;
+    IF stall_vendor_open_payable('01900000-0000-7000-8000-00000000f103') <> 0
+       OR stall_vendor_open_clawback('01900000-0000-7000-8000-00000000f103') <> 2500
+       OR (SELECT posting_key || '/' || posting_date FROM journals WHERE id = posted)
+          <> 'clawback_apply:run-fern:01900000-0000-7000-8000-00000000f103/2094-05-04' THEN
+        RAISE EXCEPTION 'the clawback did not take $15.00 out of the payout';
+    END IF;
 END $$;
 
 -- Item counts (D10): every count change above wrote exactly one row, used by

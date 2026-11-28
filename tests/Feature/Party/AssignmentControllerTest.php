@@ -93,7 +93,7 @@ final class AssignmentControllerTest extends TestCase
         $runs = new PayoutRunStore($door->statements, new OccupiedPack($door->statements));
         $balances = new VendorBalances(
             new PayoutStore($door->pdo, $door->statements, $runs, new PayoutWindow()),
-            new VendorClawback($door->ledger, $door->statements),
+            new VendorClawback($door->postings, $door->statements),
             new VendorYearPaid($door->statements),
             new RentHistory($door->statements),
         );

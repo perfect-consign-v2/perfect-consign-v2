@@ -237,7 +237,7 @@ final class SignedAccountObligationTest extends TestCase
                     new PayoutRunStore($statements, new OccupiedPack($statements)),
                     new PayoutRunLines($statements),
                     QuietAudit::make($statements),
-                    new VendorClawback($ledger, $statements),
+                    new VendorClawback($this->createStub(\PerfectConsign\Ledger\PostingFunctions::class), $statements),
                 ),
                 new \PerfectConsign\Feature\Mall\MallPayoutSettings($statements),
             ),

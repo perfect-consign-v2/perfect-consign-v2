@@ -47,7 +47,7 @@ final class SaleReversal
             &$posted,
         ): void {
             $this->ceiling->second('sale.void', $journalId, $overrideUser, $overridePassword);
-            $this->clawbackBeforeVoid($journalId, $date);
+            $this->clawback->beforeVoid($journalId, $date);
             $posted = $this->ledger->post(new JournalDraft(
                 postingKey: 'reversal:' . $journalId,
                 postingDate: $date,
@@ -191,32 +191,6 @@ final class SaleReversal
         }
 
         return $lines;
-    }
-
-    private function clawbackBeforeVoid(string $journalId, string $date): void
-    {
-        $payableAccount = $this->ledger->roleAccount('vendor_payable');
-        $needed = [];
-        foreach ($this->ledger->lines($journalId) as $line) {
-            if (RowValue::string($line['account_id'] ?? null) !== $payableAccount) {
-                continue;
-            }
-            if (RowValue::optionalString($line['subledger_type'] ?? null) !== 'vendor') {
-                continue;
-            }
-            $vendorId = RowValue::optionalString($line['subledger_ref'] ?? null);
-            $credit = RowValue::integer($line['credit_minor'] ?? null);
-            if ($vendorId === null || $credit < 1) {
-                continue;
-            }
-            $needed[$vendorId] = ($needed[$vendorId] ?? 0) + $credit;
-        }
-        foreach ($needed as $vendorId => $amount) {
-            $shortfall = $amount - $this->clawback->openPayable($vendorId);
-            if ($shortfall > 0) {
-                $this->clawback->reclass($vendorId, $shortfall, $date, $journalId);
-            }
-        }
     }
 
     private static function flag(mixed $value): bool

@@ -146,7 +146,7 @@ final class PayoutRunGapTest extends TestCase
         $payouts = new PayoutStore($door->pdo, $door->statements, $runs, $window);
         $lines = new PayoutRunLines($door->statements);
         $audit = QuietAudit::journal($door->statements, $door->actor);
-        $clawback = new VendorClawback($door->ledger, $door->statements);
+        $clawback = new VendorClawback($door->postings, $door->statements);
         $settler = new PayoutSettler($door->ledger, $door->postings, $payouts, $runs, $lines, $audit, $clawback);
         $disburser = new PayoutDisburser($door->ledger, $payouts, $runs, $lines, new PayoutRunChecks($door->statements), $audit);
         $ceiling = new SaleCeiling($door->statements, $door->actor, QuietAudit::journal($door->statements, $door->actor), $door->app->request());

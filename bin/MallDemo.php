@@ -212,7 +212,7 @@ final class MallDemo
             $this->ledger,
             $this->statements,
             $ceiling,
-            new \PerfectConsign\Feature\Payout\VendorClawback($this->ledger, $this->statements),
+            new \PerfectConsign\Feature\Payout\VendorClawback($this->postings, $this->statements),
         );
         $this->poster = new SalePoster(
             $this->ledger,
@@ -237,7 +237,7 @@ final class MallDemo
             $this->runs,
             $lines,
             $journalAudit,
-            new \PerfectConsign\Feature\Payout\VendorClawback($this->ledger, $this->statements),
+            new \PerfectConsign\Feature\Payout\VendorClawback($this->postings, $this->statements),
         );
         $this->disburser = new PayoutDisburser(
             $this->ledger,

@@ -1258,7 +1258,7 @@ final class PosMissLinesTest extends TestCase
 
     private function reversal(LedgerStore $ledger, \PerfectConsign\Shared\Database\Statements $statements): SaleReversal
     {
-        return new SaleReversal($ledger, $statements, new SaleCeiling($statements, $this->actor(), QuietAudit::journal($statements, $this->actor()), new Request('GET', '/', [], [])), new VendorClawback($ledger, $statements));
+        return new SaleReversal($ledger, $statements, new SaleCeiling($statements, $this->actor(), QuietAudit::journal($statements, $this->actor()), new Request('GET', '/', [], [])), new VendorClawback($this->createStub(\PerfectConsign\Ledger\PostingFunctions::class), $statements));
     }
 
     /**

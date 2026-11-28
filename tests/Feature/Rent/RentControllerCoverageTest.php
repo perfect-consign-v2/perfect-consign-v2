@@ -389,7 +389,7 @@ final class RentControllerCoverageTest extends TestCase
                     new PayoutRunStore($statements, new OccupiedPack($statements)),
                     new PayoutRunLines($statements),
                     QuietAudit::journal($statements, new Actor($app['session'])),
-                    new VendorClawback($ledger, $statements),
+                    new VendorClawback($this->createStub(\PerfectConsign\Ledger\PostingFunctions::class), $statements),
                 ),
                 $settings,
             ),

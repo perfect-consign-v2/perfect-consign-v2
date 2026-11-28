@@ -93,8 +93,7 @@ final class PayoutMissLinesTest extends TestCase
     public function testSettlementLinksAClawbackAndRefusesAShortBooth(): void
     {
         $statements = $this->routed();
-        $statements->boundRoutes[] = ['match' => 'credit_minor - line.debit_minor', 'rows' => [['total' => 8]]];
-        $statements->boundRoutes[] = ['match' => 'debit_minor - line.credit_minor', 'rows' => [['total' => 5]]];
+        $statements->boundRoutes[] = ['match' => 'stall_clawback_due', 'rows' => [['total' => 5]]];
         $statements->boundRoutes[] = ['match' => 'FROM payout_pack', 'rows' => [$this->packRow()]];
         $ledger = $this->ledger();
         $settler = new PayoutSettler(
@@ -104,12 +103,11 @@ final class PayoutMissLinesTest extends TestCase
             new PayoutRunStore($statements, new OccupiedPack($statements)),
             new PayoutRunLines($statements),
             QuietAudit::journal($statements, MallDoor::open($this, new Request('GET', '/', [], []))->actor),
-            new VendorClawback($ledger, $statements),
+            new VendorClawback($this->postings(), $statements),
         );
 
-        $clawback = new VendorClawback($ledger, $statements);
-        self::assertSame('', $clawback->reclass(self::VENDOR, 0, '2026-11-12', self::RUN));
-        self::assertSame(MallDoor::JOURNAL, $clawback->reclass(self::VENDOR, 3, '2026-11-12', self::RUN));
+        $clawback = new VendorClawback($this->postings(), $statements);
+        self::assertSame(1, $clawback->beforeVoid(MallDoor::JOURNAL, '2026-11-12'));
         $settler->close(self::RUN, '2026-11-12');
         $statements->boundRoutes[] = ['match' => 'stall_rent_payment_split', 'rows' => [['assignment_id' => MallDoor::DRAWER, 'amount_minor' => 1]]];
         $this->expectException(DatabaseRefusal::class);
@@ -120,8 +118,7 @@ final class PayoutMissLinesTest extends TestCase
     {
         $statements = $this->routed();
         $statements->boundRoutes = [
-            ['match' => 'credit_minor - line.debit_minor', 'rows' => [['total' => 4]]],
-            ['match' => 'debit_minor - line.credit_minor', 'rows' => [['total' => 4]]],
+            ['match' => 'stall_clawback_due', 'rows' => [['total' => 4]]],
             ['match' => "status = 'draft'", 'rows' => [['id' => self::RUN]]],
             ['match' => 'stall_payout_run_quote', 'rows' => [[
                 'payable' => 4,
@@ -150,7 +147,7 @@ final class PayoutMissLinesTest extends TestCase
                 new PayoutRunStore($statements, new OccupiedPack($statements)),
                 new PayoutRunLines($statements),
                 QuietAudit::journal($statements, MallDoor::open($this, new Request('GET', '/', [], []))->actor),
-                new VendorClawback($this->ledger(), $statements),
+                new VendorClawback($this->postings(), $statements),
             ),
             new PayoutDisburser(
                 $this->ledger(),
@@ -162,7 +159,7 @@ final class PayoutMissLinesTest extends TestCase
             ),
             new PayoutRunLines($statements),
             new PayoutReverser($this->ledger(), $statements, new Actor($this->createStub(Session::class)), QuietAudit::make($statements)),
-            new VendorClawback($this->ledger(), $statements),
+            new VendorClawback($this->postings(), $statements),
         );
 
         self::assertSame(MallDoor::JOURNAL, $single->pay(self::VENDOR, '2026-11-12'));
@@ -327,6 +324,7 @@ final class PayoutMissLinesTest extends TestCase
     {
         $postings = $this->createStub(PostingFunctions::class);
         $postings->method('post')->willReturn(MallDoor::JOURNAL);
+        $postings->method('postBatch')->willReturn(1);
 
         return $postings;
     }
@@ -341,7 +339,7 @@ final class PayoutMissLinesTest extends TestCase
         return new PayoutOnce(
             $runs,
             new PayoutRunSheets($statements),
-            new PayoutSettler($ledger, $this->postings(), new PayoutStore($this->createStub(PDO::class), $statements, $runs, new PayoutWindow()), $runs, $lines, $audit, new VendorClawback($ledger, $statements)),
+            new PayoutSettler($ledger, $this->postings(), new PayoutStore($this->createStub(PDO::class), $statements, $runs, new PayoutWindow()), $runs, $lines, $audit, new VendorClawback($this->postings(), $statements)),
             new PayoutDisburser($ledger, new PayoutStore($this->createStub(PDO::class), $statements, $runs, new PayoutWindow()), $runs, $lines, new PayoutRunChecks($statements), $audit),
             $statements,
             new CheckWords(),
@@ -388,11 +386,11 @@ final class PayoutMissLinesTest extends TestCase
             new PayoutSingle(
                 $statements,
                 $payouts,
-                new PayoutSettler($door->ledger, $door->postings, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::journal($statements, $door->actor), new VendorClawback($door->ledger, $statements)),
+                new PayoutSettler($door->ledger, $door->postings, $payouts, $runs, new PayoutRunLines($statements), QuietAudit::journal($statements, $door->actor), new VendorClawback($door->postings, $statements)),
                 new PayoutDisburser($door->ledger, $payouts, $runs, new PayoutRunLines($statements), new PayoutRunChecks($statements), QuietAudit::journal($statements, $door->actor)),
                 new PayoutRunLines($statements),
                 new PayoutReverser($door->ledger, $statements, $door->actor, QuietAudit::journal($statements, $door->actor)),
-                new VendorClawback($door->ledger, $statements),
+                new VendorClawback($door->postings, $statements),
             ),
             $door->mall,
             new MallClock($door->mall),
@@ -407,7 +405,7 @@ final class PayoutMissLinesTest extends TestCase
         $payouts = new PayoutStore($door->pdo, $door->statements, $runs, $window);
         $lines = new PayoutRunLines($door->statements);
         $audit = QuietAudit::journal($door->statements, $door->actor);
-        $settler = new PayoutSettler($door->ledger, $door->postings, $payouts, $runs, $lines, $audit, new VendorClawback($door->ledger, $door->statements));
+        $settler = new PayoutSettler($door->ledger, $door->postings, $payouts, $runs, $lines, $audit, new VendorClawback($door->postings, $door->statements));
         $disburser = new PayoutDisburser($door->ledger, $payouts, $runs, $lines, new PayoutRunChecks($door->statements), $audit);
         $once = new PayoutOnce($runs, $sheets, $settler, $disburser, $door->statements, new CheckWords(), new RentShortfall($door->statements), new SaleCeiling($door->statements, $door->actor, QuietAudit::journal($door->statements, $door->actor), $door->app->request()));
 

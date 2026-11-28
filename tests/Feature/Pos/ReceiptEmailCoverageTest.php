@@ -340,7 +340,7 @@ final class ReceiptEmailCoverageTest extends TestCase
                 $ledger,
                 $rows,
                 new SaleCeiling($rows, $actor, QuietAudit::journal($rows, $actor), $request),
-                new VendorClawback($ledger, $rows),
+                new VendorClawback($this->createStub(\PerfectConsign\Ledger\PostingFunctions::class), $rows),
             ),
             QuietAudit::make($rows),
         );

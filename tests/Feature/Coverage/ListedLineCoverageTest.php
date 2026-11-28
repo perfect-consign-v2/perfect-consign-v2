@@ -1432,7 +1432,7 @@ final class ListedLineCoverageTest extends TestCase
             $ledger,
             $postings,
             $payouts,
-            new PayoutSettler($ledger, $postings, $payouts, $runs, new \PerfectConsign\Feature\Payout\PayoutRunLines($quoted), QuietAudit::journal($quoted, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $quoted)),
+            new PayoutSettler($ledger, $postings, $payouts, $runs, new \PerfectConsign\Feature\Payout\PayoutRunLines($quoted), QuietAudit::journal($quoted, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($postings, $quoted)),
             new MallPayoutSettings($statements),
         );
     }
@@ -1468,7 +1468,7 @@ final class ListedLineCoverageTest extends TestCase
             $ledger,
             $postings,
             new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()),
-            new PayoutSettler($ledger, $postings, new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), new PayoutRunStore($statements, new OccupiedPack($statements)), new \PerfectConsign\Feature\Payout\PayoutRunLines($statements), QuietAudit::journal($statements, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($ledger, $statements)),
+            new PayoutSettler($ledger, $postings, new PayoutStore($this->createStub(PDO::class), $statements, new PayoutRunStore($statements, new OccupiedPack($statements)), new PayoutWindow()), new PayoutRunStore($statements, new OccupiedPack($statements)), new \PerfectConsign\Feature\Payout\PayoutRunLines($statements), QuietAudit::journal($statements, new Actor($this->createStub(\PerfectApp\Session\Session::class))), new \PerfectConsign\Feature\Payout\VendorClawback($postings, $statements)),
             new MallPayoutSettings($statements),
         );
 

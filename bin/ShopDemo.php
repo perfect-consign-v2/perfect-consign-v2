@@ -94,6 +94,8 @@ final class ShopDemo
 
     private readonly LedgerStore $ledger;
 
+    private readonly PostingFunctions $postings;
+
     private readonly PartyStore $parties;
 
     private readonly TicketStore $tickets;
@@ -139,6 +141,7 @@ final class ShopDemo
         }
         $this->statements = new Statements($pdo);
         $this->ledger = new LedgerStore($pdo, $this->statements, new LedgerPeriods($pdo), new JournalCash($pdo));
+        $this->postings = new PostingFunctions($pdo, new LedgerPeriods($pdo), new JournalCash($pdo));
         $this->session = new \PerfectApp\Session\Session(null, false);
         $request = new \PerfectConsign\Shared\Http\Request('GET', '/', [], []);
         $auditLog = new \PerfectConsign\Bootstrap\AuditLog(
@@ -191,7 +194,7 @@ final class ShopDemo
             $this->ledger,
             $this->statements,
             $ceiling,
-            new \PerfectConsign\Feature\Payout\VendorClawback($this->ledger, $this->statements),
+            new \PerfectConsign\Feature\Payout\VendorClawback($this->postings, $this->statements),
         );
         $this->poster = new SalePoster(
             $this->ledger,
@@ -206,12 +209,12 @@ final class ShopDemo
         $lines = new PayoutRunLines($this->statements);
         $this->settler = new PayoutSettler(
             $this->ledger,
-            new PostingFunctions($pdo, new LedgerPeriods($pdo), new JournalCash($pdo)),
+            $this->postings,
             $payouts,
             $this->runs,
             $lines,
             $journalAudit,
-            new \PerfectConsign\Feature\Payout\VendorClawback($this->ledger, $this->statements),
+            new \PerfectConsign\Feature\Payout\VendorClawback($this->postings, $this->statements),
         );
         $this->disburser = new PayoutDisburser(
             $this->ledger,

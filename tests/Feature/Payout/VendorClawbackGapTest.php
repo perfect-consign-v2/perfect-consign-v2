@@ -5,61 +5,69 @@ declare(strict_types=1);
 namespace PerfectConsign\Tests\Feature\Payout;
 
 use PerfectConsign\Feature\Payout\VendorClawback;
-use PerfectConsign\Ledger\LedgerStore;
+use PerfectConsign\Ledger\PostingFunctions;
 use PerfectConsign\Shared\Database\Statements;
 use PerfectConsign\Tests\Feature\Coverage\MallDoor;
 use PHPUnit\Framework\TestCase;
 
 final class VendorClawbackGapTest extends TestCase
 {
-    public function testAZeroReclassDoesNotPost(): void
+    public function testTheBalancesComeFromTheDatabase(): void
     {
-        $posts = 0;
-        $clawback = $this->clawback(12, 9, $posts);
+        $clawback = new VendorClawback($this->createStub(PostingFunctions::class), $this->balances(12, 9, 9));
 
-        self::assertSame('', $clawback->reclass(MallDoor::VENDOR, 0, '2026-11-12', MallDoor::RUN));
-        self::assertSame(0, $posts);
+        self::assertSame(12, $clawback->openPayable(MallDoor::VENDOR));
+        self::assertSame(9, $clawback->openReceivable(MallDoor::VENDOR));
     }
 
-    public function testReclassAndApplyPostWhenBothSidesAreOpen(): void
+    public function testBeforeAVoidTheDatabasePostsWhatIsOwedBack(): void
     {
-        $posts = 0;
-        $clawback = $this->clawback(12, 9, $posts);
+        $postings = $this->createMock(PostingFunctions::class);
+        $postings->expects(self::once())->method('postBatch')->with(
+            ['2026-11-12'],
+            'stall_clawback_reclass(?::uuid, ?::date)',
+            [MallDoor::JOURNAL, '2026-11-12'],
+        )->willReturn(2);
 
-        self::assertSame(MallDoor::JOURNAL, $clawback->reclass(MallDoor::VENDOR, 4, '2026-11-12', MallDoor::RUN));
-        self::assertSame(MallDoor::JOURNAL, $clawback->apply(MallDoor::VENDOR, '2026-11-12', MallDoor::RUN));
-        self::assertSame(2, $posts);
+        self::assertSame(2, (new VendorClawback($postings, $this->balances(0, 0, 0)))->beforeVoid(MallDoor::JOURNAL, '2026-11-12'));
     }
 
-    public function testApplySkipsWhenNothingIsOpen(): void
+    public function testApplyPostsWhenTheDatabaseSaysSomethingIsDue(): void
     {
-        $posts = 0;
-        $clawback = $this->clawback(0, 0, $posts);
+        $postings = $this->createMock(PostingFunctions::class);
+        $postings->expects(self::once())->method('post')->with(
+            '2026-11-12',
+            'stall_clawback_apply(?::uuid, ?, ?::date)',
+            [MallDoor::VENDOR, MallDoor::RUN, '2026-11-12'],
+        )->willReturn(MallDoor::JOURNAL);
 
-        self::assertSame('', $clawback->apply(MallDoor::VENDOR, '2026-11-12', MallDoor::RUN));
-        self::assertSame(0, $posts);
+        self::assertSame(MallDoor::JOURNAL, (new VendorClawback($postings, $this->balances(12, 9, 9)))->apply(MallDoor::VENDOR, '2026-11-12', MallDoor::RUN));
     }
 
-    private function clawback(int $payable, int $receivable, int &$posts): VendorClawback
+    public function testApplySkipsWhenNothingIsDue(): void
+    {
+        $postings = $this->createMock(PostingFunctions::class);
+        $postings->expects(self::never())->method('post');
+
+        self::assertSame('', (new VendorClawback($postings, $this->balances(0, 0, 0)))->apply(MallDoor::VENDOR, '2026-11-12', MallDoor::RUN));
+    }
+
+    private function balances(int $payable, int $receivable, int $due): Statements
     {
         $statements = $this->createStub(Statements::class);
         $statements->method('bound')->willReturnCallback(
-            static function (string $sql) use ($payable, $receivable): array {
-                if (str_contains($sql, 'credit_minor - line.debit_minor')) {
+            static function (string $sql) use ($payable, $receivable, $due): array {
+                if (str_contains($sql, 'stall_vendor_open_payable')) {
                     return [['total' => $payable]];
                 }
+                if (str_contains($sql, 'stall_vendor_open_clawback')) {
+                    return [['total' => $receivable]];
+                }
 
-                return [['total' => $receivable]];
+                return [['total' => $due]];
             }
         );
-        $ledger = $this->createStub(LedgerStore::class);
-        $ledger->method('roleAccount')->willReturn(MallDoor::ACCOUNT);
-        $ledger->method('post')->willReturnCallback(static function () use (&$posts): string {
-            $posts++;
 
-            return MallDoor::JOURNAL;
-        });
-
-        return new VendorClawback($ledger, $statements);
+        return $statements;
     }
 }

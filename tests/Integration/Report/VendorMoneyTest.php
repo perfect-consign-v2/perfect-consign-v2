@@ -103,7 +103,7 @@ final class VendorMoneyTest extends TestCase
             $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
             $balances = new VendorBalances(
                 new PayoutStore($pdo, $statements, $runs, new PayoutWindow()),
-                new VendorClawback($ledger, $statements),
+                new VendorClawback($postings, $statements),
                 new VendorYearPaid($statements),
                 new RentHistory($statements),
             );

@@ -1193,6 +1193,27 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 
+    -- The entry names the vendor it moves, and a reclass names the sale it
+    -- comes from and moves no more than that vendor was credited on it.
+    IF right(NEW.source_reference, 37) IS DISTINCT FROM ':' || vendor_ref THEN
+        RAISE EXCEPTION 'a clawback names its vendor'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NEW.source_type = 'clawback_reclass' AND receivable_debit > (
+        SELECT COALESCE(sum(line.credit_minor), 0)
+        FROM public.journals AS sale
+        JOIN public.journal_lines AS line ON line.journal_id = sale.id
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'vendor_payable'
+        WHERE sale.id::text = left(NEW.source_reference, 36)
+          AND sale.source_type = 'sale'
+          AND NOT sale.is_reversal
+          AND line.subledger_type = 'vendor'
+          AND line.subledger_ref = vendor_ref
+    ) THEN
+        RAISE EXCEPTION 'a clawback reclass moves no more than the sale credited'
+            USING ERRCODE = '23514';
+    END IF;
+
     RETURN NULL;
 END;
 $$;
@@ -18867,3 +18888,105 @@ REVOKE ALL ON FUNCTION public.stall_missed_sale_quote(uuid, text, bigint) FROM P
 GRANT EXECUTE ON FUNCTION public.stall_missed_sale_quote(uuid, text, bigint) TO stall_poster;
 REVOKE ALL ON FUNCTION public.stall_post_missed_sale(uuid, text, bigint, date, text, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.stall_post_missed_sale(uuid, text, bigint, date, text, text, text) TO stall_poster;
+
+-- T5 (audit 2026-11-27). Clawbacks: the database works out and posts them.
+-- What a vendor owes back that can come out of what the store owes them: the
+-- smaller of the two.
+CREATE FUNCTION public.stall_clawback_due(target_vendor uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'pg_catalog'
+    AS $$
+    SELECT GREATEST(LEAST(public.stall_vendor_open_payable(target_vendor), public.stall_vendor_open_clawback(target_vendor)), 0)::bigint
+$$;
+
+-- At payout: take what the vendor owes back out of what the store owes them.
+-- The run (or a single payout's reference) names the entry, once per vendor.
+CREATE FUNCTION public.stall_clawback_apply(target_vendor uuid, run_ref text, on_date date) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    amount bigint;
+BEGIN
+    IF run_ref IS NULL OR run_ref !~ '^[0-9a-z-]{1,64}$' THEN
+        RAISE EXCEPTION 'a clawback names its payout'
+            USING ERRCODE = '23514';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.vendors WHERE id = target_vendor) THEN
+        RAISE EXCEPTION 'That vendor was not found.'
+            USING ERRCODE = '23514';
+    END IF;
+    -- Exclusive: the two balances cannot move between reading and posting.
+    PERFORM pg_advisory_xact_lock(87401, hashtext(target_vendor::text));
+    amount := public.stall_clawback_due(target_vendor);
+    IF amount < 1 THEN
+        RAISE EXCEPTION 'There is no clawback to take out of this payout.'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN public.stall_post_lines(
+        'clawback_apply:' || run_ref || ':' || target_vendor::text, on_date, 'clawback_apply',
+        run_ref || ':' || target_vendor::text, 'Apply clawback',
+        jsonb_build_array(
+            public.stall_line('vendor_payable', amount, 0, 'vendor', target_vendor::text),
+            public.stall_line('vendor_receivable', 0, amount, 'vendor', target_vendor::text)
+        )
+    );
+END;
+$$;
+
+-- Before a sale is voided: what each vendor was credited on it, less what the
+-- store still owes them, becomes owed back. Returns how many vendors that was.
+CREATE FUNCTION public.stall_clawback_reclass(sale_journal uuid, on_date date) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    AS $$
+DECLARE
+    credited record;
+    shortfall bigint;
+    done integer := 0;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.journals AS sale
+        WHERE sale.id = sale_journal AND sale.source_type = 'sale' AND NOT sale.is_reversal
+    ) THEN
+        RAISE EXCEPTION 'that sale was not found'
+            USING ERRCODE = '23514';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.journals WHERE reverses_journal_id = sale_journal AND is_reversal) THEN
+        RAISE EXCEPTION 'a second void is refused'
+            USING ERRCODE = '23514';
+    END IF;
+    FOR credited IN
+        SELECT line.subledger_ref AS vendor_ref, sum(line.credit_minor)::bigint AS amount
+        FROM public.journal_lines AS line
+        JOIN public.chart_roles AS role ON role.account_id = line.account_id AND role.role = 'vendor_payable'
+        WHERE line.journal_id = sale_journal
+          AND line.subledger_type = 'vendor'
+          AND line.credit_minor > 0
+        GROUP BY line.subledger_ref
+        ORDER BY line.subledger_ref
+    LOOP
+        PERFORM pg_advisory_xact_lock(87401, hashtext(credited.vendor_ref));
+        shortfall := credited.amount - GREATEST(public.stall_vendor_open_payable(credited.vendor_ref::uuid), 0);
+        IF shortfall > 0 THEN
+            PERFORM public.stall_post_lines(
+                'clawback_reclass:' || sale_journal::text || ':' || credited.vendor_ref, on_date, 'clawback_reclass',
+                sale_journal::text || ':' || credited.vendor_ref, 'Clawback after payout',
+                jsonb_build_array(
+                    public.stall_line('vendor_receivable', shortfall, 0, 'vendor', credited.vendor_ref),
+                    public.stall_line('vendor_payable', 0, shortfall, 'vendor', credited.vendor_ref)
+                )
+            );
+            done := done + 1;
+        END IF;
+    END LOOP;
+    RETURN done;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.stall_clawback_due(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_clawback_due(uuid) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_clawback_apply(uuid, text, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_clawback_apply(uuid, text, date) TO stall_poster;
+REVOKE ALL ON FUNCTION public.stall_clawback_reclass(uuid, date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.stall_clawback_reclass(uuid, date) TO stall_poster;

@@ -52,7 +52,7 @@ final class PayoutRunTest extends TestCase
         $runs = new PayoutRunStore($statements, new OccupiedPack($statements));
         $payouts = new PayoutStore($pdo, $statements, $runs, new PayoutWindow());
         $lines = new PayoutRunLines($statements);
-        $settler = new PayoutSettler($ledger, $postings, $payouts, $runs, $lines, $audit, new VendorClawback($ledger, $statements));
+        $settler = new PayoutSettler($ledger, $postings, $payouts, $runs, $lines, $audit, new VendorClawback($postings, $statements));
         $disburser = new PayoutDisburser($ledger, $payouts, $runs, $lines, new PayoutRunChecks($statements), $audit);
         $reverser = new PayoutReverser($ledger, $statements, $actor, $audit);
         $purchases = new StorePurchase($ledger);
@@ -241,7 +241,7 @@ final class PayoutRunTest extends TestCase
                 self::assertTrue(true);
             }
             // pay( pastWith( lastUndone(
-            $singlePayout = new PayoutSingle($statements, $payouts, $settler, $disburser, $lines, $reverser, new VendorClawback($ledger, $statements));
+            $singlePayout = new PayoutSingle($statements, $payouts, $settler, $disburser, $lines, $reverser, new VendorClawback($postings, $statements));
             self::assertNull($singlePayout->lastUndone($vendorId));
             $single = $singlePayout->beginSingle($date);
             $lines->vendorLine($single, $vendorId);

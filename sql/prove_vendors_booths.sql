@@ -853,19 +853,56 @@ END $$;
 
 SET CONSTRAINTS ALL DEFERRED;
 
+-- A sale credits her $5.00 and a clawback reclass on that sale moves $5.00 to
+-- what she owes back; a second memo leaves her payout balance at zero.
+INSERT INTO items (id, code, vendor_id, description, price_minor, barcode, intake_on, quantity, commission_bps)
+VALUES ('01900000-0000-7000-8000-000000000c31', 'claw-piece', '01900000-0000-7000-8000-000000000103', 'Claw piece', 500, 'BC-CLAW-PIECE', DATE '2026-03-01', 1, 0);
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000408',
+    '01900000-0000-7000-8000-000000000001',
+    'sale:prove-claw',
+    '2026-03-05',
+    '2026-03-05 11:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'sale',
+    'prove-claw',
+    'Claw piece sale',
+    500,
+    500
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    ('01900000-0000-7000-8000-000000000408', '01900000-0000-7000-8000-000000000001', 1,
+     '01900000-0000-7000-8000-000000000010', 500, 0, NULL, NULL),
+    ('01900000-0000-7000-8000-000000000408', '01900000-0000-7000-8000-000000000001', 2,
+     '01900000-0000-7000-8000-000000000014', 0, 500, 'vendor', '01900000-0000-7000-8000-000000000103');
+
+INSERT INTO sale_lines (journal_id, line_no, item_id, price_minor, commission_minor, tax_minor)
+VALUES ('01900000-0000-7000-8000-000000000408', 1, '01900000-0000-7000-8000-000000000c31', 500, 0, 0);
+
+INSERT INTO register_session_posts (session_id, journal_id)
+VALUES ('01900000-0000-7000-8000-000000000d23', '01900000-0000-7000-8000-000000000408');
+
 INSERT INTO journals (
     id, book_id, posting_key, posting_date, occurred_at, period_id,
     currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
 ) VALUES (
     '01900000-0000-7000-8000-000000000407',
     '01900000-0000-7000-8000-000000000001',
-    'clawback_reclass:prove-claw',
+    'clawback_reclass:01900000-0000-7000-8000-000000000408:01900000-0000-7000-8000-000000000103',
     '2026-03-05',
     '2026-03-05 12:00:00+00',
     '01900000-0000-7000-8000-000000000021',
     'USD',
     'clawback_reclass',
-    'prove-claw',
+    '01900000-0000-7000-8000-000000000408:01900000-0000-7000-8000-000000000103',
     'Move what the vendor owes to their receivable',
     500,
     500
@@ -878,6 +915,35 @@ INSERT INTO journal_lines (
      '01900000-0000-7000-8000-00000000002e', 500, 0, 'vendor', '01900000-0000-7000-8000-000000000103'),
     ('01900000-0000-7000-8000-000000000407', '01900000-0000-7000-8000-000000000001', 2,
      '01900000-0000-7000-8000-000000000014', 0, 500, 'vendor', '01900000-0000-7000-8000-000000000103');
+
+INSERT INTO journals (
+    id, book_id, posting_key, posting_date, occurred_at, period_id,
+    currency, source_type, source_reference, description, debit_total_minor, credit_total_minor
+) VALUES (
+    '01900000-0000-7000-8000-000000000409',
+    '01900000-0000-7000-8000-000000000001',
+    'vendor-memo:claw-paid',
+    '2026-03-05',
+    '2026-03-05 13:00:00+00',
+    '01900000-0000-7000-8000-000000000021',
+    'USD',
+    'vendor_memo',
+    'claw-paid',
+    'What the reclass left on her payout balance',
+    500,
+    500
+);
+
+INSERT INTO journal_lines (
+    journal_id, book_id, line_no, account_id, debit_minor, credit_minor, subledger_type, subledger_ref
+) VALUES
+    ('01900000-0000-7000-8000-000000000409', '01900000-0000-7000-8000-000000000001', 1,
+     '01900000-0000-7000-8000-000000000014', 500, 0, 'vendor', '01900000-0000-7000-8000-000000000103'),
+    ('01900000-0000-7000-8000-000000000409', '01900000-0000-7000-8000-000000000001', 2,
+     '01900000-0000-7000-8000-000000000029', 0, 500, NULL, NULL);
+
+INSERT INTO vendor_memos (journal_id, vendor_id, direction, amount_minor, reason)
+VALUES ('01900000-0000-7000-8000-000000000409', '01900000-0000-7000-8000-000000000103', 'debit', 500, 'A second sign we made for her');
 
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;

@@ -422,7 +422,7 @@ final class RemainingLinesTest extends TestCase
             $ledger,
             $statements,
             new SaleCeiling($statements, $actor, QuietAudit::journal($statements, $actor, $signed), new Request('GET', '/', [], [])),
-            new VendorClawback($ledger, $statements),
+            new VendorClawback($this->createStub(\PerfectConsign\Ledger\PostingFunctions::class), $statements),
         );
         self::assertSame(MallDoor::JOURNAL, $reversal->voidSale(MallDoor::DRAWER, '2026-11-12', MallDoor::JOURNAL));
 
@@ -438,7 +438,7 @@ final class RemainingLinesTest extends TestCase
                 $broken,
                 $statements,
                 new SaleCeiling($statements, $door->actor, QuietAudit::journal($statements, $door->actor), new Request('GET', '/', [], [])),
-                new VendorClawback($broken, $statements),
+                new VendorClawback($this->createStub(\PerfectConsign\Ledger\PostingFunctions::class), $statements),
             ),
             QuietAudit::make($statements),
         );
