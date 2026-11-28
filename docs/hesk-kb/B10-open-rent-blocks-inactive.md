@@ -27,6 +27,7 @@ Pressing Make inactive on a vendor.
   - They owe money from returns (clawback).
   - The store owes them money.
   - Their payout balance is below zero.
+  - They have paid ahead for a booth that has not started.
   - The store still holds a booth deposit for them.
   - They still have a booth today or later ("End it first.").
 - Example: "Ada Lane can't be made inactive yet. They owe $100.00 in rent. They still have a booth. End it first."

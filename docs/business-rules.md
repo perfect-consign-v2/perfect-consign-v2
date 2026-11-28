@@ -54,6 +54,14 @@ The rent page lists one row per stay per rent period, built by the database, plu
 
 A rent charge for the period a vendor moves in counts the days from the start date through the end of that period, and the amount truncates toward zero. Collect rent names those dates on that charge. A full period shows its charge date. A rent charge for a period the vendor leaves is the full period. Sales can pay that period's rent only up to what the vendor earned. Anything sales do not cover stays receivable and is collected at the register.
 
+Assigning a booth takes its first rent at the desk, at the moment it is assigned, whatever the start date. The person chooses the booth, the start date (and an end date if there is one), sees "Due now: $50.00 (full month, starts 12-01-2026)" or "Due now: $24.19 (11-17-2026 to 11-30-2026)", then takes it by cash, card, or check (with its number) on the open register. A start on the cycle day is a full period; any other start is prorated from the start date to the end of that period. A start before the first day of the current rent period is refused ("The start date can't be before 11-01-2026."). A booth that starts in the current period is charged and paid at once. A booth that starts in a later period is paid ahead: the money is held for the vendor (rent paid in advance), the vendor page and booth show "Reserved: paid $50.00 for 12-01-2026", and when that period arrives the nightly run charges the first rent and pays it from the money held. Charging that first month by hand applies the money held too, so it is never collected twice. A second booth is paid the same way. Money paid ahead keeps the vendor from being made Inactive.
+
+Ending a booth sets its last day and posts nothing; the month it ends in stays full rent. Ending twice, or before the start, is refused. A move is two ordinary steps: end the old booth, add the new one. Nothing carries over.
+
+Only the owner cancels a reservation, before it starts, with a reason. Refund gives back exactly what was paid ahead on the open register; Keep moves it to forfeited reservation income. The stay never begins: it holds no booth, is never charged, and leaves the booth free for those dates. A booth that has started is ended, not cancelled.
+
+Stays from before the current rent period (an import of past history, the demo's history, test fixtures) are loaded directly; the desk itself only assigns through the database function.
+
 A rent payment is split across the vendor's stays by the database. The stay with the oldest unpaid charge is paid first. Inside one stay, rent is paid before late fees. A payment cannot be more than the rent they owe. A credit on one stay pays only charges on that same stay.
 
 ## Payouts

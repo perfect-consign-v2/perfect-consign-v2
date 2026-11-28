@@ -505,6 +505,7 @@ final class OwnerJourneyTest extends WebTestCase
             'booth_id' => $boothId,
             'vendor_id' => $vendorId,
             'starts_on' => self::thisMonthStart($this->client, ProbeMall::SLUG),
+            'rent' => '60.00',
         ], 'cash');
 
         self::assertSame(200, $assigned->status);

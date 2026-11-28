@@ -147,6 +147,12 @@ if (trim(value($schema, "SELECT active::text || ',' || stall_vendor_open_rent('0
     fail('a charge that waited for Make inactive did not post on the departed vendor');
 }
 
+execSql($schema, "SELECT stall_seed_vendor('01900000-0000-7000-8000-0000000009b0', 'race-desk-a', 'Race', 'Desk A'); SELECT stall_seed_vendor('01900000-0000-7000-8000-0000000009b1', 'race-desk-b', 'Race', 'Desk B'); INSERT INTO booths (id, code, name) VALUES ('01900000-0000-7000-8000-0000000009b4', 'RD', 'Race desk booth')");
+race($schema, $sql, 'prove_race_assign_a.sql', 'prove_race_assign_b.sql', true, 'That booth is already taken on those dates.', false);
+if (trim(value($schema, "SELECT count(*) FROM booth_assignments WHERE booth_id = '01900000-0000-7000-8000-0000000009b4'")) !== '1') {
+    fail('two desks took the same booth for the same dates');
+}
+
 $left = trim(value($schema, "SELECT (SELECT count(*) FROM journals WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM vendors WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM booths WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM accounting_periods WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM brands WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM items WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM wait_list WHERE party_id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM register_sessions WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%') || ',' || (SELECT count(*) FROM tickets WHERE id::text LIKE '01900000-0000-7000-8000-00000000d%')"));
 if ($left !== '0,0,0,0,0,0,0,0,0') {
     fail('race proof left rows: ' . $left);
