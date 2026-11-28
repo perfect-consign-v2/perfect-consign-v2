@@ -479,6 +479,14 @@ final class OwnerActionSweep
         $stay = ['booth_id' => $deskId, 'vendor_id' => $this->otherVendorId, 'starts_on' => $month[1] . '-01'];
         $this->http->post('/assignments', $stay, ['Due now: $25.00']);
         $this->http->post('/assignments', $stay + ['pay_with' => 'card'], ['Booth assigned.']);
+        $later = 'b' . $this->tag();
+        $this->http->post('/booths', ['code' => $later, 'name' => $later, 'amount' => '25.00'], ['Booth created.']);
+        $laterId = $this->safeId($this->http->get('/booths', [$later])->body, 'tr', 'booth', $later, 'reserved booth');
+        $next = (new \DateTimeImmutable($month[1] . '-01'))->modify('+2 months')->format('Y-m-d');
+        $reserve = ['booth_id' => $laterId, 'vendor_id' => $this->otherVendorId, 'starts_on' => $next, 'pay_with' => 'card'];
+        $reserved = $this->http->post('/assignments', $reserve, ['Booth assigned.']);
+        $held = $this->http->id($reserved->body, '#/assignments/([0-9a-fA-F-]{36})/cancel#', 'reservation');
+        $this->http->post('/assignments/' . $held . '/cancel', ['outcome' => 'keep', 'reason' => 'Changed their mind'], ['Reservation cancelled. The store kept the payment.']);
     }
 
     private function inventory(): void
