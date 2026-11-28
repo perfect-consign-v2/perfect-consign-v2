@@ -287,13 +287,10 @@ final class UserActionCest
     {
         $client = $this->owner($I);
         $refused = $client->post($this->path('/rent/charge'), [
-            'booth_id' => '00000000-0000-0000-0000-000000000000',
-            'posting_date' => ProbeMall::POSTING_DATE,
+            'assignment_id' => '00000000-0000-0000-0000-000000000000',
+            'period_start' => substr(ProbeMall::POSTING_DATE, 0, 8) . '01',
         ]);
-        $I->assertStringContainsString(
-            'a rent charge requires an assignment that covers the charge date',
-            $refused->body
-        );
+        $I->assertStringContainsString('Choose a booth to charge.', $refused->body);
         $I->assertStringNotContainsString('Rent charged.', $refused->body);
     }
 

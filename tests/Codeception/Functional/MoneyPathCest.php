@@ -101,14 +101,17 @@ final class MoneyPathCest
             'starts_on' => ProbeMall::PERIOD_START,
             'ends_on' => '',
         ]);
+        $book = $client->get('/' . $slug . '/rent?month=' . ProbeMall::MONTH);
+        $button = '/data-charge-stay="([0-9a-f-]{36})"\s+data-charge-period="(\d{4}-\d{2}-\d{2})"[^>]*data-charge-code="'
+            . preg_quote($boothCode, '/') . '"/';
+        $I->assertSame(1, preg_match($button, $book->body, $stay), 'the rent page has no Charge button for the booth');
         $charged = $client->post('/' . $slug . '/rent/charge', [
-            'booth_id' => $boothId,
-            'posting_date' => ProbeMall::POSTING_DATE,
-            'month' => ProbeMall::MONTH,
+            'assignment_id' => $stay[1],
+            'period_start' => $stay[2],
         ], 120);
         $I->assertStringContainsString('Charged', $charged->body);
         $I->assertSame(1, preg_match(
-            '#id="booth-' . preg_quote($boothId, '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
+            '#id="rent-' . preg_quote($stay[1] . ':' . $stay[2], '#') . '".*?/journals/([0-9a-fA-F-]{36})#s',
             $charged->body,
             $journalId
         ));
